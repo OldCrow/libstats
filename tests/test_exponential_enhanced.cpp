@@ -1,13 +1,13 @@
-#include <iostream>
+#include <gtest/gtest.h>
 #include <vector>
 #include <iomanip>
 #include <random>
 #include <algorithm>
 #include <numeric>
 #include <chrono>
-#include <cassert>
 #include <cmath>
 #include <thread>
+#include <iostream>
 
 // Include the enhanced Exponential distribution
 #include "exponential.h"
@@ -35,33 +35,33 @@ pair<double, double> calculateSampleStats(const vector<double>& samples) {
     return {mean, variance};
 }
 
-// Test basic functionality
-void testBasicFunctionality() {
-    cout << "\n=== Testing Basic Functionality ===" << endl;
+class ExponentialDistributionEnhancedTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Common setup for tests
+    }
     
+    void TearDown() override {
+        // Common cleanup for tests
+    }
+};
+
+// Test basic functionality
+TEST_F(ExponentialDistributionEnhancedTest, BasicFunctionality) {
     // Test 1: Unit exponential distribution (λ = 1)
-    cout << "1. Unit Exponential Distribution Exp(1):" << endl;
     auto unitExpResult = ExponentialDistribution::create(1.0);
-    assert(unitExpResult.isOk());
+    ASSERT_TRUE(unitExpResult.isOk()) << "Failed to create unit exponential distribution";
     auto unitExp = std::move(unitExpResult.value);
     
-    cout << "   Parameters:" << endl;
-    cout << "   - Lambda: " << unitExp.getLambda() << endl;
-    cout << "   - Mean: " << unitExp.getMean() << endl;
-    cout << "   - Variance: " << unitExp.getVariance() << endl;
-    cout << "   - Skewness: " << unitExp.getSkewness() << endl;
-    cout << "   - Kurtosis: " << unitExp.getKurtosis() << endl;
-    cout << "   - Scale: " << unitExp.getScale() << endl;
-    
     // Test known values for unit exponential
-    assert(approxEqual(unitExp.getLambda(), 1.0));
-    assert(approxEqual(unitExp.getMean(), 1.0));
-    assert(approxEqual(unitExp.getVariance(), 1.0));
-    assert(approxEqual(unitExp.getSkewness(), 2.0));
-    assert(approxEqual(unitExp.getKurtosis(), 6.0));
-    assert(approxEqual(unitExp.getScale(), 1.0));
+    EXPECT_TRUE(approxEqual(unitExp.getLambda(), 1.0));
+    EXPECT_TRUE(approxEqual(unitExp.getMean(), 1.0));
+    EXPECT_TRUE(approxEqual(unitExp.getVariance(), 1.0));
+    EXPECT_TRUE(approxEqual(unitExp.getSkewness(), 2.0));
+    EXPECT_TRUE(approxEqual(unitExp.getKurtosis(), 6.0));
+    EXPECT_TRUE(approxEqual(unitExp.getScale(), 1.0));
     
-    cout << "   Probability Functions:" << endl;
+    // Test probability functions
     double pdf_at_0 = unitExp.getProbability(0.0);
     double pdf_at_1 = unitExp.getProbability(1.0);
     double log_pdf_at_0 = unitExp.getLogProbability(0.0);
@@ -70,112 +70,79 @@ void testBasicFunctionality() {
     double cdf_at_1 = unitExp.getCumulativeProbability(1.0);
     double quantile_median = unitExp.getQuantile(0.5);
     
-    cout << "   - PDF at x=0: " << pdf_at_0 << endl;
-    cout << "   - PDF at x=1: " << pdf_at_1 << endl;
-    cout << "   - Log PDF at x=0: " << log_pdf_at_0 << endl;
-    cout << "   - Log PDF at x=1: " << log_pdf_at_1 << endl;
-    cout << "   - CDF at x=0: " << cdf_at_0 << endl;
-    cout << "   - CDF at x=1: " << cdf_at_1 << endl;
-    cout << "   - Median (quantile 0.5): " << quantile_median << endl;
-    
     // Test known values for unit exponential
-    assert(approxEqual(pdf_at_0, 1.0, 1e-10));  // f(0) = λ = 1
-    assert(approxEqual(pdf_at_1, exp(-1.0), 1e-10));  // f(1) = e^(-1)
-    assert(approxEqual(log_pdf_at_0, 0.0, 1e-10));  // log(1) = 0
-    assert(approxEqual(log_pdf_at_1, -1.0, 1e-10));  // log(e^(-1)) = -1
-    assert(approxEqual(cdf_at_0, 0.0, 1e-10));  // F(0) = 0
-    assert(approxEqual(cdf_at_1, 1.0 - exp(-1.0), 1e-10));  // F(1) = 1 - e^(-1)
-    assert(approxEqual(quantile_median, log(2.0), 1e-10));  // Q(0.5) = ln(2)
+    EXPECT_TRUE(approxEqual(pdf_at_0, 1.0, 1e-10)) << "PDF at 0 should be 1.0";
+    EXPECT_TRUE(approxEqual(pdf_at_1, exp(-1.0), 1e-10)) << "PDF at 1 should be e^(-1)";
+    EXPECT_TRUE(approxEqual(log_pdf_at_0, 0.0, 1e-10)) << "Log PDF at 0 should be 0.0";
+    EXPECT_TRUE(approxEqual(log_pdf_at_1, -1.0, 1e-10)) << "Log PDF at 1 should be -1.0";
+    EXPECT_TRUE(approxEqual(cdf_at_0, 0.0, 1e-10)) << "CDF at 0 should be 0.0";
+    EXPECT_TRUE(approxEqual(cdf_at_1, 1.0 - exp(-1.0), 1e-10)) << "CDF at 1 should be 1 - e^(-1)";
+    EXPECT_TRUE(approxEqual(quantile_median, log(2.0), 1e-10)) << "Median should be ln(2)";
     
     // Test 2: Custom exponential distribution (λ = 2)
-    cout << "\n2. Custom Exponential Distribution Exp(2):" << endl;
     auto customExpResult = ExponentialDistribution::create(2.0);
-    assert(customExpResult.isOk());
+    ASSERT_TRUE(customExpResult.isOk()) << "Failed to create custom exponential distribution";
     auto customExp = std::move(customExpResult.value);
     
-    cout << "   Lambda: " << customExp.getLambda() << endl;
-    cout << "   Mean: " << customExp.getMean() << endl;
-    cout << "   Variance: " << customExp.getVariance() << endl;
-    cout << "   PDF at x=0.5: " << customExp.getProbability(0.5) << endl;
-    cout << "   CDF at x=0.5: " << customExp.getCumulativeProbability(0.5) << endl;
-    
     // Test known values for λ = 2
-    assert(approxEqual(customExp.getLambda(), 2.0));
-    assert(approxEqual(customExp.getMean(), 0.5));  // 1/λ = 1/2
-    assert(approxEqual(customExp.getVariance(), 0.25));  // 1/λ² = 1/4
-    assert(approxEqual(customExp.getProbability(0.5), 2.0 * exp(-1.0), 1e-10));  // 2*e^(-1)
-    assert(approxEqual(customExp.getCumulativeProbability(0.5), 1.0 - exp(-1.0), 1e-10));  // 1 - e^(-1)
-    
-    cout << "   ✓ Basic functionality tests passed!" << endl;
+    EXPECT_TRUE(approxEqual(customExp.getLambda(), 2.0));
+    EXPECT_TRUE(approxEqual(customExp.getMean(), 0.5)) << "Mean should be 1/λ = 1/2";
+    EXPECT_TRUE(approxEqual(customExp.getVariance(), 0.25)) << "Variance should be 1/λ² = 1/4";
+    EXPECT_TRUE(approxEqual(customExp.getProbability(0.5), 2.0 * exp(-1.0), 1e-10));
+    EXPECT_TRUE(approxEqual(customExp.getCumulativeProbability(0.5), 1.0 - exp(-1.0), 1e-10));
 }
 
 // Test copy and move operations
-void testCopyAndMove() {
-    cout << "\n=== Testing Copy and Move Operations ===" << endl;
-    
+TEST_F(ExponentialDistributionEnhancedTest, CopyAndMoveOperations) {
     // Test 1: Copy constructor
-    cout << "1. Copy Constructor:" << endl;
-    
     auto originalResult = ExponentialDistribution::create(2.0);
-    assert(originalResult.isOk());
+    ASSERT_TRUE(originalResult.isOk());
     auto original = std::move(originalResult.value);
     
     auto copied = original;  // Copy constructor
     
     // Verify both objects have same parameters
-    assert(approxEqual(original.getLambda(), copied.getLambda()));
-    assert(approxEqual(original.getMean(), copied.getMean()));
-    assert(approxEqual(original.getVariance(), copied.getVariance()));
+    EXPECT_TRUE(approxEqual(original.getLambda(), copied.getLambda()));
+    EXPECT_TRUE(approxEqual(original.getMean(), copied.getMean()));
+    EXPECT_TRUE(approxEqual(original.getVariance(), copied.getVariance()));
     
     // Verify they produce same results
     double test_val = 1.0;
-    assert(approxEqual(original.getProbability(test_val), copied.getProbability(test_val)));
-    assert(approxEqual(original.getCumulativeProbability(test_val), copied.getCumulativeProbability(test_val)));
-    
-    cout << "   ✓ Copy constructor works correctly" << endl;
+    EXPECT_TRUE(approxEqual(original.getProbability(test_val), copied.getProbability(test_val)));
+    EXPECT_TRUE(approxEqual(original.getCumulativeProbability(test_val), copied.getCumulativeProbability(test_val)));
     
     // Test 2: Move constructor
-    cout << "2. Move Constructor:" << endl;
-    
     auto sourceResult = ExponentialDistribution::create(3.0);
-    assert(sourceResult.isOk());
+    ASSERT_TRUE(sourceResult.isOk());
     auto source = std::move(sourceResult.value);
     
     double orig_lambda = source.getLambda();
     auto moved = std::move(source);  // Move constructor
     
     // Verify moved object has correct parameters
-    assert(approxEqual(moved.getLambda(), orig_lambda));
-    assert(approxEqual(moved.getMean(), 1.0 / orig_lambda));
-    
-    cout << "   ✓ Move constructor works correctly" << endl;
+    EXPECT_TRUE(approxEqual(moved.getLambda(), orig_lambda));
+    EXPECT_TRUE(approxEqual(moved.getMean(), 1.0 / orig_lambda));
     
     // Test 3: Copy assignment
-    cout << "3. Copy Assignment:" << endl;
-    
     auto dist1Result = ExponentialDistribution::create(1.0);
     auto dist2Result = ExponentialDistribution::create(2.0);
-    assert(dist1Result.isOk() && dist2Result.isOk());
+    ASSERT_TRUE(dist1Result.isOk() && dist2Result.isOk());
     auto dist1 = std::move(dist1Result.value);
     auto dist2 = std::move(dist2Result.value);
     
     // Verify they're different initially
-    assert(!approxEqual(dist1.getLambda(), dist2.getLambda()));
+    EXPECT_FALSE(approxEqual(dist1.getLambda(), dist2.getLambda()));
     
     dist1 = dist2;  // Copy assignment
     
     // Verify they're now the same
-    assert(approxEqual(dist1.getLambda(), dist2.getLambda()));
-    assert(approxEqual(dist1.getMean(), dist2.getMean()));
-    
-    cout << "   ✓ Copy assignment works correctly" << endl;
+    EXPECT_TRUE(approxEqual(dist1.getLambda(), dist2.getLambda()));
+    EXPECT_TRUE(approxEqual(dist1.getMean(), dist2.getMean()));
     
     // Test 4: Move assignment
-    cout << "4. Move Assignment:" << endl;
-    
     auto targetResult = ExponentialDistribution::create(1.0);
     auto sourceResult2 = ExponentialDistribution::create(4.0);
-    assert(targetResult.isOk() && sourceResult2.isOk());
+    ASSERT_TRUE(targetResult.isOk() && sourceResult2.isOk());
     auto target = std::move(targetResult.value);
     auto source2 = std::move(sourceResult2.value);
     
@@ -183,21 +150,44 @@ void testCopyAndMove() {
     target = std::move(source2);  // Move assignment
     
     // Verify target now has source's parameters
-    assert(approxEqual(target.getLambda(), source_lambda));
-    assert(approxEqual(target.getMean(), 1.0 / source_lambda));
-    
-    cout << "   ✓ Move assignment works correctly" << endl;
-    
-    cout << "   ✓ All copy and move operations passed!" << endl;
+    EXPECT_TRUE(approxEqual(target.getLambda(), source_lambda));
+    EXPECT_TRUE(approxEqual(target.getMean(), 1.0 / source_lambda));
+}
+
+// Test advanced statistical methods
+TEST_F(ExponentialDistributionEnhancedTest, AdvancedStatisticalMethods) {
+    auto data = std::vector<double>{0.2, 0.4, 0.6, 0.8, 1.0};
+    auto expDistResult = ExponentialDistribution::create(1.0);
+    ASSERT_TRUE(expDistResult.isOk());
+    auto expDist = std::move(expDistResult.value);
+
+    // Confidence Interval for Rate
+    auto [rate_lower, rate_upper] = ExponentialDistribution::confidenceIntervalRate(data, 0.95);
+    EXPECT_GT(rate_upper, rate_lower) << "Upper CI bound should be greater than lower bound";
+    EXPECT_GT(rate_lower, 0.0) << "Rate CI lower bound should be positive";
+
+    // Likelihood Ratio Test
+    auto [lr_statistic, p_value, reject_null] = ExponentialDistribution::likelihoodRatioTest(data, 1.0);
+    EXPECT_GE(lr_statistic, 0.0) << "LR statistic should be non-negative";
+    EXPECT_GE(p_value, 0.0) << "P-value should be non-negative";
+    EXPECT_LE(p_value, 1.0) << "P-value should not exceed 1.0";
+
+    // Bayesian Estimation
+    auto [post_shape, post_rate] = ExponentialDistribution::bayesianEstimation(data);
+    EXPECT_GT(post_shape, 0.0) << "Posterior shape should be positive";
+    EXPECT_GT(post_rate, 0.0) << "Posterior rate should be positive";
+
+    // Method of Moments Estimation
+    double lambda_mom = ExponentialDistribution::methodOfMomentsEstimation(data);
+    EXPECT_GT(lambda_mom, 0.0) << "MOM estimate should be positive";
 }
 
 // Test batch operations
-void testBatchOperations() {
-    cout << "\n=== Testing Batch Operations ===" << endl;
+TEST_F(ExponentialDistributionEnhancedTest, BatchOperations) {
     
     auto unitExpResult = ExponentialDistribution::create(1.0);
     auto customExpResult = ExponentialDistribution::create(0.5);
-    assert(unitExpResult.isOk() && customExpResult.isOk());
+    ASSERT_TRUE(unitExpResult.isOk() && customExpResult.isOk());
     auto unitExp = std::move(unitExpResult.value);
     auto customExp = std::move(customExpResult.value);
     
@@ -220,9 +210,9 @@ void testBatchOperations() {
         double expected_log_pdf = unitExp.getLogProbability(test_values[i]);
         double expected_cdf = unitExp.getCumulativeProbability(test_values[i]);
         
-        assert(approxEqual(pdf_results[i], expected_pdf, 1e-12));
-        assert(approxEqual(log_pdf_results[i], expected_log_pdf, 1e-12));
-        assert(approxEqual(cdf_results[i], expected_cdf, 1e-12));
+        EXPECT_TRUE(approxEqual(pdf_results[i], expected_pdf, 1e-12));
+        EXPECT_TRUE(approxEqual(log_pdf_results[i], expected_log_pdf, 1e-12));
+        EXPECT_TRUE(approxEqual(cdf_results[i], expected_cdf, 1e-12));
     }
     
     cout << "   ✓ Small batch operations match individual calls!" << endl;
@@ -276,9 +266,9 @@ void testBatchOperations() {
         double expected_log_pdf = unitExp.getLogProbability(large_test_values[idx]);
         double expected_cdf = unitExp.getCumulativeProbability(large_test_values[idx]);
         
-        assert(approxEqual(large_pdf_results[idx], expected_pdf, 1e-10));
-        assert(approxEqual(large_log_pdf_results[idx], expected_log_pdf, 1e-10));
-        assert(approxEqual(large_cdf_results[idx], expected_cdf, 1e-10));
+        EXPECT_TRUE(approxEqual(large_pdf_results[idx], expected_pdf, 1e-10));
+        EXPECT_TRUE(approxEqual(large_log_pdf_results[idx], expected_log_pdf, 1e-10));
+        EXPECT_TRUE(approxEqual(large_cdf_results[idx], expected_cdf, 1e-10));
     }
     
     cout << "   ✓ Large batch operations match individual calls!" << endl;
@@ -296,21 +286,20 @@ void testBatchOperations() {
         double expected_log_pdf = customExp.getLogProbability(test_values[i]);
         double expected_cdf = customExp.getCumulativeProbability(test_values[i]);
         
-        assert(approxEqual(pdf_results[i], expected_pdf, 1e-12));
-        assert(approxEqual(log_pdf_results[i], expected_log_pdf, 1e-12));
-        assert(approxEqual(cdf_results[i], expected_cdf, 1e-12));
+        EXPECT_TRUE(approxEqual(pdf_results[i], expected_pdf, 1e-12));
+        EXPECT_TRUE(approxEqual(log_pdf_results[i], expected_log_pdf, 1e-12));
+        EXPECT_TRUE(approxEqual(cdf_results[i], expected_cdf, 1e-12));
     }
     
     cout << "   ✓ Custom distribution batch operations passed!" << endl;
 }
 
 // Test optimized sampling
-void testOptimizedSampling() {
-    cout << "\n=== Testing Optimized Sampling ===" << endl;
+TEST_F(ExponentialDistributionEnhancedTest, OptimizedSampling) {
     
     auto unitExpResult = ExponentialDistribution::create(1.0);
     auto customExpResult = ExponentialDistribution::create(2.0);
-    assert(unitExpResult.isOk() && customExpResult.isOk());
+    ASSERT_TRUE(unitExpResult.isOk() && customExpResult.isOk());
     auto unitExp = std::move(unitExpResult.value);
     auto customExp = std::move(customExpResult.value);
     
@@ -342,12 +331,12 @@ void testOptimizedSampling() {
     cout << "   Variance error: " << abs(sample_variance - 1.0) << endl;
     
     // Check if samples are within reasonable bounds
-    assert(abs(sample_mean - 1.0) < 0.02);  // Mean should be close to 1.0
-    assert(abs(sample_variance - 1.0) < 0.02);  // Variance should be close to 1.0
+    EXPECT_LT(abs(sample_mean - 1.0), 0.02) << "Mean should be close to 1.0";
+    EXPECT_LT(abs(sample_variance - 1.0), 0.02) << "Variance should be close to 1.0";
     
     // Check that all samples are non-negative
     for (double sample : samples) {
-        assert(sample >= 0.0);
+        EXPECT_GE(sample, 0.0) << "All samples should be non-negative";
     }
     
     cout << "   ✓ Unit exponential sampling quality passed!" << endl;
@@ -372,8 +361,8 @@ void testOptimizedSampling() {
     cout << "   Variance error: " << abs(custom_variance - customExp.getVariance()) << endl;
     
     // Check if samples are within reasonable bounds
-    assert(abs(custom_mean - customExp.getMean()) < 0.01);
-    assert(abs(custom_variance - customExp.getVariance()) < 0.01);
+    EXPECT_LT(abs(custom_mean - customExp.getMean()), 0.01) << "Custom mean should match expected";
+    EXPECT_LT(abs(custom_variance - customExp.getVariance()), 0.01) << "Custom variance should match expected";
     
     cout << "   ✓ Custom distribution sampling quality passed!" << endl;
     
@@ -382,25 +371,19 @@ void testOptimizedSampling() {
     
     // Test with very large lambda (small scale)
     auto extremeResult = ExponentialDistribution::create(100.0);
-    assert(extremeResult.isOk());
+    ASSERT_TRUE(extremeResult.isOk());
     auto extreme = std::move(extremeResult.value);
     
-    bool stability_test_passed = true;
     for (int i = 0; i < 1000; ++i) {
         double sample = extreme.sample(rng);
-        if (!std::isfinite(sample) || sample < 0) {
-            stability_test_passed = false;
-            break;
-        }
+        EXPECT_TRUE(std::isfinite(sample)) << "Sample should be finite";
+        EXPECT_GE(sample, 0.0) << "Sample should be non-negative";
     }
-    
-    assert(stability_test_passed);
     cout << "   ✓ Numerical stability test passed!" << endl;
 }
 
 // Test edge cases and error handling
-void testEdgeCases() {
-    cout << "\n=== Testing Edge Cases ===" << endl;
+TEST_F(ExponentialDistributionEnhancedTest, EdgeCases) {
     
     // Test 1: Invalid parameters
     cout << "1. Invalid Parameter Handling:" << endl;
@@ -429,7 +412,7 @@ void testEdgeCases() {
     cout << "2. Extreme Value Handling:" << endl;
     
     auto normalResult = ExponentialDistribution::create(1.0);
-    assert(normalResult.isOk());
+    ASSERT_TRUE(normalResult.isOk());
     auto normal = std::move(normalResult.value);
     
     // Test very large values
@@ -438,9 +421,10 @@ void testEdgeCases() {
     double log_pdf_large = normal.getLogProbability(large_val);
     double cdf_large = normal.getCumulativeProbability(large_val);
     
-    assert(pdf_large >= 0.0);
-    assert(std::isfinite(log_pdf_large));
-    assert(cdf_large >= 0.0 && cdf_large <= 1.0);
+    EXPECT_GE(pdf_large, 0.0);
+    EXPECT_TRUE(std::isfinite(log_pdf_large));
+    EXPECT_GE(cdf_large, 0.0);
+    EXPECT_LE(cdf_large, 1.0);
     
     cout << "   ✓ Large value handling passed" << endl;
     
@@ -450,9 +434,9 @@ void testEdgeCases() {
     double log_pdf_neg = normal.getLogProbability(neg_val);
     double cdf_neg = normal.getCumulativeProbability(neg_val);
     
-    assert(pdf_neg == 0.0);
-    assert(log_pdf_neg == std::numeric_limits<double>::lowest() || std::isinf(log_pdf_neg));
-    assert(cdf_neg == 0.0);
+    EXPECT_EQ(pdf_neg, 0.0);
+    EXPECT_TRUE(log_pdf_neg == std::numeric_limits<double>::lowest() || std::isinf(log_pdf_neg));
+    EXPECT_EQ(cdf_neg, 0.0);
     
     cout << "   ✓ Negative value handling passed" << endl;
     
@@ -482,7 +466,7 @@ void testEdgeCases() {
     
     // Fit distribution to data
     auto fitResult = ExponentialDistribution::create(1.0);
-    assert(fitResult.isOk());
+    ASSERT_TRUE(fitResult.isOk());
     auto fitted = std::move(fitResult.value);
     fitted.fit(fit_data);
     
@@ -491,20 +475,19 @@ void testEdgeCases() {
     cout << "   Fitting error: " << abs(fitted.getLambda() - 2.0) << endl;
     
     // Should be reasonably close to original parameter
-    assert(abs(fitted.getLambda() - 2.0) < 0.1);
+    EXPECT_LT(abs(fitted.getLambda() - 2.0), 0.1) << "Fitted parameter should be close to original";
     
     cout << "   ✓ Parameter fitting test passed" << endl;
 }
 
 // Test thread safety
-void testThreadSafety() {
-    cout << "\n=== Testing Thread Safety ===" << endl;
+TEST_F(ExponentialDistributionEnhancedTest, ThreadSafety) {
     
     // This is a basic test - comprehensive thread safety testing would require
     // more sophisticated concurrent testing frameworks
     
     auto normalResult = ExponentialDistribution::create(1.0);
-    assert(normalResult.isOk());
+    ASSERT_TRUE(normalResult.isOk());
     auto normal = std::move(normalResult.value);
     
     // Test that multiple threads can safely read from the same distribution
@@ -533,9 +516,10 @@ void testThreadSafety() {
     
     // Verify that all threads produced valid results
     for (int t = 0; t < num_threads; ++t) {
-        assert(results[t].size() == samples_per_thread);
+        EXPECT_EQ(results[t].size(), samples_per_thread);
         for (double val : results[t]) {
-            assert(std::isfinite(val) && val >= 0.0);
+            EXPECT_TRUE(std::isfinite(val));
+            EXPECT_GE(val, 0.0);
         }
     }
     
@@ -543,11 +527,10 @@ void testThreadSafety() {
 }
 
 // Test quantile function
-void testQuantileFunction() {
-    cout << "\n=== Testing Quantile Function ===" << endl;
+TEST_F(ExponentialDistributionEnhancedTest, QuantileFunction) {
     
     auto unitExpResult = ExponentialDistribution::create(1.0);
-    assert(unitExpResult.isOk());
+    ASSERT_TRUE(unitExpResult.isOk());
     auto unitExp = std::move(unitExpResult.value);
     
     // Test specific quantiles
@@ -562,45 +545,17 @@ void testQuantileFunction() {
         cout << "   P(" << p << ") = " << quantile << ", CDF(" << quantile << ") = " << cdf_check << endl;
         
         // CDF(quantile(p)) should equal p
-        assert(approxEqual(cdf_check, p, 1e-10));
+        EXPECT_TRUE(approxEqual(cdf_check, p, 1e-10));
     }
     
     // Test known quantiles for unit exponential
-    assert(approxEqual(unitExp.getQuantile(0.5), log(2.0), 1e-10));  // Median
-    assert(approxEqual(unitExp.getQuantile(1.0 - 1.0/exp(1.0)), 1.0, 1e-10));  // Q(1-1/e) = 1
+    EXPECT_TRUE(approxEqual(unitExp.getQuantile(0.5), log(2.0), 1e-10)) << "Median should be ln(2)";
+    EXPECT_TRUE(approxEqual(unitExp.getQuantile(1.0 - 1.0/exp(1.0)), 1.0, 1e-10)) << "Q(1-1/e) should be 1";
     
     cout << "   ✓ Quantile function tests passed!" << endl;
 }
 
-int main() {
-    cout << "=== Enhanced Exponential Distribution Test Suite ===" << endl;
-    cout << fixed << setprecision(6);
-    
-    try {
-        testBasicFunctionality();
-        testCopyAndMove();
-        testBatchOperations();
-        testOptimizedSampling();
-        testEdgeCases();
-        testThreadSafety();
-        testQuantileFunction();
-        
-        cout << "\n=== ALL TESTS PASSED SUCCESSFULLY! ===" << endl;
-        cout << "✓ Basic functionality" << endl;
-        cout << "✓ SIMD batch operations" << endl;
-        cout << "✓ Optimized inverse transform sampling" << endl;
-        cout << "✓ Edge cases and error handling" << endl;
-        cout << "✓ Thread safety" << endl;
-        cout << "✓ Quantile function accuracy" << endl;
-        cout << "✓ Parameter fitting" << endl;
-        
-        return 0;
-        
-    } catch (const exception& e) {
-        cout << "\n❌ TEST FAILED: " << e.what() << endl;
-        return 1;
-    } catch (...) {
-        cout << "\n❌ TEST FAILED: Unknown exception" << endl;
-        return 1;
-    }
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

@@ -117,6 +117,9 @@ namespace math {
     /// Euler's number (e)
     inline constexpr double E = 2.7182818284590452353602874713526625;
     
+    /// Square root of π
+    inline constexpr double SQRT_PI = 1.7724538509055158819194275219496950;
+    
     /// Square root of 2π (used in Gaussian calculations)
     inline constexpr double SQRT_2PI = 2.5066282746310005024157652848110453;
     

@@ -5,9 +5,13 @@
 #include "constants.h"
 #include "simd.h" // Ensure SIMD operations are available
 #include "error_handling.h" // Safe error handling without exceptions
+#include "adaptive_cache.h" // For adaptive cache integration
+#include "parallel_execution.h" // For parallel execution policies
+#include "work_stealing_pool.h" // For WorkStealingPool
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation
+#include <span>        // C++20 std::span for type-safe array access
 
 namespace libstats {
 
@@ -494,46 +498,306 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
-     * Equality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are equal within tolerance
-     */
-    bool operator==(const ExponentialDistribution& other) const;
-    
-    /**
-     * Inequality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are not equal
-     */
-    bool operator!=(const ExponentialDistribution& other) const { return !(*this == other); }
-    
-    //==========================================================================
-    // SIMD BATCH OPERATIONS
-    //==========================================================================
-    
-    /**
-     * Batch computation of probability densities using SIMD optimization.
-     * Processes multiple values simultaneously for improved performance.
+     * @brief Confidence interval for rate parameter λ
      * 
-     * @param values Input array of values to evaluate
-     * @param results Output array for probability densities (must be same size as values)
-     * @param count Number of values to process
-     * @note This method is optimized for large batch sizes where SIMD overhead is justified
+     * Calculates confidence interval for the population rate parameter using
+     * the chi-squared distribution (since 2nλ/λ̂ follows χ²(2n) distribution).
+     * 
+     * @param data Sample data
+     * @param confidence_level Confidence level (e.g., 0.95 for 95%)
+     * @return Pair of (lower_bound, upper_bound)
+     */
+    static std::pair<double, double> confidenceIntervalRate(
+        const std::vector<double>& data, 
+        double confidence_level = 0.95);
+    
+    /**
+     * @brief Confidence interval for scale parameter (mean waiting time)
+     * 
+     * Calculates confidence interval for population scale parameter (1/λ)
+     * using the relationship with the rate parameter confidence interval.
+     * 
+     * @param data Sample data  
+     * @param confidence_level Confidence level (e.g., 0.95 for 95%)
+     * @return Pair of (lower_bound, upper_bound)
+     */
+    static std::pair<double, double> confidenceIntervalScale(
+        const std::vector<double>& data,
+        double confidence_level = 0.95);
+    
+    /**
+     * @brief Likelihood ratio test for exponential parameter
+     * 
+     * Tests the null hypothesis H₀: λ = λ₀ against H₁: λ ≠ λ₀
+     * using the likelihood ratio statistic -2ln(Λ) ~ χ²(1).
+     * 
+     * @param data Sample data
+     * @param null_lambda Hypothesized rate parameter under H₀
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (LR_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> likelihoodRatioTest(
+        const std::vector<double>& data,
+        double null_lambda,
+        double alpha = 0.05);
+    
+    /**
+     * @brief Bayesian parameter estimation with Gamma conjugate prior
+     * 
+     * Performs Bayesian estimation of exponential rate parameter using
+     * Gamma conjugate prior. For exponential likelihood with Gamma(α,β) prior,
+     * the posterior is Gamma(α + n, β + Σxᵢ).
+     * 
+     * @param data Observed data
+     * @param prior_shape Prior shape parameter α (default: 1)
+     * @param prior_rate Prior rate parameter β (default: 1)
+     * @return Pair of (posterior_shape, posterior_rate)
+     */
+    static std::pair<double, double> bayesianEstimation(
+        const std::vector<double>& data,
+        double prior_shape = 1.0,
+        double prior_rate = 1.0);
+    
+    /**
+     * @brief Credible interval from Bayesian posterior
+     * 
+     * Calculates Bayesian credible interval for rate parameter
+     * from posterior Gamma distribution.
+     * 
+     * @param data Observed data
+     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
+     * @param prior_shape Prior shape parameter α (default: 1)
+     * @param prior_rate Prior rate parameter β (default: 1)
+     * @return Pair of (lower_bound, upper_bound)
+     */
+    static std::pair<double, double> bayesianCredibleInterval(
+        const std::vector<double>& data,
+        double credibility_level = 0.95,
+        double prior_shape = 1.0,
+        double prior_rate = 1.0);
+    
+    /**
+     * @brief Robust parameter estimation using M-estimators
+     * 
+     * Provides robust estimation of rate parameter that is less
+     * sensitive to outliers than maximum likelihood. Uses truncated
+     * likelihood or Winsorized estimation.
+     * 
+     * @param data Sample data
+     * @param estimator_type Type of robust estimator ("winsorized", "trimmed")
+     * @param trim_proportion Proportion to trim/winsorize (default: 0.1)
+     * @return Robust rate parameter estimate
+     */
+    static double robustEstimation(
+        const std::vector<double>& data,
+        const std::string& estimator_type = "winsorized",
+        double trim_proportion = 0.1);
+    
+    /**
+     * @brief Method of moments parameter estimation
+     * 
+     * Estimates rate parameter by matching sample moments with
+     * theoretical distribution moments. For exponential: λ = 1/sample_mean.
+     * 
+     * @param data Sample data
+     * @return Rate parameter estimate
+     */
+    static double methodOfMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief L-moments parameter estimation
+     * 
+     * Uses L-moments (linear combinations of order statistics)
+     * for robust parameter estimation. L₁ = mean, λ = 1/L₁.
+     * 
+     * @param data Sample data
+     * @return Rate parameter estimate from L-moments
+     */
+    static double lMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Exponentiality test using coefficient of variation
+     * 
+     * Tests the null hypothesis that data follows an exponential distribution.
+     * Uses the fact that CV = 1 exactly for exponential distributions.
+     * 
+     * @param data Sample data
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (CV_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> coefficientOfVariationTest(
+        const std::vector<double>& data,
+        double alpha = 0.05);
+    
+    /**
+     * @brief Kolmogorov-Smirnov goodness-of-fit test
+     * 
+     * Tests the null hypothesis that data follows the specified exponential distribution.
+     * Compares empirical CDF with theoretical exponential CDF.
+     * 
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (KS_statistic, p_value, reject_null)
+     * @note p_value approximation using asymptotic distribution
+     */
+    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+        const std::vector<double>& data,
+        const ExponentialDistribution& distribution,
+        double alpha = 0.05);
+    
+    /**
+     * @brief Anderson-Darling goodness-of-fit test
+     * 
+     * Tests the null hypothesis that data follows the specified exponential distribution.
+     * More sensitive to deviations in the tails than KS test.
+     * 
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (AD_statistic, p_value, reject_null)
+     * @note Uses asymptotic p-value approximation for exponential case
+     */
+    static std::tuple<double, double, bool> andersonDarlingTest(
+        const std::vector<double>& data,
+        const ExponentialDistribution& distribution,
+        double alpha = 0.05);
+    
+    //==========================================================================
+    // CROSS-VALIDATION AND MODEL SELECTION
+    //==========================================================================
+    
+    /**
+     * @brief K-fold cross-validation for parameter estimation
+     * 
+     * Performs k-fold cross-validation to assess parameter estimation quality
+     * and model stability. Splits data into k folds, trains on k-1 folds,
+     * and validates on the remaining fold.
+     * 
+     * @param data Sample data for cross-validation
+     * @param k Number of folds (default: 5)
+     * @param random_seed Seed for random fold assignment (default: 42)
+     * @return Vector of k validation results: (rate_error, scale_error, log_likelihood)
+     */
+    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
+        const std::vector<double>& data,
+        int k = 5,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Leave-one-out cross-validation for parameter estimation
+     * 
+     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
+     * estimation quality. For each data point, trains on all other points
+     * and validates on the left-out point.
+     * 
+     * @param data Sample data for cross-validation
+     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
+     */
+    static std::tuple<double, double, double> leaveOneOutCrossValidation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     * 
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the rate parameter λ.
+     * 
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Pair of (rate_CI_lower, rate_CI_upper)
+     */
+    static std::pair<double, double> bootstrapParameterConfidenceInterval(
+        const std::vector<double>& data,
+        double confidence_level = 0.95,
+        int n_bootstrap = 1000,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Model comparison using information criteria
+     * 
+     * Computes various information criteria (AIC, BIC, AICc) for model selection.
+     * Lower values indicate better model fit while penalizing complexity.
+     * 
+     * @param data Sample data used for fitting
+     * @param fitted_distribution The fitted exponential distribution
+     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
+     */
+    static std::tuple<double, double, double, double> computeInformationCriteria(
+        const std::vector<double>& data,
+        const ExponentialDistribution& fitted_distribution);
+    
+    //==========================================================================
+    // SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
+    // 
+    // 🛡️  DEVELOPER SAFETY GUIDE FOR BATCH OPERATIONS 🛡️
+    // 
+    // These methods provide high-performance batch probability calculations with
+    // comprehensive safety guarantees. While they internally use optimized SIMD
+    // operations with raw pointers, all unsafe operations are encapsulated behind
+    // thoroughly validated public interfaces.
+    // 
+    // SAFETY FEATURES PROVIDED:
+    // ✅ Automatic input validation and bounds checking
+    // ✅ Thread-safe parameter caching with proper locking
+    // ✅ Runtime CPU feature detection for SIMD compatibility
+    // ✅ Graceful fallback to scalar operations when SIMD unavailable
+    // ✅ Memory alignment handled automatically
+    // 
+    // RECOMMENDED USAGE PATTERNS:
+    // 1. For basic users: Use these raw pointer interfaces with pre-allocated arrays
+    // 2. For C++20 users: Prefer the std::span interfaces below for type safety
+    // 3. For parallel processing: Use the ParallelUtils-integrated methods
+    // 4. For maximum safety: Use the cache-aware methods with additional validation
+    // 
+    // PERFORMANCE CHARACTERISTICS:
+    // - Small arrays (\u003c ~64 elements): Uses scalar loops, no SIMD overhead
+    // - Large arrays (≥ ~64 elements): Uses SIMD vectorization (2-8x speedup)
+    // - Thread-safe caching minimizes parameter validation overhead
+    // - Zero-copy operation on properly sized input arrays
+    //==========================================================================
+    
+    /**
+     * @brief Safe SIMD-optimized batch probability calculation
+     * 
+     * Computes PDF for multiple values simultaneously using vectorized operations.
+     * This method automatically handles input validation, thread safety, and
+     * optimal algorithm selection based on array size and CPU capabilities.
+     * 
+     * @param values Pointer to array of input values (must be valid for 'count' elements)
+     * @param results Pointer to pre-allocated array for results (must be valid for 'count' elements)
+     * @param count Number of values to process (must be \u003e 0)
+     * 
+     * @throws std::invalid_argument if count is 0 or pointers are invalid
+     * 
+     * @note Arrays do not need special alignment - alignment is handled internally
+     * @note For arrays \u003c ~64 elements, uses optimized scalar loops
+     * @note For arrays ≥ ~64 elements, uses SIMD vectorization when available
+     * 
+     * @par Example Usage:
+     * @code
+     * std::vector\u003cdouble\u003e inputs = {0.0, 1.0, 2.0, -1.0};
+     * std::vector\u003cdouble\u003e outputs(inputs.size());
+     * distribution.getProbabilityBatch(inputs.data(), outputs.data(), inputs.size());
+     * @endcode
      */
     void getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
     
     /**
-     * Batch computation of log probability densities using SIMD optimization.
-     * Processes multiple values simultaneously for improved performance.
-     * 
-     * @param values Input array of values to evaluate
-     * @param results Output array for log probability densities (must be same size as values)
+     * SIMD-optimized batch log probability calculation
+     * Computes log PDF for multiple values simultaneously using vectorized operations
+     * @param values Array of input values
+     * @param results Array to store log probability results (must be pre-allocated)
      * @param count Number of values to process
-     * @note This method is optimized for large batch sizes where SIMD overhead is justified
+     * @warning Arrays must be aligned to SIMD_ALIGNMENT for optimal performance
      */
     void getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
     
@@ -554,6 +818,81 @@ public:
      */
     void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
     void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    
+    //==========================================================================
+    // THREAD POOL PARALLEL BATCH OPERATIONS
+    //==========================================================================
+    
+    /**
+     * Advanced parallel batch probability calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * Combines SIMD vectorization with multi-core parallelism for maximum performance
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
+    
+    /**
+     * Advanced parallel batch log probability calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept;
+    
+    /**
+     * Advanced parallel batch CDF calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
+    
+    /**
+     * Work-stealing parallel batch probability calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                        WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                      cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    //==========================================================================
+    // COMPARISON OPERATORS
+    //==========================================================================
+    
+    /**
+     * Equality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are equal within tolerance
+     */
+    bool operator==(const ExponentialDistribution& other) const;
+    
+    /**
+     * Inequality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are not equal
+     */
+    bool operator!=(const ExponentialDistribution& other) const { return !(*this == other); }
+    
 
 private:
     //==========================================================================

@@ -1,5 +1,5 @@
 /**
- * @file platform_parallel_demo.cpp
+ * @file parallel_execution_demo.cpp
  * @brief Demonstration of platform-aware parallel execution features in libstats
  * 
  * This program showcases the enhanced parallel execution capabilities with

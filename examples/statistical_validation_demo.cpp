@@ -1,3 +1,15 @@
+/**
+ * @file statistical_validation_demo.cpp
+ * @brief Comprehensive statistical validation and testing demonstration
+ * 
+ * This example showcases advanced statistical validation techniques including:
+ * - Goodness-of-fit tests (Kolmogorov-Smirnov, Anderson-Darling)
+ * - Cross-validation methods (K-fold, Leave-One-Out)
+ * - Bootstrap confidence intervals
+ * - Information criteria for model selection
+ * - Performance testing with non-normal data
+ */
+
 #include "../include/gaussian.h"
 #include <iostream>
 #include <vector>
@@ -5,8 +17,8 @@
 
 int main() {
     try {
-        std::cout << "=== Gaussian Distribution Phase 3 Update Demo ===" << std::endl;
-        std::cout << "Showcasing new goodness-of-fit tests and cross-validation methods" << std::endl;
+        std::cout << "=== Statistical Validation and Testing Demo ===" << std::endl;
+        std::cout << "Comprehensive demonstration of goodness-of-fit tests and cross-validation methods" << std::endl;
         
         // Generate test data from a known normal distribution
         std::mt19937 rng(42);

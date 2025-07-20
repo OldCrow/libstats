@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
 
+# Set CMake policies
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW)  # find_package uses upper-case <PACKAGENAME>_ROOT variables
+endif()
+
 # Use Homebrew LLVM for C++20 support
 set(CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang")
 set(CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++")
@@ -8,7 +13,7 @@ set(CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++")
 set(LLVM_ROOT "/usr/local/opt/llvm")
 set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
 
-project(libstats VERSION 0.1.0 LANGUAGES CXX)
+project(libstats VERSION 0.2.0 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
@@ -144,7 +149,7 @@ set(LIBSTATS_SOURCES
     src/distribution_base.cpp
     src/log_space_ops.cpp
     src/math_utils.cpp
-    # src/exponential.cpp   # TODO: fix compilation errors in exponential distribution
+    src/exponential.cpp
     # src/uniform.cpp       # TODO: fix compilation errors in uniform distribution
     src/safety.cpp
     # src/poisson.cpp       # TODO: implement poisson distribution
@@ -482,6 +487,7 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_safety tests/test_safety.cpp)
     
     # math_utils.h - Mathematical utilities and special functions
+    create_libstats_gtest(test_math_utils tests/test_math_utils.cpp)
     create_libstats_test(test_vectorized_math tests/test_vectorized_math.cpp)
     
     # validation.h - Statistical validation and goodness-of-fit testing
@@ -517,17 +523,13 @@ if(LIBSTATS_BUILD_TESTS)
     # =======================================================================
     # These test concrete distribution implementations
     
-    # gaussian.h - Gaussian/Normal distribution implementation
-    create_libstats_test(test_gaussian_simple tests/test_gaussian_simple.cpp)
-    create_libstats_test(test_gaussian_enhanced tests/test_gaussian_enhanced.cpp)
-    create_libstats_test(test_advanced_methods tests/test_advanced_methods.cpp)
+    # gaussian.h - Gaussian/Normal distribution implementation (CONSOLIDATED)
+    create_libstats_test(test_gaussian_basic tests/test_gaussian_basic.cpp)
+    create_libstats_gtest(test_gaussian_enhanced tests/test_gaussian_enhanced.cpp)
     
-    # GTest-based tests for Phase 3 methods
-    create_libstats_gtest(test_gaussian_phase3 tests/test_gaussian_phase3.cpp)
-    
-    # exponential.h - Exponential distribution implementation
-    # create_libstats_test(test_exponential_simple tests/test_exponential_simple.cpp)  # TODO: uncomment after fixing exponential.cpp
-    # create_libstats_test(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
+    # exponential.h - Exponential distribution implementation (CONSOLIDATED)
+    create_libstats_test(test_exponential_basic tests/test_exponential_basic.cpp)
+    create_libstats_gtest(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
     
     # uniform.h - Uniform distribution implementation
     # create_libstats_test(test_uniform_simple tests/test_uniform_simple.cpp)  # TODO: uncomment after fixing uniform.cpp
@@ -561,8 +563,8 @@ if(LIBSTATS_BUILD_TESTS)
     
     # Dynamic versions of all _simple tests
     create_libstats_test_dynamic(test_simd_integration_simple_dynamic tests/test_simd_integration_simple.cpp)
-    create_libstats_test_dynamic(test_gaussian_simple_dynamic tests/test_gaussian_simple.cpp)
-    # create_libstats_test_dynamic(test_exponential_simple_dynamic tests/test_exponential_simple.cpp)  # TODO: uncomment after fixing exponential.cpp
+    create_libstats_test_dynamic(test_gaussian_basic_dynamic tests/test_gaussian_basic.cpp)
+    create_libstats_test_dynamic(test_exponential_basic_dynamic tests/test_exponential_basic.cpp)
     # create_libstats_test_dynamic(test_uniform_simple_dynamic tests/test_uniform_simple.cpp)  # TODO: uncomment after fixing uniform.cpp
     
     # TODO: Add these tests once distributions are implemented
@@ -592,6 +594,7 @@ if(LIBSTATS_BUILD_TESTS)
             
             # Level 1: Core infrastructure tests
             test_safety
+            test_math_utils
             test_vectorized_math
             test_goodness_of_fit
             test_validation_enhanced
@@ -605,21 +608,19 @@ if(LIBSTATS_BUILD_TESTS)
             test_parallel_execution_comprehensive
             test_benchmark_basic
             
-            # Level 4: Distribution implementation tests
-            test_gaussian_simple
+            # Level 4: Distribution implementation tests (CONSOLIDATED)
+            test_gaussian_basic
             test_gaussian_enhanced
-            test_advanced_methods
-            test_gaussian_phase3
-            # test_exponential_simple       # TODO: uncomment after fixing exponential.cpp
-            # test_exponential_enhanced
+            test_exponential_basic
+            test_exponential_enhanced
             # test_uniform_simple           # TODO: uncomment after fixing uniform.cpp
             # test_uniform_enhanced
             
             # Additional tests: Cross-cutting concerns
             test_dynamic_linking
             test_simd_integration_simple_dynamic
-            test_gaussian_simple_dynamic
-            # test_exponential_simple_dynamic  # TODO: uncomment after fixing exponential.cpp
+            test_gaussian_basic_dynamic
+            test_exponential_basic_dynamic
             # test_uniform_simple_dynamic      # TODO: uncomment after fixing uniform.cpp
             
             # Conditional tests (added if they exist)

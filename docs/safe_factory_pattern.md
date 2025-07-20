@@ -98,7 +98,7 @@ if (updateResult.isError()) {
 
 ### Design Decision: Pre-Release Freedom
 
-Since this is version 0.1.0 (pre-release), we chose to implement this as the primary construction pattern rather than just an alternative. This allows us to:
+Since this was implemented in version 0.1.0 (pre-release), we chose to implement this as the primary construction pattern rather than just an alternative.
 
 - Establish good patterns early
 - Avoid technical debt from exception-heavy APIs

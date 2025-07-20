@@ -45,17 +45,14 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     )
 endfunction()
 
-# Basic usage example (temporarily disabled due to missing distributions)
-# create_example(basic_usage basic_usage.cpp)
+# Core usage examples
+create_example(basic_usage basic_usage.cpp)
+create_example(statistical_validation_demo statistical_validation_demo.cpp)
+create_example(parallel_execution_demo parallel_execution_demo.cpp)
 
-# Platform parallel demo (temporarily disabled due to missing libstats.h)
-# create_example(platform_parallel_demo platform_parallel_demo.cpp)
-
-# Comprehensive Gaussian performance benchmark
+# Performance benchmarks
 create_example(gaussian_performance_benchmark gaussian_performance_benchmark.cpp)
-
-# Phase 3 Update Demo - showcases new goodness-of-fit tests and cross-validation methods
-create_example(gaussian_phase3_update_demo gaussian_phase3_update_demo.cpp)
+create_example(exponential_performance_benchmark exponential_performance_benchmark.cpp)
 
 # Future examples (to be implemented)
 # add_executable(parameter_fitting parameter_fitting.cpp)

@@ -15,13 +15,14 @@ A modern, high-performance C++20 statistical distributions library providing com
 - **Statistical Moments**: Mean, variance, skewness, kurtosis with thread-safe access
 - **Random Sampling**: Integration with std:: distributions for high-quality random number generation
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
+- **Ststistical Validation**: KS and AD Goodness-of-Fit, model selection
 
 ### 📊 **Available Distributions**
 - **Gaussian (Normal)**: N(μ, σ²) - The cornerstone of statistics
 - **Exponential**: Exp(λ) - Waiting times and reliability analysis
-- **Uniform**: U(a, b) - Continuous uniform random variables
-- **Poisson**: P(λ) - Count data and rare events
-- **Gamma**: Γ(α, β) - Positive continuous variables
+- **Uniform**: U(a, b) - Continuous uniform random variables (in progress)
+- **Poisson**: P(λ) - Count data and rare events (in progress)
+- **Gamma**: Γ(α, β) - Positive continuous variables (in progress)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -39,7 +40,7 @@ A modern, high-performance C++20 statistical distributions library providing com
 - **Convergence Detection**: Advanced monitoring for iterative algorithms
 - **Diagnostics**: Automated numerical health assessment
 
-### 🧪 **Statistical Validation** (Planned)
+### 🧪 **Statistical Validation**
 - **Goodness-of-Fit Tests**: Kolmogorov-Smirnov, Anderson-Darling
 - **Model Selection**: AIC/BIC information criteria
 - **Residual Analysis**: Standardized residuals and diagnostics
@@ -168,10 +169,20 @@ libstats/
 ## Examples
 
 See the `examples/` directory for:
-- **basic_usage.cpp**: Introduction to core functionality
-- **parameter_fitting.cpp**: Data fitting and validation
-- **validation_demo.cpp**: Statistical testing examples
-- **performance_demo.cpp**: SIMD optimization showcase
+
+### Core Usage Examples
+- **basic_usage.cpp**: Introduction to core functionality with PDF/CDF evaluation, sampling, and parameter fitting
+- **statistical_validation_demo.cpp**: Advanced statistical validation including goodness-of-fit tests, cross-validation, bootstrap confidence intervals, and information criteria
+- **parallel_execution_demo.cpp**: Platform-aware parallel execution with adaptive grain sizing, thread optimization, and cache-aware algorithms
+
+### Performance Benchmarks
+- **gaussian_performance_benchmark.cpp**: Comprehensive performance testing for Gaussian distribution with SIMD optimizations
+- **exponential_performance_benchmark.cpp**: Performance benchmarks for exponential distribution demonstrating parallel and SIMD capabilities
+
+### Future Examples (Planned)
+- **parameter_fitting.cpp**: Advanced data fitting scenarios across multiple distributions
+- **cross_distribution_demo.cpp**: Comparative analysis across different distribution types
+- **simd_performance_showcase.cpp**: Cross-platform SIMD optimization demonstration
 
 ## Building and Testing
 
@@ -196,6 +207,8 @@ ctest --verbose
 
 # Run examples
 ./examples/basic_usage
+./examples/statistical_validation_demo
+./examples/parallel_execution_demo
 ```
 
 ## Roadmap
