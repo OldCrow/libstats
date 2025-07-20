@@ -1,0 +1,723 @@
+cmake_minimum_required(VERSION 3.15)
+
+# Use Homebrew LLVM for C++20 support
+set(CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang")
+set(CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++")
+
+# Configure LLVM paths
+set(LLVM_ROOT "/usr/local/opt/llvm")
+set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
+
+project(libstats VERSION 0.1.0 LANGUAGES CXX)
+
+# C++20 requirement
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Platform-specific configurations
+if(APPLE)
+    # macOS specific configuration - Force LLVM libc++ to get C++20 execution policies
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${LLVM_ROOT}/lib/c++ -Wl,-rpath,${LLVM_ROOT}/lib/c++")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -L${LLVM_ROOT}/lib/c++ -Wl,-rpath,${LLVM_ROOT}/lib/c++")
+    
+    # CRITICAL: Include LLVM libc++ headers BEFORE system headers to get C++20 execution policies
+    include_directories(BEFORE ${LLVM_ROOT}/include/c++/v1)
+    include_directories(BEFORE ${LLVM_ROOT}/include)
+    
+    # Add compiler flags to ensure we use LLVM headers
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include/c++/v1")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include")
+    
+    # Enable experimental PSTL support in LLVM libc++
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LIBCPP_HAS_EXPERIMENTAL_PSTL=1")
+    
+    # Optional TBB support for parallel execution policies
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(TBB QUIET tbb)
+        if(TBB_FOUND)
+            include_directories(${TBB_INCLUDE_DIRS})
+            link_directories(${TBB_LIBRARY_DIRS})
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+            set(LIBSTATS_HAS_TBB TRUE)
+            message(STATUS "TBB found - parallel execution policies enabled")
+        else()
+            set(LIBSTATS_HAS_TBB FALSE)
+            message(STATUS "TBB not found - parallel execution policies may not work")
+        endif()
+    else()
+        set(LIBSTATS_HAS_TBB FALSE)
+        message(STATUS "PkgConfig not found - cannot detect TBB")
+    endif()
+elseif(UNIX AND NOT APPLE)
+    # Linux specific configuration
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-soname,libstats.so.${PROJECT_VERSION_MAJOR}")
+elseif(WIN32)
+    # Windows specific configuration
+    add_definitions(-DNOMINMAX)
+    add_definitions(-D_USE_MATH_DEFINES)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+# SIMD feature detection and compilation flags
+# Use our comprehensive SIMD detection system
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
+
+# Set options for SIMD detection behavior
+option(LIBSTATS_ENABLE_RUNTIME_CHECKS "Enable runtime CPU checks even when cross-compiling" OFF)
+option(LIBSTATS_CONSERVATIVE_SIMD "Use conservative SIMD settings (disable newer instruction sets)" OFF)
+
+# Perform comprehensive SIMD detection
+detect_simd_features()
+
+# Compiler flags
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wall -Wextra -O3)
+    
+    # CONSERVATIVE SIMD approach: Only enable what we're confident will work
+    # Since we use runtime dispatch, we don't need to enable all SIMD at compile time
+    # We'll just enable SSE2 (universal on x86_64) and let runtime dispatch handle the rest
+    
+    # SSE2 is safe - it's been required for x86_64 since ~2003
+    if(LIBSTATS_HAS_SSE2)
+        add_compile_options(-msse2)
+        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
+        message(STATUS "SIMD: SSE2 enabled (safe baseline for x86_64)")
+    endif()
+    
+    # Enable additional SIMD levels for compilation only if we're confident
+    # Each SIMD file will be compiled with its own specific target flags
+    if(LIBSTATS_HAS_AVX)
+        add_compile_definitions(LIBSTATS_HAS_AVX=1)
+        message(STATUS "SIMD: AVX compilation enabled (runtime-dispatched)")
+    endif()
+    
+    if(LIBSTATS_HAS_AVX2)
+        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
+        message(STATUS "SIMD: AVX2 compilation enabled (runtime-dispatched)")
+    endif()
+    
+    if(LIBSTATS_HAS_AVX512)
+        add_compile_definitions(LIBSTATS_HAS_AVX512=1)
+        message(STATUS "SIMD: AVX-512 compilation enabled (runtime-dispatched)")
+    endif()
+    
+    if(LIBSTATS_HAS_NEON)
+        add_compile_options(-mfpu=neon)
+        add_compile_definitions(LIBSTATS_HAS_NEON=1)
+        message(STATUS "SIMD: NEON enabled")
+    endif()
+    
+    # Disable -march=native to avoid generating unsupported instructions
+    # if(NOT CMAKE_BUILD_TYPE STREQUAL "Distribution")
+    #     add_compile_options(-march=native)
+    # endif()
+    
+elseif(MSVC)
+    add_compile_options(/W4 /O2)
+    
+    # MSVC SIMD support
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        add_compile_options(/arch:AVX2)
+        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
+        add_compile_definitions(LIBSTATS_HAS_AVX=1)
+        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
+        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+    endif()
+endif()
+
+# Source files for the compiled library - start with core components
+set(LIBSTATS_SOURCES
+    # CPU detection with safe compilation (no advanced SIMD instructions)
+    src/cpu_detection.cpp
+    
+    # Other library components
+    src/gaussian.cpp
+    src/thread_pool.cpp
+    src/work_stealing_pool.cpp
+    src/validation.cpp
+    src/benchmark.cpp
+    src/distribution_base.cpp
+    src/log_space_ops.cpp
+    src/math_utils.cpp
+    # src/exponential.cpp   # TODO: fix compilation errors in exponential distribution
+    # src/uniform.cpp       # TODO: fix compilation errors in uniform distribution
+    src/safety.cpp
+    # src/poisson.cpp       # TODO: implement poisson distribution
+    # src/gamma.cpp         # TODO: implement gamma distribution
+)
+
+# Add SIMD sources from detection system
+list(APPEND LIBSTATS_SOURCES ${LIBSTATS_SIMD_SOURCES})
+
+# Header-only library (for header-only components)
+add_library(libstats_headers INTERFACE)
+target_include_directories(libstats_headers INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include/libstats>
+)
+
+# Static library
+add_library(libstats_static STATIC ${LIBSTATS_SOURCES})
+target_include_directories(libstats_static PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include/libstats>
+)
+set_target_properties(libstats_static PROPERTIES
+    OUTPUT_NAME "stats"
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
+# Dynamic/shared library
+add_library(libstats_shared SHARED ${LIBSTATS_SOURCES})
+target_include_directories(libstats_shared PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include/libstats>
+)
+set_target_properties(libstats_shared PROPERTIES
+    OUTPUT_NAME "stats"
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
+# Platform-specific shared library properties
+if(APPLE)
+    set_target_properties(libstats_shared PROPERTIES
+        MACOSX_RPATH ON
+        INSTALL_NAME_DIR "@rpath"
+    )
+elseif(UNIX AND NOT APPLE)
+    set_target_properties(libstats_shared PROPERTIES
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+    )
+endif()
+
+# Configure SIMD compilation for targets
+configure_simd_target(libstats_static)
+configure_simd_target(libstats_shared)
+
+# Create aliases for easier consumption
+add_library(libstats::headers ALIAS libstats_headers)
+add_library(libstats::static ALIAS libstats_static)
+add_library(libstats::shared ALIAS libstats_shared)
+
+# Test infrastructure
+option(LIBSTATS_BUILD_TESTS "Build tests" ON)
+
+if(LIBSTATS_BUILD_TESTS)
+    # Create tests directory in build folder
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)
+    
+    # Find GTest (Homebrew installation)
+    # First, try to use Homebrew's GTest installation directly
+    set(GTEST_ROOT "/usr/local/opt/googletest")
+    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${GTEST_ROOT}")
+    
+    # Try find_package first with explicit path
+    find_package(GTest QUIET HINTS ${GTEST_ROOT}/lib/cmake/GTest)
+    
+    if(GTest_FOUND OR TARGET GTest::gtest)
+        set(GTEST_FOUND TRUE)
+        message(STATUS "GTest found via find_package")
+    else()
+        # Fallback to pkg-config
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            # Set PKG_CONFIG_PATH to include Homebrew's pkgconfig directory
+            set(ENV{PKG_CONFIG_PATH} "${GTEST_ROOT}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+            pkg_check_modules(GTEST QUIET gtest)
+            pkg_check_modules(GTEST_MAIN QUIET gtest_main)
+            if(GTEST_FOUND)
+                message(STATUS "GTest found via pkg-config")
+            endif()
+        endif()
+        
+        # Manual fallback if both methods fail
+        if(NOT GTEST_FOUND)
+            # Check if the Homebrew installation exists manually
+            if(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS "${GTEST_ROOT}/include/gtest/gtest.h")
+                set(GTEST_FOUND TRUE)
+                set(GTEST_INCLUDE_DIRS "${GTEST_ROOT}/include")
+                set(GTEST_LIBRARIES "${GTEST_ROOT}/lib/libgtest.a")
+                set(GTEST_MAIN_LIBRARIES "${GTEST_ROOT}/lib/libgtest_main.a")
+                message(STATUS "GTest found manually at ${GTEST_ROOT}")
+            else()
+                message(STATUS "GTest not found - GTest-based tests will be skipped")
+            endif()
+        endif()
+    endif()
+    
+    # Function to create a test executable with proper flags
+    function(create_libstats_test TEST_NAME SOURCE_FILE)
+        add_executable(${TEST_NAME} ${SOURCE_FILE})
+        
+        # Set output directory to build/tests
+        set_target_properties(${TEST_NAME} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests
+        )
+        
+        # Link against static library by default for tests
+        target_link_libraries(${TEST_NAME} PRIVATE libstats_static)
+        
+        # Link TBB if available
+        if(LIBSTATS_HAS_TBB)
+            target_link_libraries(${TEST_NAME} PRIVATE ${TBB_LIBRARIES})
+        endif()
+        
+        # Apply same compiler flags as main library
+        if(APPLE)
+            target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
+        endif()
+        
+        # Add include directories
+        target_include_directories(${TEST_NAME} PRIVATE 
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+        
+        # Platform-specific linking
+        if(APPLE)
+            target_link_options(${TEST_NAME} PRIVATE
+                -L${LLVM_ROOT}/lib/c++
+                -Wl,-rpath,${LLVM_ROOT}/lib/c++
+            )
+        endif()
+        
+        # Add SIMD compile definitions
+        if(LIBSTATS_HAS_SSE2)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_SSE2=1)
+        endif()
+        if(LIBSTATS_HAS_AVX)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX=1)
+        endif()
+        if(LIBSTATS_HAS_AVX2)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX2=1)
+        endif()
+        if(LIBSTATS_HAS_AVX512)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX512=1)
+        endif()
+        if(LIBSTATS_HAS_NEON)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_NEON=1)
+        endif()
+        
+        # Add to test suite
+        add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
+        
+        # Set working directory for tests
+        set_tests_properties(${TEST_NAME} PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+    endfunction()
+    
+    # Function to create a test executable linked to dynamic library
+    function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
+        add_executable(${TEST_NAME} ${SOURCE_FILE})
+        
+        # Set output directory to build/tests
+        set_target_properties(${TEST_NAME} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests
+        )
+        
+        # Link against shared library instead of static
+        target_link_libraries(${TEST_NAME} PRIVATE libstats_shared)
+        
+        # Apply same compiler flags as main library
+        if(APPLE)
+            target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
+        endif()
+        
+        # Add include directories
+        target_include_directories(${TEST_NAME} PRIVATE 
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+        
+        # Platform-specific linking
+        if(APPLE)
+            target_link_options(${TEST_NAME} PRIVATE
+                -L${LLVM_ROOT}/lib/c++
+                -Wl,-rpath,${LLVM_ROOT}/lib/c++
+            )
+        endif()
+        
+        # Add SIMD compile definitions
+        if(LIBSTATS_HAS_SSE2)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_SSE2=1)
+        endif()
+        if(LIBSTATS_HAS_AVX)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX=1)
+        endif()
+        if(LIBSTATS_HAS_AVX2)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX2=1)
+        endif()
+        if(LIBSTATS_HAS_AVX512)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX512=1)
+        endif()
+        if(LIBSTATS_HAS_NEON)
+            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_NEON=1)
+        endif()
+        
+        # Add to test suite
+        add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
+        
+        # Set working directory for tests
+        set_tests_properties(${TEST_NAME} PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+    endfunction()
+    
+    # Function to create a GTest-based test executable
+    function(create_libstats_gtest TEST_NAME SOURCE_FILE)
+        if(GTEST_FOUND)
+            add_executable(${TEST_NAME} ${SOURCE_FILE})
+            
+            # Set output directory to build/tests
+            set_target_properties(${TEST_NAME} PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
+                RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests
+                RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests
+            )
+            
+            # Link against static library and GTest
+            target_link_libraries(${TEST_NAME} PRIVATE libstats_static)
+            
+            # Link GTest libraries
+            if(TARGET GTest::gtest)
+                target_link_libraries(${TEST_NAME} PRIVATE GTest::gtest GTest::gtest_main)
+            else()
+                target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+                target_include_directories(${TEST_NAME} PRIVATE ${GTEST_INCLUDE_DIRS})
+            endif()
+            
+            # Apply same compiler flags as main library
+            if(APPLE)
+                target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
+            endif()
+            
+            # Add include directories
+            target_include_directories(${TEST_NAME} PRIVATE 
+                ${CMAKE_CURRENT_SOURCE_DIR}/include
+                ${CMAKE_CURRENT_SOURCE_DIR}/src
+            )
+            
+            # Platform-specific linking
+            if(APPLE)
+                target_link_options(${TEST_NAME} PRIVATE
+                    -L${LLVM_ROOT}/lib/c++
+                    -Wl,-rpath,${LLVM_ROOT}/lib/c++
+                )
+            endif()
+            
+            # Add SIMD compile definitions
+            if(LIBSTATS_HAS_SSE2)
+                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_SSE2=1)
+            endif()
+            if(LIBSTATS_HAS_AVX)
+                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX=1)
+            endif()
+            if(LIBSTATS_HAS_AVX2)
+                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX2=1)
+            endif()
+            if(LIBSTATS_HAS_AVX512)
+                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX512=1)
+            endif()
+            if(LIBSTATS_HAS_NEON)
+                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_NEON=1)
+            endif()
+            
+            # Add to test suite
+            add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
+            
+            # Set working directory for tests
+            set_tests_properties(${TEST_NAME} PROPERTIES
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            )
+        else()
+            message(WARNING "GTest not found - skipping GTest-based test: ${TEST_NAME}")
+        endif()
+    endfunction()
+    
+    # Enable testing
+    enable_testing()
+    
+    # =======================================================================
+    # LEVEL 0 TESTS: Foundational Headers (No Internal Dependencies)
+    # =======================================================================
+    # These test the most fundamental building blocks and should run first
+    
+    # constants.h - Mathematical constants and precision tolerances
+    create_libstats_test(test_cpp20_features tests/test_cpp20_features.cpp)
+    create_libstats_test(test_constants tests/test_constants.cpp)
+    
+    # cpu_detection.h - Runtime CPU feature detection
+    create_libstats_test(test_cpu_detection tests/test_cpu_detection.cpp)
+    
+    # adaptive_cache.h - Advanced adaptive cache management
+    create_libstats_test(test_adaptive_cache tests/test_adaptive_cache.cpp)
+    
+    # simd.h - Platform-specific SIMD intrinsics and compile-time detection
+    create_libstats_test(test_simd_integration_simple tests/test_simd_integration_simple.cpp)
+    create_libstats_test(test_simd_integration tests/test_simd_integration.cpp)
+    create_libstats_test(test_simd_operations tests/test_simd_operations.cpp)
+    create_libstats_test(test_platform_optimizations tests/test_platform_optimizations.cpp)
+    
+    # error_handling.h - ABI-safe error handling with Result<T> pattern
+    create_libstats_test(test_safe_factory tests/test_safe_factory.cpp)
+    
+    # =======================================================================
+    # LEVEL 1 TESTS: Core Infrastructure (Depends on Level 0)
+    # =======================================================================
+    # These build on foundational components and should run second
+    
+    # safety.h - Memory safety, bounds checking, numerical stability
+    create_libstats_test(test_safety tests/test_safety.cpp)
+    
+    # math_utils.h - Mathematical utilities and special functions
+    create_libstats_test(test_vectorized_math tests/test_vectorized_math.cpp)
+    
+    # validation.h - Statistical validation and goodness-of-fit testing
+    create_libstats_test(test_goodness_of_fit tests/test_goodness_of_fit.cpp)
+    create_libstats_test(test_validation_enhanced tests/test_validation_enhanced.cpp)
+    
+    # =======================================================================
+    # LEVEL 2 TESTS: Core Framework (Depends on Levels 0-1)
+    # =======================================================================
+    # These test the distribution base framework
+    
+    # distribution_base.h - Abstract base class for all distributions
+    # (No direct test file - tested through distribution implementations)
+    
+    # =======================================================================
+    # LEVEL 3 TESTS: Parallel Infrastructure (Depends on Levels 0-2)
+    # =======================================================================
+    # These test parallel computation infrastructure
+    
+    # thread_pool.h and work_stealing_pool.h - Thread pool implementations
+    create_libstats_test(test_thread_pool tests/test_thread_pool.cpp)
+    create_libstats_test(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
+    
+    # parallel_execution.h - C++20 parallel execution policy detection and utilities
+    create_libstats_test(test_parallel_execution_integration tests/test_parallel_execution_integration.cpp)
+    create_libstats_test(test_parallel_execution_comprehensive tests/test_parallel_execution_comprehensive.cpp)
+    
+    # benchmark.h - Performance measurement utilities
+    create_libstats_test(test_benchmark_basic tests/test_benchmark_basic.cpp)
+    
+    # =======================================================================
+    # LEVEL 4 TESTS: Distribution Implementations (Depends on Levels 0-3)
+    # =======================================================================
+    # These test concrete distribution implementations
+    
+    # gaussian.h - Gaussian/Normal distribution implementation
+    create_libstats_test(test_gaussian_simple tests/test_gaussian_simple.cpp)
+    create_libstats_test(test_gaussian_enhanced tests/test_gaussian_enhanced.cpp)
+    create_libstats_test(test_advanced_methods tests/test_advanced_methods.cpp)
+    
+    # GTest-based tests for Phase 3 methods
+    create_libstats_gtest(test_gaussian_phase3 tests/test_gaussian_phase3.cpp)
+    
+    # exponential.h - Exponential distribution implementation
+    # create_libstats_test(test_exponential_simple tests/test_exponential_simple.cpp)  # TODO: uncomment after fixing exponential.cpp
+    # create_libstats_test(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
+    
+    # uniform.h - Uniform distribution implementation
+    # create_libstats_test(test_uniform_simple tests/test_uniform_simple.cpp)  # TODO: uncomment after fixing uniform.cpp
+    # create_libstats_test(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
+    
+    # =======================================================================
+    # ADDITIONAL TESTS: Cross-cutting concerns and integration
+    # =======================================================================
+    # These test cross-cutting functionality and integration scenarios
+    
+    # Copy/move semantics stress tests
+    # TODO: Temporarily commented out due to exponential/uniform distribution dependencies
+    # if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_stress.cpp)
+    #     create_libstats_test(test_copy_move_stress tests/test_copy_move_stress.cpp)
+    #     set(HAS_COPY_MOVE_STRESS TRUE)
+    # else()
+    #     set(HAS_COPY_MOVE_STRESS FALSE)
+    # endif()
+    set(HAS_COPY_MOVE_STRESS FALSE)
+    
+    # if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_fix.cpp)
+    #     create_libstats_test(test_copy_move_fix tests/test_copy_move_fix.cpp)
+    #     set(HAS_COPY_MOVE_FIX TRUE)
+    # else()
+    #     set(HAS_COPY_MOVE_FIX FALSE)
+    # endif()
+    set(HAS_COPY_MOVE_FIX FALSE)
+    
+    # Dynamic library linking tests
+    create_libstats_test_dynamic(test_dynamic_linking tests/test_dynamic_linking.cpp)
+    
+    # Dynamic versions of all _simple tests
+    create_libstats_test_dynamic(test_simd_integration_simple_dynamic tests/test_simd_integration_simple.cpp)
+    create_libstats_test_dynamic(test_gaussian_simple_dynamic tests/test_gaussian_simple.cpp)
+    # create_libstats_test_dynamic(test_exponential_simple_dynamic tests/test_exponential_simple.cpp)  # TODO: uncomment after fixing exponential.cpp
+    # create_libstats_test_dynamic(test_uniform_simple_dynamic tests/test_uniform_simple.cpp)  # TODO: uncomment after fixing uniform.cpp
+    
+    # TODO: Add these tests once distributions are implemented
+    # create_libstats_test(test_exponential tests/test_exponential.cpp)
+    # create_libstats_test(test_uniform tests/test_uniform.cpp)
+    # create_libstats_test(test_poisson tests/test_poisson.cpp)
+    # create_libstats_test(test_gamma tests/test_gamma.cpp)
+    # create_libstats_test(test_validation tests/test_validation.cpp)
+    
+    # Future GTest-based tests can be added here using create_libstats_gtest()
+    # Example: create_libstats_gtest(test_gaussian_gtest tests/test_gaussian_gtest.cpp)
+    
+    # Test target for running all tests (organized by dependency hierarchy)
+    add_custom_target(run_tests
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+        DEPENDS
+            # Level 0: Foundational tests (most critical)
+            test_cpp20_features
+            test_constants
+            test_cpu_detection
+            test_adaptive_cache
+            test_simd_integration_simple
+            test_simd_integration
+            test_simd_operations
+            test_platform_optimizations
+            test_safe_factory
+            
+            # Level 1: Core infrastructure tests
+            test_safety
+            test_vectorized_math
+            test_goodness_of_fit
+            test_validation_enhanced
+            
+            # Level 2: Framework tests (no direct tests - covered by Level 4)
+            
+            # Level 3: Parallel infrastructure tests
+            test_thread_pool
+            test_work_stealing_pool
+            test_parallel_execution_integration
+            test_parallel_execution_comprehensive
+            test_benchmark_basic
+            
+            # Level 4: Distribution implementation tests
+            test_gaussian_simple
+            test_gaussian_enhanced
+            test_advanced_methods
+            test_gaussian_phase3
+            # test_exponential_simple       # TODO: uncomment after fixing exponential.cpp
+            # test_exponential_enhanced
+            # test_uniform_simple           # TODO: uncomment after fixing uniform.cpp
+            # test_uniform_enhanced
+            
+            # Additional tests: Cross-cutting concerns
+            test_dynamic_linking
+            test_simd_integration_simple_dynamic
+            test_gaussian_simple_dynamic
+            # test_exponential_simple_dynamic  # TODO: uncomment after fixing exponential.cpp
+            # test_uniform_simple_dynamic      # TODO: uncomment after fixing uniform.cpp
+            
+            # Conditional tests (added if they exist)
+            $<$<BOOL:${HAS_COPY_MOVE_STRESS}>:test_copy_move_stress>
+            $<$<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
+        COMMENT "Running all libstats tests in dependency order (Level 0-4)"
+    )
+    
+    message(STATUS "Test infrastructure enabled")
+else()
+    message(STATUS "Test infrastructure disabled")
+endif()
+
+# Tools and utilities
+option(LIBSTATS_BUILD_TOOLS "Build utility tools" ON)
+
+if(LIBSTATS_BUILD_TOOLS)
+    # CPU capability test tool
+    add_executable(cpu_test tools/cpu_test.cpp)
+    target_link_libraries(cpu_test PRIVATE libstats_static)
+    target_include_directories(cpu_test PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    
+    # Apply same compiler flags as main library
+    if(APPLE)
+        target_compile_options(cpu_test PRIVATE -stdlib=libc++)
+        target_link_options(cpu_test PRIVATE
+            -L${LLVM_ROOT}/lib/c++
+            -Wl,-rpath,${LLVM_ROOT}/lib/c++
+        )
+    endif()
+    
+    # Add SIMD compile definitions
+    target_compile_definitions(cpu_test PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+    
+    set_target_properties(cpu_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tools
+    )
+    
+    message(STATUS "Tools: CPU test utility enabled")
+endif()
+
+# Examples
+add_subdirectory(examples)
+
+# Install targets
+install(TARGETS libstats_headers libstats_static libstats_shared
+    EXPORT libstats-targets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include
+)
+
+# Install headers
+install(DIRECTORY include/ DESTINATION include/libstats)
+
+# Install CMake config files for find_package support
+install(EXPORT libstats-targets
+    FILE libstats-targets.cmake
+    NAMESPACE libstats::
+    DESTINATION lib/cmake/libstats
+)
+
+# Create and install config file
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats-config.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
+    INSTALL_DESTINATION lib/cmake/libstats
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
+    DESTINATION lib/cmake/libstats
+)
+
+# Print summary
+message(STATUS "libstats Configuration Summary:")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
+if(LIBSTATS_BUILD_TESTS)
+    message(STATUS "  Testing: Enabled")
+    if(GTEST_FOUND)
+        message(STATUS "  GTest: Available")
+    else()
+        message(STATUS "  GTest: Not found - using standalone tests")
+    endif()
+else()
+    message(STATUS "  Testing: Disabled")
+endif()

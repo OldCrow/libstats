@@ -1,0 +1,41 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find dependencies
+find_dependency(Threads)
+
+# Include the targets file
+include("${CMAKE_CURRENT_LIST_DIR}/libstats-targets.cmake")
+
+# Set variables for backwards compatibility
+set(LIBSTATS_FOUND TRUE)
+set(LIBSTATS_VERSION "@PROJECT_VERSION@")
+set(LIBSTATS_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
+
+# Provide different library options
+if(TARGET libstats::shared)
+    set(LIBSTATS_LIBRARIES libstats::shared)
+    set(LIBSTATS_SHARED_LIBRARIES libstats::shared)
+endif()
+
+if(TARGET libstats::static)
+    set(LIBSTATS_STATIC_LIBRARIES libstats::static)
+    # Default to static if no preference specified
+    if(NOT DEFINED LIBSTATS_LIBRARIES)
+        set(LIBSTATS_LIBRARIES libstats::static)
+    endif()
+endif()
+
+if(TARGET libstats::headers)
+    set(LIBSTATS_HEADER_LIBRARIES libstats::headers)
+endif()
+
+# Report SIMD capabilities that were detected at build time
+set(libstats_HAS_SSE2 @LIBSTATS_HAS_SSE2@)
+set(libstats_HAS_AVX @LIBSTATS_HAS_AVX@)
+set(libstats_HAS_AVX2 @LIBSTATS_HAS_AVX2@)
+set(libstats_HAS_AVX512 @LIBSTATS_HAS_AVX512@)
+set(libstats_HAS_NEON @LIBSTATS_HAS_NEON@)
+
+check_required_components(libstats)

@@ -1,0 +1,319 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# CMake
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+*.cmake
+
+# Build directories
+build/
+build_*/
+Build/
+BUILD/
+out/
+x64/
+x86/
+Release/
+Debug/
+RelWithDebInfo/
+MinSizeRel/
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# CLion
+.idea/
+cmake-build-*/
+
+# Qt Creator
+CMakeLists.txt.user*
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+
+# temporary files which can be created if a process still has a handle open of a deleted file
+.fuse_hidden*
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+# .nfs files are created when an open file is removed but is still being accessed
+.nfs*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Package managers
+vcpkg_installed/
+conan.lock
+conanbuildinfo.*
+conandata.yml
+conanfile.txt
+
+# Google Test
+googletest/
+gtest/
+
+# Logs
+*.log
+*.logs
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*.temp
+*~
+
+# Profiling data
+*.prof
+gmon.out
+callgrind.out.*
+*.gcno
+*.gcda
+*.gcov
+
+# Coverage reports
+coverage/
+*.info
+lcov.info
+
+# Documentation build output
+docs/html/
+docs/latex/
+docs/doxygen/
+doxygen_warnings.txt
+
+# Benchmark results
+benchmarks/results/
+*.bench
+
+# Performance profiling
+perf.data*
+*.perf
+
+# Core dumps
+core
+core.*
+vgcore.*
+
+# Sanitizer output
+*.san
+
+# Temporary and editor files
+*~
+*.swp
+*.swo
+.*.swp
+.*.swo
+
+# Tags
+tags
+TAGS
+
+# Ctags
+.tags
+.tags_sorted_by_file
+
+# Editor backup files
+*~
+\#*\#
+.\#*
+
+# Emacs
+.#*
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+.netrwhist
+*~
+tags
+
+# Project-specific ignores
+# Build artifacts from specific configurations
+libstats.a
+libstats.so*
+stats.a
+stats.so*
+
+# Testing artifacts
+test_results/
+test_output/
+
+# Benchmark data
+benchmark_results/
+
+# Distribution packages
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+
+# IDE project files (additional)
+*.pro.user*
+*.qbs.user*
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+Makefile*
+*build-*
+
+# JetBrains
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse CDT
+.metadata
+bin/
+tmp/
+*.tmp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+.project
+.cproject
+
+# NetBeans
+/nbproject/private/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.ftpconfig
+.sftpconfig
+
+# Textmate
+*.tmproj
+*.tmproject
+tmtags
+
+# Android Studio / IntelliJ IDEA
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Binary directories that might be created
+bin/
+obj/
+lib/
+libs/
