@@ -607,6 +607,7 @@ namespace simd {
         
         /// AVX/AVX2: 4 doubles per register
         inline constexpr std::size_t AVX_DOUBLES = 4;
+        inline constexpr std::size_t AVX2_DOUBLES = 4;
         
         /// SSE2: 2 doubles per register
         inline constexpr std::size_t SSE_DOUBLES = 2;

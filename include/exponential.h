@@ -345,6 +345,16 @@ public:
      * @return Single random sample
      */
     [[nodiscard]] double sample(std::mt19937& rng) const override;
+    
+    /**
+     * @brief Generate multiple random samples from distribution
+     * Optimized batch sampling using inverse transform method
+     * 
+     * @param rng Random number generator
+     * @param n Number of samples to generate
+     * @return Vector of random samples
+     */
+    [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
     // PARAMETER GETTERS AND SETTERS

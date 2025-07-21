@@ -112,8 +112,135 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
     return *this;
 }
 
+double GaussianDistribution::sample(std::mt19937& rng) const {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Optimized Box-Muller transform with enhanced numerical stability
+    static thread_local bool has_spare = false;
+    static thread_local double spare;
+    
+    if (has_spare) {
+        has_spare = false;
+        return mean_ + standardDeviation_ * spare;
+    }
+    
+    has_spare = true;
+    
+    // Use high-quality uniform distribution
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), constants::math::ONE);
+    
+    double u1, u2;
+    double magnitude, angle;
+    
+    do {
+        u1 = uniform(rng);
+        u2 = uniform(rng);
+        
+        // Box-Muller transformation
+        magnitude = std::sqrt(-2.0 * std::log(u1));
+        angle = constants::math::TWO_PI * u2;
+        
+        // Check for numerical validity
+        if (std::isfinite(magnitude) && std::isfinite(angle)) {
+            break;
+        }
+    } while (true);
+    
+    spare = magnitude * std::sin(angle);
+    double z = magnitude * std::cos(angle);
+    
+    return mean_ + standardDeviation_ * z;
+}
+
+std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) const {
+    std::vector<double> samples;
+    samples.reserve(n);
+    
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for batch generation
+    const double cached_mu = mean_;
+    const double cached_sigma = standardDeviation_;
+    const bool cached_is_standard = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before generation
+    
+    std::uniform_real_distribution<double> uniform(constants::math::ZERO_DOUBLE, constants::math::ONE);
+    
+    // Efficient batch Box-Muller: generate samples in pairs
+    const size_t pairs = n / 2;
+    const bool has_odd = (n % 2) == 1;
+    
+    for (size_t i = 0; i < pairs; ++i) {
+        // Generate two independent uniform random variables
+        double u1 = uniform(rng);
+        double u2 = uniform(rng);
+        
+        // Ensure u1 is not zero to avoid log(0)
+        while (u1 <= std::numeric_limits<double>::min()) {
+            u1 = uniform(rng);
+        }
+        
+        // Box-Muller transformation
+        const double magnitude = std::sqrt(-2.0 * std::log(u1));
+        const double angle = constants::math::TWO_PI * u2;
+        
+        const double z1 = magnitude * std::cos(angle);
+        const double z2 = magnitude * std::sin(angle);
+        
+        // Transform to desired distribution parameters
+        if (cached_is_standard) {
+            samples.push_back(z1);
+            samples.push_back(z2);
+        } else {
+            samples.push_back(cached_mu + cached_sigma * z1);
+            samples.push_back(cached_mu + cached_sigma * z2);
+        }
+    }
+    
+    // Handle odd number of samples - generate one more using single Box-Muller
+    if (has_odd) {
+        double u1 = uniform(rng);
+        double u2 = uniform(rng);
+        
+        while (u1 <= std::numeric_limits<double>::min()) {
+            u1 = uniform(rng);
+        }
+        
+        const double magnitude = std::sqrt(-2.0 * std::log(u1));
+        const double angle = constants::math::TWO_PI * u2;
+        const double z = magnitude * std::cos(angle);
+        
+        if (cached_is_standard) {
+            samples.push_back(z);
+        } else {
+            samples.push_back(cached_mu + cached_sigma * z);
+        }
+    }
+    
+    return samples;
+}
+
 //==============================================================================
-// CORE PROBABILITY METHODS
+// PARAMETER GETTERS AND SETTERS
 //==============================================================================
 
 double GaussianDistribution::getProbability(double x) const {
@@ -666,66 +793,6 @@ double GaussianDistribution::getQuantile(double p) const {
     return mean_ + standardDeviation_ * constants::math::SQRT_2 * z;
 }
 
-double GaussianDistribution::sample(std::mt19937& rng) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    
-    // Optimized Box-Muller transform with enhanced numerical stability and performance
-    static thread_local bool has_spare = false;
-    static thread_local double spare;
-    
-    if (has_spare) {
-        has_spare = false;
-        return mean_ + standardDeviation_ * spare;
-    }
-    
-    has_spare = true;
-    
-    // Use high-quality uniform distribution with better range
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), constants::math::ONE);
-    
-    double u1, u2;
-    double magnitude, angle;
-    
-    // Marsaglia polar method alternative for better performance when applicable
-    // But stick with Box-Muller for guaranteed numerical properties
-    do {
-        u1 = uniform(rng);
-        u2 = uniform(rng);
-        
-        // Enhanced Box-Muller transform with optimized log-space operations
-        // Use LogSpaceOps for numerical stability when u1 is small
-        const double log_u1 = LogSpaceOps::safeLog(u1);
-        
-        // Pre-multiply by -2 for efficiency (using constant)
-        magnitude = std::sqrt(constants::math::NEG_TWO * log_u1);
-        angle = constants::math::TWO_PI * u2;
-        
-        // Check for numerical validity
-        if (std::isfinite(magnitude) && std::isfinite(angle)) {
-            break;
-        }
-        
-        // Fallback: regenerate if we hit numerical issues
-    } while (true);
-    
-    // Generate both values using optimized trigonometric functions
-    double sin_val, cos_val;
-    
-    // Use sincos if available for better performance
-#if defined(__APPLE__)
-        __sincos(angle, &sin_val, &cos_val);
-#elif defined(__linux__) && defined(__GLIBC__)
-        sincos(angle, &sin_val, &cos_val);
-#else
-        sin_val = std::sin(angle);
-        cos_val = std::cos(angle);
-#endif
-    
-    spare = magnitude * sin_val;
-    double sample_value = magnitude * cos_val;
-    
-    return mean_ + standardDeviation_ * sample_value;
-}
 
 //==============================================================================
 // PARALLEL BATCH OPERATIONS

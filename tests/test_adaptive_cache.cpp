@@ -28,14 +28,14 @@ void test_basic_cache_operations() {
     cache.put("key1", 42);
     cache.put("key2", 84);
     
-    auto result1 = cache.get("key1");
+    [[maybe_unused]] auto result1 = cache.get("key1");
     assert(result1.has_value() && result1.value() == 42);
     
-    auto result2 = cache.get("key2");
+    [[maybe_unused]] auto result2 = cache.get("key2");
     assert(result2.has_value() && result2.value() == 84);
     
     // Test miss
-    auto result3 = cache.get("key3");
+    [[maybe_unused]] auto result3 = cache.get("key3");
     assert(!result3.has_value());
     
     std::cout << "✓ Basic cache operations passed" << std::endl;
@@ -58,7 +58,7 @@ void test_cache_eviction() {
     }
     
     // Check that cache is limited in size
-    auto stats = cache.getStats();
+    [[maybe_unused]] auto stats = cache.getStats();
     
     assert(stats.size <= config.max_cache_size);
     
@@ -87,7 +87,7 @@ void test_ttl_expiration() {
     cache.put("test_key", 123);
     
     // Should be available immediately
-    auto result1 = cache.get("test_key");
+    [[maybe_unused]] auto result1 = cache.get("test_key");
     assert(result1.has_value() && result1.value() == 123);
     
     // Wait for expiration
@@ -128,8 +128,8 @@ void test_metrics_and_stats() {
         cache.get(i);
     }
     
-    auto metrics = cache.getMetrics();
-    auto stats = cache.getStats();
+    [[maybe_unused]] auto metrics = cache.getMetrics();
+    [[maybe_unused]] auto stats = cache.getStats();
     
     // Debug: std::cout << "Debug metrics: hits=" << metrics.hits.load() << ", misses=" << metrics.misses.load() << ", hit_rate=" << stats.hit_rate << std::endl;
     
@@ -173,7 +173,7 @@ void test_prefetching() {
         }
     }
     
-    auto metrics = cache.getMetrics();
+    [[maybe_unused]] auto metrics = cache.getMetrics();
     assert(metrics.prefetch_hits.load() > 0 || metrics.prefetch_misses.load() > 0);
     
     std::cout << "✓ Prefetching passed (prefetched " << prefetch_hits 
@@ -583,8 +583,8 @@ void test_adaptive_cache_with_platform_tuning() {
     
     auto platform_stats = platform_cache.getStats();
     auto pattern_stats = pattern_cache.getStats();
-    auto platform_metrics = platform_cache.getMetrics();
-    auto pattern_metrics = pattern_cache.getMetrics();
+    [[maybe_unused]] auto platform_metrics = platform_cache.getMetrics();
+    [[maybe_unused]] auto pattern_metrics = pattern_cache.getMetrics();
     
     // Both caches should be functional
     assert(platform_stats.size > 0);

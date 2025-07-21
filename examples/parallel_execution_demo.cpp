@@ -39,11 +39,11 @@ void demonstrate_platform_detection() {
     
     // SIMD capabilities
     std::cout << "SIMD support: ";
-    if (cpu_features.has_avx512) std::cout << "AVX-512 ";
-    if (cpu_features.has_avx2) std::cout << "AVX2 ";
-    if (cpu_features.has_avx) std::cout << "AVX ";
-    if (cpu_features.has_sse42) std::cout << "SSE4.2 ";
-    if (cpu_features.has_neon) std::cout << "NEON ";
+    if (cpu_features.avx512f) std::cout << "AVX-512 ";
+    if (cpu_features.avx2) std::cout << "AVX2 ";
+    if (cpu_features.avx) std::cout << "AVX ";
+    if (cpu_features.sse4_2) std::cout << "SSE4.2 ";
+    if (cpu_features.neon) std::cout << "NEON ";
     std::cout << std::endl;
 }
 

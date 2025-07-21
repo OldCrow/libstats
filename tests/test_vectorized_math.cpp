@@ -173,7 +173,7 @@ void test_threshold_functions() {
     assert(should_use_vectorized_math(1000));
     assert(!should_use_vectorized_math(1));
     
-    std::size_t threshold = vectorized_math_threshold();
+    [[maybe_unused]] std::size_t threshold = vectorized_math_threshold();
     assert(threshold > 0);
     assert(threshold < 1000);
     

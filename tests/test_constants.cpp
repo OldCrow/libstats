@@ -119,11 +119,11 @@ void test_simd_constants() {
 void test_platform_optimizations() {
     using namespace libstats::constants::platform;
     
-    size_t simd_block_size = get_optimal_simd_block_size();
-    size_t alignment = get_optimal_alignment();
-    size_t min_simd_size = get_min_simd_size();
-    size_t min_parallel_elements = get_min_parallel_elements();
-    size_t optimal_grain_size = get_optimal_grain_size();
+    [[maybe_unused]] size_t simd_block_size = get_optimal_simd_block_size();
+    [[maybe_unused]] size_t alignment = get_optimal_alignment();
+    [[maybe_unused]] size_t min_simd_size = get_min_simd_size();
+    [[maybe_unused]] size_t min_parallel_elements = get_min_parallel_elements();
+    [[maybe_unused]] size_t optimal_grain_size = get_optimal_grain_size();
     
     assert(simd_block_size > 0);
     assert(alignment >= 16); // At least 16-byte alignment for SIMD
@@ -135,7 +135,7 @@ void test_platform_optimizations() {
     assert((alignment & (alignment - 1)) == 0);
     
     // Test platform-specific thresholds
-    CacheThresholds cache_thresholds = get_cache_thresholds();
+    [[maybe_unused]] CacheThresholds cache_thresholds = get_cache_thresholds();
     assert(cache_thresholds.l1_optimal_size > 0);
     assert(cache_thresholds.l2_optimal_size > cache_thresholds.l1_optimal_size);
     assert(cache_thresholds.l3_optimal_size > cache_thresholds.l2_optimal_size);

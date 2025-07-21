@@ -17,19 +17,19 @@ int main() {
     
     // Test safe_count with GCD
     std::vector<int> count_data = {1, 2, 3, 2, 4, 2, 5, 2};
-    auto count_result = libstats::parallel::safe_count(count_data.begin(), count_data.end(), 2);
+    [[maybe_unused]] auto count_result = libstats::parallel::safe_count(count_data.begin(), count_data.end(), 2);
     assert(count_result == 4);
     std::cout << "  - safe_count (GCD): PASSED" << std::endl;
     
     // Test safe_count_if with GCD
-    auto count_if_result = libstats::parallel::safe_count_if(count_data.begin(), count_data.end(), 
+    [[maybe_unused]] auto count_if_result = libstats::parallel::safe_count_if(count_data.begin(), count_data.end(), 
         [](int x) { return x > 2; });
-    assert(count_if_result == 3);  // 3, 4, 5
+    assert(count_if_result == 3);
     std::cout << "  - safe_count_if (GCD): PASSED" << std::endl;
     
     // Test safe_reduce (sum operation is the default)
     std::vector<double> reduce_data(1000, 2.0);
-    auto sum_result = libstats::parallel::safe_reduce(reduce_data.begin(), reduce_data.end(), 0.0);
+    [[maybe_unused]] auto sum_result = libstats::parallel::safe_reduce(reduce_data.begin(), reduce_data.end(), 0.0);
     assert(std::abs(sum_result - 2000.0) < 1e-10);
     std::cout << "  - safe_reduce with custom op (GCD): PASSED" << std::endl;
     
@@ -54,8 +54,8 @@ int main() {
     std::cout << "  - Large dataset transform: PASSED" << std::endl;
     
     // Test parallel reduce on large dataset
-    auto large_sum = libstats::parallel::safe_reduce(large_data.begin(), large_data.end(), 0.0);
-    double expected_sum = (100000.0 * 100001.0) / 2.0;  // Sum of 1..100000
+    [[maybe_unused]] auto large_sum = libstats::parallel::safe_reduce(large_data.begin(), large_data.end(), 0.0);
+    [[maybe_unused]] double expected_sum = (100000.0 * 100001.0) / 2.0;  // Sum of 1..100000
     assert(std::abs(large_sum - expected_sum) < 1.0);  // Allow small floating point error
     std::cout << "  - Large dataset reduce: PASSED" << std::endl;
     
@@ -81,7 +81,7 @@ int main() {
         [](double x) { return std::sqrt(x); });
     
     // Compare results
-    bool transforms_equal = std::equal(serial_transform.begin(), serial_transform.end(), 
+    [[maybe_unused]] bool transforms_equal = std::equal(serial_transform.begin(), serial_transform.end(), 
         parallel_transform.begin(), [](double a, double b) { return std::abs(a - b) < 1e-10; });
     assert(transforms_equal);
     std::cout << "  - Parallel vs serial transform equivalence: PASSED" << std::endl;
@@ -93,13 +93,13 @@ int main() {
     std::iota(perf_data.begin(), perf_data.end(), 1.0);
     
     auto start = std::chrono::high_resolution_clock::now();
-    auto perf_sum_result = libstats::parallel::safe_reduce(perf_data.begin(), perf_data.end(), 0.0);
+    [[maybe_unused]] auto perf_sum_result = libstats::parallel::safe_reduce(perf_data.begin(), perf_data.end(), 0.0);
     auto end = std::chrono::high_resolution_clock::now();
     
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     std::cout << "  - Parallel reduce of 50k elements took: " << duration.count() << " μs" << std::endl;
     
-    double expected_perf_sum = (50000.0 * 50001.0) / 2.0;
+    [[maybe_unused]] double expected_perf_sum = (50000.0 * 50001.0) / 2.0;
     assert(std::abs(perf_sum_result - expected_perf_sum) < 1.0);
     std::cout << "  - Performance test correctness: PASSED" << std::endl;
     
@@ -109,13 +109,13 @@ int main() {
     try {
         // Test with empty containers
         std::vector<int> empty;
-        auto empty_count = libstats::parallel::safe_count(empty.begin(), empty.end(), 5);
+        [[maybe_unused]] auto empty_count = libstats::parallel::safe_count(empty.begin(), empty.end(), 5);
         assert(empty_count == 0);
         std::cout << "  - Empty container count: PASSED" << std::endl;
         
         // Test with null/default values
         std::vector<int*> ptr_vec(100, nullptr);
-        auto null_count = libstats::parallel::safe_count(ptr_vec.begin(), ptr_vec.end(), nullptr);
+        [[maybe_unused]] auto null_count = libstats::parallel::safe_count(ptr_vec.begin(), ptr_vec.end(), nullptr);
         assert(null_count == 100);
         std::cout << "  - Null pointer handling: PASSED" << std::endl;
         

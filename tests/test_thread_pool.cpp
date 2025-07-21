@@ -647,7 +647,7 @@ private:
                 });
             
             // Verify first few results
-            bool correct = true;
+            [[maybe_unused]] bool correct = true;
             for (std::size_t i = 0; i < 10; ++i) {
                 double expected = safety::safe_log(static_cast<double>(i + 1));
                 if (std::abs(output[i] - expected) > TOLERANCE) {
@@ -672,7 +672,7 @@ private:
             double mean = sum / data.size();
             
             double expected = (1.0 + 1000.0) / 2.0;
-            bool correct = std::abs(mean - expected) < TOLERANCE;
+            [[maybe_unused]] bool correct = std::abs(mean - expected) < TOLERANCE;
             
             assert(correct);
             std::cout << "  Example 3 parallel mean: " << mean << " (expected: " << expected << ")" << std::endl;

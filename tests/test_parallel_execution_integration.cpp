@@ -42,7 +42,7 @@ int main() {
     // Test safe_reduce
     std::vector<double> values(100);
     std::fill(values.begin(), values.end(), 1.0);
-    double sum = libstats::parallel::safe_reduce(values.begin(), values.end(), 0.0);
+    [[maybe_unused]] double sum = libstats::parallel::safe_reduce(values.begin(), values.end(), 0.0);
     assert(sum == 100.0);
     std::cout << "  - safe_reduce: PASSED" << std::endl;
     

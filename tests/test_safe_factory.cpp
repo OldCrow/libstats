@@ -19,7 +19,7 @@ void testSafeFactory() {
     std::cout << "   ✓ Parameters correctly set" << std::endl;
     
     // Test basic functionality
-    double pdf = dist.getProbability(0.0);
+    [[maybe_unused]] double pdf = dist.getProbability(0.0);
     assert(std::abs(pdf - 0.39894228040143268) < 1e-10); // 1/sqrt(2π)
     std::cout << "   ✓ Basic functionality works" << std::endl;
     

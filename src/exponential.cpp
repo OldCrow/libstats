@@ -254,6 +254,49 @@ double ExponentialDistribution::sample(std::mt19937& rng) const {
     return -std::log(u) * invLambda_;
 }
 
+std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n) const {
+    std::vector<double> samples;
+    samples.reserve(n);
+    
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe batch generation
+    const bool cached_is_unit_rate = isUnitRate_;
+    const double cached_inv_lambda = invLambda_;
+    
+    lock.unlock(); // Release lock before generation
+    
+    // Use high-quality uniform distribution for batch generation
+    std::uniform_real_distribution<double> uniform(
+        std::numeric_limits<double>::min(), 
+        constants::math::ONE
+    );
+    
+    // Generate samples using inverse transform method: X = -ln(U)/λ
+    for (size_t i = 0; i < n; ++i) {
+        double u = uniform(rng);
+        
+        if (cached_is_unit_rate) {
+            // Fast path for unit exponential (λ = 1)
+            samples.push_back(-std::log(u));
+        } else {
+            // General case: X = -ln(U)/λ
+            samples.push_back(-std::log(u) * cached_inv_lambda);
+        }
+    }
+    
+    return samples;
+}
+
 //==============================================================================
 // PARAMETER GETTERS AND SETTERS
 //==============================================================================
@@ -468,72 +511,159 @@ void ExponentialDistribution::getLogProbabilityBatchUnsafe(const double* values,
 
 void ExponentialDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                            double lambda, double neg_lambda) const noexcept {
-    // Check if we should use SIMD
-    if (cpu::supports_avx2() && count >= constants::simd::MIN_SIMD_SIZE) {
-        getProbabilityBatchSIMD(values, results, count, lambda, neg_lambda);
+    // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
+    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        const bool is_unit_rate = (std::abs(lambda - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (is_unit_rate) {
+                results[i] = std::exp(-x);
+            } else {
+                results[i] = lambda * std::exp(neg_lambda * x);
+            }
+        }
         return;
     }
     
-    // Scalar fallback
+    // Runtime CPU detection passed - use vectorized implementation
     const bool is_unit_rate = (std::abs(lambda - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
     
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
+    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
+    
+    // Step 1: Prepare exp() inputs
+    if (is_unit_rate) {
+        // For unit rate: exp(-x)
+        simd::VectorOps::scalar_multiply(values, -1.0, exp_inputs.data(), count);
+    } else {
+        // For general case: exp(neg_lambda * x)
+        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
+    }
+    
+    // Step 2: Apply vectorized exponential
+    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
+    
+    // Step 3: Apply lambda scaling if needed
+    if (!is_unit_rate) {
+        simd::VectorOps::scalar_multiply(results, lambda, results, count);
+    }
+    
+    // Step 4: Handle negative input values (set to zero)
     for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        
-        if (x < constants::math::ZERO_DOUBLE) {
+        if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::math::ZERO_DOUBLE;
-        } else if (is_unit_rate) {
-            results[i] = std::exp(-x);
-        } else {
-            results[i] = lambda * std::exp(neg_lambda * x);
         }
     }
 }
 
 void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                               double log_lambda, double neg_lambda) const noexcept {
-    // Check if we should use SIMD
-    if (cpu::supports_avx2() && count >= constants::simd::MIN_SIMD_SIZE) {
-        getLogProbabilityBatchSIMD(values, results, count, log_lambda, neg_lambda);
+    // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
+    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        const bool is_unit_rate = (std::abs(log_lambda - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE);
+        
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            } else if (is_unit_rate) {
+                results[i] = -x;
+            } else {
+                results[i] = log_lambda + neg_lambda * x;
+            }
+        }
         return;
     }
     
-    // Scalar fallback
+    // Runtime CPU detection passed - use vectorized implementation
     const bool is_unit_rate = (std::abs(log_lambda - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE);
     
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
+    
+    // Step 1: Calculate the main term
+    if (is_unit_rate) {
+        // For unit rate: -x
+        simd::VectorOps::scalar_multiply(values, -1.0, results, count);
+    } else {
+        // For general case: log_lambda + neg_lambda * x
+        simd::VectorOps::scalar_multiply(values, neg_lambda, temp_values.data(), count);
+        simd::VectorOps::scalar_add(temp_values.data(), log_lambda, results, count);
+    }
+    
+    // Step 2: Handle negative input values (set to -infinity)
     for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        
-        if (x < constants::math::ZERO_DOUBLE) {
+        if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::probability::NEGATIVE_INFINITY;
-        } else if (is_unit_rate) {
-            results[i] = -x;
-        } else {
-            results[i] = log_lambda + neg_lambda * x;
         }
     }
 }
 
 void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                      double neg_lambda) const noexcept {
-    // Check if we should use SIMD
-    if (cpu::supports_avx2() && count >= constants::simd::MIN_SIMD_SIZE) {
-        getCumulativeProbabilityBatchSIMD(values, results, count, neg_lambda);
+    // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
+    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        const bool is_unit_rate = (std::abs(neg_lambda + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (is_unit_rate) {
+                results[i] = constants::math::ONE - std::exp(-x);
+            } else {
+                results[i] = constants::math::ONE - std::exp(neg_lambda * x);
+            }
+        }
         return;
     }
     
-    // Scalar fallback
+    // Runtime CPU detection passed - use vectorized implementation
     const bool is_unit_rate = (std::abs(neg_lambda + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
     
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
+    std::vector<double, simd::aligned_allocator<double>> exp_results(count);
+    
+    // Step 1: Prepare exp() inputs
+    if (is_unit_rate) {
+        // For unit rate: 1 - exp(-x)
+        simd::VectorOps::scalar_multiply(values, -1.0, exp_inputs.data(), count);
+    } else {
+        // For general case: 1 - exp(neg_lambda * x)
+        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
+    }
+    
+    // Step 2: Apply vectorized exponential
+    simd::VectorOps::vector_exp(exp_inputs.data(), exp_results.data(), count);
+    
+    // Step 3: Calculate 1 - exp(...)
+    simd::VectorOps::scalar_add(exp_results.data(), -1.0, results, count);
+    simd::VectorOps::scalar_multiply(results, -1.0, results, count);
+    
+    // Step 4: Handle negative input values (set to zero)
     for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        
-        if (x < constants::math::ZERO_DOUBLE) {
+        if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::math::ZERO_DOUBLE;
-        } else if (is_unit_rate) {
-            results[i] = constants::math::ONE - std::exp(-x);
-        } else {
-            results[i] = constants::math::ONE - std::exp(neg_lambda * x);
         }
     }
 }
@@ -544,139 +674,125 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const doub
 
 void ExponentialDistribution::getProbabilityBatchSIMD(const double* values, double* results, std::size_t count,
                                                       double lambda, double neg_lambda) const noexcept {
-#if defined(LIBSTATS_HAS_AVX2)
-    const std::size_t simd_width = 4; // AVX2 can handle 4 doubles
-    const std::size_t simd_count = count - (count % simd_width);
+    // Use the proper SIMD abstraction layer following the pattern from gaussian.cpp
+    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
     
-    const __m256d lambda_vec = _mm256_set1_pd(lambda);
-    const __m256d neg_lambda_vec = _mm256_set1_pd(neg_lambda);
-    const __m256d zero_vec = _mm256_setzero_pd();
-    const __m256d one_vec = _mm256_set1_pd(constants::math::ONE);
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        getProbabilityBatchUnsafeImpl(values, results, count, lambda, neg_lambda);
+        return;
+    }
     
+    // Runtime CPU detection passed - use vectorized implementation
     const bool is_unit_rate = (std::abs(lambda - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
     
-    // Process SIMD blocks
-    for (std::size_t i = 0; i < simd_count; i += simd_width) {
-        __m256d x_vec = _mm256_loadu_pd(&values[i]);
-        __m256d mask = _mm256_cmp_pd(x_vec, zero_vec, _CMP_GE_OQ);
-        
-        __m256d result;
-        if (is_unit_rate) {
-            result = _mm256_exp_pd(_mm256_sub_pd(zero_vec, x_vec));
-        } else {
-            result = _mm256_mul_pd(lambda_vec, _mm256_exp_pd(_mm256_mul_pd(neg_lambda_vec, x_vec)));
-        }
-        
-        result = _mm256_and_pd(result, mask);
-        _mm256_storeu_pd(&results[i], result);
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
+    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
+    
+    // Step 1: Prepare exp() inputs
+    if (is_unit_rate) {
+        // For unit rate: exp(-x)
+        simd::VectorOps::scalar_multiply(values, -1.0, exp_inputs.data(), count);
+    } else {
+        // For general case: exp(neg_lambda * x)
+        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
     }
     
-    // Handle remaining elements
-    for (std::size_t i = simd_count; i < count; ++i) {
-        const double x = values[i];
-        if (x < constants::math::ZERO_DOUBLE) {
+    // Step 2: Apply vectorized exponential
+    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
+    
+    // Step 3: Apply lambda scaling if needed
+    if (!is_unit_rate) {
+        simd::VectorOps::scalar_multiply(results, lambda, results, count);
+    }
+    
+    // Step 4: Handle negative input values (set to zero)
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::math::ZERO_DOUBLE;
-        } else if (is_unit_rate) {
-            results[i] = std::exp(-x);
-        } else {
-            results[i] = lambda * std::exp(neg_lambda * x);
         }
     }
-#else
-    // Fallback to scalar implementation
-    getProbabilityBatchUnsafeImpl(values, results, count, lambda, neg_lambda);
-#endif
 }
 
 void ExponentialDistribution::getLogProbabilityBatchSIMD(const double* values, double* results, std::size_t count,
                                                          double log_lambda, double neg_lambda) const noexcept {
-#if defined(LIBSTATS_HAS_AVX2)
-    const std::size_t simd_width = 4; // AVX2 can handle 4 doubles
-    const std::size_t simd_count = count - (count % simd_width);
+    // Use the proper SIMD abstraction layer following the pattern from gaussian.cpp
+    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
     
-    const __m256d log_lambda_vec = _mm256_set1_pd(log_lambda);
-    const __m256d neg_lambda_vec = _mm256_set1_pd(neg_lambda);
-    const __m256d zero_vec = _mm256_setzero_pd();
-    const __m256d neg_inf_vec = _mm256_set1_pd(constants::probability::NEGATIVE_INFINITY);
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        getLogProbabilityBatchUnsafeImpl(values, results, count, log_lambda, neg_lambda);
+        return;
+    }
     
+    // Runtime CPU detection passed - use vectorized implementation
     const bool is_unit_rate = (std::abs(log_lambda - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE);
     
-    // Process SIMD blocks
-    for (std::size_t i = 0; i < simd_count; i += simd_width) {
-        __m256d x_vec = _mm256_loadu_pd(&values[i]);
-        __m256d mask = _mm256_cmp_pd(x_vec, zero_vec, _CMP_GE_OQ);
-        
-        __m256d result;
-        if (is_unit_rate) {
-            result = _mm256_sub_pd(zero_vec, x_vec);
-        } else {
-            result = _mm256_add_pd(log_lambda_vec, _mm256_mul_pd(neg_lambda_vec, x_vec));
-        }
-        
-        result = _mm256_blendv_pd(neg_inf_vec, result, mask);
-        _mm256_storeu_pd(&results[i], result);
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
+    
+    // Step 1: Calculate the main term
+    if (is_unit_rate) {
+        // For unit rate: -x
+        simd::VectorOps::scalar_multiply(values, -1.0, results, count);
+    } else {
+        // For general case: log_lambda + neg_lambda * x
+        simd::VectorOps::scalar_multiply(values, neg_lambda, temp_values.data(), count);
+        simd::VectorOps::scalar_add(temp_values.data(), log_lambda, results, count);
     }
     
-    // Handle remaining elements
-    for (std::size_t i = simd_count; i < count; ++i) {
-        const double x = values[i];
-        if (x < constants::math::ZERO_DOUBLE) {
+    // Step 2: Handle negative input values (set to -infinity)
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::probability::NEGATIVE_INFINITY;
-        } else if (is_unit_rate) {
-            results[i] = -x;
-        } else {
-            results[i] = log_lambda + neg_lambda * x;
         }
     }
-#else
-    // Fallback to scalar implementation
-    getLogProbabilityBatchUnsafeImpl(values, results, count, log_lambda, neg_lambda);
-#endif
 }
 
 void ExponentialDistribution::getCumulativeProbabilityBatchSIMD(const double* values, double* results, std::size_t count,
                                                                double neg_lambda) const noexcept {
-#if defined(LIBSTATS_HAS_AVX2)
-    const std::size_t simd_width = 4; // AVX2 can handle 4 doubles
-    const std::size_t simd_count = count - (count % simd_width);
+    // Use the proper SIMD abstraction layer following the pattern from gaussian.cpp
+    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
     
-    const __m256d neg_lambda_vec = _mm256_set1_pd(neg_lambda);
-    const __m256d zero_vec = _mm256_setzero_pd();
-    const __m256d one_vec = _mm256_set1_pd(constants::math::ONE);
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        getCumulativeProbabilityBatchUnsafeImpl(values, results, count, neg_lambda);
+        return;
+    }
     
+    // Runtime CPU detection passed - use vectorized implementation
     const bool is_unit_rate = (std::abs(neg_lambda + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
     
-    // Process SIMD blocks
-    for (std::size_t i = 0; i < simd_count; i += simd_width) {
-        __m256d x_vec = _mm256_loadu_pd(&values[i]);
-        __m256d mask = _mm256_cmp_pd(x_vec, zero_vec, _CMP_GE_OQ);
-        
-        __m256d result;
-        if (is_unit_rate) {
-            result = _mm256_sub_pd(one_vec, _mm256_exp_pd(_mm256_sub_pd(zero_vec, x_vec)));
-        } else {
-            result = _mm256_sub_pd(one_vec, _mm256_exp_pd(_mm256_mul_pd(neg_lambda_vec, x_vec)));
-        }
-        
-        result = _mm256_and_pd(result, mask);
-        _mm256_storeu_pd(&results[i], result);
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
+    std::vector<double, simd::aligned_allocator<double>> exp_results(count);
+    
+    // Step 1: Prepare exp() inputs
+    if (is_unit_rate) {
+        // For unit rate: 1 - exp(-x)
+        simd::VectorOps::scalar_multiply(values, -1.0, exp_inputs.data(), count);
+    } else {
+        // For general case: 1 - exp(neg_lambda * x)
+        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
     }
     
-    // Handle remaining elements
-    for (std::size_t i = simd_count; i < count; ++i) {
-        const double x = values[i];
-        if (x < constants::math::ZERO_DOUBLE) {
+    // Step 2: Apply vectorized exponential
+    simd::VectorOps::vector_exp(exp_inputs.data(), exp_results.data(), count);
+    
+    // Step 3: Calculate 1 - exp(...)
+    simd::VectorOps::scalar_add(exp_results.data(), -1.0, results, count);
+    simd::VectorOps::scalar_multiply(results, -1.0, results, count);
+    
+    // Step 4: Handle negative input values (set to zero)
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::math::ZERO_DOUBLE;
-        } else if (is_unit_rate) {
-            results[i] = constants::math::ONE - std::exp(-x);
-        } else {
-            results[i] = constants::math::ONE - std::exp(neg_lambda * x);
         }
     }
-#else
-    // Fallback to scalar implementation
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, neg_lambda);
-#endif
 }
 
 //==============================================================================

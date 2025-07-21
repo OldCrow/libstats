@@ -1,12 +1,17 @@
 // ARM NEON-specific SIMD implementations
 // This file is compiled ONLY with NEON flags to ensure safety
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) && !defined(__clang__)
     #if defined(__aarch64__) || defined(_M_ARM64)
         // NEON is mandatory in AArch64, no explicit target needed
         #pragma GCC target("neon")
     #elif defined(__arm__) || defined(_M_ARM)
         #pragma GCC target("neon")
+    #endif
+#elif defined(__clang__)
+    #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
+        // Clang uses different target attribute syntax
+        #pragma clang attribute push (__attribute__((target("neon"))), apply_to=function)
     #endif
 #endif
 
@@ -294,3 +299,9 @@ void VectorOps::scalar_add_neon(const double* a, double scalar, double* result, 
 
 } // namespace simd
 } // namespace libstats
+
+#ifdef __clang__
+    #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
+        #pragma clang attribute pop
+    #endif
+#endif

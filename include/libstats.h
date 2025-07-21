@@ -143,7 +143,7 @@
 
 // Distributions
 #include "gaussian.h"
-// #include "exponential.h"
+#include "exponential.h"
 // #include "uniform.h"
 #include "poisson.h"
 #include "gamma.h"
@@ -152,10 +152,10 @@
 namespace libstats {
     // Type aliases for common usage
     using Gaussian = GaussianDistribution;
-    using Normal = GaussianDistribution;
-    // using Exponential = ExponentialDistribution;
-    // using Uniform = UniformDistribution;
-    using Poisson = PoissonDistribution;
+using Normal = GaussianDistribution;
+using Exponential = ExponentialDistribution;
+// using Uniform = UniformDistribution;
+using Poisson = PoissonDistribution;
     using Gamma = GammaDistribution;
     
     // Version information

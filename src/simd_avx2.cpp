@@ -1,9 +1,12 @@
 // AVX2-specific SIMD implementations
 // This file is compiled ONLY with AVX2 flags to ensure safety
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC target("avx2")
     #pragma GCC target("no-avx512f")
+#elif defined(__clang__)
+    // Clang uses different target attribute syntax
+    #pragma clang attribute push (__attribute__((target("avx2"))), apply_to=function)
 #endif
 
 #include "../include/simd.h"
@@ -158,3 +161,7 @@ void VectorOps::scalar_add_avx2(const double* a, double scalar, double* result, 
 
 } // namespace simd
 } // namespace libstats
+
+#ifdef __clang__
+    #pragma clang attribute pop
+#endif
