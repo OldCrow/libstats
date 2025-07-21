@@ -13,7 +13,7 @@ set(CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++")
 set(LLVM_ROOT "/usr/local/opt/llvm")
 set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
 
-project(libstats VERSION 0.2.0 LANGUAGES CXX)
+project(libstats VERSION 0.2.1 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)

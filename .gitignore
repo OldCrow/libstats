@@ -40,7 +40,19 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps/
-*.cmake
+# CMake generated files (but allow custom cmake modules)
+build*/**/**.cmake
+cmake-build*/**/**.cmake
+**/CMakeFiles/**/**.cmake
+**/*-config.cmake
+**/*-targets*.cmake
+**/*-version.cmake
+DependInfo.cmake
+cmake_clean*.cmake
+CMakeDirectoryInformation.cmake
+Makefile.cmake
+CMakeCXXCompiler.cmake
+CMakeSystem.cmake
 
 # Build directories
 build/
