@@ -91,6 +91,9 @@ namespace {
     
     static FeaturesSingleton g_features_manager;
     
+    // Forward declarations
+    void detect_macos_topology(Features& features);
+    
 #ifdef LIBSTATS_X86_FAMILY
     /**
      * @brief Execute CPUID instruction safely

@@ -32,7 +32,7 @@ else()
     message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
 endif()
 
-project(libstats VERSION 0.3.0 LANGUAGES CXX)
+project(libstats VERSION 0.3.1 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
@@ -229,6 +229,15 @@ endif()
 # Configure SIMD compilation for targets
 configure_simd_target(libstats_static)
 configure_simd_target(libstats_shared)
+
+# Platform-specific library linking configuration
+if(APPLE AND USING_HOMEBREW_LLVM)
+    # Apply Homebrew LLVM libc++ linking to the shared library
+    target_link_options(libstats_shared PRIVATE
+        -L${LLVM_ROOT}/lib/c++
+        -Wl,-rpath,${LLVM_ROOT}/lib/c++
+    )
+endif()
 
 # Create aliases for easier consumption
 add_library(libstats::headers ALIAS libstats_headers)
