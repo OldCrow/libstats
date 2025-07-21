@@ -9,12 +9,12 @@
 #include <future>
 #include <memory>
 
-// Platform-specific includes for thread affinity
+// Platform-specific includes for thread optimization
 #ifdef __APPLE__
     #include <sys/types.h>
     #include <sys/sysctl.h>
-    #include <mach/mach.h>
-    #include <mach/thread_policy.h>
+    #include <pthread.h>
+    #include <dispatch/dispatch.h>
 #elif defined(__linux__)
     #include <unistd.h>
     #include <sched.h>
@@ -54,10 +54,8 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
         workers_[i] = std::make_unique<WorkerData>();
         workers_[i]->worker = std::thread(&WorkStealingPool::workerLoop, this, static_cast<int>(i));
         
-        // Set thread affinity if enabled and supported
-        if (enableAffinity) {
-            setThreadAffinity(workers_[i]->worker, static_cast<int>(i % numThreads));
-        }
+        // Store enableAffinity flag for worker thread to use during initialization
+        workers_[i]->enableOptimization = enableAffinity;
     }
 }
 
@@ -152,6 +150,11 @@ void WorkStealingPool::workerLoop(int workerId) {
     }
     
     auto& workerData = *workers_[workerId];
+    
+    // Perform thread self-optimization if enabled
+    if (workerData.enableOptimization) {
+        optimizeCurrentThread(workerId, static_cast<int>(workers_.size()));
+    }
     
     while (!shutdown_.load(std::memory_order_acquire)) {
         Task task;
@@ -271,6 +274,64 @@ std::size_t WorkStealingPool::getOptimalThreadCount() noexcept {
     }
 }
 
+void WorkStealingPool::optimizeCurrentThread([[maybe_unused]] int workerId, [[maybe_unused]] int numWorkers) {
+#ifdef __linux__
+    // On Linux, set CPU affinity from within the thread
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(workerId % sysconf(_SC_NPROCESSORS_ONLN), &cpuset);
+    
+    const int result = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    if (result != 0) {
+        // Affinity setting failed, but continue without it
+        // This is not critical for correctness, only performance
+        std::cerr << "Warning: Failed to set thread affinity for CPU " << (workerId % sysconf(_SC_NPROCESSORS_ONLN)) << std::endl;
+    }
+    
+#elif defined(__APPLE__)
+    // Modern macOS approach: Use QoS classes instead of deprecated thread affinity
+    // QoS provides better integration with macOS scheduler and power management
+    
+    // Determine appropriate QoS class based on worker role
+    qos_class_t qos_class;
+    int relative_priority = 0;
+    
+    // For work-stealing pools, we want high-throughput computational work
+    // Use USER_INITIATED for responsive performance with good throughput
+    qos_class = QOS_CLASS_USER_INITIATED;
+    
+    // Optionally differentiate priority based on worker ID to help with load balancing
+    // Lower worker IDs get slightly higher priority (closer to 0)
+    if (numWorkers > 1) {
+        // Spread relative priorities from -2 to +2 across workers
+        relative_priority = -2 + (4 * workerId) / (numWorkers - 1);
+    }
+    
+    // Apply QoS class to the current thread (self)
+    const int result = pthread_set_qos_class_self_np(qos_class, relative_priority);
+    if (result != 0) {
+        // QoS setting failed, but continue without it
+        // This is not critical for correctness, only performance optimization
+        // Note: We don't print a warning since this is expected to work on macOS 10.10+
+        // and the failure is not concerning enough to spam logs
+    }
+    
+#elif defined(_WIN32)
+    // On Windows, set thread affinity from within the thread
+    const DWORD_PTR mask = 1ULL << (workerId % GetActiveProcessorCount(ALL_PROCESSOR_GROUPS));
+    const DWORD_PTR result = SetThreadAffinityMask(GetCurrentThread(), mask);
+    if (result == 0) {
+        // Affinity setting failed, but continue without it
+        // This is not critical for correctness, only performance
+        std::cerr << "Warning: Failed to set thread affinity for CPU " << (workerId % GetActiveProcessorCount(ALL_PROCESSOR_GROUPS)) << std::endl;
+    }
+    
+#else
+    // Unsupported platform - skip thread optimization
+    // Parameter is marked [[maybe_unused]] in function signature
+#endif
+}
+
 void WorkStealingPool::setThreadAffinity([[maybe_unused]] std::thread& thread, [[maybe_unused]] int cpuId) {
 #ifdef __linux__
     cpu_set_t cpuset;
@@ -285,21 +346,8 @@ void WorkStealingPool::setThreadAffinity([[maybe_unused]] std::thread& thread, [
     }
     
 #elif defined(__APPLE__)
-    // Modern macOS approach: Use thread_policy_set with THREAD_AFFINITY_POLICY
-    // Note: macOS affinity is advisory and may not guarantee exclusive CPU binding
-    thread_affinity_policy_data_t policy = {cpuId};
-    const kern_return_t result = thread_policy_set(
-        pthread_mach_thread_np(thread.native_handle()),
-        THREAD_AFFINITY_POLICY,
-        (thread_policy_t)&policy,
-        THREAD_AFFINITY_POLICY_COUNT
-    );
-    
-    if (result != KERN_SUCCESS) {
-        // Affinity setting failed, but continue without it
-        // This is common on macOS and not critical for correctness
-        std::cerr << "Warning: Thread affinity hint failed on macOS (CPU " << cpuId << ")" << std::endl;
-    }
+    // On macOS, thread optimization is handled inside optimizeCurrentThread()
+    // This function doesn't perform any actions on macOS, but is kept for compatibility.
     
 #elif defined(_WIN32)
     const DWORD_PTR mask = 1ULL << cpuId;
@@ -311,7 +359,7 @@ void WorkStealingPool::setThreadAffinity([[maybe_unused]] std::thread& thread, [
     }
     
 #else
-    // Unsupported platform - skip affinity setting
+    // Unsupported platform - skip thread optimization
     // Parameters are marked [[maybe_unused]] in function signature
 #endif
 }

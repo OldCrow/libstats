@@ -47,10 +47,12 @@ A modern, high-performance C++20 statistical distributions library providing com
 - **Cross-Validation**: K-fold validation framework
 
 ### 🚀 **Performance Features**
-- **SIMD Operations**: Vectorized statistical computations
+- **SIMD Operations**: Vectorized statistical computations with cross-platform detection
 - **Parallel Processing**: Both traditional and work-stealing thread pools
 - **C++20 Parallel Algorithms**: Safe wrappers for `std::execution` policies
 - **Cache Optimization**: Thread-safe caching with lock-free fast paths
+
+> **📖 SIMD Support**: For detailed information about cross-platform SIMD detection, architecture-specific behavior (x86_64 vs ARM64), and build configuration options, see [SIMD Build System Documentation](docs/simd_build_system.md).
 
 ## Quick Start
 

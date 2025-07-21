@@ -255,14 +255,36 @@ function(detect_neon_support)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64")
         # Check compiler support
         if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-            check_cxx_compiler_flag("-mfpu=neon" COMPILER_SUPPORTS_NEON)
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+                # On AArch64, NEON is always available and no special flags are needed
+                set(COMPILER_SUPPORTS_NEON TRUE)
+                message(STATUS "SIMD: NEON available on AArch64 (no special flags needed)")
+            else()
+                # On 32-bit ARM, we need -mfpu=neon
+                check_cxx_compiler_flag("-mfpu=neon" COMPILER_SUPPORTS_NEON)
+            endif()
         else()
             set(COMPILER_SUPPORTS_NEON TRUE)  # Assume NEON is available on AArch64
         endif()
         
         if(COMPILER_SUPPORTS_NEON)
             # Check runtime support
-            test_runtime_cpu_feature("neon" "
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+                # On AArch64, no special flags needed for runtime test
+                test_runtime_cpu_feature("neon" "
+#include <arm_neon.h>
+bool test_neon() {
+    float64x2_t a = vdupq_n_f64(1.0);
+    float64x2_t b = vdupq_n_f64(2.0);
+    float64x2_t c = vaddq_f64(a, b);
+    double result[2];
+    vst1q_f64(result, c);
+    return (result[0] == 3.0 && result[1] == 3.0);
+}
+" RUNTIME_SUPPORTS_NEON)
+            else()
+                # On 32-bit ARM, use -mfpu=neon flag
+                test_runtime_cpu_feature("neon" "
 #include <arm_neon.h>
 bool test_neon() {
     float64x2_t a = vdupq_n_f64(1.0);
@@ -273,6 +295,7 @@ bool test_neon() {
     return (result[0] == 3.0 && result[1] == 3.0);
 }
 " RUNTIME_SUPPORTS_NEON "-mfpu=neon")
+            endif()
             
             if(RUNTIME_SUPPORTS_NEON)
                 set(LIBSTATS_HAS_NEON TRUE CACHE BOOL "NEON support available")
@@ -439,8 +462,15 @@ function(configure_simd_target TARGET_NAME)
     endif()
     
     if(LIBSTATS_HAS_NEON)
-        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_neon.cpp" 
-            PROPERTIES COMPILE_FLAGS "-mfpu=neon")
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+            # On AArch64, no special flags needed
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_neon.cpp" 
+                PROPERTIES COMPILE_FLAGS "")
+        else()
+            # On 32-bit ARM, use -mfpu=neon flag
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_neon.cpp" 
+                PROPERTIES COMPILE_FLAGS "-mfpu=neon")
+        endif()
     endif()
     
     # Add compile definitions

@@ -5,15 +5,34 @@ if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)  # find_package uses upper-case <PACKAGENAME>_ROOT variables
 endif()
 
-# Use Homebrew LLVM for C++20 support
-set(CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang")
-set(CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++")
+# Detect Homebrew LLVM and fallback to system compiler
+set(HOMEBREW_LLVM_ROOT "/usr/local/opt/llvm")
+set(HOMEBREW_LLVM_ROOT_ARM "/opt/homebrew/opt/llvm")
 
-# Configure LLVM paths
-set(LLVM_ROOT "/usr/local/opt/llvm")
-set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
+# Check for Homebrew LLVM (Intel Mac path first, then ARM Mac path)
+if(EXISTS "${HOMEBREW_LLVM_ROOT}/bin/clang++")
+    set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT}")
+    set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
+    set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
+    set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
+    set(USING_HOMEBREW_LLVM TRUE)
+    message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
+elseif(EXISTS "${HOMEBREW_LLVM_ROOT_ARM}/bin/clang++")
+    set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT_ARM}")
+    set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
+    set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
+    set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
+    set(USING_HOMEBREW_LLVM TRUE)
+    message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
+else()
+    # Fallback to system compiler
+    find_program(CMAKE_C_COMPILER clang)
+    find_program(CMAKE_CXX_COMPILER clang++)
+    set(USING_HOMEBREW_LLVM FALSE)
+    message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
+endif()
 
-project(libstats VERSION 0.2.2 LANGUAGES CXX)
+project(libstats VERSION 0.3.0 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
@@ -22,22 +41,28 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Platform-specific configurations
 if(APPLE)
-    # macOS specific configuration - Force LLVM libc++ to get C++20 execution policies
+    # macOS specific configuration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${LLVM_ROOT}/lib/c++ -Wl,-rpath,${LLVM_ROOT}/lib/c++")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -L${LLVM_ROOT}/lib/c++ -Wl,-rpath,${LLVM_ROOT}/lib/c++")
     
-    # CRITICAL: Include LLVM libc++ headers BEFORE system headers to get C++20 execution policies
-    include_directories(BEFORE ${LLVM_ROOT}/include/c++/v1)
-    include_directories(BEFORE ${LLVM_ROOT}/include)
-    
-    # Add compiler flags to ensure we use LLVM headers
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include/c++/v1")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include")
-    
-    # Enable experimental PSTL support in LLVM libc++
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LIBCPP_HAS_EXPERIMENTAL_PSTL=1")
+    if(USING_HOMEBREW_LLVM)
+        # Homebrew LLVM specific configuration - Force LLVM libc++ to get C++20 execution policies
+        # Note: rpath will be set per-target to avoid duplication warnings
+        
+        # CRITICAL: Include LLVM libc++ headers BEFORE system headers to get C++20 execution policies
+        include_directories(BEFORE ${LLVM_ROOT}/include/c++/v1)
+        include_directories(BEFORE ${LLVM_ROOT}/include)
+        
+        # Add compiler flags to ensure we use LLVM headers
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include/c++/v1")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include")
+        
+        # Enable experimental PSTL support in LLVM libc++
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LIBCPP_HAS_EXPERIMENTAL_PSTL=1")
+    else()
+        # System compiler configuration - use system libc++
+        message(STATUS "Using system libc++ with Apple Clang")
+    endif()
     
     # Optional TBB support for parallel execution policies
     find_package(PkgConfig QUIET)
@@ -112,7 +137,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     endif()
     
     if(LIBSTATS_HAS_NEON)
-        add_compile_options(-mfpu=neon)
         add_compile_definitions(LIBSTATS_HAS_NEON=1)
         message(STATUS "SIMD: NEON enabled")
     endif()
@@ -220,7 +244,22 @@ if(LIBSTATS_BUILD_TESTS)
     
     # Find GTest (Homebrew installation)
     # First, try to use Homebrew's GTest installation directly
-    set(GTEST_ROOT "/usr/local/opt/googletest")
+    # Check both Intel and ARM64 paths
+    set(GTEST_ROOT_INTEL "/usr/local/opt/googletest")
+    set(GTEST_ROOT_ARM "/opt/homebrew/opt/googletest")
+    
+    # Determine which Homebrew path to use
+    if(EXISTS "${GTEST_ROOT_ARM}/lib/cmake/GTest")
+        set(GTEST_ROOT "${GTEST_ROOT_ARM}")
+        message(STATUS "Using ARM64 Homebrew GTest path")
+    elseif(EXISTS "${GTEST_ROOT_INTEL}/lib/cmake/GTest")
+        set(GTEST_ROOT "${GTEST_ROOT_INTEL}")
+        message(STATUS "Using Intel Homebrew GTest path")
+    else()
+        set(GTEST_ROOT "${GTEST_ROOT_ARM}")
+        message(STATUS "Using default ARM64 Homebrew GTest path (may not exist)")
+    endif()
+    
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${GTEST_ROOT}")
     
     # Try find_package first with explicit path
@@ -288,7 +327,7 @@ if(LIBSTATS_BUILD_TESTS)
         )
         
         # Platform-specific linking
-        if(APPLE)
+        if(APPLE AND USING_HOMEBREW_LLVM)
             target_link_options(${TEST_NAME} PRIVATE
                 -L${LLVM_ROOT}/lib/c++
                 -Wl,-rpath,${LLVM_ROOT}/lib/c++
@@ -347,7 +386,7 @@ if(LIBSTATS_BUILD_TESTS)
         )
         
         # Platform-specific linking
-        if(APPLE)
+        if(APPLE AND USING_HOMEBREW_LLVM)
             target_link_options(${TEST_NAME} PRIVATE
                 -L${LLVM_ROOT}/lib/c++
                 -Wl,-rpath,${LLVM_ROOT}/lib/c++
@@ -395,11 +434,24 @@ if(LIBSTATS_BUILD_TESTS)
             # Link against static library and GTest
             target_link_libraries(${TEST_NAME} PRIVATE libstats_static)
             
-            # Link GTest libraries
-            if(TARGET GTest::gtest)
-                target_link_libraries(${TEST_NAME} PRIVATE GTest::gtest GTest::gtest_main)
+            # Link GTest libraries (prefer modern CMake targets to avoid duplicate warnings)
+            if(TARGET GTest::gtest AND TARGET GTest::gtest_main)
+                # Modern CMake targets - these handle dependencies correctly
+                target_link_libraries(${TEST_NAME} PRIVATE GTest::gtest_main GTest::gtest)
+            elseif(TARGET GTest::GTest AND TARGET GTest::Main)
+                # Alternative modern target name
+                target_link_libraries(${TEST_NAME} PRIVATE GTest::Main GTest::GTest)
             else()
-                target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+                # Fallback to manual linking - be more careful about duplicates
+                if(GTEST_MAIN_LIBRARIES)
+                    target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_MAIN_LIBRARIES})
+                    # Only add gtest if it's not already included in main libraries
+                    if(GTEST_LIBRARIES AND NOT "${GTEST_MAIN_LIBRARIES}" MATCHES "gtest")
+                        target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES})
+                    endif()
+                elseif(GTEST_LIBRARIES)
+                    target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES})
+                endif()
                 target_include_directories(${TEST_NAME} PRIVATE ${GTEST_INCLUDE_DIRS})
             endif()
             
@@ -415,7 +467,7 @@ if(LIBSTATS_BUILD_TESTS)
             )
             
             # Platform-specific linking
-            if(APPLE)
+            if(APPLE AND USING_HOMEBREW_LLVM)
                 target_link_options(${TEST_NAME} PRIVATE
                     -L${LLVM_ROOT}/lib/c++
                     -Wl,-rpath,${LLVM_ROOT}/lib/c++
@@ -649,10 +701,12 @@ if(LIBSTATS_BUILD_TOOLS)
     # Apply same compiler flags as main library
     if(APPLE)
         target_compile_options(cpu_test PRIVATE -stdlib=libc++)
-        target_link_options(cpu_test PRIVATE
-            -L${LLVM_ROOT}/lib/c++
-            -Wl,-rpath,${LLVM_ROOT}/lib/c++
-        )
+        if(USING_HOMEBREW_LLVM)
+            target_link_options(cpu_test PRIVATE
+                -L${LLVM_ROOT}/lib/c++
+                -Wl,-rpath,${LLVM_ROOT}/lib/c++
+            )
+        endif()
     endif()
     
     # Add SIMD compile definitions

@@ -64,10 +64,23 @@ make -j$(nproc)
 
 ## SIMD Detection Process
 
+### Architecture-Specific Behavior
+
+**Important**: The SIMD detection system is architecture-aware and optimized for native builds:
+
+- **On x86_64**: Tests SSE2, AVX, AVX2, AVX-512 support; NEON is disabled
+- **On ARM64/AArch64**: Tests NEON support; x86 SIMD is disabled (compiler rejects `-mavx2` etc. for ARM64 target)
+- **Cross-compilation**: Use `LIBSTATS_FORCE_*` environment variables to override detection
+
+This means:
+- Building on Apple Silicon (ARM64) will show "SIMD: SSE2/AVX disabled (compiler not supported)" - this is correct behavior
+- Building on Intel/AMD (x86_64) will show "SIMD: NEON disabled (not ARM architecture)" - this is also correct
+- The compiler correctly rejects incompatible SIMD flags for the target architecture
+
 ### 1. Compiler Support Check
 
-For each SIMD instruction set:
-1. Test if compiler accepts the corresponding flag (`-mavx2`, `-mavx512f`, etc.)
+For each SIMD instruction set compatible with the target architecture:
+1. Test if compiler accepts the corresponding flag (`-mavx2`, `-mavx512f`, `-mfpu=neon`, etc.)
 2. Try to compile a simple test program using SIMD intrinsics
 3. If both succeed, mark as "compiler supported"
 
@@ -124,7 +137,25 @@ Based on detection results:
 --   NEON: FALSE
 ```
 
-### Example 3: Cross-Compilation
+### Example 3: Apple Silicon (ARM64)
+
+```
+-- SIMD: SSE2 disabled (compiler not supported)
+-- SIMD: AVX disabled (compiler not supported)
+-- SIMD: AVX2 disabled (compiler not supported)
+-- SIMD: AVX-512 disabled (compiler not supported)
+-- SIMD: NEON available on AArch64 (no special flags needed)
+-- Runtime neon test: PASSED
+-- SIMD: NEON enabled (compiler + runtime)
+-- SIMD detection complete:
+--   SSE2: FALSE
+--   AVX:  FALSE
+--   AVX2: FALSE
+--   AVX-512: FALSE
+--   NEON: TRUE
+```
+
+### Example 4: Cross-Compilation
 
 ```
 -- Cross-compiling detected - skipping runtime SIMD checks

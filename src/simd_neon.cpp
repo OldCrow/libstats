@@ -46,35 +46,27 @@ double VectorOps::dot_product_neon(const double* a, const double* b, std::size_t
     // Apple Silicon optimization: Use multiple accumulators to exploit
     // superscalar execution and out-of-order capabilities
     #if defined(LIBSTATS_APPLE_SILICON)
-    if (size >= constants::simd::tuning::apple_silicon::NEON_UNROLL_MIN_SIZE) {
+    if (size >= constants::simd::optimization::APPLE_SILICON_AGGRESSIVE_THRESHOLD * 2) {
         float64x2_t sum1 = vdupq_n_f64(0.0);
         float64x2_t sum2 = vdupq_n_f64(0.0);
-        float64x2_t sum3 = vdupq_n_f64(0.0);
-        float64x2_t sum4 = vdupq_n_f64(0.0);
         
-        const std::size_t unroll_end = (size / constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR) * constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR;
+        const std::size_t unroll_end = (size / (constants::simd::unroll::NEON_UNROLL * 2)) * (constants::simd::unroll::NEON_UNROLL * 2);
         
-        // Process 8 doubles per iteration (4 NEON registers)
-        for (std::size_t i = 0; i < unroll_end; i += constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR) {
-            // Load data with prefetch hints for Apple Silicon
+        // Process 4 doubles per iteration (2 NEON registers)
+        for (std::size_t i = 0; i < unroll_end; i += constants::simd::unroll::NEON_UNROLL * 2) {
+            // Load data
             float64x2_t va1 = vld1q_f64(&a[i]);
             float64x2_t vb1 = vld1q_f64(&b[i]);
             float64x2_t va2 = vld1q_f64(&a[i + 2]);
             float64x2_t vb2 = vld1q_f64(&b[i + 2]);
-            float64x2_t va3 = vld1q_f64(&a[i + 4]);
-            float64x2_t vb3 = vld1q_f64(&b[i + 4]);
-            float64x2_t va4 = vld1q_f64(&a[i + 6]);
-            float64x2_t vb4 = vld1q_f64(&b[i + 6]);
             
             // Multiply and accumulate with independent accumulators
             sum1 = vfmaq_f64(sum1, va1, vb1);
             sum2 = vfmaq_f64(sum2, va2, vb2);
-            sum3 = vfmaq_f64(sum3, va3, vb3);
-            sum4 = vfmaq_f64(sum4, va4, vb4);
         }
         
         // Combine accumulators
-        float64x2_t sum = vaddq_f64(vaddq_f64(sum1, sum2), vaddq_f64(sum3, sum4));
+        float64x2_t sum = vaddq_f64(sum1, sum2);
         
         // Handle remaining SIMD-width elements
         for (std::size_t i = unroll_end; i < simd_end; i += NEON_DOUBLE_WIDTH) {
@@ -128,37 +120,24 @@ void VectorOps::vector_add_neon(const double* a, const double* b, double* result
     
     // Apple Silicon optimization: Loop unrolling for better throughput
     #if defined(LIBSTATS_APPLE_SILICON)
-    if (size >= tuned::cache_friendly_step()) {
-        const std::size_t unroll_end = (size / constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR) * constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR;
+    if (size >= constants::simd::optimization::APPLE_SILICON_AGGRESSIVE_THRESHOLD * 2) {
+        const std::size_t unroll_end = (size / (constants::simd::unroll::NEON_UNROLL * 2)) * (constants::simd::unroll::NEON_UNROLL * 2);
         
-        // Process 8 doubles per iteration with prefetching
-        for (std::size_t i = 0; i < unroll_end; i += constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR) {
-            // Prefetch next cache line on Apple Silicon
-            prefetch_read(&a[i + tuned::prefetch_distance() * constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR]);
-            prefetch_read(&b[i + tuned::prefetch_distance() * constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR]);
-            prefetch_write(&result[i + tuned::prefetch_distance() * constants::simd::tuning::apple_silicon::NEON_UNROLL_FACTOR]);
-            
-            // Load and process 4 NEON registers worth of data
+        // Process 4 doubles per iteration
+        for (std::size_t i = 0; i < unroll_end; i += constants::simd::unroll::NEON_UNROLL * 2) {
+            // Load and process 2 NEON registers worth of data
             float64x2_t va1 = vld1q_f64(&a[i]);
             float64x2_t vb1 = vld1q_f64(&b[i]);
             float64x2_t va2 = vld1q_f64(&a[i + 2]);
             float64x2_t vb2 = vld1q_f64(&b[i + 2]);
-            float64x2_t va3 = vld1q_f64(&a[i + 4]);
-            float64x2_t vb3 = vld1q_f64(&b[i + 4]);
-            float64x2_t va4 = vld1q_f64(&a[i + 6]);
-            float64x2_t vb4 = vld1q_f64(&b[i + 6]);
             
             // Compute results
             float64x2_t vresult1 = vaddq_f64(va1, vb1);
             float64x2_t vresult2 = vaddq_f64(va2, vb2);
-            float64x2_t vresult3 = vaddq_f64(va3, vb3);
-            float64x2_t vresult4 = vaddq_f64(va4, vb4);
             
             // Store results
             vst1q_f64(&result[i], vresult1);
             vst1q_f64(&result[i + 2], vresult2);
-            vst1q_f64(&result[i + 4], vresult3);
-            vst1q_f64(&result[i + 6], vresult4);
         }
         
         // Handle remaining SIMD-width elements

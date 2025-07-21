@@ -26,6 +26,9 @@
     #include <cpuid.h>
     #include <immintrin.h>
     #define LIBSTATS_X86_FAMILY
+    #if defined(__APPLE__)
+        #include <sys/sysctl.h>
+    #endif
 #elif defined(__aarch64__) || defined(_M_ARM64)
     #define LIBSTATS_ARM64_FAMILY
     #if defined(__APPLE__)
@@ -88,6 +91,7 @@ namespace {
     
     static FeaturesSingleton g_features_manager;
     
+#ifdef LIBSTATS_X86_FAMILY
     /**
      * @brief Execute CPUID instruction safely
      */
@@ -108,7 +112,6 @@ namespace {
         #endif
     }
     
-#ifdef LIBSTATS_X86_FAMILY
     /**
      * @brief Detect cache information using CPUID
      */
@@ -281,8 +284,6 @@ namespace {
         }
     }
     
-#ifdef LIBSTATS_X86_FAMILY
-    
     /**
      * @brief Detect x86/x64 CPU features using CPUID
      */
@@ -369,30 +370,101 @@ namespace {
             features.avx512vl = (ebx & (1 << 31)) != 0;
         }
         
-        // Detect cache information using CPUID
-        detect_cache_info(features);
-        
-        // Detect CPU topology
-        detect_topology_info(features);
+        #if defined(__APPLE__)
+            // On macOS, prefer sysctl over CPUID for topology and cache info
+            // sysctl is more reliable and consistent across different Intel generations
+            detect_macos_topology(features);
+        #else
+            // Use CPUID for cache and topology detection on non-Apple systems
+            detect_cache_info(features);
+            detect_topology_info(features);
+        #endif
         
         // Detect performance monitoring capabilities
         detect_performance_info(features);
         
         return features;
     }
-#endif
-
 #endif  // LIBSTATS_X86_FAMILY
     
+    /**
+     * @brief Detect macOS CPU topology using sysctl (works for both Intel and ARM)
+     */
+    void detect_macos_topology(Features& features) {
+        #if defined(__APPLE__)
+            size_t size = sizeof(int);
+            int value = 0;
+            
+            // Get logical CPU count
+            if (sysctlbyname("hw.logicalcpu", &value, &size, NULL, 0) == 0) {
+                features.topology.logical_cores = static_cast<uint32_t>(value);
+            }
+            
+            // Get physical CPU count
+            if (sysctlbyname("hw.physicalcpu", &value, &size, NULL, 0) == 0) {
+                features.topology.physical_cores = static_cast<uint32_t>(value);
+            }
+            
+            // Calculate threads per core
+            if (features.topology.physical_cores > 0 && features.topology.logical_cores > 0) {
+                features.topology.threads_per_core = features.topology.logical_cores / features.topology.physical_cores;
+                features.topology.hyperthreading = (features.topology.threads_per_core > 1);
+            }
+            
+            // Assume single package (most common case for consumer Macs)
+            features.topology.packages = 1;
+            
+            // Try to get cache information
+            size_t cache_size = sizeof(uint64_t);
+            uint64_t cache_value = 0;
+            
+            // L1 data cache
+            if (sysctlbyname("hw.l1dcachesize", &cache_value, &cache_size, NULL, 0) == 0) {
+                features.l1_data_cache.size = static_cast<uint32_t>(cache_value);
+                features.l1_cache_size = features.l1_data_cache.size; // Legacy compatibility
+            }
+            
+            // L1 instruction cache
+            if (sysctlbyname("hw.l1icachesize", &cache_value, &cache_size, NULL, 0) == 0) {
+                features.l1_instruction_cache.size = static_cast<uint32_t>(cache_value);
+            }
+            
+            // L2 cache
+            if (sysctlbyname("hw.l2cachesize", &cache_value, &cache_size, NULL, 0) == 0) {
+                features.l2_cache.size = static_cast<uint32_t>(cache_value);
+                features.l2_cache_size = features.l2_cache.size; // Legacy compatibility
+            }
+            
+            // L3 cache
+            if (sysctlbyname("hw.l3cachesize", &cache_value, &cache_size, NULL, 0) == 0) {
+                features.l3_cache.size = static_cast<uint32_t>(cache_value);
+                features.l3_cache_size = features.l3_cache.size; // Legacy compatibility
+            }
+            
+            // Cache line size
+            int cache_line_size = 0;
+            size = sizeof(int);
+            if (sysctlbyname("hw.cachelinesize", &cache_line_size, &size, NULL, 0) == 0) {
+                features.cache_line_size = static_cast<uint32_t>(cache_line_size);
+                features.l1_data_cache.line_size = features.cache_line_size;
+                features.l1_instruction_cache.line_size = features.cache_line_size;
+                features.l2_cache.line_size = features.cache_line_size;
+                features.l3_cache.line_size = features.cache_line_size;
+            }
+        #endif
+    }
+
 #ifdef LIBSTATS_ARM64_FAMILY
+    
     /**
      * @brief Detect ARM64 CPU features
      */
     Features detect_arm_features() {
         Features features;
-        features.vendor = "ARM";
         
         #if defined(__APPLE__)
+            features.vendor = "Apple";
+            
             // macOS/iOS detection using sysctl
             size_t size = sizeof(int);
             int value = 0;
@@ -412,7 +484,12 @@ namespace {
                 delete[] brand;
             }
             
+            // Detect topology and cache using macOS sysctl
+            detect_macos_topology(features);
+            
         #elif defined(__linux__)
+            features.vendor = "ARM";
+            
             // Linux detection using auxv
             unsigned long hwcap = getauxval(AT_HWCAP);
             features.neon = (hwcap & HWCAP_ASIMD) != 0;  // Advanced SIMD (NEON)
@@ -422,9 +499,17 @@ namespace {
                 features.sve = (hwcap & HWCAP_SVE) != 0;
             #endif
             
+            // For Linux ARM, use standard methods for topology detection
+            // (could be expanded with /proc/cpuinfo parsing if needed)
+            features.topology.logical_cores = std::thread::hardware_concurrency();
+            features.topology.physical_cores = features.topology.logical_cores; // Conservative estimate
+            
         #else
+            features.vendor = "ARM";
             // Assume NEON is available on AArch64 (it's mandatory in the spec)
             features.neon = true;
+            features.topology.logical_cores = std::thread::hardware_concurrency();
+            features.topology.physical_cores = features.topology.logical_cores;
         #endif
         
         return features;

@@ -138,7 +138,12 @@ void test_platform_optimizations() {
     [[maybe_unused]] CacheThresholds cache_thresholds = get_cache_thresholds();
     assert(cache_thresholds.l1_optimal_size > 0);
     assert(cache_thresholds.l2_optimal_size > cache_thresholds.l1_optimal_size);
-    assert(cache_thresholds.l3_optimal_size > cache_thresholds.l2_optimal_size);
+    #ifdef __APPLE__
+        // Assume no L3 cache on Apple Silicon
+        assert(cache_thresholds.l3_optimal_size >= cache_thresholds.l2_optimal_size);
+    #else
+        assert(cache_thresholds.l3_optimal_size > cache_thresholds.l2_optimal_size);
+    #endif
     assert(cache_thresholds.blocking_size > 0);
     
     // Test transcendental support detection

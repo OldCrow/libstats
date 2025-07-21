@@ -112,7 +112,9 @@
 // ARM platforms (Apple Silicon, ARM servers, embedded ARM)
 #elif defined(__ARM_NEON) || defined(__aarch64__) || defined(_M_ARM64)
     #include <arm_neon.h>
-    #define LIBSTATS_HAS_NEON
+    #ifndef LIBSTATS_HAS_NEON
+        #define LIBSTATS_HAS_NEON
+    #endif
     
     // Apple Silicon specific optimizations
     #if defined(__APPLE__) && defined(__aarch64__)

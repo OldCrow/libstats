@@ -135,6 +135,12 @@ private:
         std::thread worker;
         std::mt19937 rng;  // For random victim selection
         
+        #if defined(__APPLE__) || defined(__linux__)
+            bool enableOptimization{false};  // Whether to enable thread optimization (QoS/affinity)
+        #else
+            [[maybe_unused]] bool enableOptimization{false};  // Unused on this platform
+        #endif
+        
         WorkerData() : rng(std::random_device{}()) {}
     };
     
@@ -175,6 +181,13 @@ private:
      * @param cpuId CPU core to bind to
      */
     static void setThreadAffinity([[maybe_unused]] std::thread& thread, [[maybe_unused]] int cpuId);
+    
+    /**
+     * @brief Optimize current thread with platform-specific approaches
+     * @param workerId ID of the current worker thread
+     * @param numWorkers Total number of worker threads
+     */
+    void optimizeCurrentThread([[maybe_unused]] int workerId, [[maybe_unused]] int numWorkers);
 };
 
 /**

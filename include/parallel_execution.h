@@ -184,7 +184,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
  */
 inline std::size_t get_optimal_thread_count(std::size_t workload_size = 0) noexcept {
     const std::size_t logical_cores = cpu::get_logical_core_count();
-    const std::size_t physical_cores = cpu::get_physical_core_count();
+    [[maybe_unused]] const std::size_t physical_cores = cpu::get_physical_core_count();
     
     // Platform-specific thread count optimization
     #if defined(__APPLE__) && defined(__aarch64__)

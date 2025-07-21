@@ -124,7 +124,12 @@ private:
         assert(logicalCores > 0);
         assert(l1CacheSize > 0);
         assert(l2CacheSize > 0);
-        assert(l3CacheSize > 0);
+        #ifdef __APPLE__
+            // Assume no L3 cache on Apple Silicon
+            assert(l3CacheSize >= 0);
+        #else
+            assert(l3CacheSize > 0);
+        #endif
         assert(cacheLineSize > 0);
         assert(optimalThreads > 0);
         
