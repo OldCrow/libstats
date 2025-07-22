@@ -115,6 +115,7 @@ namespace {
         #endif
     }
     
+#if !defined(__APPLE__)
     /**
      * @brief Detect cache information using CPUID
      */
@@ -227,6 +228,7 @@ namespace {
             }
         }
     }
+#endif  // !defined(__APPLE__)
     
     /**
      * @brief Estimate CPU frequency using TSC without circular dependency

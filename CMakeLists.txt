@@ -32,7 +32,7 @@ else()
     message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
 endif()
 
-project(libstats VERSION 0.3.1 LANGUAGES CXX)
+project(libstats VERSION 0.3.2 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
