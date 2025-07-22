@@ -95,12 +95,24 @@ endfunction()
 
 # Function to detect SSE2 support
 function(detect_sse2_support)
-    # Check compiler support
-    check_cxx_compiler_flag("-msse2" COMPILER_SUPPORTS_SSE2)
-    
-    if(COMPILER_SUPPORTS_SSE2)
-        # Check runtime support
-        test_runtime_cpu_feature("sse2" "
+    message(STATUS "SIMDDetection: CMAKE_CXX_COMPILER_ID='${CMAKE_CXX_COMPILER_ID}' CMAKE_CXX_COMPILER='${CMAKE_CXX_COMPILER}' MSVC='${MSVC}' WIN32='${WIN32}'")
+    if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+        message(STATUS "SIMDDetection: Detected MSVC or Clang-cl on Windows. Using /arch:SSE2 flag.")
+        check_cxx_compiler_flag("/arch:SSE2" COMPILER_SUPPORTS_SSE2)
+        message(STATUS "SIMDDetection: check_cxx_compiler_flag('/arch:SSE2') result = ${COMPILER_SUPPORTS_SSE2}")
+        if(COMPILER_SUPPORTS_SSE2)
+            set(LIBSTATS_HAS_SSE2 TRUE CACHE BOOL "SSE2 support available (MSVC/Clang-cl x64)")
+            list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_sse2.cpp")
+            list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_SSE2=1")
+            message(STATUS "SIMD: SSE2 enabled (MSVC/Clang-cl x64, compiler flag)")
+        else()
+            set(LIBSTATS_HAS_SSE2 FALSE CACHE BOOL "SSE2 compiler support not available")
+            message(STATUS "SIMD: SSE2 disabled (compiler not supported)")
+        endif()
+    else()
+        check_cxx_compiler_flag("-msse2" COMPILER_SUPPORTS_SSE2)
+        if(COMPILER_SUPPORTS_SSE2)
+            test_runtime_cpu_feature("sse2" "
 #include <emmintrin.h>
 bool test_sse2() {
     __m128d a = _mm_set1_pd(1.0);
@@ -111,34 +123,57 @@ bool test_sse2() {
     return (result[0] == 3.0 && result[1] == 3.0);
 }
 " RUNTIME_SUPPORTS_SSE2 "-msse2")
-        
-        if(RUNTIME_SUPPORTS_SSE2)
-            set(LIBSTATS_HAS_SSE2 TRUE CACHE BOOL "SSE2 support available")
-            list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_sse2.cpp")
-            list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_SSE2=1")
-            message(STATUS "SIMD: SSE2 enabled (compiler + runtime)")
+            if(RUNTIME_SUPPORTS_SSE2)
+                set(LIBSTATS_HAS_SSE2 TRUE CACHE BOOL "SSE2 support available")
+                list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_sse2.cpp")
+                list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_SSE2=1")
+                message(STATUS "SIMD: SSE2 enabled (compiler + runtime)")
+            else()
+                set(LIBSTATS_HAS_SSE2 FALSE CACHE BOOL "SSE2 support not available at runtime")
+                message(STATUS "SIMD: SSE2 disabled (runtime check failed)")
+            endif()
         else()
-            set(LIBSTATS_HAS_SSE2 FALSE CACHE BOOL "SSE2 support not available at runtime")
-            message(STATUS "SIMD: SSE2 disabled (runtime check failed)")
+            set(LIBSTATS_HAS_SSE2 FALSE CACHE BOOL "SSE2 compiler support not available")
+            message(STATUS "SIMD: SSE2 disabled (compiler not supported)")
         endif()
-    else()
-        set(LIBSTATS_HAS_SSE2 FALSE CACHE BOOL "SSE2 compiler support not available")
-        message(STATUS "SIMD: SSE2 disabled (compiler not supported)")
     endif()
-    
-    # Update global variables
     set(LIBSTATS_SIMD_SOURCES "${LIBSTATS_SIMD_SOURCES}" CACHE INTERNAL "List of SIMD source files to compile")
     set(LIBSTATS_SIMD_DEFINITIONS "${LIBSTATS_SIMD_DEFINITIONS}" CACHE INTERNAL "List of SIMD compile definitions")
 endfunction()
 
 # Function to detect AVX support
 function(detect_avx_support)
-    # Check compiler support
-    check_cxx_compiler_flag("-mavx" COMPILER_SUPPORTS_AVX)
-    
-    if(COMPILER_SUPPORTS_AVX)
-        # Check runtime support
-        test_runtime_cpu_feature("avx" "
+    if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+        check_cxx_compiler_flag("/arch:AVX" COMPILER_SUPPORTS_AVX)
+        if(COMPILER_SUPPORTS_AVX)
+            test_runtime_cpu_feature("avx" "
+#include <immintrin.h>
+bool test_avx() {
+    __m256d a = _mm256_set1_pd(1.0);
+    __m256d b = _mm256_set1_pd(2.0);
+    __m256d c = _mm256_add_pd(a, b);
+    double result[4];
+    _mm256_store_pd(result, c);
+    return (result[0] == 3.0 && result[1] == 3.0 && result[2] == 3.0 && result[3] == 3.0);
+}
+" RUNTIME_SUPPORTS_AVX "/arch:AVX")
+            if(RUNTIME_SUPPORTS_AVX)
+                set(LIBSTATS_HAS_AVX TRUE CACHE BOOL "AVX support available")
+                list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx.cpp")
+                list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX=1")
+                message(STATUS "SIMD: AVX enabled (compiler + runtime)")
+            else()
+                set(LIBSTATS_HAS_AVX FALSE CACHE BOOL "AVX support not available at runtime")
+                message(STATUS "SIMD: AVX disabled (runtime check failed)")
+            endif()
+        else()
+            set(LIBSTATS_HAS_AVX FALSE CACHE BOOL "AVX compiler support not available")
+            message(STATUS "SIMD: AVX disabled (compiler not supported)")
+        endif()
+    else()
+        check_cxx_compiler_flag("-mavx" COMPILER_SUPPORTS_AVX)
+        if(COMPILER_SUPPORTS_AVX)
+            test_runtime_cpu_feature("avx" "
 #include <immintrin.h>
 bool test_avx() {
     __m256d a = _mm256_set1_pd(1.0);
@@ -149,35 +184,59 @@ bool test_avx() {
     return (result[0] == 3.0 && result[1] == 3.0 && result[2] == 3.0 && result[3] == 3.0);
 }
 " RUNTIME_SUPPORTS_AVX "-mavx")
-        
-        if(RUNTIME_SUPPORTS_AVX)
-            set(LIBSTATS_HAS_AVX TRUE CACHE BOOL "AVX support available")
-            list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx.cpp")
-            list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX=1")
-            message(STATUS "SIMD: AVX enabled (compiler + runtime)")
+            if(RUNTIME_SUPPORTS_AVX)
+                set(LIBSTATS_HAS_AVX TRUE CACHE BOOL "AVX support available")
+                list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx.cpp")
+                list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX=1")
+                message(STATUS "SIMD: AVX enabled (compiler + runtime)")
+            else()
+                set(LIBSTATS_HAS_AVX FALSE CACHE BOOL "AVX support not available at runtime")
+                message(STATUS "SIMD: AVX disabled (runtime check failed)")
+            endif()
         else()
-            set(LIBSTATS_HAS_AVX FALSE CACHE BOOL "AVX support not available at runtime")
-            message(STATUS "SIMD: AVX disabled (runtime check failed)")
+            set(LIBSTATS_HAS_AVX FALSE CACHE BOOL "AVX compiler support not available")
+            message(STATUS "SIMD: AVX disabled (compiler not supported)")
         endif()
-    else()
-        set(LIBSTATS_HAS_AVX FALSE CACHE BOOL "AVX compiler support not available")
-        message(STATUS "SIMD: AVX disabled (compiler not supported)")
     endif()
-    
-    # Update global variables
     set(LIBSTATS_SIMD_SOURCES "${LIBSTATS_SIMD_SOURCES}" CACHE INTERNAL "List of SIMD source files to compile")
     set(LIBSTATS_SIMD_DEFINITIONS "${LIBSTATS_SIMD_DEFINITIONS}" CACHE INTERNAL "List of SIMD compile definitions")
 endfunction()
 
 # Function to detect AVX2 support
 function(detect_avx2_support)
-    # Check compiler support for both AVX2 and FMA
-    check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
-    check_cxx_compiler_flag("-mfma" COMPILER_SUPPORTS_FMA)
-    
-    if(COMPILER_SUPPORTS_AVX2 AND COMPILER_SUPPORTS_FMA)
-        # Check runtime support
-        test_runtime_cpu_feature("avx2" "
+    if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+        check_cxx_compiler_flag("/arch:AVX2" COMPILER_SUPPORTS_AVX2)
+        if(COMPILER_SUPPORTS_AVX2)
+            test_runtime_cpu_feature("avx2" "
+#include <immintrin.h>
+bool test_avx2() {
+    __m256d a = _mm256_set1_pd(1.0);
+    __m256d b = _mm256_set1_pd(2.0);
+    __m256d c = _mm256_set1_pd(3.0);
+    __m256d result = _mm256_fmadd_pd(a, b, c);  // a*b + c = 1*2 + 3 = 5
+    double values[4];
+    _mm256_store_pd(values, result);
+    return (values[0] == 5.0 && values[1] == 5.0 && values[2] == 5.0 && values[3] == 5.0);
+}
+" RUNTIME_SUPPORTS_AVX2 "/arch:AVX2")
+            if(RUNTIME_SUPPORTS_AVX2)
+                set(LIBSTATS_HAS_AVX2 TRUE CACHE BOOL "AVX2 support available")
+                list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx2.cpp")
+                list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX2=1")
+                message(STATUS "SIMD: AVX2 enabled (compiler + runtime)")
+            else()
+                set(LIBSTATS_HAS_AVX2 FALSE CACHE BOOL "AVX2 support not available at runtime")
+                message(STATUS "SIMD: AVX2 disabled (runtime check failed)")
+            endif()
+        else()
+            set(LIBSTATS_HAS_AVX2 FALSE CACHE BOOL "AVX2 compiler support not available")
+            message(STATUS "SIMD: AVX2 disabled (compiler not supported)")
+        endif()
+    else()
+        check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
+        check_cxx_compiler_flag("-mfma" COMPILER_SUPPORTS_FMA)
+        if(COMPILER_SUPPORTS_AVX2 AND COMPILER_SUPPORTS_FMA)
+            test_runtime_cpu_feature("avx2" "
 #include <immintrin.h>
 bool test_avx2() {
     __m256d a = _mm256_set1_pd(1.0);
@@ -189,63 +248,63 @@ bool test_avx2() {
     return (values[0] == 5.0 && values[1] == 5.0 && values[2] == 5.0 && values[3] == 5.0);
 }
 " RUNTIME_SUPPORTS_AVX2 "-mavx2" "-mfma")
-        
-        if(RUNTIME_SUPPORTS_AVX2)
-            set(LIBSTATS_HAS_AVX2 TRUE CACHE BOOL "AVX2 support available")
-            list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx2.cpp")
-            list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX2=1")
-            message(STATUS "SIMD: AVX2 enabled (compiler + runtime)")
+            if(RUNTIME_SUPPORTS_AVX2)
+                set(LIBSTATS_HAS_AVX2 TRUE CACHE BOOL "AVX2 support available")
+                list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx2.cpp")
+                list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX2=1")
+                message(STATUS "SIMD: AVX2 enabled (compiler + runtime)")
+            else()
+                set(LIBSTATS_HAS_AVX2 FALSE CACHE BOOL "AVX2 support not available at runtime")
+                message(STATUS "SIMD: AVX2 disabled (runtime check failed)")
+            endif()
         else()
-            set(LIBSTATS_HAS_AVX2 FALSE CACHE BOOL "AVX2 support not available at runtime")
-            message(STATUS "SIMD: AVX2 disabled (runtime check failed)")
+            set(LIBSTATS_HAS_AVX2 FALSE CACHE BOOL "AVX2 compiler support not available")
+            message(STATUS "SIMD: AVX2 disabled (compiler not supported)")
         endif()
-    else()
-        set(LIBSTATS_HAS_AVX2 FALSE CACHE BOOL "AVX2 compiler support not available")
-        message(STATUS "SIMD: AVX2 disabled (compiler not supported)")
     endif()
-    
-    # Update global variables
     set(LIBSTATS_SIMD_SOURCES "${LIBSTATS_SIMD_SOURCES}" CACHE INTERNAL "List of SIMD source files to compile")
     set(LIBSTATS_SIMD_DEFINITIONS "${LIBSTATS_SIMD_DEFINITIONS}" CACHE INTERNAL "List of SIMD compile definitions")
 endfunction()
 
 # Function to detect AVX-512 support
 function(detect_avx512_support)
-    # Check compiler support
-    check_cxx_compiler_flag("-mavx512f" COMPILER_SUPPORTS_AVX512F)
-    
-    if(COMPILER_SUPPORTS_AVX512F)
-        # Check runtime support
-        test_runtime_cpu_feature("avx512" "
-#include <immintrin.h>
-bool test_avx512() {
-    __m512d a = _mm512_set1_pd(1.0);
-    __m512d b = _mm512_set1_pd(2.0);
-    __m512d c = _mm512_add_pd(a, b);
-    double result[8];
-    _mm512_store_pd(result, c);
-    for (int i = 0; i < 8; i++) {
-        if (result[i] != 3.0) return false;
-    }
-    return true;
-}
-" RUNTIME_SUPPORTS_AVX512 "-mavx512f")
-        
-        if(RUNTIME_SUPPORTS_AVX512)
-            set(LIBSTATS_HAS_AVX512 TRUE CACHE BOOL "AVX-512 support available")
-            list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx512.cpp")
-            list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX512=1")
-            message(STATUS "SIMD: AVX-512 enabled (compiler + runtime)")
+    message(STATUS "SIMDDetection: Checking AVX-512 support...")
+    if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+        check_cxx_compiler_flag("/arch:AVX512" COMPILER_SUPPORTS_AVX512)
+        message(STATUS "SIMDDetection: check_cxx_compiler_flag('/arch:AVX512') result = ${COMPILER_SUPPORTS_AVX512}")
+        if(COMPILER_SUPPORTS_AVX512)
+            test_runtime_cpu_feature("avx512" "#include <immintrin.h>\nbool test_avx512() {\n    __m512d a = _mm512_set1_pd(1.0);\n    __m512d b = _mm512_set1_pd(2.0);\n    __m512d c = _mm512_add_pd(a, b);\n    double result[8];\n    _mm512_store_pd(result, c);\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\n    return true;\n}" RUNTIME_SUPPORTS_AVX512 "/arch:AVX512")
+            if(RUNTIME_SUPPORTS_AVX512)
+                set(LIBSTATS_HAS_AVX512 TRUE CACHE BOOL "AVX-512 support available")
+                list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx512.cpp")
+                list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX512=1")
+                message(STATUS "SIMD: AVX-512 enabled (compiler + runtime)")
+            else()
+                set(LIBSTATS_HAS_AVX512 FALSE CACHE BOOL "AVX-512 support not available at runtime")
+                message(STATUS "SIMD: AVX-512 disabled (runtime check failed)")
+            endif()
         else()
-            set(LIBSTATS_HAS_AVX512 FALSE CACHE BOOL "AVX-512 support not available at runtime")
-            message(STATUS "SIMD: AVX-512 disabled (runtime check failed)")
+            set(LIBSTATS_HAS_AVX512 FALSE CACHE BOOL "AVX-512 compiler support not available")
+            message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
         endif()
     else()
-        set(LIBSTATS_HAS_AVX512 FALSE CACHE BOOL "AVX-512 compiler support not available")
-        message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
+        check_cxx_compiler_flag("-mavx512f" COMPILER_SUPPORTS_AVX512)
+        if(COMPILER_SUPPORTS_AVX512)
+            test_runtime_cpu_feature("avx512" "#include <immintrin.h>\nbool test_avx512() {\n    __m512d a = _mm512_set1_pd(1.0);\n    __m512d b = _mm512_set1_pd(2.0);\n    __m512d c = _mm512_add_pd(a, b);\n    double result[8];\n    _mm512_store_pd(result, c);\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\n    return true;\n}" RUNTIME_SUPPORTS_AVX512 "-mavx512f")
+            if(RUNTIME_SUPPORTS_AVX512)
+                set(LIBSTATS_HAS_AVX512 TRUE CACHE BOOL "AVX-512 support available")
+                list(APPEND LIBSTATS_SIMD_SOURCES "src/simd_avx512.cpp")
+                list(APPEND LIBSTATS_SIMD_DEFINITIONS "LIBSTATS_HAS_AVX512=1")
+                message(STATUS "SIMD: AVX-512 enabled (compiler + runtime)")
+            else()
+                set(LIBSTATS_HAS_AVX512 FALSE CACHE BOOL "AVX-512 support not available at runtime")
+                message(STATUS "SIMD: AVX-512 disabled (runtime check failed)")
+            endif()
+        else()
+            set(LIBSTATS_HAS_AVX512 FALSE CACHE BOOL "AVX-512 compiler support not available")
+            message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
+        endif()
     endif()
-    
-    # Update global variables
     set(LIBSTATS_SIMD_SOURCES "${LIBSTATS_SIMD_SOURCES}" CACHE INTERNAL "List of SIMD source files to compile")
     set(LIBSTATS_SIMD_DEFINITIONS "${LIBSTATS_SIMD_DEFINITIONS}" CACHE INTERNAL "List of SIMD compile definitions")
 endfunction()
@@ -442,23 +501,43 @@ endfunction()
 function(configure_simd_target TARGET_NAME)
     # Add SIMD-specific compilation flags for each source file
     if(LIBSTATS_HAS_SSE2)
-        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp" 
-            PROPERTIES COMPILE_FLAGS "-msse2")
+        if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp" 
+                PROPERTIES COMPILE_FLAGS "/arch:SSE2")
+        else()
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp" 
+                PROPERTIES COMPILE_FLAGS "-msse2")
+        endif()
     endif()
     
     if(LIBSTATS_HAS_AVX)
-        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx.cpp" 
-            PROPERTIES COMPILE_FLAGS "-mavx")
+        if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx.cpp" 
+                PROPERTIES COMPILE_FLAGS "/arch:AVX")
+        else()
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx.cpp" 
+                PROPERTIES COMPILE_FLAGS "-mavx")
+        endif()
     endif()
     
     if(LIBSTATS_HAS_AVX2)
-        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx2.cpp" 
-            PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
+        if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx2.cpp" 
+                PROPERTIES COMPILE_FLAGS "/arch:AVX2")
+        else()
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx2.cpp" 
+                PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
+        endif()
     endif()
     
     if(LIBSTATS_HAS_AVX512)
-        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx512.cpp" 
-            PROPERTIES COMPILE_FLAGS "-mavx512f")
+        if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx512.cpp" 
+                PROPERTIES COMPILE_FLAGS "/arch:AVX512")
+        else()
+            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx512.cpp" 
+                PROPERTIES COMPILE_FLAGS "-mavx512f")
+        endif()
     endif()
     
     if(LIBSTATS_HAS_NEON)

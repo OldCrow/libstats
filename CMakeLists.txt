@@ -149,14 +149,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 elseif(MSVC)
     add_compile_options(/W4 /O2)
     
-    # MSVC SIMD support
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        add_compile_options(/arch:AVX2)
-        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
-        add_compile_definitions(LIBSTATS_HAS_AVX=1)
-        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
-        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
-    endif()
+    # MSVC SIMD support - let SIMDDetection.cmake handle this properly
+    # The old hardcoded approach is replaced by comprehensive detection
+    message(STATUS "MSVC detected - using comprehensive SIMD detection")
 endif()
 
 # Source files for the compiled library - start with core components
