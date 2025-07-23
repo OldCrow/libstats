@@ -149,9 +149,16 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 elseif(MSVC)
     add_compile_options(/W4 /O2)
     
+    # MSVC-specific compiler definitions for Windows compatibility
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)  # Allow standard C functions
+    add_compile_definitions(_CRT_NONSTDC_NO_DEPRECATE)  # Allow POSIX function names
+    
     # MSVC SIMD support - let SIMDDetection.cmake handle this properly
     # The old hardcoded approach is replaced by comprehensive detection
     message(STATUS "MSVC detected - using comprehensive SIMD detection")
+    
+    # Note: MSVC SIMD compiler flags (/arch:SSE2, /arch:AVX, /arch:AVX2, /arch:AVX512)
+    # are applied per-file in SIMDDetection.cmake via configure_simd_target()
 endif()
 
 # Source files for the compiled library - start with core components

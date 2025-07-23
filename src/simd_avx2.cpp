@@ -5,8 +5,10 @@
     #pragma GCC target("avx2")
     #pragma GCC target("no-avx512f")
 #elif defined(__clang__)
-    // Clang uses different target attribute syntax
     #pragma clang attribute push (__attribute__((target("avx2"))), apply_to=function)
+#elif defined(_MSC_VER)
+    // MSVC doesn't need target pragmas - uses /arch flags in CMake
+    // and has different intrinsic handling
 #endif
 
 #include "../include/simd.h"

@@ -23,11 +23,18 @@
 #include <string>
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
-    #include <cpuid.h>
+    #if defined(_MSC_VER)
+        #include <intrin.h>  // MSVC intrinsics
+    #else
+        #include <cpuid.h>
+    #endif
     #include <immintrin.h>
     #define LIBSTATS_X86_FAMILY
     #if defined(__APPLE__)
         #include <sys/sysctl.h>
+    #elif defined(_WIN32)
+        #include <windows.h>
+        #include <sysinfoapi.h>
     #endif
 #elif defined(__aarch64__) || defined(_M_ARM64)
     #define LIBSTATS_ARM64_FAMILY
@@ -236,6 +243,23 @@ namespace {
     uint64_t estimate_tsc_frequency_internal(uint32_t duration_ms) {
         #if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
             #if defined(__GNUC__) || defined(__clang__)
+                uint64_t start_tsc = __rdtsc();
+                auto start_time = std::chrono::high_resolution_clock::now();
+                
+                std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
+                
+                uint64_t end_tsc = __rdtsc();
+                auto end_time = std::chrono::high_resolution_clock::now();
+                
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
+                uint64_t cycles = end_tsc - start_tsc;
+                
+                if (duration.count() > 0) {
+                    // Calculate frequency: cycles per nanosecond * conversion factor = Hz
+                    double freq = static_cast<double>(cycles) / duration.count() * constants::simd::cpu::NANOSECONDS_TO_HZ;
+                    return static_cast<uint64_t>(freq);
+                }
+            #elif defined(_MSC_VER)
                 uint64_t start_tsc = __rdtsc();
                 auto start_time = std::chrono::high_resolution_clock::now();
                 
