@@ -4,9 +4,14 @@
 #include "distribution_base.h"
 #include "constants.h"
 #include "error_handling.h" // Safe error handling without exceptions
+#include "parallel_execution.h" // Level 0-3 parallel execution support
+#include "thread_pool.h" // Level 0-3 ParallelUtils integration
+#include "work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
+#include "adaptive_cache.h" // Level 0-3 adaptive cache management
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation
+#include <span>        // C++20 span for modern array interfaces
 
 namespace libstats {
 
@@ -129,6 +134,11 @@ private:
     
     /** @brief Upper bound parameter b (inclusive) */
     int b_{1};
+    
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<int> atomicA_{0};
+    mutable std::atomic<int> atomicB_{1};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
     // PERFORMANCE CACHE
@@ -195,6 +205,11 @@ private:
         
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicA_.store(a_, std::memory_order_release);
+        atomicB_.store(b_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
     }
     
     /**
@@ -332,6 +347,9 @@ public:
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         
+        // Invalidate atomic parameters when parameters change
+        atomicParamsValid_.store(false, std::memory_order_release);
+        
         return VoidResult::ok(true);
     }
     
@@ -398,6 +416,17 @@ public:
      * @return Single random integer sample (as double for interface compatibility)
      */
     [[nodiscard]] double sample(std::mt19937& rng) const override;
+    
+    /**
+     * @brief Generate multiple random samples from distribution
+     * 
+     * Optimized batch sampling with reduced RNG overhead
+     * 
+     * @param rng Random number generator
+     * @param n Number of samples to generate
+     * @return Vector of random integer samples (as doubles for interface compatibility)
+     */
+    [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
     // PARAMETER GETTERS AND SETTERS
@@ -423,6 +452,36 @@ public:
     [[nodiscard]] int getUpperBound() const noexcept { 
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         return b_; 
+    }
+    
+    /**
+     * Fast lock-free getter for lower bound parameter using atomic copy.
+     * PERFORMANCE: Uses atomic load - no locking overhead
+     * WARNING: May return stale value if parameters are being updated
+     * 
+     * @return Atomic copy of lower bound parameter (may be slightly stale)
+     */
+    [[nodiscard]] int getLowerBoundAtomic() const noexcept {
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            return atomicA_.load(std::memory_order_acquire);
+        }
+        // Fallback to locked version if atomic copy not valid
+        return getLowerBound();
+    }
+    
+    /**
+     * Fast lock-free getter for upper bound parameter using atomic copy.
+     * PERFORMANCE: Uses atomic load - no locking overhead
+     * WARNING: May return stale value if parameters are being updated
+     * 
+     * @return Atomic copy of upper bound parameter (may be slightly stale)
+     */
+    [[nodiscard]] int getUpperBoundAtomic() const noexcept {
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            return atomicB_.load(std::memory_order_acquire);
+        }
+        // Fallback to locked version if atomic copy not valid
+        return getUpperBound();
     }
     
     /**
@@ -649,6 +708,110 @@ public:
      */
     void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
     void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    
+    //==========================================================================
+    // THREAD POOL PARALLEL BATCH OPERATIONS
+    //==========================================================================
+    
+    /**
+     * Advanced parallel batch probability calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * Combines SIMD vectorization with multi-core parallelism for maximum performance
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
+    
+    /**
+     * Advanced parallel batch log probability calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept;
+    
+    /**
+     * Advanced parallel batch CDF calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
+    
+    /**
+     * Work-stealing parallel batch probability calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                        WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                      cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    /**
+     * Work-stealing parallel batch log probability calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                           WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch log probability processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                         cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    /**
+     * Work-stealing parallel batch CDF calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                  WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch CDF processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                cache::AdaptiveCache<std::string, double>& cache_manager) const;
 
     //==========================================================================
     // DISCRETE-SPECIFIC UTILITY METHODS

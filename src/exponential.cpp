@@ -668,132 +668,9 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const doub
     }
 }
 
-//==============================================================================
-// SIMD IMPLEMENTATIONS
-//==============================================================================
-
-void ExponentialDistribution::getProbabilityBatchSIMD(const double* values, double* results, std::size_t count,
-                                                      double lambda, double neg_lambda) const noexcept {
-    // Use the proper SIMD abstraction layer following the pattern from gaussian.cpp
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        getProbabilityBatchUnsafeImpl(values, results, count, lambda, neg_lambda);
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    const bool is_unit_rate = (std::abs(lambda - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
-    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
-    
-    // Step 1: Prepare exp() inputs
-    if (is_unit_rate) {
-        // For unit rate: exp(-x)
-        simd::VectorOps::scalar_multiply(values, -1.0, exp_inputs.data(), count);
-    } else {
-        // For general case: exp(neg_lambda * x)
-        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
-    }
-    
-    // Step 2: Apply vectorized exponential
-    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
-    
-    // Step 3: Apply lambda scaling if needed
-    if (!is_unit_rate) {
-        simd::VectorOps::scalar_multiply(results, lambda, results, count);
-    }
-    
-    // Step 4: Handle negative input values (set to zero)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::math::ZERO_DOUBLE;
-        }
-    }
-}
-
-void ExponentialDistribution::getLogProbabilityBatchSIMD(const double* values, double* results, std::size_t count,
-                                                         double log_lambda, double neg_lambda) const noexcept {
-    // Use the proper SIMD abstraction layer following the pattern from gaussian.cpp
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        getLogProbabilityBatchUnsafeImpl(values, results, count, log_lambda, neg_lambda);
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    const bool is_unit_rate = (std::abs(log_lambda - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
-    
-    // Step 1: Calculate the main term
-    if (is_unit_rate) {
-        // For unit rate: -x
-        simd::VectorOps::scalar_multiply(values, -1.0, results, count);
-    } else {
-        // For general case: log_lambda + neg_lambda * x
-        simd::VectorOps::scalar_multiply(values, neg_lambda, temp_values.data(), count);
-        simd::VectorOps::scalar_add(temp_values.data(), log_lambda, results, count);
-    }
-    
-    // Step 2: Handle negative input values (set to -infinity)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::probability::NEGATIVE_INFINITY;
-        }
-    }
-}
-
-void ExponentialDistribution::getCumulativeProbabilityBatchSIMD(const double* values, double* results, std::size_t count,
-                                                               double neg_lambda) const noexcept {
-    // Use the proper SIMD abstraction layer following the pattern from gaussian.cpp
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        getCumulativeProbabilityBatchUnsafeImpl(values, results, count, neg_lambda);
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    const bool is_unit_rate = (std::abs(neg_lambda + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
-    std::vector<double, simd::aligned_allocator<double>> exp_results(count);
-    
-    // Step 1: Prepare exp() inputs
-    if (is_unit_rate) {
-        // For unit rate: 1 - exp(-x)
-        simd::VectorOps::scalar_multiply(values, -1.0, exp_inputs.data(), count);
-    } else {
-        // For general case: 1 - exp(neg_lambda * x)
-        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
-    }
-    
-    // Step 2: Apply vectorized exponential
-    simd::VectorOps::vector_exp(exp_inputs.data(), exp_results.data(), count);
-    
-    // Step 3: Calculate 1 - exp(...)
-    simd::VectorOps::scalar_add(exp_results.data(), -1.0, results, count);
-    simd::VectorOps::scalar_multiply(results, -1.0, results, count);
-    
-    // Step 4: Handle negative input values (set to zero)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::math::ZERO_DOUBLE;
-        }
-    }
-}
+// Note: Redundant SIMD methods removed - SIMD optimization is now handled
+// internally within the *BatchUnsafeImpl methods above, following the
+// standardized pattern established in gaussian.cpp
 
 //==============================================================================
 // PARALLEL BATCH OPERATIONS
@@ -1040,6 +917,175 @@ void ExponentialDistribution::getProbabilityBatchCacheAware(std::span<const doub
         
         // Process chunk using SIMD batch operation
         getProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
+    }
+    
+    // Cache access recorded implicitly through batch operations
+}
+
+void ExponentialDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                               WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output span sizes must match");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_log_lambda = logLambda_;
+    const double cached_neg_lambda = negLambda_;
+    const bool cached_is_unit_rate = isUnitRate_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
+    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute log PDF for each element with work stealing load balancing using cached parameters
+            const double x = values[i];
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = -std::numeric_limits<double>::infinity();
+            } else if (cached_is_unit_rate) {
+                results[i] = -x;
+            } else {
+                results[i] = cached_log_lambda + cached_neg_lambda * x;
+            }
+        });
+        
+        // Wait for all work stealing tasks to complete
+        pool.waitForAll();
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = -std::numeric_limits<double>::infinity();
+            } else if (cached_is_unit_rate) {
+                results[i] = -x;
+            } else {
+                results[i] = cached_log_lambda + cached_neg_lambda * x;
+            }
+        }
+    }
+}
+
+void ExponentialDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                              [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output span sizes must match");
+    }
+    
+    if (values.empty()) return;
+    
+    // Check cache for batch results
+    const std::string cache_key = "exp_log_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());
+    
+    // For cache-aware processing, use smaller chunks to better utilize cache
+    // Use a reasonable default chunk size when cache manager doesn't provide one
+    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
+    
+    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
+        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
+        const std::size_t chunk_count = end - i;
+        
+        // Process chunk using SIMD batch operation
+        getLogProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
+    }
+    
+    // Cache access recorded implicitly through batch operations
+}
+
+void ExponentialDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                                       WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output span sizes must match");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_neg_lambda = negLambda_;
+    const bool cached_is_unit_rate = isUnitRate_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
+    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute CDF for each element with work stealing load balancing using cached parameters
+            const double x = values[i];
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (cached_is_unit_rate) {
+                results[i] = constants::math::ONE - std::exp(-x);
+            } else {
+                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+            }
+        });
+        
+        // Wait for all work stealing tasks to complete
+        pool.waitForAll();
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (cached_is_unit_rate) {
+                results[i] = constants::math::ONE - std::exp(-x);
+            } else {
+                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+            }
+        }
+    }
+}
+
+void ExponentialDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                                     [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output span sizes must match");
+    }
+    
+    if (values.empty()) return;
+    
+    // Check cache for batch results
+    const std::string cache_key = "exp_cdf_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());
+    
+    // For cache-aware processing, use smaller chunks to better utilize cache
+    // Use a reasonable default chunk size when cache manager doesn't provide one
+    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
+    
+    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
+        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
+        const std::size_t chunk_count = end - i;
+        
+        // Process chunk using SIMD batch operation
+        getCumulativeProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
     }
     
     // Cache access recorded implicitly through batch operations

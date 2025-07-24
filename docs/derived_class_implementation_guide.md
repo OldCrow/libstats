@@ -7,14 +7,15 @@ This guide provides detailed instructions for implementing distribution classes 
 1. [Quick Start Template](#quick-start-template)
 2. [Level 0 Utilities Integration](#level-0-utilities-integration)
 3. [Level 1 Utilities Integration](#level-1-utilities-integration)
-4. [Thread Safety Implementation](#thread-safety-implementation)
-5. [Performance Optimization](#performance-optimization)
-6. [Enhanced Caching Strategies](#enhanced-caching-strategies)
-7. [Memory Optimization Features](#memory-optimization-features)
-8. [SIMD Batch Operations](#simd-batch-operations)
-9. [Error Handling Patterns](#error-handling-patterns)
-10. [Testing Guidelines](#testing-guidelines)
-11. [Common Pitfalls](#common-pitfalls)
+4. [Thread Parallelism Patterns](#thread-parallelism-patterns)
+5. [Thread Safety Implementation](#thread-safety-implementation)
+6. [Performance Optimization](#performance-optimization)
+7. [Enhanced Caching Strategies](#enhanced-caching-strategies)
+8. [Memory Optimization Features](#memory-optimization-features)
+9. [SIMD Batch Operations](#simd-batch-operations)
+10. [Error Handling Patterns](#error-handling-patterns)
+11. [Testing Guidelines](#testing-guidelines)
+12. [Common Pitfalls](#common-pitfalls)
 
 ## Quick Start Template
 
@@ -81,9 +82,14 @@ public:
     double getParam1() const;
     double getParam2() const;
     
-    // Thread-safe parameter setters
+    // Lock-free atomic parameter getters (high performance)
+    double getParam1Atomic() const noexcept;
+    double getParam2Atomic() const noexcept;
+    
+    // Thread-safe parameter setters with atomic invalidation
     VoidResult setParam1(double value);
     VoidResult setParam2(double value);
+    VoidResult setParameters(double param1, double param2);
 
     // SIMD batch operations
     std::vector<double> getBatchProbabilities(const std::vector<double>& x_values) const;
@@ -97,12 +103,16 @@ private:
     // Private constructor for factory pattern
     MyDistribution(double param1, double param2);
     
-    // Parameters (protected by param_mutex_)
-    mutable std::shared_mutex param_mutex_;
+    // CORE DISTRIBUTION PARAMETERS
     double param1_;
     double param2_;
     
-    // Cached values (protected by cache_mutex_ from base)
+    // ATOMIC PARAMETER COPIES (for lock-free access)
+    mutable std::atomic<double> atomicParam1_;
+    mutable std::atomic<double> atomicParam2_;
+    mutable std::atomic<bool> atomicParamsValid_{false};
+    
+    // CACHED VALUES (protected by cache_mutex_ from base)
     mutable double cached_mean_;
     mutable double cached_variance_;
     mutable double cached_log_normalization_;
@@ -123,34 +133,83 @@ private:
 
 ## Level 0 Utilities Integration
 
-### Constants Usage
+### Constants Reference
 
-Always use predefined constants from `constants.h`:
+The `constants.h` header provides a comprehensive set of typed constants organized into namespaces to eliminate magic numbers and ensure numerical consistency. Always use these predefined constants instead of hardcoded values:
 
 ```cpp
 #include "constants.h"
 
 namespace constants = libstats::constants;
+```
 
-// In your implementation
+#### Mathematical Constants
+Fundamental mathematical values with high precision:
+- `constants::mathematical::PI`, `constants::mathematical::E`, `constants::mathematical::SQRT_TWO_PI`
+- `constants::mathematical::LOG_PI`, `constants::mathematical::LOG_TWO_PI`
+- `constants::mathematical::PHI` (golden ratio), `constants::mathematical::EULER_MASCHERONI`
+- Reciprocal constants: `constants::mathematical::INV_PI`, `constants::mathematical::INV_SQRT_TWO_PI`
+
+#### Numerical Precision and Tolerances
+Precision values for different computational needs:
+- `constants::precision::DEFAULT_TOLERANCE`, `constants::precision::HIGH_PRECISION_TOLERANCE`
+- `constants::precision::LOOSE_TOLERANCE`, `constants::precision::ULTRA_HIGH_PRECISION_TOLERANCE`
+- `constants::precision::CONVERGENCE_TOLERANCE`, `constants::precision::INTEGRATION_TOLERANCE`
+
+#### Probability Bounds and Safety
+Numerical bounds to ensure stable probability calculations:
+- `constants::probability::MIN_PROBABILITY`, `constants::probability::MAX_PROBABILITY`
+- `constants::probability::MIN_LOG_PROBABILITY`, `constants::probability::MAX_LOG_PROBABILITY`
+- `constants::probability::EPSILON_PROBABILITY`, `constants::probability::UNDERFLOW_THRESHOLD`
+
+#### Statistical Critical Values
+Precomputed critical values for common statistical tests:
+- Normal distribution: `constants::statistical::NORMAL_95_CRITICAL`, `constants::statistical::NORMAL_99_CRITICAL`
+- Chi-square: `constants::statistical::CHI_SQUARE_95_1DF`, `constants::statistical::CHI_SQUARE_99_1DF`
+- t-distribution: `constants::statistical::T_95_CRITICAL_30DF`, `constants::statistical::T_99_CRITICAL_INF`
+- F-distribution: `constants::statistical::F_95_CRITICAL_1_30`, `constants::statistical::F_99_CRITICAL_1_INF`
+
+#### SIMD and Performance Constants
+Optimization parameters for vectorized operations:
+- Block sizes: `constants::simd::AVX512_BLOCK_SIZE`, `constants::simd::AVX2_BLOCK_SIZE`
+- Memory alignment: `constants::simd::MEMORY_ALIGNMENT_AVX512`, `constants::simd::MEMORY_ALIGNMENT_NEON`
+- Thresholds: `constants::simd::MIN_SIMD_SIZE`, `constants::simd::SIMD_UNROLL_FACTOR`
+
+#### Bootstrap and Cross-Validation Defaults
+Standard parameters for resampling methods:
+- `constants::bootstrap::DEFAULT_BOOTSTRAP_SAMPLES`, `constants::bootstrap::MIN_BOOTSTRAP_SAMPLES`
+- `constants::cross_validation::DEFAULT_FOLDS`, `constants::cross_validation::MIN_SAMPLE_SIZE_PER_FOLD`
+
+#### Usage Examples
+
+```cpp
+// Mathematical constants for probability calculations
 double MyDistribution::getProbability(double x) const {
-    // Use mathematical constants
-    double result = std::exp(-0.5 * x * x) / std::sqrt(2.0 * constants::mathematical::PI);
-    
-    // Use probability bounds
+    double result = std::exp(-0.5 * x * x) / constants::mathematical::SQRT_TWO_PI;
     return std::clamp(result, 
                      constants::probability::MIN_PROBABILITY,
                      constants::probability::MAX_PROBABILITY);
 }
 
+// Log-space calculations with precision constants
 double MyDistribution::getLogProbability(double x) const {
-    // Use log constants for better precision
-    double log_result = -0.5 * x * x - 0.5 * constants::mathematical::LOG_TWO_PI;
-    
-    // Use log probability bounds
+    double log_result = -0.5 * x * x - constants::mathematical::LOG_SQRT_TWO_PI;
     return std::clamp(log_result,
                      constants::probability::MIN_LOG_PROBABILITY,
                      constants::probability::MAX_LOG_PROBABILITY);
+}
+
+// Numerical integration with appropriate tolerance
+double MyDistribution::getCDF(double x) const {
+    auto pdf_func = [this](double t) { return getProbability(t); };
+    return math_utils::adaptive_simpson(pdf_func, getSupportLowerBound(), x,
+                                       constants::precision::INTEGRATION_TOLERANCE);
+}
+
+// Statistical hypothesis testing with critical values
+bool MyDistribution::performGoodnessOfFitTest(const std::vector<double>& data) const {
+    double test_statistic = computeKSStatistic(data);
+    return test_statistic < constants::statistical::KS_CRITICAL_95_N100;
 }
 ```
 
@@ -180,32 +239,66 @@ Result<MyDistribution> MyDistribution::create(double param1, double param2) {
     return Result<MyDistribution>::success(MyDistribution(param1, param2));
 }
 
-// Thread-safe parameter setters
+// Thread-safe parameter setters with MANDATORY atomic invalidation
 VoidResult MyDistribution::setParam1(double value) {
     // Validate first (no locks held)
     if (!std::isfinite(value) || value <= 0.0) {
         return VoidResult::error(ValidationError::InvalidParameter);
     }
     
-    // Update parameter atomically
+    // Update parameter under lock
     {
-        std::unique_lock lock(param_mutex_);
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
         param1_ = value;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        
+        // CRITICAL: Invalidate atomic parameters when parameters change
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     
-    // Invalidate cache after successful update
-    invalidateCache();
     return VoidResult::success();
+}
+
+// Safe factory method with exception-free construction
+static Result<MyDistribution> MyDistribution::create(double param1, double param2) noexcept {
+    auto validation = validateMyDistributionParameters(param1, param2);
+    if (validation.isError()) {
+        return Result<MyDistribution>::makeError(validation.error_code, validation.message);
+    }
+    
+    // Use private factory to bypass validation
+    return Result<MyDistribution>::ok(createUnchecked(param1, param2));
+}
+
+// Safe parameter updates without exceptions  
+VoidResult MyDistribution::trySetParameters(double param1, double param2) noexcept {
+    auto validation = validateMyDistributionParameters(param1, param2);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    param1_ = param1;
+    param2_ = param2;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
 }
 ```
 
-### CPU Detection and SIMD
+### CPU Detection and SIMD with VectorOps Wrappers
 
-Use runtime CPU detection for optimal performance:
+Use runtime CPU detection and lower-level adapter functions for optimal performance:
 
 ```cpp
 #include "cpu_detection.h"
 #include "simd.h"
+#include "vectorized_math.h"  // VectorOps wrappers
 
 std::vector<double> MyDistribution::getBatchProbabilities(
     const std::vector<double>& x_values) const {
@@ -215,16 +308,14 @@ std::vector<double> MyDistribution::getBatchProbabilities(
     // Get parameters once under shared lock
     double p1, p2;
     {
-        std::shared_lock lock(param_mutex_);
+        std::shared_lock lock(cache_mutex_);
         p1 = param1_;
         p2 = param2_;
     }
     
-    // Use SIMD if beneficial and supported
-    if (cpu::supports_avx2() && x_values.size() >= 8) {
-        computeBatchSIMD(x_values, results, p1, p2);
-    } else if (cpu::supports_sse2() && x_values.size() >= 4) {
-        computeBatchSSE2(x_values, results, p1, p2);
+    // Use VectorOps for automatic SIMD dispatch and alignment handling
+    if (x_values.size() >= VectorOps::MIN_SIMD_SIZE) {
+        computeBatchVectorized(x_values, results, p1, p2);
     } else {
         computeBatchScalar(x_values, results, p1, p2);
     }
@@ -232,26 +323,344 @@ std::vector<double> MyDistribution::getBatchProbabilities(
     return results;
 }
 
-void MyDistribution::computeBatchSIMD(const std::vector<double>& x_values,
-                                     std::vector<double>& results,
-                                     double p1, double p2) const {
-    const size_t simd_size = 4; // SSE2 processes 4 doubles at once
-    const size_t simd_end = (x_values.size() / simd_size) * simd_size;
+// Use VectorOps wrappers for automatic SIMD optimization
+void MyDistribution::computeBatchVectorized(const std::vector<double>& x_values,
+                                           std::vector<double>& results,
+                                           double p1, double p2) const {
+    // VectorOps automatically handles:
+    // - CPU feature detection
+    // - Memory alignment
+    // - SIMD instruction selection
+    // - Fallback to scalar operations
     
-    // Process SIMD chunks
-    for (size_t i = 0; i < simd_end; i += simd_size) {
-        // Use SIMD operations from simd.h
-        simd::vector_exp(&x_values[i], &results[i], simd_size);
+    // Example: Gaussian PDF computation using VectorOps
+    VectorOps::subtract_scalar(x_values.data(), p1, results.data(), x_values.size()); // x - mu
+    VectorOps::divide_scalar(results.data(), p2, results.data(), x_values.size());    // (x - mu) / sigma
+    VectorOps::square(results.data(), results.data(), x_values.size());               // ((x - mu) / sigma)^2
+    VectorOps::multiply_scalar(results.data(), -0.5, results.data(), x_values.size()); // -0.5 * ((x - mu) / sigma)^2
+    VectorOps::exp(results.data(), results.data(), x_values.size());                  // exp(-0.5 * ((x - mu) / sigma)^2)
+    
+    // Apply normalization constant
+    double norm_const = 1.0 / (p2 * std::sqrt(2.0 * M_PI));
+    VectorOps::multiply_scalar(results.data(), norm_const, results.data(), x_values.size());
+}
+
+// Lower-level adapter function for custom SIMD implementations
+void MyDistribution::computeBatchCustomSIMD(const std::vector<double>& x_values,
+                                           std::vector<double>& results,
+                                           double p1, double p2) const {
+    // Use lower-level SIMD adapter functions for fine-grained control
+    const size_t simd_width = SIMDTraits<double>::width();
+    const size_t aligned_size = (x_values.size() / simd_width) * simd_width;
+    
+    // Process aligned chunks with custom SIMD implementation
+    if (aligned_size > 0) {
+        simd_adapter::gaussian_pdf_batch(x_values.data(), results.data(), aligned_size, p1, p2);
     }
     
-    // Handle remaining elements with scalar code
-    for (size_t i = simd_end; i < x_values.size(); ++i) {
-        results[i] = std::exp(x_values[i]);
+    // Handle remainder with scalar operations
+    for (size_t i = aligned_size; i < x_values.size(); ++i) {
+        results[i] = gaussian_pdf_scalar(x_values[i], p1, p2);
     }
+}
+
+// Scalar implementation for reference and remainder processing
+double MyDistribution::gaussian_pdf_scalar(double x, double mu, double sigma) const {
+    double diff = x - mu;
+    double normalized = diff / sigma;
+    double exponent = -0.5 * normalized * normalized;
+    double norm_const = 1.0 / (sigma * std::sqrt(2.0 * M_PI));
+    return norm_const * std::exp(exponent);
 }
 ```
 
-## Level 1 Utilities Integration
+### VectorOps Integration Patterns
+
+Use VectorOps wrappers for consistent, high-performance vectorized operations:
+
+```cpp
+// Example: Exponential distribution PDF using VectorOps
+void ExponentialDistribution::computeBatchVectorized(
+    const std::vector<double>& x_values,
+    std::vector<double>& results,
+    double lambda) const {
+    
+    // Check for negative values (exponential support is [0, ∞))
+    VectorOps::clamp_lower(x_values.data(), 0.0, results.data(), x_values.size());
+    
+    // Compute -lambda * x
+    VectorOps::multiply_scalar(results.data(), -lambda, results.data(), x_values.size());
+    
+    // Compute exp(-lambda * x)
+    VectorOps::exp(results.data(), results.data(), x_values.size());
+    
+    // Multiply by lambda (normalization)
+    VectorOps::multiply_scalar(results.data(), lambda, results.data(), x_values.size());
+}
+
+// Example: Discrete uniform PMF using VectorOps
+void DiscreteDistribution::computeBatchVectorized(
+    const std::vector<double>& x_values,
+    std::vector<double>& results,
+    int lower, int upper) const {
+    
+    const double pmf_value = 1.0 / (upper - lower + 1);
+    
+    // Check if values are in support range
+    VectorOps::in_range_discrete(x_values.data(), lower, upper, results.data(), x_values.size());
+    
+    // Multiply by PMF value (results contains 1.0 for valid values, 0.0 for invalid)
+    VectorOps::multiply_scalar(results.data(), pmf_value, results.data(), x_values.size());
+}
+```
+
+## Thread Parallelism Patterns
+
+Libstats provides three levels of parallelism optimized for different computational patterns in statistical computing:
+
+### SIMD Vectorization (Data-Level Parallelism)
+
+**Best for:** Element-wise operations on arrays, batch probability calculations, mathematical transformations
+
+**Characteristics:**
+- Single instruction, multiple data processing
+- Operates on 4-8 elements simultaneously (depending on instruction set)
+- Automatic CPU feature detection and fallback
+- Memory alignment requirements for optimal performance
+
+```cpp
+// Use SIMD for batch probability calculations
+std::vector<double> MyDistribution::getBatchProbabilities(
+    const std::vector<double>& x_values) const {
+    
+    std::vector<double> results(x_values.size());
+    
+    // Get parameters once under shared lock
+    double p1, p2;
+    {
+        std::shared_lock lock(cache_mutex_);
+        p1 = param1_;
+        p2 = param2_;
+    }
+    
+    // Use SIMD threshold from constants
+    if (x_values.size() >= constants::simd::MIN_SIMD_SIZE && 
+        cpu::supports_avx2()) {
+        computeBatchSIMD(x_values, results, p1, p2);
+    } else {
+        computeBatchScalar(x_values, results, p1, p2);
+    }
+    
+    return results;
+}
+```
+
+### ThreadPool (Task-Level Parallelism)
+
+**Best for:** Independent computational tasks, embarrassingly parallel problems, parameter estimation
+
+**Characteristics:**
+- Fixed number of persistent worker threads
+- Task queue with FIFO execution
+- Future-based result handling
+- Optimized for CPU-intensive statistical computations
+- Integrated with CPU detection and constants for optimal thread count
+
+```cpp
+#include "thread_pool.h"
+
+// Use ThreadPool for parameter estimation across multiple datasets
+void MyDistribution::fitMultipleDatasets(
+    const std::vector<std::vector<double>>& datasets) {
+    
+    ThreadPool pool(ThreadPool::getOptimalThreadCount());
+    std::vector<std::future<EstimationResult>> futures;
+    
+    // Submit fitting tasks for each dataset
+    for (const auto& dataset : datasets) {
+        auto future = pool.submit([this, dataset]() {
+            return estimateParametersMLEInternal(dataset);
+        });
+        futures.push_back(std::move(future));
+    }
+    
+    // Collect results
+    std::vector<EstimationResult> results;
+    for (auto& future : futures) {
+        results.push_back(future.get());
+    }
+    
+    // Process aggregated results...
+    processEstimationResults(results);
+}
+
+// Use ThreadPool for Monte Carlo simulations
+std::vector<double> MyDistribution::monteCarloEstimation(
+    size_t num_samples, std::mt19937& base_rng) const {
+    
+    ThreadPool pool;
+    const size_t num_threads = pool.getThreadCount();
+    const size_t samples_per_thread = num_samples / num_threads;
+    
+    std::vector<std::future<std::vector<double>>> futures;
+    
+    for (size_t i = 0; i < num_threads; ++i) {
+        // Create independent RNG for each thread
+        std::mt19937 thread_rng(base_rng());
+        
+        auto future = pool.submit([this, samples_per_thread, thread_rng]() mutable {
+            return this->sample(thread_rng, samples_per_thread);
+        });
+        futures.push_back(std::move(future));
+    }
+    
+    // Aggregate results from all threads
+    std::vector<double> all_samples;
+    for (auto& future : futures) {
+        auto thread_samples = future.get();
+        all_samples.insert(all_samples.end(), 
+                          thread_samples.begin(), thread_samples.end());
+    }
+    
+    return all_samples;
+}
+```
+
+### WorkStealingPool (Dynamic Load Balancing)
+
+**Best for:** Uneven workloads, recursive algorithms, adaptive computations with variable execution times
+
+**Characteristics:**
+- Per-thread work queues with work stealing
+- Dynamic load balancing for uneven workloads
+- Optimized for cache locality and NUMA awareness
+- Statistics tracking for performance monitoring
+- Built-in parallel-for with automatic work distribution
+
+```cpp
+#include "work_stealing_pool.h"
+
+// Use WorkStealingPool for adaptive numerical integration
+double MyDistribution::adaptiveIntegration(
+    double lower, double upper, double tolerance) const {
+    
+    WorkStealingPool pool(WorkStealingPool::getOptimalThreadCount());
+    std::atomic<double> total_integral{0.0};
+    std::atomic<double> total_error{0.0};
+    
+    // Initial subdivision into coarse intervals
+    const size_t initial_intervals = pool.getThreadCount() * 4;
+    const double interval_width = (upper - lower) / initial_intervals;
+    
+    // Submit adaptive integration tasks
+    for (size_t i = 0; i < initial_intervals; ++i) {
+        double a = lower + i * interval_width;
+        double b = lower + (i + 1) * interval_width;
+        
+        pool.submit([this, a, b, tolerance, &total_integral, &total_error, &pool]() {
+            auto result = adaptiveIntegrationRecursive(a, b, tolerance, pool);
+            total_integral.fetch_add(result.integral, std::memory_order_relaxed);
+            total_error.fetch_add(result.error, std::memory_order_relaxed);
+        });
+    }
+    
+    pool.waitForAll();
+    return total_integral.load();
+}
+
+// Use WorkStealingPool's parallel-for for range-based computations
+std::vector<double> MyDistribution::computeQuantiles(
+    const std::vector<double>& probabilities) const {
+    
+    WorkStealingPool pool;
+    std::vector<double> quantiles(probabilities.size());
+    
+    // Parallel computation with automatic work distribution
+    pool.parallelFor(0, probabilities.size(), 
+        [this, &probabilities, &quantiles](size_t i) {
+            quantiles[i] = this->getQuantile(probabilities[i]);
+        },
+        constants::parallel::DEFAULT_GRAIN_SIZE
+    );
+    
+    pool.waitForAll();
+    return quantiles;
+}
+
+// Example of recursive work generation in work-stealing context
+IntegrationResult MyDistribution::adaptiveIntegrationRecursive(
+    double a, double b, double tolerance, WorkStealingPool& pool) const {
+    
+    auto coarse_result = simpsonRule(a, b);
+    auto fine_result = compositeSimpsonRule(a, b, 2);
+    
+    double error_estimate = std::abs(fine_result - coarse_result) / 15.0;
+    
+    if (error_estimate <= tolerance) {
+        return {fine_result, error_estimate};
+    }
+    
+    // Subdivide and submit more work if error too large
+    double midpoint = (a + b) / 2.0;
+    
+    std::atomic<double> left_integral{0.0}, right_integral{0.0};
+    std::atomic<double> left_error{0.0}, right_error{0.0};
+    
+    // Submit left half
+    pool.submit([this, a, midpoint, tolerance, &pool, &left_integral, &left_error]() {
+        auto result = adaptiveIntegrationRecursive(a, midpoint, tolerance/2, pool);
+        left_integral.store(result.integral);
+        left_error.store(result.error);
+    });
+    
+    // Compute right half in current thread
+    auto right_result = adaptiveIntegrationRecursive(midpoint, b, tolerance/2, pool);
+    
+    // Wait for left half completion (work stealing will handle load balancing)
+    pool.waitForAll();
+    
+    return {left_integral.load() + right_result.integral,
+            left_error.load() + right_result.error};
+}
+```
+
+### Choosing the Right Parallelism Pattern
+
+| Use Case | SIMD | ThreadPool | WorkStealingPool |
+|----------|------|------------|------------------|
+| Batch PDF/CDF calculations | ✓ | | |
+| Independent parameter fitting | | ✓ | |
+| Monte Carlo simulations | | ✓ | |
+| Adaptive numerical methods | | | ✓ |
+| Recursive algorithms | | | ✓ |
+| Uneven computational loads | | | ✓ |
+| Cache-sensitive workloads | ✓ | | ✓ |
+| Memory bandwidth bound | ✓ | | |
+| CPU compute bound | | ✓ | ✓ |
+
+### Performance Monitoring
+
+```cpp
+// Monitor work-stealing efficiency
+void MyDistribution::analyzeParallelPerformance() {
+    WorkStealingPool pool;
+    
+    // Perform some parallel computation...
+    computeLargeDatasetStatistics(large_dataset, pool);
+    
+    // Check work-stealing statistics
+    auto stats = pool.getStatistics();
+    std::cout << "Tasks executed: " << stats.tasksExecuted << std::endl;
+    std::cout << "Work steals: " << stats.workSteals << std::endl;
+    std::cout << "Steal success rate: " << stats.stealSuccessRate << std::endl;
+    
+    // High steal success rate (>0.7) indicates good load balancing
+    // Low steal success rate may indicate need for smaller grain sizes
+    if (stats.stealSuccessRate < 0.5) {
+        std::cout << "Consider reducing grain size for better load balancing" << std::endl;
+    }
+}
+```
 
 ### Safety Functions
 
@@ -397,21 +806,60 @@ std::vector<double> MyDistribution::getBatchLogProbabilities(
 
 ## Thread Safety Implementation
 
-### Proper Locking Patterns
+### Atomic Parameter Management and Cache Invalidation
+
+All distributions must implement **atomic parameter getters** and proper **cache invalidation patterns** for thread-safe, lock-free parameter access:
 
 ```cpp
-// Parameter access pattern
-double MyDistribution::getParam1() const {
-    std::shared_lock lock(param_mutex_);
-    return param1_;
-}
+class MyDistribution : public DistributionBase {
+private:
+    // Core distribution parameters
+    double param1_{1.0};
+    double param2_{1.0};
+    
+    // Atomic copies for lock-free access
+    mutable std::atomic<double> atomicParam1_{1.0};
+    mutable std::atomic<double> atomicParam2_{1.0};
+    mutable std::atomic<bool> atomicParamsValid_{false};
+    
+public:
+    // Regular parameter getters (thread-safe with locking)
+    double getParam1() const {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return param1_;
+    }
+    
+    // Atomic parameter getters (lock-free, high performance)
+    double getParam1Atomic() const noexcept {
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            return atomicParam1_.load(std::memory_order_acquire);
+        }
+        // Fallback to locked version if atomic copy not valid
+        return getParam1();
+    }
+    
+    // Parameter setters with MANDATORY atomic invalidation
+    void setParam1(double value) {
+        // Validate parameters outside of any lock
+        validateParameters(value, getParam2());
+        
+        // Set parameter under lock
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        param1_ = value;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        
+        // CRITICAL: Invalidate atomic parameters when parameters change
+        atomicParamsValid_.store(false, std::memory_order_release);
+    }
+};
+```
 
-// Cache update pattern
+### Cache Update Pattern with Atomic Parameter Management
+
+```cpp
 void MyDistribution::updateCacheUnsafe() const {
     // This method is called under unique lock from base class
-    // Safe to access parameters with shared lock
-    std::shared_lock param_lock(param_mutex_);
-    
     // Compute expensive values once
     cached_mean_ = computeMean(param1_, param2_);
     cached_variance_ = computeVariance(param1_, param2_);
@@ -420,6 +868,11 @@ void MyDistribution::updateCacheUnsafe() const {
     // Mark cache as valid (required)
     cache_valid_ = true;
     cacheValidAtomic_.store(true, std::memory_order_release);
+    
+    // CRITICAL: Update atomic parameters for lock-free access
+    atomicParam1_.store(param1_, std::memory_order_release);
+    atomicParam2_.store(param2_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
 }
 
 // Thread-safe property access
@@ -436,19 +889,21 @@ MyDistribution::MyDistribution(const MyDistribution& other)
     // Cache will be invalidated/rebuilt as needed
 }
 
-// Assignment operator with proper locking
+// Assignment operator with proper locking and atomic invalidation
 MyDistribution& MyDistribution::operator=(const MyDistribution& other) {
     if (this != &other) {
         // Lock both objects in consistent order to prevent deadlock
-        std::lock(param_mutex_, other.param_mutex_);
-        std::unique_lock this_lock(param_mutex_, std::adopt_lock);
-        std::shared_lock other_lock(other.param_mutex_, std::adopt_lock);
+        std::lock(cache_mutex_, other.cache_mutex_);
+        std::unique_lock this_lock(cache_mutex_, std::adopt_lock);
+        std::shared_lock other_lock(other.cache_mutex_, std::adopt_lock);
         
         param1_ = other.param1_;
         param2_ = other.param2_;
         
-        // Invalidate cache after parameters change
-        invalidateCache();
+        // Invalidate cache and atomic parameters after parameters change
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -766,6 +1221,36 @@ double MyDistribution::computeWithStackMemory(Func computation) const {
 
 ## SIMD Batch Operations
 
+### SIMD Implementation Decision Matrix
+
+Before implementing SIMD operations, use this decision matrix to determine the best approach:
+
+| Scenario | Use VectorOps | Use Custom SIMD | Use Scalar |
+|----------|---------------|-----------------|------------|
+| Standard mathematical operations (exp, log, sqrt) | ✓ | | |
+| Custom mathematical formulas | | ✓ | |
+| Simple arithmetic (add, multiply) | ✓ | | |
+| Complex branching logic | | | ✓ |
+| Memory-bound operations | | | ✓ |
+| Small arrays (< 32 elements) | | | ✓ |
+| Unaligned memory access | ✓ | | ✓ |
+| CPU feature uncertainty | ✓ | | ✓ |
+
+### VectorOps vs. Custom SIMD Guidelines
+
+**Use VectorOps when:**
+- Performing standard mathematical operations available in the VectorOps library
+- You need automatic CPU feature detection and fallbacks
+- Memory alignment is uncertain or variable
+- Development time is constrained
+- Maintainability is prioritized over maximum performance
+
+**Use Custom SIMD when:**
+- Implementing domain-specific mathematical formulas not in VectorOps
+- Maximum performance is critical and you can ensure proper alignment
+- You have complex multi-step SIMD operations that benefit from register reuse
+- Memory access patterns are predictable and optimizable
+
 ### Implementing SIMD Batch Methods
 
 Override base class batch methods with SIMD optimizations:
@@ -787,8 +1272,8 @@ public:
             p2 = param2_;
         }
         
-        // Use SIMD threshold from constants
-        if (shouldUseSIMDBatch(x_values.size())) {
+        // Use comprehensive SIMD decision logic
+        if (shouldUseSIMDBatch(x_values, p1, p2)) {
             computeBatchSIMD(x_values, results, p1, p2);
         } else {
             computeBatchScalar(x_values, results, p1, p2);
@@ -948,7 +1433,7 @@ TEST_F(MyDistributionTest, SIMDPerformance) {
 
 ## Testing Guidelines
 
-### Unit Test Structure
+### Testing Guidelines
 
 ```cpp
 // Test file: test_my_distribution.cpp
@@ -959,37 +1444,81 @@ class MyDistributionTest : public ::testing::Test {
 protected:
     void SetUp() override {
         auto result = MyDistribution::create(1.0, 2.0);
-        ASSERT_TRUE(result.is_success());
-        dist = std::move(result.get_value());
+        ASSERT_TRUE(result.isOk());
+        dist = std::move(result.value);
     }
     
     MyDistribution dist;
     static constexpr double tolerance = 1e-10;
 };
 
-// Test factory pattern
-TEST_F(MyDistributionTest, FactoryValidation) {
+// Test atomic parameter invalidation (MANDATORY)
+TEST_F(MyDistributionTest, AtomicParameterInvalidation) {
+    // Verify initial atomic values
+    EXPECT_DOUBLE_EQ(dist.getParam1Atomic(), 1.0);
+    EXPECT_DOUBLE_EQ(dist.getParam2Atomic(), 2.0);
+    
+    // Test setParam1 invalidation
+    dist.setParam1(5.0);
+    EXPECT_DOUBLE_EQ(dist.getParam1(), 5.0);
+    EXPECT_DOUBLE_EQ(dist.getParam1Atomic(), 5.0);
+    EXPECT_DOUBLE_EQ(dist.getParam2Atomic(), 2.0);
+    
+    // Test setParam2 invalidation
+    dist.setParam2(3.0);
+    EXPECT_DOUBLE_EQ(dist.getParam2(), 3.0);
+    EXPECT_DOUBLE_EQ(dist.getParam1Atomic(), 5.0);
+    EXPECT_DOUBLE_EQ(dist.getParam2Atomic(), 3.0);
+    
+    // Test setParameters invalidation
+    auto result = dist.trySetParameters(10.0, 20.0);
+    ASSERT_TRUE(result.isOk());
+    EXPECT_DOUBLE_EQ(dist.getParam1Atomic(), 10.0);
+    EXPECT_DOUBLE_EQ(dist.getParam2Atomic(), 20.0);
+}
+
+// Test safe factory pattern (MANDATORY)
+TEST_F(MyDistributionTest, SafeFactoryValidation) {
     // Valid parameters
     auto valid_result = MyDistribution::create(1.0, 2.0);
-    EXPECT_TRUE(valid_result.is_success());
+    EXPECT_TRUE(valid_result.isOk());
     
     // Invalid parameters
     auto invalid_result = MyDistribution::create(-1.0, 2.0);
-    EXPECT_FALSE(invalid_result.is_success());
-    EXPECT_EQ(invalid_result.get_error(), ValidationError::InvalidParameter);
+    EXPECT_TRUE(invalid_result.isError());
+    EXPECT_EQ(invalid_result.error_code, ValidationError::InvalidParameter);
+    
+    // Test exception-free parameter updates
+    auto update_result = dist.trySetParameters(5.0, 10.0);
+    EXPECT_TRUE(update_result.isOk());
+    
+    auto invalid_update = dist.trySetParameters(-1.0, 10.0);
+    EXPECT_TRUE(invalid_update.isError());
 }
 
-// Test thread safety
-TEST_F(MyDistributionTest, ThreadSafety) {
+// Test thread safety with atomic getters (MANDATORY)
+TEST_F(MyDistributionTest, ThreadSafetyWithAtomicGetters) {
     std::vector<std::thread> threads;
     std::atomic<bool> all_passed{true};
     
     for (int i = 0; i < 10; ++i) {
         threads.emplace_back([&]() {
-            for (int j = 0; j < 1000; ++j) {
-                double mean = dist.getMean();
-                double variance = dist.getVariance();
-                if (!std::isfinite(mean) || !std::isfinite(variance)) {
+            for (int j = 0; j < 10000; ++j) {
+                // Test both regular and atomic getters
+                double param1_regular = dist.getParam1();
+                double param1_atomic = dist.getParam1Atomic();
+                double param2_regular = dist.getParam2();
+                double param2_atomic = dist.getParam2Atomic();
+                
+                // Atomic getters should return valid values
+                if (!std::isfinite(param1_regular) || !std::isfinite(param1_atomic) ||
+                    !std::isfinite(param2_regular) || !std::isfinite(param2_atomic)) {
+                    all_passed = false;
+                }
+                
+                // Values should be consistent (within reasonable bounds)
+                if (std::abs(param1_regular - param1_atomic) > 1e-14 ||
+                    std::abs(param2_regular - param2_atomic) > 1e-14) {
                     all_passed = false;
                 }
             }
@@ -1001,6 +1530,33 @@ TEST_F(MyDistributionTest, ThreadSafety) {
     }
     
     EXPECT_TRUE(all_passed);
+}
+
+// Test atomic getter performance
+TEST_F(MyDistributionTest, AtomicGetterPerformance) {
+    const int iterations = 100000;
+    
+    // Time regular getters
+    auto start = std::chrono::high_resolution_clock::now();
+    volatile double sum_regular = 0.0;
+    for (int i = 0; i < iterations; ++i) {
+        sum_regular += dist.getParam1();
+    }
+    auto regular_time = std::chrono::high_resolution_clock::now() - start;
+    
+    // Time atomic getters
+    start = std::chrono::high_resolution_clock::now();
+    volatile double sum_atomic = 0.0;
+    for (int i = 0; i < iterations; ++i) {
+        sum_atomic += dist.getParam1Atomic();
+    }
+    auto atomic_time = std::chrono::high_resolution_clock::now() - start;
+    
+    // Atomic getters should be competitive or faster
+    double speedup = static_cast<double>(regular_time.count()) / atomic_time.count();
+    EXPECT_GE(speedup, 0.8) << "Atomic getters should be at least 80% as fast as regular getters";
+    
+    std::cout << "Atomic getter performance: " << speedup << "x relative to regular getters" << std::endl;
 }
 
 // Test SIMD operations
@@ -1068,29 +1624,31 @@ MyDistribution& MyDistribution::operator=(const MyDistribution& other) {
 
 **Problem:**
 ```cpp
-// DON'T DO THIS - cache not invalidated
+// DON'T DO THIS - incomplete cache and atomic invalidation
 void MyDistribution::setParam1(double value) {
-    std::unique_lock lock(param_mutex_);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     param1_ = value;
-    // Missing: invalidateCache();
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    // Missing: atomicParamsValid_.store(false, std::memory_order_release);
 }
 ```
 
 **Solution:**
 ```cpp
-// DO THIS - always invalidate cache after parameter changes
-VoidResult MyDistribution::setParam1(double value) {
-    if (!std::isfinite(value) || value <= 0.0) {
-        return VoidResult::error(ValidationError::InvalidParameter);
-    }
+// DO THIS - ALWAYS invalidate both cache AND atomic parameters
+void MyDistribution::setParam1(double value) {
+    // Validate first (no locks held)
+    validateParameters(value, getParam2());
     
-    {
-        std::unique_lock lock(param_mutex_);
-        param1_ = value;
-    }
+    // Set parameter under lock
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    param1_ = value;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
     
-    invalidateCache(); // Always invalidate after parameter change
-    return VoidResult::success();
+    // CRITICAL: Must also invalidate atomic parameters
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 ```
 

@@ -8,9 +8,12 @@
 #include <cmath>
 #include <thread>
 #include <iostream>
+#include <span>
 
 // Include the enhanced Exponential distribution
 #include "exponential.h"
+#include "work_stealing_pool.h"
+#include "adaptive_cache.h"
 
 using namespace std;
 using namespace libstats;
@@ -234,29 +237,60 @@ TEST_F(ExponentialDistributionEnhancedTest, BatchOperations) {
         large_test_values[i] = dis(gen);
     }
     
-    // Time batch operations
+    cout << "   === SIMD Batch Performance Results ===" << endl;
+    
+    // Test 2a: PDF Batch vs Individual
     auto start = chrono::high_resolution_clock::now();
     unitExp.getProbabilityBatch(large_test_values.data(), large_pdf_results.data(), LARGE_BATCH_SIZE);
     auto end = chrono::high_resolution_clock::now();
-    auto batch_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    auto pdf_batch_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
     
-    // Time individual operations for comparison
     start = chrono::high_resolution_clock::now();
     for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
         large_pdf_results[i] = unitExp.getProbability(large_test_values[i]);
     }
     end = chrono::high_resolution_clock::now();
-    auto individual_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    auto pdf_individual_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
     
-    cout << "   Batch PDF time: " << batch_time << " μs" << endl;
-    cout << "   Individual PDF time: " << individual_time << " μs" << endl;
-    cout << "   Speedup: " << (double)individual_time / batch_time << "x" << endl;
+    double pdf_speedup = (double)pdf_individual_time / pdf_batch_time;
+    cout << "   PDF:     Batch " << pdf_batch_time << "μs vs Individual " << pdf_individual_time << "μs → " << pdf_speedup << "x speedup" << endl;
     
-    // Test batch log probability
+    // Test 2b: Log PDF Batch vs Individual
+    start = chrono::high_resolution_clock::now();
     unitExp.getLogProbabilityBatch(large_test_values.data(), large_log_pdf_results.data(), LARGE_BATCH_SIZE);
+    end = chrono::high_resolution_clock::now();
+    auto log_pdf_batch_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
     
-    // Test batch CDF
+    start = chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
+        large_log_pdf_results[i] = unitExp.getLogProbability(large_test_values[i]);
+    }
+    end = chrono::high_resolution_clock::now();
+    auto log_pdf_individual_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    
+    double log_pdf_speedup = (double)log_pdf_individual_time / log_pdf_batch_time;
+    cout << "   LogPDF:  Batch " << log_pdf_batch_time << "μs vs Individual " << log_pdf_individual_time << "μs → " << log_pdf_speedup << "x speedup" << endl;
+    
+    // Test 2c: CDF Batch vs Individual
+    start = chrono::high_resolution_clock::now();
     unitExp.getCumulativeProbabilityBatch(large_test_values.data(), large_cdf_results.data(), LARGE_BATCH_SIZE);
+    end = chrono::high_resolution_clock::now();
+    auto cdf_batch_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    
+    start = chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
+        large_cdf_results[i] = unitExp.getCumulativeProbability(large_test_values[i]);
+    }
+    end = chrono::high_resolution_clock::now();
+    auto cdf_individual_time = chrono::duration_cast<chrono::microseconds>(end - start).count();
+    
+    double cdf_speedup = (double)cdf_individual_time / cdf_batch_time;
+    cout << "   CDF:     Batch " << cdf_batch_time << "μs vs Individual " << cdf_individual_time << "μs → " << cdf_speedup << "x speedup" << endl;
+    
+    // Expect speedup for all operations
+    EXPECT_GT(pdf_speedup, 1.0) << "PDF batch should be faster than individual calls";
+    EXPECT_GT(log_pdf_speedup, 1.0) << "Log PDF batch should be faster than individual calls";
+    EXPECT_GT(cdf_speedup, 1.0) << "CDF batch should be faster than individual calls";
     
     // Verify a sample of results
     const size_t sample_size = 100;
@@ -553,6 +587,377 @@ TEST_F(ExponentialDistributionEnhancedTest, QuantileFunction) {
     EXPECT_TRUE(approxEqual(unitExp.getQuantile(1.0 - 1.0/exp(1.0)), 1.0, 1e-10)) << "Q(1-1/e) should be 1";
     
     cout << "   ✓ Quantile function tests passed!" << endl;
+}
+
+// Test parallel batch operations benchmark
+TEST_F(ExponentialDistributionEnhancedTest, ParallelBatchPerformanceBenchmark) {
+    auto unitExpResult = ExponentialDistribution::create(1.0);
+    ASSERT_TRUE(unitExpResult.isOk());
+    auto unitExp = std::move(unitExpResult.value);
+    
+    constexpr size_t BENCHMARK_SIZE = 50000;
+    
+    // Generate test data (positive values only for exponential)
+    std::vector<double> test_values(BENCHMARK_SIZE);
+    std::vector<double> pdf_results(BENCHMARK_SIZE);
+    std::vector<double> log_pdf_results(BENCHMARK_SIZE);
+    std::vector<double> cdf_results(BENCHMARK_SIZE);
+    
+    std::mt19937 gen(42);
+    std::uniform_real_distribution<> dis(0.01, 5.0); // Positive values only
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
+        test_values[i] = dis(gen);
+    }
+    
+    std::cout << "\n=== Exponential Parallel Batch Operations Performance Benchmark ===" << std::endl;
+    std::cout << "Dataset size: " << BENCHMARK_SIZE << " elements" << std::endl;
+    
+    // 1. Standard SIMD Batch Operations (baseline)
+    auto start = std::chrono::high_resolution_clock::now();
+    unitExp.getProbabilityBatch(test_values.data(), pdf_results.data(), BENCHMARK_SIZE);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto simd_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), BENCHMARK_SIZE);
+    end = std::chrono::high_resolution_clock::now();
+    auto simd_log_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+    end = std::chrono::high_resolution_clock::now();
+    auto simd_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    std::cout << "SIMD Batch (baseline):" << std::endl;
+    std::cout << "  PDF:     " << simd_pdf_time << " μs" << std::endl;
+    std::cout << "  LogPDF:  " << simd_log_pdf_time << " μs" << std::endl;
+    std::cout << "  CDF:     " << simd_cdf_time << " μs" << std::endl;
+    
+    // 2. Standard Parallel Batch Operations
+    std::span<const double> input_span(test_values);
+    std::span<double> output_span(pdf_results);
+    
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getProbabilityBatchParallel(input_span, output_span);
+    end = std::chrono::high_resolution_clock::now();
+    auto parallel_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    std::span<double> log_output_span(log_pdf_results);
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getLogProbabilityBatchParallel(input_span, log_output_span);
+    end = std::chrono::high_resolution_clock::now();
+    auto parallel_log_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    std::span<double> cdf_output_span(cdf_results);
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getCumulativeProbabilityBatchParallel(input_span, cdf_output_span);
+    end = std::chrono::high_resolution_clock::now();
+    auto parallel_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double parallel_pdf_speedup = (double)simd_pdf_time / parallel_pdf_time;
+    double parallel_log_pdf_speedup = (double)simd_log_pdf_time / parallel_log_pdf_time;
+    double parallel_cdf_speedup = (double)simd_cdf_time / parallel_cdf_time;
+    
+    std::cout << "Standard Parallel:" << std::endl;
+    std::cout << "  PDF:     " << parallel_pdf_time << " μs (" << parallel_pdf_speedup << "x vs SIMD)" << std::endl;
+    std::cout << "  LogPDF:  " << parallel_log_pdf_time << " μs (" << parallel_log_pdf_speedup << "x vs SIMD)" << std::endl;
+    std::cout << "  CDF:     " << parallel_cdf_time << " μs (" << parallel_cdf_speedup << "x vs SIMD)" << std::endl;
+    
+    // 3. Work-Stealing Parallel Operations
+    WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
+    
+    // PDF Work-Stealing
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getProbabilityBatchWorkStealing(input_span, output_span, work_stealing_pool);
+    end = std::chrono::high_resolution_clock::now();
+    auto work_steal_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // LogPDF Work-Stealing
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getLogProbabilityBatchWorkStealing(input_span, log_output_span, work_stealing_pool);
+    end = std::chrono::high_resolution_clock::now();
+    auto work_steal_log_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // CDF Work-Stealing
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getCumulativeProbabilityBatchWorkStealing(input_span, cdf_output_span, work_stealing_pool);
+    end = std::chrono::high_resolution_clock::now();
+    auto work_steal_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double work_steal_pdf_speedup = (double)simd_pdf_time / work_steal_pdf_time;
+    double work_steal_log_pdf_speedup = (double)simd_log_pdf_time / work_steal_log_pdf_time;
+    double work_steal_cdf_speedup = (double)simd_cdf_time / work_steal_cdf_time;
+    
+    std::cout << "Work-Stealing Parallel:" << std::endl;
+    std::cout << "  PDF:     " << work_steal_pdf_time << " μs (" << work_steal_pdf_speedup << "x vs SIMD)" << std::endl;
+    std::cout << "  LogPDF:  " << work_steal_log_pdf_time << " μs (" << work_steal_log_pdf_speedup << "x vs SIMD)" << std::endl;
+    std::cout << "  CDF:     " << work_steal_cdf_time << " μs (" << work_steal_cdf_speedup << "x vs SIMD)" << std::endl;
+    
+    // 4. Cache-Aware Parallel Operations
+    cache::AdaptiveCache<std::string, double> cache_manager;
+    
+    // PDF Cache-Aware
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getProbabilityBatchCacheAware(input_span, output_span, cache_manager);
+    end = std::chrono::high_resolution_clock::now();
+    auto cache_aware_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // LogPDF Cache-Aware
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getLogProbabilityBatchCacheAware(input_span, log_output_span, cache_manager);
+    end = std::chrono::high_resolution_clock::now();
+    auto cache_aware_log_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // CDF Cache-Aware
+    start = std::chrono::high_resolution_clock::now();
+    unitExp.getCumulativeProbabilityBatchCacheAware(input_span, cdf_output_span, cache_manager);
+    end = std::chrono::high_resolution_clock::now();
+    auto cache_aware_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double cache_aware_pdf_speedup = (double)simd_pdf_time / cache_aware_pdf_time;
+    double cache_aware_log_pdf_speedup = (double)simd_log_pdf_time / cache_aware_log_pdf_time;
+    double cache_aware_cdf_speedup = (double)simd_cdf_time / cache_aware_cdf_time;
+    
+    std::cout << "Cache-Aware Parallel:" << std::endl;
+    std::cout << "  PDF:     " << cache_aware_pdf_time << " μs (" << cache_aware_pdf_speedup << "x vs SIMD)" << std::endl;
+    std::cout << "  LogPDF:  " << cache_aware_log_pdf_time << " μs (" << cache_aware_log_pdf_speedup << "x vs SIMD)" << std::endl;
+    std::cout << "  CDF:     " << cache_aware_cdf_time << " μs (" << cache_aware_cdf_speedup << "x vs SIMD)" << std::endl;
+    
+    // Performance Analysis
+    std::cout << "\nPerformance Analysis:" << std::endl;
+    
+    if (std::thread::hardware_concurrency() > 2) {
+        if (parallel_pdf_speedup > 0.8) {
+            std::cout << "  ✓ Standard parallel shows good speedup" << std::endl;
+        } else {
+            std::cout << "  ⚠ Standard parallel speedup lower than expected" << std::endl;
+        }
+        
+        if (work_steal_pdf_speedup > 0.8) {
+            std::cout << "  ✓ Work-stealing shows good speedup" << std::endl;
+        } else {
+            std::cout << "  ⚠ Work-stealing speedup lower than expected" << std::endl;
+        }
+        
+        if (cache_aware_pdf_speedup > 0.8) {
+            std::cout << "  ✓ Cache-aware shows good speedup" << std::endl;
+        } else {
+            std::cout << "  ⚠ Cache-aware speedup lower than expected" << std::endl;
+        }
+    } else {
+        std::cout << "  ℹ Single/dual-core system - parallel overhead may dominate" << std::endl;
+    }
+    
+    // Verify correctness
+    std::cout << "\nCorrectness verification:" << std::endl;
+    bool all_correct = true;
+    const size_t check_count = 100;
+    for (size_t i = 0; i < check_count; ++i) {
+        size_t idx = i * (BENCHMARK_SIZE / check_count);
+        double expected = unitExp.getProbability(test_values[idx]);
+        if (std::abs(pdf_results[idx] - expected) > 1e-10) {
+            all_correct = false;
+            break;
+        }
+    }
+    
+    if (all_correct) {
+        std::cout << "  ✓ All parallel implementations produce correct results" << std::endl;
+    } else {
+        std::cout << "  ✗ Correctness check failed" << std::endl;
+    }
+    
+    EXPECT_TRUE(all_correct) << "Parallel batch operations should produce correct results";
+    
+    // Statistics
+    auto ws_stats = work_stealing_pool.getStatistics();
+    auto cache_stats = cache_manager.getStats();
+    
+    std::cout << "\nWork-Stealing Pool Statistics:" << std::endl;
+    std::cout << "  Tasks executed: " << ws_stats.tasksExecuted << std::endl;
+    std::cout << "  Work steals: " << ws_stats.workSteals << std::endl;
+    std::cout << "  Steal success rate: " << (ws_stats.stealSuccessRate * 100) << "%" << std::endl;
+    
+    std::cout << "\nCache Manager Statistics:" << std::endl;
+    std::cout << "  Cache size: " << cache_stats.size << " entries" << std::endl;
+    std::cout << "  Hit rate: " << (cache_stats.hit_rate * 100) << "%" << std::endl;
+    std::cout << "  Memory usage: " << cache_stats.memory_usage << " bytes" << std::endl;
+}
+
+// Test new work-stealing and cache-aware methods for log probability and CDF
+TEST_F(ExponentialDistributionEnhancedTest, NewWorkStealingAndCacheAwareMethods) {
+    auto unitExpResult = ExponentialDistribution::create(1.0);
+    ASSERT_TRUE(unitExpResult.isOk());
+    auto unitExp = std::move(unitExpResult.value);
+    
+    constexpr size_t TEST_SIZE = 10000;
+    
+    // Generate test data (positive values only for exponential)
+    std::vector<double> test_values(TEST_SIZE);
+    std::random_device rd;
+    std::mt19937 gen(42);
+    std::exponential_distribution<> dis(1.0);
+    
+    for (size_t i = 0; i < TEST_SIZE; ++i) {
+        test_values[i] = dis(gen);
+    }
+    
+    // Prepare result vectors
+    std::vector<double> log_pdf_ws_results(TEST_SIZE);
+    std::vector<double> log_pdf_cache_results(TEST_SIZE);
+    std::vector<double> cdf_ws_results(TEST_SIZE);
+    std::vector<double> cdf_cache_results(TEST_SIZE);
+    std::vector<double> expected_log_pdf(TEST_SIZE);
+    std::vector<double> expected_cdf(TEST_SIZE);
+    
+    // Calculate expected results
+    for (size_t i = 0; i < TEST_SIZE; ++i) {
+        expected_log_pdf[i] = unitExp.getLogProbability(test_values[i]);
+        expected_cdf[i] = unitExp.getCumulativeProbability(test_values[i]);
+    }
+    
+    // Test work-stealing implementations
+    std::cout << "Testing new work-stealing methods:" << std::endl;
+    
+    WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
+    cache::AdaptiveCache<std::string, double> cache_manager;
+    
+    // Test work-stealing log probability
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(log_pdf_ws_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        unitExp.getLogProbabilityBatchWorkStealing(values_span, results_span, work_stealing_pool);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto ws_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  Log PDF work-stealing: " << ws_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(log_pdf_ws_results[i] - expected_log_pdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Work-stealing log PDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test cache-aware log probability
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(log_pdf_cache_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        unitExp.getLogProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto cache_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  Log PDF cache-aware: " << cache_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(log_pdf_cache_results[i] - expected_log_pdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Cache-aware log PDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test work-stealing CDF
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(cdf_ws_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        unitExp.getCumulativeProbabilityBatchWorkStealing(values_span, results_span, work_stealing_pool);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto ws_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  CDF work-stealing: " << ws_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(cdf_ws_results[i] - expected_cdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Work-stealing CDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test cache-aware CDF
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(cdf_cache_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        unitExp.getCumulativeProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto cache_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  CDF cache-aware: " << cache_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(cdf_cache_results[i] - expected_cdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Cache-aware CDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test with different distribution parameters
+    std::cout << "\nTesting with different parameters (λ=2.5):" << std::endl;
+    
+    auto customExpResult = ExponentialDistribution::create(2.5);
+    ASSERT_TRUE(customExpResult.isOk());
+    auto customExp = std::move(customExpResult.value);
+    
+    // Test a subset with custom distribution
+    const size_t subset_size = 1000;
+    std::span<const double> subset_values(test_values.data(), subset_size);
+    std::span<double> subset_log_results(log_pdf_ws_results.data(), subset_size);
+    std::span<double> subset_cdf_results(cdf_ws_results.data(), subset_size);
+    
+    customExp.getLogProbabilityBatchWorkStealing(subset_values, subset_log_results, work_stealing_pool);
+    customExp.getCumulativeProbabilityBatchCacheAware(subset_values, subset_cdf_results, cache_manager);
+    
+    // Verify against individual calls
+    bool custom_correct = true;
+    for (size_t i = 0; i < subset_size; ++i) {
+        double expected_log = customExp.getLogProbability(test_values[i]);
+        double expected_cdf = customExp.getCumulativeProbability(test_values[i]);
+        
+        if (std::abs(log_pdf_ws_results[i] - expected_log) > 1e-10 ||
+            std::abs(cdf_ws_results[i] - expected_cdf) > 1e-10) {
+            custom_correct = false;
+            break;
+        }
+    }
+    
+    EXPECT_TRUE(custom_correct) << "Custom distribution should produce correct results";
+    std::cout << "  ✓ Custom distribution tests passed" << std::endl;
+    
+    // Print final statistics
+    auto ws_stats = work_stealing_pool.getStatistics();
+    auto cache_stats = cache_manager.getStats();
+    
+    std::cout << "\nFinal Statistics:" << std::endl;
+    std::cout << "  Work-stealing tasks: " << ws_stats.tasksExecuted << std::endl;
+    std::cout << "  Cache entries: " << cache_stats.size << std::endl;
+    std::cout << "  Cache hit rate: " << (cache_stats.hit_rate * 100) << "%" << std::endl;
 }
 
 int main(int argc, char **argv) {

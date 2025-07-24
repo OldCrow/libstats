@@ -32,7 +32,7 @@ else()
     message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
 endif()
 
-project(libstats VERSION 0.3.2 LANGUAGES CXX)
+project(libstats VERSION 0.4.0 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
@@ -174,7 +174,8 @@ set(LIBSTATS_SOURCES
     src/log_space_ops.cpp
     src/math_utils.cpp
     src/exponential.cpp
-    # src/uniform.cpp       # TODO: fix compilation errors in uniform distribution
+    src/discrete.cpp
+    src/uniform.cpp
     src/safety.cpp
     # src/poisson.cpp       # TODO: implement poisson distribution
     # src/gamma.cpp         # TODO: implement gamma distribution
@@ -592,9 +593,16 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_exponential_basic tests/test_exponential_basic.cpp)
     create_libstats_gtest(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
     
+    # discrete.h - Discrete uniform distribution implementation (CONSOLIDATED)
+    create_libstats_test(test_discrete_basic tests/test_discrete_basic.cpp)
+    create_libstats_gtest(test_discrete_enhanced tests/test_discrete_enhanced.cpp)
+    
+    # Atomic parameters test - Test lock-free parameter access and invalidation for all distributions
+    create_libstats_test(test_atomic_parameters tests/test_atomic_parameters.cpp)
+    
     # uniform.h - Uniform distribution implementation
-    # create_libstats_test(test_uniform_simple tests/test_uniform_simple.cpp)  # TODO: uncomment after fixing uniform.cpp
-    # create_libstats_test(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
+    create_libstats_test(test_uniform_basic tests/test_uniform_basic.cpp)
+    create_libstats_gtest(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
     
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
@@ -674,8 +682,11 @@ if(LIBSTATS_BUILD_TESTS)
             test_gaussian_enhanced
             test_exponential_basic
             test_exponential_enhanced
-            # test_uniform_simple           # TODO: uncomment after fixing uniform.cpp
-            # test_uniform_enhanced
+            test_discrete_basic
+            test_discrete_enhanced
+            test_atomic_parameters
+            test_uniform_basic
+            test_uniform_enhanced
             
             # Additional tests: Cross-cutting concerns
             test_dynamic_linking

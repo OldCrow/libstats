@@ -183,6 +183,11 @@ private:
         
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicMean_.store(mean_, std::memory_order_release);
+        atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
     }
     
     /**
@@ -320,6 +325,9 @@ public:
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         
+        // Invalidate atomic parameters when parameters change
+        atomicParamsValid_.store(false, std::memory_order_release);
+        
         return VoidResult::ok(true);
     }
     
@@ -433,6 +441,9 @@ public:
         mean_ = mean;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        
+        // Invalidate atomic parameters when parameters change
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
 
     /**
@@ -444,6 +455,36 @@ public:
     [[nodiscard]] double getStandardDeviation() const noexcept { 
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         return standardDeviation_;
+    }
+    
+    /**
+     * Fast lock-free getter for mean parameter using atomic copy.
+     * PERFORMANCE: Uses atomic load - no locking overhead
+     * WARNING: May return stale value if parameters are being updated
+     * 
+     * @return Atomic copy of mean parameter (may be slightly stale)
+     */
+    [[nodiscard]] double getMeanAtomic() const noexcept {
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            return atomicMean_.load(std::memory_order_acquire);
+        }
+        // Fallback to locked version if atomic copy not valid
+        return getMean();
+    }
+    
+    /**
+     * Fast lock-free getter for standard deviation parameter using atomic copy.
+     * PERFORMANCE: Uses atomic load - no locking overhead
+     * WARNING: May return stale value if parameters are being updated
+     * 
+     * @return Atomic copy of standard deviation parameter (may be slightly stale)
+     */
+    [[nodiscard]] double getStandardDeviationAtomic() const noexcept {
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            return atomicStandardDeviation_.load(std::memory_order_acquire);
+        }
+        // Fallback to locked version if atomic copy not valid
+        return getStandardDeviation();
     }
     
     /**
@@ -469,6 +510,9 @@ public:
         standardDeviation_ = stdDev;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        
+        // Invalidate atomic parameters when parameters change
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     
     /**
@@ -574,6 +618,9 @@ public:
         standardDeviation_ = stdDev;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        
+        // Invalidate atomic parameters when parameters change
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     
     //==========================================================================
@@ -1099,6 +1146,54 @@ public:
      */
     void getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                       cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    /**
+     * Work-stealing parallel batch log probability calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                           WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch log probability processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                         cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    /**
+     * Work-stealing parallel batch CDF calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                  WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch CDF processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                cache::AdaptiveCache<std::string, double>& cache_manager) const;
     
 #ifdef DEBUG
     /**

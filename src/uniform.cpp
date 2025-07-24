@@ -278,6 +278,9 @@ void UniformDistribution::setLowerBound(double a) {
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 void UniformDistribution::setUpperBound(double b) {
@@ -296,6 +299,9 @@ void UniformDistribution::setUpperBound(double b) {
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 void UniformDistribution::setBounds(double a, double b) {
@@ -305,6 +311,9 @@ void UniformDistribution::setBounds(double a, double b) {
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 double UniformDistribution::getMean() const noexcept {
@@ -528,170 +537,606 @@ void UniformDistribution::getLogProbabilityBatchUnsafe(const double* values, dou
 
 void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                         double a, double b, double inv_width) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2());
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            
-            if (x < a || x > b) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (is_unit_interval) {
-                results[i] = constants::math::ONE;
-            } else {
-                results[i] = inv_width;
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
+    // For uniform distribution, the computation is extremely simple (just bounds checking)
+    // so SIMD overhead is not beneficial - use direct scalar implementation
     const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
                                  (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    std::vector<double, simd::aligned_allocator<double>> temp_results(count);
     
     if (is_unit_interval) {
         // Unit interval case: result is 1 for x in [0,1], 0 otherwise
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            temp_results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
-                             constants::math::ONE : constants::math::ZERO_DOUBLE;
+            results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
+                        constants::math::ONE : constants::math::ZERO_DOUBLE;
         }
     } else {
         // General case: result is inv_width for x in [a,b], 0 otherwise
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            temp_results[i] = (x >= a && x <= b) ? inv_width : constants::math::ZERO_DOUBLE;
+            results[i] = (x >= a && x <= b) ? inv_width : constants::math::ZERO_DOUBLE;
         }
     }
-    
-    // Copy results back
-    std::copy(temp_results.begin(), temp_results.end(), results);
 }
 
 void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                            double a, double b, double log_inv_width) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2());
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            
-            if (x < a || x > b) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            } else if (is_unit_interval) {
-                results[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
-            } else {
-                results[i] = log_inv_width;
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
+    // For uniform distribution, the computation is extremely simple (just bounds checking)
+    // so SIMD overhead is not beneficial - use direct scalar implementation
     const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
                                  (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    std::vector<double, simd::aligned_allocator<double>> temp_results(count);
     
     if (is_unit_interval) {
         // Unit interval case: result is 0 for x in [0,1], -∞ otherwise
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            temp_results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
-                             constants::math::ZERO_DOUBLE : constants::probability::NEGATIVE_INFINITY;
+            results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
+                        constants::math::ZERO_DOUBLE : constants::probability::NEGATIVE_INFINITY;
         }
     } else {
         // General case: result is log_inv_width for x in [a,b], -∞ otherwise
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            temp_results[i] = (x >= a && x <= b) ? log_inv_width : constants::probability::NEGATIVE_INFINITY;
+            results[i] = (x >= a && x <= b) ? log_inv_width : constants::probability::NEGATIVE_INFINITY;
         }
     }
-    
-    // Copy results back
-    std::copy(temp_results.begin(), temp_results.end(), results);
 }
 
 void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                   double a, double b, double inv_width) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2());
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            
-            if (x < a) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (x > b) {
-                results[i] = constants::math::ONE;
-            } else if (is_unit_interval) {
-                results[i] = x;  // CDF(x) = x for U(0,1)
-            } else {
-                results[i] = (x - a) * inv_width;
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
+    // For uniform distribution CDF, the computation is simple (bounds checking + linear interpolation)
+    // so SIMD overhead is not beneficial - use direct scalar implementation like PDF and LogPDF
     const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
                                  (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    std::vector<double, simd::aligned_allocator<double>> temp_results(count);
-    std::vector<double, simd::aligned_allocator<double>> shifted_values(count);
     
     if (is_unit_interval) {
         // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x < constants::math::ZERO_DOUBLE) {
-                temp_results[i] = constants::math::ZERO_DOUBLE;
+                results[i] = constants::math::ZERO_DOUBLE;
             } else if (x > constants::math::ONE) {
-                temp_results[i] = constants::math::ONE;
+                results[i] = constants::math::ONE;
             } else {
-                temp_results[i] = x;
+                results[i] = x;
             }
         }
     } else {
         // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
-        // Use SIMD for the subtraction and multiplication
-        simd::VectorOps::scalar_add(values, -a, shifted_values.data(), count);
-        simd::VectorOps::scalar_multiply(shifted_values.data(), inv_width, temp_results.data(), count);
-        
-        // Apply bounds: clamp to [0, 1]
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x < a) {
-                temp_results[i] = constants::math::ZERO_DOUBLE;
+                results[i] = constants::math::ZERO_DOUBLE;
             } else if (x > b) {
-                temp_results[i] = constants::math::ONE;
+                results[i] = constants::math::ONE;
+            } else {
+                results[i] = (x - a) * inv_width;
             }
-            // Otherwise, keep the computed value from SIMD operations
+        }
+    }
+}
+
+//==============================================================================
+// PARALLEL BATCH OPERATIONS  
+//==============================================================================
+
+void UniformDistribution::getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_inv_width = invWidth_;
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Use much higher threshold for simple distribution operations to avoid thread pool overhead
+    // Simple operations like uniform PDF have minimal computation per element
+    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute PDF for each element in parallel
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ONE : cached_inv_width;
+            } else {
+                results[i] = constants::math::ZERO_DOUBLE;
+            }
+        });
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ONE : cached_inv_width;
+            } else {
+                results[i] = constants::math::ZERO_DOUBLE;
+            }
+        }
+    }
+}
+
+void UniformDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
+    if (values.size() != results.size()) return; // Can't throw in noexcept context
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_log_inv_width = -std::log(width_);
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Use much higher threshold for simple distribution operations to avoid thread pool overhead
+    // Simple operations like uniform log PDF have minimal computation per element
+    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute log PDF for each element in parallel
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ZERO_DOUBLE : cached_log_inv_width;
+            } else {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            }
+        });
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ZERO_DOUBLE : cached_log_inv_width;
+            } else {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            }
+        }
+    }
+}
+
+void UniformDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_inv_width = invWidth_;
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Use much higher threshold for simple distribution operations to avoid thread pool overhead
+    // Simple operations like uniform CDF have minimal computation per element
+    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute CDF for each element in parallel
+            if (values[i] < cached_a) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (values[i] > cached_b) {
+                results[i] = constants::math::ONE;
+            } else if (cached_is_unit_interval) {
+                results[i] = values[i];  // CDF(x) = x for U(0,1)
+            } else {
+                results[i] = (values[i] - cached_a) * cached_inv_width;
+            }
+        });
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] < cached_a) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (values[i] > cached_b) {
+                results[i] = constants::math::ONE;
+            } else if (cached_is_unit_interval) {
+                results[i] = values[i];  // CDF(x) = x for U(0,1)
+            } else {
+                results[i] = (values[i] - cached_a) * cached_inv_width;
+            }
+        }
+    }
+}
+
+void UniformDistribution::getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                         WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_inv_width = invWidth_;
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Use work-stealing pool for dynamic load balancing
+    // Use same threshold as regular parallel operations to avoid inconsistency
+    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute PDF for each element with work stealing
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ONE : cached_inv_width;
+            } else {
+                results[i] = constants::math::ZERO_DOUBLE;
+            }
+        });
+    } else {
+        // Fall back to regular parallel processing
+        getProbabilityBatchParallel(values, results);
+    }
+}
+
+void UniformDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                       cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Integrate with Level 0-3 adaptive cache system
+    const std::string cache_key = "uniform_pdf_batch_" + std::to_string(count);
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_inv_width = invWidth_;
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Use cache-aware processing with adaptive batch sizes
+    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "uniform_pdf");
+    
+    // Use same threshold as regular parallel operations to avoid inconsistency
+    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
+        // Use single parallel region with cache-aware grain size
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute PDF for each element with cache awareness
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ONE : cached_inv_width;
+            } else {
+                results[i] = constants::math::ZERO_DOUBLE;
+            }
+        }, optimal_grain_size);
+        
+        // Update cache performance metrics
+        cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ONE : cached_inv_width;
+            } else {
+                results[i] = constants::math::ZERO_DOUBLE;
+            }
+        }
+    }
+}
+
+void UniformDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                            WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_log_inv_width = -std::log(width_);
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Use work-stealing pool for dynamic load balancing
+    // Use same threshold as regular parallel operations to avoid inconsistency
+    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute log PDF for each element with work stealing
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ZERO_DOUBLE : cached_log_inv_width;
+            } else {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            }
+        });
+        
+        pool.waitForAll();
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ZERO_DOUBLE : cached_log_inv_width;
+            } else {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            }
+        }
+    }
+}
+
+void UniformDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                          cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Integrate with Level 0-3 adaptive cache system
+    const std::string cache_key = "uniform_log_pdf_batch_" + std::to_string(count);
+    
+    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
+    if (cached_params.has_value()) {
+        // Future: Use cached performance metrics for optimization
+    }
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_log_inv_width = -std::log(width_);
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Determine optimal batch size based on cache behavior
+    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "uniform_log_pdf");
+    
+    // Use cache-aware parallel processing with same threshold as regular parallel operations
+    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute log PDF for each element with cache-aware access patterns
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ZERO_DOUBLE : cached_log_inv_width;
+            } else {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            }
+        }, optimal_grain_size);
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] >= cached_a && values[i] <= cached_b) {
+                results[i] = cached_is_unit_interval ? constants::math::ZERO_DOUBLE : cached_log_inv_width;
+            } else {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            }
         }
     }
     
-    // Copy results back
-    std::copy(temp_results.begin(), temp_results.end(), results);
+    // Update cache manager with performance metrics
+    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
+}
+
+void UniformDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                                   WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_inv_width = invWidth_;
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Use work-stealing pool for dynamic load balancing
+    // Use same threshold as regular parallel operations to avoid inconsistency
+    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute CDF for each element with work stealing
+            if (values[i] < cached_a) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (values[i] > cached_b) {
+                results[i] = constants::math::ONE;
+            } else if (cached_is_unit_interval) {
+                results[i] = values[i];  // CDF(x) = x for U(0,1)
+            } else {
+                results[i] = (values[i] - cached_a) * cached_inv_width;
+            }
+        });
+        
+        pool.waitForAll();
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] < cached_a) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (values[i] > cached_b) {
+                results[i] = constants::math::ONE;
+            } else if (cached_is_unit_interval) {
+                results[i] = values[i];  // CDF(x) = x for U(0,1)
+            } else {
+                results[i] = (values[i] - cached_a) * cached_inv_width;
+            }
+        }
+    }
+}
+
+void UniformDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Integrate with Level 0-3 adaptive cache system
+    const std::string cache_key = "uniform_cdf_batch_" + std::to_string(count);
+    
+    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
+    if (cached_params.has_value()) {
+        // Future: Use cached performance metrics for optimization
+    }
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_a = a_;
+    const double cached_b = b_;
+    const double cached_inv_width = invWidth_;
+    const bool cached_is_unit_interval = isUnitInterval_;
+    
+    lock.unlock();
+    
+    // Determine optimal batch size based on cache behavior
+    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "uniform_cdf");
+    
+    // Use cache-aware parallel processing with same threshold as regular parallel operations
+    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute CDF for each element with cache-aware access patterns
+            if (values[i] < cached_a) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (values[i] > cached_b) {
+                results[i] = constants::math::ONE;
+            } else if (cached_is_unit_interval) {
+                results[i] = values[i];  // CDF(x) = x for U(0,1)
+            } else {
+                results[i] = (values[i] - cached_a) * cached_inv_width;
+            }
+        }, optimal_grain_size);
+    } else {
+        // Serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] < cached_a) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (values[i] > cached_b) {
+                results[i] = constants::math::ONE;
+            } else if (cached_is_unit_interval) {
+                results[i] = values[i];  // CDF(x) = x for U(0,1)
+            } else {
+                results[i] = (values[i] - cached_a) * cached_inv_width;
+            }
+        }
+    }
+    
+    // Update cache manager with performance metrics
+    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
 }
 
 } // namespace libstats

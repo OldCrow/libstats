@@ -916,6 +916,11 @@ namespace parallel {
     /// since they involve more computation per element
     inline constexpr std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 256;
     
+    /// Minimum number of elements for parallel simple distribution operations
+    /// Simple distributions (like Uniform) need much higher thresholds
+    /// due to minimal computation per element
+    inline constexpr std::size_t MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL = 65536;
+    
     /// Default grain size for parallel statistical computation loops
     /// This determines the minimum number of work items assigned to each thread
     /// Optimized for cache line alignment and SIMD register efficiency
