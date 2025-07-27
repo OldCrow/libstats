@@ -18,10 +18,11 @@
 #include <vector>
 
 // Level 0-2 Infrastructure Integration
-#include "constants.h"
+#include "../core/constants.h"
 #include "cpu_detection.h"
-#include "error_handling.h"
-#include "safety.h"
+#include "../core/error_handling.h"
+#include "../core/safety.h"
+#include "parallel_thresholds.h"
 
 // PARALLEL EXECUTION POLICY DETECTION
 // Priority order:
@@ -119,8 +120,8 @@ inline const char* execution_support_string() noexcept {
  * @brief Get CPU-aware optimal parallel threshold
  * @return Optimal minimum elements for parallel processing based on CPU features
  */
-inline std::size_t get_optimal_parallel_threshold() noexcept {
-    return constants::parallel::adaptive::min_elements_for_parallel();
+inline std::size_t get_optimal_parallel_threshold(const std::string& distribution, const std::string& operation) noexcept {
+    return libstats::parallel::getGlobalThresholdCalculator().getThreshold(distribution, operation);
 }
 
 /**
@@ -147,10 +148,10 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
     // Platform-specific adjustments
     #if defined(__APPLE__) && defined(__aarch64__)
         // Apple Silicon: Fast thread creation, can handle smaller grains
-        adjusted_grain = base_grain / 2;
+        adjusted_grain = base_grain / constants::math::TWO;
     #elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
         // High-end x86_64: Larger grains for better SIMD utilization
-        adjusted_grain = base_grain * 2;
+        adjusted_grain = base_grain * constants::math::TWO;
     #endif
     
     // Operation type adjustments
@@ -158,7 +159,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
         case 0: // Memory-bound operations
             if (features.l3_cache_size > 0 && data_size > 0) {
                 // Adjust grain to fit well in cache hierarchy
-                const std::size_t cache_elements = features.l3_cache_size / (sizeof(double) * 4);
+                const std::size_t cache_elements = features.l3_cache_size / (sizeof(double) * constants::math::FOUR);
                 if (data_size > cache_elements) {
                     adjusted_grain = std::max(adjusted_grain, cache_elements / cpu::get_logical_core_count());
                 }
@@ -166,7 +167,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
             break;
         case 1: // Computation-bound operations
             // Larger grains for computation to amortize thread overhead
-            adjusted_grain *= 2;
+            adjusted_grain *= constants::math::TWO;
             break;
         case 2: // Mixed operations (default)
         default:
@@ -174,7 +175,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
             break;
     }
     
-    return std::max(adjusted_grain, static_cast<std::size_t>(64)); // Minimum grain size
+    return std::max(adjusted_grain, constants::parallel::SIMPLE_OPERATION_GRAIN_SIZE); // Minimum grain size
 }
 
 /**
@@ -192,15 +193,15 @@ inline std::size_t get_optimal_thread_count(std::size_t workload_size = 0) noexc
         std::size_t optimal_threads = logical_cores;
         
         // For very large workloads, consider using more threads
-        if (workload_size > 100000) {
-            optimal_threads = std::min(logical_cores + 2, logical_cores * 3 / 2);
+        if (workload_size > constants::benchmark::MAX_ITERATIONS) {
+            optimal_threads = std::min(logical_cores + constants::math::TWO, logical_cores * constants::math::THREE / constants::math::TWO);
         }
     #elif defined(__x86_64__)
         // x86_64: Balance between physical and logical cores
         std::size_t optimal_threads = physical_cores;
         
         // Use hyperthreading for memory-bound workloads
-        if (workload_size > 50000) {
+        if (workload_size > constants::parallel::MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL) {
             optimal_threads = logical_cores;
         }
     #else
@@ -213,14 +214,23 @@ inline std::size_t get_optimal_thread_count(std::size_t workload_size = 0) noexc
 
 /**
  * @brief Check if a problem size is large enough to benefit from parallel execution
+ * @param distribution Distribution name
+ * @param operation Operation name
  * @param problem_size Total number of elements or operations
- * @param threshold Minimum size to consider parallel execution (0 = use CPU-aware default)
  * @return true if parallel execution is likely beneficial
  */
-inline bool should_use_parallel(std::size_t problem_size, std::size_t threshold = 0) noexcept {
-    const std::size_t actual_threshold = (threshold == 0) ? 
-        get_optimal_parallel_threshold() : threshold;
+inline bool should_use_parallel(const std::string& distribution, const std::string& operation, std::size_t problem_size) noexcept {
+    const std::size_t actual_threshold = get_optimal_parallel_threshold(distribution, operation);
     return has_execution_policies() && (problem_size >= actual_threshold);
+}
+
+/**
+ * @brief Backward-compatible overload using default thresholds
+ * @param problem_size Total number of elements or operations
+ * @return true if parallel execution is likely beneficial
+ */
+inline bool should_use_parallel(std::size_t problem_size) noexcept {
+    return should_use_parallel("generic", "operation", problem_size);
 }
 
 /**
@@ -919,7 +929,7 @@ void safe_fill(Iterator first, Iterator last, const T& value) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "fill", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::fill(std::execution::par_unseq, first, last, value);
 #elif defined(LIBSTATS_HAS_GCD)
@@ -946,7 +956,7 @@ void safe_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp
     const auto count = std::distance(first1, last1);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "transform", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::transform(std::execution::par_unseq, first1, last1, first2, op);
 #elif defined(LIBSTATS_HAS_GCD)
@@ -965,7 +975,7 @@ T safe_reduce(Iterator first, Iterator last, T init) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "reduce", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::reduce(std::execution::par_unseq, first, last, init);
 #elif defined(LIBSTATS_HAS_GCD)
@@ -984,7 +994,7 @@ void safe_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "for_each", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::for_each(std::execution::par_unseq, first, last, f);
 #elif defined(LIBSTATS_HAS_GCD)
@@ -1003,7 +1013,7 @@ void safe_sort(Iterator first, Iterator last) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::sort(std::execution::par_unseq, first, last);
 #else
@@ -1021,7 +1031,7 @@ void safe_sort(Iterator first, Iterator last, Compare comp) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::sort(std::execution::par_unseq, first, last, comp);
 #else
@@ -1039,7 +1049,7 @@ void safe_partial_sort(Iterator first, Iterator middle, Iterator last) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "partial_sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::partial_sort(std::execution::par_unseq, first, middle, last);
 #else
@@ -1057,7 +1067,7 @@ void safe_inclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "scan", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::inclusive_scan(std::execution::par_unseq, first, last, result);
 #else
@@ -1075,7 +1085,7 @@ void safe_exclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result, T in
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "scan", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::exclusive_scan(std::execution::par_unseq, first, last, result, init);
 #else
@@ -1093,7 +1103,7 @@ Iterator safe_find(Iterator first, Iterator last, const T& value) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "search", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::find(std::execution::par_unseq, first, last, value);
 #else
@@ -1111,7 +1121,7 @@ Iterator safe_find_if(Iterator first, Iterator last, UnaryPredicate pred) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "search", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::find_if(std::execution::par_unseq, first, last, pred);
 #else
@@ -1130,7 +1140,7 @@ safe_count(Iterator first, Iterator last, const T& value) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "count", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::count(std::execution::par_unseq, first, last, value);
 #elif defined(LIBSTATS_HAS_GCD)
@@ -1150,7 +1160,7 @@ safe_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
     
-    if (should_use_parallel(static_cast<std::size_t>(count))) {
+    if (should_use_parallel("generic", "count", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::count_if(std::execution::par_unseq, first, last, pred);
 #elif defined(LIBSTATS_HAS_GCD)

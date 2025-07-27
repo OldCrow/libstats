@@ -1,9 +1,9 @@
 #ifndef LIBSTATS_GAMMA_H_
 #define LIBSTATS_GAMMA_H_
 
-#include "distribution_base.h"
-#include "constants.h"
-#include "error_handling.h" // Safe error handling without exceptions
+#include "../core/distribution_base.h"
+#include "../core/constants.h"
+#include "../core/error_handling.h" // Safe error handling without exceptions
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
-#include "../include/discrete.h"
+#include "../include/distributions/discrete.h"
+#include "enhanced_test_template.h"
 #include <vector>
 #include <random>
 #include <numeric>
@@ -11,6 +12,7 @@
 
 using namespace std;
 using namespace libstats;
+using namespace libstats::testing;
 
 namespace libstats {
 
@@ -426,216 +428,124 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
     DiscreteDistribution dice(1, 6);
     constexpr size_t BENCHMARK_SIZE = 50000;
     
-    // Generate large random dataset for benchmarking
-    std::vector<double> benchmark_values(BENCHMARK_SIZE);
-    std::mt19937 gen(42); // Fixed seed for reproducibility
-    std::uniform_int_distribution<> dis(1, 6);
-    
-    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
-        benchmark_values[i] = static_cast<double>(dis(gen));
-    }
-    
-    // Result storage
+    // Generate test data
+    std::vector<double> test_values(BENCHMARK_SIZE);
     std::vector<double> pmf_results(BENCHMARK_SIZE);
     std::vector<double> log_pmf_results(BENCHMARK_SIZE);
     std::vector<double> cdf_results(BENCHMARK_SIZE);
     
-    std::cout << "\n  === Discrete Distribution Parallel Batch Performance (" << BENCHMARK_SIZE << " elements) ===" << std::endl;
+    std::mt19937 gen(42); // Fixed seed for reproducibility
+    std::uniform_int_distribution<> dis(1, 6);
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
+        test_values[i] = static_cast<double>(dis(gen));
+    }
     
-    // ==== PMF BENCHMARKS ====
-    std::cout << "\n  PMF (Probability Mass Function) Benchmarks:" << std::endl;
+    StandardizedBenchmark::printBenchmarkHeader("Discrete Distribution", BENCHMARK_SIZE);
     
-    // 1. Standard SIMD Batch (baseline)
-    auto start = std::chrono::high_resolution_clock::now();
-    dice.getProbabilityBatch(benchmark_values.data(), pmf_results.data(), BENCHMARK_SIZE);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto simd_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    std::vector<BenchmarkResult> benchmark_results;
     
-    // 2. Standard Parallel Batch
-    std::span<const double> values_span(benchmark_values);
-    std::span<double> pmf_span(pmf_results);
+    // For each operation type (PMF, LogPMF, CDF)
+    std::vector<std::string> operations = {"PMF", "LogPMF", "CDF"};
     
-    start = std::chrono::high_resolution_clock::now();
-    dice.getProbabilityBatchParallel(values_span, pmf_span);
-    end = std::chrono::high_resolution_clock::now();
-    auto parallel_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 3. Work-Stealing Parallel Batch
-    WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-    start = std::chrono::high_resolution_clock::now();
-    dice.getProbabilityBatchWorkStealing(values_span, pmf_span, work_stealing_pool);
-    end = std::chrono::high_resolution_clock::now();
-    auto ws_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 4. Cache-Aware Parallel Batch
-    cache::AdaptiveCache<std::string, double> cache_manager;
-    start = std::chrono::high_resolution_clock::now();
-    dice.getProbabilityBatchCacheAware(values_span, pmf_span, cache_manager);
-    end = std::chrono::high_resolution_clock::now();
-    auto cache_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // Report PMF timing results
-    std::cout << "    SIMD Batch (baseline):     " << simd_pmf_time << " μs" << std::endl;
-    std::cout << "    Standard Parallel:         " << parallel_pmf_time << " μs (" 
-              << (double)simd_pmf_time / parallel_pmf_time << "x vs baseline)" << std::endl;
-    std::cout << "    Work-Stealing Parallel:    " << ws_pmf_time << " μs (" 
-              << (double)simd_pmf_time / ws_pmf_time << "x vs baseline)" << std::endl;
-    std::cout << "    Cache-Aware Parallel:      " << cache_pmf_time << " μs (" 
-              << (double)simd_pmf_time / cache_pmf_time << "x vs baseline)" << std::endl;
-    
-    // ==== LOG PMF BENCHMARKS ====
-    std::cout << "\n  Log PMF Benchmarks:" << std::endl;
-    
-    // 1. Standard SIMD Batch (baseline)
-    start = std::chrono::high_resolution_clock::now();
-    dice.getLogProbabilityBatch(benchmark_values.data(), log_pmf_results.data(), BENCHMARK_SIZE);
-    end = std::chrono::high_resolution_clock::now();
-    auto simd_log_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 2. Standard Parallel Batch
-    std::span<double> log_pmf_span(log_pmf_results);
-    
-    start = std::chrono::high_resolution_clock::now();
-    dice.getLogProbabilityBatchParallel(values_span, log_pmf_span);
-    end = std::chrono::high_resolution_clock::now();
-    auto parallel_log_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 3. Work-Stealing Parallel Batch
-    start = std::chrono::high_resolution_clock::now();
-    dice.getLogProbabilityBatchWorkStealing(values_span, log_pmf_span, work_stealing_pool);
-    end = std::chrono::high_resolution_clock::now();
-    auto ws_log_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 4. Cache-Aware Parallel Batch
-    start = std::chrono::high_resolution_clock::now();
-    dice.getLogProbabilityBatchCacheAware(values_span, log_pmf_span, cache_manager);
-    end = std::chrono::high_resolution_clock::now();
-    auto cache_log_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // Report Log PMF timing results
-    std::cout << "    SIMD Batch (baseline):     " << simd_log_pmf_time << " μs" << std::endl;
-    std::cout << "    Standard Parallel:         " << parallel_log_pmf_time << " μs (" 
-              << (double)simd_log_pmf_time / parallel_log_pmf_time << "x vs baseline)" << std::endl;
-    std::cout << "    Work-Stealing Parallel:    " << ws_log_pmf_time << " μs (" 
-              << (double)simd_log_pmf_time / ws_log_pmf_time << "x vs baseline)" << std::endl;
-    std::cout << "    Cache-Aware Parallel:      " << cache_log_pmf_time << " μs (" 
-              << (double)simd_log_pmf_time / cache_log_pmf_time << "x vs baseline)" << std::endl;
-    
-    // ==== CDF BENCHMARKS ====
-    std::cout << "\n  CDF (Cumulative Distribution Function) Benchmarks:" << std::endl;
-    
-    // 1. Standard SIMD Batch (baseline)
-    start = std::chrono::high_resolution_clock::now();
-    dice.getCumulativeProbabilityBatch(benchmark_values.data(), cdf_results.data(), BENCHMARK_SIZE);
-    end = std::chrono::high_resolution_clock::now();
-    auto simd_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 2. Standard Parallel Batch
-    std::span<double> cdf_span(cdf_results);
-    
-    start = std::chrono::high_resolution_clock::now();
-    dice.getCumulativeProbabilityBatchParallel(values_span, cdf_span);
-    end = std::chrono::high_resolution_clock::now();
-    auto parallel_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 3. Work-Stealing Parallel Batch
-    start = std::chrono::high_resolution_clock::now();
-    dice.getCumulativeProbabilityBatchWorkStealing(values_span, cdf_span, work_stealing_pool);
-    end = std::chrono::high_resolution_clock::now();
-    auto ws_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // 4. Cache-Aware Parallel Batch
-    start = std::chrono::high_resolution_clock::now();
-    dice.getCumulativeProbabilityBatchCacheAware(values_span, cdf_span, cache_manager);
-    end = std::chrono::high_resolution_clock::now();
-    auto cache_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // Report CDF timing results
-    std::cout << "    SIMD Batch (baseline):     " << simd_cdf_time << " μs" << std::endl;
-    std::cout << "    Standard Parallel:         " << parallel_cdf_time << " μs (" 
-              << (double)simd_cdf_time / parallel_cdf_time << "x vs baseline)" << std::endl;
-    std::cout << "    Work-Stealing Parallel:    " << ws_cdf_time << " μs (" 
-              << (double)simd_cdf_time / ws_cdf_time << "x vs baseline)" << std::endl;
-    std::cout << "    Cache-Aware Parallel:      " << cache_cdf_time << " μs (" 
-              << (double)simd_cdf_time / cache_cdf_time << "x vs baseline)" << std::endl;
-    
-    // ==== CORRECTNESS SPOT CHECKS ====
-    std::cout << "\n  Correctness Verification:" << std::endl;
-    
-    // Spot-check correctness by comparing batch results with individual calls
-    const size_t spot_check_samples = 10;
-    bool all_correct = true;
-    
-    for (size_t i = 0; i < spot_check_samples; ++i) {
-        size_t idx = i * (BENCHMARK_SIZE / spot_check_samples);
-        double test_value = benchmark_values[idx];
+    for (const auto& op : operations) {
+        BenchmarkResult result;
+        result.operation_name = op;
         
-        double expected_pmf = dice.getProbability(test_value);
-        double expected_log_pmf = dice.getLogProbability(test_value);
-        double expected_cdf = dice.getCumulativeProbability(test_value);
+        // 1. SIMD Batch (baseline)
+        auto start = std::chrono::high_resolution_clock::now();
+        if (op == "PMF") {
+            dice.getProbabilityBatch(test_values.data(), pmf_results.data(), BENCHMARK_SIZE);
+        } else if (op == "LogPMF") {
+            dice.getLogProbabilityBatch(test_values.data(), log_pmf_results.data(), BENCHMARK_SIZE);
+        } else if (op == "CDF") {
+            dice.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        result.simd_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
-        // Check against the last computed batch results
-        bool pmf_correct = std::abs(pmf_results[idx] - expected_pmf) < 1e-12;
-        bool log_pmf_correct = std::abs(log_pmf_results[idx] - expected_log_pmf) < 1e-12;
-        bool cdf_correct = std::abs(cdf_results[idx] - expected_cdf) < 1e-12;
+        // 2. Standard Parallel Operations
+        std::span<const double> input_span(test_values);
         
-        if (!pmf_correct || !log_pmf_correct || !cdf_correct) {
-            all_correct = false;
-            std::cout << "    Mismatch at index " << idx << " (value=" << test_value << "):";
-            if (!pmf_correct) std::cout << " PMF";
-            if (!log_pmf_correct) std::cout << " LogPMF";
-            if (!cdf_correct) std::cout << " CDF";
-            std::cout << std::endl;
+        if (op == "PMF") {
+            std::span<double> output_span(pmf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getProbabilityBatchParallel(input_span, output_span);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPMF") {
+            std::span<double> log_output_span(log_pmf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getLogProbabilityBatchParallel(input_span, log_output_span);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getCumulativeProbabilityBatchParallel(input_span, cdf_output_span);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.parallel_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 3. Work-Stealing Operations
+        WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
+        
+        if (op == "PMF") {
+            std::span<double> output_span(pmf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getProbabilityBatchWorkStealing(input_span, output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPMF") {
+            std::span<double> log_output_span(log_pmf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getLogProbabilityBatchWorkStealing(input_span, log_output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getCumulativeProbabilityBatchWorkStealing(input_span, cdf_output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.work_stealing_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 4. Cache-Aware Operations  
+        cache::AdaptiveCache<std::string, double> cache_manager;
+        
+        if (op == "PMF") {
+            std::span<double> output_span(pmf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getProbabilityBatchCacheAware(input_span, output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPMF") {
+            std::span<double> log_output_span(log_pmf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getLogProbabilityBatchCacheAware(input_span, log_output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            dice.getCumulativeProbabilityBatchCacheAware(input_span, cdf_output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.cache_aware_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // Calculate speedups
+        result.parallel_speedup = (double)result.simd_time_us / result.parallel_time_us;
+        result.work_stealing_speedup = (double)result.simd_time_us / result.work_stealing_time_us;
+        result.cache_aware_speedup = (double)result.simd_time_us / result.cache_aware_time_us;
+        
+        benchmark_results.push_back(result); 
+        
+        // Verify correctness
+        if (op == "PMF") {
+            StatisticalTestUtils::verifyBatchCorrectness(dice, test_values, pmf_results, "PMF");
+        } else if (op == "LogPMF") {
+            StatisticalTestUtils::verifyBatchCorrectness(dice, test_values, log_pmf_results, "LogPMF");
+        } else if (op == "CDF") {
+            StatisticalTestUtils::verifyBatchCorrectness(dice, test_values, cdf_results, "CDF");
         }
     }
     
-    if (all_correct) {
-        std::cout << "    ✓ All spot checks passed - parallel results match individual calls" << std::endl;
-    }
-    
-    // ==== WORK-STEALING POOL STATISTICS ====
-    std::cout << "\n  Work-Stealing Pool Statistics:" << std::endl;
-    auto ws_stats = work_stealing_pool.getStatistics();
-    
-    std::cout << "    Tasks executed: " << ws_stats.tasksExecuted << std::endl;
-    std::cout << "    Work steals: " << ws_stats.workSteals << std::endl;
-    std::cout << "    Failed steals: " << ws_stats.failedSteals << std::endl;
-    std::cout << "    Steal success rate: " << (ws_stats.stealSuccessRate * 100) << "%" << std::endl;
-    
-    // ==== ADAPTIVE CACHE MANAGER STATISTICS ====
-    std::cout << "\n  Adaptive Cache Manager Statistics:" << std::endl;
-    auto cache_stats = cache_manager.getStats();
-    
-    std::cout << "    Cache size: " << cache_stats.size << " entries" << std::endl;
-    std::cout << "    Hit rate: " << (cache_stats.hit_rate * 100) << "%" << std::endl;
-    std::cout << "    Memory usage: " << cache_stats.memory_usage << " bytes" << std::endl;
-    
-    // Basic performance expectations (these should generally hold, but depend on hardware)
-    // For discrete distributions with simple computations, parallel overhead may dominate
-    std::cout << "\n  Performance Analysis:" << std::endl;
-    
-    if (simd_pmf_time < parallel_pmf_time) {
-        std::cout << "    ℹ️  SIMD batch outperforms parallel for PMF (expected for discrete distributions)" << std::endl;
-    } else {
-        std::cout << "    ✓ Parallel PMF shows speedup over SIMD batch" << std::endl;
-    }
-    
-    if (simd_log_pmf_time < parallel_log_pmf_time) {
-        std::cout << "    ℹ️  SIMD batch outperforms parallel for Log PMF (expected for discrete distributions)" << std::endl;
-    } else {
-        std::cout << "    ✓ Parallel Log PMF shows speedup over SIMD batch" << std::endl;
-    }
-    
-    if (simd_cdf_time < parallel_cdf_time) {
-        std::cout << "    ℹ️  SIMD batch outperforms parallel for CDF (expected for discrete distributions)" << std::endl;
-    } else {
-        std::cout << "    ✓ Parallel CDF shows speedup over SIMD batch" << std::endl;
-    }
-    
-    // Ensure all methods completed without errors
-    EXPECT_TRUE(all_correct) << "Parallel batch operations should produce correct results";
-    
-    std::cout << "\n  === Discrete Distribution Parallel Batch Benchmark Complete ===" << std::endl;
+    // Print standardized benchmark results
+    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
+    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
 }
 
 // Test new work-stealing and cache-aware methods for log probability and CDF
@@ -857,6 +767,252 @@ TEST_F(DiscreteEnhancedTest, NewWorkStealingAndCacheAwareMethods) {
     std::cout << "  Cache hit rate: " << (cache_stats.hit_rate * 100) << "%" << std::endl;
     
     std::cout << "\n  ✓ All new discrete work-stealing and cache-aware methods validated!" << std::endl;
+}
+
+//==============================================================================
+// ADVANCED STATISTICAL TESTS
+//==============================================================================
+
+TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
+    auto diceResult = DiscreteDistribution::create(1, 6);
+    ASSERT_TRUE(diceResult.isOk());
+    auto dice = std::move(diceResult.value);
+    
+    // Generate synthetic discrete data that should follow dice distribution
+    std::vector<double> synthetic_data;
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> dice_gen(1, 6);
+    
+    for (int i = 0; i < 1000; ++i) {
+        synthetic_data.push_back(static_cast<double>(dice_gen(rng)));
+    }
+    
+    // Test chi-square goodness of fit using static method (most appropriate for discrete data)
+    auto [chi_stat, chi_p_value, chi_reject] = DiscreteDistribution::chiSquaredGoodnessOfFitTest(synthetic_data, dice);
+    EXPECT_FALSE(chi_reject) << "Chi-square test should pass for well-fitted discrete data";
+    EXPECT_TRUE(std::isfinite(chi_stat)) << "Chi-square statistic should be finite";
+    EXPECT_GT(chi_p_value, 0.0) << "Chi-square p-value should be positive";
+    EXPECT_GE(chi_stat, 0.0) << "Chi-square statistic should be non-negative";
+    
+    // Test KS goodness of fit using static method (note: less appropriate for discrete data)
+    auto [ks_stat, ks_p_value, ks_reject] = DiscreteDistribution::kolmogorovSmirnovTest(synthetic_data, dice);
+    // KS test can be overly sensitive for discrete data due to ties, so we just verify it runs
+    EXPECT_TRUE(std::isfinite(ks_stat)) << "KS statistic should be finite";
+    EXPECT_GT(ks_p_value, 0.0) << "KS p-value should be positive";
+    EXPECT_GE(ks_stat, 0.0) << "KS statistic should be non-negative";
+    // Note: We don't assert whether ks_reject is true/false since KS test is unreliable for discrete data
+    
+    std::cout << "  Chi-square: stat=" << chi_stat << ", p=" << chi_p_value << ", reject=" << chi_reject << std::endl;
+    std::cout << "  KS test: stat=" << ks_stat << ", p=" << ks_p_value << ", reject=" << ks_reject << " (unreliable for discrete data)" << std::endl;
+    
+    std::cout << "✓ Advanced statistical methods validated" << std::endl;
+}
+
+TEST_F(DiscreteEnhancedTest, GoodnessOfFitTests) {
+    auto coinResult = DiscreteDistribution::create(0, 1);
+    ASSERT_TRUE(coinResult.isOk());
+    auto coin = std::move(coinResult.value);
+    
+    // Generate fair coin flip data
+    std::vector<double> fair_coin_data;
+    std::mt19937 rng(42);
+    std::bernoulli_distribution coin_gen(0.5);
+    
+    for (int i = 0; i < 500; ++i) {
+        fair_coin_data.push_back(coin_gen(rng) ? 1.0 : 0.0);
+    }
+    
+    // Test chi-square goodness of fit for fair coin using static method
+    auto [chi_stat, chi_p_value, chi_reject] = DiscreteDistribution::chiSquaredGoodnessOfFitTest(fair_coin_data, coin);
+    EXPECT_FALSE(chi_reject) << "Chi-square test should pass for fair coin data";
+    EXPECT_TRUE(std::isfinite(chi_stat)) << "Chi-square statistic should be finite";
+    EXPECT_GT(chi_p_value, 0.0) << "Chi-square p-value should be positive";
+    
+    // Generate biased coin data (90% heads) - should fail fair coin test
+    std::vector<double> biased_coin_data;
+    std::bernoulli_distribution biased_gen(0.9);
+    for (int i = 0; i < 500; ++i) {
+        biased_coin_data.push_back(biased_gen(rng) ? 1.0 : 0.0);
+    }
+    
+    auto [biased_chi_stat, biased_chi_p_value, biased_chi_reject] = DiscreteDistribution::chiSquaredGoodnessOfFitTest(biased_coin_data, coin);
+    // Note: This might still pass due to randomness, but generally should be less likely
+    EXPECT_TRUE(biased_chi_reject) << "Chi-square test should fail for biased coin with fair model";
+    
+    // Count frequencies
+    int zeros = std::count(fair_coin_data.begin(), fair_coin_data.end(), 0.0);
+    int ones = std::count(fair_coin_data.begin(), fair_coin_data.end(), 1.0);
+    EXPECT_GT(zeros, 200) << "Should have reasonable number of zeros";
+    EXPECT_GT(ones, 200) << "Should have reasonable number of ones";
+    
+    std::cout << "✓ Goodness of fit tests completed" << std::endl;
+}
+
+TEST_F(DiscreteEnhancedTest, CrossValidationMethods) {
+    auto diceResult = DiscreteDistribution::create(1, 6);
+    ASSERT_TRUE(diceResult.isOk());
+    auto dice = std::move(diceResult.value);
+    
+    // Generate dice roll data
+    std::vector<double> dice_data;
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> dice_gen(1, 6);
+    
+    for (int i = 0; i < 600; ++i) {
+        dice_data.push_back(static_cast<double>(dice_gen(rng)));
+    }
+    
+    // Perform k-fold cross validation using static method
+    constexpr int k = 5;
+    auto cv_results = DiscreteDistribution::kFoldCrossValidation(dice_data, k);
+    
+    // Should get k results
+    EXPECT_EQ(cv_results.size(), k) << "Should get k cross-validation results";
+    
+    // Each result should have reasonable values
+    for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
+        EXPECT_TRUE(std::isfinite(mean_error)) << "Mean error should be finite";
+        EXPECT_TRUE(std::isfinite(std_error)) << "Std error should be finite";
+        EXPECT_TRUE(std::isfinite(log_likelihood)) << "Log likelihood should be finite";
+    }
+    
+    // Perform leave-one-out cross validation on a smaller subset
+    std::vector<double> small_data(dice_data.begin(), dice_data.begin() + 100);
+    auto [mae, rmse, total_loglik] = DiscreteDistribution::leaveOneOutCrossValidation(small_data);
+    
+    EXPECT_TRUE(std::isfinite(mae)) << "MAE should be finite";
+    EXPECT_TRUE(std::isfinite(rmse)) << "RMSE should be finite";
+    EXPECT_TRUE(std::isfinite(total_loglik)) << "Total log likelihood should be finite";
+    EXPECT_GT(mae, 0.0) << "MAE should be positive";
+    EXPECT_GT(rmse, 0.0) << "RMSE should be positive";
+    
+    std::cout << "✓ Cross-validation methods completed" << std::endl;
+}
+
+TEST_F(DiscreteEnhancedTest, InformationCriteria) {
+    auto diceResult = DiscreteDistribution::create(1, 6);
+    ASSERT_TRUE(diceResult.isOk());
+    auto dice = std::move(diceResult.value);
+    
+    // Generate test data
+    std::vector<double> test_data;
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> dice_gen(1, 6);
+    
+    for (int i = 0; i < 1000; ++i) {
+        test_data.push_back(static_cast<double>(dice_gen(rng)));
+    }
+    
+    // Calculate information criteria using static method
+    auto [aic, bic, aicc, log_likelihood] = DiscreteDistribution::computeInformationCriteria(test_data, dice);
+    
+    // All criteria should be finite and reasonable
+    EXPECT_TRUE(std::isfinite(aic)) << "AIC should be finite";
+    EXPECT_TRUE(std::isfinite(bic)) << "BIC should be finite";
+    EXPECT_TRUE(std::isfinite(aicc)) << "AICc should be finite";
+    EXPECT_TRUE(std::isfinite(log_likelihood)) << "Log likelihood should be finite";
+    
+    // BIC generally penalizes complexity more than AIC
+    // For discrete distributions, this relationship may vary
+    EXPECT_GT(aic, -std::numeric_limits<double>::infinity()) << "AIC should be greater than negative infinity";
+    EXPECT_GT(bic, -std::numeric_limits<double>::infinity()) << "BIC should be greater than negative infinity";
+    EXPECT_LT(log_likelihood, 0.0) << "Log likelihood should be negative for discrete uniform data";
+    
+    std::cout << "✓ Information criteria computed: AIC = " << aic << ", BIC = " << bic << ", AICc = " << aicc << std::endl;
+}
+
+TEST_F(DiscreteEnhancedTest, BootstrapParameterConfidenceIntervals) {
+    auto coinResult = DiscreteDistribution::create(0, 1);
+    ASSERT_TRUE(coinResult.isOk());
+    auto coin = std::move(coinResult.value);
+    
+    // Generate coin flip data
+    std::vector<double> coin_data;
+    std::mt19937 rng(42);
+    std::bernoulli_distribution coin_gen(0.6);  // Biased coin
+    
+    for (int i = 0; i < 200; ++i) {
+        coin_data.push_back(coin_gen(rng) ? 1.0 : 0.0);
+    }
+    
+    // Perform bootstrap confidence interval estimation using static method
+    constexpr int num_bootstrap_samples = 100;  // Reduced for testing speed
+    constexpr double confidence_level = 0.95;
+    
+    auto [lower_bound_ci, upper_bound_ci] = DiscreteDistribution::bootstrapParameterConfidenceIntervals(
+        coin_data, confidence_level, num_bootstrap_samples
+    );
+    
+    // For a binary distribution, we should get reasonable confidence intervals
+    EXPECT_LE(lower_bound_ci.first, lower_bound_ci.second) << "Lower bound CI: lower <= upper";
+    EXPECT_LE(upper_bound_ci.first, upper_bound_ci.second) << "Upper bound CI: lower <= upper";
+    
+    // Check that intervals are reasonable for a binary distribution
+    EXPECT_GE(lower_bound_ci.first, 0.0) << "Lower bound CI lower should be >= 0";
+    EXPECT_LE(lower_bound_ci.second, 1.0) << "Lower bound CI upper should be <= 1";
+    EXPECT_GE(upper_bound_ci.first, 0.0) << "Upper bound CI lower should be >= 0";
+    EXPECT_LE(upper_bound_ci.second, 1.0) << "Upper bound CI upper should be <= 1";
+    
+    // The true bounds [0,1] should be within or close to the confidence intervals
+    // Note: This is probabilistic and might occasionally fail due to randomness
+    
+    std::cout << "✓ Bootstrap confidence intervals completed" << std::endl;
+    std::cout << "  Lower bound CI: [" << lower_bound_ci.first << ", " << lower_bound_ci.second << "]" << std::endl;
+    std::cout << "  Upper bound CI: [" << upper_bound_ci.first << ", " << upper_bound_ci.second << "]" << std::endl;
+}
+
+TEST_F(DiscreteEnhancedTest, NumericalStability) {
+    std::cout << "Testing discrete numerical stability:" << std::endl;
+    
+    // Test with extreme discrete range
+    auto extremeResult = DiscreteDistribution::create(0, 1000000);
+    ASSERT_TRUE(extremeResult.isOk());
+    auto extreme = std::move(extremeResult.value);
+    
+    // Test probabilities at various points
+    EXPECT_GT(extreme.getProbability(500000.0), 0.0) << "Probability should be positive for valid value";
+    EXPECT_EQ(extreme.getProbability(-1.0), 0.0) << "Probability should be zero outside range";
+    EXPECT_EQ(extreme.getProbability(1000001.0), 0.0) << "Probability should be zero outside range";
+    
+    // Test batch operations with edge cases
+    std::vector<double> edge_values = {
+        -1e10,  // Far below range
+        -1.0,   // Just below range
+        0.0,    // At lower bound
+        0.5,    // Non-integer in range
+        500000.0, // Mid-range integer
+        1000000.0, // At upper bound
+        1000001.0, // Just above range
+        1e10    // Far above range
+    };
+    
+    std::vector<double> edge_pmf_results(edge_values.size());
+    std::vector<double> edge_cdf_results(edge_values.size());
+    
+    extreme.getProbabilityBatch(edge_values.data(), edge_pmf_results.data(), edge_values.size());
+    extreme.getCumulativeProbabilityBatch(edge_values.data(), edge_cdf_results.data(), edge_values.size());
+    
+    // Verify all results are finite and non-negative
+    for (size_t i = 0; i < edge_values.size(); ++i) {
+        EXPECT_TRUE(std::isfinite(edge_pmf_results[i])) << "PMF result should be finite at index " << i;
+        EXPECT_GE(edge_pmf_results[i], 0.0) << "PMF result should be non-negative at index " << i;
+        EXPECT_TRUE(std::isfinite(edge_cdf_results[i])) << "CDF result should be finite at index " << i;
+        EXPECT_GE(edge_cdf_results[i], 0.0) << "CDF result should be non-negative at index " << i;
+        EXPECT_LE(edge_cdf_results[i], 1.0) << "CDF result should be <= 1 at index " << i;
+    }
+    
+    std::cout << "  ✓ Discrete extreme value handling test passed" << std::endl;
+    
+    // Test empty batch operations
+    std::vector<double> empty_input;
+    std::vector<double> empty_output;
+    
+    // These should not crash
+    extreme.getProbabilityBatch(empty_input.data(), empty_output.data(), 0);
+    extreme.getLogProbabilityBatch(empty_input.data(), empty_output.data(), 0);
+    extreme.getCumulativeProbabilityBatch(empty_input.data(), empty_output.data(), 0);
+    
+    std::cout << "  ✓ Discrete empty batch operations handled gracefully" << std::endl;
 }
 
 } // namespace libstats

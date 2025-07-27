@@ -1,7 +1,8 @@
-#include "distribution_base.h"
-#include "math_utils.h"
-#include "safety.h"
-#include "parallel_execution.h"  // Add parallel execution support
+#include "../include/core/distribution_base.h"
+#include "../include/core/constants.h"
+#include "../include/core/math_utils.h"
+#include "../include/core/safety.h"
+#include "../include/platform/parallel_execution.h"  // Add parallel execution support
 #include <algorithm>
 #include <numeric>
 #include <cmath>
@@ -99,7 +100,7 @@ std::vector<double> DistributionBase::getBatchCumulativeProbabilities(const std:
 std::vector<double> DistributionBase::getBatchQuantiles(const std::vector<double>& p_values) const {
     // Validate input probabilities first
     for (double p : p_values) {
-        if (p < 0.0 || p > 1.0) {
+        if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
             throw std::invalid_argument("Quantile probability must be in [0,1], got: " + std::to_string(p));
         }
     }
@@ -130,7 +131,7 @@ DistributionBase::FitResults DistributionBase::fitWithDiagnostics(const std::vec
         results.fit_diagnostics = "Fit completed successfully";
         
         // Calculate log-likelihood
-        results.log_likelihood = 0.0;
+        results.log_likelihood = constants::math::ZERO_DOUBLE;
         for (double x : data) {
             double log_prob = getLogProbability(x);
             if (std::isfinite(log_prob)) {
@@ -168,9 +169,9 @@ DistributionBase::FitResults DistributionBase::fitWithDiagnostics(const std::vec
         
         // Set default validation results
         results.validation.ks_statistic = std::numeric_limits<double>::quiet_NaN();
-        results.validation.ks_p_value = 0.0;
+        results.validation.ks_p_value = constants::math::ZERO_DOUBLE;
         results.validation.ad_statistic = std::numeric_limits<double>::quiet_NaN();
-        results.validation.ad_p_value = 0.0;
+        results.validation.ad_p_value = constants::math::ZERO_DOUBLE;
         results.validation.distribution_adequate = false;
         results.validation.recommendations = "Unable to validate due to fit failure";
     }

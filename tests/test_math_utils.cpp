@@ -3,7 +3,7 @@
 #include <limits>
 #include <vector>
 #include <algorithm>
-#include "math_utils.h"
+#include "../include/core/math_utils.h"
 
 // Use libstats::math namespace but avoid conflicting standard library functions
 using namespace libstats::math;

@@ -1,4 +1,4 @@
-#include "../include/cpu_detection.h"
+#include "../include/platform/cpu_detection.h"
 #include <iostream>
 #include <iomanip>
 

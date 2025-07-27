@@ -13,8 +13,9 @@
     #define CPU_DETECTION_NO_SIMD
 #endif
 
-#include "../include/cpu_detection.h"
-#include "../include/constants.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/core/constants.h"
+#include "../include/platform/platform_constants.h"
 #include <chrono>
 #include <thread>
 #include <atomic>
@@ -80,7 +81,7 @@ namespace {
                         int backoff = 1;
                         while ((features = ptr.load(std::memory_order_acquire)) == nullptr) {
                             std::this_thread::sleep_for(std::chrono::nanoseconds(backoff));
-                            backoff = std::min(backoff * 2, static_cast<int>(constants::simd::cpu::MAX_BACKOFF_NANOSECONDS)); // Max 1μs backoff
+                            backoff = std::min(backoff * constants::math::TWO_INT, static_cast<int>(constants::simd::cpu::MAX_BACKOFF_NANOSECONDS)); // Max 1μs backoff
                         }
                     #endif
                 }
@@ -216,15 +217,15 @@ namespace {
         } else {
             // Fallback: use basic detection
             features.topology.physical_cores = logical_processors;
-            features.topology.threads_per_core = 1;
-            features.topology.packages = 1;
+            features.topology.threads_per_core = constants::math::ONE_INT;
+            features.topology.packages = constants::math::ONE_INT;
             features.topology.hyperthreading = false;
             
             // Check if hyperthreading is supported
-            if (edx & (1 << 28)) { // HTT bit
+            if (edx & (constants::math::ONE_INT << 28)) { // HTT bit
                 features.topology.hyperthreading = true;
-                features.topology.physical_cores = logical_processors / 2;
-                features.topology.threads_per_core = 2;
+                features.topology.physical_cores = logical_processors / constants::math::TWO_INT;
+                features.topology.threads_per_core = constants::math::TWO_INT;
             }
         }
     }

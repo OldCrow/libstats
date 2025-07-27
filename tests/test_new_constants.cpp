@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cassert>
 
-#include "../include/constants.h"
+#include "../include/core/constants.h"
 
 using namespace libstats::constants;
 

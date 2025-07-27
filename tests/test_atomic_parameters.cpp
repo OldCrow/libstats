@@ -19,9 +19,9 @@
 #include <cassert>
 
 // Include distribution headers
-#include "exponential.h"
-#include "gaussian.h"
-#include "discrete.h"
+#include "../include/distributions/exponential.h"
+#include "../include/distributions/gaussian.h"
+#include "../include/distributions/discrete.h"
 
 using namespace libstats;
 
@@ -65,7 +65,7 @@ void test_atomic_getter_consistency() {
     exp_dist.setLambda(3.5);
     
     // Both getters should return the same updated value
-    double lambda_regular = exp_dist.getLambda();
+    [[maybe_unused]] double lambda_regular = exp_dist.getLambda();
     double lambda_atomic = exp_dist.getLambdaAtomic();
     
     assert(std::abs(lambda_regular - lambda_atomic) < 1e-15);

@@ -1,5 +1,5 @@
-#include "log_space_ops.h"
-#include "safety.h"
+#include "../include/core/log_space_ops.h"
+#include "../include/core/safety.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>

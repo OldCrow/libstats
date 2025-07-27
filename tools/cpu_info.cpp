@@ -4,7 +4,7 @@
 #include <exception>
 
 // Include CPU detection for runtime capability testing
-#include "../include/cpu_detection.h"
+#include "../include/platform/cpu_detection.h"
 
 /**
  * @brief Standalone CPU capability tester

@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <list>
+#include <deque>
 #include <atomic>
 #include <mutex>
 #include <shared_mutex>
@@ -14,6 +15,7 @@
 #include <algorithm>
 #include <memory>
 #include <thread>
+#include "platform_constants.h"
 
 namespace libstats {
 namespace cache {
@@ -498,9 +500,9 @@ public:
         if (pos != std::string::npos) {
             try {
                 size_t batch_size = std::stoull(cache_key.substr(pos + 7));
-                // Return adaptive grain size based on cache performance
+                // Return adaptive grain size based on cache performance with SAFE MINIMUMS
                 double hit_rate = metrics_.hit_rate.load();
-                size_t grain_size = std::max(size_t(8), batch_size / (config_.enable_background_optimization ? 16 : 8));
+                size_t grain_size = std::max(size_t(512), batch_size / (config_.enable_background_optimization ? 16 : 8));
                 return std::make_pair(grain_size, hit_rate);
             } catch (const std::exception&) {
                 // Fallback for invalid key format
@@ -519,33 +521,41 @@ public:
     size_t getOptimalGrainSize(size_t data_size, const std::string& operation_type) const {
         std::shared_lock lock(cache_mutex_);
         
-        // Base grain size calculation
-        size_t base_grain = std::max(size_t(8), data_size / 16);  // Target ~16 chunks
+        // Base grain size: target ~16 chunks with reasonable minimum
+        size_t base_grain = std::max(size_t(512), data_size / 16);
         
-        // Adjust based on cache performance metrics
+        // Adjust based on cache performance metrics (CONSERVATIVE)
         double hit_rate = metrics_.hit_rate.load();
         double memory_pressure = static_cast<double>(metrics_.memory_usage.load()) / config_.max_memory_bytes;
         
-        // If hit rate is low, use smaller grains to improve locality
-        if (hit_rate < 0.7) {
-            base_grain = std::max(size_t(4), base_grain / 2);
+        // Only reduce grain size for very poor hit rates (< 30%)
+        if (hit_rate < 0.3) {
+            base_grain = std::max(size_t(256), base_grain * 3 / 4);  // Conservative reduction
         }
         
-        // If memory pressure is high, use larger grains to reduce overhead
+        // Increase grain size under memory pressure
         if (memory_pressure > 0.8) {
-            base_grain = std::min(data_size / 4, base_grain * 2);
+            base_grain = std::min(data_size / 4, base_grain * 3 / 2);
         }
         
-        // Operation-specific tuning
+        // Operation-specific tuning with conservative minimums
         if (operation_type.find("pdf") != std::string::npos) {
-            // PDF operations are typically compute-intensive, can use larger grains
-            base_grain = std::min(data_size / 8, base_grain * 3 / 2);
+            // PDF operations: compute-intensive, can use larger grains
+            base_grain = std::min(data_size / 8, base_grain * 5 / 4);
+            base_grain = std::max(size_t(512), base_grain);  // PDF minimum
         } else if (operation_type.find("cdf") != std::string::npos) {
-            // CDF operations may have more irregular access patterns
-            base_grain = std::max(size_t(16), base_grain);
+            // CDF operations: irregular access patterns, need reasonable grains
+            base_grain = std::max(size_t(256), base_grain);  // CDF minimum
         }
         
-        return std::clamp(base_grain, size_t(1), data_size);
+        // Distribution-specific minimums
+        if (operation_type.find("poisson") != std::string::npos) {
+            base_grain = std::max(size_t(256), base_grain);  // Complex math functions
+        } else if (operation_type.find("uniform") != std::string::npos) {
+            base_grain = std::max(size_t(1024), base_grain);  // Simple operations
+        }
+        
+        return std::clamp(base_grain, size_t(256), data_size / 2);
     }
     
     /**
@@ -757,6 +767,224 @@ std::unique_ptr<AdaptiveCache<Key, Value>> createOptimizedCache(
     
     return std::make_unique<AdaptiveCache<Key, Value>>(config);
 }
+
+/**
+ * @brief Memory pressure detector using CPU cache information
+ */
+class MemoryPressureDetector {
+private:
+    mutable std::mutex state_mutex_;
+    mutable std::chrono::steady_clock::time_point last_check_;
+    mutable double current_pressure_level_ = 0.0;
+    
+public:
+    struct MemoryPressureInfo {
+        double pressure_level;      // 0.0 to 1.0
+        size_t available_cache_mb;  // Estimated available cache memory
+        bool high_pressure;         // True if pressure > 0.8
+        std::string recommendation;
+    };
+    
+    MemoryPressureDetector();
+    MemoryPressureInfo detectPressure() const;
+    
+private:
+    void updatePressureLevel() const;
+};
+
+/**
+ * @brief Cache advisor for optimization recommendations
+ */
+class CacheAdvisor {
+public:
+    struct OptimizationRecommendation {
+        enum class Action {
+            INCREASE_SIZE,
+            DECREASE_SIZE,
+            ADJUST_TTL,
+            ENABLE_PREFETCHING,
+            DISABLE_PREFETCHING,
+            CHANGE_EVICTION_POLICY,
+            NO_ACTION
+        };
+        
+        Action action;
+        std::string description;
+        double expected_improvement;  // Expected performance improvement (0-1)
+        int priority;                 // 1-10, higher is more important
+    };
+    
+    std::vector<OptimizationRecommendation> analyzeAndRecommend(
+        const CacheMetrics& metrics,
+        const AdaptiveCacheConfig& config,
+        const MemoryPressureDetector::MemoryPressureInfo& memory_info) const;
+};
+
+/**
+ * @brief Cache monitoring and diagnostic utilities
+ */
+class CacheMonitor {
+private:
+    std::vector<CacheMetrics> history_;
+    mutable std::mutex history_mutex_;
+    std::chrono::steady_clock::time_point start_time_;
+    
+public:
+    CacheMonitor();
+    
+    struct PerformanceTrend {
+        double hit_rate_trend;          // Positive = improving
+        double memory_efficiency_trend;  // Positive = improving
+        double access_time_trend;       // Negative = improving
+        size_t sample_count;
+        std::chrono::duration<double> observation_period;
+    };
+    
+    void recordMetrics(const CacheMetrics& metrics);
+    PerformanceTrend analyzeTrends(std::chrono::seconds window = std::chrono::seconds(300)) const;
+    std::string generateReport(const CacheMetrics& current_metrics) const;
+    
+private:
+    double calculateTrend(const std::vector<double>& values) const;
+    std::string formatBytes(size_t bytes) const;
+    std::string formatTrend(double trend) const;
+};
+
+/**
+ * @brief Global cache management utilities
+ */
+namespace utils {
+
+/**
+ * @brief Platform architecture types for cache optimization
+ */
+enum class PlatformArchitecture {
+    APPLE_SILICON,
+    INTEL,
+    AMD,
+    ARM_GENERIC,
+    UNKNOWN
+};
+
+/**
+ * @brief Detect the current platform architecture
+ */
+PlatformArchitecture detectPlatformArchitecture();
+
+/**
+ * @brief Create cache configuration optimized for current platform
+ */
+AdaptiveCacheConfig createOptimalConfig();
+
+/**
+ * @brief Access pattern analyzer for cache optimization
+ */
+class AccessPatternAnalyzer {
+public:
+    enum class PatternType {
+        SEQUENTIAL,
+        RANDOM,
+        MIXED,
+        UNKNOWN
+    };
+    
+    struct PatternInfo {
+        PatternType type;
+        double sequential_ratio;  // 0.0 = completely random, 1.0 = completely sequential
+        double locality_score;    // 0.0 = no locality, 1.0 = perfect locality
+        size_t unique_keys_accessed;
+        std::string description;
+    };
+    
+private:
+    std::deque<uint64_t> access_history_;
+    std::unordered_set<uint64_t> unique_accesses_;
+    mutable std::mutex pattern_mutex_;
+    
+public:
+    template<typename Key>
+    void recordAccess(const Key& key) {
+        std::lock_guard<std::mutex> lock(pattern_mutex_);
+        
+        // Simple hash for pattern analysis
+        uint64_t hash_key = std::hash<Key>{}(key);
+        
+        access_history_.push_back(hash_key);
+        unique_accesses_.insert(hash_key);
+        
+        // Keep history bounded
+        if (access_history_.size() > constants::cache::patterns::MAX_PATTERN_HISTORY) {
+            auto old_key = access_history_.front();
+            access_history_.pop_front();
+            
+            // Remove from unique set if no longer in history
+            if (std::find(access_history_.begin(), access_history_.end(), old_key) == access_history_.end()) {
+                unique_accesses_.erase(old_key);
+            }
+        }
+    }
+    
+    PatternInfo analyzePattern() const;
+};
+
+/**
+ * @brief Create cache configuration with access pattern awareness
+ */
+AdaptiveCacheConfig createPatternAwareConfig(const AccessPatternAnalyzer::PatternInfo& pattern_info = {});
+
+/**
+ * @brief Performance benchmarking result structure
+ */
+template<typename Key, typename Value>
+struct BenchmarkResult {
+    double hit_rate;
+    double average_access_time_us;
+    double memory_efficiency;
+    size_t operations_per_second;
+    std::string config_description;
+};
+
+/**
+ * @brief Performance benchmarking for cache configurations
+ */
+template<typename Key, typename Value>
+BenchmarkResult<Key, Value> benchmarkCache(
+    AdaptiveCache<Key, Value>& cache,
+    const std::vector<std::pair<Key, Value>>& test_data,
+    size_t num_operations = 10000) {
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // Populate cache
+    for (const auto& [key, value] : test_data) {
+        cache.put(key, value);
+    }
+    
+    // Perform random access test
+    size_t hits = 0;
+    for (size_t i = 0; i < num_operations; ++i) {
+        const auto& [key, expected_value] = test_data[i % test_data.size()];
+        if (cache.get(key)) {
+            ++hits;
+        }
+    }
+    
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    
+    auto stats = cache.getStats();
+    
+    BenchmarkResult<Key, Value> result;
+    result.hit_rate = static_cast<double>(hits) / num_operations;
+    result.average_access_time_us = stats.average_access_time;
+    result.memory_efficiency = stats.memory_efficiency;
+    result.operations_per_second = static_cast<size_t>(num_operations * 1000000.0 / duration.count());
+    result.config_description = "Adaptive Cache Benchmark";
+    
+    return result;
+}
+
+} // namespace utils
 
 } // namespace cache
 } // namespace libstats

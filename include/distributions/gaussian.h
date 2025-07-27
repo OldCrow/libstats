@@ -1,14 +1,14 @@
 #ifndef LIBSTATS_GAUSSIAN_H_
 #define LIBSTATS_GAUSSIAN_H_
 
-#include "distribution_base.h"
-#include "constants.h"
-#include "simd.h" // Ensure SIMD operations are available
-#include "error_handling.h" // Safe error handling without exceptions
-#include "parallel_execution.h" // Level 0-3 parallel execution support
-#include "thread_pool.h" // Level 0-3 ParallelUtils integration
-#include "work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
-#include "adaptive_cache.h" // Level 0-3 adaptive cache management
+#include "../core/distribution_base.h"
+#include "../core/constants.h"
+#include "../platform/simd.h" // Ensure SIMD operations are available
+#include "../core/error_handling.h" // Safe error handling without exceptions
+#include "../platform/parallel_execution.h" // Level 0-3 parallel execution support
+#include "../platform/thread_pool.h" // Level 0-3 ParallelUtils integration
+#include "../platform/work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
+#include "../platform/adaptive_cache.h" // Level 0-3 adaptive cache management
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation

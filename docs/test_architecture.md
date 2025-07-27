@@ -4,7 +4,7 @@
 
 ## Overview
 
-The libstats C++20 statistical computing library employs a sophisticated, dependency-aware testing architecture that ensures comprehensive validation from foundational components to high-level distribution implementations. This document serves as the definitive guide for developers working with the test infrastructure.
+The libstats C++20 statistical computing library employs a sophisticated, dependency-aware testing architecture with dual standardized frameworks that ensure comprehensive validation from foundational components to high-level distribution implementations. This document serves as the definitive guide for developers working with the complete test infrastructure.
 
 ### Key Design Principles
 
@@ -81,7 +81,7 @@ The libstats project strategically uses two testing approaches:
 - **`test_parallel_execution_comprehensive`** - Comprehensive parallel execution testing from `parallel_execution.h`
 - **`test_benchmark_basic`** - Performance measurement utilities from `benchmark.h`
 
-### Level 4: Distribution Implementation Tests (4 tests)
+### Level 4: Distribution Implementation Tests (10 tests)
 **Purpose**: Validate concrete statistical distribution implementations
 
 #### Gaussian Distribution
@@ -97,6 +97,18 @@ The libstats project strategically uses two testing approaches:
 #### Exponential Distribution
 - **`test_exponential_basic`** - Fundamental operations (PDF, CDF, quantiles, basic fitting)
 - **`test_exponential_enhanced`** (**GTest**) - Advanced statistical methods (similar scope to Gaussian)
+
+#### Uniform Distribution
+- **`test_uniform_basic`** - Fundamental operations (PDF, CDF, quantiles, basic fitting)
+- **`test_uniform_enhanced`** (**GTest**) - Advanced statistical methods including Anderson-Darling tests
+
+#### Discrete Distribution
+- **`test_discrete_basic`** - Fundamental operations (PMF, CDF, quantiles, basic fitting)
+- **`test_discrete_enhanced`** (**GTest**) - Advanced statistical methods for discrete distributions
+
+#### Poisson Distribution
+- **`test_poisson_basic`** - Fundamental operations (PMF, CDF, quantiles, basic fitting, exact methods)
+- **`test_poisson_enhanced`** (**GTest**) - Advanced statistical methods for count data
 
 ### Additional Tests: Cross-cutting Concerns (4 tests)
 **Purpose**: Integration scenarios and cross-cutting functionality
@@ -126,10 +138,164 @@ The testing infrastructure was successfully consolidated from 30 to 27 tests:
 - Clear separation of concerns between basic and advanced functionality
 - Modern C++20 practices with proper GTest integration
 
+## Standardized Test Frameworks
+
+### Basic Test Framework (`basic_test_template.h`)
+
+#### Overview
+All basic distribution tests use a unified template system ensuring consistent coverage, output formatting, and user experience across all distributions.
+
+#### Framework Components
+
+**StandardizedBasicTest Class Provides:**
+- **Consistent Output Formatting**: Uniform headers, test start/success messages, completion messages
+- **Property Display**: Standardized formatting for numerical properties and results  
+- **Sample Display**: Consistent formatting for random samples and batch results
+- **Error Handling**: Uniform error message formatting
+- **Summary Generation**: Standardized test summaries with checkmarks
+- **Helper Functions**: Statistical validation, sample generation, utility methods
+
+#### Universal Test Structure
+
+Each basic test follows this standardized 7-10 test structure:
+
+1. **Safe Factory Method**: Test distribution creation and initial properties
+2. **PDF/PMF, CDF, and Quantile Functions**: Core probability functions
+3. **Random Sampling**: Single and batch sampling validation
+4. **Parameter Fitting**: MLE/Method of Moments parameter estimation
+5. **Batch Operations**: SIMD-optimized batch probability calculations
+6. **Large Batch SIMD Validation**: Performance and consistency verification
+7. **Error Handling**: Invalid parameter validation
+8. **Distribution-Specific Tests**: Unique features per distribution
+9. **Special Cases**: Edge cases and corner scenarios
+
+#### Distribution Coverage
+
+**✅ Gaussian Distribution**
+- Properties: Mean, variance, standard deviation, skewness, kurtosis
+- Sampling: Box-Muller algorithm validation
+- Fitting: Maximum Likelihood Estimation
+
+**✅ Exponential Distribution**
+- Properties: Lambda (rate), mean, variance, skewness, kurtosis
+- Sampling: Inverse transform method
+- Fitting: Maximum Likelihood Estimation
+
+**✅ Uniform Distribution**
+- Properties: Lower/upper bounds, mean, variance, skewness, kurtosis
+- Sampling: Direct transform method
+- Fitting: Method of moments (range estimation)
+
+**✅ Discrete Distribution**
+- Properties: Lower/upper bounds, range, mean, variance, skewness, kurtosis
+- Sampling: Single, batch, and integer sampling
+- Features: Support validation, outcome enumeration, binary distribution special case
+
+**✅ Poisson Distribution**
+- Properties: Lambda, mean, variance, skewness, kurtosis, mode
+- Sampling: Knuth's algorithm (small λ) and Atkinson algorithm (large λ)
+- Features: Normal approximation capability, integer sampling, exact methods
+
+#### Consistent Output Format
+
+All tests produce standardized output with:
+
+```
+Testing [Distribution]Distribution Implementation
+=================================================
+
+Test 1: Safe factory method
+✅ Safe factory creation successful
+[Property listings with consistent formatting]
+
+Test 2: PDF, CDF, and quantile functions
+[Function evaluations with standard precision]
+✅ Test passed successfully
+
+...
+
+🎉 All [Distribution]Distribution tests completed successfully!
+
+=== SUMMARY ===
+✓ Safe factory creation and error handling
+✓ All distribution properties (specific to distribution)
+✓ PDF, Log PDF, CDF, and quantile functions
+✓ Random sampling (algorithm-specific details)
+✓ Parameter fitting (method-specific details)
+✓ Batch operations with SIMD optimization
+✓ Large batch SIMD validation
+✓ [Distribution-specific features]
+```
+
+### Enhanced Test Framework (`enhanced_test_template.h`)
+
+#### Overview
+The enhanced tests utilize Google Test for comprehensive testing of advanced statistical functionality, performance benchmarks, and thread safety validation.
+
+#### Framework Components
+
+**StandardizedBenchmark Class:**
+- **Performance Measurement**: Standardized timing for SIMD, parallel, work-stealing, and cache-aware operations
+- **Speedup Analysis**: Automatic calculation and reporting of performance improvements
+- **Hardware Detection**: Thread count and capability reporting
+- **Results Formatting**: Professional tabular output with analysis
+
+**StatisticalTestUtils Class:**
+- **Sample Statistics**: Mean and variance calculation utilities
+- **Batch Correctness**: Verification that batch operations match individual calls
+- **Numerical Validation**: Tolerance-based equality checking
+- **Template Support**: Generic utilities for any distribution type
+
+**ThreadSafetyTester Class:**
+- **Multi-threaded Sampling**: Concurrent sampling validation across threads
+- **Race Condition Detection**: Ensures thread-safe operation
+- **Resource Validation**: Verifies proper resource management
+
+**EdgeCaseTester Class:**
+- **Extreme Value Handling**: Tests with very large/small input values
+- **Empty Batch Operations**: Validates graceful handling of edge cases
+- **Boundary Conditions**: Tests at distribution support boundaries
+
+#### Enhanced Test Structure
+
+Each enhanced test includes:
+
+1. **Test Fixtures**: Setup and teardown for consistent test environments
+2. **Basic Enhanced Functionality**: Core distribution properties and operations
+3. **Copy/Move Semantics**: Proper C++ object lifecycle management
+4. **Batch Operations**: Comprehensive SIMD and parallel validation
+5. **Performance Benchmarks**: Standardized performance measurement and reporting
+6. **Parallel Batch Performance**: Work-stealing and cache-aware optimization tests
+7. **Advanced Statistical Methods**: Cross-validation, bootstrap, confidence intervals
+8. **Goodness-of-Fit Tests**: Statistical validation (KS, Anderson-Darling, etc.)
+9. **Information Criteria**: AIC, BIC, AICc calculations
+10. **Thread Safety**: Multi-threaded operation validation
+11. **Edge Cases**: Extreme values and boundary condition testing
+12. **Numerical Stability**: Precision and accuracy validation
+
+#### Advanced Statistical Coverage
+
+**Statistical Methods Tested:**
+- **Cross-Validation**: K-fold and leave-one-out validation
+- **Bootstrap Methods**: Parameter confidence interval estimation
+- **Bayesian Estimation**: Prior/posterior analysis where applicable
+- **Hypothesis Testing**: Statistical significance testing
+- **Goodness-of-Fit**: Multiple statistical tests for distribution fitting
+- **Information Criteria**: Model selection metrics
+
+**Performance Analysis:**
+- **SIMD Optimization**: Batch operation speedup measurement
+- **Parallel Execution**: Multi-core performance scaling
+- **Work-Stealing**: Advanced parallel algorithm performance
+- **Cache-Aware**: Memory hierarchy optimization testing
+
 ### Performance Validation Results
 
 - **Gaussian SIMD**: >1.0x speedup confirmed for batch operations
 - **Exponential SIMD**: 6.7x speedup confirmed for batch operations  
+- **Uniform SIMD**: Excellent speedups for batch probability and cumulative calculations
+- **Discrete SIMD**: Consistent performance across integer operations
+- **Poisson SIMD**: Optimized performance for both small and large lambda values
 - **Mathematical functions**: 99.34% accuracy vs SciPy (151/152 tests pass)
 - **Thread safety**: Verified across all implementations
 - **Memory safety**: Comprehensive bounds checking and numerical stability

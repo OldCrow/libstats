@@ -1,5 +1,5 @@
 #include <iostream>
-#include "gaussian.h"
+#include "../include/distributions/gaussian.h"
 
 using namespace std;
 using namespace libstats;

@@ -1,4 +1,5 @@
-#include "../include/thread_pool.h"
+#include "../include/platform/thread_pool.h"
+#include "../include/platform/platform_constants.h"
 
 // Additional includes for integration
 #include <algorithm>
@@ -122,19 +123,19 @@ std::size_t ThreadPool::getOptimalThreadCount() noexcept {
     const auto& features = cpu::get_features();
     std::size_t threadCount = std::thread::hardware_concurrency();
     
-    if (threadCount == 0) {
-        return 4; // Fallback default
+    if (threadCount == constants::math::ZERO_INT) {
+        return constants::math::FOUR_INT; // Fallback default
     }
 
     // For CPU-intensive tasks, use physical cores if hyperthreading is available
     if (features.topology.hyperthreading) {
         const std::size_t physicalCores = features.topology.physical_cores;
-        if (physicalCores > 0) {
+        if (physicalCores > constants::math::ZERO_INT) {
             threadCount = physicalCores;
         }
     }
 
-    return std::max(threadCount, std::size_t{1});
+    return std::max(threadCount, std::size_t{constants::math::ONE_INT});
 }
 
 //========== ParallelUtils Implementation ==========

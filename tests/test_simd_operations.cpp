@@ -6,8 +6,8 @@
 #include <random>
 #include <algorithm>
 
-#include "simd.h"
-#include "cpu_detection.h"
+#include "../include/platform/simd.h"
+#include "../include/platform/cpu_detection.h"
 
 using namespace std;
 using namespace libstats;

@@ -1,13 +1,13 @@
 #ifndef LIBSTATS_UNIFORM_H_
 #define LIBSTATS_UNIFORM_H_
 
-#include "distribution_base.h"
-#include "constants.h"
-#include "error_handling.h" // Safe error handling without exceptions
-#include "parallel_execution.h" // For parallel batch operations
-#include "thread_pool.h"        // For thread pool integration
-#include "work_stealing_pool.h" // For work-stealing parallel execution
-#include "adaptive_cache.h"     // For cache-aware batch operations
+#include "../core/distribution_base.h"
+#include "../core/constants.h"
+#include "../core/error_handling.h" // Safe error handling without exceptions
+#include "../platform/parallel_execution.h" // For parallel batch operations
+#include "../platform/thread_pool.h"        // For thread pool integration
+#include "../platform/work_stealing_pool.h" // For work-stealing parallel execution
+#include "../platform/adaptive_cache.h"     // For cache-aware batch operations
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation
@@ -146,7 +146,7 @@ private:
     mutable double widthSquared_{constants::math::ONE};
     
     /** @brief Cached value of (b - a)²/12 for efficiency in variance calculations */
-    mutable double variance_{constants::math::ONE / 12.0};
+    mutable double variance_{constants::math::ONE_TWELFTH};
     
     //==========================================================================
     // ATOMIC PARAMETER COPIES (for lock-free access)
@@ -192,7 +192,7 @@ private:
         invWidth_ = constants::math::ONE / width_;
         midpoint_ = (a_ + b_) * constants::math::HALF;
         widthSquared_ = width_ * width_;
-        variance_ = widthSquared_ / 12.0;
+        variance_ = widthSquared_ * constants::math::ONE_TWELFTH;
         
         // Optimization flags
         isUnitInterval_ = (std::abs(a_ - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
@@ -797,6 +797,107 @@ public:
      */
     void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    //==========================================================================
+    // ADVANCED STATISTICAL METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Kolmogorov-Smirnov goodness-of-fit test
+     * 
+     * Tests the null hypothesis that data follows the specified Uniform distribution.
+     * 
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (KS_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+        const std::vector<double>& data,
+        const UniformDistribution& distribution,
+        double alpha = 0.05);
+    
+    /**
+     * @brief Anderson-Darling goodness-of-fit test
+     * 
+     * Tests the null hypothesis that data follows the specified Uniform distribution.
+     * More sensitive to deviations in the tails than KS test.
+     * 
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (AD_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> andersonDarlingTest(
+        const std::vector<double>& data,
+        const UniformDistribution& distribution,
+        double alpha = 0.05);
+    
+    //==========================================================================
+    // CROSS-VALIDATION AND MODEL SELECTION
+    //==========================================================================
+    
+    /**
+     * @brief K-fold cross-validation for parameter estimation
+     * 
+     * Performs k-fold cross-validation to assess parameter estimation quality
+     * and model stability. Splits data into k folds, trains on k-1 folds,
+     * and validates on the remaining fold.
+     * 
+     * @param data Sample data for cross-validation
+     * @param k Number of folds (default: 5)
+     * @param random_seed Seed for random fold assignment (default: 42)
+     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
+     */
+    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
+        const std::vector<double>& data,
+        int k = 5,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Leave-one-out cross-validation for parameter estimation
+     * 
+     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
+     * estimation quality. For each data point, trains on all other points
+     * and validates on the left-out point.
+     * 
+     * @param data Sample data for cross-validation
+     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
+     */
+    static std::tuple<double, double, double> leaveOneOutCrossValidation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     * 
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the distribution parameters (lower and upper bounds).
+     * 
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
+     */
+    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data,
+        double confidence_level = 0.95,
+        int n_bootstrap = 1000,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Model comparison using information criteria
+     * 
+     * Computes various information criteria (AIC, BIC, AICc) for model selection.
+     * Lower values indicate better model fit while penalizing complexity.
+     * 
+     * @param data Sample data used for fitting
+     * @param fitted_distribution The fitted Uniform distribution
+     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
+     */
+    static std::tuple<double, double, double, double> computeInformationCriteria(
+        const std::vector<double>& data,
+        const UniformDistribution& fitted_distribution);
 
 private:
     //==========================================================================

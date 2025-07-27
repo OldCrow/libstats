@@ -32,7 +32,7 @@ else()
     message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
 endif()
 
-project(libstats VERSION 0.4.0 LANGUAGES CXX)
+project(libstats VERSION 0.5.0 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
@@ -164,6 +164,12 @@ set(LIBSTATS_SOURCES
     # CPU detection with safe compilation (no advanced SIMD instructions)
     src/cpu_detection.cpp
     
+    # Parallel execution infrastructure
+    src/parallel_thresholds.cpp
+    
+    # Platform-specific optimization utilities
+    src/adaptive_cache.cpp
+    
     # Other library components
     src/gaussian.cpp
     src/thread_pool.cpp
@@ -177,7 +183,7 @@ set(LIBSTATS_SOURCES
     src/discrete.cpp
     src/uniform.cpp
     src/safety.cpp
-    # src/poisson.cpp       # TODO: implement poisson distribution
+    src/poisson.cpp
     # src/gamma.cpp         # TODO: implement gamma distribution
 )
 
@@ -604,6 +610,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_uniform_basic tests/test_uniform_basic.cpp)
     create_libstats_gtest(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
     
+    # poisson.h - Poisson distribution implementation
+    create_libstats_test(test_poisson_basic tests/test_poisson_basic.cpp)
+    create_libstats_gtest(test_poisson_enhanced tests/test_poisson_enhanced.cpp)
+    
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
@@ -687,6 +697,8 @@ if(LIBSTATS_BUILD_TESTS)
             test_atomic_parameters
             test_uniform_basic
             test_uniform_enhanced
+            test_poisson_basic
+            test_poisson_enhanced
             
             # Additional tests: Cross-cutting concerns
             test_dynamic_linking
@@ -710,33 +722,49 @@ endif()
 option(LIBSTATS_BUILD_TOOLS "Build utility tools" ON)
 
 if(LIBSTATS_BUILD_TOOLS)
-    # CPU capability test tool
-    add_executable(cpu_test tools/cpu_test.cpp)
-    target_link_libraries(cpu_test PRIVATE libstats_static)
-    target_include_directories(cpu_test PRIVATE 
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-    )
-    
-    # Apply same compiler flags as main library
-    if(APPLE)
-        target_compile_options(cpu_test PRIVATE -stdlib=libc++)
-        if(USING_HOMEBREW_LLVM)
-            target_link_options(cpu_test PRIVATE
-                -L${LLVM_ROOT}/lib/c++
-                -Wl,-rpath,${LLVM_ROOT}/lib/c++
-            )
+    # Helper function to create tool executables with consistent configuration
+    function(add_libstats_tool tool_name source_file)
+        add_executable(${tool_name} tools/${source_file})
+        target_link_libraries(${tool_name} PRIVATE libstats_static)
+        target_include_directories(${tool_name} PRIVATE 
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+        
+        # Apply same compiler flags as main library
+        if(APPLE)
+            target_compile_options(${tool_name} PRIVATE -stdlib=libc++)
+            if(USING_HOMEBREW_LLVM)
+                target_link_options(${tool_name} PRIVATE
+                    -L${LLVM_ROOT}/lib/c++
+                    -Wl,-rpath,${LLVM_ROOT}/lib/c++
+                )
+            endif()
         endif()
-    endif()
+        
+        # Add SIMD compile definitions
+        target_compile_definitions(${tool_name} PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+        
+        set_target_properties(${tool_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tools
+        )
+    endfunction()
     
-    # Add SIMD compile definitions
-    target_compile_definitions(cpu_test PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+    # System Information & Diagnostics Tools
+    add_libstats_tool(cpu_info cpu_info.cpp)
+    add_libstats_tool(constants_inspector constants_inspector.cpp)
     
-    set_target_properties(cpu_test PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tools
-    )
+    # Performance & Benchmarking Tools
+    add_libstats_tool(performance_benchmark performance_benchmark.cpp)
+    add_libstats_tool(parallel_threshold_benchmark parallel_threshold_benchmark.cpp)
+    add_libstats_tool(grain_size_optimizer grain_size_optimizer.cpp)
     
-    message(STATUS "Tools: CPU test utility enabled")
+    message(STATUS "Tools enabled:")
+    message(STATUS "  - cpu_info: System CPU capability detection")
+    message(STATUS "  - constants_inspector: Platform-specific constants analysis")
+    message(STATUS "  - performance_benchmark: Basic parallel operation benchmarks")
+    message(STATUS "  - parallel_threshold_benchmark: Distribution-specific threshold optimization")
+    message(STATUS "  - grain_size_optimizer: Comprehensive grain size optimization")
 endif()
 
 # Examples

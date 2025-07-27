@@ -3,7 +3,7 @@
  * @brief Basic usage example for libstats
  */
 
-#include "libstats.h"
+#include "../include/libstats.h"
 #include <iostream>
 #include <random>
 #include <iomanip>

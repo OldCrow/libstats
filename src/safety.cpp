@@ -1,4 +1,5 @@
-#include "safety.h"
+#include "../include/core/safety.h"
+#include "../include/core/constants.h"
 #include <algorithm>
 #include <cmath>
 
@@ -66,7 +67,7 @@ void vector_safe_log(std::span<const double> input, std::span<double> output) no
             // Apply per-element safe_log logic with SIMD
             for (std::size_t j = 0; j < simd_size; ++j) {
                 double value = chunk_input[j];
-                if (value <= 0.0 || std::isnan(value)) {
+                if (value <= constants::math::ZERO_DOUBLE || std::isnan(value)) {
                     chunk_output[j] = constants::probability::MIN_LOG_PROBABILITY;
                 } else if (std::isinf(value)) {
                     chunk_output[j] = std::numeric_limits<double>::max();
@@ -118,7 +119,7 @@ void vector_safe_exp(std::span<const double> input, std::span<double> output) no
             for (std::size_t j = 0; j < simd_size; ++j) {
                 double value = chunk_input[j];
                 if (std::isnan(value)) {
-                    chunk_output[j] = 0.0;
+                    chunk_output[j] = constants::math::ZERO_DOUBLE;
                 } else if (value < constants::probability::MIN_LOG_PROBABILITY) {
                     chunk_output[j] = constants::probability::MIN_PROBABILITY;
                 } else if (value > 700.0) {
@@ -170,8 +171,8 @@ void vector_safe_sqrt(std::span<const double> input, std::span<double> output) n
             // Apply per-element safe_sqrt logic with SIMD
             for (std::size_t j = 0; j < simd_size; ++j) {
                 double value = chunk_input[j];
-                if (std::isnan(value) || value < 0.0) {
-                    chunk_output[j] = 0.0;
+                if (std::isnan(value) || value < constants::math::ZERO_DOUBLE) {
+                    chunk_output[j] = constants::math::ZERO_DOUBLE;
                 } else if (std::isinf(value)) {
                     chunk_output[j] = std::numeric_limits<double>::max();
                 } else {
@@ -223,9 +224,9 @@ void vector_clamp_probability(std::span<const double> input, std::span<double> o
                 double prob = chunk_input[j];
                 if (std::isnan(prob)) {
                     chunk_output[j] = constants::probability::MIN_PROBABILITY;
-                } else if (prob <= 0.0) {
+                } else if (prob <= constants::math::ZERO_DOUBLE) {
                     chunk_output[j] = constants::probability::MIN_PROBABILITY;
-                } else if (prob >= 1.0) {
+                } else if (prob >= constants::math::ONE) {
                     chunk_output[j] = constants::probability::MAX_PROBABILITY;
                 } else {
                     chunk_output[j] = prob;
@@ -276,7 +277,7 @@ void vector_clamp_log_probability(std::span<const double> input, std::span<doubl
                 double log_prob = chunk_input[j];
                 if (std::isnan(log_prob)) {
                     chunk_output[j] = constants::probability::MIN_LOG_PROBABILITY;
-                } else if (log_prob > 0.0) {
+                } else if (log_prob > constants::math::ZERO_DOUBLE) {
                     chunk_output[j] = constants::probability::MAX_LOG_PROBABILITY;
                 } else if (log_prob < constants::probability::MIN_LOG_PROBABILITY) {
                     chunk_output[j] = constants::probability::MIN_LOG_PROBABILITY;

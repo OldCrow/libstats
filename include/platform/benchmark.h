@@ -10,13 +10,13 @@
 #include <iostream>
 
 // Level 0 infrastructure
-#include "constants.h"
+#include "../core/constants.h"
 #include "cpu_detection.h"
-#include "error_handling.h"
-#include "safety.h"
+#include "../core/error_handling.h"
+#include "../core/safety.h"
 
 // Level 1 infrastructure
-#include "math_utils.h"
+#include "../core/math_utils.h"
 
 namespace libstats {
 

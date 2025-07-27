@@ -128,39 +128,41 @@
  */
 
 // Core framework
-#include "distribution_base.h"
-#include "constants.h"
+#include "core/distribution_base.h"
+#include "core/constants.h"
 
 // Performance and SIMD support
-#include "simd.h"
-#include "cpu_detection.h"
+#include "platform/simd.h"
+#include "platform/cpu_detection.h"
 
 // Parallel execution support
-#include "parallel_execution.h"
+#include "platform/parallel_execution.h"
 
 // Advanced caching infrastructure
-#include "adaptive_cache.h"
+#include "platform/adaptive_cache.h"
 
 // Distributions
-#include "gaussian.h"
-#include "exponential.h"
-// #include "uniform.h"
-#include "poisson.h"
-#include "gamma.h"
+#include "distributions/gaussian.h"
+#include "distributions/exponential.h"
+#include "distributions/uniform.h"
+#include "distributions/poisson.h"
+#include "distributions/gamma.h"
+#include "distributions/discrete.h"
 
 // Convenience namespace
 namespace libstats {
     // Type aliases for common usage
     using Gaussian = GaussianDistribution;
-using Normal = GaussianDistribution;
-using Exponential = ExponentialDistribution;
-// using Uniform = UniformDistribution;
-using Poisson = PoissonDistribution;
+    using Normal = GaussianDistribution;
+    using Exponential = ExponentialDistribution;
+    using Uniform = UniformDistribution;
+    using Poisson = PoissonDistribution;
     using Gamma = GammaDistribution;
+    using Discrete = DiscreteDistribution;
     
     // Version information
     constexpr int VERSION_MAJOR = 0;
-    constexpr int VERSION_MINOR = 2;
+    constexpr int VERSION_MINOR = 5;
     constexpr int VERSION_PATCH = 0;
-    constexpr const char* VERSION_STRING = "0.2.0";
+    constexpr const char* VERSION_STRING = "0.5.0";
 }

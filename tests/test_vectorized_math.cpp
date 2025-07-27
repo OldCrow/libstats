@@ -4,7 +4,7 @@
 #include <random>
 #include <chrono>
 #include <cassert>
-#include "math_utils.h"
+#include "../include/core/math_utils.h"
 
 using namespace std;
 using namespace libstats::math;

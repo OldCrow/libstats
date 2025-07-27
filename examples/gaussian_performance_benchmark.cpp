@@ -17,10 +17,10 @@
  * @version 1.0.0
  */
 
-#include "../include/gaussian.h"
-#include "../include/benchmark.h"
-#include "../include/adaptive_cache.h"
-#include "../include/work_stealing_pool.h"
+#include "../include/distributions/gaussian.h"
+#include "../include/platform/benchmark.h"
+#include "../include/platform/adaptive_cache.h"
+#include "../include/platform/work_stealing_pool.h"
 #include <iostream>
 #include <vector>
 #include <random>

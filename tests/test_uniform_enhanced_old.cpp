@@ -17,9 +17,9 @@
 #include <chrono>
 #include <numeric>
 #include <future>
-#include "../include/uniform.h"
-#include "../include/constants.h"
-#include "../include/cpu_detection.h"
+#include "../include/distributions/uniform.h"
+#include "../include/core/constants.h"
+#include "../include/platform/cpu_detection.h"
 
 // Test configuration
 constexpr size_t BATCH_SIZE = 1000;

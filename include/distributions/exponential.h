@@ -1,13 +1,13 @@
 #ifndef LIBSTATS_EXPONENTIAL_H_
 #define LIBSTATS_EXPONENTIAL_H_
 
-#include "distribution_base.h"
-#include "constants.h"
-#include "simd.h" // Ensure SIMD operations are available
-#include "error_handling.h" // Safe error handling without exceptions
-#include "adaptive_cache.h" // For adaptive cache integration
-#include "parallel_execution.h" // For parallel execution policies
-#include "work_stealing_pool.h" // For WorkStealingPool
+#include "../core/distribution_base.h"
+#include "../core/constants.h"
+#include "../platform/simd.h" // Ensure SIMD operations are available
+#include "../core/error_handling.h" // Safe error handling without exceptions
+#include "../platform/adaptive_cache.h" // For adaptive cache integration
+#include "../platform/parallel_execution.h" // For parallel execution policies
+#include "../platform/work_stealing_pool.h" // For WorkStealingPool
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation

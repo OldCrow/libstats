@@ -10,7 +10,7 @@
  * - Performance testing with non-normal data
  */
 
-#include "../include/gaussian.h"
+#include "../include/distributions/gaussian.h"
 #include <iostream>
 #include <vector>
 #include <random>

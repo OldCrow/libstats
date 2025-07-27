@@ -1,12 +1,17 @@
 #ifndef LIBSTATS_POISSON_H_
 #define LIBSTATS_POISSON_H_
 
-#include "distribution_base.h"
-#include "constants.h"
-#include "error_handling.h" // Safe error handling without exceptions
+#include "../core/distribution_base.h"
+#include "../core/constants.h"
+#include "../core/error_handling.h" // Safe error handling without exceptions
+#include "../platform/work_stealing_pool.h" // For parallel work-stealing operations
+#include "../platform/adaptive_cache.h" // For cache-aware operations
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation
+#include <span>        // For std::span interface in parallel operations
+#include <tuple>       // For statistical test results
+#include <vector>      // For batch operations and data handling
 
 namespace libstats {
 
@@ -214,14 +219,14 @@ private:
         invLambda_ = constants::math::ONE / lambda_;
         
         // Stirling's approximation for log(Γ(λ+1)) = log(λ!)
-        logGammaLambdaPlus1_ = std::lgamma(lambda_ + 1.0);
+        logGammaLambdaPlus1_ = std::lgamma(lambda_ + constants::math::ONE);
         
         // Optimization flags
-        isSmallLambda_ = (lambda_ < 10.0);
-        isLargeLambda_ = (lambda_ > 100.0);
-        isVeryLargeLambda_ = (lambda_ > 1000.0);
+        isSmallLambda_ = (lambda_ < constants::math::poisson::SMALL_LAMBDA_THRESHOLD);
+        isLargeLambda_ = (lambda_ > constants::math::HUNDRED);
+        isVeryLargeLambda_ = (lambda_ > constants::math::THOUSAND);
         isIntegerLambda_ = (std::abs(lambda_ - std::round(lambda_)) <= constants::precision::DEFAULT_TOLERANCE);
-        isTinyLambda_ = (lambda_ < 0.1);
+        isTinyLambda_ = (lambda_ < constants::math::TENTH);
         
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
@@ -287,7 +292,7 @@ public:
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    PoissonDistribution& operator=(PoissonDistribution&& other);
+    PoissonDistribution& operator=(PoissonDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five
@@ -324,7 +329,7 @@ public:
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<PoissonDistribution> create(double lambda = 1.0) noexcept {
+    [[nodiscard]] static Result<PoissonDistribution> create(double lambda = constants::math::ONE) noexcept {
         auto validation = validatePoissonParameters(lambda);
         if (validation.isError()) {
             return Result<PoissonDistribution>::makeError(validation.error_code, validation.message);
@@ -588,6 +593,118 @@ public:
     bool operator!=(const PoissonDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
+    // PARALLEL BATCH OPERATIONS
+    //==========================================================================
+    
+    /**
+     * @brief Parallel batch PDF computation using std::span interface
+     * 
+     * Computes probabilities for multiple values using parallel processing.
+     * Automatically chooses optimal parallelization strategy based on input size.
+     * 
+     * @param input_values Input values (std::span for zero-copy)
+     * @param output_results Output probabilities (std::span for zero-copy)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchParallel(std::span<const double> input_values, 
+                                   std::span<double> output_results) const;
+    
+    /**
+     * @brief Parallel batch log-PDF computation using std::span interface
+     * 
+     * @param input_values Input values (std::span for zero-copy)
+     * @param output_results Output log-probabilities (std::span for zero-copy)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchParallel(std::span<const double> input_values, 
+                                      std::span<double> output_results) const;
+    
+    /**
+     * @brief Parallel batch CDF computation using std::span interface
+     * 
+     * @param input_values Input values (std::span for zero-copy)
+     * @param output_results Output cumulative probabilities (std::span for zero-copy)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchParallel(std::span<const double> input_values, 
+                                             std::span<double> output_results) const;
+    
+    /**
+     * @brief Work-stealing parallel batch PDF computation
+     * 
+     * Uses work-stealing thread pool for dynamic load balancing across threads.
+     * Optimal for irregular computational loads or NUMA architectures.
+     * 
+     * @param input_values Input values
+     * @param output_results Output probabilities
+     * @param pool Work-stealing thread pool
+     */
+    void getProbabilityBatchWorkStealing(std::span<const double> input_values,
+                                       std::span<double> output_results,
+                                       WorkStealingPool& pool) const;
+    
+    /**
+     * @brief Work-stealing parallel batch log-PDF computation
+     * 
+     * @param input_values Input values
+     * @param output_results Output log-probabilities  
+     * @param pool Work-stealing thread pool
+     */
+    void getLogProbabilityBatchWorkStealing(std::span<const double> input_values,
+                                          std::span<double> output_results,
+                                          WorkStealingPool& pool) const;
+    
+    /**
+     * @brief Work-stealing parallel batch CDF computation
+     * 
+     * @param input_values Input values
+     * @param output_results Output cumulative probabilities
+     * @param pool Work-stealing thread pool
+     */
+    void getCumulativeProbabilityBatchWorkStealing(std::span<const double> input_values,
+                                                  std::span<double> output_results,
+                                                  WorkStealingPool& pool) const;
+    
+    /**
+     * @brief Cache-aware parallel batch PDF computation
+     * 
+     * Uses adaptive caching to minimize redundant computations for repeated values.
+     * Optimal for datasets with many duplicate or similar values.
+     * 
+     * @param input_values Input values
+     * @param output_results Output probabilities
+     * @param cache_manager Adaptive cache for memoization
+     */
+    template<typename KeyType, typename ValueType>
+    void getProbabilityBatchCacheAware(std::span<const double> input_values,
+                                     std::span<double> output_results,
+                                     cache::AdaptiveCache<KeyType, ValueType>& cache_manager) const;
+    
+    /**
+     * @brief Cache-aware parallel batch log-PDF computation
+     * 
+     * @param input_values Input values
+     * @param output_results Output log-probabilities
+     * @param cache_manager Adaptive cache for memoization
+     */
+    template<typename KeyType, typename ValueType>
+    void getLogProbabilityBatchCacheAware(std::span<const double> input_values,
+                                        std::span<double> output_results,
+                                        cache::AdaptiveCache<KeyType, ValueType>& cache_manager) const;
+    
+    /**
+     * @brief Cache-aware parallel batch CDF computation
+     * 
+     * @param input_values Input values
+     * @param output_results Output cumulative probabilities
+     * @param cache_manager Adaptive cache for memoization
+     */
+    template<typename KeyType, typename ValueType>
+    void getCumulativeProbabilityBatchCacheAware(std::span<const double> input_values,
+                                                std::span<double> output_results,
+                                                cache::AdaptiveCache<KeyType, ValueType>& cache_manager) const;
+    
+    //==========================================================================
     // SIMD BATCH OPERATIONS
     //==========================================================================
     
@@ -684,6 +801,164 @@ public:
      * @return true if normal approximation is accurate
      */
     [[nodiscard]] bool canUseNormalApproximation() const noexcept;
+    
+    //==========================================================================
+    // ADVANCED STATISTICAL METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Compute confidence interval for rate parameter λ
+     * 
+     * Uses exact method based on the relationship between Poisson and Chi-square distributions.
+     * For observed count data, constructs confidence interval for the underlying rate parameter.
+     * 
+     * @param data Vector of observed count data
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @return Pair of (lower_bound, upper_bound) for λ
+     * @throws std::invalid_argument if confidence_level not in (0,1) or data empty
+     */
+    [[nodiscard]] static std::pair<double, double> confidenceIntervalRate(
+        const std::vector<double>& data, double confidence_level = 0.95);
+    
+    /**
+     * @brief Likelihood ratio test for rate parameter
+     * 
+     * Tests H0: λ = λ0 vs H1: λ ≠ λ0 using likelihood ratio statistic.
+     * 
+     * @param data Vector of observed count data
+     * @param lambda0 Null hypothesis value for λ
+     * @param significance_level Significance level for test
+     * @return Tuple of (test_statistic, p_value, reject_null)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
+        const std::vector<double>& data, double lambda0, double significance_level = 0.05);
+    
+    /**
+     * @brief Method of moments estimation
+     * 
+     * For Poisson distribution, method of moments estimator is simply the sample mean.
+     * Included for completeness and consistency with other distributions.
+     * 
+     * @param data Vector of observed count data
+     * @return Estimated λ parameter (sample mean)
+     * @throws std::invalid_argument if data is empty
+     */
+    [[nodiscard]] static double methodOfMomentsEstimation(const std::vector<double>& data);
+    
+    /**
+     * @brief Bayesian estimation with conjugate Gamma prior
+     * 
+     * Uses Gamma(α, β) prior for λ. Posterior is Gamma(α + Σx_i, β + n).
+     * Returns posterior parameters for the conjugate Gamma distribution.
+     * 
+     * @param data Vector of observed count data
+     * @param prior_shape Prior shape parameter α (default: 1.0)
+     * @param prior_rate Prior rate parameter β (default: 1.0)
+     * @return Pair of (posterior_shape, posterior_rate)
+     */
+    [[nodiscard]] static std::pair<double, double> bayesianEstimation(
+        const std::vector<double>& data, double prior_shape = 1.0, double prior_rate = 1.0);
+    
+    //==========================================================================
+    // GOODNESS-OF-FIT TESTS
+    //==========================================================================
+    
+    /**
+     * @brief Chi-square goodness-of-fit test for Poisson distribution
+     * 
+     * Tests whether observed data follows the specified Poisson distribution.
+     * Groups rare events to ensure expected frequencies ≥ 5 for valid chi-square test.
+     * 
+     * @param data Vector of observed count data
+     * @param distribution Hypothesized Poisson distribution
+     * @param significance_level Significance level for test
+     * @return Tuple of (chi_square_statistic, p_value, reject_null)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> chiSquareGoodnessOfFit(
+        const std::vector<double>& data, const PoissonDistribution& distribution, 
+        double significance_level = 0.05);
+    
+    /**
+     * @brief Kolmogorov-Smirnov test adapted for discrete distributions
+     * 
+     * Tests goodness-of-fit using the maximum difference between empirical
+     * and theoretical CDFs, with adjustments for discrete distributions.
+     * 
+     * @param data Vector of observed count data
+     * @param distribution Hypothesized Poisson distribution
+     * @param significance_level Significance level for test
+     * @return Tuple of (ks_statistic, p_value, reject_null)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+        const std::vector<double>& data, const PoissonDistribution& distribution,
+        double significance_level = 0.05);
+    
+    //==========================================================================
+    // CROSS-VALIDATION METHODS
+    //==========================================================================
+    
+    /**
+     * @brief K-fold cross-validation for model assessment
+     * 
+     * Splits data into k folds, fits Poisson distribution to k-1 folds,
+     * and evaluates on the remaining fold. Reports performance metrics.
+     * 
+     * @param data Vector of observed count data
+     * @param k Number of folds (default: 5)
+     * @param random_seed Seed for random fold assignment
+     * @return Vector of (mae, rmse, log_likelihood) for each fold
+     */
+    [[nodiscard]] static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
+        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
+    
+    /**
+     * @brief Leave-one-out cross-validation
+     * 
+     * Fits Poisson distribution to n-1 data points and evaluates on the left-out point.
+     * Repeats for all data points and reports aggregate metrics.
+     * 
+     * @param data Vector of observed count data
+     * @return Tuple of (mean_absolute_error, rmse, total_log_likelihood)
+     */
+    [[nodiscard]] static std::tuple<double, double, double> leaveOneOutCrossValidation(
+        const std::vector<double>& data);
+    
+    //==========================================================================
+    // INFORMATION CRITERIA
+    //==========================================================================
+    
+    /**
+     * @brief Compute information criteria for model selection
+     * 
+     * Calculates AIC, BIC, and AICc for the fitted Poisson distribution.
+     * Lower values indicate better model fit with appropriate complexity penalty.
+     * 
+     * @param data Vector of observed count data
+     * @param distribution Fitted Poisson distribution
+     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
+     */
+    [[nodiscard]] static std::tuple<double, double, double, double> computeInformationCriteria(
+        const std::vector<double>& data, const PoissonDistribution& distribution);
+    
+    //==========================================================================
+    // BOOTSTRAP METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Bootstrap confidence intervals for parameter λ
+     * 
+     * Uses bootstrap resampling to construct confidence intervals for the rate parameter.
+     * More robust than asymptotic methods for small sample sizes.
+     * 
+     * @param data Vector of observed count data
+     * @param confidence_level Confidence level (e.g., 0.95)
+     * @param num_bootstrap_samples Number of bootstrap samples
+     * @param random_seed Seed for reproducible results
+     * @return Confidence interval (lower_bound, upper_bound) for λ
+     */
+    [[nodiscard]] static std::pair<double, double> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data, double confidence_level = 0.95,
+        int num_bootstrap_samples = 1000, unsigned int random_seed = 42);
 
 private:
     //==========================================================================

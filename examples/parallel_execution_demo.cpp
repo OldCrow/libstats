@@ -15,7 +15,7 @@
 #include <iomanip>
 #include <random>
 
-#include "libstats.h"
+#include "../include/libstats.h"
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;
@@ -69,7 +69,7 @@ void demonstrate_adaptive_grain_sizing() {
     }
     
     std::cout << "\nBase grain size: " << libstats::parallel::get_optimal_grain_size() << " elements" << std::endl;
-    std::cout << "Parallel threshold: " << libstats::parallel::get_optimal_parallel_threshold() << " elements" << std::endl;
+    std::cout << "Parallel threshold: " << libstats::parallel::get_optimal_parallel_threshold("gaussian", "pdf") << " elements" << std::endl;
 }
 
 void demonstrate_thread_optimization() {

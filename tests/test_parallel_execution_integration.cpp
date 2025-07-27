@@ -5,7 +5,7 @@
 #include <numeric>
 
 // Test integration with main header
-#include "libstats.h"
+#include "../include/libstats.h"
 
 int main() {
     std::cout << "=== Testing parallel_execution.h Integration ===" << std::endl;
@@ -17,7 +17,7 @@ int main() {
     
     // Test 2: CPU-aware threshold detection
     std::cout << "Test 2: CPU-aware threshold detection - ";
-    std::size_t optimal_threshold = libstats::parallel::get_optimal_parallel_threshold();
+    std::size_t optimal_threshold = libstats::parallel::get_optimal_parallel_threshold("gaussian", "pdf");
     std::size_t optimal_grain = libstats::parallel::get_optimal_grain_size();
     std::cout << "Threshold: " << optimal_threshold << ", Grain: " << optimal_grain << std::endl;
     

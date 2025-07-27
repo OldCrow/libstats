@@ -16,12 +16,13 @@
 #include <optional>
 
 // Level 0-2 Infrastructure Integration
-#include "constants.h"
+#include "../core/constants.h"
+#include "platform_constants.h"
 #include "cpu_detection.h"
-#include "error_handling.h"
-#include "safety.h"
+#include "../core/error_handling.h"
+#include "../core/safety.h"
 #include "simd.h"
-#include "math_utils.h"
+#include "../core/math_utils.h"
 
 namespace libstats {
 

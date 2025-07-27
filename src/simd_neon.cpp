@@ -15,9 +15,10 @@
     #endif
 #endif
 
-#include "../include/simd.h"
-#include "../include/cpu_detection.h"
-#include "../include/constants.h"
+#include "../include/platform/simd.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/core/constants.h"
+#include "../include/platform/platform_constants.h"
 
 // Only include NEON intrinsics on ARM platforms
 #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)

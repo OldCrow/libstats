@@ -1,5 +1,6 @@
-#include "validation.h"
-#include "distribution_base.h"
+#include "../include/core/validation.h"
+#include "../include/core/constants.h"
+#include "../include/core/distribution_base.h"
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -56,11 +57,11 @@ namespace {
      */
 [[maybe_unused]] double chi_squared_critical_value(int df, double alpha) {
     // Wilson-Hilferty approximation for chi-squared distribution
-    if (df <= 0) return 0.0;
+    if (df <= 0) return constants::math::ZERO_DOUBLE;
     
     // For common significance levels, use lookup tables
     // Critical values for α = 0.05 (5% significance level)
-    if (alpha == 0.05) {
+    if (alpha == constants::statistical::thresholds::ALPHA_05) {
         if (df == 1) return 3.841;  // χ²(1,0.05) = 3.841
         if (df == 2) return 5.991;  // χ²(2,0.05) = 5.991
         if (df == 3) return 7.815;  // χ²(3,0.05) = 7.815
@@ -69,9 +70,9 @@ namespace {
     }
     
     // Wilson-Hilferty approximation for general case
-    const double h = 2.0 / (9.0 * df);
-    const double z_alpha = (alpha == 0.05) ? 1.645 : 1.96; // approximate normal quantile
-    const double term = 1.0 - h + z_alpha * std::sqrt(h);
+    const double h = constants::math::TWO / (9.0 * df);
+    const double z_alpha = (alpha == constants::statistical::thresholds::ALPHA_05) ? 1.645 : 1.96; // approximate normal quantile
+    const double term = constants::math::ONE - h + z_alpha * std::sqrt(h);
     return df * std::pow(term, 3);
 }
     
@@ -153,19 +154,19 @@ namespace {
      * @return Lower incomplete gamma function value
      */
     double lower_incomplete_gamma(double s, double x) {
-        if (s <= 0 || x < 0) return 0.0;
-        if (x == 0) return 0.0;
+        if (s <= constants::math::ZERO_DOUBLE || x < constants::math::ZERO_DOUBLE) return constants::math::ZERO_DOUBLE;
+        if (x == constants::math::ZERO_DOUBLE) return constants::math::ZERO_DOUBLE;
         
         const double eps = 1e-12;
         const int max_iter = 1000;
         
-        if (x < s + 1.0) {
+        if (x < s + constants::math::ONE) {
             // Use series expansion
-            double sum = 1.0;
-            double term = 1.0;
+            double sum = constants::math::ONE;
+            double term = constants::math::ONE;
             
             for (int n = 1; n < max_iter; ++n) {
-                term *= x / (s + n - 1);
+                term *= x / (s + n - constants::math::ONE);
                 sum += term;
                 if (std::abs(term) < eps * std::abs(sum)) break;
             }

@@ -5,9 +5,9 @@
 #include <cmath>
 
 // Include only Gaussian header for now
-#include "gaussian.h"
-#include "cpu_detection.h"
-#include "simd.h"
+#include "../include/distributions/gaussian.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/platform/simd.h"
 
 /**
  * @brief Test program demonstrating the integration of compile-time and runtime SIMD detection

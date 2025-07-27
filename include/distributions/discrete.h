@@ -1,13 +1,13 @@
 #ifndef LIBSTATS_DISCRETE_H_
 #define LIBSTATS_DISCRETE_H_
 
-#include "distribution_base.h"
-#include "constants.h"
-#include "error_handling.h" // Safe error handling without exceptions
-#include "parallel_execution.h" // Level 0-3 parallel execution support
-#include "thread_pool.h" // Level 0-3 ParallelUtils integration
-#include "work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
-#include "adaptive_cache.h" // Level 0-3 adaptive cache management
+#include "../core/distribution_base.h"
+#include "../core/constants.h"
+#include "../core/error_handling.h" // Safe error handling without exceptions
+#include "../platform/parallel_execution.h" // Level 0-3 parallel execution support
+#include "../platform/thread_pool.h" // Level 0-3 ParallelUtils integration
+#include "../platform/work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
+#include "../platform/adaptive_cache.h" // Level 0-3 adaptive cache management
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation
@@ -843,6 +843,106 @@ public:
      * @warning Only call for small ranges to avoid memory issues
      */
     [[nodiscard]] std::vector<int> getAllOutcomes() const;
+
+    //==========================================================================
+    // ADVANCED STATISTICAL METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Chi-squared goodness-of-fit test for discrete distributions
+     * 
+     * Tests the null hypothesis that observed data follows the specified discrete distribution.
+     * Particularly appropriate for discrete distributions.
+     * 
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (chi_squared_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> chiSquaredGoodnessOfFitTest(
+        const std::vector<double>& data,
+        const DiscreteDistribution& distribution,
+        double alpha = 0.05);
+    
+    /**
+     * @brief Kolmogorov-Smirnov goodness-of-fit test
+     * 
+     * Tests the null hypothesis that data follows the specified discrete distribution.
+     * Note: KS test is generally less appropriate for discrete data than chi-squared.
+     * 
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (KS_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+        const std::vector<double>& data,
+        const DiscreteDistribution& distribution,
+        double alpha = 0.05);
+    
+    //==========================================================================
+    // CROSS-VALIDATION AND MODEL SELECTION
+    //==========================================================================
+    
+    /**
+     * @brief K-fold cross-validation for parameter estimation
+     * 
+     * Performs k-fold cross-validation to assess parameter estimation quality
+     * and model stability for discrete distributions.
+     * 
+     * @param data Sample data for cross-validation
+     * @param k Number of folds (default: 5)
+     * @param random_seed Seed for random fold assignment (default: 42)
+     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
+     */
+    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
+        const std::vector<double>& data,
+        int k = 5,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Leave-one-out cross-validation for parameter estimation
+     * 
+     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
+     * estimation quality for discrete distributions.
+     * 
+     * @param data Sample data for cross-validation
+     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
+     */
+    static std::tuple<double, double, double> leaveOneOutCrossValidation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     * 
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the discrete distribution parameters (lower and upper bounds).
+     * 
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Tuple of ((lower_bound_CI_lower, lower_bound_CI_upper), (upper_bound_CI_lower, upper_bound_CI_upper))
+     */
+    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data,
+        double confidence_level = 0.95,
+        int n_bootstrap = 1000,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Model comparison using information criteria
+     * 
+     * Computes various information criteria (AIC, BIC, AICc) for model selection.
+     * Lower values indicate better model fit while penalizing complexity.
+     * 
+     * @param data Sample data used for fitting
+     * @param fitted_distribution The fitted discrete distribution
+     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
+     */
+    static std::tuple<double, double, double, double> computeInformationCriteria(
+        const std::vector<double>& data,
+        const DiscreteDistribution& fitted_distribution);
 
 private:
     //==========================================================================
