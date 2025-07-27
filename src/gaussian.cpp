@@ -651,7 +651,7 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
     }
     
     // Check minimum data points for reliable fitting
-    if (values.size() < constants::statistical::thresholds::MIN_DATA_POINTS_FOR_FITTING) {
+    if (values.size() < constants::thresholds::MIN_DATA_POINTS_FOR_FITTING) {
         throw std::invalid_argument("Insufficient data points for reliable Gaussian fitting");
     }
     
@@ -1699,7 +1699,7 @@ std::pair<double, double> GaussianDistribution::robustEstimation(
     
     // Convert MAD to robust scale estimate
     double robust_location = median;
-    double robust_scale = mad * constants::statistical::robust::MAD_SCALING_FACTOR; // Use named constant instead of 1.4826
+    double robust_scale = mad * constants::robust::MAD_SCALING_FACTOR; // Use named constant instead of 1.4826
     
     // Iterative M-estimation
     const int max_iterations = 50;
@@ -1900,7 +1900,7 @@ std::tuple<double, double, bool> GaussianDistribution::jarqueBeraTest(
     m4 /= n;
     
     const double skewness = m3 / std::pow(m2, 1.5);
-    const double kurtosis = m4 / (m2 * m2) - constants::statistical::thresholds::EXCESS_KURTOSIS_OFFSET; // Excess kurtosis
+    const double kurtosis = m4 / (m2 * m2) - constants::thresholds::EXCESS_KURTOSIS_OFFSET; // Excess kurtosis
     
     // Jarque-Bera statistic
     const double jb_statistic = n * (skewness * skewness / constants::math::SIX + kurtosis * kurtosis / constants::math::TWO_TWENTY_FIVE);

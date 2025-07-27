@@ -839,6 +839,46 @@ bool validate_feature_consistency() {
     return true;
 }
 
+// Intel CPU generation detection functions
+bool is_sandy_ivy_bridge() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 42 || features.model == 58);  // Sandy Bridge: 42, Ivy Bridge: 58
+}
+
+bool is_haswell_broadwell() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 60 || features.model == 61    // Haswell: 60, Broadwell: 61
+            || features.model == 69 || features.model == 70  // Haswell-ULT: 69, Haswell-GT3e: 70
+            || features.model == 71);                        // Broadwell-GT3e: 71
+}
+
+bool is_skylake_generation() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 78 || features.model == 94);  // Skylake-U/Y: 78, Skylake-S/H: 94
+}
+
+bool is_kaby_coffee_lake() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 142 || features.model == 158  // Kaby Lake-U/Y: 142, Coffee Lake-S: 158
+            || features.model == 165 || features.model == 166); // Coffee Lake-H: 165, Cannon Lake: 166
+}
+
+bool is_modern_intel() {
+    const Features& features = get_features();
+    // Modern Intel includes Ice Lake (2019+) with AVX-512 or newer architectures
+    return features.vendor == "GenuineIntel" 
+        && (features.avx512f  // Any CPU with AVX-512 is modern
+            || (features.family == 6 && features.model >= 125)); // Ice Lake and newer models
+}
+
 } // namespace cpu
 } // namespace libstats
 

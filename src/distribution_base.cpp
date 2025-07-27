@@ -2,7 +2,7 @@
 #include "../include/core/constants.h"
 #include "../include/core/math_utils.h"
 #include "../include/core/safety.h"
-#include "../include/platform/parallel_execution.h"  // Add parallel execution support
+#include "../include/platform/parallel_execution.h"
 #include <algorithm>
 #include <numeric>
 #include <cmath>
@@ -15,21 +15,20 @@ namespace libstats {
 // RULE OF FIVE IMPLEMENTATION
 // =============================================================================
 
-DistributionBase::DistributionBase(const DistributionBase& /* other */) 
-    : cache_valid_(false) {
+DistributionBase::DistributionBase(const DistributionBase& /* other */) {
     // Copy constructor - deliberately do not copy cache state
     // Each instance maintains its own cache that must be recomputed
 }
 
-DistributionBase::DistributionBase(DistributionBase&& /* other */) noexcept
-    : cache_valid_(false) {
+DistributionBase::DistributionBase(DistributionBase&& /* other */) noexcept {
     // Move constructor - deliberately do not move cache state
     // Moving is complete, but cache must be recomputed for safety
 }
 
 DistributionBase& DistributionBase::operator=(const DistributionBase& other) {
     if (this != &other) {
-        // Copy assignment - invalidate cache as parameters may have changed
+        // Copy assignment - don't copy cache state, each instance manages its own cache
+        // The mutex and cache are not copyable, so we just invalidate our cache
         invalidateCache();
     }
     return *this;
@@ -37,30 +36,11 @@ DistributionBase& DistributionBase::operator=(const DistributionBase& other) {
 
 DistributionBase& DistributionBase::operator=(DistributionBase&& other) noexcept {
     if (this != &other) {
-        // Move assignment - invalidate cache as parameters may have changed
+        // Move assignment - don't move cache state, each instance manages its own cache
+        // The mutex and cache are not movable, so we just invalidate our cache
         invalidateCache();
     }
     return *this;
-}
-
-// =============================================================================
-// CORE PROBABILITY INTERFACE - DEFAULT IMPLEMENTATIONS
-// =============================================================================
-
-double DistributionBase::getLogProbability(double x) const {
-    double prob = getProbability(x);
-    return safety::safe_log(prob);
-}
-
-std::vector<double> DistributionBase::sample(std::mt19937& rng, size_t n) const {
-    std::vector<double> samples;
-    samples.reserve(n);
-    
-    for (size_t i = 0; i < n; ++i) {
-        samples.push_back(sample(rng));
-    }
-    
-    return samples;
 }
 
 // =============================================================================
@@ -118,7 +98,7 @@ std::vector<double> DistributionBase::getBatchQuantiles(const std::vector<double
 // STATISTICAL VALIDATION AND DIAGNOSTICS
 // =============================================================================
 
-DistributionBase::FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data) {
+FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data) {
     FitResults results;
     
     // Validate input data
@@ -179,7 +159,7 @@ DistributionBase::FitResults DistributionBase::fitWithDiagnostics(const std::vec
     return results;
 }
 
-DistributionBase::ValidationResult DistributionBase::validate(const std::vector<double>& data) const {
+ValidationResult DistributionBase::validate(const std::vector<double>& data) const {
     ValidationResult result;
     
     try {
@@ -190,7 +170,7 @@ DistributionBase::ValidationResult DistributionBase::validate(const std::vector<
         
         // Simple p-value approximation for KS test
         double n = static_cast<double>(data.size());
-        double lambda = (std::sqrt(n) + constants::statistical::thresholds::KS_APPROX_COEFF_1 + constants::statistical::thresholds::KS_APPROX_COEFF_2 / std::sqrt(n)) * result.ks_statistic;
+        double lambda = (std::sqrt(n) + constants::thresholds::KS_APPROX_COEFF_1 + constants::thresholds::KS_APPROX_COEFF_2 / std::sqrt(n)) * result.ks_statistic;
         result.ks_p_value = constants::math::TWO * std::exp(constants::math::NEG_TWO * lambda * lambda);
         result.ks_p_value = safety::clamp_probability(result.ks_p_value);
         
@@ -199,27 +179,27 @@ DistributionBase::ValidationResult DistributionBase::validate(const std::vector<
         
         // Simple p-value approximation for AD test
         // This is a simplified approximation - in practice, you'd use lookup tables
-        if (result.ad_statistic < constants::statistical::thresholds::AD_THRESHOLD_1) {
-            result.ad_p_value = constants::statistical::thresholds::AD_P_VALUE_HIGH;
+        if (result.ad_statistic < constants::thresholds::AD_THRESHOLD_1) {
+            result.ad_p_value = constants::thresholds::AD_P_VALUE_HIGH;
         } else if (result.ad_statistic < constants::math::ONE) {
-            result.ad_p_value = constants::statistical::thresholds::AD_P_VALUE_MEDIUM;
+            result.ad_p_value = constants::thresholds::AD_P_VALUE_MEDIUM;
         } else if (result.ad_statistic < constants::math::TWO) {
-            result.ad_p_value = constants::statistical::thresholds::ALPHA_10;
+            result.ad_p_value = constants::thresholds::ALPHA_10;
         } else {
-            result.ad_p_value = constants::statistical::thresholds::ALPHA_01;
+            result.ad_p_value = constants::thresholds::ALPHA_01;
         }
         
         // Overall assessment
-        result.distribution_adequate = (result.ks_p_value > constants::statistical::thresholds::ALPHA_05) && (result.ad_p_value > constants::statistical::thresholds::ALPHA_05);
+        result.distribution_adequate = (result.ks_p_value > constants::thresholds::ALPHA_05) && (result.ad_p_value > constants::thresholds::ALPHA_05);
         
         // Generate recommendations
         std::ostringstream recommendations;
         if (!result.distribution_adequate) {
             recommendations << "Distribution fit may be inadequate. ";
-            if (result.ks_p_value <= constants::statistical::thresholds::ALPHA_05) {
+            if (result.ks_p_value <= constants::thresholds::ALPHA_05) {
                 recommendations << "KS test suggests poor fit. ";
             }
-            if (result.ad_p_value <= constants::statistical::thresholds::ALPHA_05) {
+            if (result.ad_p_value <= constants::thresholds::ALPHA_05) {
                 recommendations << "AD test suggests poor fit. ";
             }
             recommendations << "Consider alternative distributions or data transformations.";
@@ -256,7 +236,7 @@ double DistributionBase::getKLDivergence(const DistributionBase& other) const {
     }
     
     // Simple integration using trapezoidal rule
-    const int n_points = constants::statistical::thresholds::DEFAULT_INTEGRATION_POINTS;
+    const int n_points = constants::thresholds::DEFAULT_INTEGRATION_POINTS;
     double step = (upper - lower) / n_points;
     double divergence = 0.0;
     
@@ -308,33 +288,7 @@ bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, doubl
     return true;
 }
 
-// =============================================================================
-// THREAD-SAFE CACHE MANAGEMENT
-// =============================================================================
-
-void DistributionBase::invalidateCache() noexcept {
-    // C++20 compliant: Use atomic for lock-free cache invalidation
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // Also set the regular cache flag for compatibility with existing code
-    // This is safe because we're only writing false, and concurrent reads
-    // will either see the old or new value, both of which are safe
-    cache_valid_ = false;
-    
-    // Track cache invalidation metrics
-    cache_metrics_.invalidations.fetch_add(1, std::memory_order_relaxed);
-    
-    // Note: We don't acquire the mutex here anymore, which significantly
-    // improves performance for cache invalidation operations
-}
-
-std::shared_lock<std::shared_mutex> DistributionBase::getSharedLock() const noexcept {
-    return std::shared_lock<std::shared_mutex>(cache_mutex_);
-}
-
-std::unique_lock<std::shared_mutex> DistributionBase::getUniqueLock() const noexcept {
-    return std::unique_lock<std::shared_mutex>(cache_mutex_);
-}
+// Cache management is handled by ThreadSafeCacheManager base class
 
 // =============================================================================
 // NUMERICAL UTILITIES
@@ -425,7 +379,7 @@ void DistributionBase::validateFittingData(const std::vector<double>& data) {
         throw std::invalid_argument("Cannot fit distribution to empty data");
     }
     
-    if (data.size() < constants::statistical::thresholds::MIN_DATA_POINTS_FOR_FITTING) {
+    if (data.size() < constants::thresholds::MIN_DATA_POINTS_FOR_FITTING) {
         throw std::invalid_argument("Need at least 2 data points for fitting");
     }
     

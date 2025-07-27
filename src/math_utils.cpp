@@ -452,7 +452,7 @@ std::array<double, 4> sample_moments(std::span<const double> data) {
         double sigma4 = sigma3 * sigma;
         
         skewness = m3 / sigma3;
-        kurtosis = (m4 / sigma4) - constants::statistical::thresholds::EXCESS_KURTOSIS_OFFSET; // Excess kurtosis
+        kurtosis = (m4 / sigma4) - constants::thresholds::EXCESS_KURTOSIS_OFFSET; // Excess kurtosis
     }
     
     return {mean, variance, skewness, kurtosis};

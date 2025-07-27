@@ -146,15 +146,15 @@ class ThreadSafetyTester {
 public:
     static void testBasicThreadSafety(const Distribution& dist, const std::string& dist_name) {
         const int num_threads = 4;
-        const int samples_per_thread = 1000;
+        constexpr int samples_per_thread = 1000;
         
         std::vector<std::thread> threads;
         std::vector<std::vector<double>> results(num_threads);
         
         for (int t = 0; t < num_threads; ++t) {
-            threads.emplace_back([&dist, &results, t, samples_per_thread]() {
+            threads.emplace_back([&dist, &results, t]() {
                 std::mt19937 local_rng(42 + t);
-                results[t].reserve(samples_per_thread);
+                results[t].reserve(static_cast<size_t>(samples_per_thread));
                 
                 for (int i = 0; i < samples_per_thread; ++i) {
                     results[t].push_back(dist.sample(local_rng));

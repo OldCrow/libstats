@@ -423,9 +423,9 @@ namespace math {
  * @return log(1 + exp(x))
  */
 [[nodiscard]] inline double log1pexp(double x) noexcept {
-    if (x > constants::statistical::thresholds::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+    if (x > constants::thresholds::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
         return x;  // exp(x) dominates
-    } else if (x > constants::statistical::thresholds::LOG1PEXP_SMALL_THRESHOLD) {
+    } else if (x > constants::thresholds::LOG1PEXP_SMALL_THRESHOLD) {
         return std::log1p(std::exp(x));
     } else [[unlikely]] {
         return std::exp(x);  // 1 + exp(x) ≈ 1
@@ -438,7 +438,7 @@ namespace math {
  * @return log(exp(x) - 1)
  */
 [[nodiscard]] inline double logexpm1(double x) noexcept {
-    if (x > constants::statistical::thresholds::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+    if (x > constants::thresholds::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
         return x;  // exp(x) dominates
     } else {
         return std::log(std::expm1(x));
@@ -659,7 +659,7 @@ struct NumericalDiagnostics {
     if (diag.has_inf) {
         diag.recommendations += "Infinite values detected - potential overflow; ";
     }
-    if (diag.condition_estimate > constants::statistical::thresholds::HIGH_CONDITION_NUMBER_THRESHOLD) {
+    if (diag.condition_estimate > constants::thresholds::HIGH_CONDITION_NUMBER_THRESHOLD) {
         diag.recommendations += "High condition number - numerical instability likely; ";
     }
     if (diag.has_underflow) {

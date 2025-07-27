@@ -135,6 +135,16 @@ bool supports_avx512();
 bool supports_neon();
 
 /**
+ * @brief Intel CPU generation detection functions
+ * These functions identify specific Intel CPU generations for optimized constants
+ */
+bool is_sandy_ivy_bridge();    // Sandy Bridge (2011) / Ivy Bridge (2012) - AVX, no AVX2
+bool is_haswell_broadwell();    // Haswell (2013) / Broadwell (2014) - AVX2, FMA
+bool is_skylake_generation();   // Skylake (2015) and derivatives - improved AVX2
+bool is_kaby_coffee_lake();     // Kaby Lake (2016) / Coffee Lake (2017-2018) - optimized Skylake
+bool is_modern_intel();         // Ice Lake (2019+) and newer - AVX-512 or latest optimizations
+
+/**
  * @brief Get a human-readable string of supported features
  * @return String describing detected CPU features
  */

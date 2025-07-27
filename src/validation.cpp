@@ -61,7 +61,7 @@ namespace {
     
     // For common significance levels, use lookup tables
     // Critical values for α = 0.05 (5% significance level)
-    if (alpha == constants::statistical::thresholds::ALPHA_05) {
+    if (alpha == constants::thresholds::ALPHA_05) {
         if (df == 1) return 3.841;  // χ²(1,0.05) = 3.841
         if (df == 2) return 5.991;  // χ²(2,0.05) = 5.991
         if (df == 3) return 7.815;  // χ²(3,0.05) = 7.815
@@ -71,7 +71,7 @@ namespace {
     
     // Wilson-Hilferty approximation for general case
     const double h = constants::math::TWO / (9.0 * df);
-    const double z_alpha = (alpha == constants::statistical::thresholds::ALPHA_05) ? 1.645 : 1.96; // approximate normal quantile
+    const double z_alpha = (alpha == constants::thresholds::ALPHA_05) ? 1.645 : 1.96; // approximate normal quantile
     const double term = constants::math::ONE - h + z_alpha * std::sqrt(h);
     return df * std::pow(term, 3);
 }
@@ -563,7 +563,7 @@ namespace {
         bootstrap_sample.reserve(sample_size);
         
         for (size_t i = 0; i < sample_size; ++i) {
-            bootstrap_sample.push_back(distribution.sample(rng));
+            bootstrap_sample.push_back(static_cast<const DistributionInterface&>(distribution).sample(rng));
         }
         
         return bootstrap_sample;

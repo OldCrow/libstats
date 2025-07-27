@@ -272,7 +272,7 @@ inline double safe_exp(double value) noexcept {
     if (value < constants::probability::MIN_LOG_PROBABILITY) {
         return constants::probability::MIN_PROBABILITY;
     }
-    if (value > constants::statistical::thresholds::LOG_EXP_OVERFLOW_THRESHOLD) {  // Prevent overflow
+    if (value > constants::thresholds::LOG_EXP_OVERFLOW_THRESHOLD) {  // Prevent overflow
         return std::numeric_limits<double>::max();
     }
     

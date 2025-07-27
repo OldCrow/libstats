@@ -37,7 +37,7 @@ int main() {
     std::cout << "   Exponential distribution:" << std::endl;
     std::cout << "     Mean: " << exponential.getMean() << std::endl;
     std::cout << "     Variance: " << exponential.getVariance() << std::endl;
-    std::cout << "     Standard deviation: " << exponential.getStandardDeviation() << std::endl << std::endl;
+    std::cout << "     Standard deviation: " << libstats::getStandardDeviation(exponential) << std::endl << std::endl;
     
     // PDF evaluation
     std::cout << "3. Probability density function (PDF):" << std::endl;

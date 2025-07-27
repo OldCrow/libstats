@@ -32,10 +32,10 @@ public:
     static constexpr double LOG_ZERO = -std::numeric_limits<double>::infinity();
     
     /// Threshold below which exp() terms are considered negligible
-    static constexpr double LOG_SUM_THRESHOLD = constants::statistical::thresholds::LOG_SUM_EXP_THRESHOLD;
+    static constexpr double LOG_SUM_THRESHOLD = constants::thresholds::LOG_SUM_EXP_THRESHOLD;
     
     /// Size of precomputed lookup tables
-    static constexpr std::size_t LOOKUP_TABLE_SIZE = constants::statistical::thresholds::LOG_SPACE_LOOKUP_TABLE_SIZE;
+    static constexpr std::size_t LOOKUP_TABLE_SIZE = constants::thresholds::LOG_SPACE_LOOKUP_TABLE_SIZE;
     
     /**
      * @brief Initialize precomputed lookup tables

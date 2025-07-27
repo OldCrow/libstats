@@ -213,7 +213,7 @@ double PoissonDistribution::getQuantile(double p) const {
     
     // Use bracketing search for quantile
     int lower = 0;
-    int upper = static_cast<int>(lambda_ + constants::math::poisson::QUANTILE_UPPER_BOUND_MULTIPLIER * std::sqrt(lambda_)); // Conservative upper bound
+    int upper = static_cast<int>(lambda_ + constants::thresholds::poisson::QUANTILE_UPPER_BOUND_MULTIPLIER * std::sqrt(lambda_)); // Conservative upper bound
     
     // Expand upper bound if necessary
     while (getCumulativeProbabilityExact(upper) < p) {
@@ -343,7 +343,7 @@ std::vector<int> PoissonDistribution::sampleIntegers(std::mt19937& rng, std::siz
 
 bool PoissonDistribution::canUseNormalApproximation() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return lambda_ > constants::math::poisson::NORMAL_APPROXIMATION_THRESHOLD;  // Rule of thumb: λ > threshold for reasonable normal approximation
+    return lambda_ > constants::thresholds::poisson::NORMAL_APPROXIMATION_THRESHOLD;  // Rule of thumb: λ > threshold for reasonable normal approximation
 }
 
 //==============================================================================
@@ -521,7 +521,7 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
         
         if (k == 0) {
             results[i] = exp_neg_lambda;
-        } else if (lambda < constants::math::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
+        } else if (lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
             // Direct computation for small lambda and k
             results[i] = std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[k];
         } else {
@@ -582,7 +582,7 @@ void PoissonDistribution::fit(const std::vector<double>& values) {
     }
     
     // Check minimum data points for reliable fitting
-    if (values.size() < constants::statistical::thresholds::MIN_DATA_POINTS_FOR_CHI_SQUARE) {  // Minimum data points for reliable fitting
+    if (values.size() < constants::thresholds::MIN_DATA_POINTS_FOR_CHI_SQUARE) {  // Minimum data points for reliable fitting
         throw std::invalid_argument("Insufficient data points for reliable Poisson fitting");
     }
     
@@ -695,7 +695,7 @@ void PoissonDistribution::getProbabilityBatchParallel(std::span<const double> in
             // Compute PMF using cached parameters (exactly like SIMD version)
             if (k == 0) {
                 output_results[i] = cached_exp_neg_lambda;
-            } else if (cached_lambda < constants::math::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
+            } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
                 // Direct computation for small lambda and k
                 output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
             } else {
@@ -722,7 +722,7 @@ void PoissonDistribution::getProbabilityBatchParallel(std::span<const double> in
             if (k == 0) {
                 // Special case optimization: P(X = 0) = e^(-λ)
                 output_results[i] = cached_exp_neg_lambda;
-            } else if (cached_lambda < constants::math::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
+            } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
                 // Direct computation for small lambda and k using cached factorial
                 output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
             } else {
@@ -911,7 +911,7 @@ void PoissonDistribution::getProbabilityBatchWorkStealing(std::span<const double
             // Compute PMF using cached parameters (exactly like SIMD version)
             if (k == 0) {
                 output_results[i] = cached_exp_neg_lambda;
-            } else if (cached_lambda < constants::math::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
+            } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
                 // Direct computation for small lambda and k
                 output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
             } else {
@@ -1093,7 +1093,7 @@ void PoissonDistribution::getProbabilityBatchCacheAware(std::span<const double> 
             }
             
             // Compute PMF using cached parameters
-            if (cached_is_small_lambda && k <= constants::math::poisson::SMALL_K_CACHE_THRESHOLD) {
+            if (cached_is_small_lambda && k <= constants::thresholds::poisson::SMALL_K_CACHE_THRESHOLD) {
                 output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
             } else {
                 const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
@@ -1115,7 +1115,7 @@ void PoissonDistribution::getProbabilityBatchCacheAware(std::span<const double> 
             }
             
             // Compute PMF using cached parameters
-            if (cached_is_small_lambda && k <= constants::math::poisson::SMALL_K_CACHE_THRESHOLD) {
+            if (cached_is_small_lambda && k <= constants::thresholds::poisson::SMALL_K_CACHE_THRESHOLD) {
                 output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
             } else {
                 const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
@@ -1466,7 +1466,7 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (data.size() < constants::statistical::thresholds::MIN_DATA_POINTS_FOR_CHI_SQUARE) {
+    if (data.size() < constants::thresholds::MIN_DATA_POINTS_FOR_CHI_SQUARE) {
         throw std::invalid_argument("At least 5 data points required for chi-square test");
     }
     if (significance_level <= constants::math::ZERO_DOUBLE || significance_level >= constants::math::ONE) {
@@ -1507,7 +1507,7 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
         double expected = n * distribution.getProbabilityExact(k);
         
         // If we have enough expected frequency or we're at the end, close the group
-        if (expected >= constants::statistical::thresholds::DEFAULT_EXPECTED_FREQUENCY_THRESHOLD || (current_observed > 0 && k >= max_value)) {
+        if (expected >= constants::thresholds::DEFAULT_EXPECTED_FREQUENCY_THRESHOLD || (current_observed > 0 && k >= max_value)) {
             grouped_observed.emplace_back(current_group_start, current_observed);
             
             // Calculate total expected frequency for this group
@@ -1560,7 +1560,7 @@ std::tuple<double, double, bool> PoissonDistribution::kolmogorovSmirnovTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (data.size() < constants::statistical::thresholds::MIN_DATA_POINTS_FOR_CHI_SQUARE) {
+    if (data.size() < constants::thresholds::MIN_DATA_POINTS_FOR_CHI_SQUARE) {
         throw std::invalid_argument("At least 5 data points required for KS test");
     }
     if (significance_level <= 0.0 || significance_level >= 1.0) {

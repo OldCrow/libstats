@@ -222,7 +222,7 @@ private:
         logGammaLambdaPlus1_ = std::lgamma(lambda_ + constants::math::ONE);
         
         // Optimization flags
-        isSmallLambda_ = (lambda_ < constants::math::poisson::SMALL_LAMBDA_THRESHOLD);
+        isSmallLambda_ = (lambda_ < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD);
         isLargeLambda_ = (lambda_ > constants::math::HUNDRED);
         isVeryLargeLambda_ = (lambda_ > constants::math::THOUSAND);
         isIntegerLambda_ = (std::abs(lambda_ - std::round(lambda_)) <= constants::precision::DEFAULT_TOLERANCE);
@@ -241,7 +241,7 @@ private:
         if (std::isnan(lambda) || std::isinf(lambda) || lambda <= constants::math::ZERO_DOUBLE) {
             throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
         }
-        if (lambda > constants::math::MAX_POISSON_LAMBDA) {
+        if (lambda > constants::thresholds::poisson::MAX_POISSON_LAMBDA) {
             throw std::invalid_argument("Lambda too large for accurate Poisson computation");
         }
     }

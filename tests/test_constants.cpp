@@ -190,6 +190,7 @@ void test_parallel_constants() {
 
 void test_statistical_critical_values() {
     using namespace libstats::constants::statistical;
+    using namespace libstats::constants;
     
     // Standard normal distribution critical values
     assert(std::abs(normal::Z_95 - 1.96) < 0.001);
