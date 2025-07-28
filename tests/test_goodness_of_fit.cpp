@@ -1,5 +1,5 @@
-#include "../include/distribution_base.h"
-#include "../include/math_utils.h"
+#include "../include/core/distribution_base.h"
+#include "../include/core/math_utils.h"
 #include <iostream>
 #include <vector>
 #include <random>

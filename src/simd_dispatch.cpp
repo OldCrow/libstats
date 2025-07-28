@@ -2,9 +2,10 @@
 // This file contains only the decision logic for which implementation to use
 // Enhanced with platform-specific optimizations and adaptive thresholds
 
-#include "../include/simd.h"
-#include "../include/cpu_detection.h"
-#include "../include/constants.h"
+#include "../include/platform/simd.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/core/constants.h"
+#include "../include/platform/platform_constants.h"
 #include <algorithm>
 #include <cstring>
 
@@ -322,12 +323,12 @@ namespace {
     inline bool is_alignment_beneficial(const void* ptr1, const void* ptr2 = nullptr, const void* ptr3 = nullptr) noexcept {
         const std::size_t alignment = constants::platform::get_optimal_alignment();
         
-        bool aligned = (reinterpret_cast<uintptr_t>(ptr1) % alignment) == 0;
+        bool aligned = (reinterpret_cast<uintptr_t>(ptr1) % alignment) == constants::math::ZERO_INT;
         if (ptr2) {
-            aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr2) % alignment) == 0);
+            aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr2) % alignment) == constants::math::ZERO_INT);
         }
         if (ptr3) {
-            aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr3) % alignment) == 0);
+            aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr3) % alignment) == constants::math::ZERO_INT);
         }
         
         return aligned;
@@ -336,7 +337,7 @@ namespace {
     /// Internal utility: Get platform-specific cache optimization threshold
     inline std::size_t get_cache_optimization_threshold() noexcept {
         const auto thresholds = constants::platform::get_cache_thresholds();
-        return thresholds.l1_optimal_size / 4; // Use quarter of L1 as threshold
+        return thresholds.l1_optimal_size / constants::math::FOUR_INT; // Use quarter of L1 as threshold
     }
     
     /// Internal utility: Choose optimal SIMD path based on data characteristics

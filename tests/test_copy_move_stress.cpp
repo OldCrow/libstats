@@ -5,9 +5,9 @@
 #include <chrono>
 
 // Include all three distributions
-#include "../include/uniform.h"
-#include "../include/gaussian.h"
-#include "../include/exponential.h"
+#include "../include/distributions/uniform.h"
+#include "../include/distributions/gaussian.h"
+#include "../include/distributions/exponential.h"
 
 using namespace std;
 using namespace libstats;

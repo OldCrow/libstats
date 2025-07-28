@@ -4,9 +4,9 @@
 #include <iomanip>
 
 // Include only the implemented parts
-#include "simd.h"
-#include "cpu_detection.h"
-#include "gaussian.h"
+#include "../include/platform/simd.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/distributions/gaussian.h"
 
 using namespace std;
 using namespace libstats;

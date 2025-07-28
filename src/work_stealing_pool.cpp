@@ -1,4 +1,5 @@
-#include "work_stealing_pool.h"
+#include "../include/platform/work_stealing_pool.h"
+#include "../include/platform/platform_constants.h"
 #include <algorithm>
 #include <iostream>
 #include <thread>
@@ -43,7 +44,7 @@ using namespace libstats::simd;
 thread_local int WorkStealingPool::currentWorkerId_ = -1;
 
 WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) {
-    if (numThreads == 0) {
+    if (numThreads == constants::math::ZERO_INT) {
         numThreads = getOptimalThreadCount();
     }
     
@@ -84,10 +85,10 @@ void WorkStealingPool::submit(Task task) {
     
     // Try to submit to current worker's local queue first
     const int workerId = currentWorkerId_;
-    if (workerId >= 0 && workerId < static_cast<int>(workers_.size())) {
+    if (workerId >= constants::math::ZERO_INT && workerId < static_cast<int>(workers_.size())) {
         std::lock_guard<std::mutex> lock(workers_[workerId]->queueMutex);
         workers_[workerId]->localQueue.push_back(std::move(task));
-        activeTasks_.fetch_add(1, std::memory_order_relaxed);
+        activeTasks_.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
         return;
     }
     
@@ -97,13 +98,13 @@ void WorkStealingPool::submit(Task task) {
     
     std::lock_guard<std::mutex> lock(workers_[targetWorker]->queueMutex);
     workers_[targetWorker]->localQueue.push_back(std::move(task));
-    activeTasks_.fetch_add(1, std::memory_order_relaxed);
+    activeTasks_.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
 }
 
 void WorkStealingPool::waitForAll() {
     std::unique_lock<std::mutex> lock(globalMutex_);
     allTasksComplete_.wait(lock, [this] {
-        return activeTasks_.load(std::memory_order_acquire) == 0;
+        return activeTasks_.load(std::memory_order_acquire) == constants::math::ZERO_INT;
     });
 }
 
@@ -117,7 +118,7 @@ std::size_t WorkStealingPool::getPendingTasks() const {
 }
 
 WorkStealingPool::Statistics WorkStealingPool::getStatistics() const {
-    Statistics stats{0, 0, 0, 0.0};
+    Statistics stats{constants::math::ZERO_INT, constants::math::ZERO_INT, constants::math::ZERO_INT, constants::math::ZERO_DOUBLE};
     
     for (const auto& worker : workers_) {
         stats.tasksExecuted += worker->tasksExecuted.load(std::memory_order_relaxed);
@@ -126,7 +127,7 @@ WorkStealingPool::Statistics WorkStealingPool::getStatistics() const {
     }
     
     const std::size_t totalStealAttempts = stats.workSteals + stats.failedSteals;
-    if (totalStealAttempts > 0) {
+    if (totalStealAttempts > constants::math::ZERO_INT) {
         stats.stealSuccessRate = static_cast<double>(stats.workSteals) / totalStealAttempts;
     }
     
@@ -135,9 +136,9 @@ WorkStealingPool::Statistics WorkStealingPool::getStatistics() const {
 
 void WorkStealingPool::resetStatistics() {
     for (auto& worker : workers_) {
-        worker->tasksExecuted.store(0, std::memory_order_relaxed);
-        worker->workSteals.store(0, std::memory_order_relaxed);
-        worker->failedSteals.store(0, std::memory_order_relaxed);
+        worker->tasksExecuted.store(constants::math::ZERO_INT, std::memory_order_relaxed);
+        worker->workSteals.store(constants::math::ZERO_INT, std::memory_order_relaxed);
+        worker->failedSteals.store(constants::math::ZERO_INT, std::memory_order_relaxed);
     }
 }
 
@@ -145,7 +146,7 @@ void WorkStealingPool::workerLoop(int workerId) {
     currentWorkerId_ = workerId;
     
     // Ensure worker data is valid
-    if (workerId < 0 || workerId >= static_cast<int>(workers_.size()) || !workers_[workerId]) {
+    if (workerId < constants::math::ZERO_INT || workerId >= static_cast<int>(workers_.size()) || !workers_[workerId]) {
         return;
     }
     
@@ -175,9 +176,9 @@ void WorkStealingPool::workerLoop(int workerId) {
             task = tryStealWork(workerId);
             if (task) {
                 taskFound = true;
-                workerData.workSteals.fetch_add(1, std::memory_order_relaxed);
+                workerData.workSteals.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
             } else {
-                workerData.failedSteals.fetch_add(1, std::memory_order_relaxed);
+                workerData.failedSteals.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
             }
         }
         
@@ -197,25 +198,25 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
     }
     
     const std::size_t numWorkers = workers_.size();
-    if (numWorkers <= 1) return Task{};
+    if (numWorkers <= constants::math::ONE_INT) return Task{};
     
     // Validate thief ID
-    if (thiefId < 0 || thiefId >= static_cast<int>(numWorkers) || !workers_[thiefId]) {
+    if (thiefId < constants::math::ZERO_INT || thiefId >= static_cast<int>(numWorkers) || !workers_[thiefId]) {
         return Task{};
     }
     
     auto& thiefData = *workers_[thiefId];
     
     // Try to steal from a random victim (avoid always stealing from the same worker)
-    std::uniform_int_distribution<int> dist(0, static_cast<int>(numWorkers) - 1);
+    std::uniform_int_distribution<int> dist(constants::math::ZERO_INT, static_cast<int>(numWorkers) - constants::math::ONE_INT);
     const int startVictim = dist(thiefData.rng);
     
-    for (std::size_t attempt = 0; attempt < numWorkers - 1; ++attempt) {
+    for (std::size_t attempt = constants::math::ZERO_INT; attempt < numWorkers - constants::math::ONE_INT; ++attempt) {
         const int victimId = (startVictim + attempt) % numWorkers;
         if (victimId == thiefId) continue;
         
         // Validate victim ID and check if still valid
-        if (victimId < 0 || victimId >= static_cast<int>(numWorkers) || !workers_[victimId]) {
+        if (victimId < constants::math::ZERO_INT || victimId >= static_cast<int>(numWorkers) || !workers_[victimId]) {
             continue;
         }
         
@@ -241,7 +242,7 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
 void WorkStealingPool::executeTask(Task&& task, int workerId) {
     try {
         task();
-        workers_[workerId]->tasksExecuted.fetch_add(1, std::memory_order_relaxed);
+        workers_[workerId]->tasksExecuted.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
     } catch (const std::exception& e) {
         std::cerr << "Exception in work-stealing pool task (worker " << workerId << "): " << e.what() << std::endl;
     } catch (...) {
@@ -249,8 +250,8 @@ void WorkStealingPool::executeTask(Task&& task, int workerId) {
     }
     
     // Decrement active tasks and notify if all complete
-    const std::size_t remaining = activeTasks_.fetch_sub(1, std::memory_order_acq_rel) - 1;
-    if (remaining == 0) {
+    const std::size_t remaining = activeTasks_.fetch_sub(constants::math::ONE_INT, std::memory_order_acq_rel) - constants::math::ONE_INT;
+    if (remaining == constants::math::ZERO_INT) {
         std::lock_guard<std::mutex> lock(globalMutex_);
         allTasksComplete_.notify_all();
     }

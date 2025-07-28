@@ -3,8 +3,8 @@
 #include <vector>
 #include <cmath>
 #include <random>
-#include "validation.h"
-#include "gaussian.h"
+#include "../include/core/validation.h"
+#include "../include/distributions/gaussian.h"
 
 using namespace libstats;
 using namespace libstats::validation;

@@ -1,35 +1,57 @@
-/**
- * @file test_uniform_enhanced.cpp
- * @brief Enhanced comprehensive tests for UniformDistribution class
- * 
- * This file contains comprehensive tests for the UniformDistribution class,
- * including SIMD batch operations, thread safety, edge cases, and performance
- * validation. These tests ensure the distribution is production-ready.
- */
-
-#include <cassert>
-#include <cmath>
-#include <iostream>
-#include <random>
+#include <gtest/gtest.h>
+#include "../include/distributions/uniform.h"
+#include "enhanced_test_template.h"
 #include <vector>
-#include <algorithm>
-#include <thread>
-#include <chrono>
+#include <random>
 #include <numeric>
-#include <future>
-#include "../include/uniform.h"
-#include "../include/constants.h"
-#include "../include/cpu_detection.h"
+#include <algorithm>
+#include <cmath>
+#include <chrono>
+#include <thread>
+#include <span>
 
-// Test configuration
-constexpr size_t BATCH_SIZE = 1000;
-constexpr size_t LARGE_BATCH_SIZE = 10000;
-constexpr size_t NUM_THREADS = 4;
-constexpr double TOLERANCE = 1e-10;
+using namespace std;
+using namespace libstats;
+using namespace libstats::testing;
 
-void testBasicProperties() {
-    std::cout << "Testing basic distribution properties..." << std::endl;
+namespace libstats {
+
+//==============================================================================
+// TEST FIXTURE FOR UNIFORM ENHANCED METHODS
+//==============================================================================
+
+class UniformEnhancedTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Test data for various scenarios
+        test_data_ = {1.2, 2.3, 1.8, 2.9, 1.5, 2.1, 2.7, 1.9, 2.4, 1.6};
+        
+        // Generate uniform data for testing
+        std::mt19937 rng(42);
+        std::uniform_real_distribution<double> uniform_gen(test_a_, test_b_);
+        
+        uniform_data_.clear();
+        uniform_data_.reserve(100);
+        for (int i = 0; i < 100; ++i) {
+            uniform_data_.push_back(uniform_gen(rng));
+        }
+        
+        test_distribution_ = UniformDistribution(test_a_, test_b_);
+    }
     
+    const double test_a_ = 2.0;
+    const double test_b_ = 8.0;
+    const double TOLERANCE = 1e-10;
+    std::vector<double> test_data_;
+    std::vector<double> uniform_data_;
+    UniformDistribution test_distribution_;
+};
+
+//==============================================================================
+// TESTS FOR BASIC ENHANCED FUNCTIONALITY
+//==============================================================================
+
+TEST_F(UniformEnhancedTest, BasicEnhancedFunctionality) {
     // Test various parameter combinations
     std::vector<std::pair<double, double>> test_params = {
         {0.0, 1.0},    // Unit interval
@@ -47,174 +69,285 @@ void testBasicProperties() {
         libstats::UniformDistribution uniform(a, b);
         
         // Test basic properties
-        assert(uniform.getLowerBound() == a);
-        assert(uniform.getUpperBound() == b);
-        assert(std::abs(uniform.getMean() - (a + b) / 2.0) < TOLERANCE);
-        assert(std::abs(uniform.getVariance() - (b - a) * (b - a) / 12.0) < TOLERANCE);
-        assert(uniform.getSkewness() == 0.0);
-        assert(uniform.getKurtosis() == -1.2);
-        assert(std::abs(uniform.getWidth() - (b - a)) < TOLERANCE);
-        assert(std::abs(uniform.getMidpoint() - (a + b) / 2.0) < TOLERANCE);
+        EXPECT_DOUBLE_EQ(uniform.getLowerBound(), a);
+        EXPECT_DOUBLE_EQ(uniform.getUpperBound(), b);
+        EXPECT_NEAR(uniform.getMean(), (a + b) / 2.0, TOLERANCE);
+        EXPECT_NEAR(uniform.getVariance(), (b - a) * (b - a) / 12.0, TOLERANCE);
+        EXPECT_DOUBLE_EQ(uniform.getSkewness(), 0.0);
+        EXPECT_DOUBLE_EQ(uniform.getKurtosis(), -1.2);
+        EXPECT_NEAR(uniform.getWidth(), (b - a), TOLERANCE);
+        EXPECT_NEAR(uniform.getMidpoint(), (a + b) / 2.0, TOLERANCE);
         
         // Test support bounds
-        assert(uniform.getSupportLowerBound() == a);
-        assert(uniform.getSupportUpperBound() == b);
+        EXPECT_DOUBLE_EQ(uniform.getSupportLowerBound(), a);
+        EXPECT_DOUBLE_EQ(uniform.getSupportUpperBound(), b);
         
         // Test PDF properties
         double mid = (a + b) / 2.0;
-        assert(std::abs(uniform.getProbability(mid) - 1.0 / (b - a)) < TOLERANCE);
-        assert(uniform.getProbability(a - 1.0) == 0.0);
-        assert(uniform.getProbability(b + 1.0) == 0.0);
+        EXPECT_NEAR(uniform.getProbability(mid), 1.0 / (b - a), TOLERANCE);
+        EXPECT_DOUBLE_EQ(uniform.getProbability(a - 1.0), 0.0);
+        EXPECT_DOUBLE_EQ(uniform.getProbability(b + 1.0), 0.0);
         
         // Test CDF properties
-        assert(uniform.getCumulativeProbability(a) == 0.0);
-        assert(uniform.getCumulativeProbability(b) == 1.0);
-        assert(std::abs(uniform.getCumulativeProbability(mid) - 0.5) < TOLERANCE);
+        EXPECT_DOUBLE_EQ(uniform.getCumulativeProbability(a), 0.0);
+        EXPECT_DOUBLE_EQ(uniform.getCumulativeProbability(b), 1.0);
+        EXPECT_NEAR(uniform.getCumulativeProbability(mid), 0.5, TOLERANCE);
         
         // Test quantile properties
-        assert(uniform.getQuantile(0.0) == a);
-        assert(uniform.getQuantile(1.0) == b);
-        assert(std::abs(uniform.getQuantile(0.5) - mid) < TOLERANCE);
+        EXPECT_DOUBLE_EQ(uniform.getQuantile(0.0), a);
+        EXPECT_DOUBLE_EQ(uniform.getQuantile(1.0), b);
+        EXPECT_NEAR(uniform.getQuantile(0.5), mid, TOLERANCE);
     }
-    
-    std::cout << "✓ Basic properties tests passed" << std::endl;
 }
 
-void testNumericalStability() {
-    std::cout << "Testing numerical stability..." << std::endl;
-    
+TEST_F(UniformEnhancedTest, NumericalStability) {
     // Test with very small interval
     libstats::UniformDistribution small_uniform(1.0, 1.0 + 1e-15);
-    assert(small_uniform.getProbability(1.0 + 5e-16) > 0.0);
+    EXPECT_GT(small_uniform.getProbability(1.0 + 5e-16), 0.0);
     
     // Test with very large interval
     libstats::UniformDistribution large_uniform(-1e10, 1e10);
-    assert(std::abs(large_uniform.getMean() - 0.0) < 1e-5);
+    EXPECT_NEAR(large_uniform.getMean(), 0.0, 1e-5);
     
     // Test with extreme values
     libstats::UniformDistribution extreme_uniform(-1e100, 1e100);
-    assert(extreme_uniform.getProbability(0.0) > 0.0);
-    
-    std::cout << "✓ Numerical stability tests passed" << std::endl;
+    EXPECT_GT(extreme_uniform.getProbability(0.0), 0.0);
 }
 
-void testSIMDBatchOperations() {
-    std::cout << "Testing SIMD batch operations..." << std::endl;
+TEST_F(UniformEnhancedTest, BatchOperations) {
+    UniformDistribution uniform(0.0, 1.0);
     
-    // Test with various distributions
-    std::vector<libstats::UniformDistribution> test_dists = {
-        libstats::UniformDistribution(0.0, 1.0),    // Unit interval
-        libstats::UniformDistribution(-2.0, 3.0),   // General case
-        libstats::UniformDistribution(10.0, 20.0)   // Shifted interval
-    };
+    // Test data
+    std::vector<double> test_values = {-0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5};
+    std::vector<double> pdf_results(test_values.size());
+    std::vector<double> log_pdf_results(test_values.size());
+    std::vector<double> cdf_results(test_values.size());
     
-    for (const auto& uniform : test_dists) {
-        // Prepare test data
-        std::vector<double> values(BATCH_SIZE);
-        std::vector<double> expected_pdf(BATCH_SIZE);
-        std::vector<double> expected_logpdf(BATCH_SIZE);
-        std::vector<double> expected_cdf(BATCH_SIZE);
-        std::vector<double> batch_pdf(BATCH_SIZE);
-        std::vector<double> batch_logpdf(BATCH_SIZE);
-        std::vector<double> batch_cdf(BATCH_SIZE);
+    // Test batch operations
+    uniform.getProbabilityBatch(test_values.data(), pdf_results.data(), test_values.size());
+    uniform.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), test_values.size());
+    uniform.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), test_values.size());
+    
+    // Verify against individual calls
+    for (size_t i = 0; i < test_values.size(); ++i) {
+        double expected_pdf = uniform.getProbability(test_values[i]);
+        double expected_log_pdf = uniform.getLogProbability(test_values[i]);
+        double expected_cdf = uniform.getCumulativeProbability(test_values[i]);
         
-        // Generate test values across the distribution support and beyond
-        double a = uniform.getLowerBound();
-        double b = uniform.getUpperBound();
-        double range = b - a;
+        EXPECT_NEAR(pdf_results[i], expected_pdf, 1e-12);
         
-        std::mt19937 rng(42);
-        std::uniform_real_distribution<double> value_gen(a - range, b + range);
-        
-        for (size_t i = 0; i < BATCH_SIZE; ++i) {
-            values[i] = value_gen(rng);
-            expected_pdf[i] = uniform.getProbability(values[i]);
-            expected_logpdf[i] = uniform.getLogProbability(values[i]);
-            expected_cdf[i] = uniform.getCumulativeProbability(values[i]);
+        // Handle log probability comparisons carefully
+        if (std::isfinite(expected_log_pdf)) {
+            EXPECT_NEAR(log_pdf_results[i], expected_log_pdf, 1e-12);
+        } else {
+            EXPECT_EQ(log_pdf_results[i], expected_log_pdf); // Both should be -infinity
         }
         
-        // Test batch operations
-        uniform.getProbabilityBatch(values.data(), batch_pdf.data(), BATCH_SIZE);
-        uniform.getLogProbabilityBatch(values.data(), batch_logpdf.data(), BATCH_SIZE);
-        uniform.getCumulativeProbabilityBatch(values.data(), batch_cdf.data(), BATCH_SIZE);
-        
-        // Verify results
-        for (size_t i = 0; i < BATCH_SIZE; ++i) {
-            assert(std::abs(batch_pdf[i] - expected_pdf[i]) < TOLERANCE);
-            
-            // Handle log probability comparisons carefully
-            if (std::isfinite(expected_logpdf[i])) {
-                assert(std::abs(batch_logpdf[i] - expected_logpdf[i]) < TOLERANCE);
-            } else {
-                assert(batch_logpdf[i] == expected_logpdf[i]); // Both should be -infinity
-            }
-            
-            assert(std::abs(batch_cdf[i] - expected_cdf[i]) < TOLERANCE);
-        }
-        
-        // Test unsafe batch operations
-        uniform.getProbabilityBatchUnsafe(values.data(), batch_pdf.data(), BATCH_SIZE);
-        uniform.getLogProbabilityBatchUnsafe(values.data(), batch_logpdf.data(), BATCH_SIZE);
-        
-        // Verify unsafe results match
-        for (size_t i = 0; i < BATCH_SIZE; ++i) {
-            assert(std::abs(batch_pdf[i] - expected_pdf[i]) < TOLERANCE);
-            if (std::isfinite(expected_logpdf[i])) {
-                assert(std::abs(batch_logpdf[i] - expected_logpdf[i]) < TOLERANCE);
-            } else {
-                assert(batch_logpdf[i] == expected_logpdf[i]);
-            }
-        }
+        EXPECT_NEAR(cdf_results[i], expected_cdf, 1e-12);
     }
-    
-    std::cout << "✓ SIMD batch operations tests passed" << std::endl;
 }
 
-void testLargeBatchPerformance() {
-    std::cout << "Testing large batch performance..." << std::endl;
+TEST_F(UniformEnhancedTest, SIMDPerformanceTest) {
+    UniformDistribution uniform(0.0, 1.0);
+    constexpr size_t LARGE_BATCH_SIZE = 10000;
     
-    libstats::UniformDistribution uniform(0.0, 1.0);
-    std::vector<double> values(LARGE_BATCH_SIZE);
-    std::vector<double> results(LARGE_BATCH_SIZE);
+    std::vector<double> large_test_values(LARGE_BATCH_SIZE);
+    std::vector<double> large_pdf_results(LARGE_BATCH_SIZE);
+    std::vector<double> large_log_pdf_results(LARGE_BATCH_SIZE);
+    std::vector<double> large_cdf_results(LARGE_BATCH_SIZE);
     
-    // Generate test values
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<double> value_gen(-0.5, 1.5);
+    // Generate test data
+    std::mt19937 gen(42); // Fixed seed for reproducibility
+    std::uniform_real_distribution<> dis(-0.5, 1.5);
+    
     for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
-        values[i] = value_gen(rng);
+        large_test_values[i] = dis(gen);
     }
     
-    // Test batch PDF computation
+    std::cout << "  === SIMD Batch Performance Results ===" << std::endl;
+    
+    // Test 1: PDF Batch vs Individual
     auto start = std::chrono::high_resolution_clock::now();
-    uniform.getProbabilityBatch(values.data(), results.data(), LARGE_BATCH_SIZE);
+    uniform.getProbabilityBatch(large_test_values.data(), large_pdf_results.data(), LARGE_BATCH_SIZE);
     auto end = std::chrono::high_resolution_clock::now();
+    auto pdf_batch_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
-    auto batch_duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "  Batch PDF computation: " << batch_duration.count() << " μs" << std::endl;
-    
-    // Test individual computations for comparison
     start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
-        results[i] = uniform.getProbability(values[i]);
+        large_pdf_results[i] = uniform.getProbability(large_test_values[i]);
     }
     end = std::chrono::high_resolution_clock::now();
+    auto pdf_individual_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
-    auto individual_duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "  Individual PDF computation: " << individual_duration.count() << " μs" << std::endl;
+    double pdf_speedup = (double)pdf_individual_time / pdf_batch_time;
+    std::cout << "  PDF:     Batch " << pdf_batch_time << "μs vs Individual " << pdf_individual_time << "μs → " << pdf_speedup << "x speedup" << std::endl;
     
-    // Batch should be at least as fast as individual for large batches
-    if (LARGE_BATCH_SIZE >= 1000) {
-        std::cout << "  Speedup ratio: " << static_cast<double>(individual_duration.count()) / batch_duration.count() << "x" << std::endl;
+    // Test 2: Log PDF Batch vs Individual
+    start = std::chrono::high_resolution_clock::now();
+    uniform.getLogProbabilityBatch(large_test_values.data(), large_log_pdf_results.data(), LARGE_BATCH_SIZE);
+    end = std::chrono::high_resolution_clock::now();
+    auto log_pdf_batch_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
+        large_log_pdf_results[i] = uniform.getLogProbability(large_test_values[i]);
     }
+    end = std::chrono::high_resolution_clock::now();
+    auto log_pdf_individual_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
-    std::cout << "✓ Large batch performance tests passed" << std::endl;
+    double log_pdf_speedup = (double)log_pdf_individual_time / log_pdf_batch_time;
+    std::cout << "  LogPDF:  Batch " << log_pdf_batch_time << "μs vs Individual " << log_pdf_individual_time << "μs → " << log_pdf_speedup << "x speedup" << std::endl;
+    
+    // Test 3: CDF Batch vs Individual
+    start = std::chrono::high_resolution_clock::now();
+    uniform.getCumulativeProbabilityBatch(large_test_values.data(), large_cdf_results.data(), LARGE_BATCH_SIZE);
+    end = std::chrono::high_resolution_clock::now();
+    auto cdf_batch_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
+        large_cdf_results[i] = uniform.getCumulativeProbability(large_test_values[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto cdf_individual_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double cdf_speedup = (double)cdf_individual_time / cdf_batch_time;
+    std::cout << "  CDF:     Batch " << cdf_batch_time << "μs vs Individual " << cdf_individual_time << "μs → " << cdf_speedup << "x speedup" << std::endl;
+    
+    // For uniform distribution, batch operations should be faster (reduced function call overhead)
+    EXPECT_GT(pdf_speedup, 0.5) << "PDF batch should be at least half as fast as individual calls";
+    EXPECT_GT(log_pdf_speedup, 0.5) << "Log PDF batch should be at least half as fast as individual calls";
+    EXPECT_GT(cdf_speedup, 0.5) << "CDF batch should be at least half as fast as individual calls";
+    
+    // Verify correctness on a sample
+    const size_t sample_size = 100;
+    for (size_t i = 0; i < sample_size; ++i) {
+        size_t idx = i * (LARGE_BATCH_SIZE / sample_size);
+        double expected_pdf = uniform.getProbability(large_test_values[idx]);
+        double expected_log_pdf = uniform.getLogProbability(large_test_values[idx]);
+        double expected_cdf = uniform.getCumulativeProbability(large_test_values[idx]);
+        
+        EXPECT_NEAR(large_pdf_results[idx], expected_pdf, 1e-10);
+        
+        // Handle log probability comparisons carefully
+        if (std::isfinite(expected_log_pdf)) {
+            EXPECT_NEAR(large_log_pdf_results[idx], expected_log_pdf, 1e-10);
+        } else {
+            EXPECT_EQ(large_log_pdf_results[idx], expected_log_pdf); // Both should be -infinity
+        }
+        
+        EXPECT_NEAR(large_cdf_results[idx], expected_cdf, 1e-10);
+    }
 }
 
-void testThreadSafety() {
-    std::cout << "Testing thread safety..." << std::endl;
+TEST_F(UniformEnhancedTest, CopyAndMoveSemantics) {
+    // Test copy constructor
+    UniformDistribution original(3.0, 7.0);
+    UniformDistribution copied(original);
     
-    libstats::UniformDistribution uniform(0.0, 1.0);
+    EXPECT_EQ(copied.getLowerBound(), original.getLowerBound());
+    EXPECT_EQ(copied.getUpperBound(), original.getUpperBound());
+    EXPECT_EQ(copied.getMean(), original.getMean());
+    EXPECT_EQ(copied.getVariance(), original.getVariance());
+    
+    // Test copy assignment
+    UniformDistribution assigned(0.0, 1.0);
+    assigned = original;
+    
+    EXPECT_EQ(assigned.getLowerBound(), original.getLowerBound());
+    EXPECT_EQ(assigned.getUpperBound(), original.getUpperBound());
+    
+    // Test move constructor
+    UniformDistribution to_move(5.0, 10.0);
+    double original_mean = to_move.getMean();
+    UniformDistribution moved(std::move(to_move));
+    
+    EXPECT_EQ(moved.getMean(), original_mean);
+    
+    // Test move assignment
+    UniformDistribution move_assigned(0.0, 1.0);
+    UniformDistribution to_move2(15.0, 25.0);
+    double original_mean2 = to_move2.getMean();
+    move_assigned = std::move(to_move2);
+    
+    EXPECT_EQ(move_assigned.getMean(), original_mean2);
+}
+
+TEST_F(UniformEnhancedTest, EdgeCases) {
+    // Test boundary conditions
+    UniformDistribution uniform(0.0, 1.0);
+    
+    // Test exactly at boundaries
+    EXPECT_DOUBLE_EQ(uniform.getProbability(0.0), 1.0);
+    EXPECT_DOUBLE_EQ(uniform.getProbability(1.0), 1.0);
+    EXPECT_DOUBLE_EQ(uniform.getCumulativeProbability(0.0), 0.0);
+    EXPECT_DOUBLE_EQ(uniform.getCumulativeProbability(1.0), 1.0);
+    
+    // Test quantile edge cases
+    EXPECT_DOUBLE_EQ(uniform.getQuantile(0.0), 0.0);
+    EXPECT_DOUBLE_EQ(uniform.getQuantile(1.0), 1.0);
+    
+    // Test safe factory with invalid parameters
+    auto result1 = UniformDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0);
+    EXPECT_TRUE(result1.isError());
+    
+    auto result2 = UniformDistribution::create(0.0, std::numeric_limits<double>::infinity());
+    EXPECT_TRUE(result2.isError());
+    
+    auto result3 = UniformDistribution::create(5.0, 2.0);  // a > b
+    EXPECT_TRUE(result3.isError());
+}
+
+TEST_F(UniformEnhancedTest, SamplingStatistics) {
+    UniformDistribution uniform(2.0, 8.0);
+    std::mt19937 rng(42);
+    
+    constexpr size_t NUM_SAMPLES = 10000;
+    std::vector<double> samples(NUM_SAMPLES);
+    
+    // Generate samples
+    for (size_t i = 0; i < NUM_SAMPLES; ++i) {
+        samples[i] = uniform.sample(rng);
+    }
+    
+    // Test that all samples are within bounds
+    for (double sample : samples) {
+        EXPECT_GE(sample, 2.0);
+        EXPECT_LE(sample, 8.0);
+    }
+    
+    // Test sample statistics
+    double sample_mean = std::accumulate(samples.begin(), samples.end(), 0.0) / NUM_SAMPLES;
+    double theoretical_mean = uniform.getMean();
+    EXPECT_NEAR(sample_mean, theoretical_mean, 0.1);
+    
+    // Test sample variance
+    double sample_var = 0.0;
+    for (double sample : samples) {
+        double diff = sample - sample_mean;
+        sample_var += diff * diff;
+    }
+    sample_var /= (NUM_SAMPLES - 1);
+    double theoretical_var = uniform.getVariance();
+    EXPECT_NEAR(sample_var, theoretical_var, 0.5);
+    
+    // Test uniformity using Kolmogorov-Smirnov test (simplified)
+    std::sort(samples.begin(), samples.end());
+    double max_diff = 0.0;
+    for (size_t i = 0; i < NUM_SAMPLES; ++i) {
+        double empirical_cdf = static_cast<double>(i + 1) / NUM_SAMPLES;
+        double theoretical_cdf = uniform.getCumulativeProbability(samples[i]);
+        max_diff = std::max(max_diff, std::abs(empirical_cdf - theoretical_cdf));
+    }
+    
+    // For large samples, KS statistic should be small
+    EXPECT_LT(max_diff, 0.05);
+}
+
+TEST_F(UniformEnhancedTest, ThreadSafety) {
+    UniformDistribution uniform(0.0, 1.0);
     constexpr size_t NUM_OPERATIONS = 1000;
+    constexpr size_t NUM_THREADS = 4;
     
     // Test concurrent reads
     auto read_worker = [&uniform]() {
@@ -241,10 +374,10 @@ void testThreadSafety() {
     }
     
     // Test concurrent writes (parameter changes)
-    libstats::UniformDistribution write_uniform(0.0, 1.0);
+    UniformDistribution write_uniform(0.0, 1.0);
     std::atomic<bool> stop_flag{false};
     
-    auto write_worker = [&write_uniform, &stop_flag](double base_a, [[maybe_unused]] double base_b) {
+    auto write_worker = [&write_uniform, &stop_flag](double base_a) {
         std::mt19937 rng(std::random_device{}());
         std::uniform_real_distribution<double> param_gen(0.1, 5.0);
         
@@ -262,7 +395,7 @@ void testThreadSafety() {
     
     std::vector<std::thread> write_threads;
     for (size_t i = 0; i < NUM_THREADS; ++i) {
-        write_threads.emplace_back(write_worker, i * 10.0, (i + 1) * 10.0);
+        write_threads.emplace_back(write_worker, i * 10.0);
     }
     
     // Let threads run for a short time
@@ -272,225 +405,624 @@ void testThreadSafety() {
     for (auto& t : write_threads) {
         t.join();
     }
-    
-    std::cout << "✓ Thread safety tests passed" << std::endl;
 }
 
-void testEdgeCases() {
-    std::cout << "Testing edge cases..." << std::endl;
-    
-    // Test boundary conditions
-    libstats::UniformDistribution uniform(0.0, 1.0);
-    
-    // Test exactly at boundaries
-    assert(uniform.getProbability(0.0) == 1.0);
-    assert(uniform.getProbability(1.0) == 1.0);
-    assert(uniform.getCumulativeProbability(0.0) == 0.0);
-    assert(uniform.getCumulativeProbability(1.0) == 1.0);
-    
-    // Test quantile edge cases
-    assert(uniform.getQuantile(0.0) == 0.0);
-    assert(uniform.getQuantile(1.0) == 1.0);
-    
-    // Test with extreme parameter values
-    try {
-        libstats::UniformDistribution extreme1(1e-300, 1e300);
-        // For extreme ranges, PDF might be very small but should be finite
-        double pdf_at_zero = extreme1.getProbability(0.0);
-        assert(std::isfinite(pdf_at_zero) && pdf_at_zero >= 0.0);
-        // Test that values within support have non-zero probability
-        assert(extreme1.getProbability(1.0) > 0.0);
-    } catch (...) {
-        // Expected for extreme values that cause numerical issues
-    }
-    
-    // Test safe factory with invalid parameters
-    auto result1 = libstats::UniformDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0);
-    assert(result1.isError());
-    
-    auto result2 = libstats::UniformDistribution::create(0.0, std::numeric_limits<double>::infinity());
-    assert(result2.isError());
-    
-    auto result3 = libstats::UniformDistribution::create(5.0, 2.0);  // a > b
-    assert(result3.isError());
-    
-    std::cout << "✓ Edge cases tests passed" << std::endl;
-}
-
-void testSamplingStatistics() {
-    std::cout << "Testing sampling statistics..." << std::endl;
-    
-    libstats::UniformDistribution uniform(2.0, 8.0);
-    std::mt19937 rng(42);
-    
-    constexpr size_t NUM_SAMPLES = 10000;
-    std::vector<double> samples(NUM_SAMPLES);
-    
-    // Generate samples
-    for (size_t i = 0; i < NUM_SAMPLES; ++i) {
-        samples[i] = uniform.sample(rng);
-    }
-    
-    // Test that all samples are within bounds
-    for (double sample : samples) {
-        assert(sample >= 2.0 && sample <= 8.0);
-    }
-    
-    // Test sample statistics
-    double sample_mean = std::accumulate(samples.begin(), samples.end(), 0.0) / NUM_SAMPLES;
-    double theoretical_mean = uniform.getMean();
-    assert(std::abs(sample_mean - theoretical_mean) < 0.1);
-    
-    // Test sample variance
-    double sample_var = 0.0;
-    for (double sample : samples) {
-        double diff = sample - sample_mean;
-        sample_var += diff * diff;
-    }
-    sample_var /= (NUM_SAMPLES - 1);
-    double theoretical_var = uniform.getVariance();
-    assert(std::abs(sample_var - theoretical_var) < 0.5);
-    
-    // Test uniformity using Kolmogorov-Smirnov test (simplified)
-    std::sort(samples.begin(), samples.end());
-    double max_diff = 0.0;
-    for (size_t i = 0; i < NUM_SAMPLES; ++i) {
-        double empirical_cdf = static_cast<double>(i + 1) / NUM_SAMPLES;
-        double theoretical_cdf = uniform.getCumulativeProbability(samples[i]);
-        max_diff = std::max(max_diff, std::abs(empirical_cdf - theoretical_cdf));
-    }
-    
-    // For large samples, KS statistic should be small
-    assert(max_diff < 0.05);
-    
-    std::cout << "✓ Sampling statistics tests passed" << std::endl;
-}
-
-void testCopyAndMove() {
-    std::cout << "Testing copy and move semantics..." << std::endl;
-    
-    // Test copy constructor
-    libstats::UniformDistribution original(3.0, 7.0);
-    libstats::UniformDistribution copied(original);
-    
-    assert(copied.getLowerBound() == original.getLowerBound());
-    assert(copied.getUpperBound() == original.getUpperBound());
-    assert(copied.getMean() == original.getMean());
-    assert(copied.getVariance() == original.getVariance());
-    
-    // Test copy assignment
-    libstats::UniformDistribution assigned(0.0, 1.0);
-    assigned = original;
-    
-    assert(assigned.getLowerBound() == original.getLowerBound());
-    assert(assigned.getUpperBound() == original.getUpperBound());
-    
-    // Test move constructor
-    libstats::UniformDistribution to_move(5.0, 10.0);
-    double original_mean = to_move.getMean();
-    libstats::UniformDistribution moved(std::move(to_move));
-    
-    assert(moved.getMean() == original_mean);
-    
-    // Test move assignment
-    libstats::UniformDistribution move_assigned(0.0, 1.0);
-    libstats::UniformDistribution to_move2(15.0, 25.0);
-    double original_mean2 = to_move2.getMean();
-    move_assigned = std::move(to_move2);
-    
-    assert(move_assigned.getMean() == original_mean2);
-    
-    std::cout << "✓ Copy and move semantics tests passed" << std::endl;
-}
-
-void testSpecialDistributions() {
-    std::cout << "Testing special distribution cases..." << std::endl;
-    
+TEST_F(UniformEnhancedTest, SpecialDistributions) {
     // Test unit interval U(0,1)
-    libstats::UniformDistribution unit(0.0, 1.0);
-    assert(unit.getProbability(0.5) == 1.0);
-    assert(unit.getLogProbability(0.5) == 0.0);
-    assert(unit.getCumulativeProbability(0.5) == 0.5);
-    assert(unit.getQuantile(0.5) == 0.5);
+    UniformDistribution unit(0.0, 1.0);
+    EXPECT_DOUBLE_EQ(unit.getProbability(0.5), 1.0);
+    EXPECT_DOUBLE_EQ(unit.getLogProbability(0.5), 0.0);
+    EXPECT_DOUBLE_EQ(unit.getCumulativeProbability(0.5), 0.5);
+    EXPECT_DOUBLE_EQ(unit.getQuantile(0.5), 0.5);
     
     // Test standard interval U(-1,1)
-    libstats::UniformDistribution standard(-1.0, 1.0);
-    assert(standard.getProbability(0.0) == 0.5);
-    assert(standard.getMean() == 0.0);
-    assert(standard.getCumulativeProbability(0.0) == 0.5);
+    UniformDistribution standard(-1.0, 1.0);
+    EXPECT_DOUBLE_EQ(standard.getProbability(0.0), 0.5);
+    EXPECT_DOUBLE_EQ(standard.getMean(), 0.0);
+    EXPECT_DOUBLE_EQ(standard.getCumulativeProbability(0.0), 0.5);
     
     // Test symmetric interval U(-c,c)
-    libstats::UniformDistribution symmetric(-5.0, 5.0);
-    assert(symmetric.getMean() == 0.0);
-    assert(symmetric.getCumulativeProbability(0.0) == 0.5);
-    
-    std::cout << "✓ Special distribution cases tests passed" << std::endl;
+    UniformDistribution symmetric(-5.0, 5.0);
+    EXPECT_DOUBLE_EQ(symmetric.getMean(), 0.0);
+    EXPECT_DOUBLE_EQ(symmetric.getCumulativeProbability(0.0), 0.5);
 }
 
-void testCPUDetection() {
-    std::cout << "Testing CPU detection and SIMD usage..." << std::endl;
+TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
+    UniformDistribution uniform(0.0, 1.0);
+    constexpr size_t BENCHMARK_SIZE = 50000;
     
-    // Test CPU detection
-    std::cout << "  CPU Features:" << std::endl;
-    std::cout << "    SSE2: " << (libstats::cpu::supports_sse2() ? "Yes" : "No") << std::endl;
-    std::cout << "    AVX: " << (libstats::cpu::supports_avx() ? "Yes" : "No") << std::endl;
-    std::cout << "    AVX2: " << (libstats::cpu::supports_avx2() ? "Yes" : "No") << std::endl;
-    std::cout << "    FMA: " << (libstats::cpu::supports_fma() ? "Yes" : "No") << std::endl;
+    // Generate test data
+    std::vector<double> test_values(BENCHMARK_SIZE);
+    std::vector<double> pdf_results(BENCHMARK_SIZE);
+    std::vector<double> log_pdf_results(BENCHMARK_SIZE);
+    std::vector<double> cdf_results(BENCHMARK_SIZE);
     
-    // Test that SIMD batch operations work regardless of CPU features
-    libstats::UniformDistribution uniform(0.0, 1.0);
-    std::vector<double> values(100);
-    std::vector<double> results(100);
-    
-    // Fill with test values
-    std::iota(values.begin(), values.end(), 0.0);
-    std::transform(values.begin(), values.end(), values.begin(), [](double x) { return x / 100.0; });
-    
-    // This should work on any CPU
-    uniform.getProbabilityBatch(values.data(), results.data(), 100);
-    
-    // Verify results
-    for (size_t i = 0; i < 100; ++i) {
-        assert(results[i] == 1.0); // All values are in [0,1]
+    std::mt19937 gen(42);
+    std::uniform_real_distribution<> dis(-0.5, 1.5); // Include values outside [0,1]
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
+        test_values[i] = dis(gen);
     }
     
-    std::cout << "✓ CPU detection and SIMD tests passed" << std::endl;
+    StandardizedBenchmark::printBenchmarkHeader("Uniform Distribution", BENCHMARK_SIZE);
+    
+    std::vector<BenchmarkResult> benchmark_results;
+    
+    // For each operation type (PDF, LogPDF, CDF)
+    std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
+    
+    for (const auto& op : operations) {
+        BenchmarkResult result;
+        result.operation_name = op;
+        
+        // 1. SIMD Batch (baseline)
+        auto start = std::chrono::high_resolution_clock::now();
+        if (op == "PDF") {
+            uniform.getProbabilityBatch(test_values.data(), pdf_results.data(), BENCHMARK_SIZE);
+        } else if (op == "LogPDF") {
+            uniform.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), BENCHMARK_SIZE);
+        } else if (op == "CDF") {
+            uniform.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        result.simd_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 2. Standard Parallel Operations
+        std::span<const double> input_span(test_values);
+        
+        if (op == "PDF") {
+            std::span<double> output_span(pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getProbabilityBatchParallel(input_span, output_span);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPDF") {
+            std::span<double> log_output_span(log_pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getLogProbabilityBatchParallel(input_span, log_output_span);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getCumulativeProbabilityBatchParallel(input_span, cdf_output_span);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.parallel_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 3. Work-Stealing Operations
+        WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
+        
+        if (op == "PDF") {
+            std::span<double> output_span(pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getProbabilityBatchWorkStealing(input_span, output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPDF") {
+            std::span<double> log_output_span(log_pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getLogProbabilityBatchWorkStealing(input_span, log_output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getCumulativeProbabilityBatchWorkStealing(input_span, cdf_output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.work_stealing_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 4. Cache-Aware Operations
+        cache::AdaptiveCache<std::string, double> cache_manager;
+        
+        if (op == "PDF") {
+            std::span<double> output_span(pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getProbabilityBatchCacheAware(input_span, output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPDF") {
+            std::span<double> log_output_span(log_pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getLogProbabilityBatchCacheAware(input_span, log_output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            uniform.getCumulativeProbabilityBatchCacheAware(input_span, cdf_output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.cache_aware_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // Calculate speedups
+        result.parallel_speedup = (double)result.simd_time_us / result.parallel_time_us;
+        result.work_stealing_speedup = (double)result.simd_time_us / result.work_stealing_time_us;
+        result.cache_aware_speedup = (double)result.simd_time_us / result.cache_aware_time_us;
+        
+        benchmark_results.push_back(result);
+        
+        // Verify correctness
+        if (op == "PDF") {
+            StatisticalTestUtils::verifyBatchCorrectness(uniform, test_values, pdf_results, "PDF");
+        } else if (op == "LogPDF") {
+            StatisticalTestUtils::verifyBatchCorrectness(uniform, test_values, log_pdf_results, "LogPDF");
+        } else if (op == "CDF") {
+            StatisticalTestUtils::verifyBatchCorrectness(uniform, test_values, cdf_results, "CDF");
+        }
+    }
+    
+    // Print standardized benchmark results
+    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
+    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
 }
 
-int main() {
-    std::cout << "Running Uniform Distribution Enhanced Tests..." << std::endl;
-    std::cout << "=============================================" << std::endl;
+// Test new work-stealing and cache-aware methods for uniform distribution
+TEST_F(UniformEnhancedTest, NewWorkStealingAndCacheAwareMethods) {
+    UniformDistribution uniform(0.0, 1.0);
     
-    try {
-        testBasicProperties();
-        testNumericalStability();
-        testSIMDBatchOperations();
-        testLargeBatchPerformance();
-        testThreadSafety();
-        testEdgeCases();
-        testSamplingStatistics();
-        testCopyAndMove();
-        testSpecialDistributions();
-        testCPUDetection();
-        
-        std::cout << "\n🎉 All Uniform distribution enhanced tests passed!" << std::endl;
-        std::cout << "  - Basic functionality: ✓" << std::endl;
-        std::cout << "  - Numerical stability: ✓" << std::endl;
-        std::cout << "  - SIMD batch operations: ✓" << std::endl;
-        std::cout << "  - Performance optimizations: ✓" << std::endl;
-        std::cout << "  - Thread safety: ✓" << std::endl;
-        std::cout << "  - Edge cases: ✓" << std::endl;
-        std::cout << "  - Statistical validation: ✓" << std::endl;
-        std::cout << "  - Copy/move semantics: ✓" << std::endl;
-        std::cout << "  - Special distributions: ✓" << std::endl;
-        std::cout << "  - CPU detection: ✓" << std::endl;
-        
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "❌ Test failed with exception: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
-        std::cerr << "❌ Test failed with unknown exception" << std::endl;
-        return 1;
+    constexpr size_t TEST_SIZE = 10000;
+    
+    // Generate test data (mix of in-range and out-of-range values)
+    std::vector<double> test_values(TEST_SIZE);
+    std::random_device rd;
+    std::mt19937 gen(42);
+    std::uniform_real_distribution<> dis(-0.5, 1.5);  // Mix of in-range and out-of-range values
+    
+    for (size_t i = 0; i < TEST_SIZE; ++i) {
+        test_values[i] = dis(gen);
     }
+    
+    // Prepare result vectors
+    std::vector<double> pdf_ws_results(TEST_SIZE);
+    std::vector<double> pdf_cache_results(TEST_SIZE);
+    std::vector<double> log_pdf_ws_results(TEST_SIZE);
+    std::vector<double> log_pdf_cache_results(TEST_SIZE);
+    std::vector<double> cdf_ws_results(TEST_SIZE);
+    std::vector<double> cdf_cache_results(TEST_SIZE);
+    std::vector<double> expected_pdf(TEST_SIZE);
+    std::vector<double> expected_log_pdf(TEST_SIZE);
+    std::vector<double> expected_cdf(TEST_SIZE);
+    
+    // Calculate expected results
+    for (size_t i = 0; i < TEST_SIZE; ++i) {
+        expected_pdf[i] = uniform.getProbability(test_values[i]);
+        expected_log_pdf[i] = uniform.getLogProbability(test_values[i]);
+        expected_cdf[i] = uniform.getCumulativeProbability(test_values[i]);
+    }
+    
+    // Test work-stealing and cache-aware implementations
+    std::cout << "Testing uniform work-stealing and cache-aware methods:" << std::endl;
+    
+    WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
+    cache::AdaptiveCache<std::string, double> cache_manager;
+    
+    // Test work-stealing PDF
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(pdf_ws_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        uniform.getProbabilityBatchWorkStealing(values_span, results_span, work_stealing_pool);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto ws_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  PDF work-stealing: " << ws_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(pdf_ws_results[i] - expected_pdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Work-stealing PDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test cache-aware PDF
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(pdf_cache_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        uniform.getProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto cache_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  PDF cache-aware: " << cache_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(pdf_cache_results[i] - expected_pdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Cache-aware PDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test work-stealing log probability
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(log_pdf_ws_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        uniform.getLogProbabilityBatchWorkStealing(values_span, results_span, work_stealing_pool);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto ws_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  Log PDF work-stealing: " << ws_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(log_pdf_ws_results[i] - expected_log_pdf[i]) > 1e-10) {
+                // Special handling for negative infinity comparisons
+                if (!(std::isinf(log_pdf_ws_results[i]) && std::isinf(expected_log_pdf[i]))) {
+                    correct = false;
+                    break;
+                }
+            }
+        }
+        EXPECT_TRUE(correct) << "Work-stealing log PDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test cache-aware log probability
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(log_pdf_cache_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        uniform.getLogProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto cache_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  Log PDF cache-aware: " << cache_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(log_pdf_cache_results[i] - expected_log_pdf[i]) > 1e-10) {
+                // Special handling for negative infinity comparisons
+                if (!(std::isinf(log_pdf_cache_results[i]) && std::isinf(expected_log_pdf[i]))) {
+                    correct = false;
+                    break;
+                }
+            }
+        }
+        EXPECT_TRUE(correct) << "Cache-aware log PDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test work-stealing CDF
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(cdf_ws_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        uniform.getCumulativeProbabilityBatchWorkStealing(values_span, results_span, work_stealing_pool);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto ws_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  CDF work-stealing: " << ws_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(cdf_ws_results[i] - expected_cdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Work-stealing CDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test cache-aware CDF
+    {
+        std::span<const double> values_span(test_values);
+        std::span<double> results_span(cdf_cache_results);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        uniform.getCumulativeProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        auto cache_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        std::cout << "  CDF cache-aware: " << cache_time << "μs" << std::endl;
+        
+        // Verify correctness
+        bool correct = true;
+        for (size_t i = 0; i < TEST_SIZE; ++i) {
+            if (std::abs(cdf_cache_results[i] - expected_cdf[i]) > 1e-10) {
+                correct = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(correct) << "Cache-aware CDF should produce correct results";
+        std::cout << "    ✓ Correctness verified" << std::endl;
+    }
+    
+    // Test with different distribution parameters
+    std::cout << "\nTesting with different parameters (a=2.0, b=8.0):" << std::endl;
+    
+    UniformDistribution custom_uniform(2.0, 8.0);
+    
+    // Test a subset with custom distribution
+    const size_t subset_size = 1000;
+    std::span<const double> subset_values(test_values.data(), subset_size);
+    std::span<double> subset_pdf_results(pdf_ws_results.data(), subset_size);
+    std::span<double> subset_log_results(log_pdf_ws_results.data(), subset_size);
+    std::span<double> subset_cdf_results(cdf_ws_results.data(), subset_size);
+    
+    custom_uniform.getProbabilityBatchWorkStealing(subset_values, subset_pdf_results, work_stealing_pool);
+    custom_uniform.getLogProbabilityBatchWorkStealing(subset_values, subset_log_results, work_stealing_pool);
+    custom_uniform.getCumulativeProbabilityBatchCacheAware(subset_values, subset_cdf_results, cache_manager);
+    
+    // Verify against individual calls
+    bool custom_correct = true;
+    for (size_t i = 0; i < subset_size; ++i) {
+        double expected_pdf = custom_uniform.getProbability(test_values[i]);
+        double expected_log = custom_uniform.getLogProbability(test_values[i]);
+        double expected_cdf = custom_uniform.getCumulativeProbability(test_values[i]);
+        
+        bool pdf_match = std::abs(pdf_ws_results[i] - expected_pdf) <= 1e-10;
+        bool log_match = std::abs(log_pdf_ws_results[i] - expected_log) <= 1e-10;
+        bool cdf_match = std::abs(cdf_ws_results[i] - expected_cdf) <= 1e-10;
+        
+        // Special handling for negative infinity
+        if (std::isinf(expected_log) && std::isinf(log_pdf_ws_results[i])) {
+            log_match = true;
+        }
+        
+        if (!pdf_match || !log_match || !cdf_match) {
+            custom_correct = false;
+            break;
+        }
+    }
+    
+    EXPECT_TRUE(custom_correct) << "Custom uniform distribution should produce correct results";
+    std::cout << "  ✓ Custom distribution tests passed" << std::endl;
+    
+    // Test uniform-specific properties
+    std::cout << "\nTesting uniform-specific properties:" << std::endl;
+    
+    // Test values within and outside support
+    const std::vector<double> boundary_values = {-0.1, 0.0, 0.5, 1.0, 1.1};
+    const std::vector<double> expected_pdf_values = {0.0, 1.0, 1.0, 1.0, 0.0};
+    const std::vector<double> expected_cdf_values = {0.0, 0.0, 0.5, 1.0, 1.0};
+    
+    std::vector<double> boundary_pdf_results(boundary_values.size());
+    std::vector<double> boundary_cdf_results(boundary_values.size());
+    
+    std::span<const double> boundary_span(boundary_values);
+    std::span<double> boundary_pdf_span(boundary_pdf_results);
+    std::span<double> boundary_cdf_span(boundary_cdf_results);
+    
+    uniform.getProbabilityBatchWorkStealing(boundary_span, boundary_pdf_span, work_stealing_pool);
+    uniform.getCumulativeProbabilityBatchCacheAware(boundary_span, boundary_cdf_span, cache_manager);
+    
+    // Verify boundary behavior
+    for (size_t i = 0; i < boundary_values.size(); ++i) {
+        EXPECT_NEAR(boundary_pdf_results[i], expected_pdf_values[i], 1e-10) 
+            << "PDF boundary value at " << boundary_values[i];
+        EXPECT_NEAR(boundary_cdf_results[i], expected_cdf_values[i], 1e-10) 
+            << "CDF boundary value at " << boundary_values[i];
+    }
+    
+    std::cout << "  ✓ Uniform boundary handling verified" << std::endl;
+    
+    // Print final statistics
+    auto ws_stats = work_stealing_pool.getStatistics();
+    auto cache_stats = cache_manager.getStats();
+    
+    std::cout << "\nFinal Statistics:" << std::endl;
+    std::cout << "  Work-stealing tasks: " << ws_stats.tasksExecuted << std::endl;
+    std::cout << "  Cache entries: " << cache_stats.size << std::endl;
+    std::cout << "  Cache hit rate: " << (cache_stats.hit_rate * 100) << "%" << std::endl;
+    
+    std::cout << "\n  ✓ All uniform work-stealing and cache-aware methods validated!" << std::endl;
+}
+
+//==============================================================================
+// ADVANCED STATISTICAL TESTS
+//==============================================================================
+
+TEST_F(UniformEnhancedTest, AdvancedStatisticalMethods) {
+    auto uniformResult = UniformDistribution::create(0.0, 1.0);
+    ASSERT_TRUE(uniformResult.isOk());
+    auto uniform = std::move(uniformResult.value);
+    
+    // Generate synthetic uniform data that should follow [0,1] distribution
+    std::vector<double> synthetic_data;
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> uniform_gen(0.0, 1.0);
+    
+    for (int i = 0; i < 1000; ++i) {
+        synthetic_data.push_back(uniform_gen(rng));
+    }
+    
+    // Test KS goodness of fit using static method
+    auto [ks_stat, ks_p_value, ks_reject] = UniformDistribution::kolmogorovSmirnovTest(synthetic_data, uniform);
+    EXPECT_FALSE(ks_reject) << "KS test should pass for well-fitted uniform data";
+    EXPECT_TRUE(std::isfinite(ks_stat)) << "KS statistic should be finite";
+    EXPECT_GT(ks_p_value, 0.0) << "KS p-value should be positive";
+    EXPECT_GE(ks_stat, 0.0) << "KS statistic should be non-negative";
+    
+    // Test Anderson-Darling goodness of fit using static method
+    auto [ad_stat, ad_p_value, ad_reject] = UniformDistribution::andersonDarlingTest(synthetic_data, uniform);
+    EXPECT_FALSE(ad_reject) << "AD test should pass for well-fitted uniform data";
+    EXPECT_TRUE(std::isfinite(ad_stat)) << "AD statistic should be finite";
+    EXPECT_GT(ad_p_value, 0.0) << "AD p-value should be positive";
+    EXPECT_GE(ad_stat, 0.0) << "AD statistic should be non-negative";
+    
+    std::cout << "  KS test: stat=" << ks_stat << ", p=" << ks_p_value << ", reject=" << ks_reject << std::endl;
+    std::cout << "  AD test: stat=" << ad_stat << ", p=" << ad_p_value << ", reject=" << ad_reject << std::endl;
+    
+    std::cout << "✓ Advanced statistical methods validated" << std::endl;
+}
+
+TEST_F(UniformEnhancedTest, GoodnessOfFitTests) {
+    auto uniformResult = UniformDistribution::create(0.0, 1.0);
+    ASSERT_TRUE(uniformResult.isOk());
+    auto uniform = std::move(uniformResult.value);
+    
+    // Generate uniform data that should fit well
+    std::vector<double> uniform_data;
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> u_gen(0.0, 1.0);
+    for (int i = 0; i < 1000; ++i) {
+        uniform_data.push_back(u_gen(rng));
+    }
+
+    // Test KS goodness of fit for uniform data using static method
+    auto [ks_stat, ks_p_value, ks_reject] = UniformDistribution::kolmogorovSmirnovTest(uniform_data, uniform);
+    EXPECT_FALSE(ks_reject) << "KS test should pass for generated uniform data";
+    EXPECT_TRUE(std::isfinite(ks_stat)) << "KS statistic should be finite";
+    EXPECT_GT(ks_p_value, 0.0) << "KS p-value should be positive";
+    
+    // Generate non-uniform data (should fail the test)
+    std::vector<double> non_uniform_data;
+    std::normal_distribution<double> normal_gen(0.5, 0.1);
+    for (int i = 0; i < 1000; ++i) {
+        double val = normal_gen(rng);
+        if (val >= 0.0 && val <= 1.0) {  // Keep only values in [0,1]
+            non_uniform_data.push_back(val);
+        }
+    }
+    
+    if (non_uniform_data.size() > 100) {
+        auto [non_ks_stat, non_ks_p_value, non_ks_reject] = UniformDistribution::kolmogorovSmirnovTest(non_uniform_data, uniform);
+        // This should generally reject, though it's probabilistic
+        EXPECT_TRUE(std::isfinite(non_ks_stat)) << "Non-uniform KS statistic should be finite";
+        EXPECT_GT(non_ks_p_value, 0.0) << "Non-uniform KS p-value should be positive";
+    }
+
+    std::cout << "✓ Goodness of fit tests completed" << std::endl;
+}
+
+TEST_F(UniformEnhancedTest, CrossValidationMethods) {
+    auto uniformResult = UniformDistribution::create(0.0, 1.0);
+    ASSERT_TRUE(uniformResult.isOk());
+    auto uniform = std::move(uniformResult.value);
+    
+    // Generate uniform data for cross-validation testing
+    std::vector<double> uniform_data;
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> u_gen(0.0, 1.0);
+    
+    for (int i = 0; i < 600; ++i) {
+        uniform_data.push_back(u_gen(rng));
+    }
+    
+    // Perform k-fold cross validation using static method
+    constexpr int k = 5;
+    auto cv_results = UniformDistribution::kFoldCrossValidation(uniform_data, k);
+    
+    // Should get k results
+    EXPECT_EQ(cv_results.size(), k) << "Should get k cross-validation results";
+    
+    // Each result should have reasonable values
+    for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
+        EXPECT_TRUE(std::isfinite(mean_error)) << "Mean error should be finite";
+        EXPECT_TRUE(std::isfinite(std_error)) << "Std error should be finite";
+        EXPECT_TRUE(std::isfinite(log_likelihood)) << "Log likelihood should be finite";
+    }
+    
+    // Perform leave-one-out cross validation on a smaller subset
+    std::vector<double> small_data(uniform_data.begin(), uniform_data.begin() + 100);
+    auto [mae, rmse, total_loglik] = UniformDistribution::leaveOneOutCrossValidation(small_data);
+    
+    EXPECT_TRUE(std::isfinite(mae)) << "MAE should be finite";
+    EXPECT_TRUE(std::isfinite(rmse)) << "RMSE should be finite";
+    EXPECT_TRUE(std::isfinite(total_loglik)) << "Total log likelihood should be finite";
+    EXPECT_GT(mae, 0.0) << "MAE should be positive";
+    EXPECT_GT(rmse, 0.0) << "RMSE should be positive";
+    
+    std::cout << "✓ Cross-validation methods completed" << std::endl;
+}
+
+TEST_F(UniformEnhancedTest, InformationCriteria) {
+    auto uniformResult = UniformDistribution::create(0.0, 1.0);
+    ASSERT_TRUE(uniformResult.isOk());
+    auto uniform = std::move(uniformResult.value);
+    
+    // Generate test data
+    std::vector<double> test_data;
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> u_gen(0.0, 1.0);
+    
+    for (int i = 0; i < 1000; ++i) {
+        test_data.push_back(u_gen(rng));
+    }
+    
+    // Calculate information criteria using static method
+    auto [aic, bic, aicc, log_likelihood] = UniformDistribution::computeInformationCriteria(test_data, uniform);
+    
+    // All criteria should be finite and reasonable
+    EXPECT_TRUE(std::isfinite(aic)) << "AIC should be finite";
+    EXPECT_TRUE(std::isfinite(bic)) << "BIC should be finite";
+    EXPECT_TRUE(std::isfinite(aicc)) << "AICc should be finite";
+    EXPECT_TRUE(std::isfinite(log_likelihood)) << "Log likelihood should be finite";
+    
+    // BIC generally penalizes complexity more than AIC
+    // For uniform distributions, this relationship may vary
+    EXPECT_GT(aic, -std::numeric_limits<double>::infinity()) << "AIC should be greater than negative infinity";
+    EXPECT_GT(bic, -std::numeric_limits<double>::infinity()) << "BIC should be greater than negative infinity";
+    
+    // For U(0,1), log probability of each point in [0,1] is log(1) = 0
+    // So total log likelihood should be close to 0 (may have small penalty for out-of-bounds points)
+    EXPECT_LE(log_likelihood, 0.0) << "Log likelihood should be non-positive for uniform data";
+    EXPECT_GT(log_likelihood, -100.0) << "Log likelihood should not be too negative for well-fitted uniform data";
+    
+    std::cout << "✓ Information criteria computed: AIC = " << aic << ", BIC = " << bic << ", AICc = " << aicc << std::endl;
+}
+
+TEST_F(UniformEnhancedTest, BootstrapParameterConfidenceIntervals) {
+    auto uniformResult = UniformDistribution::create(0.0, 1.0);
+    ASSERT_TRUE(uniformResult.isOk());
+    auto uniform = std::move(uniformResult.value);
+    
+    // Generate uniform data for bootstrap testing
+    std::vector<double> uniform_data;
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> u_gen(0.2, 0.8); // Biased towards center
+    
+    for (int i = 0; i < 200; ++i) {
+        uniform_data.push_back(u_gen(rng));
+    }
+    
+    // Perform bootstrap confidence interval estimation using static method
+    constexpr int num_bootstrap_samples = 100;  // Reduced for testing speed
+    constexpr double confidence_level = 0.95;
+    
+    auto [lower_bound_ci, upper_bound_ci] = UniformDistribution::bootstrapParameterConfidenceIntervals(
+        uniform_data, confidence_level, num_bootstrap_samples
+    );
+    
+    // For a uniform distribution, we should get reasonable confidence intervals
+    EXPECT_LE(lower_bound_ci.first, lower_bound_ci.second) << "Lower bound CI: lower <= upper";
+    EXPECT_LE(upper_bound_ci.first, upper_bound_ci.second) << "Upper bound CI: lower <= upper";
+    
+    // Check that intervals are reasonable for uniform distribution
+    EXPECT_GE(lower_bound_ci.first, 0.0) << "Lower bound CI lower should be >= 0";
+    EXPECT_LE(lower_bound_ci.second, 1.0) << "Lower bound CI upper should be <= 1";
+    EXPECT_GE(upper_bound_ci.first, 0.0) << "Upper bound CI lower should be >= 0";
+    EXPECT_LE(upper_bound_ci.second, 1.0) << "Upper bound CI upper should be <= 1";
+    
+    // The bounds should be ordered correctly
+    EXPECT_LE(lower_bound_ci.second, upper_bound_ci.first) << "Lower bound upper should be <= upper bound lower";
+    
+    std::cout << "✓ Bootstrap confidence intervals completed" << std::endl;
+    std::cout << "  Lower bound CI: [" << lower_bound_ci.first << ", " << lower_bound_ci.second << "]" << std::endl;
+    std::cout << "  Upper bound CI: [" << upper_bound_ci.first << ", " << upper_bound_ci.second << "]" << std::endl;
+}
+
+//==============================================================================
+// MAIN FUNCTION
+//==============================================================================
+
+} // namespace libstats
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

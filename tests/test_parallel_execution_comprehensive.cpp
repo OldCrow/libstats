@@ -7,7 +7,7 @@
 #include <chrono>
 
 // Test integration with main header
-#include "libstats.h"
+#include "../include/libstats.h"
 
 int main() {
     std::cout << "=== Comprehensive Parallel Execution Tests ===" << std::endl;
@@ -127,7 +127,7 @@ int main() {
     std::cout << "Test 6: Platform-aware adaptive features" << std::endl;
     
     // Test optimal parallel threshold
-    auto optimal_threshold = libstats::parallel::get_optimal_parallel_threshold();
+    auto optimal_threshold = libstats::parallel::get_optimal_parallel_threshold("gaussian", "pdf");
     std::cout << "  - Optimal parallel threshold: " << optimal_threshold << " elements" << std::endl;
     assert(optimal_threshold > 0 && optimal_threshold < 100000); // Reasonable range
     

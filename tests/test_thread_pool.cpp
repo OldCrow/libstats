@@ -21,7 +21,7 @@
 #include <iomanip>
 
 // Include the enhanced thread_pool.h with Level 0-2 integration
-#include "../include/thread_pool.h"
+#include "../include/platform/thread_pool.h"
 
 using namespace libstats;
 
@@ -61,8 +61,8 @@ private:
         auto parallelThreshold = constants::parallel::MIN_ELEMENTS_FOR_PARALLEL;
         auto distributionThreshold = constants::parallel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
         auto defaultGrainSize = constants::parallel::adaptive::grain_size();
-        auto simdBlockSize = constants::parallel::adaptive::simd_block_size();
-        auto memoryAlignment = constants::parallel::adaptive::memory_alignment();
+        auto simdBlockSize = constants::platform::get_optimal_simd_block_size();
+        auto memoryAlignment = constants::platform::get_optimal_alignment();
         
         std::cout << "  Min parallel size: " << parallelThreshold << std::endl;
         std::cout << "  Min distribution parallel size: " << distributionThreshold << std::endl;

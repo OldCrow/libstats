@@ -10,9 +10,10 @@
     // and has different intrinsic handling
 #endif
 
-#include "../include/simd.h"
-#include "../include/cpu_detection.h"
-#include "../include/constants.h"
+#include "../include/platform/simd.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/core/constants.h"
+#include "../include/platform/platform_constants.h"
 #include <immintrin.h> // AVX-512 intrinsics
 #include <cmath>
 

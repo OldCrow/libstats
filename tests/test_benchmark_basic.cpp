@@ -2,7 +2,7 @@
 #include <vector>
 #include <chrono>
 #include <thread>
-#include "benchmark.h"
+#include "../include/platform/benchmark.h"
 
 using namespace libstats;
 

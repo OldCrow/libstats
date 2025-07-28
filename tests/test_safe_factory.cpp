@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cassert>
-#include "../include/gaussian.h"
+#include "../include/distributions/gaussian.h"
 
 using namespace libstats;
 

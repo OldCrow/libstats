@@ -5,8 +5,8 @@
 #include <iomanip>
 #include <cassert>
 #include <stdexcept>
-#include "safety.h"
-#include "constants.h"
+#include "../include/core/safety.h"
+#include "../include/core/constants.h"
 
 using namespace libstats::safety;
 namespace prob = libstats::constants::probability;

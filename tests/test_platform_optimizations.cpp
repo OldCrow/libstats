@@ -1,4 +1,4 @@
-#include "../include/simd.h"
+#include "../include/platform/simd.h"
 #include <iostream>
 #include <vector>
 #include <cassert>

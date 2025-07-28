@@ -7,8 +7,9 @@
     #pragma GCC target("no-avx512f,no-avx2,no-avx")
 #endif
 
-#include "../include/cpu_detection.h"
-
+#include "../include/platform/cpu_detection.h"
+#include "../include/core/constants.h"
+#include "../include/platform/platform_constants.h"
 namespace libstats {
 namespace simd {
 

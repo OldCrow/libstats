@@ -1,7 +1,8 @@
-#include "math_utils.h"
-#include "distribution_base.h"
-#include "safety.h"
-#include "cpu_detection.h"
+#include "../include/core/math_utils.h"
+#include "../include/core/constants.h"
+#include "../include/core/distribution_base.h"
+#include "../include/core/safety.h"
+#include "../include/platform/cpu_detection.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -30,16 +31,16 @@ double erf_inv(double x) noexcept {
     // Standard inverse error function using rational approximation
     // Based on Numerical Recipes and NIST algorithms
     
-    if (x < -1.0 || x > 1.0) {
+    if (x < constants::math::NEG_ONE || x > constants::math::ONE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
     
-    if (x == 0.0) return 0.0;
-    if (x >= 1.0) return std::numeric_limits<double>::infinity();
-    if (x <= -1.0) return -std::numeric_limits<double>::infinity();
+    if (x == constants::math::ZERO_DOUBLE) return constants::math::ZERO_DOUBLE;
+    if (x >= constants::math::ONE) return std::numeric_limits<double>::infinity();
+    if (x <= constants::math::NEG_ONE) return -std::numeric_limits<double>::infinity();
     
     // Use symmetry: erf_inv(-x) = -erf_inv(x)
-    double sign = (x < 0) ? -1.0 : 1.0;
+    double sign = (x < constants::math::ZERO_DOUBLE) ? constants::math::NEG_ONE : constants::math::ONE;
     double a = std::abs(x);
     
     // Rational approximation constants (Moro's method)
@@ -60,10 +61,10 @@ double erf_inv(double x) noexcept {
     if (a <= 0.7) {
         // Central region: use rational approximation
         double z = a * a;
-        result = a * (((a3*z + a2)*z + a1)*z + a0) / ((((b3*z + b2)*z + b1)*z + b0)*z + 1.0);
+        result = a * (((a3*z + a2)*z + a1)*z + a0) / ((((b3*z + b2)*z + b1)*z + b0)*z + constants::math::ONE);
     } else if (a < 0.99) {
         // Moderate tail region: use improved asymptotic expansion with better coefficients
-        double z = std::sqrt(-std::log((1.0 - a) * 0.5));
+        double z = std::sqrt(-std::log((constants::math::ONE - a) * constants::math::HALF));
         
         // More accurate coefficients for moderate tail (based on Acklam's method)
         static const double d0 = 2.515517;
@@ -73,11 +74,11 @@ double erf_inv(double x) noexcept {
         static const double e2 = 0.189269;
         static const double e3 = 0.001308;
         
-        result = z - (d0 + d1*z + d2*z*z) / (1.0 + e1*z + e2*z*z + e3*z*z*z);
+        result = z - (d0 + d1*z + d2*z*z) / (constants::math::ONE + e1*z + e2*z*z + e3*z*z*z);
     } else {
         // Extreme tail region: use specialized asymptotic series
         // For erf(x) very close to 1, use high-precision asymptotic expansion
-        double eps = 1.0 - a;  // Small positive number
+        double eps = constants::math::ONE - a;  // Small positive number
         
         if (eps < 1e-15) {
             // Ultra-extreme tail: use logarithmic asymptotic expansion
@@ -88,7 +89,7 @@ double erf_inv(double x) noexcept {
             result = sqrt_log_eps;
             
             // Higher order corrections for better accuracy
-            double correction = std::log(sqrt_log_eps * constants::math::SQRT_PI * 0.5) / (2.0 * sqrt_log_eps);
+            double correction = std::log(sqrt_log_eps * constants::math::SQRT_PI * constants::math::HALF) / (constants::math::TWO * sqrt_log_eps);
             result -= correction;
             
             // Even higher order terms for extreme precision
@@ -451,7 +452,7 @@ std::array<double, 4> sample_moments(std::span<const double> data) {
         double sigma4 = sigma3 * sigma;
         
         skewness = m3 / sigma3;
-        kurtosis = (m4 / sigma4) - constants::statistical::thresholds::EXCESS_KURTOSIS_OFFSET; // Excess kurtosis
+        kurtosis = (m4 / sigma4) - constants::thresholds::EXCESS_KURTOSIS_OFFSET; // Excess kurtosis
     }
     
     return {mean, variance, skewness, kurtosis};

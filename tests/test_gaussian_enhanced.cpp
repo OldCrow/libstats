@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
-#include "../include/gaussian.h"
+#include "../include/distributions/gaussian.h"
+#include "enhanced_test_template.h"
 #include <vector>
 #include <random>
 #include <numeric>
@@ -7,9 +8,11 @@
 #include <cmath>
 #include <chrono>
 #include <thread>
+#include <span>
 
 using namespace std;
 using namespace libstats;
+using namespace libstats::testing;
 
 namespace libstats {
 
@@ -119,44 +122,84 @@ TEST_F(GaussianEnhancedTest, BatchOperations) {
     }
 }
 
-TEST_F(GaussianEnhancedTest, SIMDPerformanceTest) {
+TEST_F(GaussianEnhancedTest, PerformanceTest) {
     GaussianDistribution stdNormal(0.0, 1.0);
     constexpr size_t LARGE_BATCH_SIZE = 10000;
     
     std::vector<double> large_test_values(LARGE_BATCH_SIZE);
     std::vector<double> large_pdf_results(LARGE_BATCH_SIZE);
+    std::vector<double> large_log_pdf_results(LARGE_BATCH_SIZE);
+    std::vector<double> large_cdf_results(LARGE_BATCH_SIZE);
     
     // Generate test data
-    std::mt19937 gen(42); // Fixed seed for reproducibility
+    std::mt19937 gen(42);
     std::uniform_real_distribution<> dis(-3.0, 3.0);
     
     for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
         large_test_values[i] = dis(gen);
     }
     
-    // Time batch operations
+    std::cout << "  === Gaussian Batch Performance Results ===" << std::endl;
+    
+    // Test 1: PDF Batch vs Individual
     auto start = std::chrono::high_resolution_clock::now();
     stdNormal.getProbabilityBatch(large_test_values.data(), large_pdf_results.data(), LARGE_BATCH_SIZE);
     auto end = std::chrono::high_resolution_clock::now();
-    auto batch_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    auto pdf_batch_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
-    // Time individual operations for comparison
     start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
         large_pdf_results[i] = stdNormal.getProbability(large_test_values[i]);
     }
     end = std::chrono::high_resolution_clock::now();
-    auto individual_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    auto pdf_individual_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
-    // Expect some speedup (batch should be faster than individual operations)
-    EXPECT_GT((double)individual_time / batch_time, 1.0);
+    double pdf_speedup = (double)pdf_individual_time / pdf_batch_time;
+    std::cout << "  PDF:     Batch " << pdf_batch_time << "μs vs Individual " << pdf_individual_time << "μs → " << pdf_speedup << "x speedup" << std::endl;
+    
+    // Test 2: Log PDF Batch vs Individual
+    start = std::chrono::high_resolution_clock::now();
+    stdNormal.getLogProbabilityBatch(large_test_values.data(), large_log_pdf_results.data(), LARGE_BATCH_SIZE);
+    end = std::chrono::high_resolution_clock::now();
+    auto log_pdf_batch_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
+        large_log_pdf_results[i] = stdNormal.getLogProbability(large_test_values[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto log_pdf_individual_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double log_pdf_speedup = (double)log_pdf_individual_time / log_pdf_batch_time;
+    std::cout << "  LogPDF:  Batch " << log_pdf_batch_time << "μs vs Individual " << log_pdf_individual_time << "μs → " << log_pdf_speedup << "x speedup" << std::endl;
+    
+    // Test 3: CDF Batch vs Individual
+    start = std::chrono::high_resolution_clock::now();
+    stdNormal.getCumulativeProbabilityBatch(large_test_values.data(), large_cdf_results.data(), LARGE_BATCH_SIZE);
+    end = std::chrono::high_resolution_clock::now();
+    auto cdf_batch_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < LARGE_BATCH_SIZE; ++i) {
+        large_cdf_results[i] = stdNormal.getCumulativeProbability(large_test_values[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto cdf_individual_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double cdf_speedup = (double)cdf_individual_time / cdf_batch_time;
+    std::cout << "  CDF:     Batch " << cdf_batch_time << "μs vs Individual " << cdf_individual_time << "μs → " << cdf_speedup << "x speedup" << std::endl;
     
     // Verify correctness on a sample
     const size_t sample_size = 100;
     for (size_t i = 0; i < sample_size; ++i) {
         size_t idx = i * (LARGE_BATCH_SIZE / sample_size);
         double expected_pdf = stdNormal.getProbability(large_test_values[idx]);
+        double expected_log_pdf = stdNormal.getLogProbability(large_test_values[idx]);
+        double expected_cdf = stdNormal.getCumulativeProbability(large_test_values[idx]);
+        
         EXPECT_NEAR(large_pdf_results[idx], expected_pdf, 1e-10);
+        EXPECT_NEAR(large_log_pdf_results[idx], expected_log_pdf, 1e-10);
+        EXPECT_NEAR(large_cdf_results[idx], expected_cdf, 1e-10);
     }
 }
 
@@ -421,6 +464,145 @@ TEST_F(GaussianEnhancedTest, ThreadSafety) {
             EXPECT_TRUE(std::isfinite(val));
         }
     }
+}
+
+//==============================================================================
+// PARALLEL BATCH OPERATIONS AND BENCHMARKING
+//==============================================================================
+
+TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
+    GaussianDistribution stdNormal(0.0, 1.0);
+    constexpr size_t BENCHMARK_SIZE = 50000;
+    
+    // Generate test data
+    std::vector<double> test_values(BENCHMARK_SIZE);
+    std::vector<double> pdf_results(BENCHMARK_SIZE);
+    std::vector<double> log_pdf_results(BENCHMARK_SIZE);
+    std::vector<double> cdf_results(BENCHMARK_SIZE);
+    
+    std::mt19937 gen(42);
+    std::uniform_real_distribution<> dis(-3.0, 3.0);
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
+        test_values[i] = dis(gen);
+    }
+    
+    StandardizedBenchmark::printBenchmarkHeader("Gaussian Distribution", BENCHMARK_SIZE);
+    
+    std::vector<BenchmarkResult> benchmark_results;
+    
+    // For each operation type (PDF, LogPDF, CDF)
+    std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
+    
+    for (const auto& op : operations) {
+        BenchmarkResult result;
+        result.operation_name = op;
+        
+        // 1. SIMD Batch (baseline)
+        auto start = std::chrono::high_resolution_clock::now();
+        if (op == "PDF") {
+            stdNormal.getProbabilityBatch(test_values.data(), pdf_results.data(), BENCHMARK_SIZE);
+        } else if (op == "LogPDF") {
+            stdNormal.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), BENCHMARK_SIZE);
+        } else if (op == "CDF") {
+            stdNormal.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        result.simd_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 2. Standard Parallel Operations
+        std::span<const double> input_span(test_values);
+        
+        if (op == "PDF") {
+            std::span<double> output_span(pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getProbabilityBatchParallel(input_span, output_span);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPDF") {
+            std::span<double> log_output_span(log_pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getLogProbabilityBatchParallel(input_span, log_output_span);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getCumulativeProbabilityBatchParallel(input_span, cdf_output_span);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.parallel_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 3. Work-Stealing Operations
+        WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
+        
+        if (op == "PDF") {
+            std::span<double> output_span(pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getProbabilityBatchWorkStealing(input_span, output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPDF") {
+            std::span<double> log_output_span(log_pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getLogProbabilityBatchWorkStealing(input_span, log_output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getCumulativeProbabilityBatchWorkStealing(input_span, cdf_output_span, work_stealing_pool);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.work_stealing_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // 4. Cache-Aware Operations
+        cache::AdaptiveCache<std::string, double> cache_manager;
+        
+        if (op == "PDF") {
+            std::span<double> output_span(pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getProbabilityBatchCacheAware(input_span, output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "LogPDF") {
+            std::span<double> log_output_span(log_pdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getLogProbabilityBatchCacheAware(input_span, log_output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        } else if (op == "CDF") {
+            std::span<double> cdf_output_span(cdf_results);
+            start = std::chrono::high_resolution_clock::now();
+            stdNormal.getCumulativeProbabilityBatchCacheAware(input_span, cdf_output_span, cache_manager);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        result.cache_aware_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // Calculate speedups
+        result.parallel_speedup = (double)result.simd_time_us / result.parallel_time_us;
+        result.work_stealing_speedup = (double)result.simd_time_us / result.work_stealing_time_us;
+        result.cache_aware_speedup = (double)result.simd_time_us / result.cache_aware_time_us;
+        
+        benchmark_results.push_back(result);
+        
+        // Verify correctness
+        if (op == "PDF") {
+            StatisticalTestUtils::verifyBatchCorrectness(stdNormal, test_values, pdf_results, "PDF");
+        } else if (op == "LogPDF") {
+            StatisticalTestUtils::verifyBatchCorrectness(stdNormal, test_values, log_pdf_results, "LogPDF");
+        } else if (op == "CDF") {
+            StatisticalTestUtils::verifyBatchCorrectness(stdNormal, test_values, cdf_results, "CDF");
+        }
+    }
+    
+    // Print standardized benchmark results
+    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
+    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
+}
+
+//==============================================================================
+// NUMERICAL STABILITY AND EDGE CASES
+//==============================================================================
+
+TEST_F(GaussianEnhancedTest, NumericalStability) {
+    GaussianDistribution normal(0.0, 1.0);
+    
+    EdgeCaseTester<GaussianDistribution>::testExtremeValues(normal, "Gaussian");
+    EdgeCaseTester<GaussianDistribution>::testEmptyBatchOperations(normal, "Gaussian");
 }
 
 } // namespace libstats

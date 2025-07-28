@@ -1,5 +1,5 @@
 // Test program to verify AdaptiveCache is available through libstats.h
-#include "include/libstats.h"
+#include "../include/libstats.h"
 #include <iostream>
 #include <string>
 

@@ -18,7 +18,7 @@
 #include <cmath>
 #include <iomanip>
 #include <span>
-#include "work_stealing_pool.h"
+#include "../include/platform/work_stealing_pool.h"
 
 using namespace libstats;
 
@@ -180,8 +180,8 @@ int main() {
         auto parallelThreshold = constants::parallel::MIN_ELEMENTS_FOR_PARALLEL;
         auto distributionThreshold = constants::parallel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
         auto defaultGrainSize = constants::parallel::adaptive::grain_size();
-        auto simdBlockSize = constants::parallel::adaptive::simd_block_size();
-        auto memoryAlignment = constants::parallel::adaptive::memory_alignment();
+        auto simdBlockSize = constants::platform::get_optimal_simd_block_size();
+        auto memoryAlignment = constants::platform::get_optimal_alignment();
         
         std::cout << "  Min parallel size: " << parallelThreshold << std::endl;
         std::cout << "  Min distribution parallel size: " << distributionThreshold << std::endl;

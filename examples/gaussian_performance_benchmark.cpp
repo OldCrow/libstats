@@ -17,10 +17,10 @@
  * @version 1.0.0
  */
 
-#include "../include/gaussian.h"
-#include "../include/benchmark.h"
-#include "../include/adaptive_cache.h"
-#include "../include/work_stealing_pool.h"
+#include "../include/distributions/gaussian.h"
+#include "../include/platform/benchmark.h"
+#include "../include/platform/adaptive_cache.h"
+#include "../include/platform/work_stealing_pool.h"
 #include <iostream>
 #include <vector>
 #include <random>
@@ -89,11 +89,31 @@ int main() {
             stdNormal.getProbabilityBatch(test_values.data(), results.data(), size);
         }, 0, static_cast<double>(size));
         
+        bench.addTest("Batch Log PDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
+            stdNormal.getLogProbabilityBatch(test_values.data(), results.data(), size);
+        }, 0, static_cast<double>(size));
+        
+        bench.addTest("Batch CDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
+            stdNormal.getCumulativeProbabilityBatch(test_values.data(), results.data(), size);
+        }, 0, static_cast<double>(size));
+        
         // Parallel batch operations
         bench.addTest("Batch PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
             std::span<const double> values_span(test_values);
             std::span<double> results_span(results);
             stdNormal.getProbabilityBatchParallel(values_span, results_span);
+        }, 0, static_cast<double>(size));
+        
+        bench.addTest("Batch Log PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            stdNormal.getLogProbabilityBatchParallel(values_span, results_span);
+        }, 0, static_cast<double>(size));
+        
+        bench.addTest("Batch CDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            stdNormal.getCumulativeProbabilityBatchParallel(values_span, results_span);
         }, 0, static_cast<double>(size));
     }
     
@@ -113,6 +133,18 @@ int main() {
         stdNormal.getProbabilityBatchCacheAware(values_span, results_span, cache_manager);
     }, 0, static_cast<double>(large_test.size()));
     
+    bench.addTest("Cache-Aware Batch Log PDF", [&]() mutable {
+        std::span<const double> values_span(large_test);
+        std::span<double> results_span(large_results);
+        stdNormal.getLogProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+    }, 0, static_cast<double>(large_test.size()));
+    
+    bench.addTest("Cache-Aware Batch CDF", [&]() mutable {
+        std::span<const double> values_span(large_test);
+        std::span<double> results_span(large_results);
+        stdNormal.getCumulativeProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+    }, 0, static_cast<double>(large_test.size()));
+    
     // Work-stealing parallel operations
     WorkStealingPool work_pool(std::thread::hardware_concurrency());
     
@@ -120,6 +152,18 @@ int main() {
         std::span<const double> values_span(large_test);
         std::span<double> results_span(large_results);
         stdNormal.getProbabilityBatchWorkStealing(values_span, results_span, work_pool);
+    }, 0, static_cast<double>(large_test.size()));
+    
+    bench.addTest("Work-Stealing Batch Log PDF", [&]() mutable {
+        std::span<const double> values_span(large_test);
+        std::span<double> results_span(large_results);
+        stdNormal.getLogProbabilityBatchWorkStealing(values_span, results_span, work_pool);
+    }, 0, static_cast<double>(large_test.size()));
+    
+    bench.addTest("Work-Stealing Batch CDF", [&]() mutable {
+        std::span<const double> values_span(large_test);
+        std::span<double> results_span(large_results);
+        stdNormal.getCumulativeProbabilityBatchWorkStealing(values_span, results_span, work_pool);
     }, 0, static_cast<double>(large_test.size()));
     
     //==========================================================================

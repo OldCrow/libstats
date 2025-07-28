@@ -13,8 +13,9 @@
     #define CPU_DETECTION_NO_SIMD
 #endif
 
-#include "../include/cpu_detection.h"
-#include "../include/constants.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/core/constants.h"
+#include "../include/platform/platform_constants.h"
 #include <chrono>
 #include <thread>
 #include <atomic>
@@ -87,7 +88,7 @@ namespace {
                         int backoff = 1;
                         while ((features = ptr.load(std::memory_order_acquire)) == nullptr) {
                             std::this_thread::sleep_for(std::chrono::nanoseconds(backoff));
-                            backoff = std::min(backoff * 2, static_cast<int>(constants::simd::cpu::MAX_BACKOFF_NANOSECONDS)); // Max 1μs backoff
+                            backoff = std::min(backoff * constants::math::TWO_INT, static_cast<int>(constants::simd::cpu::MAX_BACKOFF_NANOSECONDS)); // Max 1μs backoff
                         }
                     #endif
                 }
@@ -223,15 +224,15 @@ namespace {
         } else {
             // Fallback: use basic detection
             features.topology.physical_cores = logical_processors;
-            features.topology.threads_per_core = 1;
-            features.topology.packages = 1;
+            features.topology.threads_per_core = constants::math::ONE_INT;
+            features.topology.packages = constants::math::ONE_INT;
             features.topology.hyperthreading = false;
             
             // Check if hyperthreading is supported
-            if (edx & (1 << 28)) { // HTT bit
+            if (edx & (constants::math::ONE_INT << 28)) { // HTT bit
                 features.topology.hyperthreading = true;
-                features.topology.physical_cores = logical_processors / 2;
-                features.topology.threads_per_core = 2;
+                features.topology.physical_cores = logical_processors / constants::math::TWO_INT;
+                features.topology.threads_per_core = constants::math::TWO_INT;
             }
         }
     }
@@ -860,6 +861,46 @@ bool validate_feature_consistency() {
     if (f.sve2 && !f.sve) return false;
     
     return true;
+}
+
+// Intel CPU generation detection functions
+bool is_sandy_ivy_bridge() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 42 || features.model == 58);  // Sandy Bridge: 42, Ivy Bridge: 58
+}
+
+bool is_haswell_broadwell() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 60 || features.model == 61    // Haswell: 60, Broadwell: 61
+            || features.model == 69 || features.model == 70  // Haswell-ULT: 69, Haswell-GT3e: 70
+            || features.model == 71);                        // Broadwell-GT3e: 71
+}
+
+bool is_skylake_generation() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 78 || features.model == 94);  // Skylake-U/Y: 78, Skylake-S/H: 94
+}
+
+bool is_kaby_coffee_lake() {
+    const Features& features = get_features();
+    return features.vendor == "GenuineIntel" 
+        && features.family == 6
+        && (features.model == 142 || features.model == 158  // Kaby Lake-U/Y: 142, Coffee Lake-S: 158
+            || features.model == 165 || features.model == 166); // Coffee Lake-H: 165, Cannon Lake: 166
+}
+
+bool is_modern_intel() {
+    const Features& features = get_features();
+    // Modern Intel includes Ice Lake (2019+) with AVX-512 or newer architectures
+    return features.vendor == "GenuineIntel" 
+        && (features.avx512f  // Any CPU with AVX-512 is modern
+            || (features.family == 6 && features.model >= 125)); // Ice Lake and newer models
 }
 
 } // namespace cpu

@@ -6,9 +6,10 @@
 #include <thread>
 #include <random>
 
-#include "../include/adaptive_cache.h"
-#include "../include/constants.h"
-#include "../src/adaptive_cache.cpp"
+#include "../include/platform/adaptive_cache.h"
+#include "../include/core/constants.h"
+#include "../include/platform/platform_constants.h"
+// Implementation is already included via the header
 
 using namespace libstats::cache;
 using namespace libstats::constants;
@@ -524,8 +525,9 @@ void test_cache_hierarchy_constants() {
     // Test tuning constants
     assert(cache::tuning::HIGH_FREQ_THRESHOLD_HZ > 0);
     assert(cache::tuning::ULTRA_HIGH_FREQ_THRESHOLD_HZ > cache::tuning::HIGH_FREQ_THRESHOLD_HZ);
-    assert(cache::tuning::BASE_TTL < cache::tuning::HIGH_FREQ_TTL);
-    assert(cache::tuning::HIGH_FREQ_TTL < cache::tuning::ULTRA_HIGH_FREQ_TTL);
+    // Higher frequency CPUs should have shorter TTL (faster invalidation)
+    assert(cache::tuning::BASE_TTL > cache::tuning::HIGH_FREQ_TTL);
+    assert(cache::tuning::HIGH_FREQ_TTL > cache::tuning::ULTRA_HIGH_FREQ_TTL);
     
     // Test pattern constants
     assert(cache::patterns::SEQUENTIAL_PATTERN_THRESHOLD > 0.5);
