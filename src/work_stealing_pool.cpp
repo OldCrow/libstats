@@ -58,6 +58,29 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
         // Store enableAffinity flag for worker thread to use during initialization
         workers_[i]->enableOptimization = enableAffinity;
     }
+    
+    // macOS QoS Best Practice: Wait for all threads to be ready before returning
+    // This prevents race conditions when QoS/affinity setting takes time
+    {
+        std::unique_lock<std::mutex> lock(readinessMutex_);
+        
+        // Use timeout to prevent indefinite blocking in case of initialization issues
+        const auto timeout = std::chrono::milliseconds(5000); // 5 second max wait
+        const bool allReady = readinessCondition_.wait_for(lock, timeout, [this, numThreads] {
+            return readyThreads_.load(std::memory_order_acquire) == numThreads;
+        });
+        
+        if (!allReady) {
+            // Log warning and continue - this shouldn't happen in normal operation
+            const auto actualReady = readyThreads_.load();
+            std::cerr << "Warning: WorkStealingPool thread initialization timeout after 5000ms. "
+                      << "Ready threads: " << actualReady << "/" << numThreads;
+            if (actualReady < numThreads) {
+                std::cerr << " (" << (numThreads - actualReady) << " threads still initializing)";
+            }
+            std::cerr << std::endl;
+        }
+    }
 }
 
 WorkStealingPool::~WorkStealingPool() {
@@ -147,14 +170,33 @@ void WorkStealingPool::workerLoop(int workerId) {
     
     // Ensure worker data is valid
     if (workerId < constants::math::ZERO_INT || workerId >= static_cast<int>(workers_.size()) || !workers_[workerId]) {
+        // Still need to signal readiness even if invalid to prevent constructor deadlock
+        {
+            std::lock_guard<std::mutex> lock(readinessMutex_);
+            readyThreads_.fetch_add(1, std::memory_order_release);
+            readinessCondition_.notify_one();
+        }
         return;
     }
     
     auto& workerData = *workers_[workerId];
     
-    // Perform thread self-optimization if enabled
+    // Perform thread self-optimization if enabled (this is where QoS setting happens)
     if (workerData.enableOptimization) {
         optimizeCurrentThread(workerId, static_cast<int>(workers_.size()));
+    }
+    
+    // macOS QoS Best Practice: Signal that this thread is fully initialized and ready
+    // This must happen AFTER optimizeCurrentThread() to ensure QoS setting is complete
+    {
+        std::lock_guard<std::mutex> lock(readinessMutex_);
+        [[maybe_unused]] const std::size_t ready = readyThreads_.fetch_add(1, std::memory_order_release) + 1;
+        readinessCondition_.notify_one();
+        
+        // Optional: Log readiness for debugging (can be removed in production)
+        #ifdef LIBSTATS_DEBUG_THREADING
+            std::cout << "Worker " << workerId << " ready (" << ready << "/" << workers_.size() << ")" << std::endl;
+        #endif
     }
     
     while (!shutdown_.load(std::memory_order_acquire)) {
@@ -185,8 +227,16 @@ void WorkStealingPool::workerLoop(int workerId) {
         if (taskFound && task && !shutdown_.load(std::memory_order_acquire)) {
             executeTask(std::move(task), workerId);
         } else {
-            // No work available, yield to avoid busy waiting
-            std::this_thread::yield();
+            // No work available, sleep briefly to avoid busy waiting
+            // Use exponential backoff: yield first, then short sleep
+            static thread_local int backoffCount = 0;
+            if (backoffCount < 10) {
+                std::this_thread::yield();
+                backoffCount++;
+            } else {
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+                backoffCount = 0; // Reset backoff counter
+            }
         }
     }
 }
