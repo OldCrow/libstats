@@ -328,3 +328,5 @@ bin/
 obj/
 lib/
 libs/
+/grain_size_optimization_results.csv
+/libstats.wsp
