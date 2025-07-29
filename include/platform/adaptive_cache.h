@@ -458,7 +458,7 @@ public:
         std::shared_lock lock(cache_mutex_);
         auto metrics = getMetrics();
         
-        CacheStats stats;
+        CacheStats stats{};
         stats.size = cache_.size();
         stats.memory_usage = metrics.memory_usage.load();
         stats.hit_rate = metrics.hit_rate.load();

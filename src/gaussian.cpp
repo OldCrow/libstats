@@ -1456,7 +1456,7 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalMean(
         ) / (n - 1);
         const double sample_std = std::sqrt(sample_var);
         const double alpha = constants::math::ONE - confidence_level;
-        const double t_alpha_2 = math::inverse_t_cdf(constants::math::ONE - alpha * constants::math::HALF, n - 1);
+        const double t_alpha_2 = math::inverse_t_cdf(constants::math::ONE - alpha * constants::math::HALF, static_cast<double>(n - 1));
         margin_of_error = t_alpha_2 * sample_std / std::sqrt(n);
     }
     
@@ -1485,7 +1485,7 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalVariance(
     ) / (n - 1);
     
     const double alpha = constants::math::ONE - confidence_level;
-    const double df = n - 1;
+    const double df = static_cast<double>(n - 1);
     
     // Chi-squared critical values  
     const double alpha_half = alpha * constants::math::HALF;
@@ -1525,7 +1525,7 @@ std::tuple<double, double, bool> GaussianDistribution::oneSampleTTest(
     const double t_statistic = (sample_mean - hypothesized_mean) / (sample_std / std::sqrt(n));
     
     // Calculate p-value (two-tailed) using constants for 2.0 and 1.0
-    const double p_value = constants::math::TWO * (constants::math::ONE - math::t_cdf(std::abs(t_statistic), n - 1));
+    const double p_value = constants::math::TWO * (constants::math::ONE - math::t_cdf(std::abs(t_statistic), static_cast<double>(n - 1)));
     
     const bool reject_null = p_value < alpha;
     
@@ -1572,7 +1572,7 @@ std::tuple<double, double, bool> GaussianDistribution::twoSampleTTest(
         const double pooled_var = ((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2);
         const double pooled_std = std::sqrt(pooled_var * (constants::math::ONE/n1 + constants::math::ONE/n2));
         t_statistic = (mean1 - mean2) / pooled_std;
-        degrees_of_freedom = n1 + n2 - 2;
+        degrees_of_freedom = static_cast<double>(n1 + n2 - 2);
     } else {
         // Welch's t-test
         const double se = std::sqrt(var1/n1 + var2/n2);

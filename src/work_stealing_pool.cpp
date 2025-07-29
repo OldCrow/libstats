@@ -212,7 +212,7 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
     const int startVictim = dist(thiefData.rng);
     
     for (std::size_t attempt = constants::math::ZERO_INT; attempt < numWorkers - constants::math::ONE_INT; ++attempt) {
-        const int victimId = (startVictim + attempt) % numWorkers;
+        const int victimId = static_cast<int>((startVictim + attempt) % numWorkers);
         if (victimId == thiefId) continue;
         
         // Validate victim ID and check if still valid

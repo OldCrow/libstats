@@ -74,7 +74,7 @@ int main() {
         std::vector<double> empty_data;
         libstats::parallel::safe_fill(empty_data.begin(), empty_data.end(), 1.0);
         std::cout << "  - Empty container handling: PASSED" << std::endl;
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         std::cout << "  - Empty container handling: PASSED (caught expected exception)" << std::endl;
     }
     

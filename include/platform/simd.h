@@ -74,37 +74,38 @@
 //==============================================================================
 
 // Microsoft Visual C++ - Windows
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
     #include <intrin.h>
-    #define LIBSTATS_HAS_SSE2
+    #ifndef LIBSTATS_HAS_SSE2
+        #define LIBSTATS_HAS_SSE2
+    #endif
     #if defined(__AVX__)
-        #define LIBSTATS_HAS_AVX
+        #ifndef LIBSTATS_HAS_AVX
+            #define LIBSTATS_HAS_AVX
+        #endif
     #endif
     #if defined(__AVX2__)
-        #define LIBSTATS_HAS_AVX2
+        #ifndef LIBSTATS_HAS_AVX2
+            #define LIBSTATS_HAS_AVX2
+        #endif
     #endif
 
 // GCC/Clang - x86/x64 platforms (Intel/AMD)
 #elif (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86))
     #include <immintrin.h>
     #include <x86intrin.h>
-    
     #ifndef LIBSTATS_HAS_SSE2
         #define LIBSTATS_HAS_SSE2  // Available on all modern x86_64
     #endif
-    
     #if defined(__SSE4_1__) && !defined(LIBSTATS_HAS_SSE4_1)
         #define LIBSTATS_HAS_SSE4_1
     #endif
-    
     #if defined(__AVX__) && !defined(LIBSTATS_HAS_AVX)
         #define LIBSTATS_HAS_AVX
     #endif
-    
     #if defined(__AVX2__) && !defined(LIBSTATS_HAS_AVX2)
         #define LIBSTATS_HAS_AVX2
     #endif
-    
     #if defined(__AVX512F__) && !defined(LIBSTATS_HAS_AVX512)
         #define LIBSTATS_HAS_AVX512
     #endif
@@ -115,7 +116,6 @@
     #ifndef LIBSTATS_HAS_NEON
         #define LIBSTATS_HAS_NEON
     #endif
-    
     // Apple Silicon specific optimizations
     #if defined(__APPLE__) && defined(__aarch64__)
         #define LIBSTATS_APPLE_SILICON

@@ -78,7 +78,8 @@ private:
         }
         
         // Power-of-2 grain sizes
-        for (std::size_t grain = 8; grain <= std::min(data_size / 8, 65536UL); grain *= 2) {
+        std::size_t grain_limit = data_size / 8 < 65536UL ? data_size / 8 : 65536UL;
+        for (std::size_t grain = 8; grain <= grain_limit; grain *= 2) {
             grain_sizes.push_back(grain);
         }
         

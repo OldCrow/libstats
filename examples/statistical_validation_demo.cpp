@@ -13,6 +13,7 @@
 #include "../include/distributions/gaussian.h"
 #include <iostream>
 #include <vector>
+#include <tuple>
 #include <random>
 
 int main() {
@@ -65,9 +66,16 @@ int main() {
         std::cout << "   Results per fold (Mean Abs Error, Std Error, Log-Likelihood):" << std::endl;
         double total_mae = 0.0, total_loglik = 0.0;
         for (size_t i = 0; i < cv_results.size(); ++i) {
-            auto [mae, stderr, loglik] = cv_results[i];
+#if defined(_MSC_VER)
+            const auto& result = cv_results[i];
+            double mae = std::get<0>(result);
+            double std_err = std::get<1>(result);
+            double loglik = std::get<2>(result);
+#else
+            auto [mae, std_err, loglik] = cv_results[i];
+#endif
             std::cout << "     Fold " << (i+1) << ": MAE=" << mae 
-                     << ", StdErr=" << stderr << ", LogLik=" << loglik << std::endl;
+                     << ", StdErr=" << std_err << ", LogLik=" << loglik << std::endl;
             total_mae += mae;
             total_loglik += loglik;
         }

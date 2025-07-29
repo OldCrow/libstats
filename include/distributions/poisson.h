@@ -12,6 +12,7 @@
 #include <span>        // For std::span interface in parallel operations
 #include <tuple>       // For statistical test results
 #include <vector>      // For batch operations and data handling
+#include <array>	   // For precomputed factorials
 
 namespace libstats {
 

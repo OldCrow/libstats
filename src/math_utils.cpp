@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <array>
 
 namespace libstats {
 namespace math {
@@ -13,6 +14,7 @@ namespace math {
 // Forward declarations
 static double beta_continued_fraction(double x, double a, double b) noexcept;
 static double gamma_p_series(double a, double x) noexcept;
+double gamma_q(double a, double x) noexcept;
 
 // =============================================================================
 // SPECIAL MATHEMATICAL FUNCTIONS
@@ -158,7 +160,7 @@ double gamma_p(double a, double x) noexcept {
     
     if (x > a + 1.0) {
         // For large x, use the complementary function for better convergence
-        return 1.0 - gamma_q(a, x);
+        return 1.0 - libstats::math::gamma_q(a, x);
     }
     
     // Use the dedicated series function that has the correct formula
@@ -404,7 +406,7 @@ std::vector<double> calculate_quantiles(std::span<const double> data, std::span<
     
     return result;
 }
-
+        
 std::array<double, 4> sample_moments(std::span<const double> data) {
     if (data.empty()) {
         throw std::invalid_argument("Cannot calculate moments from empty data");

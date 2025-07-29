@@ -555,78 +555,68 @@ public:
 // ERROR RECOVERY STRATEGIES
 //==============================================================================
 
+#ifdef STRICT
+#undef STRICT
+#endif
+#ifdef GRACEFUL
+#undef GRACEFUL
+#endif
+#ifdef ROBUST
+#undef ROBUST
+#endif
+#ifdef ADAPTIVE
+#undef ADAPTIVE
+#endif
 /**
  * @brief Error recovery strategies for numerical failures
  */
 enum class RecoveryStrategy {
-    STRICT,         ///< Throw exception on any numerical issue
-    GRACEFUL,       ///< Try to recover with degraded precision
-    ROBUST,         ///< Aggressively recover, may sacrifice some accuracy
-    ADAPTIVE        ///< Choose strategy based on problem characteristics
+    StrictMode,      ///< Throw exception on any numerical issue
+    GracefulMode,    ///< Try to recover with degraded precision
+    RobustMode,      ///< Aggressively recover, may sacrifice some accuracy
+    AdaptiveMode     ///< Choose strategy based on problem characteristics
 };
 
-/**
- * @brief Attempt to recover from underflow in probability calculations
- * @param probs Probability vector with potential underflow
- * @param strategy Recovery strategy to use
- * @return True if recovery was successful
- */
-inline bool recover_from_underflow(std::vector<double>& probs, RecoveryStrategy strategy = RecoveryStrategy::GRACEFUL) {
+inline bool recover_from_underflow(std::vector<double>& probs, RecoveryStrategy strategy = RecoveryStrategy::GracefulMode) {
     bool had_underflow = false;
-    
     for (double& prob : probs) {
         if (prob < constants::probability::MIN_PROBABILITY) {
             had_underflow = true;
             switch (strategy) {
-                case RecoveryStrategy::STRICT:
+                case RecoveryStrategy::StrictMode:
                     throw std::runtime_error("Probability underflow detected in strict mode");
-                    
-                case RecoveryStrategy::GRACEFUL:
-                case RecoveryStrategy::ROBUST:
-                case RecoveryStrategy::ADAPTIVE:
+                case RecoveryStrategy::GracefulMode:
+                case RecoveryStrategy::RobustMode:
+                case RecoveryStrategy::AdaptiveMode:
                     prob = constants::probability::MIN_PROBABILITY;
                     break;
             }
         }
     }
-    
-    // Renormalize if we had underflow
     if (had_underflow) {
         normalize_probabilities(probs);
     }
-    
     return had_underflow;
 }
 
-/**
- * @brief Handle NaN values in computations
- * @param values Vector containing potential NaN values
- * @param strategy Recovery strategy to use
- * @return Number of NaN values recovered
- */
-inline std::size_t handle_nan_values(std::vector<double>& values, RecoveryStrategy strategy = RecoveryStrategy::GRACEFUL) {
+inline std::size_t handle_nan_values(std::vector<double>& values, RecoveryStrategy strategy = RecoveryStrategy::GracefulMode) {
     std::size_t nan_count = 0;
-    
     for (double& value : values) {
         if (std::isnan(value)) {
             ++nan_count;
             switch (strategy) {
-                case RecoveryStrategy::STRICT:
+                case RecoveryStrategy::StrictMode:
                     throw std::runtime_error("NaN value detected in strict mode");
-                    
-                case RecoveryStrategy::GRACEFUL:
-                case RecoveryStrategy::ADAPTIVE:
+                case RecoveryStrategy::GracefulMode:
+                case RecoveryStrategy::AdaptiveMode:
                     value = 0.0;
                     break;
-                    
-                case RecoveryStrategy::ROBUST:
-                    // Use a small positive value instead of zero
+                case RecoveryStrategy::RobustMode:
                     value = constants::precision::ZERO;
                     break;
             }
         }
     }
-    
     return nan_count;
 }
 

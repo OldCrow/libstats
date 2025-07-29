@@ -344,8 +344,8 @@ void StatsBenchmarkUtils::benchmarkBasicStats(
             volatile double sum = std::accumulate(vec.begin(), vec.end(), 0.0);
             [[maybe_unused]] volatile double mean = sum / vec.size();
         }
-    }, 0, data.size());
-    
+    }, 0, static_cast<double>(data.size()));
+
     // Variance calculation benchmark
     benchmark.addTest("Variance Calculation", [&data]() {
         for (const auto& vec : data) {
@@ -357,15 +357,15 @@ void StatsBenchmarkUtils::benchmarkBasicStats(
             }
             [[maybe_unused]] volatile double variance = sumSq / vec.size();
         }
-    }, 0, data.size());
-    
+    }, 0, static_cast<double>(data.size()));
+
     // Sorting benchmark
     benchmark.addTest("Vector Sorting", [&data]() {
         for (const auto& vec : data) {
             std::vector<double> copy = vec;
             std::sort(copy.begin(), copy.end());
         }
-    }, 0, data.size());
+    }, 0, static_cast<double>(data.size()));
 }
 
 void StatsBenchmarkUtils::benchmarkMatrixOps(
@@ -379,7 +379,7 @@ void StatsBenchmarkUtils::benchmarkMatrixOps(
         for (const auto& matrix : matrices) {
             [[maybe_unused]] volatile double sum = std::accumulate(matrix.begin(), matrix.end(), 0.0);
         }
-    }, 0, matrices.size());
+    }, 0, static_cast<double>(matrices.size()));
     
     // Matrix normalization benchmark
     benchmark.addTest("Matrix Normalization", [&matrices]() {
@@ -393,7 +393,7 @@ void StatsBenchmarkUtils::benchmarkMatrixOps(
                 }
             }
         }
-    }, 0, matrices.size());
+    }, 0, static_cast<double>(matrices.size()));
 }
 
 void StatsBenchmarkUtils::benchmarkSIMDOperations(
@@ -410,7 +410,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(
                 result[i] = vec[i] + 1.0;
             }
         }
-    }, 0, data.size());
+    }, 0, static_cast<double>(data.size()));
     
     // Scalar multiplication benchmark
     benchmark.addTest("Scalar Vector Multiplication", [&data]() {
@@ -420,7 +420,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(
                 result[i] = vec[i] * 2.0;
             }
         }
-    }, 0, data.size());
+    }, 0, static_cast<double>(data.size()));
     
     // Dot product benchmark
     benchmark.addTest("Vector Dot Product", [&data]() {
@@ -435,7 +435,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(
             }
             [[maybe_unused]] volatile double result = dotProduct;
         }
-    }, 0, data.size() / 2);
+    }, 0, data.size() / 2.0);
 }
 
 //========== RegressionTester Implementation ==========

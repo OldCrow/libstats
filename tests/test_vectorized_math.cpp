@@ -18,7 +18,7 @@ void test_vector_erf() {
     cout << "Testing vector_erf..." << endl;
     
     // Create test data
-    std::random_device rd;
+    [[maybe_unused]] std::random_device rd;
     std::mt19937 gen(42);  // Fixed seed for reproducibility
     std::uniform_real_distribution<double> dis(-2.0, 2.0);
     

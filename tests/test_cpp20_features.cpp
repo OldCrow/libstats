@@ -84,19 +84,27 @@ void test_concepts() {
 }
 
 int main() {
-    std::cout << "=== C++20 Feature Test with Homebrew LLVM ===\n\n";
-    
-    // Basic info
-    std::cout << "Compiler: Clang (Homebrew LLVM)\n";
+    std::cout << "=== C++20 Feature Test ===\n\n";
+    // Detect and print compiler info
+    #if defined(_MSC_VER)
+        std::cout << "Compiler: MSVC (Microsoft Visual C++)\n";
+        std::cout << "Version: " << _MSC_VER << "\n";
+    #elif defined(__clang__)
+        std::cout << "Compiler: Clang/LLVM\n";
+        std::cout << "Version: " << __clang_version__ << "\n";
+    #elif defined(__GNUC__)
+        std::cout << "Compiler: GCC (GNU Compiler Collection)\n";
+        std::cout << "Version: " << __VERSION__ << "\n";
+    #else
+        std::cout << "Compiler: Unknown\n";
+    #endif
     std::cout << "C++ Standard: " << __cplusplus << "\n";
     std::cout << "Thread support: " << (std::thread::hardware_concurrency() > 0 ? "Yes" : "No") << "\n\n";
-    
     // Test various C++20 features
     test_concepts();
     test_ranges();
     test_format();
     test_function_and_threading();
-    
-    std::cout << "🎉 All C++20 tests passed! LLVM linking is working correctly.\n";
+    std::cout << "🎉 All C++20 tests passed! Compiler linking is working correctly.\n";
     return 0;
 }

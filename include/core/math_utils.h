@@ -5,6 +5,7 @@
 #include <functional>
 #include <span>
 #include <concepts>
+#include <algorithm>
 #include "constants.h"
 #include "safety.h"
 #include "../platform/simd.h"
@@ -464,7 +465,7 @@ namespace math {
  * @param x Value to check
  * @return true if x is finite and safe
  */
-template<FloatingPoint T>
+template<typename T> requires FloatingPoint<T>
 [[nodiscard]] constexpr bool is_safe_float(T x) noexcept {
     return std::isfinite(x) && 
            std::abs(x) < constants::thresholds::MAX_DISTRIBUTION_PARAMETER;
@@ -477,7 +478,7 @@ template<FloatingPoint T>
  * @param max_val Maximum allowed value
  * @return Clamped value
  */
-template<FloatingPoint T>
+template<typename T> requires FloatingPoint<T>
 [[nodiscard]] constexpr T clamp_safe(T x, T min_val, T max_val) noexcept {
     if (std::isnan(x)) [[unlikely]] {
         return min_val;
@@ -492,7 +493,7 @@ template<FloatingPoint T>
  * @param default_value Value to return if denominator is zero
  * @return Safe division result
  */
-template<FloatingPoint T>
+template<typename T> requires FloatingPoint<T>
 [[nodiscard]] constexpr T safe_divide(T numerator, T denominator, T default_value = T{0}) noexcept {
     if (std::abs(denominator) < constants::precision::ZERO || std::isnan(denominator)) {
         return default_value;

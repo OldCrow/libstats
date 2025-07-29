@@ -5,31 +5,33 @@ if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)  # find_package uses upper-case <PACKAGENAME>_ROOT variables
 endif()
 
-# Detect Homebrew LLVM and fallback to system compiler
+# Detect Homebrew LLVM and fallback to system compiler (macOS/Linux only)
 set(HOMEBREW_LLVM_ROOT "/usr/local/opt/llvm")
 set(HOMEBREW_LLVM_ROOT_ARM "/opt/homebrew/opt/llvm")
 
-# Check for Homebrew LLVM (Intel Mac path first, then ARM Mac path)
-if(EXISTS "${HOMEBREW_LLVM_ROOT}/bin/clang++")
-    set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT}")
-    set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
-    set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
-    set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-    set(USING_HOMEBREW_LLVM TRUE)
-    message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
-elseif(EXISTS "${HOMEBREW_LLVM_ROOT_ARM}/bin/clang++")
-    set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT_ARM}")
-    set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
-    set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
-    set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-    set(USING_HOMEBREW_LLVM TRUE)
-    message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
-else()
-    # Fallback to system compiler
-    find_program(CMAKE_C_COMPILER clang)
-    find_program(CMAKE_CXX_COMPILER clang++)
-    set(USING_HOMEBREW_LLVM FALSE)
-    message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
+# Homebrew LLVM detection (Intel Mac path first, then ARM Mac path)
+if(APPLE OR (UNIX AND NOT WIN32))
+    if(EXISTS "${HOMEBREW_LLVM_ROOT}/bin/clang++")
+        set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT}")
+        set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
+        set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
+        set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
+        set(USING_HOMEBREW_LLVM TRUE)
+        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
+    elseif(EXISTS "${HOMEBREW_LLVM_ROOT_ARM}/bin/clang++")
+        set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT_ARM}")
+        set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
+        set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
+        set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
+        set(USING_HOMEBREW_LLVM TRUE)
+        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
+    else()
+        # Fallback to system compiler
+        find_program(CMAKE_C_COMPILER clang)
+        find_program(CMAKE_CXX_COMPILER clang++)
+        set(USING_HOMEBREW_LLVM FALSE)
+        message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
+    endif()
 endif()
 
 project(libstats VERSION 0.6.0 LANGUAGES CXX)
@@ -82,15 +84,37 @@ if(APPLE)
         set(LIBSTATS_HAS_TBB FALSE)
         message(STATUS "PkgConfig not found - cannot detect TBB")
     endif()
+
 elseif(UNIX AND NOT APPLE)
     # Linux specific configuration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-soname,libstats.so.${PROJECT_VERSION_MAJOR}")
+
 elseif(WIN32)
     # Windows specific configuration
+    # Enable Windows compatibility macros
     add_definitions(-DNOMINMAX)
     add_definitions(-D_USE_MATH_DEFINES)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    
+    # Find TBB and GTest using find_package (no Homebrew or pkg-config on Windows)
+    find_package(TBB QUIET)
+    if(TBB_FOUND)
+        set(LIBSTATS_HAS_TBB TRUE)
+        message(STATUS "TBB found - parallel execution policies enabled (Windows)")
+    else()
+        set(LIBSTATS_HAS_TBB FALSE)
+        message(STATUS "TBB not found - parallel execution policies may not work (Windows)")
+    endif()
+
+    find_package(GTest QUIET)
+    if(GTest_FOUND)
+        set(GTEST_FOUND TRUE)
+        message(STATUS "GTest found via find_package (Windows)")
+    else()
+        set(GTEST_FOUND FALSE)
+        message(STATUS "GTest not found - GTest-based tests will be skipped (Windows)")
+    endif()
 endif()
 
 # SIMD feature detection and compilation flags
@@ -105,60 +129,66 @@ option(LIBSTATS_CONSERVATIVE_SIMD "Use conservative SIMD settings (disable newer
 detect_simd_features()
 
 # Compiler flags
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if(MSVC)
+    # MSVC-specific compiler flags for warnings and optimization
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(/W4 /O2)
+    else()
+        add_compile_options(/W4)
+    endif()
+    # MSVC-specific compiler definitions for Windows compatibility
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)  # Allow standard C functions
+    add_compile_definitions(_CRT_NONSTDC_NO_DEPRECATE)  # Allow POSIX function names
+    # SIMD flags for MSVC (x64 only)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        add_compile_options(/arch:AVX2)
+        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
+        add_compile_definitions(LIBSTATS_HAS_AVX=1)
+        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
+        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+    endif()
+
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # ClangCL or Clang on Windows
+    add_compile_options(-Wall -Wextra -O2)
+    if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        add_compile_options(-mavx2)
+        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
+        add_compile_definitions(LIBSTATS_HAS_AVX=1)
+        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
+        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    endif()
+
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     add_compile_options(-Wall -Wextra -O3)
-    
     # CONSERVATIVE SIMD approach: Only enable what we're confident will work
     # Since we use runtime dispatch, we don't need to enable all SIMD at compile time
     # We'll just enable SSE2 (universal on x86_64) and let runtime dispatch handle the rest
-    
-    # SSE2 is safe - it's been required for x86_64 since ~2003
     if(LIBSTATS_HAS_SSE2)
         add_compile_options(-msse2)
         add_compile_definitions(LIBSTATS_HAS_SSE2=1)
         message(STATUS "SIMD: SSE2 enabled (safe baseline for x86_64)")
     endif()
-    
-    # Enable additional SIMD levels for compilation only if we're confident
-    # Each SIMD file will be compiled with its own specific target flags
     if(LIBSTATS_HAS_AVX)
         add_compile_definitions(LIBSTATS_HAS_AVX=1)
         message(STATUS "SIMD: AVX compilation enabled (runtime-dispatched)")
     endif()
-    
     if(LIBSTATS_HAS_AVX2)
         add_compile_definitions(LIBSTATS_HAS_AVX2=1)
         message(STATUS "SIMD: AVX2 compilation enabled (runtime-dispatched)")
     endif()
-    
     if(LIBSTATS_HAS_AVX512)
         add_compile_definitions(LIBSTATS_HAS_AVX512=1)
         message(STATUS "SIMD: AVX-512 compilation enabled (runtime-dispatched)")
     endif()
-    
     if(LIBSTATS_HAS_NEON)
         add_compile_definitions(LIBSTATS_HAS_NEON=1)
         message(STATUS "SIMD: NEON enabled")
     endif()
-    
     # Disable -march=native to avoid generating unsupported instructions
     # if(NOT CMAKE_BUILD_TYPE STREQUAL "Distribution")
     #     add_compile_options(-march=native)
     # endif()
-    
-elseif(MSVC)
-    add_compile_options(/W4 /O2)
-    
-    # MSVC-specific compiler definitions for Windows compatibility
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)  # Allow standard C functions
-    add_compile_definitions(_CRT_NONSTDC_NO_DEPRECATE)  # Allow POSIX function names
-    
-    # MSVC SIMD support - let SIMDDetection.cmake handle this properly
-    # The old hardcoded approach is replaced by comprehensive detection
-    message(STATUS "MSVC detected - using comprehensive SIMD detection")
-    
-    # Note: MSVC SIMD compiler flags (/arch:SSE2, /arch:AVX, /arch:AVX2, /arch:AVX512)
-    # are applied per-file in SIMDDetection.cmake via configure_simd_target()
 endif()
 
 # Source files for the compiled library - start with core components
@@ -205,11 +235,19 @@ target_include_directories(libstats_static PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/libstats>
 )
-set_target_properties(libstats_static PROPERTIES
-    OUTPUT_NAME "stats"
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR}
-)
+if(WIN32)
+    set_target_properties(libstats_static PROPERTIES
+        OUTPUT_NAME stats_static
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+    )
+else()
+    set_target_properties(libstats_static PROPERTIES
+        OUTPUT_NAME stats
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+    )
+endif()
 
 # Dynamic/shared library
 add_library(libstats_shared SHARED ${LIBSTATS_SOURCES})
@@ -574,7 +612,7 @@ if(LIBSTATS_BUILD_TESTS)
     
     # =======================================================================
     # LEVEL 3 TESTS: Parallel Infrastructure (Depends on Levels 0-2)
-    # =======================================================================
+    # =====================================================================
     # These test parallel computation infrastructure
     
     # thread_pool.h and work_stealing_pool.h - Thread pool implementations
@@ -710,8 +748,8 @@ if(LIBSTATS_BUILD_TESTS)
             # test_uniform_simple_dynamic      # TODO: uncomment after fixing uniform.cpp
             
             # Conditional tests (added if they exist)
-            $<$<BOOL:${HAS_COPY_MOVE_STRESS}>:test_copy_move_stress>
-            $<$<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
+            <<BOOL:${HAS_COPY_MOVE_STRESS}>:test_copy_move_stress>
+            <<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
         COMMENT "Running all libstats tests in dependency order (Level 0-4)"
     )
     
@@ -826,3 +864,4 @@ if(LIBSTATS_BUILD_TESTS)
 else()
     message(STATUS "  Testing: Disabled")
 endif()
+

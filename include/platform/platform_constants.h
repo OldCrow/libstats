@@ -820,7 +820,7 @@ namespace platform {
             return base_grain * 2;  // Can handle larger chunks efficiently
         }
         else if (features.avx2 || features.fma) {
-            return base_grain * 1.5;
+            return static_cast<std::size_t>(std::round(base_grain * 1.5));
         }
         else {
             return base_grain;
@@ -850,7 +850,7 @@ namespace platform {
     
     inline CacheThresholds get_cache_thresholds() {
         const auto& features = cpu::get_features();
-        CacheThresholds thresholds;
+        CacheThresholds thresholds{};
         
         // Convert cache sizes from bytes to number of doubles
         thresholds.l1_optimal_size = features.l1_cache_size > 0 ? 

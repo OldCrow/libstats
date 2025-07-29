@@ -127,6 +127,12 @@ public:
     static std::size_t getOptimalThreadCount() noexcept;
 
 private:
+    
+    #if defined(_MSC_VER)
+    #pragma warning(push)
+    #pragma warning(disable: 4324)
+    #endif
+    
     struct alignas(64) WorkerData {  // Cache line alignment
         std::deque<Task> localQueue;
         mutable std::mutex queueMutex;
@@ -145,6 +151,10 @@ private:
         WorkerData() : rng(std::random_device{}()) {}
     };
     
+    #if defined(_MSC_VER)
+    #pragma warning(pop)
+    #endif
+
     std::vector<std::unique_ptr<WorkerData>> workers_;
     std::atomic<bool> shutdown_{false};
     std::atomic<std::size_t> activeTasks_{0};

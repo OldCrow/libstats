@@ -420,7 +420,7 @@ namespace {
     /**
      * @brief Detect macOS CPU topology using sysctl (works for both Intel and ARM)
      */
-    void detect_macos_topology(Features& features) {
+    void detect_macos_topology(Features&) {
         #if defined(__APPLE__)
             size_t size = sizeof(int);
             int value = 0;

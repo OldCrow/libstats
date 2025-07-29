@@ -159,7 +159,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
         case 0: // Memory-bound operations
             if (features.l3_cache_size > 0 && data_size > 0) {
                 // Adjust grain to fit well in cache hierarchy
-                const std::size_t cache_elements = features.l3_cache_size / (sizeof(double) * constants::math::FOUR);
+                const std::size_t cache_elements = static_cast<std::size_t>(std::round(features.l3_cache_size / (sizeof(double) * constants::math::FOUR)));
                 if (data_size > cache_elements) {
                     adjusted_grain = std::max(adjusted_grain, cache_elements / cpu::get_logical_core_count());
                 }
@@ -167,7 +167,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
             break;
         case 1: // Computation-bound operations
             // Larger grains for computation to amortize thread overhead
-            adjusted_grain *= constants::math::TWO;
+            adjusted_grain = static_cast<std::size_t>(adjusted_grain * constants::math::TWO);
             break;
         case 2: // Mixed operations (default)
         default:
@@ -183,8 +183,8 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
  * @param workload_size Total amount of work to be parallelized
  * @return Optimal number of threads to use
  */
-inline std::size_t get_optimal_thread_count(std::size_t workload_size = 0) noexcept {
-    const std::size_t logical_cores = cpu::get_logical_core_count();
+inline std::size_t get_optimal_thread_count([[maybe_unused]] std::size_t workload_size = 0) noexcept {
+    [[maybe_unused]] const std::size_t logical_cores = cpu::get_logical_core_count();
     [[maybe_unused]] const std::size_t physical_cores = cpu::get_physical_core_count();
     
     // Platform-specific thread count optimization

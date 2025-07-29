@@ -9,6 +9,10 @@
 #include <new>
 #include <type_traits>
 #include <vector>
+#include <cstdlib>
+#ifdef _WIN32
+#include <malloc.h>
+#endif
 
 namespace libstats {
 
@@ -89,6 +93,27 @@ public:
 // SIMD-ALIGNED ALLOCATOR
 // =============================================================================
 
+// Platform-agnostic aligned allocation helpers
+inline void* libstats_aligned_alloc(std::size_t alignment, std::size_t size) {
+#ifdef _WIN32
+    return _aligned_malloc(size, alignment);
+#elif defined(__unix__) || defined(__APPLE__)
+    return std::aligned_alloc(alignment, size);
+#else
+    #error "No aligned_alloc implementation for this platform."
+#endif
+}
+
+inline void libstats_aligned_free(void* ptr) {
+#ifdef _WIN32
+    _aligned_free(ptr);
+#elif defined(__unix__) || defined(__APPLE__)
+    free(ptr);
+#else
+    #error "No aligned_free implementation for this platform."
+#endif
+}
+
 /**
  * @brief SIMD-aligned vector allocator
  */
@@ -121,7 +146,7 @@ public:
         }
         
         size_t size = n * sizeof(T);
-        void* ptr = std::aligned_alloc(SIMD_ALIGNMENT, size);
+        void* ptr = libstats_aligned_alloc(SIMD_ALIGNMENT, size);
         if (!ptr) {
             throw std::bad_alloc();
         }
@@ -130,7 +155,7 @@ public:
     }
     
     void deallocate(pointer p, size_type) noexcept {
-        std::free(p);
+        libstats_aligned_free(p);
     }
     
     template<typename U>

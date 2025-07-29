@@ -129,11 +129,11 @@ double CacheMonitor::calculateTrend(const std::vector<double>& values) const {
     if (values.size() < constants::math::TWO_INT) return constants::math::ZERO_DOUBLE;
     
     // Simple linear regression slope
-    double n = values.size();
+    double n = static_cast<double>(values.size());
     double sum_x = 0, sum_y = 0, sum_xy = 0, sum_x2 = 0;
     
     for (size_t i = 0; i < values.size(); ++i) {
-        double x = i;
+        double x = static_cast<double>(i);
         double y = values[i];
         sum_x += x;
         sum_y += y;
@@ -150,7 +150,7 @@ double CacheMonitor::calculateTrend(const std::vector<double>& values) const {
 std::string CacheMonitor::formatBytes(size_t bytes) const {
     const char* units[] = {"B", "KB", "MB", "GB"};
     int unit_index = 0;
-    double size = bytes;
+    double size = static_cast<double>(bytes);
     
     const double KILOBYTE = 1024.0;
     while (size >= KILOBYTE && unit_index < constants::math::THREE_INT) {
@@ -395,7 +395,7 @@ AdaptiveCacheConfig createOptimalConfig() {
             
         default: // UNKNOWN
             // Conservative defaults
-            config.max_memory_bytes = 2 * 1024 * 1024;  // 2MB
+            config.max_memory_bytes = static_cast<size_t>(2 * 1024 * 1024);  // 2MB
             config.max_cache_size = 512;
             config.prefetch_queue_size = 16;
             config.eviction_threshold = 0.80;
