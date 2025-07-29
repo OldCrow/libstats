@@ -163,6 +163,6 @@ namespace libstats {
     // Version information
     constexpr int VERSION_MAJOR = 0;
     constexpr int VERSION_MINOR = 6;
-    constexpr int VERSION_PATCH = 0;
-    constexpr const char* VERSION_STRING = "0.6.0";
+    constexpr int VERSION_PATCH = 2;
+    constexpr const char* VERSION_STRING = "0.6.2";
 }
