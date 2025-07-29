@@ -256,27 +256,10 @@ public:
      * @brief Thread-safe cached value access with double-checked locking
      * @param accessor Function to access cached value
      * @return Cached value
+     * @note Implementation in src/distribution_cache.cpp with explicit instantiations
      */
     template<typename Func>
-    auto getCachedValue(Func&& accessor) const -> decltype(accessor()) {
-        // Fast path: check cache validity atomically without lock
-        if (cacheValidAtomic_.load(std::memory_order_acquire)) {
-            std::shared_lock lock(cache_mutex_);
-            if (cache_valid_) {
-                return accessor();
-            }
-        }
-        
-        // Slow path: acquire unique lock and update cache
-        std::unique_lock lock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-            cache_valid_ = true;
-            cacheValidAtomic_.store(true, std::memory_order_release);
-        }
-        
-        return accessor();
-    }
+    auto getCachedValue(Func&& accessor) const -> decltype(accessor());
 };
 
 // =============================================================================

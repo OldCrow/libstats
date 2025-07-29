@@ -201,6 +201,7 @@ set(LIBSTATS_SOURCES
     
     # Platform-specific optimization utilities
     src/adaptive_cache.cpp
+    src/distribution_cache.cpp
     
     # Other library components
     src/gaussian.cpp
