@@ -2,6 +2,7 @@
 // These implementations work on any CPU and serve as the baseline
 
 #include "../include/platform/simd.h"
+#include "../include/platform/simd_policy.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/core/constants.h"
 #include "../include/platform/platform_constants.h"
@@ -77,24 +78,8 @@ void VectorOps::vector_erf_fallback(const double* values, double* results, std::
 //========== Helper Functions with Platform-Aware Optimization ==========
 
 bool VectorOps::should_use_simd(std::size_t size) noexcept {
-    // Use platform-specific threshold that adapts to actual CPU capabilities
-    const std::size_t platform_threshold = constants::platform::get_min_simd_size();
-    
-    // Additional checks for memory alignment benefits
-    // SIMD is more beneficial when data is properly aligned
-    if (size >= platform_threshold) {
-        return true;
-    }
-    
-    // For very high-end SIMD (AVX-512), even smaller sizes can benefit
-    // due to the wide registers and advanced instruction set
-    #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512() && size >= constants::simd::optimization::AVX512_SMALL_BENEFIT_THRESHOLD) {
-        return true;
-    }
-    #endif
-    
-    return false;
+    // Delegate to the centralized SIMD policy
+    return SIMDPolicy::shouldUseSIMD(size);
 }
 
 std::size_t VectorOps::min_simd_size() noexcept {

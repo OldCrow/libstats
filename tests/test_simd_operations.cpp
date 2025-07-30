@@ -233,10 +233,10 @@ void test_simd_width_detection() {
     // Test minimum SIMD sizes
     cout << "\nMinimum SIMD sizes:" << endl;
     cout << "  Min SIMD size: " << simd::VectorOps::min_simd_size() << endl;
-    cout << "  Should use SIMD (size 1): " << (simd::VectorOps::should_use_simd(1) ? "YES" : "NO") << endl;
-    cout << "  Should use SIMD (size 8): " << (simd::VectorOps::should_use_simd(8) ? "YES" : "NO") << endl;
-    cout << "  Should use SIMD (size 16): " << (simd::VectorOps::should_use_simd(16) ? "YES" : "NO") << endl;
-    cout << "  Should use SIMD (size 32): " << (simd::VectorOps::should_use_simd(32) ? "YES" : "NO") << endl;
+    cout << "  Should use SIMD (size 1): " << (simd::SIMDPolicy::shouldUseSIMD(1) ? "YES" : "NO") << endl;
+    cout << "  Should use SIMD (size 8): " << (simd::SIMDPolicy::shouldUseSIMD(8) ? "YES" : "NO") << endl;
+    cout << "  Should use SIMD (size 16): " << (simd::SIMDPolicy::shouldUseSIMD(16) ? "YES" : "NO") << endl;
+    cout << "  Should use SIMD (size 32): " << (simd::SIMDPolicy::shouldUseSIMD(32) ? "YES" : "NO") << endl;
 }
 
 // Test compile-time instruction set detection

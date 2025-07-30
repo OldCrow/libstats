@@ -513,7 +513,7 @@ void ExponentialDistribution::getLogProbabilityBatchUnsafe(const double* values,
 void ExponentialDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                            double lambda, double neg_lambda) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count) && 
                          (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
     
     if (!use_simd) {
@@ -569,7 +569,7 @@ void ExponentialDistribution::getProbabilityBatchUnsafeImpl(const double* values
 void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                               double log_lambda, double neg_lambda) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count) && 
                          (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
     
     if (!use_simd) {
@@ -617,7 +617,7 @@ void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(const double* val
 void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                      double neg_lambda) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count) && 
                          (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
     
     if (!use_simd) {
@@ -1651,6 +1651,40 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
     const size_t upper_idx = static_cast<size_t>(upper_percentile * (n_bootstrap - 1));
     
     return {bootstrap_rates[lower_idx], bootstrap_rates[upper_idx]};
+}
+
+//==============================================================================
+// RESULT-BASED SETTERS
+//==============================================================================
+
+VoidResult ExponentialDistribution::trySetLambda(double lambda) noexcept {
+    auto validation = validateExponentialParameters(lambda);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+
+    return VoidResult::ok(true);
+}
+
+VoidResult ExponentialDistribution::trySetParameters(double lambda) noexcept {
+    auto validation = validateExponentialParameters(lambda);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
 }
 
 } // namespace libstats

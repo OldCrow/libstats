@@ -1,5 +1,6 @@
 #include "../include/core/log_space_ops.h"
 #include "../include/core/safety.h"
+#include "../include/platform/simd_policy.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -81,7 +82,7 @@ double LogSpaceOps::logSumExpArray(const double* logValues, std::size_t size) no
     
     // Use SIMD implementation if available and size is large enough
     if constexpr (simd::has_simd_support()) {
-        if (size >= simd::tuned::min_states_for_simd()) {
+        if (simd::SIMDPolicy::shouldUseSIMD(size)) {
             return logSumExpArraySIMD(logValues, size);
         }
     }
@@ -95,7 +96,7 @@ void LogSpaceOps::precomputeLogMatrix(const double* probMatrix, double* logMatri
     
     // Use SIMD for large matrices
     if constexpr (simd::has_simd_support()) {
-        if (total_size >= simd::tuned::min_states_for_simd()) {
+        if (simd::SIMDPolicy::shouldUseSIMD(total_size)) {
             simd::VectorOps::vector_log(probMatrix, logMatrix, total_size);
             return;
         }

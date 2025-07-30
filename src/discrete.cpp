@@ -2,6 +2,7 @@
 #include "../include/core/constants.h"
 #include "../include/core/math_utils.h"
 #include "../include/platform/simd.h"
+#include "../include/platform/simd_policy.h"
 #include "../include/core/safety.h"
 #include "../include/platform/thread_pool.h"
 #include "../include/platform/work_stealing_pool.h"
@@ -534,7 +535,7 @@ void DiscreteDistribution::getProbabilityBatch(const double* values, double* res
     lock.unlock();
     
     // Use SIMD-optimized implementation when beneficial
-    if (count >= simd::tuned::min_states_for_simd()) {
+    if (simd::SIMDPolicy::shouldUseSIMD(count)) {
         getProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_prob);
     } else {
         // Scalar implementation for small arrays
@@ -1761,6 +1762,76 @@ std::tuple<double, double, double, double> DiscreteDistribution::computeInformat
 
 std::ostream& operator<<(std::ostream& os, const DiscreteDistribution& distribution) {
     return os << distribution.toString();
+}
+
+//==============================================================================
+// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+//==============================================================================
+
+VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
+    auto validation = validateDiscreteParameters(a, b);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+VoidResult DiscreteDistribution::trySetLowerBound(int a) noexcept {
+    // Copy current upper bound for validation (thread-safe)
+    int currentB;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentB = b_;
+    }
+    
+    auto validation = validateDiscreteParameters(a, currentB);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+VoidResult DiscreteDistribution::trySetUpperBound(int b) noexcept {
+    // Copy current lower bound for validation (thread-safe)
+    int currentA;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentA = a_;
+    }
+    
+    auto validation = validateDiscreteParameters(currentA, b);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
 }
 
 } // namespace libstats

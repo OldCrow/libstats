@@ -3,6 +3,7 @@
 // Enhanced with platform-specific optimizations and adaptive thresholds
 
 #include "../include/platform/simd.h"
+#include "../include/platform/simd_policy.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/core/constants.h"
 #include "../include/platform/platform_constants.h"
@@ -18,7 +19,7 @@ namespace simd {
 
 double VectorOps::dot_product(const double* a, const double* b, std::size_t size) noexcept {
     // Early exit for small arrays where SIMD overhead isn't worth it
-    if (!should_use_simd(size)) {
+    if (!SIMDPolicy::shouldUseSIMD(size)) {
         return dot_product_fallback(a, b, size);
     }
     
@@ -60,7 +61,7 @@ double VectorOps::dot_product(const double* a, const double* b, std::size_t size
 }
 
 void VectorOps::vector_add(const double* a, const double* b, double* result, std::size_t size) noexcept {
-    if (!should_use_simd(size)) {
+    if (!SIMDPolicy::shouldUseSIMD(size)) {
         return vector_add_fallback(a, b, result, size);
     }
     
@@ -98,7 +99,7 @@ void VectorOps::vector_add(const double* a, const double* b, double* result, std
 }
 
 void VectorOps::vector_subtract(const double* a, const double* b, double* result, std::size_t size) noexcept {
-    if (!should_use_simd(size)) {
+    if (!SIMDPolicy::shouldUseSIMD(size)) {
         return vector_subtract_fallback(a, b, result, size);
     }
     
@@ -136,7 +137,7 @@ void VectorOps::vector_subtract(const double* a, const double* b, double* result
 }
 
 void VectorOps::vector_multiply(const double* a, const double* b, double* result, std::size_t size) noexcept {
-    if (!should_use_simd(size)) {
+    if (!SIMDPolicy::shouldUseSIMD(size)) {
         return vector_multiply_fallback(a, b, result, size);
     }
     
@@ -174,7 +175,7 @@ void VectorOps::vector_multiply(const double* a, const double* b, double* result
 }
 
 void VectorOps::scalar_multiply(const double* a, double scalar, double* result, std::size_t size) noexcept {
-    if (!should_use_simd(size)) {
+    if (!SIMDPolicy::shouldUseSIMD(size)) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
     
@@ -212,7 +213,7 @@ void VectorOps::scalar_multiply(const double* a, double scalar, double* result, 
 }
 
 void VectorOps::scalar_add(const double* a, double scalar, double* result, std::size_t size) noexcept {
-    if (!should_use_simd(size)) {
+    if (!SIMDPolicy::shouldUseSIMD(size)) {
         return scalar_add_fallback(a, scalar, result, size);
     }
     
@@ -344,7 +345,7 @@ namespace {
     template<typename Operation>
     inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const void* ptr2 = nullptr, const void* ptr3 = nullptr) noexcept {
         // Basic size check
-        if (!VectorOps::should_use_simd(size)) {
+        if (!SIMDPolicy::shouldUseSIMD(size)) {
             return false;
         }
         

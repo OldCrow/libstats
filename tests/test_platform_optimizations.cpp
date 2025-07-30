@@ -16,14 +16,14 @@ int main() {
     // Test 2: Platform-specific constants should be reasonable values
     assert(tuned::matrix_block_size() > 0 && tuned::matrix_block_size() <= 128);
     assert(tuned::simd_loop_width() > 0 && tuned::simd_loop_width() <= 16);
-    assert(tuned::min_states_for_simd() > 0);
+    assert(SIMDPolicy::getMinThreshold() > 0);
     assert(tuned::cache_friendly_step() > 0);
     assert(tuned::l1_cache_doubles() > 1000); // Should be reasonable cache size
     
     std::cout << "✓ Platform constants are within reasonable ranges" << std::endl;
     std::cout << "  - Matrix block size: " << tuned::matrix_block_size() << std::endl;
     std::cout << "  - SIMD loop width: " << tuned::simd_loop_width() << std::endl;
-    std::cout << "  - Min states for SIMD: " << tuned::min_states_for_simd() << std::endl;
+    std::cout << "  - Min states for SIMD: " << SIMDPolicy::getMinThreshold() << std::endl;
     std::cout << "  - Cache-friendly step: " << tuned::cache_friendly_step() << std::endl;
     std::cout << "  - L1 cache doubles: " << tuned::l1_cache_doubles() << std::endl;
     std::cout << "  - Prefetch distance: " << tuned::prefetch_distance() << std::endl;

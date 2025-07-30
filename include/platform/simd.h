@@ -7,7 +7,8 @@
 #include <limits>
 #include <new>
 #include <cassert>
-#include <string>
+#include <cstring>
+#include "simd_policy.h"
 
 // Platform-specific includes for aligned allocation
 #if defined(_WIN32)

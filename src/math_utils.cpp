@@ -3,6 +3,7 @@
 #include "../include/core/distribution_base.h"
 #include "../include/core/safety.h"
 #include "../include/platform/cpu_detection.h"
+#include "../include/platform/simd_policy.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -535,7 +536,7 @@ void vector_erf(std::span<const double> input, std::span<double> output) noexcep
     const std::size_t size = input.size();
     
     // Use SIMD VectorOps for optimal performance
-    if (simd::VectorOps::should_use_simd(size)) {
+    if (simd::SIMDPolicy::shouldUseSIMD(size)) {
         simd::VectorOps::vector_erf(input.data(), output.data(), size);
     } else {
         // Fallback to scalar implementation
@@ -607,7 +608,7 @@ void vector_lgamma(std::span<const double> input, std::span<double> output) noex
     const std::size_t size = input.size();
     
     // Use SIMD log operations if available
-    if (simd::VectorOps::should_use_simd(size)) {
+    if (simd::SIMDPolicy::shouldUseSIMD(size)) {
         // For now, use scalar loop in SIMD-sized chunks for cache efficiency
         for (std::size_t i = 0; i < size; ++i) {
             output[i] = lgamma(input[i]);
@@ -635,7 +636,7 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
 
 bool should_use_vectorized_math(std::size_t size) noexcept {
     // Use the same threshold as SIMD operations
-    return simd::VectorOps::should_use_simd(size);
+    return simd::SIMDPolicy::shouldUseSIMD(size);
 }
 
 std::size_t vectorized_math_threshold() noexcept {
