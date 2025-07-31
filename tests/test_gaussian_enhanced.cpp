@@ -467,6 +467,86 @@ TEST_F(GaussianEnhancedTest, ThreadSafety) {
 }
 
 //==============================================================================
+// AUTO-DISPATCH STRATEGY TESTING
+
+TEST_F(GaussianEnhancedTest, SmartAutoDispatchStrategyTesting) {
+    GaussianDistribution gauss_dist(0.0, 1.0);
+    
+    // Test data for different batch sizes to trigger different strategies
+    std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
+    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "SIMD_BATCH", "SIMD_BATCH", "PARALLEL_SIMD"};
+    
+    std::cout << "\n=== Smart Auto-Dispatch Strategy Testing ===\n";
+    
+    for (size_t i = 0; i < batch_sizes.size(); ++i) {
+        size_t batch_size = batch_sizes[i];
+        std::string expected_strategy = expected_strategies[i];
+        
+        // Generate test data
+        std::vector<double> test_values(batch_size);
+        std::vector<double> auto_pdf_results(batch_size);
+        std::vector<double> auto_logpdf_results(batch_size);
+        std::vector<double> auto_cdf_results(batch_size);
+        
+        std::mt19937 gen(42 + i);
+        std::uniform_real_distribution<> dis(-2.0, 2.0);
+        for (size_t j = 0; j < batch_size; ++j) {
+            test_values[j] = dis(gen);
+        }
+        
+        // Test smart auto-dispatch methods
+        auto start = std::chrono::high_resolution_clock::now();
+        gauss_dist.getProbability(std::span<const double>(test_values), std::span<double>(auto_pdf_results));
+        auto end = std::chrono::high_resolution_clock::now();
+        auto auto_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        start = std::chrono::high_resolution_clock::now();
+        gauss_dist.getLogProbability(std::span<const double>(test_values), std::span<double>(auto_logpdf_results));
+        end = std::chrono::high_resolution_clock::now();
+        auto auto_logpdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        start = std::chrono::high_resolution_clock::now();
+        gauss_dist.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(auto_cdf_results));
+        end = std::chrono::high_resolution_clock::now();
+        auto auto_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // Compare with traditional batch methods for correctness
+        std::vector<double> trad_pdf_results(batch_size);
+        std::vector<double> trad_logpdf_results(batch_size);
+        std::vector<double> trad_cdf_results(batch_size);
+        
+        gauss_dist.getProbabilityBatch(test_values.data(), trad_pdf_results.data(), batch_size);
+        gauss_dist.getLogProbabilityBatch(test_values.data(), trad_logpdf_results.data(), batch_size);
+        gauss_dist.getCumulativeProbabilityBatch(test_values.data(), trad_cdf_results.data(), batch_size);
+        
+        // Verify correctness
+        bool pdf_correct = true, logpdf_correct = true, cdf_correct = true;
+        
+        for (size_t j = 0; j < batch_size; ++j) {
+            if (std::abs(auto_pdf_results[j] - trad_pdf_results[j]) > 1e-10) {
+                pdf_correct = false;
+            }
+            if (std::abs(auto_logpdf_results[j] - trad_logpdf_results[j]) > 1e-10) {
+                logpdf_correct = false;
+            }
+            if (std::abs(auto_cdf_results[j] - trad_cdf_results[j]) > 1e-10) {
+                cdf_correct = false;
+            }
+        }
+        
+        std::cout << "Batch size: " << batch_size << ", Expected strategy: " << expected_strategy << "\n";
+        std::cout << "  PDF: " << auto_pdf_time << "μs, Correct: " << (pdf_correct ? "✅" : "❌") << "\n";
+        std::cout << "  LogPDF: " << auto_logpdf_time << "μs, Correct: " << (logpdf_correct ? "✅" : "❌") << "\n";
+        std::cout << "  CDF: " << auto_cdf_time << "μs, Correct: " << (cdf_correct ? "✅" : "❌") << "\n";
+        
+        EXPECT_TRUE(pdf_correct) << "PDF auto-dispatch results should match traditional for batch size " << batch_size;
+        EXPECT_TRUE(logpdf_correct) << "LogPDF auto-dispatch results should match traditional for batch size " << batch_size;
+        EXPECT_TRUE(cdf_correct) << "CDF auto-dispatch results should match traditional for batch size " << batch_size;
+    }
+
+    std::cout << "\n=== Auto-Dispatch Strategy Testing Completed ===\n";
+}
+
 // PARALLEL BATCH OPERATIONS AND BENCHMARKING
 //==============================================================================
 

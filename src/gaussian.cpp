@@ -1,10 +1,11 @@
 #include "../include/distributions/gaussian.h"
 #include "../include/core/constants.h"
-#include "../include/core/validation.h"
-#include "../include/core/math_utils.h"
-#include "../include/core/log_space_ops.h"
+#include "../include/core/safety.h"
+#include "../include/platform/simd.h"
 #include "../include/platform/cpu_detection.h"
-#include <sstream>
+#include "../include/platform/simd_policy.h"
+#include "../include/platform/parallel_thresholds.h"
+#include "../include/core/validation.h"
 #include <cmath>
 #include <vector>
 #include <algorithm>
@@ -17,13 +18,65 @@
 namespace libstats {
 
 //==============================================================================
+// PRIVATE HELPER METHODS
+//==============================================================================
+
+void GaussianDistribution::updateCacheUnsafe() const noexcept {
+    // Core mathematical functions - primary cache
+    normalizationConstant_ = constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
+    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
+    logStandardDeviation_ = std::log(standardDeviation_);
+    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
+    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
+    
+    // Secondary cache values - performance optimizations
+    cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
+    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
+    cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
+    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
+    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
+    
+    // Optimization flags - fast path detection
+    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) && 
+                       (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE;
+    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
+    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE || 
+                      standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
+    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
+    
+    // Update atomic parameters for lock-free access
+    atomicMean_.store(mean_, std::memory_order_release);
+    atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
+    
+    // Cache is now valid
+    cache_valid_ = true;
+    cacheValidAtomic_.store(true, std::memory_order_release);
+}
+
+void GaussianDistribution::validateParameters(double mean, double stdDev) {
+    if (!std::isfinite(mean)) {
+        throw std::invalid_argument("Mean must be finite");
+    }
+    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
+        throw std::invalid_argument("Standard deviation must be positive and finite");
+    }
+    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
+        throw std::invalid_argument("Standard deviation is too large for numerical stability");
+    }
+}
+
+//==============================================================================
 // CONSTRUCTORS AND DESTRUCTORS
 //==============================================================================
 
 GaussianDistribution::GaussianDistribution(double mean, double standardDeviation) 
     : DistributionBase(), mean_(mean), standardDeviation_(standardDeviation) {
     validateParameters(mean, standardDeviation);
-    // Cache will be updated on first use
+    
+    // Precompute values for dispatcher's first use
+    performance::SystemCapabilities::current();
 }
 
 GaussianDistribution::GaussianDistribution(const GaussianDistribution& other) 
@@ -31,7 +84,9 @@ GaussianDistribution::GaussianDistribution(const GaussianDistribution& other)
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     mean_ = other.mean_;
     standardDeviation_ = other.standardDeviation_;
-    // Cache will be updated on first use
+    
+    // Precompute values for dispatcher's first use
+    performance::SystemCapabilities::current();
 }
 
 GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution& other) {
@@ -59,7 +114,9 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other)
     other.standardDeviation_ = constants::math::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
-    // Cache will be updated on first use
+    
+    // Precompute values for dispatcher's first use
+    performance::SystemCapabilities::current();
 }
 
 GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) noexcept {
@@ -241,7 +298,7 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
 }
 
 //==============================================================================
-// PARAMETER GETTERS AND SETTERS
+// CORE PROBABILITY METHODS
 //==============================================================================
 
 double GaussianDistribution::getProbability(double x) const {
@@ -318,39 +375,73 @@ double GaussianDistribution::getCumulativeProbability(double x) const {
 }
 
 //==============================================================================
-// BATCH OPERATIONS USING VECTOROPS
+// PARAMETER GETTERS AND SETTERS
+//==============================================================================
+
+// Parameter setters with validation (for existing exception-based API)
+void GaussianDistribution::setParameters(double mean, double standardDeviation) {
+    validateParameters(mean, standardDeviation);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    standardDeviation_ = standardDeviation;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void GaussianDistribution::setMean(double mean) {
+    // Copy current standard deviation for validation (thread-safe)
+    double currentStdDev;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentStdDev = standardDeviation_;
+    }
+    
+    validateParameters(mean, currentStdDev);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void GaussianDistribution::setStandardDeviation(double stdDev) {
+    // Copy current mean for validation (thread-safe)
+    double currentMean;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentMean = mean_;
+    }
+    
+    validateParameters(currentMean, stdDev);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    standardDeviation_ = stdDev;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+//==============================================================================
+// CORE PROBABILITY METHODS
 // 
 // SAFETY DOCUMENTATION FOR DEVELOPERS:
 // 
-// This section contains performance-critical batch operations that deliberately
-// use raw pointer interfaces for maximum performance in SIMD operations. While
-// these methods internally use "unsafe" raw pointer access, they are wrapped in
-// carefully designed safe interfaces that handle all validation and bounds checking.
+// This section contains core probability methods that compute PDF, CDF, etc, 
+// and they ensure cache validity by using shared locks and are thread-safe.
 // 
-// WHY RAW POINTERS ARE USED HERE:
-// 1. SIMD vectorization requires contiguous memory access with known alignment
-// 2. std::vector::data() provides optimal cache-friendly access patterns
-// 3. SIMD intrinsics operate directly on raw memory regions
-// 4. Zero-overhead abstraction principle: no performance penalty for safety
-// 
-// SAFETY GUARANTEES PROVIDED:
-// 1. All public interfaces validate input parameters before calling internal methods
-// 2. Cache validity is ensured before any computations
-// 3. Thread-safety is maintained through proper locking mechanisms
-// 4. Bounds checking is performed at the interface level
-// 5. SIMD alignment requirements are handled automatically
-// 
-// HOW TO USE THESE OPERATIONS SAFELY:
-// 1. Always use the provided safe wrapper methods (not the "Unsafe" variants)
-// 2. Ensure input arrays are properly allocated with correct sizes
-// 3. For C++20 users: prefer the std::span interfaces for automatic bounds checking
-// 4. For maximum safety: use the parallel batch methods that include additional validation
-// 
-// PERFORMANCE OPTIMIZATION STRATEGY:
-// - Small arrays (< SIMD threshold): Use scalar loops with bounds checking
-// - Large arrays (≥ SIMD threshold): Use vectorized operations with alignment
-// - Thread-local caching: Eliminates repeated parameter validation overhead
-// - Lock-free hot paths: Cache parameters before releasing locks
+// Key Methods:
+// - getProbability()
+// - getLogProbability()
+// - getCumulativeProbability()
 //==============================================================================
 
 void GaussianDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const {
@@ -419,6 +510,10 @@ void GaussianDistribution::getProbabilityBatchUnsafe(const double* values, doubl
 void GaussianDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
     getLogProbabilityBatchUnsafeImpl(values, results, count, mean_, logStandardDeviation_, 
                                      negHalfSigmaSquaredInv_, isStandardNormal_);
+}
+
+void GaussianDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, mean_, sigmaSqrt2_, isStandardNormal_);
 }
 
 void GaussianDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
@@ -496,8 +591,7 @@ void GaussianDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
                                                           double mean, double norm_constant, double neg_half_inv_var,
                                                           bool is_standard_normal) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
     
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
@@ -546,8 +640,7 @@ void GaussianDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
                                                              double mean, double log_std, double neg_half_inv_var,
                                                              bool is_standard_normal) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
     
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
@@ -592,8 +685,7 @@ void GaussianDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
 void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                    double mean, double sigma_sqrt2, bool is_standard_normal) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = (count >= simd::tuned::min_states_for_simd()) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
     
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
@@ -2292,6 +2384,344 @@ std::tuple<double, double, double, double> GaussianDistribution::computeInformat
     }
     
     return {aic, bic, aicc, log_likelihood};
+}
+
+//==============================================================================
+// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+//==============================================================================
+
+VoidResult GaussianDistribution::trySetParameters(double mean, double standardDeviation) noexcept {
+    auto validation = validateGaussianParameters(mean, standardDeviation);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    standardDeviation_ = standardDeviation;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+VoidResult GaussianDistribution::trySetMean(double mean) noexcept {
+    // Copy current standard deviation for validation (thread-safe)
+    double currentStdDev;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentStdDev = standardDeviation_;
+    }
+    
+    auto validation = validateGaussianParameters(mean, currentStdDev);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+VoidResult GaussianDistribution::trySetStandardDeviation(double stdDev) noexcept {
+    // Copy current mean for validation (thread-safe)
+    double currentMean;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentMean = mean_;
+    }
+    
+    auto validation = validateGaussianParameters(currentMean, stdDev);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    standardDeviation_ = stdDev;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+//==============================================================================
+// SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+//==============================================================================
+
+void GaussianDistribution::getProbability(std::span<const double> values, std::span<double> results,
+                                        const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const size_t count = values.size();
+    if (count == 0) return;
+    
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getProbability(values[0]);
+        return;
+    }
+    
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::GAUSSIAN,
+            performance::ComputationComplexity::MODERATE,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+    
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            // Use simple loop for tiny batches (< 8 elements)
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getProbability(values[i]);
+            }
+            break;
+            
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getProbabilityBatch(values.data(), results.data(), count);
+            break;
+            
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getProbabilityBatchParallel(values, results);
+            break;
+            
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+            
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
+}
+
+void GaussianDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
+                                           const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const size_t count = values.size();
+    if (count == 0) return;
+    
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getLogProbability(values[0]);
+        return;
+    }
+    
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::GAUSSIAN,
+            performance::ComputationComplexity::MODERATE,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+    
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            // Use simple loop for tiny batches (< 8 elements)
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getLogProbability(values[i]);
+            }
+            break;
+            
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getLogProbabilityBatch(values.data(), results.data(), count);
+            break;
+            
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getLogProbabilityBatchParallel(values, results);
+            break;
+            
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getLogProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+            
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getLogProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
+}
+
+void GaussianDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results,
+                                                   const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const size_t count = values.size();
+    if (count == 0) return;
+    
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getCumulativeProbability(values[0]);
+        return;
+    }
+    
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::GAUSSIAN,
+            performance::ComputationComplexity::COMPLEX,  // CDF uses erf() which is complex
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+    
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            // Use simple loop for tiny batches (< 8 elements)
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getCumulativeProbability(values[i]);
+            }
+            break;
+            
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getCumulativeProbabilityBatch(values.data(), results.data(), count);
+            break;
+            
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getCumulativeProbabilityBatchParallel(values, results);
+            break;
+            
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+            
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
 }
 
 } // namespace libstats

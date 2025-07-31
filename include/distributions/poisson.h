@@ -345,20 +345,10 @@ public:
      * 
      * @param lambda New rate parameter
      * @return VoidResult indicating success or failure
+     * 
+     * Implementation in .cpp: Complex thread-safe parameter validation and atomic state management
      */
-    [[nodiscard]] VoidResult trySetParameters(double lambda) noexcept {
-        auto validation = validatePoissonParameters(lambda);
-        if (validation.isError()) {
-            return validation;
-        }
-        
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        lambda_ = lambda;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        return VoidResult::ok(true);
-    }
+    [[nodiscard]] VoidResult trySetParameters(double lambda) noexcept;
     
     /**
      * @brief Check if current parameters are valid
@@ -444,12 +434,20 @@ public:
     }
     
     /**
-     * Sets the rate parameter λ.
+     * Sets the rate parameter λ (exception-based API).
      * 
      * @param lambda New rate parameter (must be positive)
      * @throws std::invalid_argument if lambda <= 0 or is not finite
      */
     void setLambda(double lambda);
+    
+    /**
+     * @brief Safely set the rate parameter λ without throwing exceptions (Result-based API).
+     * 
+     * @param lambda New rate parameter (must be positive)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetLambda(double lambda) noexcept;
     
     /**
      * Gets the mean of the distribution.
@@ -748,6 +746,7 @@ public:
      */
     void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
     void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    void getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
 
     //==========================================================================
     // POISSON-SPECIFIC UTILITY METHODS

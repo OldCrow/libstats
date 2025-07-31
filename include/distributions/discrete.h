@@ -330,28 +330,12 @@ public:
     
     /**
      * @brief Safely try to set parameters without throwing exceptions
-     * 
+     *
      * @param a New lower bound parameter (inclusive)
      * @param b New upper bound parameter (inclusive, must be >= a)
      * @return VoidResult indicating success or failure
      */
-    [[nodiscard]] VoidResult trySetParameters(int a, int b) noexcept {
-        auto validation = validateDiscreteParameters(a, b);
-        if (validation.isError()) {
-            return validation;
-        }
-        
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        a_ = a;
-        b_ = b;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        // Invalidate atomic parameters when parameters change
-        atomicParamsValid_.store(false, std::memory_order_release);
-        
-        return VoidResult::ok(true);
-    }
+    [[nodiscard]] VoidResult trySetParameters(int a, int b) noexcept;
     
     /**
      * @brief Check if current parameters are valid
@@ -508,6 +492,22 @@ public:
      * @throws std::invalid_argument if parameters are invalid
      */
     void setBounds(int a, int b);
+    
+    /**
+     * @brief Safely try to set lower bound without throwing exceptions
+     * 
+     * @param a New lower bound parameter (must be <= current upper bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetLowerBound(int a) noexcept;
+    
+    /**
+     * @brief Safely try to set upper bound without throwing exceptions
+     * 
+     * @param b New upper bound parameter (must be >= current lower bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetUpperBound(int b) noexcept;
     
     /**
      * Gets the mean of the distribution.
@@ -708,6 +708,7 @@ public:
      */
     void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
     void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    void getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
     
     //==========================================================================
     // THREAD POOL PARALLEL BATCH OPERATIONS

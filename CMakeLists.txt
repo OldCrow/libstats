@@ -196,8 +196,15 @@ set(LIBSTATS_SOURCES
     # CPU detection with safe compilation (no advanced SIMD instructions)
     src/cpu_detection.cpp
     
+    # SIMD policy and centralized decision making
+    src/simd_policy.cpp
+    
     # Parallel execution infrastructure
     src/parallel_thresholds.cpp
+    
+    # Performance system infrastructure
+    src/performance_dispatcher.cpp
+    src/system_capabilities.cpp
     
     # Platform-specific optimization utilities
     src/adaptive_cache.cpp
@@ -592,6 +599,9 @@ if(LIBSTATS_BUILD_TESTS)
     # =======================================================================
     # These build on foundational components and should run second
     
+    # dual_api.h - Consistent error handling for all distributions
+    create_libstats_test(test_dual_api tests/test_dual_api.cpp)
+    
     # safety.h - Memory safety, bounds checking, numerical stability
     create_libstats_test(test_safety tests/test_safety.cpp)
     
@@ -713,6 +723,7 @@ if(LIBSTATS_BUILD_TESTS)
             test_safe_factory
             
             # Level 1: Core infrastructure tests
+            test_dual_api
             test_safety
             test_math_utils
             test_vectorized_math

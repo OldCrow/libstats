@@ -4,6 +4,7 @@
 #include "../include/core/math_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/platform/cpu_detection.h"
+#include "../include/platform/simd_policy.h"
 #include "../include/core/safety.h"
 #include "../include/platform/parallel_execution.h"
 #include "../include/platform/thread_pool.h"
@@ -500,13 +501,46 @@ void PoissonDistribution::getLogProbabilityBatchUnsafe(const double* values, dou
     getLogProbabilityBatchUnsafeImpl(values, results, count, lambda_, logLambda_);
 }
 
+void PoissonDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, lambda_);
+}
+
 //==============================================================================
 // PRIVATE BATCH IMPLEMENTATION METHODS
 //==============================================================================
 
 void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                         double lambda, double log_lambda, double exp_neg_lambda) const noexcept {
-    // Use scalar implementation - Poisson PMF doesn't benefit as much from SIMD as continuous distributions
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::math::ZERO_DOUBLE;
+                continue;
+            }
+            
+            int k = roundToNonNegativeInt(values[i]);
+            if (!isValidCount(values[i])) {
+                results[i] = constants::math::ZERO_DOUBLE;
+                continue;
+            }
+            
+            if (k == 0) {
+                results[i] = exp_neg_lambda;
+            } else if (lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
+                results[i] = std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[k];
+            } else {
+                double log_result = k * log_lambda - lambda - logFactorial(k);
+                results[i] = std::exp(log_result);
+            }
+        }
+        return;
+    }
+    
+    // If SIMD is enabled but no vectorized implementation available, fall back to scalar
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::math::ZERO_DOUBLE;
@@ -522,10 +556,8 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
         if (k == 0) {
             results[i] = exp_neg_lambda;
         } else if (lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
-            // Direct computation for small lambda and k
             results[i] = std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[k];
         } else {
-            // Log-space computation
             double log_result = k * log_lambda - lambda - logFactorial(k);
             results[i] = std::exp(log_result);
         }
@@ -534,7 +566,29 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
 
 void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                            double lambda, double log_lambda) const noexcept {
-    // Use scalar implementation for log PMF
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::probability::MIN_LOG_PROBABILITY;
+                continue;
+            }
+            
+            int k = roundToNonNegativeInt(values[i]);
+            if (!isValidCount(values[i])) {
+                results[i] = constants::probability::MIN_LOG_PROBABILITY;
+                continue;
+            }
+            
+            results[i] = k * log_lambda - lambda - logFactorial(k);
+        }
+        return;
+    }
+    
+    // If SIMD is enabled but no vectorized implementation available, fall back to scalar
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::probability::MIN_LOG_PROBABILITY;
@@ -547,14 +601,35 @@ void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
             continue;
         }
         
-        // log P(X = k) = k * log(λ) - λ - log(k!)
         results[i] = k * log_lambda - lambda - logFactorial(k);
     }
 }
 
 void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                   double lambda) const noexcept {
-    // Use scalar implementation for CDF (regularized incomplete gamma function)
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::math::ZERO_DOUBLE;
+                continue;
+            }
+            
+            int k = roundToNonNegativeInt(values[i]);
+            if (!isValidCount(values[i])) {
+                results[i] = constants::math::ONE;
+                continue;
+            }
+            
+            results[i] = libstats::math::gamma_q(k + 1, lambda);
+        }
+        return;
+    }
+    
+    // If SIMD is enabled but no vectorized implementation available, fall back to scalar
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < constants::math::ZERO_DOUBLE) {
             results[i] = constants::math::ZERO_DOUBLE;
@@ -567,7 +642,6 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             continue;
         }
         
-        // Use regularized incomplete gamma function
         results[i] = libstats::math::gamma_q(k + 1, lambda);
     }
 }
@@ -1890,33 +1964,42 @@ std::pair<double, double> PoissonDistribution::bootstrapParameterConfidenceInter
     return {bootstrap_lambdas[lower_idx], bootstrap_lambdas[upper_idx]};
 }
 
+//==============================================================================
+// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+//==============================================================================
+
+VoidResult PoissonDistribution::trySetLambda(double lambda) noexcept {
+    auto validation = validatePoissonParameters(lambda);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Note: PoissonDistribution doesn't have atomicParamsValid_ - this is specific to other distributions
+    // The atomic cache validation is handled by cacheValidAtomic_
+    
+    return VoidResult::ok(true);
+}
+
+VoidResult PoissonDistribution::trySetParameters(double lambda) noexcept {
+    auto validation = validatePoissonParameters(lambda);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Note: PoissonDistribution doesn't have atomicParamsValid_ - this is specific to other distributions
+    // The atomic cache validation is handled by cacheValidAtomic_
+    
+    return VoidResult::ok(true);
+}
+
 } // namespace libstats
-
-/**
- * TODO: Implement the header file (distribution) and tests for the Poisson Distribution
- * based on the specific implementation like Gaussian and Exponential.
- * Especially SIMD optimizations should be considered if possible. 
- */
-
-// Additional functions (e.g., validation, log-space calculations) can be added if needed.
-// The above code should handle all essential aspects from validation to statistical methods.
-// Tests can use patterns from Gaussian and Exponential tests.
-
-/**
- * The complete implementation adheres to the patterns used in the provided distributions
- * while accommodating for the peculiarities of the Poisson distribution.
- */
-
-// End of PoissonDistribution implementation.
-
-/**
- * Reminder: Familiarize tests by deriving cases from existing Gaussian and Exponential tests.
- * Ensure SIMD capability integration where necessary.
- */
-
-/**
- * Test syntax includes using IDE tools to automatically discover these patterns in the
- * current source realm, use GTest discovery for these patterns.
- */
-
-// For testing, consider edge cases, typical use, and performance benchmarks if applicable.

@@ -976,6 +976,118 @@ TEST_F(UniformEnhancedTest, InformationCriteria) {
     std::cout << "✓ Information criteria computed: AIC = " << aic << ", BIC = " << bic << ", AICc = " << aicc << std::endl;
 }
 
+TEST_F(UniformEnhancedTest, SmartAutoDispatchStrategyTesting) {
+    UniformDistribution uniform(0.0, 1.0);
+    
+    // Test data for different batch sizes to trigger different strategies
+    std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
+    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "SIMD_BATCH", "SIMD_BATCH", "PARALLEL_SIMD"};
+    
+    std::cout << "\n=== Smart Auto-Dispatch Strategy Testing ===\n";
+    
+    for (size_t i = 0; i < batch_sizes.size(); ++i) {
+        size_t batch_size = batch_sizes[i];
+        std::string expected_strategy = expected_strategies[i];
+        
+        // Generate test data
+        std::vector<double> test_values(batch_size);
+        std::vector<double> auto_pdf_results(batch_size);
+        std::vector<double> auto_logpdf_results(batch_size);
+        std::vector<double> auto_cdf_results(batch_size);
+        
+        std::mt19937 gen(42 + i);
+        std::uniform_real_distribution<> dis(-0.2, 1.2);
+        for (size_t j = 0; j < batch_size; ++j) {
+            test_values[j] = dis(gen);
+        }
+        
+        // Test smart auto-dispatch methods
+        auto start = std::chrono::high_resolution_clock::now();
+        uniform.getProbability(std::span<const double>(test_values), std::span<double>(auto_pdf_results));
+        auto end = std::chrono::high_resolution_clock::now();
+        auto auto_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        start = std::chrono::high_resolution_clock::now();
+        uniform.getLogProbability(std::span<const double>(test_values), std::span<double>(auto_logpdf_results));
+        end = std::chrono::high_resolution_clock::now();
+        auto auto_logpdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        start = std::chrono::high_resolution_clock::now();
+        uniform.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(auto_cdf_results));
+        end = std::chrono::high_resolution_clock::now();
+        auto auto_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        
+        // Compare with traditional batch methods for correctness
+        std::vector<double> trad_pdf_results(batch_size);
+        std::vector<double> trad_logpdf_results(batch_size);
+        std::vector<double> trad_cdf_results(batch_size);
+        
+        uniform.getProbabilityBatch(test_values.data(), trad_pdf_results.data(), batch_size);
+        uniform.getLogProbabilityBatch(test_values.data(), trad_logpdf_results.data(), batch_size);
+        uniform.getCumulativeProbabilityBatch(test_values.data(), trad_cdf_results.data(), batch_size);
+        
+        // Verify correctness
+        bool pdf_correct = true, logpdf_correct = true, cdf_correct = true;
+        
+        for (size_t j = 0; j < batch_size; ++j) {
+            if (std::abs(auto_pdf_results[j] - trad_pdf_results[j]) > 1e-10) {
+                pdf_correct = false;
+            }
+            if (std::abs(auto_logpdf_results[j] - trad_logpdf_results[j]) > 1e-10) {
+                logpdf_correct = false;
+            }
+            if (std::abs(auto_cdf_results[j] - trad_cdf_results[j]) > 1e-10) {
+                cdf_correct = false;
+            }
+        }
+        
+        std::cout << "Batch size: " << batch_size << ", Expected strategy: " << expected_strategy << "\n";
+        std::cout << "  PDF: " << auto_pdf_time << "μs, Correct: " << (pdf_correct ? "✅" : "❌") << "\n";
+        std::cout << "  LogPDF: " << auto_logpdf_time << "μs, Correct: " << (logpdf_correct ? "✅" : "❌") << "\n";
+        std::cout << "  CDF: " << auto_cdf_time << "μs, Correct: " << (cdf_correct ? "✅" : "❌") << "\n";
+        
+        EXPECT_TRUE(pdf_correct) << "PDF auto-dispatch results should match traditional for batch size " << batch_size;
+        EXPECT_TRUE(logpdf_correct) << "LogPDF auto-dispatch results should match traditional for batch size " << batch_size;
+        EXPECT_TRUE(cdf_correct) << "CDF auto-dispatch results should match traditional for batch size " << batch_size;
+    }
+    
+    // Test with performance hints
+    std::cout << "\n=== Testing Performance Hints ===\n";
+    
+    const size_t hint_test_size = 1000;
+    std::vector<double> hint_test_values(hint_test_size, 0.5);
+    std::vector<double> hint_results(hint_test_size);
+    
+    // Test with different performance hints
+    libstats::performance::PerformanceHint auto_hint; // Default AUTO
+    libstats::performance::PerformanceHint scalar_hint;
+    scalar_hint.strategy = libstats::performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    libstats::performance::PerformanceHint simd_hint;
+    simd_hint.strategy = libstats::performance::PerformanceHint::PreferredStrategy::FORCE_SIMD;
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    uniform.getProbability(std::span<const double>(hint_test_values), std::span<double>(hint_results), auto_hint);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto auto_hint_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    uniform.getProbability(std::span<const double>(hint_test_values), std::span<double>(hint_results), scalar_hint);
+    end = std::chrono::high_resolution_clock::now();
+    auto scalar_hint_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    start = std::chrono::high_resolution_clock::now();
+    uniform.getProbability(std::span<const double>(hint_test_values), std::span<double>(hint_results), simd_hint);
+    end = std::chrono::high_resolution_clock::now();
+    auto simd_hint_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    std::cout << "Performance hint testing (batch size: " << hint_test_size << "):" << std::endl;
+    std::cout << "  AUTO strategy: " << auto_hint_time << "μs" << std::endl;
+    std::cout << "  FORCE_SCALAR: " << scalar_hint_time << "μs" << std::endl;
+    std::cout << "  FORCE_SIMD: " << simd_hint_time << "μs" << std::endl;
+    
+    std::cout << "\n✅ Smart auto-dispatch strategy testing completed!\n";
+}
+
 TEST_F(UniformEnhancedTest, BootstrapParameterConfidenceIntervals) {
     auto uniformResult = UniformDistribution::create(0.0, 1.0);
     ASSERT_TRUE(uniformResult.isOk());

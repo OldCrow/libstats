@@ -506,6 +506,10 @@ void ExponentialDistribution::getLogProbabilityBatchUnsafe(const double* values,
     getLogProbabilityBatchUnsafeImpl(values, results, count, logLambda_, negLambda_);
 }
 
+void ExponentialDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, negLambda_);
+}
+
 //==============================================================================
 // PRIVATE BATCH IMPLEMENTATION METHODS
 //==============================================================================

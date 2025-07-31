@@ -4,6 +4,7 @@
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
 #include "../core/error_handling.h" // Safe error handling without exceptions
+#include "../core/performance_dispatcher.h" // For smart auto-dispatch
 #include "../platform/parallel_execution.h" // For parallel batch operations
 #include "../platform/thread_pool.h"        // For thread pool integration
 #include "../platform/work_stealing_pool.h" // For work-stealing parallel execution
@@ -331,21 +332,10 @@ public:
      * @param a New lower bound parameter
      * @param b New upper bound parameter (must be > a)
      * @return VoidResult indicating success or failure
+     * 
+     * Implementation in .cpp: Complex thread-safe parameter validation and atomic state management
      */
-    [[nodiscard]] VoidResult trySetParameters(double a, double b) noexcept {
-        auto validation = validateUniformParameters(a, b);
-        if (validation.isError()) {
-            return validation;
-        }
-        
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        a_ = a;
-        b_ = b;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        return VoidResult::ok(true);
-    }
+    [[nodiscard]] VoidResult trySetParameters(double a, double b) noexcept;
     
     /**
      * @brief Check if current parameters are valid
@@ -478,12 +468,28 @@ public:
     void setLowerBound(double a);
     
     /**
+     * @brief Safely set the lower bound parameter a without throwing exceptions (Result-based API).
+     * 
+     * @param a New lower bound (must be < current upper bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetLowerBound(double a) noexcept;
+    
+    /**
      * Sets the upper bound parameter b.
      * 
      * @param b New upper bound (must be > current lower bound)
      * @throws std::invalid_argument if b <= a or parameters are invalid
      */
     void setUpperBound(double b);
+    
+    /**
+     * @brief Safely set the upper bound parameter b without throwing exceptions (Result-based API).
+     * 
+     * @param b New upper bound (must be > current lower bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetUpperBound(double b) noexcept;
     
     /**
      * Sets both bounds simultaneously.
@@ -651,7 +657,52 @@ public:
     bool operator!=(const UniformDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
-    // SIMD BATCH OPERATIONS
+    // SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+    //==========================================================================
+    
+    /**
+     * @brief Smart auto-dispatch batch probability calculation
+     * 
+     * This method automatically selects the optimal execution strategy based on:
+     * - Batch size and system capabilities
+     * - Available CPU features (SIMD support)
+     * - Threading overhead characteristics
+     * 
+     * Users should prefer this method over manual strategy selection.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for probability densities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getProbability(std::span<const double> values, std::span<double> results,
+                       const performance::PerformanceHint& hint = {}) const;
+    
+    /**
+     * @brief Smart auto-dispatch batch log probability calculation
+     * 
+     * Automatically selects optimal execution strategy for log probability computation.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for log probability densities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getLogProbability(std::span<const double> values, std::span<double> results,
+                          const performance::PerformanceHint& hint = {}) const;
+    
+    /**
+     * @brief Smart auto-dispatch batch cumulative probability calculation
+     * 
+     * Automatically selects optimal execution strategy for CDF computation.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for cumulative probabilities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getCumulativeProbability(std::span<const double> values, std::span<double> results,
+                                 const performance::PerformanceHint& hint = {}) const;
+    
+    //==========================================================================
+    // SIMD BATCH OPERATIONS (Legacy - prefer auto-dispatch methods above)
     //==========================================================================
     
     /**
@@ -693,6 +744,7 @@ public:
      */
     void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
     void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    void getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
 
     //==========================================================================
     // THREAD POOL PARALLEL BATCH OPERATIONS

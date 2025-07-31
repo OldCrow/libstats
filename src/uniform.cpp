@@ -4,6 +4,8 @@
 #include "../include/core/math_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/platform/cpu_detection.h"
+#include "../include/platform/work_stealing_pool.h"
+#include "../include/platform/adaptive_cache.h"
 #include <sstream>
 #include <cmath>
 #include <vector>
@@ -20,6 +22,8 @@ namespace libstats {
 UniformDistribution::UniformDistribution(double a, double b) 
     : DistributionBase(), a_(a), b_(b) {
     validateParameters(a, b);
+    // Ensure SystemCapabilities are initialized
+    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -28,6 +32,8 @@ UniformDistribution::UniformDistribution(const UniformDistribution& other)
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
+    // Ensure SystemCapabilities are initialized
+    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -56,6 +62,8 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
     other.b_ = constants::math::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    // Ensure SystemCapabilities are initialized
+    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -115,7 +123,7 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
 //==============================================================================
 
 double UniformDistribution::getProbability(double x) const {
-    // Ensure cache is valid
+    // Ensure cache is valid once before using - using the same pattern as other methods
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -532,17 +540,53 @@ void UniformDistribution::getLogProbabilityBatchUnsafe(const double* values, dou
     getLogProbabilityBatchUnsafeImpl(values, results, count, a_, b_, log_inv_width);
 }
 
+void UniformDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, a_, b_, invWidth_);
+}
+
 //==============================================================================
 // PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
 //==============================================================================
 
 void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                         double a, double b, double inv_width) const noexcept {
-    // For uniform distribution, the computation is extremely simple (just bounds checking)
-    // so SIMD overhead is not beneficial - use direct scalar implementation
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: For uniform distribution, computation is extremely simple (just bounds checking)
+        // so SIMD rarely provides benefits, but we use centralized policy for consistency
+        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
+                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        
+        if (is_unit_interval) {
+            // Unit interval case: result is 1 for x in [0,1], 0 otherwise
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
+                            constants::math::ONE : constants::math::ZERO_DOUBLE;
+            }
+        } else {
+            // General case: result is inv_width for x in [a,b], 0 otherwise
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                results[i] = (x >= a && x <= b) ? inv_width : constants::math::ZERO_DOUBLE;
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
+    // due to the simple nature of bounds checking, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
     const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
                                  (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
     
+    // Use scalar implementation even when SIMD is available because uniform distribution
+    // operations are not amenable to vectorization (primarily branching logic)
     if (is_unit_interval) {
         // Unit interval case: result is 1 for x in [0,1], 0 otherwise
         for (std::size_t i = 0; i < count; ++i) {
@@ -561,11 +605,43 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
 
 void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                            double a, double b, double log_inv_width) const noexcept {
-    // For uniform distribution, the computation is extremely simple (just bounds checking)
-    // so SIMD overhead is not beneficial - use direct scalar implementation
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: For uniform distribution, computation is extremely simple (just bounds checking)
+        // so SIMD rarely provides benefits, but we use centralized policy for consistency
+        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
+                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        
+        if (is_unit_interval) {
+            // Unit interval case: result is 0 for x in [0,1], -∞ otherwise
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
+                            constants::math::ZERO_DOUBLE : constants::probability::NEGATIVE_INFINITY;
+            }
+        } else {
+            // General case: result is log_inv_width for x in [a,b], -∞ otherwise
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                results[i] = (x >= a && x <= b) ? log_inv_width : constants::probability::NEGATIVE_INFINITY;
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
+    // due to the simple nature of bounds checking, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
     const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
                                  (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
     
+    // Use scalar implementation even when SIMD is available because uniform distribution
+    // operations are not amenable to vectorization (primarily branching logic)
     if (is_unit_interval) {
         // Unit interval case: result is 0 for x in [0,1], -∞ otherwise
         for (std::size_t i = 0; i < count; ++i) {
@@ -584,11 +660,54 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
 
 void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                   double a, double b, double inv_width) const noexcept {
-    // For uniform distribution CDF, the computation is simple (bounds checking + linear interpolation)
-    // so SIMD overhead is not beneficial - use direct scalar implementation like PDF and LogPDF
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: For uniform distribution CDF, computation is simple (bounds checking + linear interpolation)
+        // so SIMD rarely provides benefits, but we use centralized policy for consistency
+        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
+                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        
+        if (is_unit_interval) {
+            // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    results[i] = constants::math::ZERO_DOUBLE;
+                } else if (x > constants::math::ONE) {
+                    results[i] = constants::math::ONE;
+                } else {
+                    results[i] = x;
+                }
+            }
+        } else {
+            // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                if (x < a) {
+                    results[i] = constants::math::ZERO_DOUBLE;
+                } else if (x > b) {
+                    results[i] = constants::math::ONE;
+                } else {
+                    results[i] = (x - a) * inv_width;
+                }
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
+    // due to the simple nature of bounds checking, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
     const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
                                  (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
     
+    // Use scalar implementation even when SIMD is available because uniform distribution
+    // operations are not amenable to vectorization (primarily branching logic)
     if (is_unit_interval) {
         // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
         for (std::size_t i = 0; i < count; ++i) {
@@ -1093,6 +1212,52 @@ std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
     return std::make_tuple(ad_stat, p_value, reject_null);
 }
 
+//==============================================================================
+// RESULT-BASED SETTERS
+//==============================================================================
+
+VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
+    double currentB;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentB = b_;
+    }
+
+    auto validation = validateUniformParameters(a, currentB);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+
+    return VoidResult::ok(true);
+}
+
+VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
+    double currentA;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentA = a_;
+    }
+
+    auto validation = validateUniformParameters(currentA, b);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+
+    return VoidResult::ok(true);
+}
+
 std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossValidation(
     const std::vector<double>& data,
     int k,
@@ -1364,6 +1529,296 @@ std::tuple<double, double, double, double> UniformDistribution::computeInformati
     }
     
     return std::make_tuple(aic, bic, aicc, log_likelihood);
+}
+
+//==============================================================================
+// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+//==============================================================================
+
+VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
+    auto validation = validateUniformParameters(a, b);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+//==============================================================================
+// SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+//==============================================================================
+
+void UniformDistribution::getProbability(std::span<const double> values, std::span<double> results,
+                                        const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const size_t count = values.size();
+    if (count == 0) return;
+    
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getProbability(values[0]);
+        return;
+    }
+    
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::UNIFORM,
+            performance::ComputationComplexity::SIMPLE,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+    
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            // Use simple loop for tiny batches (< 8 elements)
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getProbability(values[i]);
+            }
+            break;
+            
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getProbabilityBatch(values.data(), results.data(), count);
+            break;
+            
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getProbabilityBatchParallel(values, results);
+            break;
+            
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+            
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
+}
+
+void UniformDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
+                                           const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const size_t count = values.size();
+    if (count == 0) return;
+    
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getLogProbability(values[0]);
+        return;
+    }
+    
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::UNIFORM,
+            performance::ComputationComplexity::SIMPLE,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+    
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            // Use simple loop for tiny batches (< 8 elements)
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getLogProbability(values[i]);
+            }
+            break;
+            
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getLogProbabilityBatch(values.data(), results.data(), count);
+            break;
+            
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getLogProbabilityBatchParallel(values, results);
+            break;
+            
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getLogProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+            
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getLogProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
+}
+
+void UniformDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results,
+                                                  const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const size_t count = values.size();
+    if (count == 0) return;
+    
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getCumulativeProbability(values[0]);
+        return;
+    }
+    
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::UNIFORM,
+            performance::ComputationComplexity::SIMPLE,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+    
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            // Use simple loop for tiny batches (< 8 elements)
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getCumulativeProbability(values[i]);
+            }
+            break;
+            
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getCumulativeProbabilityBatch(values.data(), results.data(), count);
+            break;
+            
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getCumulativeProbabilityBatchParallel(values, results);
+            break;
+            
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+            
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
 }
 
 } // namespace libstats

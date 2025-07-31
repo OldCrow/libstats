@@ -481,7 +481,7 @@ public:
     [[nodiscard]] double getScale() const noexcept;
     
     /**
-     * Sets the shape parameter α.
+     * Sets the shape parameter α (exception-based API).
      * 
      * @param alpha New shape parameter (must be positive)
      * @throws std::invalid_argument if alpha <= 0 or is not finite
@@ -489,12 +489,28 @@ public:
     void setAlpha(double alpha);
     
     /**
-     * Sets the rate parameter β.
+     * @brief Safely set the shape parameter α without throwing exceptions (Result-based API).
+     * 
+     * @param alpha New shape parameter (must be positive)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetAlpha(double alpha) noexcept;
+    
+    /**
+     * Sets the rate parameter β (exception-based API).
      * 
      * @param beta New rate parameter (must be positive)
      * @throws std::invalid_argument if beta <= 0 or is not finite
      */
     void setBeta(double beta);
+    
+    /**
+     * @brief Safely set the rate parameter β without throwing exceptions (Result-based API).
+     * 
+     * @param beta New rate parameter (must be positive)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetBeta(double beta) noexcept;
     
     /**
      * Sets the scale parameter θ = 1/β.

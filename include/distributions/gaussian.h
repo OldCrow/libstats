@@ -5,6 +5,7 @@
 #include "../core/constants.h"
 #include "../platform/simd.h" // Ensure SIMD operations are available
 #include "../core/error_handling.h" // Safe error handling without exceptions
+#include "../core/performance_dispatcher.h" // For smart auto-dispatch
 #include "../platform/parallel_execution.h" // Level 0-3 parallel execution support
 #include "../platform/thread_pool.h" // Level 0-3 ParallelUtils integration
 #include "../platform/work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
@@ -77,148 +78,11 @@ namespace libstats {
  * @since 1.0.0
  */
 class GaussianDistribution : public DistributionBase
-{   
-private:
-    //==========================================================================
-    // CORE DISTRIBUTION PARAMETERS
-    //==========================================================================
-    
-    /** @brief Mean parameter μ - can be any finite real number */
-    double mean_{constants::math::ZERO_DOUBLE};
-
-    /** @brief Standard deviation parameter σ - must be positive */
-    double standardDeviation_{constants::math::ONE};
-    
-    /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<double> atomicMean_{constants::math::ZERO_DOUBLE};
-    mutable std::atomic<double> atomicStandardDeviation_{constants::math::ONE};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PRIMARY CACHE VALUES (Core mathematical functions)
-    //==========================================================================
-    
-    /** @brief Cached normalization constant 1/(σ√(2π)) for PDF calculations */
-    mutable double normalizationConstant_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value -1/(2σ²) for efficient exponent calculation */
-    mutable double negHalfSigmaSquaredInv_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached log(σ) for log-probability calculations */
-    mutable double logStandardDeviation_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached σ√2 for CDF calculations using error function */
-    mutable double sigmaSqrt2_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached 1/σ for efficient reciprocal operations */
-    mutable double invStandardDeviation_{constants::math::ZERO_DOUBLE};
-    
-    //==========================================================================
-    // SECONDARY CACHE VALUES (Performance optimizations)
-    //==========================================================================
-    
-    /** @brief Cached σ² to avoid repeated multiplication */
-    mutable double cachedSigmaSquared_{constants::math::ONE};
-    
-    /** @brief Cached 2σ² for CDF optimizations */
-    mutable double cachedTwoSigmaSquared_{constants::math::TWO};
-    
-    /** @brief Cached log(2σ²) for log-space operations */
-    mutable double cachedLogTwoSigmaSquared_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached 1/σ² for direct exponent calculation */
-    mutable double cachedInvSigmaSquared_{constants::math::ONE};
-    
-    /** @brief Cached √(2π) constant for direct normalization */
-    mutable double cachedSqrtTwoPi_{constants::math::SQRT_2PI};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS (Fast path detection)
-    //==========================================================================
-    
-    /** @brief True if this is standard normal (μ=0, σ=1) for ultra-fast path */
-    mutable bool isStandardNormal_{false};
-    
-    /** @brief True if σ² = 1 for additional fast path optimizations */
-    mutable bool isUnitVariance_{true};
-    
-    /** @brief True if μ = 0 for additional fast path optimizations */
-    mutable bool isZeroMean_{true};
-    
-    /** @brief True if parameters require high precision arithmetic */
-    mutable bool isHighPrecision_{false};
-    
-    /** @brief True if σ² < 0.0625 for numerical stability path */
-    mutable bool isLowVariance_{false};
-    
-    /**
-     * Updates cached values when parameters change - assumes mutex is already held
-     * Marked inline for performance optimization
-     */
-    inline void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
-        cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
-        cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
-        
-        // Core cached values using precomputed sigma²
-        invStandardDeviation_ = constants::math::ONE / standardDeviation_;
-        normalizationConstant_ = invStandardDeviation_ * constants::math::INV_SQRT_2PI;
-        negHalfSigmaSquaredInv_ = constants::math::NEG_HALF * cachedInvSigmaSquared_;
-        logStandardDeviation_ = std::log(standardDeviation_);
-        sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
-        
-        // Additional optimized cache values
-        cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
-        cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
-        
-        // Fast path detection flags for multiple optimization levels
-        isZeroMean_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE);
-        isUnitVariance_ = (std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        isStandardNormal_ = (isZeroMean_ && isUnitVariance_);
-        
-        // Detect extreme parameter ranges for specialized handling
-        isHighPrecision_ = (std::abs(mean_) > constants::math::THOUSAND || cachedSigmaSquared_ < constants::precision::HIGH_PRECISION_TOLERANCE);
-        isLowVariance_ = (cachedSigmaSquared_ < constants::math::QUARTER * constants::math::QUARTER); // σ² < 0.0625
-        
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-        
-        // Update atomic parameters for lock-free access
-        atomicMean_.store(mean_, std::memory_order_release);
-        atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
-    
-    /**
-     * Validates parameters for the Gaussian distribution
-     * @param mean Mean parameter (any finite value)
-     * @param stdDev Standard deviation parameter (must be positive and finite)
-     * @throws std::invalid_argument if parameters are invalid
-     * 
-     * TODO: Fix exception handling ABI compatibility issue with Homebrew LLVM libc++
-     * Currently causes segfault during exception unwinding when invalid parameters
-     * are passed to constructor. Issue appears to be ABI mismatch in exception
-     * handling mechanism. Consider alternative validation approach or investigate
-     * proper libc++ linking for exception compatibility.
-     */
-    static void validateParameters(double mean, double stdDev) {
-        if (std::isnan(mean) || std::isinf(mean)) {
-            throw std::invalid_argument("Mean must be a finite number");
-        }
-        if (std::isnan(stdDev) || std::isinf(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
-            throw std::invalid_argument("Standard deviation must be a positive finite number");
-        }
-    }
-
-    friend std::istream& operator>>(std::istream& is,
-            libstats::GaussianDistribution& distribution);
-
+{
 public:
     //==========================================================================
     // CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
-    
     /**
      * @brief Constructs a Gaussian distribution with given parameters.
      * 
@@ -259,7 +123,7 @@ public:
      * @note noexcept compliant using atomic state management
      */
     GaussianDistribution& operator=(GaussianDistribution&& other) noexcept;
-    
+
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five
      * Implementation inline: Trivial destruction, kept for performance
@@ -269,79 +133,162 @@ public:
      * - Complex operations (copy/move) moved to .cpp for maintainability
      */
     ~GaussianDistribution() override = default;
-    
+
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // PARAMETER GETTERS AND SETTERS
     //==========================================================================
     
     /**
-     * @brief Safely create a Gaussian distribution without throwing exceptions
+     * @brief Gets the mean parameter μ.
+     * Thread-safe: acquires lock to protect mean_
      * 
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
-     * 
-     * @param mean Mean parameter μ (any finite value)
-     * @param standardDeviation Standard deviation parameter σ (must be positive)
-     * @return Result containing either a valid GaussianDistribution or error info
-     * 
-     * @par Usage Example:
-     * @code
-     * auto result = GaussianDistribution::create(0.0, 1.0);
-     * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
-     *     // Use distribution safely...
-     * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
-     * }
-     * @endcode
+     * @return Current mean value
      */
-    [[nodiscard]] static Result<GaussianDistribution> create(double mean = 0.0, double standardDeviation = 1.0) noexcept {
-        auto validation = validateGaussianParameters(mean, standardDeviation);
-        if (validation.isError()) {
-            return Result<GaussianDistribution>::makeError(validation.error_code, validation.message);
-        }
-        
-        // Use private factory to bypass validation
-        return Result<GaussianDistribution>::ok(createUnchecked(mean, standardDeviation));
-    }
+    [[nodiscard]] double getMean() const noexcept override;
     
     /**
-     * @brief Safely try to set parameters without throwing exceptions
+     * @brief Sets the mean parameter μ (exception-based API).
+     * Thread-safe: validates first, then locks and sets
      * 
-     * @param mean New mean parameter
-     * @param standardDeviation New standard deviation parameter  
+     * @param mean New mean parameter (any finite value)
+     * @throws std::invalid_argument if mean is not finite
+     */
+    void setMean(double mean);
+    
+    /**
+     * @brief Safely set the mean parameter μ without throwing exceptions (Result-based API).
+     * Thread-safe: validates first, then locks and sets
+     * 
+     * @param mean New mean parameter (any finite value)
      * @return VoidResult indicating success or failure
      */
-    [[nodiscard]] VoidResult trySetParameters(double mean, double standardDeviation) noexcept {
-        auto validation = validateGaussianParameters(mean, standardDeviation);
-        if (validation.isError()) {
-            return validation;
-        }
-        
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        mean_ = mean;
-        standardDeviation_ = standardDeviation;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        // Invalidate atomic parameters when parameters change
-        atomicParamsValid_.store(false, std::memory_order_release);
-        
-        return VoidResult::ok(true);
-    }
-    
+    [[nodiscard]] VoidResult trySetMean(double mean) noexcept;
+
     /**
-     * @brief Check if current parameters are valid
-     * @return VoidResult indicating validity
+     * @brief Gets the standard deviation parameter σ.
+     * Thread-safe: acquires lock to protect standardDeviation_
+     * 
+     * @return Current standard deviation value
      */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateGaussianParameters(mean_, standardDeviation_);
-    }
-    
-    
-public:
+    [[nodiscard]] double getStandardDeviation() const noexcept;
+
+    /**
+     * Fast lock-free getter for mean parameter using atomic copy.
+     * PERFORMANCE: Uses atomic load - no locking overhead
+     * WARNING: May return stale value if parameters are being updated
+     * 
+     * @return Atomic copy of mean parameter (may be slightly stale)
+     */
+    [[nodiscard]] double getMeanAtomic() const noexcept;
+
+    /**
+     * Fast lock-free getter for standard deviation parameter using atomic copy.
+     * PERFORMANCE: Uses atomic load - no locking overhead
+     * WARNING: May return stale value if parameters are being updated
+     * 
+     * @return Atomic copy of standard deviation parameter (may be slightly stale)
+     */
+    [[nodiscard]] double getStandardDeviationAtomic() const noexcept;
+
+    /**
+     * @brief Sets the standard deviation parameter σ (exception-based API).
+     * Thread-safe: validates first, then locks and sets
+     * 
+     * @param stdDev New standard deviation parameter (must be positive)
+     * @throws std::invalid_argument if stdDev <= 0 or is not finite
+     */
+    void setStandardDeviation(double stdDev);
+
+    /**
+     * @brief Safely set the standard deviation parameter σ without throwing exceptions (Result-based API).
+     * Thread-safe: validates first, then locks and sets
+     * 
+     * @param stdDev New standard deviation parameter (must be positive)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetStandardDeviation(double stdDev) noexcept;
+
+    /**
+     * @brief Sets both parameters simultaneously.
+     * Thread-safe: acquires unique lock for cache invalidation
+     * 
+     * @param mean New mean parameter
+     * @param stdDev New standard deviation parameter
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    void setParameters(double mean, double stdDev);
+
+    /**
+     * @brief Gets the variance of the distribution.
+     * For Gaussian distribution, variance = σ²
+     * Thread-safe: acquires lock to protect standardDeviation_
+     * 
+     * @return Variance value
+     */
+    [[nodiscard]] double getVariance() const noexcept override;
+
+    /**
+     * @brief Gets the skewness of the distribution.
+     * For Gaussian distribution, skewness = 0 (symmetric)
+     * Inline for performance - no thread safety needed for constant
+     * 
+     * @return Skewness value (always 0)
+     */
+    [[nodiscard]] double getSkewness() const noexcept override;
+
+    /**
+     * @brief Gets the kurtosis of the distribution.
+     * For Gaussian distribution, excess kurtosis = 0
+     * Inline for performance - no thread safety needed for constant
+     * 
+     * @return Excess kurtosis value (always 0)
+     */
+    [[nodiscard]] double getKurtosis() const noexcept override;
+
+    /**
+     * @brief Gets the distribution name.
+     * Inline for performance - no thread safety needed for constant
+     * 
+     * @return Distribution name
+     */
+    [[nodiscard]] std::string getDistributionName() const override;
+
+    /**
+     * @brief Gets the number of parameters for this distribution.
+     * For Gaussian distribution, there are 2 parameters: mean and standard deviation
+     * Inline for performance - no thread safety needed for constant
+     * 
+     * @return Number of parameters (always 2)
+     */
+    [[nodiscard]] int getNumParameters() const noexcept override;
+
+    /**
+     * @brief Checks if the distribution is discrete.
+     * For Gaussian distribution, it's continuous
+     * Inline for performance - no thread safety needed for constant
+     * 
+     * @return false (always continuous)
+     */
+    [[nodiscard]] bool isDiscrete() const noexcept override;
+
+    /**
+     * @brief Gets the lower bound of the distribution support.
+     * For Gaussian distribution, support is (-∞, ∞)
+     * Inline for performance - no thread safety needed for constant
+     * 
+     * @return Lower bound (-infinity)
+     */
+    [[nodiscard]] double getSupportLowerBound() const noexcept override;
+
+    /**
+     * @brief Gets the upper bound of the distribution support.
+     * For Gaussian distribution, support is (-∞, ∞)
+     * Inline for performance - no thread safety needed for constant
+     * 
+     * @return Upper bound (+infinity)
+     */
+    [[nodiscard]] double getSupportUpperBound() const noexcept override;
+
     //==========================================================================
     // CORE PROBABILITY METHODS
     //==========================================================================
@@ -373,7 +320,7 @@ public:
      * @return Cumulative probability P(X ≤ x)
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
-    
+
     /**
      * @brief Computes the quantile function (inverse CDF)
      * Uses inverse error function for accurate quantile calculation
@@ -383,7 +330,7 @@ public:
      * @throws std::invalid_argument if p not in [0,1]
      */
     [[nodiscard]] double getQuantile(double p) const override;
-    
+
     /**
      * @brief Generate single random sample from distribution
      * Uses Box-Muller transform for high-quality Gaussian samples
@@ -392,7 +339,7 @@ public:
      * @return Single random sample
      */
     [[nodiscard]] double sample(std::mt19937& rng) const override;
-    
+
     /**
      * @brief Generate multiple random samples from distribution
      * Optimized batch sampling using Box-Muller transform
@@ -402,231 +349,11 @@ public:
      * @return Vector of random samples
      */
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
-    
-    //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
-    //==========================================================================
-    
-    /**
-     * @brief Gets the mean parameter μ.
-     * Thread-safe: acquires lock to protect mean_
-     * 
-     * @return Current mean value
-     */
-    [[nodiscard]] double getMean() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return mean_; 
-    }
-    
-    /**
-     * @brief Sets the mean parameter μ.
-     * Thread-safe: validates first, then locks and sets
-     * 
-     * @param mean New mean parameter (any finite value)
-     * @throws std::invalid_argument if mean is not finite
-     */
-    void setMean(double mean) {
-        // Copy current stddev for validation (thread-safe)
-        double currentStdDev;
-        {
-            std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-            currentStdDev = standardDeviation_;
-        }
-        
-        // Validate parameters outside of any lock
-        validateParameters(mean, currentStdDev);
-        
-        // Set parameter under lock
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        mean_ = mean;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        // Invalidate atomic parameters when parameters change
-        atomicParamsValid_.store(false, std::memory_order_release);
-    }
 
-    /**
-     * @brief Gets the standard deviation parameter σ.
-     * Thread-safe: acquires lock to protect standardDeviation_
-     * 
-     * @return Current standard deviation value
-     */
-    [[nodiscard]] double getStandardDeviation() const noexcept { 
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return standardDeviation_;
-    }
-    
-    /**
-     * Fast lock-free getter for mean parameter using atomic copy.
-     * PERFORMANCE: Uses atomic load - no locking overhead
-     * WARNING: May return stale value if parameters are being updated
-     * 
-     * @return Atomic copy of mean parameter (may be slightly stale)
-     */
-    [[nodiscard]] double getMeanAtomic() const noexcept {
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            return atomicMean_.load(std::memory_order_acquire);
-        }
-        // Fallback to locked version if atomic copy not valid
-        return getMean();
-    }
-    
-    /**
-     * Fast lock-free getter for standard deviation parameter using atomic copy.
-     * PERFORMANCE: Uses atomic load - no locking overhead
-     * WARNING: May return stale value if parameters are being updated
-     * 
-     * @return Atomic copy of standard deviation parameter (may be slightly stale)
-     */
-    [[nodiscard]] double getStandardDeviationAtomic() const noexcept {
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            return atomicStandardDeviation_.load(std::memory_order_acquire);
-        }
-        // Fallback to locked version if atomic copy not valid
-        return getStandardDeviation();
-    }
-    
-    /**
-     * @brief Sets the standard deviation parameter σ.
-     * Thread-safe: validates first, then locks and sets
-     * 
-     * @param stdDev New standard deviation parameter (must be positive)
-     * @throws std::invalid_argument if stdDev <= 0 or is not finite
-     */
-    void setStandardDeviation(double stdDev) {
-        // Copy current mean for validation (thread-safe)
-        double currentMean;
-        {
-            std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-            currentMean = mean_;
-        }
-        
-        // Validate parameters outside of any lock
-        validateParameters(currentMean, stdDev);
-        
-        // Set parameter under lock
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        standardDeviation_ = stdDev;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        // Invalidate atomic parameters when parameters change
-        atomicParamsValid_.store(false, std::memory_order_release);
-    }
-    
-    /**
-     * @brief Gets the variance of the distribution.
-     * For Gaussian distribution, variance = σ²
-     * Thread-safe: acquires lock to protect standardDeviation_
-     * 
-     * @return Variance value
-     */
-    [[nodiscard]] double getVariance() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return standardDeviation_ * standardDeviation_;
-    }
-    
-    /**
-     * @brief Gets the skewness of the distribution.
-     * For Gaussian distribution, skewness = 0 (symmetric)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Skewness value (always 0)
-     */
-    [[nodiscard]] double getSkewness() const noexcept override {
-        return 0.0;  // Gaussian is symmetric
-    }
-    
-    /**
-     * @brief Gets the kurtosis of the distribution.
-     * For Gaussian distribution, excess kurtosis = 0
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Excess kurtosis value (always 0)
-     */
-    [[nodiscard]] double getKurtosis() const noexcept override {
-        return 0.0;  // Gaussian has normal kurtosis
-    }
-    
-    /**
-     * @brief Gets the number of parameters for this distribution.
-     * For Gaussian distribution, there are 2 parameters: mean and standard deviation
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Number of parameters (always 2)
-     */
-    [[nodiscard]] int getNumParameters() const noexcept override {
-        return 2;
-    }
-    
-    /**
-     * @brief Gets the distribution name.
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Distribution name
-     */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "Gaussian";
-    }
-    
-    /**
-     * @brief Checks if the distribution is discrete.
-     * For Gaussian distribution, it's continuous
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return false (always continuous)
-     */
-    [[nodiscard]] bool isDiscrete() const noexcept override {
-        return false;
-    }
-    
-    /**
-     * @brief Gets the lower bound of the distribution support.
-     * For Gaussian distribution, support is (-∞, ∞)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Lower bound (-infinity)
-     */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override {
-        return -std::numeric_limits<double>::infinity();
-    }
-    
-    /**
-     * @brief Gets the upper bound of the distribution support.
-     * For Gaussian distribution, support is (-∞, ∞)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Upper bound (+infinity)
-     */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        return std::numeric_limits<double>::infinity();
-    }
-    
-    /**
-     * @brief Sets both parameters simultaneously.
-     * Thread-safe: acquires unique lock for cache invalidation
-     * 
-     * @param mean New mean parameter
-     * @param stdDev New standard deviation parameter
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    void setParameters(double mean, double stdDev) {
-        validateParameters(mean, stdDev);
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        mean_ = mean;
-        standardDeviation_ = stdDev;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        // Invalidate atomic parameters when parameters change
-        atomicParamsValid_.store(false, std::memory_order_release);
-    }
-    
     //==========================================================================
     // DISTRIBUTION MANAGEMENT
     //==========================================================================
-    
+
     /**
      * @brief Fits the distribution parameters to the given data using maximum likelihood estimation.
      * For Gaussian distribution, MLE gives sample mean and sample standard deviation.
@@ -635,7 +362,7 @@ public:
      * @param values Vector of observed data
      */
     void fit(const std::vector<double>& values) override;
-    
+
     /**
      * @brief Parallel batch fitting for multiple datasets
      * Efficiently fits Gaussian parameters to multiple independent datasets in parallel
@@ -659,11 +386,11 @@ public:
      * @return String describing the distribution parameters
      */
     std::string toString() const override;
-    
+
     //==========================================================================
     // ADVANCED STATISTICAL METHODS
     //==========================================================================
-    
+
     /**
      * @brief Confidence interval for mean parameter μ
      * 
@@ -680,7 +407,7 @@ public:
         const std::vector<double>& data, 
         double confidence_level = 0.95,
         bool population_variance_known = false);
-    
+
     /**
      * @brief Confidence interval for variance parameter σ²
      * 
@@ -694,7 +421,7 @@ public:
     static std::pair<double, double> confidenceIntervalVariance(
         const std::vector<double>& data,
         double confidence_level = 0.95);
-    
+
     /**
      * @brief One-sample t-test for population mean
      * 
@@ -710,7 +437,7 @@ public:
         const std::vector<double>& data,
         double hypothesized_mean,
         double alpha = 0.05);
-    
+
     /**
      * @brief Two-sample t-test for equal means
      * 
@@ -728,7 +455,7 @@ public:
         const std::vector<double>& data2,
         bool equal_variances = true,
         double alpha = 0.05);
-    
+
     /**
      * @brief Paired t-test for matched samples
      * 
@@ -744,7 +471,7 @@ public:
         const std::vector<double>& data1,
         const std::vector<double>& data2,
         double alpha = 0.05);
-    
+
     /**
      * @brief Bayesian parameter estimation with conjugate prior
      * 
@@ -765,7 +492,7 @@ public:
         double prior_precision = 0.001,
         double prior_shape = 1.0,
         double prior_rate = 1.0);
-    
+
     /**
      * @brief Credible interval from Bayesian posterior
      * 
@@ -787,7 +514,7 @@ public:
         double prior_precision = 0.001,
         double prior_shape = 1.0,
         double prior_rate = 1.0);
-    
+
     /**
      * @brief Robust parameter estimation using M-estimators
      * 
@@ -803,7 +530,7 @@ public:
         const std::vector<double>& data,
         const std::string& estimator_type = "huber",
         double tuning_constant = 1.345);
-    
+
     /**
      * @brief Method of moments parameter estimation
      * 
@@ -815,7 +542,7 @@ public:
      */
     static std::pair<double, double> methodOfMomentsEstimation(
         const std::vector<double>& data);
-    
+
     /**
      * @brief L-moments parameter estimation
      * 
@@ -828,7 +555,7 @@ public:
      */
     static std::pair<double, double> lMomentsEstimation(
         const std::vector<double>& data);
-    
+
     /**
      * @brief Advanced moment calculations (up to 6th moment)
      * 
@@ -842,7 +569,7 @@ public:
     static std::vector<double> calculateHigherMoments(
         const std::vector<double>& data,
         bool center_on_mean = true);
-    
+
     /**
      * @brief Jarque-Bera normality test
      * 
@@ -856,7 +583,7 @@ public:
     static std::tuple<double, double, bool> jarqueBeraTest(
         const std::vector<double>& data,
         double alpha = 0.05);
-    
+
     /**
      * @brief Shapiro-Wilk normality test
      * 
@@ -870,7 +597,7 @@ public:
     static std::tuple<double, double, bool> shapiroWilkTest(
         const std::vector<double>& data,
         double alpha = 0.05);
-    
+
     /**
      * @brief Likelihood ratio test for nested models
      * 
@@ -888,7 +615,7 @@ public:
         const GaussianDistribution& restricted_model,
         const GaussianDistribution& unrestricted_model,
         double alpha = 0.05);
-    
+
     /**
      * @brief Kolmogorov-Smirnov goodness-of-fit test
      * 
@@ -905,7 +632,7 @@ public:
         const std::vector<double>& data,
         const GaussianDistribution& distribution,
         double alpha = 0.05);
-    
+
     /**
      * @brief Anderson-Darling goodness-of-fit test
      * 
@@ -922,11 +649,11 @@ public:
         const std::vector<double>& data,
         const GaussianDistribution& distribution,
         double alpha = 0.05);
-    
+
     //==========================================================================
     // CROSS-VALIDATION AND MODEL SELECTION
     //==========================================================================
-    
+
     /**
      * @brief K-fold cross-validation for parameter estimation
      * 
@@ -943,7 +670,7 @@ public:
         const std::vector<double>& data,
         int k = 5,
         unsigned int random_seed = 42);
-    
+
     /**
      * @brief Leave-one-out cross-validation for parameter estimation
      * 
@@ -956,7 +683,7 @@ public:
      */
     static std::tuple<double, double, double> leaveOneOutCrossValidation(
         const std::vector<double>& data);
-    
+
     /**
      * @brief Bootstrap parameter confidence intervals
      * 
@@ -974,7 +701,7 @@ public:
         double confidence_level = 0.95,
         int n_bootstrap = 1000,
         unsigned int random_seed = 42);
-    
+
     /**
      * @brief Model comparison using information criteria
      * 
@@ -988,25 +715,7 @@ public:
     static std::tuple<double, double, double, double> computeInformationCriteria(
         const std::vector<double>& data,
         const GaussianDistribution& fitted_distribution);
-    
-    //==========================================================================
-    // COMPARISON OPERATORS
-    //==========================================================================
-    
-    /**
-     * @brief Equality comparison operator
-     * @param other Other distribution to compare with
-     * @return true if parameters are equal within tolerance
-     */
-    bool operator==(const GaussianDistribution& other) const;
-    
-    /**
-     * @brief Inequality comparison operator
-     * @param other Other distribution to compare with
-     * @return true if parameters are not equal
-     */
-    bool operator!=(const GaussianDistribution& other) const { return !(*this == other); }
-    
+
     //==========================================================================
     // SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
     // 
@@ -1036,7 +745,7 @@ public:
     // - Thread-safe caching minimizes parameter validation overhead
     // - Zero-copy operation on properly sized input arrays
     //==========================================================================
-    
+
     /**
      * @brief Safe SIMD-optimized batch probability calculation
      * 
@@ -1062,7 +771,7 @@ public:
      * @endcode
      */
     void getProbabilityBatch(const double* values, double* results, std::size_t count) const;
-    
+
     /**
      * SIMD-optimized batch log probability calculation
      * Computes log PDF for multiple values simultaneously using vectorized operations
@@ -1072,7 +781,7 @@ public:
      * @warning Arrays must be aligned to SIMD_ALIGNMENT for optimal performance
      */
     void getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
-    
+
     /**
      * SIMD-optimized batch cumulative probability calculation
      * Computes CDF for multiple values simultaneously using vectorized operations
@@ -1082,7 +791,7 @@ public:
      * @warning Arrays must be aligned to SIMD_ALIGNMENT for optimal performance
      */
     void getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const;
-    
+
     /**
      * Ultra-high performance lock-free batch operations
      * These methods assume cache is valid and skip all locking - use with extreme care
@@ -1090,11 +799,10 @@ public:
      */
     void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
     void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
-    
-    //==========================================================================
+    void getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+
     // THREAD POOL PARALLEL BATCH OPERATIONS
-    //==========================================================================
-    
+
     /**
      * Advanced parallel batch probability calculation using ParallelUtils::parallelFor
      * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
@@ -1104,7 +812,7 @@ public:
      * @throws std::invalid_argument if span sizes don't match
      */
     void getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
-    
+
     /**
      * Advanced parallel batch log probability calculation using ParallelUtils::parallelFor
      * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
@@ -1113,7 +821,7 @@ public:
      * @throws std::invalid_argument if span sizes don't match
      */
     void getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept;
-    
+
     /**
      * Advanced parallel batch CDF calculation using ParallelUtils::parallelFor
      * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
@@ -1122,7 +830,7 @@ public:
      * @throws std::invalid_argument if span sizes don't match
      */
     void getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
-    
+
     /**
      * Work-stealing parallel batch probability calculation for heavy computational loads
      * Uses WorkStealingPool for dynamic load balancing across uneven workloads
@@ -1134,7 +842,7 @@ public:
      */
     void getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
                                         WorkStealingPool& pool) const;
-    
+
     /**
      * Cache-aware batch processing using adaptive cache management
      * Integrates with Level 0-3 adaptive cache system for predictive cache warming
@@ -1146,7 +854,7 @@ public:
      */
     void getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                       cache::AdaptiveCache<std::string, double>& cache_manager) const;
-    
+
     /**
      * Work-stealing parallel batch log probability calculation for heavy computational loads
      * Uses WorkStealingPool for dynamic load balancing across uneven workloads
@@ -1158,7 +866,7 @@ public:
      */
     void getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
                                            WorkStealingPool& pool) const;
-    
+
     /**
      * Cache-aware batch log probability processing using adaptive cache management
      * Integrates with Level 0-3 adaptive cache system for predictive cache warming
@@ -1170,7 +878,7 @@ public:
      */
     void getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                          cache::AdaptiveCache<std::string, double>& cache_manager) const;
-    
+
     /**
      * Work-stealing parallel batch CDF calculation for heavy computational loads
      * Uses WorkStealingPool for dynamic load balancing across uneven workloads
@@ -1182,7 +890,7 @@ public:
      */
     void getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
                                                   WorkStealingPool& pool) const;
-    
+
     /**
      * Cache-aware batch CDF processing using adaptive cache management
      * Integrates with Level 0-3 adaptive cache system for predictive cache warming
@@ -1194,94 +902,226 @@ public:
      */
     void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const;
-    
+
+    //==========================================================================
+    // SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+    //==========================================================================
+
+    /**
+     * @brief Smart auto-dispatch batch probability calculation
+     * 
+     * This method automatically selects the optimal execution strategy based on:
+     * - Batch size and system capabilities
+     * - Available CPU features (SIMD support)
+     * - Threading overhead characteristics
+     * 
+     * Users should prefer this method over manual strategy selection.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for probability densities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getProbability(std::span<const double> values, std::span<double> results,
+                       const performance::PerformanceHint& hint = {}) const;
+
+    /**
+     * @brief Smart auto-dispatch batch log probability calculation
+     * 
+     * Automatically selects optimal execution strategy for log probability computation.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for log probability densities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getLogProbability(std::span<const double> values, std::span<double> results,
+                          const performance::PerformanceHint& hint = {}) const;
+
+    /**
+     * @brief Smart auto-dispatch batch cumulative probability calculation
+     * 
+     * Automatically selects optimal execution strategy for CDF computation.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for cumulative probabilities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getCumulativeProbability(std::span<const double> values, std::span<double> results,
+                                 const performance::PerformanceHint& hint = {}) const;
+
 #ifdef DEBUG
     /**
      * Debug method to check if standard normal optimization is active
      * Only available in debug builds
      * @return true if this distribution is detected as standard normal
      */
-    bool isUsingStandardNormalOptimization() const {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock(); // Release shared lock before acquiring unique lock
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) {
-                updateCacheUnsafe();
-            }
-            ulock.unlock();
-            lock.lock(); // Reacquire shared lock
-        }
-        return isStandardNormal_;
-    }
-#endif
+    bool isUsingStandardNormalOptimization() const;
+#endif // LIBSTATS_GAUSSIAN_H_
+
+    //==========================================================================
+    // COMPARISON OPERATORS
+    //==========================================================================
+
+    /**
+     * @brief Equality comparison operator
+     * @param other Other distribution to compare with
+     * @return true if parameters are equal within tolerance
+     */
+    bool operator==(const GaussianDistribution& other) const;
+
+    /**
+     * @brief Inequality comparison operator
+     * @param other Other distribution to compare with
+     * @return true if parameters are not equal
+     */
+    bool operator!=(const GaussianDistribution& other) const { return !(*this == other); }
+
+    //==========================================================================
+    // FRIEND FUNCTIONS
+    //==========================================================================
+
+    friend std::ostream& operator<<(std::ostream&, const libstats::GaussianDistribution&);
 
 private:
     //==========================================================================
+    // CORE DISTRIBUTION PARAMETERS
+    //==========================================================================
+
+    /** @brief Mean parameter μ - can be any finite real number */
+    double mean_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Standard deviation parameter σ - must be positive */
+    double standardDeviation_{constants::math::ONE};
+
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<double> atomicMean_{constants::math::ZERO_DOUBLE};
+    mutable std::atomic<double> atomicStandardDeviation_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
+
+    //==========================================================================
+    // PRIMARY CACHE VALUES (Core mathematical functions)
+    //==========================================================================
+
+    /** @brief Cached normalization constant 1/(σ√(2π)) for PDF calculations */
+    mutable double normalizationConstant_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached value -1/(2σ²) for efficient exponent calculation */
+    mutable double negHalfSigmaSquaredInv_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached log(σ) for log-probability calculations */
+    mutable double logStandardDeviation_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached σ√2 for CDF calculations using error function */
+    mutable double sigmaSqrt2_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached 1/σ for efficient reciprocal operations */
+    mutable double invStandardDeviation_{constants::math::ZERO_DOUBLE};
+
+    //==========================================================================
+    // SECONDARY CACHE VALUES (Performance optimizations)
+    //==========================================================================
+
+    /** @brief Cached σ² to avoid repeated multiplication */
+    mutable double cachedSigmaSquared_{constants::math::ONE};
+
+    /** @brief Cached 2σ² for CDF optimizations */
+    mutable double cachedTwoSigmaSquared_{constants::math::TWO};
+
+    /** @brief Cached log(2σ²) for log-space operations */
+    mutable double cachedLogTwoSigmaSquared_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached 1/σ² for direct exponent calculation */
+    mutable double cachedInvSigmaSquared_{constants::math::ONE};
+
+    /** @brief Cached √(2π) constant for direct normalization */
+    mutable double cachedSqrtTwoPi_{constants::math::SQRT_2PI};
+
+    //==========================================================================
+    // OPTIMIZATION FLAGS (Fast path detection)
+    //==========================================================================
+
+    /** @brief True if this is standard normal (μ=0, σ=1) for ultra-fast path */
+    mutable bool isStandardNormal_{false};
+
+    /** @brief True if σ² = 1 for additional fast path optimizations */
+    mutable bool isUnitVariance_{true};
+
+    /** @brief True if μ = 0 for additional fast path optimizations */
+    mutable bool isZeroMean_{true};
+
+    /** @brief True if parameters require high precision arithmetic */
+    mutable bool isHighPrecision_{false};
+
+    /** @brief True if σ² < 0.0625 for numerical stability path */
+    mutable bool isLowVariance_{false};
+
+    /**
+     * Updates cached values when parameters change - assumes mutex is already held
+     * Marked inline for performance optimization
+     */
+    inline void updateCacheUnsafe() const noexcept override;
+
+    /**
+     * Validates parameters for the Gaussian distribution
+     * @param mean Mean parameter (any finite value)
+     * @param stdDev Standard deviation parameter (must be positive and finite)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    static void validateParameters(double mean, double stdDev);
+
+    //==========================================================================
     // PRIVATE CONSTRUCTORS
     //==========================================================================
-    
+
     //==========================================================================
     // PRIVATE FACTORY METHODS
     //==========================================================================
-    
+
     /**
      * @brief Create a distribution without parameter validation (for internal use)
      * @param mean Mean parameter (assumed valid)
      * @param standardDeviation Standard deviation parameter (assumed valid)
      * @return GaussianDistribution with the given parameters
      */
-    static GaussianDistribution createUnchecked(double mean, double standardDeviation) noexcept {
-        GaussianDistribution dist(mean, standardDeviation, true); // bypass validation
-        return dist;
-    }
-    
+    static GaussianDistribution createUnchecked(double mean, double standardDeviation) noexcept;
+
     /**
      * @brief Private constructor that bypasses validation (for internal use)
      * @param mean Mean parameter (assumed valid)
      * @param standardDeviation Standard deviation parameter (assumed valid)
      * @param bypassValidation Internal flag to skip validation
      */
-    GaussianDistribution(double mean, double standardDeviation, bool /*bypassValidation*/) noexcept
-        : DistributionBase(), mean_(mean), standardDeviation_(standardDeviation) {
-        // Cache will be updated on first use
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-    }
-    
+    GaussianDistribution(double mean, double standardDeviation, bool /*bypassValidation*/) noexcept;
+
     //==========================================================================
     // PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
-    
+
     /** @brief Internal implementation for batch PDF calculation */
     void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                        double mean, double norm_constant, double neg_half_inv_var,
                                        bool is_standard_normal) const noexcept;
-    
+
     /** @brief Internal implementation for batch log PDF calculation */
     void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                           double mean, double log_std, double neg_half_inv_var,
                                           bool is_standard_normal) const noexcept;
-    
+
     /** @brief Internal implementation for batch CDF calculation */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                  double mean, double sigma_sqrt2, 
                                                  bool is_standard_normal) const noexcept;
-    
+
     //==========================================================================
     // THREAD SAFETY
     //==========================================================================
-    
+
     // Note: Using base class cache_mutex_ instead of separate rw_mutex_
-    
+
     /** @brief Atomic cache validity flag for lock-free fast path */
     mutable std::atomic<bool> cacheValidAtomic_{false};
 
 };
 
-std::ostream& operator<<( std::ostream&, 
-        const libstats::GaussianDistribution& );
-//std::istream& operator>>( std::istream&,
-//        const libstats::GaussianDistribution& );
 } // namespace libstats
-#endif
+
+#endif // LIBSTATS_GAUSSIAN_H_

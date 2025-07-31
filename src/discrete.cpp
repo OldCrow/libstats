@@ -530,29 +530,12 @@ void DiscreteDistribution::getProbabilityBatch(const double* values, double* res
     const int cached_a = a_;
     const int cached_b = b_;
     const double cached_prob = probability_;
-    const bool cached_is_binary = isBinary_;
+    [[maybe_unused]] const bool cached_is_binary = isBinary_;
     
     lock.unlock();
     
-    // Use SIMD-optimized implementation when beneficial
-    if (simd::SIMDPolicy::shouldUseSIMD(count)) {
-        getProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_prob);
-    } else {
-        // Scalar implementation for small arrays
-        for (std::size_t i = 0; i < count; ++i) {
-            // Check if integer and in range
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                } else {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                }
-            } else {
-                results[i] = constants::math::ZERO_DOUBLE;
-            }
-        }
-    }
+    // Call unsafe implementation with cached values (following centralized SIMDPolicy)
+    getProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_prob);
 }
 
 void DiscreteDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
@@ -575,24 +558,12 @@ void DiscreteDistribution::getLogProbabilityBatch(const double* values, double* 
     const int cached_a = a_;
     const int cached_b = b_;
     const double cached_log_prob = logProbability_;
-    const bool cached_is_binary = isBinary_;
+    [[maybe_unused]] const bool cached_is_binary = isBinary_;
     
     lock.unlock();
     
-    // Scalar implementation (discrete distributions are less amenable to vectorization)
-    for (std::size_t i = 0; i < count; ++i) {
-        // Check if integer and in range
-        if (std::floor(values[i]) == values[i]) {
-            const int k = static_cast<int>(values[i]);
-            if (k >= cached_a && k <= cached_b) {
-                results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-            } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            }
-        } else {
-            results[i] = constants::probability::NEGATIVE_INFINITY;
-        }
-    }
+    // Call unsafe implementation with cached values (following centralized SIMDPolicy)
+    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_log_prob);
 }
 
 void DiscreteDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
@@ -617,26 +588,13 @@ void DiscreteDistribution::getCumulativeProbabilityBatch(const double* values, d
     const int cached_a = a_;
     const int cached_b = b_;
     const int cached_range = range_;
-    const bool cached_is_binary = isBinary_;
+    [[maybe_unused]] const bool cached_is_binary = isBinary_;
     
     lock.unlock();
     
-    // Scalar implementation
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < static_cast<double>(cached_a)) {
-            results[i] = constants::math::ZERO_DOUBLE;
-        } else if (values[i] >= static_cast<double>(cached_b)) {
-            results[i] = constants::math::ONE;
-        } else {
-            const int k = static_cast<int>(std::floor(values[i]));
-            if (cached_is_binary) {
-                results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-            } else {
-                const int numerator = k - cached_a + 1;
-                results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-            }
-        }
-    }
+    // Call unsafe implementation with cached values (following centralized SIMDPolicy)
+    const double cached_inv_range = 1.0 / static_cast<double>(cached_range);
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_inv_range);
 }
 
 //==============================================================================
@@ -1340,36 +1298,108 @@ std::vector<int> DiscreteDistribution::getAllOutcomes() const {
 
 void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                          int a, int b, double probability) const noexcept {
-    // Optimized implementation using integer checks
-    // This is the core discrete distribution batch operation
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: Discrete distributions with integer checking are not well-suited to SIMD
+        // but we use centralized policy for consistency
+        for (std::size_t i = 0; i < count; ++i) {
+            if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
+                const int k = static_cast<int>(values[i]);
+                results[i] = (k >= a && k <= b) ? probability : constants::math::ZERO_DOUBLE;
+            } else {
+                results[i] = constants::math::ZERO_DOUBLE;
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For discrete distributions, vectorization typically doesn't provide significant benefits
+    // due to the nature of integer checking and branching logic, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
+    // Use scalar implementation even when SIMD is available because discrete distribution
+    // operations are not amenable to vectorization (primarily integer checking with branches)
     for (std::size_t i = 0; i < count; ++i) {
-        // Use specialized integer checking
         if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
             results[i] = (k >= a && k <= b) ? probability : constants::math::ZERO_DOUBLE;
         } else {
-            results[i] = constants::math::ZERO_DOUBLE; // Non-integers have zero probability
+            results[i] = constants::math::ZERO_DOUBLE;
         }
     }
 }
 
 void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                           int a, int b, double log_probability) const noexcept {
-    // Optimized implementation using integer checks for log probabilities
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: Discrete distributions with integer checking are not well-suited to SIMD
+        // but we use centralized policy for consistency
+        for (std::size_t i = 0; i < count; ++i) {
+            if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
+                const int k = static_cast<int>(values[i]);
+                results[i] = (k >= a && k <= b) ? log_probability : constants::probability::NEGATIVE_INFINITY;
+            } else {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For discrete distributions, vectorization typically doesn't provide significant benefits
+    // due to the nature of integer checking and branching logic, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
+    // Use scalar implementation even when SIMD is available because discrete distribution
+    // operations are not amenable to vectorization (primarily integer checking with branches)
     for (std::size_t i = 0; i < count; ++i) {
-        // Use specialized integer checking
         if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
             results[i] = (k >= a && k <= b) ? log_probability : constants::probability::NEGATIVE_INFINITY;
         } else {
-            results[i] = constants::probability::NEGATIVE_INFINITY; // Non-integers have zero probability
+            results[i] = constants::probability::NEGATIVE_INFINITY;
         }
     }
 }
 
 void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                  int a, int b, double inv_range) const noexcept {
-    // Optimized implementation for discrete CDF
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: Discrete CDF computation involves comparisons and arithmetic
+        // so SIMD rarely provides benefits for discrete distributions
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] < static_cast<double>(a)) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (values[i] >= static_cast<double>(b)) {
+                results[i] = constants::math::ONE;
+            } else {
+                const int k = static_cast<int>(std::floor(values[i]));
+                const int numerator = k - a + 1;
+                results[i] = static_cast<double>(numerator) * inv_range;
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For discrete CDF, vectorization typically doesn't provide significant benefits
+    // due to the nature of comparisons and floor operations, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
+    // Use scalar implementation even when SIMD is available because discrete distribution
+    // operations are not amenable to vectorization (primarily branching logic)
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < static_cast<double>(a)) {
             results[i] = constants::math::ZERO_DOUBLE;
@@ -1389,6 +1419,11 @@ void DiscreteDistribution::getProbabilityBatchUnsafe(const double* values, doubl
 
 void DiscreteDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
     getLogProbabilityBatchUnsafeImpl(values, results, count, a_, b_, logProbability_);
+}
+
+void DiscreteDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    const double inv_range = 1.0 / static_cast<double>(range_);
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, a_, b_, inv_range);
 }
 
 //==============================================================================
