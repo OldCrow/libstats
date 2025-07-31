@@ -11,6 +11,8 @@ namespace precision {
     inline constexpr double ULTRA_HIGH_PRECISION_TOLERANCE = 1.0e-15;
     inline constexpr double LOG_PROBABILITY_EPSILON = 1.0e-300;
     inline constexpr double MIN_STD_DEV = 1.0e-6;
+    inline constexpr double HIGH_PRECISION_UPPER_BOUND = 1.0e12;
+    inline constexpr double MAX_STANDARD_DEVIATION = 1.0e10;
     
     // Machine epsilon for various types
     inline constexpr double MACHINE_EPSILON = std::numeric_limits<double>::epsilon();

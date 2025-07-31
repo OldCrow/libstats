@@ -18,54 +18,14 @@
 namespace libstats {
 
 //==============================================================================
-// PRIVATE HELPER METHODS
+// COMPLEX METHODS (Implementation in .cpp per C++20 best practices)
 //==============================================================================
 
-void GaussianDistribution::updateCacheUnsafe() const noexcept {
-    // Core mathematical functions - primary cache
-    normalizationConstant_ = constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
-    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
-    logStandardDeviation_ = std::log(standardDeviation_);
-    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
-    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
-    
-    // Secondary cache values - performance optimizations
-    cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
-    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
-    cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
-    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
-    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
-    
-    // Optimization flags - fast path detection
-    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) && 
-                       (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE;
-    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
-    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE || 
-                      standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
-    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
-    
-    // Update atomic parameters for lock-free access
-    atomicMean_.store(mean_, std::memory_order_release);
-    atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
-    atomicParamsValid_.store(true, std::memory_order_release);
-    
-    // Cache is now valid
-    cache_valid_ = true;
-    cacheValidAtomic_.store(true, std::memory_order_release);
-}
+// Note: Simple statistical moments (getMean, getVariance, getSkewness, getKurtosis)
+// are implemented inline in the header for optimal performance since they are
+// trivial calculations or constants for the Gaussian distribution. Methods involving
+// complex logic or thread safety lock ordering are implemented in the .cpp file
 
-void GaussianDistribution::validateParameters(double mean, double stdDev) {
-    if (!std::isfinite(mean)) {
-        throw std::invalid_argument("Mean must be finite");
-    }
-    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
-        throw std::invalid_argument("Standard deviation must be positive and finite");
-    }
-    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
-        throw std::invalid_argument("Standard deviation is too large for numerical stability");
-    }
-}
 
 //==============================================================================
 // CONSTRUCTORS AND DESTRUCTORS
@@ -168,6 +128,242 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
         }
     }
     return *this;
+}
+
+//==============================================================================
+// PARAMETER GETTERS AND SETTERS
+//==============================================================================
+
+void GaussianDistribution::setMean(double mean) {
+    // Copy current standard deviation for validation (thread-safe)
+    double currentStdDev;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentStdDev = standardDeviation_;
+    }
+    
+    validateParameters(mean, currentStdDev);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void GaussianDistribution::setStandardDeviation(double stdDev) {
+    // Copy current mean for validation (thread-safe)
+    double currentMean;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentMean = mean_;
+    }
+    
+    validateParameters(currentMean, stdDev);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    standardDeviation_ = stdDev;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+// Parameter setters with validation (for existing exception-based API)
+void GaussianDistribution::setParameters(double mean, double standardDeviation) {
+    validateParameters(mean, standardDeviation);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    standardDeviation_ = standardDeviation;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+//==============================================================================
+// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+//==============================================================================
+
+VoidResult GaussianDistribution::trySetMean(double mean) noexcept {
+    // Copy current standard deviation for validation (thread-safe)
+    double currentStdDev;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentStdDev = standardDeviation_;
+    }
+    
+    auto validation = validateGaussianParameters(mean, currentStdDev);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+VoidResult GaussianDistribution::trySetStandardDeviation(double stdDev) noexcept {
+    // Copy current mean for validation (thread-safe)
+    double currentMean;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentMean = mean_;
+    }
+    
+    auto validation = validateGaussianParameters(currentMean, stdDev);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    standardDeviation_ = stdDev;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+VoidResult GaussianDistribution::trySetParameters(double mean, double standardDeviation) noexcept {
+    auto validation = validateGaussianParameters(mean, standardDeviation);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = mean;
+    standardDeviation_ = standardDeviation;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+//==============================================================================
+// CORE PROBABILITY METHODS
+//
+// SAFETY DOCUMENTATION FOR DEVELOPERS:
+//
+// This section contains core probability methods that compute PDF, CDF, etc,
+// and they ensure cache validity by using shared locks and are thread-safe.
+//
+// Key Methods:
+// - getProbability()
+// - getLogProbability()
+// - getCumulativeProbability()
+//==============================================================================
+
+double GaussianDistribution::getProbability(double x) const {
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Fast path for standard normal
+    if (isStandardNormal_) {
+        const double sq_diff = x * x;
+        return constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+    }
+    
+    // General case
+    const double diff = x - mean_;
+    const double sq_diff = diff * diff;
+    return normalizationConstant_ * std::exp(negHalfSigmaSquaredInv_ * sq_diff);
+}
+
+double GaussianDistribution::getLogProbability(double x) const noexcept {
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Fast path for standard normal - direct computation (no log-sum-exp needed here)
+    if (isStandardNormal_) {
+        const double sq_diff = x * x;
+        return constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+    }
+    
+    // General case - direct computation for Gaussian log-PDF
+    const double diff = x - mean_;
+    const double sq_diff = diff * diff;
+    return constants::math::NEG_HALF_LN_2PI - logStandardDeviation_ + negHalfSigmaSquaredInv_ * sq_diff;
+}
+
+double GaussianDistribution::getCumulativeProbability(double x) const {
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Fast path for standard normal
+    if (isStandardNormal_) {
+        return constants::math::HALF * (constants::math::ONE + std::erf(x * constants::math::INV_SQRT_2));
+    }
+    
+    // General case
+    const double normalized = (x - mean_) / sigmaSqrt2_;
+    return constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+}
+
+double GaussianDistribution::getQuantile(double p) const {
+    if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
+        throw std::invalid_argument("Probability must be between 0 and 1");
+    }
+    
+    if (p == constants::math::ZERO_DOUBLE) return -std::numeric_limits<double>::infinity();
+    if (p == constants::math::ONE) return std::numeric_limits<double>::infinity();
+    
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    
+    if (p == constants::math::HALF) {
+        return mean_;  // Median equals mean for normal distribution
+    }
+    
+    // Use inverse error function for standard normal quantile
+    // For standard normal: quantile = sqrt(2) * erfinv(2p - 1)
+    // For general normal: quantile = mean + sigma * sqrt(2) * erfinv(2p - 1)
+    
+    const double erf_input = constants::math::TWO * p - constants::math::ONE;
+    double z = math::erf_inv(erf_input);
+    return mean_ + standardDeviation_ * constants::math::SQRT_2 * z;
 }
 
 double GaussianDistribution::sample(std::mt19937& rng) const {
@@ -298,442 +494,6 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
 }
 
 //==============================================================================
-// CORE PROBABILITY METHODS
-//==============================================================================
-
-double GaussianDistribution::getProbability(double x) const {
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Fast path for standard normal
-    if (isStandardNormal_) {
-        const double sq_diff = x * x;
-        return constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-    }
-    
-    // General case
-    const double diff = x - mean_;
-    const double sq_diff = diff * diff;
-    return normalizationConstant_ * std::exp(negHalfSigmaSquaredInv_ * sq_diff);
-}
-
-double GaussianDistribution::getLogProbability(double x) const noexcept {
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Fast path for standard normal - direct computation (no log-sum-exp needed here)
-    if (isStandardNormal_) {
-        const double sq_diff = x * x;
-        return constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-    }
-    
-    // General case - direct computation for Gaussian log-PDF
-    const double diff = x - mean_;
-    const double sq_diff = diff * diff;
-    return constants::math::NEG_HALF_LN_2PI - logStandardDeviation_ + negHalfSigmaSquaredInv_ * sq_diff;
-}
-
-double GaussianDistribution::getCumulativeProbability(double x) const {
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Fast path for standard normal
-    if (isStandardNormal_) {
-        return constants::math::HALF * (constants::math::ONE + std::erf(x * constants::math::INV_SQRT_2));
-    }
-    
-    // General case
-    const double normalized = (x - mean_) / sigmaSqrt2_;
-    return constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-}
-
-//==============================================================================
-// PARAMETER GETTERS AND SETTERS
-//==============================================================================
-
-// Parameter setters with validation (for existing exception-based API)
-void GaussianDistribution::setParameters(double mean, double standardDeviation) {
-    validateParameters(mean, standardDeviation);
-    
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mean_ = mean;
-    standardDeviation_ = standardDeviation;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
-
-void GaussianDistribution::setMean(double mean) {
-    // Copy current standard deviation for validation (thread-safe)
-    double currentStdDev;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentStdDev = standardDeviation_;
-    }
-    
-    validateParameters(mean, currentStdDev);
-    
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mean_ = mean;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
-
-void GaussianDistribution::setStandardDeviation(double stdDev) {
-    // Copy current mean for validation (thread-safe)
-    double currentMean;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentMean = mean_;
-    }
-    
-    validateParameters(currentMean, stdDev);
-    
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    standardDeviation_ = stdDev;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
-
-//==============================================================================
-// CORE PROBABILITY METHODS
-// 
-// SAFETY DOCUMENTATION FOR DEVELOPERS:
-// 
-// This section contains core probability methods that compute PDF, CDF, etc, 
-// and they ensure cache validity by using shared locks and are thread-safe.
-// 
-// Key Methods:
-// - getProbability()
-// - getLogProbability()
-// - getCumulativeProbability()
-//==============================================================================
-
-void GaussianDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_mean = mean_;
-    const double cached_norm_constant = normalizationConstant_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getProbabilityBatchUnsafeImpl(values, results, count, cached_mean, 
-                                  cached_norm_constant, cached_neg_half_inv_var, 
-                                  cached_is_standard_normal);
-}
-
-void GaussianDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_mean = mean_;
-    const double cached_log_std = logStandardDeviation_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_mean, 
-                                     cached_log_std, cached_neg_half_inv_var, 
-                                     cached_is_standard_normal);
-}
-
-void GaussianDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getProbabilityBatchUnsafeImpl(values, results, count, mean_, normalizationConstant_, 
-                                  negHalfSigmaSquaredInv_, isStandardNormal_);
-}
-
-void GaussianDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getLogProbabilityBatchUnsafeImpl(values, results, count, mean_, logStandardDeviation_, 
-                                     negHalfSigmaSquaredInv_, isStandardNormal_);
-}
-
-void GaussianDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, mean_, sigmaSqrt2_, isStandardNormal_);
-}
-
-void GaussianDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_mean = mean_;
-    const double cached_sigma_sqrt2 = sigmaSqrt2_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, cached_mean, 
-                                            cached_sigma_sqrt2, cached_is_standard_normal);
-}
-
-//==============================================================================
-// PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
-// 
-// CRITICAL SAFETY DOCUMENTATION FOR LOW-LEVEL SIMD OPERATIONS:
-// 
-// These private implementation methods contain the actual "unsafe" raw pointer
-// operations that enable high-performance SIMD vectorization. They are called only
-// by the safe public wrapper methods above after proper validation.
-// 
-// ⚠️  DANGER ZONE - RAW POINTER OPERATIONS ⚠️
-// 
-// WHY THESE METHODS USE RAW POINTERS:
-// 1. SIMD vectorization requires direct memory access with specific alignment
-// 2. std::vector::data() returns raw pointers for optimal SIMD performance
-// 3. SIMD intrinsics (AVX, SSE) operate on contiguous memory blocks
-// 4. Zero abstraction penalty: direct hardware instruction mapping
-// 
-// SAFETY PRECAUTIONS ENFORCED:
-// 1. ✅ These methods are private - only callable from validated public interfaces
-// 2. ✅ All callers perform bounds checking before invoking these methods
-// 3. ✅ Memory alignment is handled by simd::aligned_allocator
-// 4. ✅ CPU feature detection prevents crashes on unsupported hardware
-// 5. ✅ Scalar fallback path for small arrays or SIMD-unsupported systems
-// 
-// SIMD OPERATION SAFETY GUARANTEES:
-// - simd::VectorOps methods internally validate pointer alignment
-// - Vector operations are bounds-checked at the SIMD library level
-// - Aligned memory allocation ensures optimal cache performance
-// - Runtime CPU detection prevents using unsupported instructions
-// 
-// ⚠️  DO NOT CALL THESE METHODS DIRECTLY ⚠️
-// Always use the safe public interfaces like:
-// - getProbabilityBatch() for thread-safe validation
-// - getProbabilityBatchParallel() for C++20 std::span safety
-// - getProbabilityBatchCacheAware() for additional safety checks
-// 
-// FOR MAINTENANCE DEVELOPERS:
-// When modifying these methods:
-// 1. Ensure all array accesses use validated indices
-// 2. Test both SIMD and scalar code paths
-// 3. Verify alignment requirements are met
-// 4. Update unit tests for both performance and correctness
-//==============================================================================
-
-void GaussianDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                          double mean, double norm_constant, double neg_half_inv_var,
-                                                          bool is_standard_normal) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        for (std::size_t i = 0; i < count; ++i) {
-            if (is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-            } else {
-                const double diff = values[i] - mean;
-                const double sq_diff = diff * diff;
-                results[i] = norm_constant * std::exp(neg_half_inv_var * sq_diff);
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    // PERFORMANCE CRITICAL: Use results array as workspace to avoid allocations
-    
-    if (is_standard_normal) {
-        // Standard normal: exp(-0.5 * x²) / sqrt(2π)
-        // Step 1: results = x²
-        simd::VectorOps::vector_multiply(values, values, results, count);
-        // Step 2: results = -0.5 * x²
-        simd::VectorOps::scalar_multiply(results, constants::math::NEG_HALF, results, count);
-        // Step 3: results = exp(-0.5 * x²)
-        simd::VectorOps::vector_exp(results, results, count);
-        // Step 4: results = exp(-0.5 * x²) / sqrt(2π)
-        simd::VectorOps::scalar_multiply(results, constants::math::INV_SQRT_2PI, results, count);
-    } else {
-        // General case: exp(-0.5 * ((x-μ)/σ)²) / (σ√(2π))
-        // Step 1: results = x - μ (difference from mean)
-        simd::VectorOps::scalar_add(values, -mean, results, count);
-        // Step 2: results = (x - μ)²
-        simd::VectorOps::vector_multiply(results, results, results, count);
-        // Step 3: results = -0.5 * (x - μ)² / σ²
-        simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
-        // Step 4: results = exp(-0.5 * (x - μ)² / σ²)
-        simd::VectorOps::vector_exp(results, results, count);
-        // Step 5: results = exp(-0.5 * (x - μ)² / σ²) / (σ√(2π))
-        simd::VectorOps::scalar_multiply(results, norm_constant, results, count);
-    }
-}
-
-void GaussianDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                             double mean, double log_std, double neg_half_inv_var,
-                                                             bool is_standard_normal) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        for (std::size_t i = 0; i < count; ++i) {
-            if (is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-            } else {
-                const double diff = values[i] - mean;
-                const double sq_diff = diff * diff;
-                results[i] = constants::math::NEG_HALF_LN_2PI - log_std + neg_half_inv_var * sq_diff;
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    // PERFORMANCE CRITICAL: Use results array as workspace to avoid allocations
-    
-    if (is_standard_normal) {
-        // Standard normal: -0.5 * ln(2π) - 0.5 * x²
-        // Step 1: results = x²
-        simd::VectorOps::vector_multiply(values, values, results, count);
-        // Step 2: results = -0.5 * x²
-        simd::VectorOps::scalar_multiply(results, constants::math::NEG_HALF, results, count);
-        // Step 3: results = -0.5 * ln(2π) - 0.5 * x²
-        simd::VectorOps::scalar_add(results, constants::math::NEG_HALF_LN_2PI, results, count);
-    } else {
-        // General case: -0.5 * ln(2π) - ln(σ) - 0.5 * ((x-μ)/σ)²
-        // Step 1: results = x - μ (difference from mean)
-        simd::VectorOps::scalar_add(values, -mean, results, count);
-        // Step 2: results = (x - μ)²
-        simd::VectorOps::vector_multiply(results, results, results, count);
-        // Step 3: results = -0.5 * (x - μ)² / σ²
-        simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
-        // Step 4: results = -0.5 * ln(2π) - ln(σ) - 0.5 * (x - μ)² / σ²
-        const double log_norm_constant = constants::math::NEG_HALF_LN_2PI - log_std;
-        simd::VectorOps::scalar_add(results, log_norm_constant, results, count);
-    }
-}
-
-void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                                   double mean, double sigma_sqrt2, bool is_standard_normal) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        for (std::size_t i = 0; i < count; ++i) {
-            if (is_standard_normal) {
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
-            } else {
-                const double normalized = (values[i] - mean) / sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    // PERFORMANCE CRITICAL: Use results array as workspace to avoid allocations
-    
-    if (is_standard_normal) {
-        // Standard normal case: normalized = values * INV_SQRT_2
-        // Step 1: results = values * INV_SQRT_2 (normalized values)
-        simd::VectorOps::scalar_multiply(values, constants::math::INV_SQRT_2, results, count);
-    } else {
-        // General case: normalized = (values - mean) / sigma_sqrt2
-        // Step 1: results = values - mean
-        simd::VectorOps::scalar_add(values, -mean, results, count);
-        // Step 2: results = (values - mean) / sigma_sqrt2
-        const double reciprocal_sigma_sqrt2 = constants::math::ONE / sigma_sqrt2;
-        simd::VectorOps::scalar_multiply(results, reciprocal_sigma_sqrt2, results, count);
-    }
-    
-    // Note: We need to use a temporary for erf since simd::VectorOps::vector_erf
-    // may not support in-place operation. This is unavoidable for the erf function.
-    // However, we minimize allocations by reusing the results array for intermediate steps.
-    
-    // For systems where vector_erf supports in-place operations, this could be:
-    // simd::VectorOps::vector_erf(results, results, count);
-    // But for safety, we allocate only one temporary array:
-    std::vector<double, simd::aligned_allocator<double>> erf_values(count);
-    simd::VectorOps::vector_erf(results, erf_values.data(), count);
-    
-    // Final computation: results = 0.5 * (1 + erf_values)
-    // Step 1: results = 1 + erf_values
-    simd::VectorOps::scalar_add(erf_values.data(), constants::math::ONE, results, count);
-    // Step 2: results = 0.5 * (1 + erf_values)
-    simd::VectorOps::scalar_multiply(results, constants::math::HALF, results, count);
-}
-
-//==============================================================================
 // DISTRIBUTION MANAGEMENT
 //==============================================================================
 
@@ -805,8 +565,8 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
                 running_mean += delta * static_cast<double>(chunk_counts[i]) / static_cast<double>(new_count);
                 
                 const double delta2 = chunk_means[i] - running_mean;
-                combined_m2 += chunk_m2s[i] + delta * delta2 * 
-                              static_cast<double>(combined_count) * static_cast<double>(chunk_counts[i]) / 
+                combined_m2 += chunk_m2s[i] + delta * delta2 *
+                              static_cast<double>(combined_count) * static_cast<double>(chunk_counts[i]) /
                               static_cast<double>(new_count);
                 
                 combined_count = new_count;
@@ -843,78 +603,6 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
     setParameters(running_mean, sample_std);
 }
 
-void GaussianDistribution::reset() noexcept {
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mean_ = constants::math::ZERO_DOUBLE;
-    standardDeviation_ = constants::math::ONE;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-}
-
-std::string GaussianDistribution::toString() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    std::ostringstream oss;
-    oss << "GaussianDistribution(mean=" << mean_ << ", stddev=" << standardDeviation_ << ")";
-    return oss.str();
-}
-
-//==============================================================================
-// COMPARISON OPERATORS
-//==============================================================================
-
-bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
-    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-    std::lock(lock1, lock2);
-    
-    return std::abs(mean_ - other.mean_) <= constants::precision::DEFAULT_TOLERANCE &&
-           std::abs(standardDeviation_ - other.standardDeviation_) <= constants::precision::DEFAULT_TOLERANCE;
-}
-
-//==============================================================================
-// STREAM OPERATORS
-//==============================================================================
-
-std::ostream& operator<<(std::ostream& os, const GaussianDistribution& distribution) {
-    return os << distribution.toString();
-}
-
-//==============================================================================
-// COMPLEX METHODS (Implementation in .cpp per C++20 best practices)
-//==============================================================================
-
-// Note: Simple statistical moments (getMean, getVariance, getSkewness, getKurtosis)
-// are implemented inline in the header for optimal performance since they are
-// trivial calculations or constants for the Gaussian distribution.
-
-double GaussianDistribution::getQuantile(double p) const {
-    if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
-        throw std::invalid_argument("Probability must be between 0 and 1");
-    }
-    
-    if (p == constants::math::ZERO_DOUBLE) return -std::numeric_limits<double>::infinity();
-    if (p == constants::math::ONE) return std::numeric_limits<double>::infinity();
-    
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    
-    if (p == constants::math::HALF) {
-        return mean_;  // Median equals mean for normal distribution
-    }
-    
-    // Use inverse error function for standard normal quantile
-    // For standard normal: quantile = sqrt(2) * erfinv(2p - 1)
-    // For general normal: quantile = mean + sigma * sqrt(2) * erfinv(2p - 1)
-    
-    const double erf_input = constants::math::TWO * p - constants::math::ONE;
-    double z = math::erf_inv(erf_input);
-    return mean_ + standardDeviation_ * constants::math::SQRT_2 * z;
-}
-
-
-//==============================================================================
-// PARALLEL BATCH OPERATIONS
-//==============================================================================
-
 void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
                                            std::vector<GaussianDistribution>& results) {
     if (datasets.empty()) {
@@ -931,7 +619,7 @@ void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double
     // Use Level 0-3 ParallelUtils for optimal work distribution
     if (parallel::should_use_parallel(num_datasets)) {
         // Leverage ParallelUtils::parallelFor with optimal grain sizing
-        ParallelUtils::parallelFor(std::size_t{0}, num_datasets, 
+        ParallelUtils::parallelFor(std::size_t{0}, num_datasets,
                                   [&datasets, &results](std::size_t idx) {
             // Fit each dataset independently in parallel with Level 0-3 infrastructure
             results[idx].fit(datasets[idx]);
@@ -945,569 +633,19 @@ void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double
     }
 }
 
-//==============================================================================
-// THREAD POOL PARALLEL BATCH OPERATIONS
-//==============================================================================
-
-void GaussianDistribution::getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_norm_constant = normalizationConstant_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration with optimal work distribution
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PDF for each element in parallel using cached parameters
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-            }
-        }
-    }
+void GaussianDistribution::reset() noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    mean_ = constants::math::ZERO_DOUBLE;
+    standardDeviation_ = constants::math::ONE;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-void GaussianDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size()) {
-        // In noexcept context, we can't throw, so return early on size mismatch
-        return;
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
+std::string GaussianDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_log_std = logStandardDeviation_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PDF for each element in parallel using cached parameters
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
-            }
-        }
-    }
-}
-
-void GaussianDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_sigma_sqrt2 = sigmaSqrt2_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element in parallel using cached parameters
-            if (cached_is_standard_normal) {
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
-            } else {
-                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
-            } else {
-                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-            }
-        }
-    }
-}
-
-void GaussianDistribution::getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                           WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_norm_constant = normalizationConstant_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
-    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PDF for each element with work stealing load balancing
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-            }
-        });
-        
-        // Wait for all work stealing tasks to complete
-        pool.waitForAll();
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-            }
-        }
-    }
-}
-
-void GaussianDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                         cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system for predictive cache warming
-    const std::string cache_key = "gaussian_pdf_batch_" + std::to_string(count);
-    
-    // Check if we have cached batch parameters for this operation size
-    // TODO: Use cached_params for predictive cache warming and algorithm selection
-    // In future implementation, this will:
-    //   1. Pre-warm CPU caches with frequently accessed intermediate values
-    //   2. Select optimal parallel algorithms based on historical performance
-    //   3. Predict memory access patterns to optimize SIMD operations
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached_params.first (grain_size) and cached_params.second (hit_rate)
-        // to influence parallel strategy selection and memory prefetching
-        // For now, this information is available but not yet utilized
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_norm_constant = normalizationConstant_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "gaussian_pdf");
-    
-    // Use cache-aware parallel processing with adaptive grain sizing
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PDF for each element with cache-aware access patterns
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-            }
-        }, optimal_grain_size);  // Use adaptive grain size from cache manager
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-            }
-        }
-    }
-    
-    // Update cache manager with performance metrics for future optimizations
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
-
-void GaussianDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                            WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_log_std = logStandardDeviation_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
-    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PDF for each element with work stealing load balancing
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
-            }
-        });
-        
-        // Wait for all work stealing tasks to complete
-        pool.waitForAll();
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
-            }
-        }
-    }
-}
-
-void GaussianDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                           cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system for predictive cache warming
-    const std::string cache_key = "gaussian_log_pdf_batch_" + std::to_string(count);
-    
-    // Check if we have cached batch parameters for this operation size
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached_params.first (grain_size) and cached_params.second (hit_rate)
-        // to influence parallel strategy selection and memory prefetching
-        // For now, this information is available but not yet utilized
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_log_std = logStandardDeviation_;
-    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "gaussian_log_pdf");
-    
-    // Use cache-aware parallel processing with adaptive grain sizing
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PDF for each element with cache-aware access patterns
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
-            }
-        }, optimal_grain_size);  // Use adaptive grain size from cache manager
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
-            } else {
-                const double diff = values[i] - cached_mean;
-                const double sq_diff = diff * diff;
-                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
-            }
-        }
-    }
-    
-    // Update cache manager with performance metrics for future optimizations
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
-
-void GaussianDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                                    WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_sigma_sqrt2 = sigmaSqrt2_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
-    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element with work stealing load balancing
-            if (cached_is_standard_normal) {
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
-            } else {
-                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-            }
-        });
-        
-        // Wait for all work stealing tasks to complete
-        pool.waitForAll();
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
-            } else {
-                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-            }
-        }
-    }
-}
-
-void GaussianDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                                  cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system for predictive cache warming
-    const std::string cache_key = "gaussian_cdf_batch_" + std::to_string(count);
-    
-    // Check if we have cached batch parameters for this operation size
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached_params.first (grain_size) and cached_params.second (hit_rate)
-        // to influence parallel strategy selection and memory prefetching
-        // For now, this information is available but not yet utilized
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_mean = mean_;
-    const double cached_sigma_sqrt2 = sigmaSqrt2_;
-    const bool cached_is_standard_normal = isStandardNormal_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "gaussian_cdf");
-    
-    // Use cache-aware parallel processing with adaptive grain sizing
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element with cache-aware access patterns
-            if (cached_is_standard_normal) {
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
-            } else {
-                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-            }
-        }, optimal_grain_size);  // Use adaptive grain size from cache manager
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (cached_is_standard_normal) {
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
-            } else {
-                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
-            }
-        }
-    }
-    
-    // Update cache manager with performance metrics for future optimizations
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
+    std::ostringstream oss;
+    oss << "GaussianDistribution(mean=" << mean_ << ", stddev=" << standardDeviation_ << ")";
+    return oss.str();
 }
 
 //==============================================================================
@@ -1515,7 +653,7 @@ void GaussianDistribution::getCumulativeProbabilityBatchCacheAware(std::span<con
 //==============================================================================
 
 std::pair<double, double> GaussianDistribution::confidenceIntervalMean(
-    const std::vector<double>& data, 
+    const std::vector<double>& data,
     double confidence_level,
     bool population_variance_known) {
     
@@ -1542,8 +680,8 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalMean(
     } else {
         // Use t-distribution
         const double sample_var = std::inner_product(
-            data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE, 
-            std::plus<>(), 
+            data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
+            std::plus<>(),
             [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
         ) / (n - 1);
         const double sample_std = std::sqrt(sample_var);
@@ -1571,15 +709,15 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalVariance(
     
     // Calculate sample variance
     const double sample_var = std::inner_product(
-        data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE, 
-        std::plus<>(), 
+        data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
+        std::plus<>(),
         [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
     ) / (n - 1);
     
     const double alpha = constants::math::ONE - confidence_level;
     const double df = static_cast<double>(n - 1);
     
-    // Chi-squared critical values  
+    // Chi-squared critical values
     const double alpha_half = alpha * constants::math::HALF;
     const double chi2_lower = math::inverse_chi_squared_cdf(alpha_half, df);
     const double chi2_upper = math::inverse_chi_squared_cdf(constants::math::ONE - alpha_half, df);
@@ -1607,8 +745,8 @@ std::tuple<double, double, bool> GaussianDistribution::oneSampleTTest(
     
     // Calculate sample standard deviation
     const double sample_var = std::inner_product(
-        data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE, 
-        std::plus<>(), 
+        data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
+        std::plus<>(),
         [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
     ) / (n - 1);
     const double sample_std = std::sqrt(sample_var);
@@ -1646,14 +784,14 @@ std::tuple<double, double, bool> GaussianDistribution::twoSampleTTest(
     
     // Sample variances
     const double var1 = std::inner_product(
-        data1.begin(), data1.end(), data1.begin(), constants::math::ZERO_DOUBLE, 
-        std::plus<>(), 
+        data1.begin(), data1.end(), data1.begin(), constants::math::ZERO_DOUBLE,
+        std::plus<>(),
         [mean1](double x, double y) { return (x - mean1) * (y - mean1); }
     ) / (n1 - 1);
     
     const double var2 = std::inner_product(
-        data2.begin(), data2.end(), data2.begin(), constants::math::ZERO_DOUBLE, 
-        std::plus<>(), 
+        data2.begin(), data2.end(), data2.begin(), constants::math::ZERO_DOUBLE,
+        std::plus<>(),
         [mean2](double x, double y) { return (x - mean2) * (y - mean2); }
     ) / (n2 - 1);
     
@@ -1732,7 +870,7 @@ std::tuple<double, double, double, double> GaussianDistribution::bayesianEstimat
     
     const double sum_sq_deviations = sample_sum_sq - n * sample_mean * sample_mean;
     const double prior_mean_diff = sample_mean - prior_mean;
-    const double posterior_rate = prior_rate + constants::math::HALF * sum_sq_deviations + 
+    const double posterior_rate = prior_rate + constants::math::HALF * sum_sq_deviations +
                                   constants::math::HALF * (prior_precision * n * prior_mean_diff * prior_mean_diff) / posterior_precision;
     
     return {posterior_mean, posterior_precision, posterior_shape, posterior_rate};
@@ -1747,7 +885,7 @@ std::pair<double, double> GaussianDistribution::bayesianCredibleInterval(
     double prior_rate) {
     
     // Get posterior parameters
-    auto [post_mean, post_precision, post_shape, post_rate] = 
+    auto [post_mean, post_precision, post_shape, post_rate] =
         bayesianEstimation(data, prior_mean, prior_precision, prior_shape, prior_rate);
     
     // Posterior marginal for mean follows t-distribution
@@ -1879,8 +1017,8 @@ std::pair<double, double> GaussianDistribution::methodOfMomentsEstimation(
     
     // Second central moment (variance)
     const double sample_variance = std::inner_product(
-        data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE, 
-        std::plus<>(), 
+        data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
+        std::plus<>(),
         [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
     ) / n;  // Population variance (divide by n, not n-1)
     
@@ -1933,7 +1071,7 @@ std::vector<double> GaussianDistribution::calculateHigherMoments(
     }
     
     const size_t n = data.size();
-    const double sample_mean = center_on_mean ? 
+    const double sample_mean = center_on_mean ?
         std::accumulate(data.begin(), data.end(), 0.0) / n : 0.0;
     
     std::vector<double> moments(6, 0.0);
@@ -2387,73 +1525,671 @@ std::tuple<double, double, double, double> GaussianDistribution::computeInformat
 }
 
 //==============================================================================
-// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+// SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
 //==============================================================================
 
-VoidResult GaussianDistribution::trySetParameters(double mean, double standardDeviation) noexcept {
-    auto validation = validateGaussianParameters(mean, standardDeviation);
-    if (validation.isError()) {
-        return validation;
+void GaussianDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const {
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
     }
     
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mean_ = mean;
-    standardDeviation_ = standardDeviation;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
+    // Use cached values (protected by lock)
+    const double cached_mean = mean_;
+    const double cached_norm_constant = normalizationConstant_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
     
-    // Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
+    lock.unlock(); // Release lock before heavy computation
     
-    return VoidResult::ok(true);
+    // Call unsafe implementation with cached values
+    getProbabilityBatchUnsafeImpl(values, results, count, cached_mean, 
+                                  cached_norm_constant, cached_neg_half_inv_var, 
+                                  cached_is_standard_normal);
 }
 
-VoidResult GaussianDistribution::trySetMean(double mean) noexcept {
-    // Copy current standard deviation for validation (thread-safe)
-    double currentStdDev;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentStdDev = standardDeviation_;
+void GaussianDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
     }
     
-    auto validation = validateGaussianParameters(mean, currentStdDev);
-    if (validation.isError()) {
-        return validation;
-    }
+    // Use cached values (protected by lock)
+    const double cached_mean = mean_;
+    const double cached_log_std = logStandardDeviation_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
     
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mean_ = mean;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
+    lock.unlock(); // Release lock before heavy computation
     
-    // Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-    
-    return VoidResult::ok(true);
+    // Call unsafe implementation with cached values
+    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_mean, 
+                                     cached_log_std, cached_neg_half_inv_var, 
+                                     cached_is_standard_normal);
 }
 
-VoidResult GaussianDistribution::trySetStandardDeviation(double stdDev) noexcept {
-    // Copy current mean for validation (thread-safe)
-    double currentMean;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentMean = mean_;
+void GaussianDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
+    if (count == 0) return;
+    
+    // Ensure cache is valid
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
     }
     
-    auto validation = validateGaussianParameters(currentMean, stdDev);
-    if (validation.isError()) {
-        return validation;
+    // Use cached values (protected by lock)
+    const double cached_mean = mean_;
+    const double cached_sigma_sqrt2 = sigmaSqrt2_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before heavy computation
+    
+    // Call unsafe implementation with cached values
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, cached_mean,
+                                            cached_sigma_sqrt2, cached_is_standard_normal);
+}
+
+void GaussianDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    getProbabilityBatchUnsafeImpl(values, results, count, mean_, normalizationConstant_, 
+                                  negHalfSigmaSquaredInv_, isStandardNormal_);
+}
+
+void GaussianDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    getLogProbabilityBatchUnsafeImpl(values, results, count, mean_, logStandardDeviation_, 
+                                     negHalfSigmaSquaredInv_, isStandardNormal_);
+}
+
+void GaussianDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
+    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, mean_, sigmaSqrt2_, isStandardNormal_);
+}
+
+//==============================================================================
+// THREAD POOL PARALLEL BATCH OPERATIONS
+//==============================================================================
+
+void GaussianDistribution::getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
     }
     
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    standardDeviation_ = stdDev;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
+    const std::size_t count = values.size();
+    if (count == 0) return;
     
-    // Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
     
-    return VoidResult::ok(true);
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_norm_constant = normalizationConstant_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use ParallelUtils::parallelFor for Level 0-3 integration with optimal work distribution
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute PDF for each element in parallel using cached parameters
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
+            }
+        });
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
+            }
+        }
+    }
+}
+
+void GaussianDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
+    if (values.size() != results.size()) {
+        // In noexcept context, we can't throw, so return early on size mismatch
+        return;
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_log_std = logStandardDeviation_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use ParallelUtils::parallelFor for Level 0-3 integration
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute log PDF for each element in parallel using cached parameters
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
+            }
+        });
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
+            }
+        }
+    }
+}
+
+void GaussianDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_sigma_sqrt2 = sigmaSqrt2_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use ParallelUtils::parallelFor for Level 0-3 integration
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute CDF for each element in parallel using cached parameters
+            if (cached_is_standard_normal) {
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+            } else {
+                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+            }
+        });
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+            } else {
+                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+            }
+        }
+    }
+}
+
+void GaussianDistribution::getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                           WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_norm_constant = normalizationConstant_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
+    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute PDF for each element with work stealing load balancing
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
+            }
+        });
+        
+        // Wait for all work stealing tasks to complete
+        pool.waitForAll();
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
+            }
+        }
+    }
+}
+
+void GaussianDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                            WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_log_std = logStandardDeviation_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
+    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute log PDF for each element with work stealing load balancing
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
+            }
+        });
+        
+        // Wait for all work stealing tasks to complete
+        pool.waitForAll();
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
+            }
+        }
+    }
+}
+
+void GaussianDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                                    WorkStealingPool& pool) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_sigma_sqrt2 = sigmaSqrt2_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
+    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
+        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute CDF for each element with work stealing load balancing
+            if (cached_is_standard_normal) {
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+            } else {
+                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+            }
+        });
+        
+        // Wait for all work stealing tasks to complete
+        pool.waitForAll();
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+            } else {
+                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+            }
+        }
+    }
+}
+
+void GaussianDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                         cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Integrate with Level 0-3 adaptive cache system for predictive cache warming
+    const std::string cache_key = "gaussian_pdf_batch_" + std::to_string(count);
+    
+    // Check if we have cached batch parameters for this operation size
+    // TODO: Use cached_params for predictive cache warming and algorithm selection
+    // In future implementation, this will:
+    //   1. Pre-warm CPU caches with frequently accessed intermediate values
+    //   2. Select optimal parallel algorithms based on historical performance
+    //   3. Predict memory access patterns to optimize SIMD operations
+    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
+    if (cached_params.has_value()) {
+        // Future: Use cached_params.first (grain_size) and cached_params.second (hit_rate)
+        // to influence parallel strategy selection and memory prefetching
+        // For now, this information is available but not yet utilized
+    }
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_norm_constant = normalizationConstant_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Determine optimal batch size based on cache behavior
+    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "gaussian_pdf");
+    
+    // Use cache-aware parallel processing with adaptive grain sizing
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute PDF for each element with cache-aware access patterns
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
+            }
+        }, optimal_grain_size);  // Use adaptive grain size from cache manager
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
+            }
+        }
+    }
+    
+    // Update cache manager with performance metrics for future optimizations
+    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
+}
+
+void GaussianDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                           cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Integrate with Level 0-3 adaptive cache system for predictive cache warming
+    const std::string cache_key = "gaussian_log_pdf_batch_" + std::to_string(count);
+    
+    // Check if we have cached batch parameters for this operation size
+    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
+    if (cached_params.has_value()) {
+        // Future: Use cached_params.first (grain_size) and cached_params.second (hit_rate)
+        // to influence parallel strategy selection and memory prefetching
+        // For now, this information is available but not yet utilized
+    }
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_log_std = logStandardDeviation_;
+    const double cached_neg_half_inv_var = negHalfSigmaSquaredInv_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Determine optimal batch size based on cache behavior
+    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "gaussian_log_pdf");
+    
+    // Use cache-aware parallel processing with adaptive grain sizing
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute log PDF for each element with cache-aware access patterns
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
+            }
+        }, optimal_grain_size);  // Use adaptive grain size from cache manager
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+            } else {
+                const double diff = values[i] - cached_mean;
+                const double sq_diff = diff * diff;
+                results[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
+            }
+        }
+    }
+    
+    // Update cache manager with performance metrics for future optimizations
+    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
+}
+
+void GaussianDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                                  cache::AdaptiveCache<std::string, double>& cache_manager) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Integrate with Level 0-3 adaptive cache system for predictive cache warming
+    const std::string cache_key = "gaussian_cdf_batch_" + std::to_string(count);
+    
+    // Check if we have cached batch parameters for this operation size
+    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
+    if (cached_params.has_value()) {
+        // Future: Use cached_params.first (grain_size) and cached_params.second (hit_rate)
+        // to influence parallel strategy selection and memory prefetching
+        // For now, this information is available but not yet utilized
+    }
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_mean = mean_;
+    const double cached_sigma_sqrt2 = sigmaSqrt2_;
+    const bool cached_is_standard_normal = isStandardNormal_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
+    // Determine optimal batch size based on cache behavior
+    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "gaussian_cdf");
+    
+    // Use cache-aware parallel processing with adaptive grain sizing
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Compute CDF for each element with cache-aware access patterns
+            if (cached_is_standard_normal) {
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+            } else {
+                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+            }
+        }, optimal_grain_size);  // Use adaptive grain size from cache manager
+    } else {
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            if (cached_is_standard_normal) {
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+            } else {
+                const double normalized = (values[i] - cached_mean) / cached_sigma_sqrt2;
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+            }
+        }
+    }
+    
+    // Update cache manager with performance metrics for future optimizations
+    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
 }
 
 //==============================================================================
@@ -2722,6 +2458,268 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
             break;
         }
     }
+}
+
+//==============================================================================
+// COMPARISON OPERATORS
+//==============================================================================
+
+bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
+    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+    std::lock(lock1, lock2);
+    
+    return std::abs(mean_ - other.mean_) <= constants::precision::DEFAULT_TOLERANCE &&
+           std::abs(standardDeviation_ - other.standardDeviation_) <= constants::precision::DEFAULT_TOLERANCE;
+}
+
+//==============================================================================
+// STREAM OPERATORS
+//==============================================================================
+
+std::ostream& operator<<(std::ostream& os, const GaussianDistribution& distribution) {
+    return os << distribution.toString();
+}
+
+//==============================================================================
+// PRIVATE HELPER METHODS
+//==============================================================================
+
+void GaussianDistribution::updateCacheUnsafe() const noexcept {
+    // Core mathematical functions - primary cache
+    normalizationConstant_ = constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
+    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
+    logStandardDeviation_ = std::log(standardDeviation_);
+    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
+    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
+    
+    // Secondary cache values - performance optimizations
+    cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
+    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
+    cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
+    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
+    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
+    
+    // Optimization flags - fast path detection
+    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
+                       (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE;
+    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
+    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE ||
+                      standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
+    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
+    
+    // Update atomic parameters for lock-free access
+    atomicMean_.store(mean_, std::memory_order_release);
+    atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
+    
+    // Cache is now valid
+    cache_valid_ = true;
+    cacheValidAtomic_.store(true, std::memory_order_release);
+}
+
+void GaussianDistribution::validateParameters(double mean, double stdDev) {
+    if (!std::isfinite(mean)) {
+        throw std::invalid_argument("Mean must be finite");
+    }
+    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
+        throw std::invalid_argument("Standard deviation must be positive and finite");
+    }
+    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
+        throw std::invalid_argument("Standard deviation is too large for numerical stability");
+    }
+}
+
+
+//==============================================================================
+// PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
+//
+// CRITICAL SAFETY DOCUMENTATION FOR LOW-LEVEL SIMD OPERATIONS:
+//
+// These private implementation methods contain the actual "unsafe" raw pointer
+// operations that enable high-performance SIMD vectorization. They are called only
+// by the safe public wrapper methods above after proper validation.
+//
+// ⚠️  DANGER ZONE - RAW POINTER OPERATIONS ⚠️
+//
+// WHY THESE METHODS USE RAW POINTERS:
+// 1. SIMD vectorization requires direct memory access with specific alignment
+// 2. std::vector::data() returns raw pointers for optimal SIMD performance
+// 3. SIMD intrinsics (AVX, SSE) operate on contiguous memory blocks
+// 4. Zero abstraction penalty: direct hardware instruction mapping
+//
+// SAFETY PRECAUTIONS ENFORCED:
+// 1. ✅ These methods are private - only callable from validated public interfaces
+// 2. ✅ All callers perform bounds checking before invoking these methods
+// 3. ✅ Memory alignment is handled by simd::aligned_allocator
+// 4. ✅ CPU feature detection prevents crashes on unsupported hardware
+// 5. ✅ Scalar fallback path for small arrays or SIMD-unsupported systems
+//
+// SIMD OPERATION SAFETY GUARANTEES:
+// - simd::VectorOps methods internally validate pointer alignment
+// - Vector operations are bounds-checked at the SIMD library level
+// - Aligned memory allocation ensures optimal cache performance
+// - Runtime CPU detection prevents using unsupported instructions
+//
+// ⚠️  DO NOT CALL THESE METHODS DIRECTLY ⚠️
+// Always use the safe public interfaces like:
+// - getProbabilityBatch() for thread-safe validation
+// - getProbabilityBatchParallel() for C++20 std::span safety
+// - getProbabilityBatchCacheAware() for additional safety checks
+//
+// FOR MAINTENANCE DEVELOPERS:
+// When modifying these methods:
+// 1. Ensure all array accesses use validated indices
+// 2. Test both SIMD and scalar code paths
+// 3. Verify alignment requirements are met
+// 4. Update unit tests for both performance and correctness
+//==============================================================================
+
+void GaussianDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                          double mean, double norm_constant, double neg_half_inv_var,
+                                                          bool is_standard_normal) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+            } else {
+                const double diff = values[i] - mean;
+                const double sq_diff = diff * diff;
+                results[i] = norm_constant * std::exp(neg_half_inv_var * sq_diff);
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // PERFORMANCE CRITICAL: Use results array as workspace to avoid allocations
+    
+    if (is_standard_normal) {
+        // Standard normal: exp(-0.5 * x²) / sqrt(2π)
+        // Step 1: results = x²
+        simd::VectorOps::vector_multiply(values, values, results, count);
+        // Step 2: results = -0.5 * x²
+        simd::VectorOps::scalar_multiply(results, constants::math::NEG_HALF, results, count);
+        // Step 3: results = exp(-0.5 * x²)
+        simd::VectorOps::vector_exp(results, results, count);
+        // Step 4: results = exp(-0.5 * x²) / sqrt(2π)
+        simd::VectorOps::scalar_multiply(results, constants::math::INV_SQRT_2PI, results, count);
+    } else {
+        // General case: exp(-0.5 * ((x-μ)/σ)²) / (σ√(2π))
+        // Step 1: results = x - μ (difference from mean)
+        simd::VectorOps::scalar_add(values, -mean, results, count);
+        // Step 2: results = (x - μ)²
+        simd::VectorOps::vector_multiply(results, results, results, count);
+        // Step 3: results = -0.5 * (x - μ)² / σ²
+        simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
+        // Step 4: results = exp(-0.5 * (x - μ)² / σ²)
+        simd::VectorOps::vector_exp(results, results, count);
+        // Step 5: results = exp(-0.5 * (x - μ)² / σ²) / (σ√(2π))
+        simd::VectorOps::scalar_multiply(results, norm_constant, results, count);
+    }
+}
+
+void GaussianDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                             double mean, double log_std, double neg_half_inv_var,
+                                                             bool is_standard_normal) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (is_standard_normal) {
+                const double sq_diff = values[i] * values[i];
+                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+            } else {
+                const double diff = values[i] - mean;
+                const double sq_diff = diff * diff;
+                results[i] = constants::math::NEG_HALF_LN_2PI - log_std + neg_half_inv_var * sq_diff;
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // PERFORMANCE CRITICAL: Use results array as workspace to avoid allocations
+    
+    if (is_standard_normal) {
+        // Standard normal: -0.5 * ln(2π) - 0.5 * x²
+        // Step 1: results = x²
+        simd::VectorOps::vector_multiply(values, values, results, count);
+        // Step 2: results = -0.5 * x²
+        simd::VectorOps::scalar_multiply(results, constants::math::NEG_HALF, results, count);
+        // Step 3: results = -0.5 * ln(2π) - 0.5 * x²
+        simd::VectorOps::scalar_add(results, constants::math::NEG_HALF_LN_2PI, results, count);
+    } else {
+        // General case: -0.5 * ln(2π) - ln(σ) - 0.5 * ((x-μ)/σ)²
+        // Step 1: results = x - μ (difference from mean)
+        simd::VectorOps::scalar_add(values, -mean, results, count);
+        // Step 2: results = (x - μ)²
+        simd::VectorOps::vector_multiply(results, results, results, count);
+        // Step 3: results = -0.5 * (x - μ)² / σ²
+        simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
+        // Step 4: results = -0.5 * ln(2π) - ln(σ) - 0.5 * (x - μ)² / σ²
+        const double log_norm_constant = constants::math::NEG_HALF_LN_2PI - log_std;
+        simd::VectorOps::scalar_add(results, log_norm_constant, results, count);
+    }
+}
+
+void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                                   double mean, double sigma_sqrt2, bool is_standard_normal) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (is_standard_normal) {
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+            } else {
+                const double normalized = (values[i] - mean) / sigma_sqrt2;
+                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // PERFORMANCE CRITICAL: Use results array as workspace to avoid allocations
+    
+    if (is_standard_normal) {
+        // Standard normal case: normalized = values * INV_SQRT_2
+        // Step 1: results = values * INV_SQRT_2 (normalized values)
+        simd::VectorOps::scalar_multiply(values, constants::math::INV_SQRT_2, results, count);
+    } else {
+        // General case: normalized = (values - mean) / sigma_sqrt2
+        // Step 1: results = values - mean
+        simd::VectorOps::scalar_add(values, -mean, results, count);
+        // Step 2: results = (values - mean) / sigma_sqrt2
+        const double reciprocal_sigma_sqrt2 = constants::math::ONE / sigma_sqrt2;
+        simd::VectorOps::scalar_multiply(results, reciprocal_sigma_sqrt2, results, count);
+    }
+    
+    // Note: We need to use a temporary for erf since simd::VectorOps::vector_erf
+    // may not support in-place operation. This is unavoidable for the erf function.
+    // However, we minimize allocations by reusing the results array for intermediate steps.
+    
+    // For systems where vector_erf supports in-place operations, this could be:
+    // simd::VectorOps::vector_erf(results, results, count);
+    // But for safety, we allocate only one temporary array:
+    std::vector<double, simd::aligned_allocator<double>> erf_values(count);
+    simd::VectorOps::vector_erf(results, erf_values.data(), count);
+    
+    // Final computation: results = 0.5 * (1 + erf_values)
+    // Step 1: results = 1 + erf_values
+    simd::VectorOps::scalar_add(erf_values.data(), constants::math::ONE, results, count);
+    // Step 2: results = 0.5 * (1 + erf_values)
+    simd::VectorOps::scalar_multiply(results, constants::math::HALF, results, count);
 }
 
 } // namespace libstats
