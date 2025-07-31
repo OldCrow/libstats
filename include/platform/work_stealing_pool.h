@@ -163,6 +163,11 @@ private:
     mutable std::mutex globalMutex_;
     std::condition_variable allTasksComplete_;
     
+    // Thread readiness synchronization (macOS QoS best practice)
+    std::mutex readinessMutex_;
+    std::condition_variable readinessCondition_;
+    std::atomic<std::size_t> readyThreads_{0};
+    
     // Thread-local storage for current worker ID
     static thread_local int currentWorkerId_;
     
