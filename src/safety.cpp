@@ -34,7 +34,7 @@ namespace safety {
 constexpr std::size_t VECTORIZED_THRESHOLD = 32;
 
 bool should_use_vectorized_safety(std::size_t size) noexcept {
-    return size >= VECTORIZED_THRESHOLD && simd::has_simd_support();
+    return size >= VECTORIZED_THRESHOLD && simd::SIMDPolicy::shouldUseSIMD(size);
 }
 
 std::size_t vectorized_safety_threshold() noexcept {

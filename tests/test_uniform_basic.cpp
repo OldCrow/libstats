@@ -70,6 +70,7 @@ int main() {
             StandardizedBasicTest::printTestStart(5, "Smart auto-dispatch batch operations");
             vector<double> test_values = {-0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5};
             vector<double> pdf_results(test_values.size());
+            vector<double> log_pdf_results(test_values.size());
             vector<double> cdf_results(test_values.size());
             
             // Use the new smart auto-dispatch methods with std::span
@@ -79,12 +80,18 @@ int main() {
             auto auto_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             
             start = std::chrono::high_resolution_clock::now();
+            uniform_dist.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results));
+            end = std::chrono::high_resolution_clock::now();
+            auto auto_logpdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            
+            start = std::chrono::high_resolution_clock::now();
             uniform_dist.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results));
             end = std::chrono::high_resolution_clock::now();
             auto auto_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             
             // Compare with traditional batch methods
             vector<double> pdf_results_traditional(test_values.size());
+            vector<double> log_pdf_results_traditional(test_values.size());
             vector<double> cdf_results_traditional(test_values.size());
             
             start = std::chrono::high_resolution_clock::now();
@@ -93,14 +100,21 @@ int main() {
             auto trad_pdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             
             start = std::chrono::high_resolution_clock::now();
+            uniform_dist.getLogProbabilityBatch(test_values.data(), log_pdf_results_traditional.data(), test_values.size());
+            end = std::chrono::high_resolution_clock::now();
+            auto trad_logpdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            
+            start = std::chrono::high_resolution_clock::now();
             uniform_dist.getCumulativeProbabilityBatch(test_values.data(), cdf_results_traditional.data(), test_values.size());
             end = std::chrono::high_resolution_clock::now();
             auto trad_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             
             StandardizedBasicTest::printBatchResults(pdf_results, "Auto-dispatch PDF results");
+            StandardizedBasicTest::printBatchResults(log_pdf_results, "Auto-dispatch Log PDF results");
             StandardizedBasicTest::printBatchResults(cdf_results, "Auto-dispatch CDF results");
             
             cout << "Auto-dispatch PDF time: " << auto_pdf_time << "μs, Traditional: " << trad_pdf_time << "μs\n";
+            cout << "Auto-dispatch Log PDF time: " << auto_logpdf_time << "μs, Traditional: " << trad_logpdf_time << "μs\n";
             cout << "Auto-dispatch CDF time: " << auto_cdf_time << "μs, Traditional: " << trad_cdf_time << "μs\n";
             cout << "Strategy selected: SCALAR (expected for small batch size=" << test_values.size() << ")\n";
             
@@ -108,6 +122,7 @@ int main() {
             bool results_match = true;
             for (size_t i = 0; i < test_values.size(); ++i) {
                 if (abs(pdf_results[i] - pdf_results_traditional[i]) > 1e-12 ||
+                    abs(log_pdf_results[i] - log_pdf_results_traditional[i]) > 1e-12 ||
                     abs(cdf_results[i] - cdf_results_traditional[i]) > 1e-12) {
                     results_match = false;
                     break;
@@ -189,8 +204,8 @@ int main() {
         StandardizedBasicTest::printSummaryItem("PDF, Log PDF, CDF, and quantile functions");
         StandardizedBasicTest::printSummaryItem("Random sampling (direct transform method)");
         StandardizedBasicTest::printSummaryItem("Parameter fitting (method of moments)");
-        StandardizedBasicTest::printSummaryItem("Batch operations with SIMD optimization");
-        StandardizedBasicTest::printSummaryItem("Large batch SIMD validation");
+        StandardizedBasicTest::printSummaryItem("Smart auto-dispatch batch operations with strategy selection");
+        StandardizedBasicTest::printSummaryItem("Large batch auto-dispatch validation and correctness");
         
         return 0;
         

@@ -33,6 +33,8 @@ namespace libstats {
 PoissonDistribution::PoissonDistribution(double lambda) 
     : DistributionBase(), lambda_(lambda) {
     validateParameters(lambda);
+    // Ensure SystemCapabilities are initialized
+    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -40,6 +42,8 @@ PoissonDistribution::PoissonDistribution(const PoissonDistribution& other)
     : DistributionBase(other) {
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     lambda_ = other.lambda_;
+    // Ensure SystemCapabilities are initialized
+    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -65,6 +69,8 @@ PoissonDistribution::PoissonDistribution(PoissonDistribution&& other)
     other.lambda_ = constants::math::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    // Ensure SystemCapabilities are initialized
+    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -277,6 +283,256 @@ double PoissonDistribution::sample(std::mt19937& rng) const {
             if (sample >= constants::math::ZERO_DOUBLE) {
                 return std::round(sample);
             }
+        }
+    }
+}
+
+//==============================================================================
+// SMART AUTO-DISPATCH BATCH METHODS
+//==============================================================================
+
+void PoissonDistribution::getProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+
+    const size_t count = values.size();
+    if (count == 0) return;
+
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getProbability(values[0]);
+        return;
+    }
+
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::POISSON,
+            performance::ComputationComplexity::COMPLEX,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getProbability(values[i]);
+            }
+            break;
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getProbabilityBatch(values.data(), results.data(), count);
+            break;
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getProbabilityBatchParallel(values, results);
+            break;
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
+}
+
+void PoissonDistribution::getLogProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+
+    const size_t count = values.size();
+    if (count == 0) return;
+
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getLogProbability(values[0]);
+        return;
+    }
+
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::POISSON,
+            performance::ComputationComplexity::COMPLEX,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getLogProbability(values[i]);
+            }
+            break;
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getLogProbabilityBatch(values.data(), results.data(), count);
+            break;
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getLogProbabilityBatchParallel(values, results);
+            break;
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getLogProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getLogProbabilityBatchCacheAware(values, results, default_cache);
+            break;
+        }
+    }
+}
+
+void PoissonDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
+    if (values.size() != results.size()) {
+        throw std::invalid_argument("Input and output spans must have the same size");
+    }
+
+    const size_t count = values.size();
+    if (count == 0) return;
+
+    // Handle single-value case efficiently
+    if (count == 1) {
+        results[0] = getCumulativeProbability(values[0]);
+        return;
+    }
+
+    // Get global dispatcher and system capabilities
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        strategy = dispatcher.selectOptimalStrategy(
+            count,
+            performance::DistributionType::POISSON,
+            performance::ComputationComplexity::COMPLEX,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
+
+    // Execute using selected strategy
+    switch (strategy) {
+        case performance::Strategy::SCALAR:
+            for (size_t i = 0; i < count; ++i) {
+                results[i] = getCumulativeProbability(values[i]);
+            }
+            break;
+        case performance::Strategy::SIMD_BATCH:
+            // Use existing SIMD implementation
+            getCumulativeProbabilityBatch(values.data(), results.data(), count);
+            break;
+        case performance::Strategy::PARALLEL_SIMD:
+            // Use existing parallel implementation
+            getCumulativeProbabilityBatchParallel(values, results);
+            break;
+        case performance::Strategy::WORK_STEALING: {
+            // Use work-stealing pool for load balancing
+            static thread_local WorkStealingPool default_pool;
+            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
+            break;
+        }
+        case performance::Strategy::CACHE_AWARE: {
+            // Use cache-aware implementation
+            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
+            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
+            break;
         }
     }
 }

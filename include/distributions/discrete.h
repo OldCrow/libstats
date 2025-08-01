@@ -4,8 +4,9 @@
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
 #include "../core/error_handling.h" // Safe error handling without exceptions
-#include "../platform/parallel_execution.h" // Level 0-3 parallel execution support
-#include "../platform/thread_pool.h" // Level 0-3 ParallelUtils integration
+#include "../core/performance_dispatcher.h" // For smart auto-dispatch
+#include "../platform/work_stealing_pool.h" // For parallel work-stealing operations
+#include "../platform/adaptive_cache.h" // For cache-aware operations
 #include "../platform/work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
 #include "../platform/adaptive_cache.h" // Level 0-3 adaptive cache management
 #include <mutex>       // For thread-safe cache updates
@@ -813,6 +814,48 @@ public:
      */
     void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const;
+
+    //==========================================================================
+    // SMART AUTO-DISPATCH BATCH OPERATIONS
+    //==========================================================================
+
+    /**
+     * @brief Smart auto-dispatch batch probability calculation
+     * 
+     * This method automatically selects the optimal execution strategy based on:
+     * - Batch size and system capabilities
+     * - Available CPU features (SIMD support)
+     * - Threading overhead characteristics
+     * 
+     * Users should prefer this method over manual strategy selection.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for probability densities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint = {}) const;
+
+    /**
+     * @brief Smart auto-dispatch batch log probability calculation
+     * 
+     * Automatically selects optimal execution strategy for log probability computation.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for log probability densities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getLogProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint = {}) const;
+
+    /**
+     * @brief Smart auto-dispatch batch cumulative probability calculation
+     * 
+     * Automatically selects optimal execution strategy for CDF computation.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for cumulative probabilities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
     // DISCRETE-SPECIFIC UTILITY METHODS

@@ -8,6 +8,7 @@
 #include "../platform/adaptive_cache.h" // For adaptive cache integration
 #include "../platform/parallel_execution.h" // For parallel execution policies
 #include "../platform/work_stealing_pool.h" // For WorkStealingPool
+#include "../core/performance_dispatcher.h" // For smart auto-dispatch
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
 #include <atomic>      // For atomic cache validation
@@ -977,6 +978,89 @@ public:
      */
     void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    //==========================================================================
+    // SMART AUTO-DISPATCH BATCH OPERATIONS (C++20 Simplified API)
+    //==========================================================================
+    
+    /**
+     * @brief Smart auto-dispatch batch probability calculation with performance hints
+     * 
+     * Automatically selects the optimal execution strategy (SCALAR, SIMD, PARALLEL, etc.)
+     * based on batch size, system capabilities, and user hints. Provides a unified
+     * interface that adapts to different hardware and workload characteristics.
+     * 
+     * @param values Input values as C++20 span for type safety
+     * @param results Output results as C++20 span (must be same size as values)
+     * @param hint Performance optimization hints (default: AUTO selection)
+     * 
+     * @throws std::invalid_argument if spans have different sizes
+     * 
+     * @par Strategy Selection Logic:
+     * - Tiny batches (≤8): SCALAR for minimal overhead
+     * - Small batches (9-63): SIMD_BATCH for vectorization benefits
+     * - Medium batches (64-4095): PARALLEL_SIMD for multi-core + vectorization
+     * - Large batches (≥4096): WORK_STEALING or CACHE_AWARE for load balancing
+     * 
+     * @par Performance Characteristics:
+     * - AUTO mode: ~5-10ns overhead per batch for strategy selection
+     * - SCALAR: Optimal for tiny batches, ~1-2ns per element
+     * - SIMD: 2-4x speedup for compatible operations
+     * - PARALLEL: Near-linear scaling with core count
+     * 
+     * @par Usage Examples:
+     * @code
+     * std::vector<double> inputs = {0.1, 0.5, 1.0, 2.0};
+     * std::vector<double> outputs(inputs.size());
+     * 
+     * // Auto-dispatch (recommended)
+     * dist.getProbability(inputs, outputs);
+     * 
+     * // Force specific strategy
+     * performance::PerformanceHint hint;
+     * hint.strategy = performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+     * dist.getProbability(inputs, outputs, hint);
+     * @endcode
+     */
+    void getProbability(std::span<const double> values, std::span<double> results,
+                       const performance::PerformanceHint& hint = {}) const;
+    
+    /**
+     * @brief Smart auto-dispatch batch log probability calculation with performance hints
+     * 
+     * Automatically selects the optimal execution strategy for log PDF computation
+     * based on batch size, system capabilities, and user performance hints.
+     * 
+     * @param values Input values as C++20 span for type safety
+     * @param results Output log probability results as C++20 span
+     * @param hint Performance optimization hints (default: AUTO selection)
+     * 
+     * @throws std::invalid_argument if spans have different sizes
+     * 
+     * @note Log probability calculations are typically more computationally intensive
+     *       than regular PDF, so the auto-dispatcher may prefer parallel strategies
+     *       at smaller batch sizes compared to getProbability().
+     */
+    void getLogProbability(std::span<const double> values, std::span<double> results,
+                          const performance::PerformanceHint& hint = {}) const;
+    
+    /**
+     * @brief Smart auto-dispatch batch cumulative probability calculation with performance hints
+     * 
+     * Automatically selects the optimal execution strategy for CDF computation
+     * based on batch size, system capabilities, and user performance hints.
+     * 
+     * @param values Input values as C++20 span for type safety
+     * @param results Output cumulative probability results as C++20 span
+     * @param hint Performance optimization hints (default: AUTO selection)
+     * 
+     * @throws std::invalid_argument if spans have different sizes
+     * 
+     * @note CDF calculations for exponential distribution (involving exp function)
+     *       benefit significantly from SIMD vectorization and parallel processing.
+     */
+    void getCumulativeProbability(std::span<const double> values, std::span<double> results,
+                                 const performance::PerformanceHint& hint = {}) const;
     
     //==========================================================================
     // COMPARISON OPERATORS

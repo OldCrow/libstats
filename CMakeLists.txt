@@ -760,8 +760,8 @@ if(LIBSTATS_BUILD_TESTS)
             # test_uniform_simple_dynamic      # TODO: uncomment after fixing uniform.cpp
             
             # Conditional tests (added if they exist)
-            <<BOOL:${HAS_COPY_MOVE_STRESS}>:test_copy_move_stress>
-            <<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
+            $<$<BOOL:${HAS_COPY_MOVE_STRESS}>:test_copy_move_stress>
+            $<$<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
         COMMENT "Running all libstats tests in dependency order (Level 0-4)"
     )
     
