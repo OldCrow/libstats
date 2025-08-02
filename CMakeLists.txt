@@ -34,7 +34,7 @@ if(APPLE OR (UNIX AND NOT WIN32))
     endif()
 endif()
 
-project(libstats VERSION 0.7.0 LANGUAGES CXX)
+project(libstats VERSION 0.7.1 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)

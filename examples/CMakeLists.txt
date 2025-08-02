@@ -49,6 +49,7 @@ endfunction()
 create_example(basic_usage basic_usage.cpp)
 create_example(statistical_validation_demo statistical_validation_demo.cpp)
 create_example(parallel_execution_demo parallel_execution_demo.cpp)
+create_example(performance_learning_demo performance_learning_demo.cpp)
 
 # Performance benchmarks
 create_example(gaussian_performance_benchmark gaussian_performance_benchmark.cpp)

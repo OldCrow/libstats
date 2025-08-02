@@ -1,10 +1,14 @@
 /**
  * @file parallel_execution_demo.cpp
- * @brief Demonstration of platform-aware parallel execution features in libstats
+ * @brief Comprehensive demonstration of platform-aware parallel execution in libstats v0.7.0
  * 
- * This program showcases the enhanced parallel execution capabilities with
- * adaptive grain sizing, platform-specific optimizations, and intelligent
- * thread management based on CPU architecture and workload characteristics.
+ * This example showcases the advanced parallel execution capabilities including:
+ * - Automatic platform detection and CPU capability analysis
+ * - Adaptive grain sizing based on workload characteristics
+ * - Intelligent thread count optimization
+ * - Cache-aware memory access patterns
+ * - Performance benchmarking of parallel algorithms
+ * - Real-world optimization strategies for statistical computing
  */
 
 #include <iostream>
@@ -24,35 +28,46 @@ void print_separator(const std::string& title) {
 }
 
 void demonstrate_platform_detection() {
-    print_separator("Platform Detection & Capabilities");
+    print_separator("1. Platform Detection & Capabilities");
+    std::cout << "\nAutomatic hardware detection and optimization target selection:\n"
+              << "(libstats adapts algorithms based on your specific CPU features)\n" << std::endl;
     
-    std::cout << "Execution support: " << libstats::parallel::execution_support_string() << std::endl;
+    std::cout << "🖥️  Execution support: " << libstats::parallel::execution_support_string() << std::endl;
     
     // CPU information
     const auto& cpu_features = libstats::cpu::get_features();
-    std::cout << "Physical CPU cores: " << libstats::cpu::get_physical_core_count() << std::endl;
-    std::cout << "Logical CPU cores: " << libstats::cpu::get_logical_core_count() << std::endl;
+    std::cout << "💻 CPU Configuration:" << std::endl;
+    std::cout << "    Physical cores: " << libstats::cpu::get_physical_core_count() 
+              << " [Available for heavy parallel work]" << std::endl;
+    std::cout << "    Logical cores: " << libstats::cpu::get_logical_core_count() 
+              << " [Total threading capacity with hyperthreading]" << std::endl;
     
     if (cpu_features.l3_cache_size > 0) {
-        std::cout << "L3 Cache size: " << cpu_features.l3_cache_size / (1024 * 1024) << " MB" << std::endl;
+        std::cout << "    L3 Cache: " << cpu_features.l3_cache_size / (1024 * 1024) 
+                  << " MB [Affects grain sizing and memory layout]" << std::endl;
     }
     
     // SIMD capabilities
-    std::cout << "SIMD support: ";
-    if (cpu_features.avx512f) std::cout << "AVX-512 ";
-    if (cpu_features.avx2) std::cout << "AVX2 ";
-    if (cpu_features.avx) std::cout << "AVX ";
-    if (cpu_features.sse4_2) std::cout << "SSE4.2 ";
-    if (cpu_features.neon) std::cout << "NEON ";
+    std::cout << "\n⚡ SIMD Instruction Support:" << std::endl;
+    std::cout << "    Available: ";
+    if (cpu_features.avx512f) std::cout << "AVX-512 (16x64-bit ops) ";
+    if (cpu_features.avx2) std::cout << "AVX2 (4x64-bit ops) ";
+    if (cpu_features.avx) std::cout << "AVX (4x64-bit ops) ";
+    if (cpu_features.sse4_2) std::cout << "SSE4.2 (2x64-bit ops) ";
+    if (cpu_features.neon) std::cout << "NEON (ARM SIMD) ";
     std::cout << std::endl;
+    std::cout << "    ✓ libstats automatically selects the best SIMD implementation" << std::endl;
 }
 
 void demonstrate_adaptive_grain_sizing() {
-    print_separator("Adaptive Grain Sizing");
+    print_separator("2. Adaptive Grain Sizing");
+    std::cout << "\nOptimal work unit sizing based on operation characteristics:\n"
+              << "(Grain size = elements per thread for best performance)\n" << std::endl;
     
     std::vector<std::size_t> data_sizes = {1000, 10000, 100000, 1000000};
     std::vector<std::string> operation_types = {"Memory-bound", "Computation-bound", "Mixed"};
     
+    std::cout << "📊 Adaptive grain sizes by workload type:" << std::endl;
     std::cout << std::left << std::setw(12) << "Data Size" 
               << std::setw(18) << "Memory-bound" 
               << std::setw(18) << "Computation-bound" 
@@ -68,28 +83,54 @@ void demonstrate_adaptive_grain_sizing() {
         std::cout << std::endl;
     }
     
-    std::cout << "\nBase grain size: " << libstats::parallel::get_optimal_grain_size() << " elements" << std::endl;
-    std::cout << "Parallel threshold: " << libstats::parallel::get_optimal_parallel_threshold("gaussian", "pdf") << " elements" << std::endl;
+    std::cout << "\n🔧 Configuration parameters:" << std::endl;
+    std::cout << "   Base grain size: " << libstats::parallel::get_optimal_grain_size() 
+              << " elements [Default work unit size]" << std::endl;
+    std::cout << "   Parallel threshold: " << libstats::parallel::get_optimal_parallel_threshold("gaussian", "pdf") 
+              << " elements [Minimum size for parallel execution]" << std::endl;
+    std::cout << "\n   ℹ️ Memory-bound: Larger grains reduce cache misses" << std::endl;
+    std::cout << "   ℹ️ Computation-bound: Smaller grains improve load balancing" << std::endl;
+    std::cout << "   ℹ️ Mixed: Balanced approach for typical statistical operations" << std::endl;
 }
 
 void demonstrate_thread_optimization() {
-    print_separator("Thread Count Optimization");
+    print_separator("3. Thread Count Optimization");
+    std::cout << "\nIntelligent thread count selection based on workload size:\n"
+              << "(Prevents over-threading and context switching overhead)\n" << std::endl;
     
     std::vector<std::size_t> workload_sizes = {1000, 10000, 100000, 1000000, 10000000};
     
+    std::cout << "🔄 Thread allocation strategy:" << std::endl;
     std::cout << std::left << std::setw(15) << "Workload Size" 
               << std::setw(18) << "Optimal Threads" 
-              << std::setw(12) << "Decision" << std::endl;
-    std::cout << std::string(45, '-') << std::endl;
+              << std::setw(12) << "Decision" 
+              << std::setw(20) << "Reasoning" << std::endl;
+    std::cout << std::string(65, '-') << std::endl;
     
     for (auto workload : workload_sizes) {
         auto threads = libstats::parallel::get_optimal_thread_count(workload);
         bool should_parallel = libstats::parallel::should_use_parallel(workload);
         
+        std::string reasoning;
+        if (!should_parallel) {
+            reasoning = "Too small for parallel";
+        } else if (threads == 1) {
+            reasoning = "Single-threaded optimal";
+        } else if (threads < libstats::cpu::get_logical_core_count()) {
+            reasoning = "Partial core utilization";
+        } else {
+            reasoning = "Full core utilization";
+        }
+        
         std::cout << std::setw(15) << workload 
                   << std::setw(18) << threads
-                  << std::setw(12) << (should_parallel ? "Parallel" : "Serial") << std::endl;
+                  << std::setw(12) << (should_parallel ? "Parallel" : "Serial")
+                  << std::setw(20) << reasoning << std::endl;
     }
+    
+    std::cout << "\n   ℹ️ Small workloads use serial execution to avoid threading overhead" << std::endl;
+    std::cout << "   ℹ️ Large workloads scale up to available CPU cores" << std::endl;
+    std::cout << "   ℹ️ Thread count is capped to prevent resource contention" << std::endl;
 }
 
 void benchmark_parallel_operations() {

@@ -160,9 +160,9 @@ namespace libstats {
     using Gamma = GammaDistribution;
     using Discrete = DiscreteDistribution;
     
-    // Version information
-    constexpr int VERSION_MAJOR = 0;
-    constexpr int VERSION_MINOR = 7;
-    constexpr int VERSION_PATCH = 0;
-    constexpr const char* VERSION_STRING = "0.7.0";
+// Version information
+constexpr int LIBSTATS_VERSION_MAJOR = 0;
+constexpr int LIBSTATS_VERSION_MINOR = 7;
+constexpr int LIBSTATS_VERSION_PATCH = 1;
+    constexpr const char* VERSION_STRING = "0.7.1";
 }

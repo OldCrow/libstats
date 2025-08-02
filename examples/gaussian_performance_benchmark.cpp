@@ -29,7 +29,20 @@
 using namespace libstats;
 
 int main() {
-    std::cout << "=== GAUSSIAN DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===" << std::endl;
+    std::cout << "\n🔬 === GAUSSIAN DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===\n";
+    std::cout << "\n📊 The Gaussian (Normal) distribution is one of the most computationally\n";
+    std::cout << "   important distributions in statistics and scientific computing.\n";
+    std::cout << "\n🎯 This benchmark evaluates:\n";
+    std::cout << "   • Basic probability functions (PDF, CDF, quantiles)\n";
+    std::cout << "   • SIMD-vectorized batch operations\n";
+    std::cout << "   • Parallel processing with dynamic load balancing\n";
+    std::cout << "   • Advanced sampling algorithms (Box-Muller transform)\n";
+    std::cout << "   • Parameter estimation and statistical inference\n";
+    std::cout << "\n⚡ Key computational challenges for Gaussian distributions:\n";
+    std::cout << "   • Accurate error function (erf) evaluation for CDF\n";
+    std::cout << "   • Numerically stable log-PDF computation\n";
+    std::cout << "   • Efficient inverse CDF (quantile) approximations\n";
+    std::cout << "   • Box-Muller transform optimization for sampling\n\n";
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
     
     // Create Gaussian distributions for testing
@@ -42,7 +55,8 @@ int main() {
     //==========================================================================
     // 1. BASIC OPERATIONS BENCHMARK
     //==========================================================================
-    std::cout << "Setting up basic operations benchmarks..." << std::endl;
+    std::cout << "\n📋 Phase 1: Setting up basic operations benchmarks..." << std::endl;
+    std::cout << "   These test individual probability computations at maximum throughput.\n" << std::endl;
     
     // Single value operations
     bench.addTest("PDF Single Value", [&]() {
@@ -68,7 +82,8 @@ int main() {
     //==========================================================================
     // 2. BATCH OPERATIONS BENCHMARK 
     //==========================================================================
-    std::cout << "Setting up batch operations benchmarks..." << std::endl;
+    std::cout << "\n⚡ Phase 2: Setting up batch operations benchmarks..." << std::endl;
+    std::cout << "   Testing SIMD-vectorized operations on arrays of varying sizes.\n" << std::endl;
     
     // Create test data
     const std::vector<size_t> test_sizes = {100, 1000, 10000, 100000};
@@ -120,7 +135,8 @@ int main() {
     //==========================================================================
     // 3. ADVANCED FEATURES BENCHMARK
     //==========================================================================
-    std::cout << "Setting up advanced features benchmarks..." << std::endl;
+    std::cout << "\n💻 Phase 3: Setting up advanced features benchmarks..." << std::endl;
+    std::cout << "   Testing cache-aware processing and work-stealing parallelism.\n" << std::endl;
     
     // Cache-aware operations
     cache::AdaptiveCache<std::string, double> cache_manager;
@@ -169,7 +185,8 @@ int main() {
     //==========================================================================
     // 4. SAMPLING BENCHMARK
     //==========================================================================
-    std::cout << "Setting up sampling benchmarks..." << std::endl;
+    std::cout << "\n🎲 Phase 4: Setting up sampling benchmarks..." << std::endl;
+    std::cout << "   Testing Box-Muller transform for efficient Gaussian sampling.\n" << std::endl;
     
     std::mt19937 sample_rng(42);
     
@@ -181,7 +198,8 @@ int main() {
     //==========================================================================
     // 5. PARAMETER FITTING BENCHMARK  
     //==========================================================================
-    std::cout << "Setting up fitting benchmarks..." << std::endl;
+    std::cout << "\n🔧 Phase 5: Setting up parameter fitting benchmarks..." << std::endl;
+    std::cout << "   Testing maximum likelihood estimation on various dataset sizes.\n" << std::endl;
     
     // Generate realistic test data for fitting
     std::vector<double> fit_data_small(1000);
@@ -208,7 +226,8 @@ int main() {
     //==========================================================================
     // 6. ADVANCED STATISTICAL METHODS BENCHMARK
     //==========================================================================
-    std::cout << "Setting up advanced statistical methods benchmarks..." << std::endl;
+    std::cout << "\n📊 Phase 6: Setting up advanced statistical methods benchmarks..." << std::endl;
+    std::cout << "   Testing confidence intervals, hypothesis tests, and robust estimation.\n" << std::endl;
     
     // Use medium-sized dataset for statistical methods
     std::vector<double> stats_data(5000);
@@ -326,11 +345,25 @@ int main() {
         }
     }
     
-    std::cout << "\nSINGLE OPERATION PERFORMANCE:" << std::endl;
+    std::cout << "\n📈 SINGLE OPERATION PERFORMANCE:" << std::endl;
+    std::cout << "   Single-threaded operations showing computational efficiency per function.\n" << std::endl;
     std::cout << "├─ PDF Operations:      " << std::scientific << single_pdf_ops_per_sec << " ops/sec" << std::endl;
     std::cout << "├─ CDF Operations:      " << std::scientific << single_cdf_ops_per_sec << " ops/sec" << std::endl;
     std::cout << "├─ Log PDF Operations:  " << std::scientific << single_log_pdf_ops_per_sec << " ops/sec" << std::endl;
     std::cout << "└─ Quantile Operations: " << std::scientific << single_quantile_ops_per_sec << " ops/sec" << std::endl;
+    
+    // Add interpretation commentary
+    std::cout << "\n💡 Analysis: ";
+    if (single_cdf_ops_per_sec > 0 && single_pdf_ops_per_sec > 0) {
+        if (single_pdf_ops_per_sec > single_cdf_ops_per_sec * 2) {
+            std::cout << "PDF computation is ~" << std::fixed << std::setprecision(1) 
+                     << (single_pdf_ops_per_sec / single_cdf_ops_per_sec) 
+                     << "x faster than CDF due to simpler exponential calculation.";
+        } else {
+            std::cout << "PDF and CDF show similar performance, indicating efficient erf() implementation.";
+        }
+    }
+    std::cout << std::endl;
     
     std::cout << "\nBATCH OPERATION PERFORMANCE (1K Elements):" << std::endl;
     std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_1k_scalar << " elements/sec" << std::endl;

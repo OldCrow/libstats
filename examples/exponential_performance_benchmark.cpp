@@ -29,7 +29,20 @@
 using namespace libstats;
 
 int main() {
-    std::cout << "=== EXPONENTIAL DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===" << std::endl;
+    std::cout << "\n🔬 === EXPONENTIAL DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===\n";
+    std::cout << "\n📊 The Exponential distribution models waiting times and lifetimes,\n";
+    std::cout << "   crucial for queuing theory, reliability analysis, and survival studies.\n";
+    std::cout << "\n🎯 This benchmark evaluates:\n";
+    std::cout << "   • Basic probability functions (PDF, CDF, quantiles)\n";
+    std::cout << "   • SIMD-vectorized batch operations\n";
+    std::cout << "   • Parallel processing with dynamic load balancing\n";
+    std::cout << "   • Inverse transform sampling (highly efficient for exponentials)\n";
+    std::cout << "   • Parameter estimation and statistical inference\n";
+    std::cout << "\n⚡ Key computational advantages for Exponential distributions:\n";
+    std::cout << "   • Simple closed-form PDF: f(x) = λ * exp(-λ*x)\n";
+    std::cout << "   • Closed-form CDF: F(x) = 1 - exp(-λ*x)\n";
+    std::cout << "   • Trivial inverse CDF for sampling: -ln(1-u)/λ\n";
+    std::cout << "   • Memoryless property simplifies many calculations\n\n";
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
     
     // Create Exponential distributions for testing
@@ -42,7 +55,8 @@ int main() {
     //==========================================================================
     // 1. BASIC OPERATIONS BENCHMARK
     //==========================================================================
-    std::cout << "Setting up basic operations benchmarks..." << std::endl;
+    std::cout << "\n📋 Phase 1: Setting up basic operations benchmarks..." << std::endl;
+    std::cout << "   Testing individual probability computations with closed-form solutions.\n" << std::endl;
     
     // Single value operations
     bench.addTest("PDF Single Value", [&]() {
@@ -68,7 +82,8 @@ int main() {
     //==========================================================================
     // 2. BATCH OPERATIONS BENCHMARK 
     //==========================================================================
-    std::cout << "Setting up batch operations benchmarks..." << std::endl;
+    std::cout << "\n⚡ Phase 2: Setting up batch operations benchmarks..." << std::endl;
+    std::cout << "   Testing SIMD-vectorized exp() operations on exponential data arrays.\n" << std::endl;
     
     // Create test data - exponential distribution domain is [0, ∞)
     const std::vector<size_t> test_sizes = {100, 1000, 10000, 100000};
@@ -120,7 +135,8 @@ int main() {
     //==========================================================================
     // 3. ADVANCED FEATURES BENCHMARK
     //==========================================================================
-    std::cout << "Setting up advanced features benchmarks..." << std::endl;
+    std::cout << "\n💻 Phase 3: Setting up advanced features benchmarks..." << std::endl;
+    std::cout << "   Testing cache-aware processing and work-stealing parallelism.\n" << std::endl;
     
     // Cache-aware operations
     cache::AdaptiveCache<std::string, double> cache_manager;
@@ -153,7 +169,8 @@ int main() {
     //==========================================================================
     // 4. SAMPLING BENCHMARK
     //==========================================================================
-    std::cout << "Setting up sampling benchmarks..." << std::endl;
+    std::cout << "\n🎲 Phase 4: Setting up sampling benchmarks..." << std::endl;
+    std::cout << "   Testing highly efficient inverse transform sampling for exponentials.\n" << std::endl;
     
     std::mt19937 sample_rng(42);
     
@@ -170,7 +187,8 @@ int main() {
     //==========================================================================
     // 5. PARAMETER FITTING BENCHMARK  
     //==========================================================================
-    std::cout << "Setting up fitting benchmarks..." << std::endl;
+    std::cout << "\n🔧 Phase 5: Setting up fitting benchmarks..." << std::endl;
+    std::cout << "   Testing maximum likelihood estimation for exponential rate parameter.\n" << std::endl;
     
     // Generate realistic test data for fitting using true exponential distribution
     std::vector<double> fit_data_small(1000);
@@ -197,7 +215,8 @@ int main() {
     //==========================================================================
     // 6. ADVANCED STATISTICAL METHODS BENCHMARK
     //==========================================================================
-    std::cout << "Setting up advanced statistical methods benchmarks..." << std::endl;
+    std::cout << "\n📊 Phase 6: Setting up advanced statistical methods benchmarks..." << std::endl;
+    std::cout << "   Testing confidence intervals, hypothesis tests, and Bayesian methods.\n" << std::endl;
     
     // Use medium-sized dataset for statistical methods
     std::vector<double> stats_data(5000);
