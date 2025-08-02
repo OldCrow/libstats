@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_PLATFORM_CONSTANTS_H_
-#define LIBSTATS_PLATFORM_CONSTANTS_H_
+#pragma once
 
 #include <cstddef>
 #include <climits>
@@ -989,5 +988,3 @@ namespace cache {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_PLATFORM_CONSTANTS_H_

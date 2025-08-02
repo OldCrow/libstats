@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_GAUSSIAN_H_
-#define LIBSTATS_GAUSSIAN_H_
+#pragma once
 
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
@@ -1231,5 +1230,3 @@ private:
 };
 
 } // namespace libstats
-
-#endif // LIBSTATS_GAUSSIAN_H_

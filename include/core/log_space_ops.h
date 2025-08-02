@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_LOG_SPACE_OPS_H_
-#define LIBSTATS_LOG_SPACE_OPS_H_
+#pragma once
 
 #include "../platform/simd.h"
 #include "constants.h"
@@ -157,5 +156,3 @@ public:
 static LogSpaceInitializer globalLogSpaceInit;
 
 } // namespace libstats
-
-#endif // LIBSTATS_LOG_SPACE_OPS_H_

@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_ROBUST_CONSTANTS_H_
-#define LIBSTATS_CORE_ROBUST_CONSTANTS_H_
+#pragma once
 
 /**
  * @file core/robust_constants.h
@@ -45,5 +44,3 @@ namespace robust {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_ROBUST_CONSTANTS_H_

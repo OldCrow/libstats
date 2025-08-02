@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_MATHEMATICAL_CONSTANTS_H_
-#define LIBSTATS_CORE_MATHEMATICAL_CONSTANTS_H_
+#pragma once
 
 /**
  * @file core/mathematical_constants.h
@@ -136,5 +135,3 @@ namespace math {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_MATHEMATICAL_CONSTANTS_H_

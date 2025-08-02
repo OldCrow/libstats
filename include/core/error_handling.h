@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_ERROR_HANDLING_H_
-#define LIBSTATS_ERROR_HANDLING_H_
+#pragma once
 
 #include <string>
 #include <cmath>
@@ -225,5 +224,3 @@ inline VoidResult validateGammaParameters(double alpha, double beta) noexcept {
 }
 
 } // namespace libstats
-
-#endif // LIBSTATS_ERROR_HANDLING_H_

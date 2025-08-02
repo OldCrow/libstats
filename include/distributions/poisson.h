@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_POISSON_H_
-#define LIBSTATS_POISSON_H_
+#pragma once
 
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
@@ -1092,5 +1091,3 @@ private:
 std::ostream& operator<<(std::ostream& os, const PoissonDistribution& dist);
 
 } // namespace libstats
-
-#endif // LIBSTATS_POISSON_H_

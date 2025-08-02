@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_SIMD_POLICY_H_
-#define LIBSTATS_SIMD_POLICY_H_
+#pragma once
 
 #include <cstddef>
 #include <string>
@@ -179,5 +178,3 @@ private:
 
 } // namespace simd
 } // namespace libstats
-
-#endif // LIBSTATS_SIMD_POLICY_H_

@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_DISTRIBUTION_VALIDATION_H_
-#define LIBSTATS_DISTRIBUTION_VALIDATION_H_
+#pragma once
 
 #include <algorithm>
 #include <functional>
@@ -261,5 +260,3 @@ size_t getRecommendedSampleSize(int num_parameters,
 } // namespace validation
 
 } // namespace libstats
-
-#endif // LIBSTATS_DISTRIBUTION_VALIDATION_H_

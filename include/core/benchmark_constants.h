@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_BENCHMARK_CONSTANTS_H_
-#define LIBSTATS_CORE_BENCHMARK_CONSTANTS_H_
+#pragma once
 
 #include <cstddef>
 
@@ -67,5 +66,3 @@ namespace thresholds {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_BENCHMARK_CONSTANTS_H_

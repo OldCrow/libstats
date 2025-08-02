@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_PROBABILITY_CONSTANTS_H_
-#define LIBSTATS_CORE_PROBABILITY_CONSTANTS_H_
+#pragma once
 
 #include <limits>
 
@@ -37,5 +36,3 @@ namespace probability {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_PROBABILITY_CONSTANTS_H_

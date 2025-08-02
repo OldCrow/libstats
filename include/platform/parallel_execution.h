@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_PARALLEL_EXECUTION_H_
-#define LIBSTATS_PARALLEL_EXECUTION_H_
+#pragma once
 
 /**
  * @file parallel_execution.h  
@@ -1175,6 +1174,3 @@ safe_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
 
 } // namespace parallel
 } // namespace libstats
-
-#endif // LIBSTATS_PARALLEL_EXECUTION_H_
-

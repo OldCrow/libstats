@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_PARALLEL_THRESHOLDS_H_
-#define LIBSTATS_PARALLEL_THRESHOLDS_H_
+#pragma once
 
 /**
  * @file parallel_thresholds.h
@@ -170,5 +169,3 @@ inline bool shouldUseDistributionParallel(const std::string& distribution,
 
 } // namespace parallel
 } // namespace libstats
-
-#endif // LIBSTATS_PARALLEL_THRESHOLDS_H_

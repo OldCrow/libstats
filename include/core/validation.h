@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_VALIDATION_H_
-#define LIBSTATS_VALIDATION_H_
+#pragma once
 
 /**
  * @file validation.h
@@ -225,5 +224,3 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(
 
 } // namespace validation
 } // namespace libstats
-
-#endif // LIBSTATS_VALIDATION_H_

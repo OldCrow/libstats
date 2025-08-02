@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_MATH_UTILS_H_
-#define LIBSTATS_MATH_UTILS_H_
+#pragma once
 
 #include <cmath>
 #include <functional>
@@ -679,5 +678,3 @@ struct NumericalDiagnostics {
 
 } // namespace math
 } // namespace libstats
-
-#endif // LIBSTATS_MATH_UTILS_H_

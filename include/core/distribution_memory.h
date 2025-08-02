@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_DISTRIBUTION_MEMORY_H_
-#define LIBSTATS_DISTRIBUTION_MEMORY_H_
+#pragma once
 
 #include <algorithm>
 #include <atomic>
@@ -457,5 +456,3 @@ inline MemoryPool& getThreadPool() noexcept {
 }
 
 } // namespace libstats
-
-#endif // LIBSTATS_DISTRIBUTION_MEMORY_H_

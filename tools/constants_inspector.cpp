@@ -7,6 +7,7 @@
 #include <iomanip>
 
 #include "../include/libstats.h"
+#include "../include/core/performance_dispatcher.h"
 
 int main() {
     std::cout << "=== Architecture-Specific Constants Test ===" << std::endl;
@@ -48,6 +49,10 @@ int main() {
     }
     
     std::cout << "Active Architecture: " << active_arch << std::endl;
+    
+    // TODO: Display SystemCapabilities information when API is fully implemented
+    // std::cout << "\n--- System Capabilities (Phase 3) ---" << std::endl;
+    // Enable once the correct API is available
     
     // Display adaptive constants
     std::cout << "\n--- Adaptive Parallel Constants ---" << std::endl;

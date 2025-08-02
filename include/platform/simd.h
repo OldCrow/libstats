@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_SIMD_H_
-#define LIBSTATS_SIMD_H_
+#pragma once
 
 #include <cstddef>
 #include <memory>
@@ -741,5 +740,3 @@ constexpr std::size_t align_size(std::size_t size, std::size_t alignment = SIMD_
 
 } // namespace simd
 } // namespace libstats
-
-#endif // LIBSTATS_SIMD_H_

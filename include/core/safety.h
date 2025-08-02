@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_SAFETY_H_
-#define LIBSTATS_SAFETY_H_
+#pragma once
 
 #include <stdexcept>
 #include <cassert>
@@ -622,5 +621,3 @@ inline std::size_t handle_nan_values(std::vector<double>& values, RecoveryStrate
 
 } // namespace safety
 } // namespace libstats
-
-#endif // LIBSTATS_SAFETY_H_

@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CPU_DETECTION_H_
-#define LIBSTATS_CPU_DETECTION_H_
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -285,5 +284,3 @@ bool validate_feature_consistency();
 
 } // namespace cpu
 } // namespace libstats
-
-#endif // LIBSTATS_CPU_DETECTION_H_

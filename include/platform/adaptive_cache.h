@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_ADAPTIVE_CACHE_H_
-#define LIBSTATS_ADAPTIVE_CACHE_H_
+#pragma once
 
 #include <unordered_map>
 #include <unordered_set>
@@ -988,5 +987,3 @@ BenchmarkResult<Key, Value> benchmarkCache(
 
 } // namespace cache
 } // namespace libstats
-
-#endif // LIBSTATS_ADAPTIVE_CACHE_H_

@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_BENCHMARK_H_
-#define LIBSTATS_BENCHMARK_H_
+#pragma once
 
 #include <chrono>
 #include <vector>
@@ -310,5 +309,3 @@ public:
 };
 
 } // namespace libstats
-
-#endif // LIBSTATS_BENCHMARK_H_

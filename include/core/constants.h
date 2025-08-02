@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_CONSTANTS_H_
-#define LIBSTATS_CORE_CONSTANTS_H_
+#pragma once
 
 /**
  * @file core/constants.h
@@ -35,5 +34,3 @@
 
 // Platform-specific constants are available separately in:
 // #include "../platform/platform_constants.h"  // SIMD, parallel processing, etc.
-
-#endif // LIBSTATS_CORE_CONSTANTS_H_

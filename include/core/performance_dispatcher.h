@@ -141,6 +141,27 @@ public:
      * @brief Update thresholds based on performance feedback
      */
     void updateThresholds(const Thresholds& new_thresholds);
+    
+    /**
+     * @brief Record performance data for learning optimization
+     * 
+     * @param strategy The strategy that was used
+     * @param distribution_type Type of distribution processed
+     * @param batch_size Number of elements processed
+     * @param execution_time_ns Actual execution time in nanoseconds
+     */
+    static void recordPerformance(
+        Strategy strategy,
+        DistributionType distribution_type,
+        std::size_t batch_size,
+        std::uint64_t execution_time_ns
+    ) noexcept;
+    
+    /**
+     * @brief Get access to the global performance history for advanced users
+     * @return Reference to the performance history instance
+     */
+    static class PerformanceHistory& getPerformanceHistory() noexcept;
 
 private:
     mutable Thresholds thresholds_;

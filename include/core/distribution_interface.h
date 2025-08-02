@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_DISTRIBUTION_INTERFACE_H_
-#define LIBSTATS_DISTRIBUTION_INTERFACE_H_
+#pragma once
 
 #include <vector>
 #include <string>
@@ -210,5 +209,3 @@ inline double getCoefficientOfVariation(const DistributionInterface& distributio
 }
 
 } // namespace libstats
-
-#endif // LIBSTATS_DISTRIBUTION_INTERFACE_H_

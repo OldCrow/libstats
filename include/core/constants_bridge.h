@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CONSTANTS_BRIDGE_H_
-#define LIBSTATS_CONSTANTS_BRIDGE_H_
+#pragma once
 
 #include "../platform/platform_constants.h"
 
@@ -28,5 +27,3 @@ namespace simd {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CONSTANTS_BRIDGE_H_

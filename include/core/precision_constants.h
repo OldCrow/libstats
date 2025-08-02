@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_PRECISION_CONSTANTS_H_
-#define LIBSTATS_PRECISION_CONSTANTS_H_
+#pragma once
 
 namespace libstats {
 namespace constants {
@@ -50,6 +49,3 @@ namespace precision {
 }
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_PRECISION_CONSTANTS_H_
-

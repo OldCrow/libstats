@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_STATISTICAL_CONSTANTS_H_
-#define LIBSTATS_CORE_STATISTICAL_CONSTANTS_H_
+#pragma once
 
 /**
  * @file core/statistical_constants.h
@@ -124,6 +123,3 @@ namespace statistical {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_STATISTICAL_CONSTANTS_H_
-

@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_THRESHOLD_CONSTANTS_H_
-#define LIBSTATS_CORE_THRESHOLD_CONSTANTS_H_
+#pragma once
 
 /**
  * @file core/threshold_constants.h
@@ -142,6 +141,3 @@ namespace thresholds {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_THRESHOLD_CONSTANTS_H_
-

@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_DISTRIBUTION_BASE_H_
-#define LIBSTATS_DISTRIBUTION_BASE_H_
+#pragma once
 
 // Include the split components
 #include "distribution_interface.h"
@@ -322,5 +321,3 @@ private:
 };
 
 } // namespace libstats
-
-#endif // LIBSTATS_DISTRIBUTION_BASE_H_

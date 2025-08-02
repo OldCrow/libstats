@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_DISCRETE_H_
-#define LIBSTATS_DISCRETE_H_
+#pragma once
 
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
@@ -1057,5 +1056,3 @@ private:
 std::ostream& operator<<(std::ostream& os, const DiscreteDistribution& dist);
 
 } // namespace libstats
-
-#endif // LIBSTATS_DISCRETE_H_

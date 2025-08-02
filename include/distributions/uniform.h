@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_UNIFORM_H_
-#define LIBSTATS_UNIFORM_H_
+#pragma once
 
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
@@ -1006,5 +1005,3 @@ private:
 std::ostream& operator<<(std::ostream& os, const UniformDistribution& dist);
 
 } // namespace libstats
-
-#endif // LIBSTATS_UNIFORM_H_

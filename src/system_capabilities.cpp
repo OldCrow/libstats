@@ -28,7 +28,11 @@ namespace {
         auto end = std::chrono::high_resolution_clock::now();
         
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        return static_cast<double>(duration.count()) / (BENCHMARK_ITERATIONS * BENCHMARK_ARRAY_SIZE);
+        double time_per_operation = static_cast<double>(duration.count()) / (BENCHMARK_ITERATIONS * BENCHMARK_ARRAY_SIZE);
+        
+        // Convert to efficiency metric (higher = better)
+        // Typical scalar operations are 1-10ns, so we invert and scale to 0-1 range
+        return std::min(1.0, 10.0 / std::max(1.0, time_per_operation));
     }
     
     // Simple threading overhead benchmark

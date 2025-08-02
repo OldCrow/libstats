@@ -1,5 +1,6 @@
 #include "../include/core/performance_dispatcher.h"
 #include "../include/platform/simd_policy.h"
+#include "../include/core/performance_history.h"
 
 namespace libstats {
 namespace performance {
@@ -7,10 +8,21 @@ namespace performance {
 Strategy PerformanceDispatcher::selectOptimalStrategy(
     size_t batch_size,
     DistributionType dist_type,
-    ComputationComplexity complexity,
+    [[maybe_unused]] ComputationComplexity complexity,
     const SystemCapabilities& system
 ) const {
-    // Determine the proper strategy based on size and complexity
+    // Use the shared global instance
+    auto& performance_history = getPerformanceHistory();
+     
+    // Retrieve the best strategy recommendation based on performance history
+    auto recommendation = performance_history.getBestStrategy(dist_type, batch_size);
+    
+    // Use historical data if we have high confidence
+    if (recommendation.has_sufficient_data && recommendation.confidence_score > 0.8) {
+        return recommendation.recommended_strategy;
+    }
+    
+    // Fallback to default logic without sufficient history
     auto best_threshold = getDistributionSpecificParallelThreshold(dist_type);
     
     if (batch_size >= best_threshold) {
@@ -46,7 +58,7 @@ size_t PerformanceDispatcher::getDistributionSpecificParallelThreshold(Distribut
     }
 }
 
-bool PerformanceDispatcher::shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const {
+bool PerformanceDispatcher::shouldUseWorkStealing(size_t batch_size, [[maybe_unused]] DistributionType dist_type) const {
     return batch_size >= thresholds_.work_stealing_min;
 }
 
@@ -57,6 +69,21 @@ bool PerformanceDispatcher::shouldUseCacheAware(size_t batch_size, const SystemC
 
 void PerformanceDispatcher::updateThresholds(const Thresholds& new_thresholds) {
     thresholds_ = new_thresholds;
+}
+
+void PerformanceDispatcher::recordPerformance(
+    Strategy strategy,
+    DistributionType distribution_type,
+    std::size_t batch_size,
+    std::uint64_t execution_time_ns
+) noexcept {
+    // Use the shared global instance
+    getPerformanceHistory().recordPerformance(strategy, distribution_type, batch_size, execution_time_ns);
+}
+
+PerformanceHistory& PerformanceDispatcher::getPerformanceHistory() noexcept {
+    static PerformanceHistory global_performance_history;
+    return global_performance_history;
 }
 
 } // namespace performance

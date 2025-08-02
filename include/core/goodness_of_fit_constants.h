@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_GOODNESS_OF_FIT_CONSTANTS_H_
-#define LIBSTATS_CORE_GOODNESS_OF_FIT_CONSTANTS_H_
+#pragma once
 
 /**
  * @file core/goodness_of_fit_constants.h
@@ -66,5 +65,3 @@ namespace shapiro_wilk {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_GOODNESS_OF_FIT_CONSTANTS_H_

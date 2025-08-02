@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_EXPONENTIAL_H_
-#define LIBSTATS_EXPONENTIAL_H_
+#pragma once
 
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
@@ -1141,5 +1140,3 @@ private:
 std::ostream& operator<<(std::ostream& os, const ExponentialDistribution& dist);
 
 } // namespace libstats
-
-#endif // LIBSTATS_EXPONENTIAL_H_

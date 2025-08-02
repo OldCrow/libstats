@@ -191,44 +191,139 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     # endif()
 endif()
 
-# Source files for the compiled library - start with core components
-set(LIBSTATS_SOURCES
-    # CPU detection with safe compilation (no advanced SIMD instructions)
-    src/cpu_detection.cpp
-    
-    # SIMD policy and centralized decision making
-    src/simd_policy.cpp
-    
-    # Parallel execution infrastructure
-    src/parallel_thresholds.cpp
-    
-    # Performance system infrastructure
-    src/performance_dispatcher.cpp
-    src/system_capabilities.cpp
-    
-    # Platform-specific optimization utilities
-    src/adaptive_cache.cpp
-    src/distribution_cache.cpp
-    
-    # Other library components
-    src/gaussian.cpp
-    src/thread_pool.cpp
-    src/work_stealing_pool.cpp
-    src/validation.cpp
-    src/benchmark.cpp
-    src/distribution_base.cpp
-    src/log_space_ops.cpp
-    src/math_utils.cpp
-    src/exponential.cpp
-    src/discrete.cpp
-    src/uniform.cpp
-    src/safety.cpp
-    src/poisson.cpp
-    # src/gamma.cpp         # TODO: implement gamma distribution
+# =============================================================================
+# DEPENDENCY-AWARE OBJECT LIBRARIES FOR OPTIMAL COMPILATION
+# =============================================================================
+# Organize sources into object libraries that align with header dependency levels
+# This enables:
+# - Parallel compilation of independent components
+# - Minimal recompilation when headers change
+# - Better incremental build performance
+# - Clear architectural boundaries
+
+# Level 0-1: Platform Foundation and Constants (No internal dependencies)
+set(LIBSTATS_FOUNDATION_SOURCES
+    src/cpu_detection.cpp              # Runtime CPU feature detection
+    src/simd_policy.cpp               # SIMD policy and feature detection
 )
 
-# Add SIMD sources from detection system
-list(APPEND LIBSTATS_SOURCES ${LIBSTATS_SIMD_SOURCES})
+# Level 2: Core Utilities (Depends on Level 0-1)
+set(LIBSTATS_CORE_UTILITIES_SOURCES
+    src/safety.cpp                    # Safe numerical operations
+    src/validation.cpp                # Parameter validation and constraint checking
+    src/math_utils.cpp                # Mathematical utilities and special functions
+    src/log_space_ops.cpp             # Log-space arithmetic for numerical stability
+)
+
+# Level 2: Platform Capabilities (Depends on Level 0-1)
+set(LIBSTATS_PLATFORM_SOURCES
+    src/parallel_thresholds.cpp       # Architecture-specific parallel thresholds
+    src/thread_pool.cpp               # Thread pool implementation
+    src/work_stealing_pool.cpp        # Advanced work-stealing thread pool
+)
+
+# Level 3: Advanced Infrastructure (Depends on Level 0-2)
+set(LIBSTATS_INFRASTRUCTURE_SOURCES
+    src/adaptive_cache.cpp            # Memory-aware adaptive caching
+    src/distribution_cache.cpp        # Distribution-specific cache optimization
+    src/benchmark.cpp                 # Performance benchmarking utilities
+    src/performance_history.cpp       # Performance data collection and analysis
+    src/performance_dispatcher.cpp    # Smart auto-dispatch system
+    src/system_capabilities.cpp       # System capability detection
+)
+
+# Level 4: Distribution Framework (Depends on Level 0-3)
+set(LIBSTATS_FRAMEWORK_SOURCES
+    src/distribution_memory.cpp       # Memory management for distributions (if exists)
+    src/distribution_base.cpp         # Complete distribution base framework
+)
+
+# Level 5: Distribution Implementations (Depends on Level 0-4)
+set(LIBSTATS_DISTRIBUTIONS_SOURCES
+    src/gaussian.cpp                  # Gaussian distribution implementation
+    src/exponential.cpp               # Exponential distribution implementation
+    src/uniform.cpp                   # Uniform distribution implementation
+    src/poisson.cpp                   # Poisson distribution implementation
+    src/discrete.cpp                  # Discrete distribution implementation
+    # src/gamma.cpp                   # TODO: implement gamma distribution
+)
+
+# SIMD sources are added separately by the SIMD detection system
+# These compile with specific architecture flags and are platform-dependent
+
+# =============================================================================
+# CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
+# =============================================================================
+# Object libraries allow parallel compilation and better dependency tracking
+
+# Foundation object library (Level 0-1)
+add_library(libstats_foundation_obj OBJECT ${LIBSTATS_FOUNDATION_SOURCES})
+target_include_directories(libstats_foundation_obj PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(libstats_foundation_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+
+# Core utilities object library (Level 2)
+add_library(libstats_core_utilities_obj OBJECT ${LIBSTATS_CORE_UTILITIES_SOURCES})
+target_include_directories(libstats_core_utilities_obj PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(libstats_core_utilities_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+add_dependencies(libstats_core_utilities_obj libstats_foundation_obj)
+
+# Platform capabilities object library (Level 2)
+add_library(libstats_platform_obj OBJECT ${LIBSTATS_PLATFORM_SOURCES})
+target_include_directories(libstats_platform_obj PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(libstats_platform_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+add_dependencies(libstats_platform_obj libstats_foundation_obj)
+
+# Advanced infrastructure object library (Level 3)
+add_library(libstats_infrastructure_obj OBJECT ${LIBSTATS_INFRASTRUCTURE_SOURCES})
+target_include_directories(libstats_infrastructure_obj PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(libstats_infrastructure_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+add_dependencies(libstats_infrastructure_obj libstats_foundation_obj libstats_core_utilities_obj libstats_platform_obj)
+
+# Distribution framework object library (Level 4)
+add_library(libstats_framework_obj OBJECT ${LIBSTATS_FRAMEWORK_SOURCES})
+target_include_directories(libstats_framework_obj PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(libstats_framework_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+add_dependencies(libstats_framework_obj libstats_foundation_obj libstats_core_utilities_obj libstats_platform_obj libstats_infrastructure_obj)
+
+# Distribution implementations object library (Level 5)
+add_library(libstats_distributions_obj OBJECT ${LIBSTATS_DISTRIBUTIONS_SOURCES})
+target_include_directories(libstats_distributions_obj PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(libstats_distributions_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+add_dependencies(libstats_distributions_obj libstats_foundation_obj libstats_core_utilities_obj libstats_platform_obj libstats_infrastructure_obj libstats_framework_obj)
+
+# SIMD object library (Platform-dependent, can compile in parallel)
+add_library(libstats_simd_obj OBJECT ${LIBSTATS_SIMD_SOURCES})
+target_include_directories(libstats_simd_obj PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(libstats_simd_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+add_dependencies(libstats_simd_obj libstats_foundation_obj)  # SIMD depends on CPU detection
+
+# =============================================================================
+# COMBINED SOURCE LIST FOR FINAL LIBRARIES
+# =============================================================================
+# Collect all object library outputs for the final static/shared libraries
+set(LIBSTATS_ALL_OBJECTS
+    $<TARGET_OBJECTS:libstats_foundation_obj>
+    $<TARGET_OBJECTS:libstats_core_utilities_obj>
+    $<TARGET_OBJECTS:libstats_platform_obj>
+    $<TARGET_OBJECTS:libstats_infrastructure_obj>
+    $<TARGET_OBJECTS:libstats_framework_obj>
+    $<TARGET_OBJECTS:libstats_distributions_obj>
+    $<TARGET_OBJECTS:libstats_simd_obj>
+)
 
 # Header-only library (for header-only components)
 add_library(libstats_headers INTERFACE)
@@ -237,8 +332,8 @@ target_include_directories(libstats_headers INTERFACE
     $<INSTALL_INTERFACE:include/libstats>
 )
 
-# Static library
-add_library(libstats_static STATIC ${LIBSTATS_SOURCES})
+# Static library using object libraries for better build performance
+add_library(libstats_static STATIC ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(libstats_static PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/libstats>
@@ -257,8 +352,8 @@ else()
     )
 endif()
 
-# Dynamic/shared library
-add_library(libstats_shared SHARED ${LIBSTATS_SOURCES})
+# Dynamic/shared library using object libraries for better build performance
+add_library(libstats_shared SHARED ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(libstats_shared PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/libstats>
@@ -281,7 +376,17 @@ elseif(UNIX AND NOT APPLE)
     )
 endif()
 
-# Configure SIMD compilation for targets
+# Configure SIMD compilation for all object libraries and final targets
+# This ensures SIMD-specific compile flags are applied correctly to each component
+configure_simd_target(libstats_foundation_obj)
+configure_simd_target(libstats_core_utilities_obj)
+configure_simd_target(libstats_platform_obj)
+configure_simd_target(libstats_infrastructure_obj)
+configure_simd_target(libstats_framework_obj)
+configure_simd_target(libstats_distributions_obj)
+configure_simd_target(libstats_simd_obj)
+
+# Configure SIMD compilation for final targets
 configure_simd_target(libstats_static)
 configure_simd_target(libstats_shared)
 
@@ -571,76 +676,92 @@ if(LIBSTATS_BUILD_TESTS)
     enable_testing()
     
     # =======================================================================
-    # LEVEL 0 TESTS: Foundational Headers (No Internal Dependencies)
+    # LEVEL 0 TESTS: Foundational Headers (Standard Library Only)
     # =======================================================================
-    # These test the most fundamental building blocks and should run first
+    # These test headers with no internal dependencies - only standard library
     
-    # constants.h - Mathematical constants and precision tolerances
+    # C++20 features and basic constants (no internal dependencies)
     create_libstats_test(test_cpp20_features tests/test_cpp20_features.cpp)
     create_libstats_test(test_constants tests/test_constants.cpp)
+    
+    # =======================================================================
+    # LEVEL 1 TESTS: Platform Foundation and Aggregated Constants
+    # =======================================================================
+    # Tests for runtime capabilities and aggregated constant headers
     
     # cpu_detection.h - Runtime CPU feature detection
     create_libstats_test(test_cpu_detection tests/test_cpu_detection.cpp)
     
-    # adaptive_cache.h - Advanced adaptive cache management
-    create_libstats_test(test_adaptive_cache tests/test_adaptive_cache.cpp)
-    
-    # simd.h - Platform-specific SIMD intrinsics and compile-time detection
+    # simd.h - SIMD compile-time detection and basic operations
     create_libstats_test(test_simd_integration_simple tests/test_simd_integration_simple.cpp)
     create_libstats_test(test_simd_integration tests/test_simd_integration.cpp)
     create_libstats_test(test_simd_operations tests/test_simd_operations.cpp)
     create_libstats_test(test_platform_optimizations tests/test_platform_optimizations.cpp)
     
-    # error_handling.h - ABI-safe error handling with Result<T> pattern
-    create_libstats_test(test_safe_factory tests/test_safe_factory.cpp)
-    
     # =======================================================================
-    # LEVEL 1 TESTS: Core Infrastructure (Depends on Level 0)
+    # LEVEL 2 TESTS: Core Utilities and Platform Capabilities
     # =======================================================================
-    # These build on foundational components and should run second
+    # Test core utilities (Level 2a) and platform capabilities (Level 2b)
     
-    # dual_api.h - Consistent error handling for all distributions
-    create_libstats_test(test_dual_api tests/test_dual_api.cpp)
-    
-    # safety.h - Memory safety, bounds checking, numerical stability
+    # LEVEL 2a: Core Utilities (Platform-Independent)
+    # safety.h - Safe numerical operations
     create_libstats_test(test_safety tests/test_safety.cpp)
     
     # math_utils.h - Mathematical utilities and special functions
     create_libstats_gtest(test_math_utils tests/test_math_utils.cpp)
     create_libstats_test(test_vectorized_math tests/test_vectorized_math.cpp)
     
-    # validation.h - Statistical validation and goodness-of-fit testing
+    # validation.h - Parameter validation and constraint checking
     create_libstats_test(test_goodness_of_fit tests/test_goodness_of_fit.cpp)
     create_libstats_test(test_validation_enhanced tests/test_validation_enhanced.cpp)
     
-    # =======================================================================
-    # LEVEL 2 TESTS: Core Framework (Depends on Levels 0-1)
-    # =======================================================================
-    # These test the distribution base framework
+    # error_handling.h - Exception-free error handling
+    create_libstats_test(test_safe_factory tests/test_safe_factory.cpp)
+    create_libstats_test(test_dual_api tests/test_dual_api.cpp)
     
-    # distribution_base.h - Abstract base class for all distributions
-    # (No direct test file - tested through distribution implementations)
-    
-    # =======================================================================
-    # LEVEL 3 TESTS: Parallel Infrastructure (Depends on Levels 0-2)
-    # =====================================================================
-    # These test parallel computation infrastructure
-    
-    # thread_pool.h and work_stealing_pool.h - Thread pool implementations
+    # LEVEL 2b: Platform Capabilities
+    # thread_pool.h and work_stealing_pool.h - Thread pool implementations  
     create_libstats_test(test_thread_pool tests/test_thread_pool.cpp)
     create_libstats_test(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
     
-    # parallel_execution.h - C++20 parallel execution policy detection and utilities
+    # =======================================================================
+    # LEVEL 3 TESTS: Advanced Infrastructure
+    # =======================================================================
+    # Test advanced infrastructure components that depend on Level 0-2
+    
+    # Performance and Caching Infrastructure
+    # adaptive_cache.h - Memory-aware adaptive caching
+    create_libstats_test(test_adaptive_cache tests/test_adaptive_cache.cpp)
+    
+    # parallel_execution.h - C++20 parallel execution with automatic fallback
     create_libstats_test(test_parallel_execution_integration tests/test_parallel_execution_integration.cpp)
     create_libstats_test(test_parallel_execution_comprehensive tests/test_parallel_execution_comprehensive.cpp)
     
     # benchmark.h - Performance measurement utilities
     create_libstats_test(test_benchmark_basic tests/test_benchmark_basic.cpp)
     
+    # PHASE 3 PERFORMANCE OPTIMIZATION FRAMEWORK (NEW TESTS)
+    # performance_history.h - Performance data collection and analysis
+    create_libstats_gtest(test_performance_history tests/test_performance_history.cpp)
+    
+    # performance_dispatcher.h - Smart auto-dispatch system  
+    create_libstats_gtest(test_performance_dispatcher tests/test_performance_dispatcher.cpp)
+    
+    # system_capabilities.cpp - System capability detection and integration
+    create_libstats_gtest(test_system_capabilities tests/test_system_capabilities.cpp)
+    
     # =======================================================================
-    # LEVEL 4 TESTS: Distribution Implementations (Depends on Levels 0-3)
+    # LEVEL 4 TESTS: Complete Distribution Framework
     # =======================================================================
-    # These test concrete distribution implementations
+    # Test the integrated distribution framework (distribution_base.h)
+    
+    # distribution_base.h - Complete base class implementation
+    # (Tested indirectly through distribution implementations, but could add direct tests)
+    
+    # =======================================================================
+    # LEVEL 5 TESTS: Concrete Distribution Implementations
+    # =======================================================================
+    # Test concrete distribution implementations using the complete framework
     
     # gaussian.h - Gaussian/Normal distribution implementation (CONSOLIDATED)
     create_libstats_test(test_gaussian_basic tests/test_gaussian_basic.cpp)
@@ -810,13 +931,19 @@ if(LIBSTATS_BUILD_TOOLS)
     add_libstats_tool(performance_benchmark performance_benchmark.cpp)
     add_libstats_tool(parallel_threshold_benchmark parallel_threshold_benchmark.cpp)
     add_libstats_tool(grain_size_optimizer grain_size_optimizer.cpp)
+    add_libstats_tool(performance_dispatcher_tool performance_dispatcher_tool.cpp)
+    add_libstats_tool(system_capabilities_inspector system_capabilities_inspector.cpp)
+    add_libstats_tool(threshold_learning_demo threshold_learning_demo.cpp)
     
     message(STATUS "Tools enabled:")
     message(STATUS "  - cpu_info: System CPU capability detection")
-    message(STATUS "  - constants_inspector: Platform-specific constants analysis")
-    message(STATUS "  - performance_benchmark: Basic parallel operation benchmarks")
-    message(STATUS "  - parallel_threshold_benchmark: Distribution-specific threshold optimization")
+    message(STATUS "  - constants_inspector: Platform-specific constants analysis with Phase 3 integration")
+    message(STATUS "  - performance_benchmark: Enhanced parallel operation benchmarks with PerformanceHistory integration")
+    message(STATUS "  - parallel_threshold_benchmark: Enhanced distribution-specific threshold optimization with adaptive learning")
     message(STATUS "  - grain_size_optimizer: Comprehensive grain size optimization")
+    message(STATUS "  - performance_dispatcher_tool: Interactive Phase 3 performance framework demonstration")
+    message(STATUS "  - system_capabilities_inspector: Detailed system capability inspection and performance analysis")
+    message(STATUS "  - threshold_learning_demo: Adaptive threshold learning demonstration and performance optimization showcase")
 endif()
 
 # Examples

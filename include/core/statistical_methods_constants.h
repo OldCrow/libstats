@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_CORE_STATISTICAL_METHODS_CONSTANTS_H_
-#define LIBSTATS_CORE_STATISTICAL_METHODS_CONSTANTS_H_
+#pragma once
 
 /**
  * @file core/statistical_methods_constants.h
@@ -47,5 +46,3 @@ namespace cross_validation {
 
 } // namespace constants
 } // namespace libstats
-
-#endif // LIBSTATS_CORE_STATISTICAL_METHODS_CONSTANTS_H_

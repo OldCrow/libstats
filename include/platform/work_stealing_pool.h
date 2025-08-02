@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_WORK_STEALING_POOL_H_
-#define LIBSTATS_WORK_STEALING_POOL_H_
+#pragma once
 
 #include <vector>
 #include <deque>
@@ -349,5 +348,3 @@ namespace WorkStealingUtils {
 }
 
 } // namespace libstats
-
-#endif // LIBSTATS_WORK_STEALING_POOL_H_

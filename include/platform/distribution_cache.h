@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_DISTRIBUTION_CACHE_ADAPTER_H_
-#define LIBSTATS_DISTRIBUTION_CACHE_ADAPTER_H_
+#pragma once
 
 #include "adaptive_cache.h"
 #include <atomic>
@@ -296,5 +295,3 @@ public:
 };
 
 } // namespace libstats
-
-#endif // LIBSTATS_DISTRIBUTION_CACHE_ADAPTER_H_

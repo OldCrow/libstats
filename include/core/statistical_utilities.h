@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_STATISTICAL_UTILITIES_H_
-#define LIBSTATS_STATISTICAL_UTILITIES_H_
+#pragma once
 
 /**
  * @file statistical_utilities.h
@@ -241,5 +240,3 @@ public:
 };
 
 } // namespace libstats
-
-#endif // LIBSTATS_STATISTICAL_UTILITIES_H_

@@ -1,5 +1,4 @@
-#ifndef LIBSTATS_THREAD_POOL_H_
-#define LIBSTATS_THREAD_POOL_H_
+#pragma once
 
 #include <thread>
 #include <vector>
@@ -515,5 +514,3 @@ public:
 
 
 } // namespace libstats
-
-#endif // LIBSTATS_THREAD_POOL_H_

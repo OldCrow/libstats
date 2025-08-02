@@ -1,9 +1,9 @@
 /**
  * @file parallel_threshold_benchmark.cpp
- * @brief Benchmark tool to determine optimal MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL
+ * @brief Enhanced Benchmark tool for determining dynamic thresholds using PerformanceHistory
  * 
- * This tool systematically benchmarks different data sizes to find the optimal threshold
- * where parallel execution becomes beneficial for simple distribution operations.
+ * This tool benchmarks different data sizes to find the optimal thresholds
+ * for parallel execution, utilizing adaptive learning from PerformanceHistory.
  */
 
 #include <iostream>
@@ -24,6 +24,7 @@
 #include "../include/distributions/discrete.h"
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/exponential.h"
+#include "../include/core/performance_dispatcher.h"
 
 using namespace std::chrono;
 using namespace libstats;
