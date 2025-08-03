@@ -22,6 +22,22 @@
     #include <sys/sysinfo.h>
 #elif defined(_WIN32)
     #include <windows.h>
+    // Helper to get CPU count using GetActiveProcessorCount if available, else fallback
+    static DWORD get_cpu_count() {
+    #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600
+        HMODULE hKernel32 = GetModuleHandleA("kernel32.dll");
+        if (hKernel32) {
+            typedef DWORD (WINAPI *GAPC)(WORD);
+            GAPC gapc = (GAPC)GetProcAddress(hKernel32, "GetActiveProcessorCount");
+            if (gapc) {
+                return gapc(0xFFFF); // ALL_PROCESSOR_GROUPS
+            }
+        }
+    #endif
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        return sysinfo.dwNumberOfProcessors;
+    }
 #endif
 
 namespace libstats {
@@ -369,14 +385,7 @@ void WorkStealingPool::optimizeCurrentThread([[maybe_unused]] int workerId, [[ma
     
 #elif defined(_WIN32)
     // On Windows, set thread affinity from within the thread
-    DWORD cpuCount = 1;
-    #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600
-        cpuCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
-    #else
-        SYSTEM_INFO sysinfo;
-        GetSystemInfo(&sysinfo);
-        cpuCount = sysinfo.dwNumberOfProcessors;
-    #endif
+    DWORD cpuCount = get_cpu_count();
     DWORD_PTR mask = 1ULL << (workerId % cpuCount);
     DWORD_PTR result = SetThreadAffinityMask(GetCurrentThread(), mask);
     if (result == 0) {
@@ -407,14 +416,7 @@ void WorkStealingPool::setThreadAffinity([[maybe_unused]] std::thread& thread, [
     // This function doesn't perform any actions on macOS, but is kept for compatibility.
     
 #elif defined(_WIN32)
-    DWORD cpuCount = 1;
-    #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600
-        cpuCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
-    #else
-        SYSTEM_INFO sysinfo;
-        GetSystemInfo(&sysinfo);
-        cpuCount = sysinfo.dwNumberOfProcessors;
-    #endif
+    DWORD cpuCount = get_cpu_count();
     DWORD_PTR mask = 1ULL << (cpuId % cpuCount);
     DWORD_PTR result = SetThreadAffinityMask(thread.native_handle(), mask);
     if (result == 0) {
