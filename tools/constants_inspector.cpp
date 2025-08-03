@@ -9,7 +9,18 @@
 #include "../include/libstats.h"
 #include "../include/core/performance_dispatcher.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    // _setmode(_fileno(stdout), _O_U8TEXT); // Removed for std::cout compatibility
+#endif
+
     std::cout << "=== Architecture-Specific Constants Test ===" << std::endl;
     
     // Display detected CPU features

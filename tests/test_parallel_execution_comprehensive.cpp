@@ -9,7 +9,15 @@
 // Test integration with main header
 #include "../include/libstats.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     std::cout << "=== Comprehensive Parallel Execution Tests ===" << std::endl;
     
     // Test 1: GCD-specific algorithm coverage

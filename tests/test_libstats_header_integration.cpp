@@ -1,6 +1,10 @@
 #include <iostream>
 #include "../include/libstats.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 void test_adaptive_cache_via_main_header() {
     std::cout << "Testing adaptive cache access through main libstats header..." << std::endl;
     
@@ -38,6 +42,10 @@ void test_forward_compatibility_aliases_via_main_header() {
 }
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     std::cout << "=== libstats.h Integration Test ===" << std::endl;
     std::cout << std::endl;
     

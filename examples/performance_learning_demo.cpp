@@ -22,6 +22,7 @@
 #include <random>
 #include <iomanip>
 #include <chrono>
+#include <cstdint>
 
 std::string strategyToString(libstats::performance::Strategy strategy) {
     switch (strategy) {
@@ -67,7 +68,7 @@ void demonstrate_smart_dispatch() {
     std::cout << std::string(72, '-') << std::endl;
     
     // Store timing data for potential note after table
-    std::vector<std::tuple<size_t, long, long, long>> timing_results;
+    std::vector<std::tuple<size_t, int64_t, int64_t, int64_t>> timing_results;
     
     for (auto size : data_sizes) {
         // Generate test data

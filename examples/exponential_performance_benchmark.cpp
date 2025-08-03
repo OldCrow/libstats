@@ -26,9 +26,16 @@
 #include <random>
 #include <iomanip>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace libstats;
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     std::cout << "\n🔬 === EXPONENTIAL DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===\n";
     std::cout << "\n📊 The Exponential distribution models waiting times and lifetimes,\n";
     std::cout << "   crucial for queuing theory, reliability analysis, and survival studies.\n";

@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <memory>
 #include <thread>
+#include <cmath>
 #include "platform_constants.h"
 
 namespace libstats {
@@ -601,7 +602,7 @@ private:
                          const std::chrono::high_resolution_clock::time_point& end) const {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         double current_avg = metrics_.average_access_time.load();
-        double new_time = duration.count();
+        double new_time = static_cast<double>(duration.count());
         
         // Exponential moving average
         double alpha = 0.1;
@@ -700,13 +701,13 @@ private:
         
         if (hit_rate < config_.hit_rate_target && cache_size < config_.max_cache_size) {
             // Increase cache size if hit rate is low
-            config_.max_cache_size = std::min(config_.max_cache_size * 1.2, 
-                                            static_cast<double>(config_.max_cache_size * 2));
+            double new_size = std::min(config_.max_cache_size * 1.2, static_cast<double>(config_.max_cache_size * 2));
+            config_.max_cache_size = static_cast<size_t>(std::round(new_size));
             metrics_.adaptive_resizes.fetch_add(1, std::memory_order_relaxed);
         } else if (hit_rate > 0.95 && cache_size > config_.min_cache_size * 2) {
             // Decrease cache size if hit rate is very high (over-provisioned)
-            config_.max_cache_size = std::max(config_.max_cache_size * 0.9,
-                                            static_cast<double>(config_.min_cache_size));
+            double new_size = std::max(config_.max_cache_size * 0.9, static_cast<double>(config_.min_cache_size));
+            config_.max_cache_size = static_cast<size_t>(std::round(new_size));
             metrics_.adaptive_resizes.fetch_add(1, std::memory_order_relaxed);
         }
     }

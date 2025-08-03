@@ -6,6 +6,12 @@
 // Include CPU detection for runtime capability testing
 #include "../include/platform/cpu_detection.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include <cctype>
+
 /**
  * @brief Standalone CPU capability tester
  * 
@@ -15,6 +21,10 @@
  */
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     try {
         std::cout << "LibStats CPU Capability Test\n";
         std::cout << "============================\n\n";
@@ -26,7 +36,15 @@ int main(int argc, char* argv[]) {
         std::cout << "CPU Information:\n";
         std::cout << "  Vendor: " << features.vendor << "\n";
         if (!features.brand.empty()) {
-            std::cout << "  Brand: " << features.brand << "\n";
+            // Sanitize brand string: allow all printable characters
+            std::string sanitized_brand;
+            for (char c : features.brand) {
+                if (c == '\0') break;
+                if (std::isprint(static_cast<unsigned char>(c))) {
+                    sanitized_brand += c;
+                }
+            }
+            std::cout << "  Brand: " << sanitized_brand << "\n";
         }
         std::cout << "  Family: " << features.family << "\n";
         std::cout << "  Model: " << features.model << "\n";

@@ -61,6 +61,7 @@
     #define LIBSTATS_HAS_GCD 1
     #define LIBSTATS_HAS_PARALLEL_EXECUTION 1
 // Windows Thread Pool API (Windows Vista+)
+// NOTE: _WIN32_WINNT must be defined to at least 0x0600 for this block to be selected.
 #elif defined(_WIN32) && defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600
     #include <windows.h>
     #define LIBSTATS_HAS_WIN_THREADPOOL 1

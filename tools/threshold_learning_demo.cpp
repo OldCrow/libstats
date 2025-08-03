@@ -17,6 +17,12 @@
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/uniform.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 using namespace std::chrono;
 using namespace libstats;
 
@@ -91,49 +97,97 @@ private:
         // Simulate realistic performance patterns
         std::uniform_real_distribution<double> noise(0.9, 1.1);
         
-        std::vector<size_t> sizes = {10, 50, 100, 500, 1000, 5000, 10000, 50000};
-        
+        // Thresholds below are based on real-world results from parallel_threshold_benchmark_results.csv
+        // Uniform: SIMD ~64, Parallel ~2048
+        // Gaussian: SIMD ~128, Parallel ~4096
+        // Exponential: SIMD ~256, Parallel ~8192
+        // Discrete: SIMD ~512, Parallel ~16384
+        // Poisson: SIMD ~128, Parallel ~4096
+        std::vector<size_t> sizes = {
+            10, 50, 63, 64, 100, 127, 128, 255, 256, 511, 512, 1000, 1500, 2000, 2047, 2048, 3000, 3500, 4000, 4095, 4096, 6000, 7000, 8000, 8191, 8192, 10000, 12000, 14000, 16000, 16383, 16384, 20000, 25000, 32768, 40000, 50000
+        };
+        std::vector<performance::DistributionType> dist_types = {
+            performance::DistributionType::UNIFORM,
+            performance::DistributionType::GAUSSIAN,
+            performance::DistributionType::EXPONENTIAL,
+            performance::DistributionType::DISCRETE,
+            performance::DistributionType::POISSON
+        };
         for (auto size : sizes) {
             std::cout << "  Recording data for size " << size << "..." << std::flush;
-            
-            // Record multiple samples per strategy to reach the reliable data threshold (5 samples)
             for (int sample = 0; sample < 6; ++sample) {
-                // Simulate different strategies with realistic performance patterns
-                
-                // Scalar strategy - consistent but slower for large sizes
-                auto scalar_time = static_cast<uint64_t>(size * 10 * noise(rng_));
-                history.recordPerformance(
-                    performance::Strategy::SCALAR, 
-                    performance::DistributionType::GAUSSIAN, 
-                    size, 
-                    scalar_time
-                );
-                
-                // SIMD strategy - good for medium sizes
-                auto simd_time = static_cast<uint64_t>(size * 3 * noise(rng_));
-                if (size < 10000) {
-                    simd_time += 500; // SIMD overhead for small sizes
+                for (auto dist_type : dist_types) {
+                    double scalar_factor = 10.0, simd_factor = 3.0, parallel_factor = 2.0;
+                    int simd_overhead = 500, parallel_overhead = 5000;
+                    // Sharpen SIMD and parallel crossovers at benchmarked thresholds
+                    switch (dist_type) {
+                        case performance::DistributionType::UNIFORM:
+                            if (size < 64) { simd_factor = 20.0; parallel_factor = 20.0; }
+                            else if (size == 64) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size < 2048) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size == 2048) { simd_factor = 2.0; parallel_factor = 2.0; }
+                            else { simd_factor = 2.0; parallel_factor = 2.0; }
+                            break;
+                        case performance::DistributionType::GAUSSIAN:
+                            if (size < 128) { simd_factor = 20.0; parallel_factor = 20.0; }
+                            else if (size == 128) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size < 4096) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size == 4096) { simd_factor = 2.0; parallel_factor = 2.0; }
+                            else { simd_factor = 2.0; parallel_factor = 2.0; }
+                            break;
+                        case performance::DistributionType::EXPONENTIAL:
+                            if (size < 256) { simd_factor = 20.0; parallel_factor = 20.0; }
+                            else if (size == 256) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size < 8192) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size == 8192) { simd_factor = 2.0; parallel_factor = 2.0; }
+                            else { simd_factor = 2.0; parallel_factor = 2.0; }
+                            break;
+                        case performance::DistributionType::DISCRETE:
+                            if (size < 512) { simd_factor = 20.0; parallel_factor = 20.0; }
+                            else if (size == 512) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size < 16384) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size == 16384) { simd_factor = 2.0; parallel_factor = 2.0; }
+                            else { simd_factor = 2.0; parallel_factor = 2.0; }
+                            break;
+                        case performance::DistributionType::POISSON:
+                            if (size < 128) { simd_factor = 20.0; parallel_factor = 20.0; }
+                            else if (size == 128) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size < 4096) { simd_factor = 2.0; parallel_factor = 20.0; }
+                            else if (size == 4096) { simd_factor = 2.0; parallel_factor = 2.0; }
+                            else { simd_factor = 2.0; parallel_factor = 2.0; }
+                            break;
+                        default:
+                            break;
+                    }
+                    auto scalar_time = static_cast<uint64_t>(size * scalar_factor * noise(rng_));
+                    auto simd_time = static_cast<uint64_t>(size * simd_factor * noise(rng_));
+                    if (size < 10000) {
+                        simd_time += simd_overhead;
+                    }
+                    auto parallel_time = static_cast<uint64_t>(size * parallel_factor * noise(rng_));
+                    if (size < 1000) {
+                        parallel_time += parallel_overhead;
+                    }
+                    history.recordPerformance(
+                        performance::Strategy::SCALAR,
+                        dist_type,
+                        size,
+                        scalar_time
+                    );
+                    history.recordPerformance(
+                        performance::Strategy::SIMD_BATCH,
+                        dist_type,
+                        size,
+                        simd_time
+                    );
+                    history.recordPerformance(
+                        performance::Strategy::PARALLEL_SIMD,
+                        dist_type,
+                        size,
+                        parallel_time
+                    );
                 }
-                history.recordPerformance(
-                    performance::Strategy::SIMD_BATCH, 
-                    performance::DistributionType::GAUSSIAN, 
-                    size, 
-                    simd_time
-                );
-                
-                // Parallel strategy - best for large sizes but has overhead
-                auto parallel_time = static_cast<uint64_t>(size * 2 * noise(rng_));
-                if (size < 1000) {
-                    parallel_time += 5000; // High parallel overhead for small sizes
-                }
-                history.recordPerformance(
-                    performance::Strategy::PARALLEL_SIMD, 
-                    performance::DistributionType::GAUSSIAN, 
-                    size, 
-                    parallel_time
-                );
             }
-            
             std::cout << " ✓\n";
         }
         
@@ -183,9 +237,14 @@ private:
         auto& history = performance::PerformanceDispatcher::getPerformanceHistory();
         
         std::cout << "Learned optimal thresholds:\n";
-        for (auto dist_type : {performance::DistributionType::UNIFORM, 
-                               performance::DistributionType::GAUSSIAN, 
-                               performance::DistributionType::EXPONENTIAL}) {
+        std::vector<performance::DistributionType> all_dist_types = {
+            performance::DistributionType::UNIFORM,
+            performance::DistributionType::GAUSSIAN,
+            performance::DistributionType::EXPONENTIAL,
+            performance::DistributionType::DISCRETE,
+            performance::DistributionType::POISSON
+        };
+        for (auto dist_type : all_dist_types) {
             auto thresholds = history.learnOptimalThresholds(dist_type);
             if (thresholds.has_value()) {
                 std::cout << "  " << distributionTypeToString(dist_type) << ":\n";
@@ -224,6 +283,10 @@ private:
 };
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     try {
         ThresholdLearningDemo demo;
         demo.runDemo();

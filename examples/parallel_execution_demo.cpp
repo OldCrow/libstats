@@ -21,6 +21,10 @@
 
 #include "../include/libstats.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;
     std::cout << title << std::endl;
@@ -225,6 +229,10 @@ void demonstrate_cache_awareness() {
 }
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     std::cout << "=== libstats Platform-Aware Parallel Execution Demo ===" << std::endl;
     std::cout << "This demonstration showcases adaptive parallel execution features" << std::endl;
     std::cout << "that automatically optimize for your specific hardware platform." << std::endl;

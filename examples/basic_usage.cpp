@@ -18,6 +18,9 @@
 #include <iomanip>
 #include <span>
 #include <chrono>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;
@@ -26,6 +29,9 @@ void print_separator(const std::string& title) {
 }
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     std::cout << "=== libstats v" << libstats::VERSION_STRING << " Basic Usage Guide ===" << std::endl;
     std::cout << "Comprehensive demonstration of statistical distribution operations\n" << std::endl;
     

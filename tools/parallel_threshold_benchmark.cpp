@@ -26,6 +26,12 @@
 #include "../include/distributions/exponential.h"
 #include "../include/core/performance_dispatcher.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 using namespace std::chrono;
 using namespace libstats;
 
@@ -404,6 +410,11 @@ private:
 };
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    // _setmode(_fileno(stdout), _O_U8TEXT); // Removed for std::cout compatibility
+#endif
+
     try {
         ParallelThresholdBenchmark benchmark;
         benchmark.runAllBenchmarks();

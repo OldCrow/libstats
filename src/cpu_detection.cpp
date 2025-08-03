@@ -383,12 +383,17 @@ namespace {
         safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
         if (eax >= 0x80000004) {
             char brand[49] = {0};
-            safe_cpuid(0x80000002, 0, eax, ebx, ecx, edx);
-            memcpy(brand, &eax, 16);
-            safe_cpuid(0x80000003, 0, eax, ebx, ecx, edx);
-            memcpy(brand + 16, &eax, 16);
-            safe_cpuid(0x80000004, 0, eax, ebx, ecx, edx);
-            memcpy(brand + 32, &eax, 16);
+            uint32_t regs[4] = {0, 0, 0, 0};
+            // Leaf 0x80000002
+            safe_cpuid(0x80000002, 0, regs[0], regs[1], regs[2], regs[3]);
+            memcpy(brand, regs, 16);
+            // Leaf 0x80000003
+            safe_cpuid(0x80000003, 0, regs[0], regs[1], regs[2], regs[3]);
+            memcpy(brand + 16, regs, 16);
+            // Leaf 0x80000004
+            safe_cpuid(0x80000004, 0, regs[0], regs[1], regs[2], regs[3]);
+            memcpy(brand + 32, regs, 16);
+            brand[48] = '\0';
             features.brand = brand;
         }
         

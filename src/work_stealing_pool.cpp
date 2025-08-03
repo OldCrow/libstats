@@ -369,12 +369,18 @@ void WorkStealingPool::optimizeCurrentThread([[maybe_unused]] int workerId, [[ma
     
 #elif defined(_WIN32)
     // On Windows, set thread affinity from within the thread
-    const DWORD_PTR mask = 1ULL << (workerId % GetActiveProcessorCount(ALL_PROCESSOR_GROUPS));
-    const DWORD_PTR result = SetThreadAffinityMask(GetCurrentThread(), mask);
+    DWORD cpuCount = 1;
+    #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600
+        cpuCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    #else
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        cpuCount = sysinfo.dwNumberOfProcessors;
+    #endif
+    DWORD_PTR mask = 1ULL << (workerId % cpuCount);
+    DWORD_PTR result = SetThreadAffinityMask(GetCurrentThread(), mask);
     if (result == 0) {
-        // Affinity setting failed, but continue without it
-        // This is not critical for correctness, only performance
-        std::cerr << "Warning: Failed to set thread affinity for CPU " << (workerId % GetActiveProcessorCount(ALL_PROCESSOR_GROUPS)) << std::endl;
+        std::cerr << "Warning: Failed to set thread affinity for CPU " << (workerId % cpuCount) << std::endl;
     }
     
 #else
@@ -401,12 +407,18 @@ void WorkStealingPool::setThreadAffinity([[maybe_unused]] std::thread& thread, [
     // This function doesn't perform any actions on macOS, but is kept for compatibility.
     
 #elif defined(_WIN32)
-    const DWORD_PTR mask = 1ULL << cpuId;
-    const DWORD_PTR result = SetThreadAffinityMask(thread.native_handle(), mask);
+    DWORD cpuCount = 1;
+    #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600
+        cpuCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    #else
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        cpuCount = sysinfo.dwNumberOfProcessors;
+    #endif
+    DWORD_PTR mask = 1ULL << (cpuId % cpuCount);
+    DWORD_PTR result = SetThreadAffinityMask(thread.native_handle(), mask);
     if (result == 0) {
-        // Affinity setting failed, but continue without it
-        // This is not critical for correctness, only performance
-        std::cerr << "Warning: Failed to set thread affinity for CPU " << cpuId << std::endl;
+        std::cerr << "Warning: Failed to set thread affinity for CPU " << (cpuId % cpuCount) << std::endl;
     }
     
 #else

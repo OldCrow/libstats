@@ -17,6 +17,12 @@
 #include "../include/core/performance_dispatcher.h"
 #include "../include/core/performance_history.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 class SimpleBenchmark {
 private:
     std::mt19937 rng_;
@@ -65,8 +71,17 @@ public:
                   << capabilities.simd_efficiency() << std::endl;
         
         // Test different data sizes
+        //
+        // NOTE: The set of data sizes below is intentionally diverse, including multiples of 2 and 5 at each order of magnitude.
+        // This is necessary to ensure that threshold learning works robustly across architectures (e.g., AVX2, AVX, SSE, ARM),
+        // since some architectures may select parallel strategies at smaller sizes, and a more varied set of sizes ensures
+        // both SIMD and parallel strategies are measured for threshold inference.
         std::vector<std::size_t> data_sizes = {
-            1000, 10000, 100000, 1000000, 10000000
+            1000, 2000, 5000,
+            10000, 20000, 50000,
+            100000, 200000, 500000,
+            1000000, 2000000, 5000000,
+            10000000
         };
         
         for (auto size : data_sizes) {
@@ -157,22 +172,30 @@ private:
                               double serial_time, double parallel_time) {
         // Map operation names to PerformanceDispatcher enums
         libstats::performance::DistributionType dist_type = libstats::performance::DistributionType::UNIFORM;  // Generic for parallel ops
-        
-        // Record serial strategy performance (simulated as SIMD since we're not doing true serial)
-        libstats::performance::PerformanceDispatcher::recordPerformance(
-            libstats::performance::Strategy::SIMD_BATCH, 
-            dist_type, 
-            data_size,
-            static_cast<uint64_t>(serial_time * 1000)  // Convert μs to ns
-        );
-        
-        // Record parallel strategy performance
-        libstats::performance::PerformanceDispatcher::recordPerformance(
-            libstats::performance::Strategy::PARALLEL_SIMD, 
-            dist_type, 
-            data_size,
-            static_cast<uint64_t>(parallel_time * 1000)  // Convert μs to ns
-        );
+        constexpr int samples_per_strategy = 7; // Must be >=5 for hasReliableData
+        for (int i = 0; i < samples_per_strategy; ++i) {
+            // Record serial strategy performance (true serial)
+            libstats::performance::PerformanceDispatcher::recordPerformance(
+                libstats::performance::Strategy::SCALAR, 
+                dist_type, 
+                data_size,
+                static_cast<uint64_t>(serial_time * 1000)  // Convert μs to ns
+            );
+            // Also record as SIMD_BATCH for compatibility with legacy logic
+            libstats::performance::PerformanceDispatcher::recordPerformance(
+                libstats::performance::Strategy::SIMD_BATCH, 
+                dist_type, 
+                data_size,
+                static_cast<uint64_t>(serial_time * 1000)  // Use serial time for SIMD_BATCH if no true SIMD
+            );
+            // Record parallel strategy performance
+            libstats::performance::PerformanceDispatcher::recordPerformance(
+                libstats::performance::Strategy::PARALLEL_SIMD, 
+                dist_type, 
+                data_size,
+                static_cast<uint64_t>(parallel_time * 1000)  // Convert μs to ns
+            );
+        }
     }
     
     void showPerformanceLearning() {
@@ -192,9 +215,15 @@ private:
             std::cout << "\nInsufficient data for threshold learning (need more varied workload sizes)" << std::endl;
         }
         
-        // Show strategy recommendations for key sizes
+        // Show strategy recommendations for all tested sizes
         std::cout << "\nStrategy Recommendations Based on Measurements:" << std::endl;
-        std::vector<size_t> test_sizes = {1000, 10000, 100000, 1000000};
+        std::vector<size_t> test_sizes = {
+            1000, 2000, 5000,
+            10000, 20000, 50000,
+            100000, 200000, 500000,
+            1000000, 2000000, 5000000,
+            10000000
+        };
         for (auto size : test_sizes) {
             auto recommendation = history.getBestStrategy(libstats::performance::DistributionType::UNIFORM, size);
             if (recommendation.has_sufficient_data) {
@@ -265,6 +294,11 @@ private:
 };
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    // _setmode(_fileno(stdout), _O_U8TEXT); // Removed for std::cout compatibility
+#endif
+
     SimpleBenchmark benchmark;
     
     try {

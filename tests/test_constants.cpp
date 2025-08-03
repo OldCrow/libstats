@@ -3,6 +3,9 @@
 #include <cassert>
 #include "../include/core/constants.h"
 #include "../include/platform/platform_constants.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 void test_math_constants() {
     using namespace libstats::constants::math;
@@ -286,6 +289,9 @@ void test_compile_time_validation() {
 }
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     std::cout << "Testing enhanced constants in constants.h..." << std::endl;
     
     test_math_constants();

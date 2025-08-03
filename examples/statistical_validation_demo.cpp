@@ -17,7 +17,14 @@
 #include <tuple>
 #include <random>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     try {
         std::cout << "=== libstats v0.7.0 Statistical Validation & Testing Demo ===" << std::endl;
         std::cout << "Comprehensive demonstration of advanced statistical validation techniques\n"

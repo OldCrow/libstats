@@ -4,9 +4,17 @@
 #include <thread>
 #include "../include/platform/benchmark.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace libstats;
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     std::cout << "=== Benchmark System Test ===\n\n";
     
     // Create a benchmark suite

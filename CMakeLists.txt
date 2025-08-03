@@ -96,6 +96,7 @@ elseif(WIN32)
     add_definitions(-DNOMINMAX)
     add_definitions(-D_USE_MATH_DEFINES)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    add_compile_definitions(_WIN32_WINNT=0x0600)
     
     # Find TBB and GTest using find_package (no Homebrew or pkg-config on Windows)
     find_package(TBB QUIET)

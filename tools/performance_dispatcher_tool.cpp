@@ -22,6 +22,12 @@
 #include "../include/core/performance_dispatcher.h"
 #include "../include/core/performance_history.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 using namespace libstats::performance;
 using namespace std::chrono;
 
@@ -255,6 +261,10 @@ private:
 };
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     try {
         PerformanceDispatcherTool tool;
         tool.run();

@@ -12,6 +12,12 @@
 #include "../include/libstats.h"
 #include "../include/core/performance_dispatcher.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 using namespace std::chrono;
 
 class SystemCapabilitiesInspector {
@@ -147,7 +153,9 @@ private:
         
         for (auto size : test_sizes) {
             for (auto dist : dist_types) {
-                for (auto complexity : complexities) {
+                if (!complexities.empty()) {
+                    auto complexity = complexities.front();
+                    
                     libstats::performance::PerformanceDispatcher dispatcher;
                     auto strategy = dispatcher.selectOptimalStrategy(size, dist, complexity, capabilities);
                     
@@ -155,9 +163,6 @@ private:
                               << std::setw(15) << distributionTypeToString(dist)
                               << std::setw(15) << complexityToString(complexity)
                               << strategyToString(strategy) << "\n";
-                    
-                    // Only show first complexity for brevity
-                    break;
                 }
             }
         }
@@ -198,6 +203,10 @@ private:
 };
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     try {
         SystemCapabilitiesInspector inspector;
         inspector.runInspection();

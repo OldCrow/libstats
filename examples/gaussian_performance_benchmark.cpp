@@ -26,9 +26,17 @@
 #include <random>
 #include <iomanip>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace libstats;
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     std::cout << "\n🔬 === GAUSSIAN DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===\n";
     std::cout << "\n📊 The Gaussian (Normal) distribution is one of the most computationally\n";
     std::cout << "   important distributions in statistics and scientific computing.\n";
@@ -369,7 +377,7 @@ int main() {
     std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_1k_scalar << " elements/sec" << std::endl;
     std::cout << "├─ Parallel PDF:        " << std::scientific << batch_pdf_1k_parallel << " elements/sec" << std::endl;
     
-    std::cout << "\nBATCH OPERATION PERFORMANCE (100K Elements):" << std::endl;
+    std::cout << "\nBATCH OPERATION PERFORMANCE (100K ELEMENTS):" << std::endl;
     std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_100k_scalar << " elements/sec" << std::endl;
     std::cout << "├─ Parallel PDF:        " << std::scientific << batch_pdf_100k_parallel << " elements/sec" << std::endl;
     std::cout << "├─ Cache-Aware PDF:     " << std::scientific << cache_aware_ops_per_sec << " elements/sec" << std::endl;

@@ -21,6 +21,12 @@
 
 #include "../include/libstats.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 // Global volatile to prevent optimization across function boundaries
 volatile double global_sink = 0.0;
 
@@ -427,6 +433,10 @@ public:
 };
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     std::cout << "=== libstats Grain Size Optimization Tool ===" << std::endl;
     std::cout << "This tool will benchmark different grain sizes to find optimal values" << std::endl;
     std::cout << "for your specific hardware configuration." << std::endl;
