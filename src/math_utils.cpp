@@ -945,5 +945,134 @@ double inverse_f_cdf(double p, double df1, double df2) noexcept {
     return x;
 }
 
+double gamma_cdf(double x, double shape, double scale) noexcept {
+    // Gamma distribution CDF using regularized incomplete gamma function
+    if (x < 0.0 || shape <= 0.0 || scale <= 0.0) {
+        return 0.0;
+    }
+    
+    if (x == 0.0) {
+        return 0.0;
+    }
+    
+    // Gamma CDF: F(x; α, β) = P(α, x/β) where α=shape, β=scale
+    // P(a,x) is the regularized incomplete gamma function
+    return gamma_p(shape, x / scale);
+}
+
+double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
+    // Inverse gamma distribution CDF using iterative methods
+    if (p < 0.0 || p > 1.0 || shape <= 0.0 || scale <= 0.0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    
+    if (p == 0.0) {
+        return 0.0;
+    }
+    
+    if (p == 1.0) {
+        return std::numeric_limits<double>::infinity();
+    }
+    
+    // Initial guess using approximation
+    // For gamma distribution, mean = shape * scale, variance = shape * scale^2
+    double mean = shape * scale;
+    double variance = shape * scale * scale;
+    
+    // Wilson-Hilferty approximation for initial guess
+    double h = 2.0 / (9.0 * shape);
+    double z = inverse_normal_cdf(p);
+    double initial_guess = mean * std::pow(1.0 - h + z * std::sqrt(h), 3);
+    
+    // Ensure initial guess is positive
+    if (initial_guess <= 0.0) {
+        initial_guess = mean; // Use mean as fallback
+    }
+    
+    // For extreme probabilities, use bisection method for stability
+    if (p < 0.1 || p > 0.9) {
+        double low = 0.0;
+        double high = mean + 10.0 * std::sqrt(variance); // Conservative upper bound
+        const double tolerance = constants::precision::DEFAULT_TOLERANCE;
+        const int max_iterations = 100;
+        
+        for (int i = 0; i < max_iterations; ++i) {
+            double mid = (low + high) * 0.5;
+            double cdf_val = gamma_cdf(mid, shape, scale);
+            
+            if (std::abs(cdf_val - p) < tolerance) {
+                return mid;
+            }
+            
+            if (cdf_val < p) {
+                low = mid;
+            } else {
+                high = mid;
+            }
+            
+            if (high - low < tolerance) {
+                return (low + high) * 0.5;
+            }
+        }
+        return (low + high) * 0.5;
+    }
+    
+    // Newton-Raphson iteration for moderate probabilities
+    double x = initial_guess;
+    const int max_iterations = 100;
+    const double tolerance = constants::precision::DEFAULT_TOLERANCE;
+    
+    for (int i = 0; i < max_iterations; ++i) {
+        double cdf_val = gamma_cdf(x, shape, scale);
+        double error = cdf_val - p;
+        
+        if (std::abs(error) < tolerance) {
+            break;
+        }
+        
+        // Calculate derivative (PDF)
+        // Gamma PDF: f(x; α, β) = (1/β^α Γ(α)) * x^(α-1) * e^(-x/β)
+        double log_pdf = (shape - 1.0) * std::log(x) - x / scale - 
+                        shape * std::log(scale) - lgamma(shape);
+        double pdf_val = std::exp(log_pdf);
+        
+        if (pdf_val <= 0.0) {
+            break; // Avoid division by zero
+        }
+        
+        double delta = error / pdf_val;
+        x = std::max(constants::precision::ZERO, x - delta); // Ensure x stays positive
+        
+        // Check for divergence and fall back to bisection if needed
+        if (x > mean + 10.0 * std::sqrt(variance) || !std::isfinite(x)) {
+            // Fall back to bisection method
+            double low = 0.0;
+            double high = mean + 10.0 * std::sqrt(variance);
+            
+            for (int j = 0; j < max_iterations; ++j) {
+                double mid = (low + high) * 0.5;
+                double mid_cdf = gamma_cdf(mid, shape, scale);
+                
+                if (std::abs(mid_cdf - p) < tolerance) {
+                    return mid;
+                }
+                
+                if (mid_cdf < p) {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+                
+                if (high - low < tolerance) {
+                    return (low + high) * 0.5;
+                }
+            }
+            return (low + high) * 0.5;
+        }
+    }
+    
+    return x;
+}
+
 } // namespace math
 } // namespace libstats

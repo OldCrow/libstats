@@ -127,8 +127,1075 @@ namespace libstats {
  * @since 1.0.0
  */
 class GammaDistribution : public DistributionBase
-{   
+{
+
+public:
+    //==========================================================================
+    // CONSTRUCTORS AND DESTRUCTOR
+    //==========================================================================
+    
+    /**
+     * @brief Constructs a Gamma distribution with given shape and rate parameters.
+     * 
+     * @param alpha Shape parameter α (must be positive, default: 1.0)
+     * @param beta Rate parameter β (must be positive, default: 1.0)
+     * @throws std::invalid_argument if parameters are invalid
+     * 
+     * Implementation in .cpp: Complex validation and cache initialization logic
+     */
+    explicit GammaDistribution(double alpha = constants::math::ONE, 
+                              double beta = constants::math::ONE);
+    
+    /**
+     * @brief Thread-safe copy constructor
+     * 
+     * Implementation in .cpp: Complex thread-safe copying with lock management,
+     * parameter validation, and efficient cache value copying
+     */
+    GammaDistribution(const GammaDistribution& other);
+    
+    /**
+     * @brief Copy assignment operator
+     * 
+     * Implementation in .cpp: Complex thread-safe assignment with deadlock prevention,
+     * atomic lock acquisition using std::lock, and parameter validation
+     */
+    GammaDistribution& operator=(const GammaDistribution& other);
+    
+    /**
+     * @brief Move constructor (DEFENSIVE THREAD SAFETY)
+     * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
+     * @warning NOT noexcept due to potential lock acquisition exceptions
+     */
+    GammaDistribution(GammaDistribution&& other);
+    
+    /**
+     * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
+     * Implementation in .cpp: Thread-safe move with deadlock prevention
+     * @warning NOT noexcept due to potential lock acquisition exceptions
+     */
+    GammaDistribution& operator=(GammaDistribution&& other);
+
+    /**
+     * @brief Destructor - explicitly defaulted to satisfy Rule of Five
+     * Implementation inline: Trivial destruction, kept for performance
+     * 
+     * Note: C++20 Best Practice - Rule of Five uses complexity-based placement:
+     * - Simple operations (destructor) stay inline for performance
+     * - Complex operations (copy/move) moved to .cpp for maintainability
+     */
+    ~GammaDistribution() override = default;
+    
+    //==========================================================================
+    // SAFE FACTORY METHODS (Exception-free construction)
+    //==========================================================================
+    
+    /**
+     * @brief Safely create a Gamma distribution without throwing exceptions
+     * 
+     * This factory method provides exception-free construction to work around
+     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
+     * exceptions thrown from the library cause segfaults during unwinding.
+     * 
+     * @param alpha Shape parameter α (must be positive)
+     * @param beta Rate parameter β (must be positive)
+     * @return Result containing either a valid GammaDistribution or error info
+     * 
+     * @par Usage Example:
+     * @code
+     * auto result = GammaDistribution::create(2.0, 0.5);
+     * if (result.isOk()) {
+     *     auto distribution = std::move(result.value);
+     *     // Use distribution safely...
+     * } else {
+     *     std::cout << "Error: " << result.message << std::endl;
+     * }
+     * @endcode
+     */
+    [[nodiscard]] static Result<GammaDistribution> create(double alpha = 1.0, double beta = 1.0) noexcept {
+        auto validation = validateGammaParameters(alpha, beta);
+        if (validation.isError()) {
+            return Result<GammaDistribution>::makeError(validation.error_code, validation.message);
+        }
+        
+        // Use private factory to bypass validation
+        return Result<GammaDistribution>::ok(createUnchecked(alpha, beta));
+    }
+    
+    /**
+     * @brief Safely create a Gamma distribution using shape-scale parameterization
+     * 
+     * @param alpha Shape parameter α (must be positive)
+     * @param scale Scale parameter θ = 1/β (must be positive)
+     * @return Result containing either a valid GammaDistribution or error info
+     */
+    [[nodiscard]] static Result<GammaDistribution> createWithScale(double alpha, double scale) noexcept {
+        if (scale <= 0.0) {
+            return Result<GammaDistribution>::makeError(ValidationError::InvalidParameter, 
+                                                        "Scale parameter must be positive");
+        }
+        return create(alpha, 1.0 / scale);
+    }
+    
+    //==========================================================================
+    // PARAMETER GETTERS AND SETTERS
+    //==========================================================================
+
+    /**
+     * Gets the shape parameter α.
+     * Thread-safe: acquires shared lock to protect alpha_
+     *
+     * @return Current shape parameter value
+     */
+    [[nodiscard]] double getAlpha() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return alpha_;
+    }
+
+    /**
+     * @brief Fast lock-free atomic getter for shape parameter α
+     * 
+     * Provides high-performance access to the shape parameter using atomic operations
+     * for lock-free fast path. Falls back to locked getter if atomic parameters
+     * are not valid (e.g., during parameter updates).
+     * 
+     * @return Current shape parameter value
+     * 
+     * @note This method is optimized for high-frequency access patterns where
+     *       the distribution parameters are relatively stable. It uses atomic
+     *       loads with acquire semantics for proper memory synchronization.
+     * 
+     * @par Performance Characteristics:
+     * - Lock-free fast path: ~2-5ns per call
+     * - Fallback to locked path: ~50-100ns per call
+     * - Thread-safe without blocking other readers
+     * 
+     * @par Usage Example:
+     * @code
+     * // High-frequency parameter access in performance-critical loops
+     * for (size_t i = 0; i < large_dataset.size(); ++i) {
+     *     double alpha = dist.getAlphaAtomic();  // Lock-free access
+     *     results[i] = compute_something(data[i], alpha);
+     * }
+     * @endcode
+     */
+    [[nodiscard]] double getAlphaAtomic() const noexcept {
+        // Fast path: check if atomic parameters are valid
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            // Lock-free atomic access with proper memory ordering
+            return atomicAlpha_.load(std::memory_order_acquire);
+        }
+        
+        // Fallback: use traditional locked getter if atomic parameters are stale
+        return getAlpha();
+    }
+    
+    /**
+     * Gets the rate parameter β.
+     * Thread-safe: acquires shared lock to protect beta_
+     *
+     * @return Current rate parameter value
+     */
+    [[nodiscard]] double getBeta() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return beta_;
+    }
+
+    /**
+     * @brief Fast lock-free atomic getter for rate parameter β
+     * 
+     * Provides high-performance access to the rate parameter using atomic operations
+     * for lock-free fast path. Falls back to locked getter if atomic parameters
+     * are not valid (e.g., during parameter updates).
+     * 
+     * @return Current rate parameter value
+     * 
+     * @note This method is optimized for high-frequency access patterns where
+     *       the distribution parameters are relatively stable. It uses atomic
+     *       loads with acquire semantics for proper memory synchronization.
+     * 
+     * @par Performance Characteristics:
+     * - Lock-free fast path: ~2-5ns per call
+     * - Fallback to locked path: ~50-100ns per call
+     * - Thread-safe without blocking other readers
+     * 
+     * @par Usage Example:
+     * @code
+     * // High-frequency parameter access in performance-critical loops
+     * for (size_t i = 0; i < large_dataset.size(); ++i) {
+     *     double beta = dist.getBetaAtomic();  // Lock-free access
+     *     results[i] = compute_something(data[i], beta);
+     * }
+     * @endcode
+     */
+    [[nodiscard]] double getBetaAtomic() const noexcept {
+        // Fast path: check if atomic parameters are valid
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            // Lock-free atomic access with proper memory ordering
+            return atomicBeta_.load(std::memory_order_acquire);
+        }
+        
+        // Fallback: use traditional locked getter if atomic parameters are stale
+        return getBeta();
+    }
+    
+    /**
+     * Gets the scale parameter θ = 1/β.
+     * Uses cached value to eliminate division.
+     *
+     * @return Scale parameter value
+     */
+    [[nodiscard]] double getScale() const noexcept;
+    
+    /**
+     * Gets the mean of the distribution.
+     * For Gamma distribution, mean = α/β = αθ
+     * Uses cached value to eliminate division.
+     *
+     * @return Mean value
+     */
+    [[nodiscard]] double getMean() const noexcept override;
+    
+    /**
+     * Gets the variance of the distribution.
+     * For Gamma distribution, variance = α/β² = αθ²
+     * Uses cached value to eliminate divisions and multiplications.
+     *
+     * @return Variance value
+     */
+    [[nodiscard]] double getVariance() const noexcept override;
+    
+    /**
+     * @brief Gets the skewness of the distribution.
+     * For Gamma distribution, skewness = 2/√α
+     * Uses cached value to eliminate square root computation.
+     *
+     * @return Skewness value (2/√α)
+     */
+    [[nodiscard]] double getSkewness() const noexcept override;
+    
+    /**
+     * @brief Gets the kurtosis of the distribution.
+     * For Gamma distribution, excess kurtosis = 6/α
+     * Uses direct computation for efficiency.
+     *
+     * @return Excess kurtosis value (6/α)
+     */
+    [[nodiscard]] double getKurtosis() const noexcept override;
+    
+    /**
+     * @brief Gets the number of parameters for this distribution.
+     * For Gamma distribution, there are 2 parameters: alpha (shape) and beta (rate)
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Number of parameters (always 2)
+     */
+    [[nodiscard]] int getNumParameters() const noexcept override {
+        return 2;
+    }
+    
+    /**
+     * @brief Gets the distribution name.
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Distribution name
+     */
+    [[nodiscard]] std::string getDistributionName() const override {
+        return "Gamma";
+    }
+    
+    /**
+     * @brief Checks if the distribution is discrete.
+     * For Gamma distribution, it's continuous
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return false (always continuous)
+     */
+    [[nodiscard]] bool isDiscrete() const noexcept override {
+        return false;
+    }
+    
+    /**
+     * @brief Gets the lower bound of the distribution support.
+     * For Gamma distribution, support is [0, ∞)
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Lower bound (0)
+     */
+    [[nodiscard]] double getSupportLowerBound() const noexcept override {
+        return 0.0;
+    }
+    
+    /**
+     * @brief Gets the upper bound of the distribution support.
+     * For Gamma distribution, support is [0, ∞)
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Upper bound (+infinity)
+     */
+    [[nodiscard]] double getSupportUpperBound() const noexcept override {
+        return std::numeric_limits<double>::infinity();
+    }
+    
+    /**
+     * Gets the mode of the distribution.
+     * For Gamma distribution, mode = (α-1)/β = (α-1)θ for α ≥ 1, 0 for α < 1
+     *
+     * @return Mode value
+     */
+    [[nodiscard]] double getMode() const noexcept;
+    
+    //==========================================================================
+    // RESULT-BASED SETTERS
+    //==========================================================================
+    
+    /**
+     * @brief Safely set the shape parameter α without throwing exceptions (Result-based API).
+     *
+     * @param alpha New shape parameter (must be positive)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetAlpha(double alpha) noexcept;
+
+    /**
+     * @brief Safely set the rate parameter β without throwing exceptions (Result-based API).
+     *
+     * @param beta New rate parameter (must be positive)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetBeta(double beta) noexcept;
+    
+    /**
+     * @brief Safely try to set all parameters without throwing exceptions
+     *
+     * @param alpha New shape parameter
+     * @param beta New rate parameter
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetParameters(double alpha, double beta) noexcept;
+
+    /**
+     * @brief Check if current parameters are valid
+     * @return VoidResult indicating validity
+     */
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return validateGammaParameters(alpha_, beta_);
+    }
+
+    //==========================================================================
+    // CORE PROBABILITY METHODS
+    //==========================================================================
+
+    /**
+     * Computes the probability density function for the Gamma distribution.
+     * 
+     * For Gamma distribution: f(x) = (β^α / Γ(α)) * x^(α-1) * e^(-βx) for x ≥ 0
+     * Uses log-space computation for numerical stability.
+     * 
+     * @param x The value at which to evaluate the PDF
+     * @return Probability density for the given value, 0 for x < 0
+     */
+    [[nodiscard]] double getProbability(double x) const override;
+
+    /**
+     * Computes the logarithm of the probability density function for numerical stability.
+     * 
+     * For Gamma distribution: log(f(x)) = α*log(β) - log(Γ(α)) + (α-1)*log(x) - βx for x > 0
+     * 
+     * @param x The value at which to evaluate the log-PDF
+     * @return Natural logarithm of the probability density, or -∞ for x ≤ 0
+     */
+    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+
+    /**
+     * Evaluates the CDF at x using the regularized incomplete gamma function.
+     * 
+     * For Gamma distribution: F(x) = γ(α, βx) / Γ(α) where γ is the lower incomplete gamma function
+     * 
+     * @param x The value at which to evaluate the CDF
+     * @return Cumulative probability P(X ≤ x)
+     */
+    [[nodiscard]] double getCumulativeProbability(double x) const override;
+    
+    /**
+     * @brief Computes the quantile function (inverse CDF)
+     * 
+     * For Gamma distribution: F^(-1)(p) computed using Newton-Raphson iteration
+     * 
+     * @param p Probability value in [0,1]
+     * @return x such that P(X ≤ x) = p
+     * @throws std::invalid_argument if p not in [0,1]
+     */
+    [[nodiscard]] double getQuantile(double p) const override;
+    
+    /**
+     * @brief Generate single random sample from distribution
+     * 
+     * Uses Marsaglia-Tsang squeeze method for α ≥ 1, Ahrens-Dieter for α < 1
+     * 
+     * @param rng Random number generator
+     * @return Single random sample
+     */
+    [[nodiscard]] double sample(std::mt19937& rng) const override;
+    
+    /**
+     * @brief Generate multiple random samples from distribution
+     * Optimized batch sampling using appropriate algorithm for λ size
+     *
+     * @param rng Random number generator
+     * @param n Number of samples to generate
+     * @return Vector of random samples (integer values as doubles)
+     */
+    [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
+
+    //==========================================================================
+    // DISTRIBUTION MANAGEMENT
+    //==========================================================================
+
+    /**
+     * Fits the distribution parameters to the given data using maximum likelihood estimation.
+     * For Gamma distribution, uses method of moments as initial guess, then Newton-Raphson.
+     * 
+     * @param values Vector of observed positive data
+     * @throws std::invalid_argument if values is empty or contains non-positive values
+     */
+    void fit(const std::vector<double>& values) override;
+
+    /**
+     * Resets the distribution to default parameters (α = 1.0, β = 1.0).
+     * This corresponds to the standard exponential distribution.
+     */
+    void reset() noexcept override;
+
+    /**
+     * Returns a string representation of the distribution.
+     * 
+     * @return String describing the distribution parameters
+     */
+    std::string toString() const override;
+    
+    //==========================================================================
+    // ADVANCED STATISTICAL METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Confidence interval for shape parameter α
+     *
+     * Computes confidence interval for the shape parameter using profile likelihood method.
+     * Uses iterative root-finding to determine bounds where log-likelihood drops by χ²(1)/2.
+     *
+     * @param data Vector of observed positive data
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @return Pair of (lower_bound, upper_bound) for α
+     * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
+     */
+    [[nodiscard]] static std::pair<double, double> confidenceIntervalShape(
+        const std::vector<double>& data, double confidence_level = 0.95);
+    
+    /**
+     * @brief Confidence interval for rate parameter β
+     *
+     * Computes confidence interval for the rate parameter using profile likelihood method.
+     * Uses iterative root-finding to determine bounds where log-likelihood drops by χ²(1)/2.
+     *
+     * @param data Vector of observed positive data
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @return Pair of (lower_bound, upper_bound) for β
+     * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
+     */
+    [[nodiscard]] static std::pair<double, double> confidenceIntervalRate(
+        const std::vector<double>& data, double confidence_level = 0.95);
+    
+    /**
+     * @brief Likelihood ratio test for Gamma parameters
+     *
+     * Tests H0: (α, β) = (α₀, β₀) vs H1: (α, β) ≠ (α₀, β₀) using likelihood ratio statistic.
+     * The test statistic -2ln(Λ) follows χ²(2) distribution under H0.
+     *
+     * @param data Vector of observed positive data
+     * @param null_shape Null hypothesis value for α
+     * @param null_rate Null hypothesis value for β
+     * @param significance_level Significance level for test
+     * @return Tuple of (test_statistic, p_value, reject_null)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
+        const std::vector<double>& data, double null_shape, double null_rate,
+        double significance_level = 0.05);
+    
+    /**
+     * @brief Bayesian estimation with conjugate priors
+     *
+     * Uses conjugate priors: α ~ Gamma(α_α, β_α) and β ~ Gamma(α_β, β_β).
+     * Returns posterior parameters for both shape and rate parameters.
+     * Note: Full conjugacy requires more complex prior structure.
+     *
+     * @param data Vector of observed positive data
+     * @param prior_shape_shape Prior shape for α parameter (default: 1.0)
+     * @param prior_shape_rate Prior rate for α parameter (default: 1.0)
+     * @param prior_rate_shape Prior shape for β parameter (default: 1.0)
+     * @param prior_rate_rate Prior rate for β parameter (default: 1.0)
+     * @return Tuple of (posterior_shape_shape, posterior_shape_rate, posterior_rate_shape, posterior_rate_rate)
+     */
+    [[nodiscard]] static std::tuple<double, double, double, double> bayesianEstimation(
+        const std::vector<double>& data, double prior_shape_shape = 1.0, double prior_shape_rate = 1.0,
+        double prior_rate_shape = 1.0, double prior_rate_rate = 1.0);
+    
+    /**
+     * @brief Robust parameter estimation using M-estimators
+     *
+     * Provides robust estimation of Gamma parameters that is less sensitive to outliers.
+     * Uses trimmed/winsorized data or quantile-based methods.
+     *
+     * @param data Vector of observed positive data
+     * @param estimator_type Type of robust estimator ("winsorized", "trimmed", "quantile")
+     * @param trim_proportion Proportion to trim/winsorize (default: 0.1)
+     * @return Pair of (robust_shape_estimate, robust_rate_estimate)
+     */
+    [[nodiscard]] static std::pair<double, double> robustEstimation(
+        const std::vector<double>& data, const std::string& estimator_type = "winsorized",
+        double trim_proportion = 0.1);
+    
+    /**
+     * @brief Method of moments estimation
+     *
+     * Estimates Gamma parameters by matching sample moments with theoretical moments:
+     * α = (sample_mean)² / sample_variance
+     * β = sample_mean / sample_variance
+     *
+     * @param data Vector of observed positive data
+     * @return Pair of (shape_estimate, rate_estimate)
+     * @throws std::invalid_argument if data is empty or has zero variance
+     */
+    [[nodiscard]] static std::pair<double, double> methodOfMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Bayesian credible interval from posterior distributions
+     *
+     * Calculates Bayesian credible intervals for shape and rate parameters
+     * from their posterior distributions after observing data.
+     *
+     * @param data Vector of observed positive data
+     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
+     * @param prior_shape_shape Prior shape for α parameter (default: 1.0)
+     * @param prior_shape_rate Prior rate for α parameter (default: 1.0)
+     * @param prior_rate_shape Prior shape for β parameter (default: 1.0)
+     * @param prior_rate_rate Prior rate for β parameter (default: 1.0)
+     * @return Tuple of ((shape_CI_lower, shape_CI_upper), (rate_CI_lower, rate_CI_upper))
+     */
+    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>> bayesianCredibleInterval(
+        const std::vector<double>& data, double credibility_level = 0.95,
+        double prior_shape_shape = 1.0, double prior_shape_rate = 1.0,
+        double prior_rate_shape = 1.0, double prior_rate_rate = 1.0);
+    
+    /**
+     * @brief L-moments parameter estimation
+     *
+     * Uses L-moments (linear combinations of order statistics) for robust
+     * parameter estimation. More robust than ordinary moments for extreme distributions.
+     *
+     * @param data Vector of observed positive data
+     * @return Pair of (shape_estimate, rate_estimate)
+     */
+    [[nodiscard]] static std::pair<double, double> lMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Normal approximation validity test for large shape parameter
+     *
+     * Tests whether the Gamma distribution can be well-approximated by a normal distribution.
+     * For large α, Gamma(α,β) ≈ N(α/β, α/β²). Tests goodness of this approximation.
+     *
+     * @param data Vector of observed positive data  
+     * @param significance_level Significance level for test
+     * @return Tuple of (test_statistic, p_value, approximation_is_valid)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> normalApproximationTest(
+        const std::vector<double>& data, double significance_level = 0.05);
+    
+    
+    //==========================================================================
+    // GOODNESS-OF-FIT TESTS
+    //==========================================================================
+    
+    /**
+     * @brief Kolmogorov-Smirnov goodness-of-fit test
+     *
+     * Tests the null hypothesis that data follows the specified Gamma distribution.
+     * Compares empirical CDF with theoretical Gamma CDF using KS statistic.
+     *
+     * @param data Sample data to test
+     * @param distribution Theoretical Gamma distribution to test against
+     * @param significance_level Significance level (default: 0.05)
+     * @return Tuple of (KS_statistic, p_value, reject_null)
+     * @note Uses asymptotic p-value approximation for large samples
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+        const std::vector<double>& data, const GammaDistribution& distribution,
+        double significance_level = 0.05);
+    
+    /**
+     * @brief Anderson-Darling goodness-of-fit test
+     *
+     * Tests the null hypothesis that data follows the specified Gamma distribution.
+     * More sensitive to deviations in the tails than KS test, especially effective
+     * for detecting departures from the Gamma family.
+     *
+     * @param data Sample data to test
+     * @param distribution Theoretical Gamma distribution to test against
+     * @param significance_level Significance level (default: 0.05)
+     * @return Tuple of (AD_statistic, p_value, reject_null)
+     * @note Uses asymptotic p-value approximation for Gamma distributions
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> andersonDarlingTest(
+        const std::vector<double>& data, const GammaDistribution& distribution,
+        double significance_level = 0.05);
+    
+    
+    //==========================================================================
+    // CROSS-VALIDATION METHODS
+    //==========================================================================
+    
+    /**
+     * @brief K-fold cross-validation for parameter estimation
+     *
+     * Performs k-fold cross-validation to assess parameter estimation quality
+     * and model stability. Splits data into k folds, trains on k-1 folds,
+     * and validates on the remaining fold. Useful for assessing overfitting
+     * and parameter estimation robustness.
+     *
+     * @param data Sample data for cross-validation
+     * @param k Number of folds (default: 5)
+     * @param random_seed Seed for random fold assignment (default: 42)
+     * @return Vector of k validation results: (log_likelihood, shape_error, rate_error)
+     *         where shape_error and rate_error are squared errors from true parameters
+     * @throws std::invalid_argument if data is empty, k < 2, or k > data.size()
+     */
+    [[nodiscard]] static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
+        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
+    
+    /**
+     * @brief Leave-one-out cross-validation for parameter estimation
+     *
+     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
+     * estimation quality. For each data point, trains on all other points
+     * and validates on the left-out point. Provides nearly unbiased estimate
+     * of model performance but is computationally expensive.
+     *
+     * @param data Sample data for cross-validation
+     * @return Tuple of (mean_log_likelihood, variance_log_likelihood, total_computation_time_ms)
+     * @throws std::invalid_argument if data size < 3 (insufficient for meaningful LOOCV)
+     */
+    [[nodiscard]] static std::tuple<double, double, double> leaveOneOutCrossValidation(
+        const std::vector<double>& data);
+    
+    
+    //==========================================================================
+    // INFORMATION CRITERIA
+    //==========================================================================
+    
+    /**
+     * @brief Model comparison using information criteria
+     *
+     * Computes various information criteria (AIC, BIC, AICc) for model selection.
+     * Lower values indicate better model fit while penalizing complexity.
+     *
+     * @param data Sample data used for fitting
+     * @param fitted_distribution The fitted Gamma distribution
+     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
+     */
+    [[nodiscard]] static std::tuple<double, double, double, double> computeInformationCriteria(
+        const std::vector<double>& data, const GammaDistribution& fitted_distribution);
+    
+    //==========================================================================
+    // BOOTSTRAP METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     *
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the distribution parameters (shape α and rate β).
+     *
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Tuple of ((shape_CI_lower, shape_CI_upper), (rate_CI_lower, rate_CI_upper))
+     */
+    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data, double confidence_level = 0.95,
+        int n_bootstrap = 1000, unsigned int random_seed = 42);
+    
+    
+    
+    //==========================================================================
+    // GAMMA-SPECIFIC UTILITY METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Check if this is an exponential distribution (α = 1)
+     *
+     * @return true if α = 1 within tolerance
+     */
+    [[nodiscard]] bool isExponentialDistribution() const noexcept;
+    
+    /**
+     * @brief Check if this is a chi-squared distribution (β = 0.5)
+     *
+     * @return true if β = 0.5 within tolerance
+     */
+    [[nodiscard]] bool isChiSquaredDistribution() const noexcept;
+    
+    /**
+     * @brief Get the degrees of freedom if this is a chi-squared distribution
+     *
+     * @return 2α if β = 0.5, otherwise throws exception
+     * @throws std::logic_error if not a chi-squared distribution
+     */
+    [[nodiscard]] double getDegreesOfFreedom() const;
+    
+    /**
+     * @brief Compute the entropy of the distribution
+     *
+     * H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α)
+     *
+     * @return Entropy value
+     */
+    [[nodiscard]] double getEntropy() const override;
+    
+    /**
+     * @brief Check if the distribution is suitable for normal approximation
+     *
+     * Returns true if α is large enough (typically α > 100) for normal approximation
+     *
+     * @return true if normal approximation is accurate
+     */
+    [[nodiscard]] bool canUseNormalApproximation() const noexcept;
+    
+    /**
+     * @brief Create a gamma distribution from mean and variance
+     *
+     * Uses method of moments: α = mean²/variance, β = mean/variance
+     *
+     * @param mean Desired mean (must be positive)
+     * @param variance Desired variance (must be positive)
+     * @return Result containing GammaDistribution or error
+     */
+    [[nodiscard]] static Result<GammaDistribution> createFromMoments(double mean, double variance) noexcept;
+    
+    //==========================================================================
+    // SIMD BATCH OPERATIONS
+    //==========================================================================
+    
+    /**
+     * Batch computation of probability densities using SIMD optimization.
+     * Processes multiple values simultaneously for improved performance.
+     * 
+     * @param values Input array of values to evaluate
+     * @param results Output array for probability densities (must be same size as values)
+     * @param count Number of values to process
+     * @note This method is optimized for large batch sizes where SIMD overhead is justified
+     */
+    void getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
+    
+    /**
+     * Batch computation of log probability densities using SIMD optimization.
+     * Processes multiple values simultaneously for improved performance.
+     * 
+     * @param values Input array of values to evaluate
+     * @param results Output array for log probability densities (must be same size as values)
+     * @param count Number of values to process
+     * @note This method is optimized for large batch sizes where SIMD overhead is justified
+     */
+    void getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
+    
+    /**
+     * SIMD-optimized batch cumulative probability calculation
+     * Computes CDF for multiple values simultaneously using vectorized operations
+     * @param values Array of input values
+     * @param results Array to store cumulative probability results (must be pre-allocated)
+     * @param count Number of values to process
+     * @warning Arrays must be aligned to SIMD_ALIGNMENT for optimal performance
+     */
+    void getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const;
+    
+    /**
+     * Ultra-high performance lock-free batch operations
+     * These methods assume cache is valid and skip all locking - use with extreme care
+     * @warning Only call when you can guarantee cache validity and thread safety
+     */
+    void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    void getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    
+    //==========================================================================
+    // THREAD POOL PARALLEL BATCH OPERATIONS
+    //==========================================================================
+    
+    /**
+     * Advanced parallel batch probability calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * Combines SIMD vectorization with multi-core parallelism for maximum performance
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
+    
+    /**
+     * Advanced parallel batch log probability calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept;
+    
+    /**
+     * Advanced parallel batch CDF calculation using ParallelUtils::parallelFor
+     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
+    
+    /**
+     * Work-stealing parallel batch probability calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                        WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                      cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    /**
+     * Work-stealing parallel batch log probability calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                           WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch log probability processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                         cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    /**
+     * Work-stealing parallel batch CDF calculation for heavy computational loads
+     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
+     * Optimal for large datasets where work distribution may be irregular
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param pool Reference to WorkStealingPool for load balancing
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
+                                                  WorkStealingPool& pool) const;
+    
+    /**
+     * Cache-aware batch CDF processing using adaptive cache management
+     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
+     * Automatically determines optimal batch sizes based on cache behavior
+     * @param values C++20 span of input values for type-safe array access
+     * @param results C++20 span of output results (must be same size as values)
+     * @param cache_manager Reference to adaptive cache manager
+     * @throws std::invalid_argument if span sizes don't match
+     */
+    void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
+                                                cache::AdaptiveCache<std::string, double>& cache_manager) const;
+    
+    //==========================================================================
+    // SMART AUTO-DISPATCH BATCH OPERATIONS (C++20 Simplified API)
+    //==========================================================================
+    
+    /**
+     * @brief Smart auto-dispatch batch probability calculation with performance hints
+     * 
+     * Automatically selects the optimal execution strategy (SCALAR, SIMD, PARALLEL, etc.)
+     * based on batch size, system capabilities, and user hints. Provides a unified
+     * interface that adapts to different hardware and workload characteristics.
+     * 
+     * @param values Input values as C++20 span for type safety
+     * @param results Output results as C++20 span (must be same size as values)
+     * @param hint Performance optimization hints (default: AUTO selection)
+     * 
+     * @throws std::invalid_argument if spans have different sizes
+     */
+    void getProbability(std::span<const double> values, std::span<double> results,
+                       const performance::PerformanceHint& hint = {}) const;
+    
+    /**
+     * @brief Smart auto-dispatch batch log probability calculation with performance hints
+     * 
+     * Automatically selects the optimal execution strategy for log PDF computation
+     * based on batch size, system capabilities, and user performance hints.
+     * 
+     * @param values Input values as C++20 span for type safety
+     * @param results Output log probability results as C++20 span
+     * @param hint Performance optimization hints (default: AUTO selection)
+     * 
+     * @throws std::invalid_argument if spans have different sizes
+     */
+    void getLogProbability(std::span<const double> values, std::span<double> results,
+                          const performance::PerformanceHint& hint = {}) const;
+    
+    /**
+     * @brief Smart auto-dispatch batch cumulative probability calculation with performance hints
+     * 
+     * Automatically selects the optimal execution strategy for CDF computation
+     * based on batch size, system capabilities, and user performance hints.
+     * 
+     * 
+     * @param values Input values as C++20 span for type safety
+     * @param results Output cumulative probability results as C++20 span
+     * @param hint Performance optimization hints (default: AUTO selection)
+     * 
+     * @throws std::invalid_argument if spans have different sizes
+     */
+    void getCumulativeProbability(std::span<const double> values, std::span<double> results,
+                                 const performance::PerformanceHint& hint = {}) const;
+    
+
+    //==========================================================================
+    // COMPARISON OPERATORS
+    //==========================================================================
+    
+    /**
+     * Equality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are equal within tolerance
+     */
+    bool operator==(const GammaDistribution& other) const;
+    
+    /**
+     * Inequality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are not equal
+     */
+    bool operator!=(const GammaDistribution& other) const { return !(*this == other); }
+    
+    //==========================================================================
+    // FRIEND FUNCTION STREAM OPERATORS
+    //==========================================================================
+    
+    /**
+     * @brief Stream input operator
+     * @param is Input stream
+     * @param dist Distribution to input
+     * @return Reference to the input stream
+     */
+    friend std::istream& operator>>(std::istream& is, libstats::GammaDistribution&);
+    
+    /**
+     * @brief Stream output operator
+     * @param os Output stream
+     * @param dist Distribution to output
+     * @return Reference to the output stream
+     */
+    friend std::ostream& operator<<(std::ostream& os, const libstats::GammaDistribution&);
+
 private:
+    //==========================================================================
+    // PRIVATE FACTORY METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Create a distribution without parameter validation (for internal use)
+     * @param alpha Shape parameter (assumed valid)
+     * @param beta Rate parameter (assumed valid)
+     * @return GammaDistribution with the given parameters
+     */
+    static GammaDistribution createUnchecked(double alpha, double beta) noexcept {
+        GammaDistribution dist(alpha, beta, true); // bypass validation
+        return dist;
+    }
+    
+    /**
+     * @brief Private constructor that bypasses validation (for internal use)
+     * @param alpha Shape parameter (assumed valid)
+     * @param beta Rate parameter (assumed valid)
+     * @param bypassValidation Internal flag to skip validation
+     */
+    GammaDistribution(double alpha, double beta, bool /*bypassValidation*/) noexcept
+        : DistributionBase(), alpha_(alpha), beta_(beta) {
+        // Cache will be updated on first use
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+    }
+    
+    //==========================================================================
+    // PRIVATE COMPUTATIONAL METHODS
+    //==========================================================================
+    
+    /** @brief Compute incomplete gamma function using continued fractions */
+    [[nodiscard]] static double incompleteGamma(double a, double x) noexcept;
+    
+    /** @brief Compute regularized incomplete gamma function P(a,x) */
+    [[nodiscard]] static double regularizedIncompleteGamma(double a, double x) noexcept;
+    
+    /** @brief Compute quantile using Newton-Raphson with bracketing */
+    [[nodiscard]] double computeQuantile(double p) const noexcept;
+    
+    /** @brief Sample using Marsaglia-Tsang method for α ≥ 1 */
+    [[nodiscard]] double sampleMarsagliaTsang(std::mt19937& rng) const noexcept;
+    
+    /** @brief Sample using Ahrens-Dieter method for α < 1 */
+    [[nodiscard]] double sampleAhrensDieter(std::mt19937& rng) const noexcept;
+    
+    /** @brief Fit parameters using method of moments */
+    void fitMethodOfMoments(const std::vector<double>& values);
+    
+    /** @brief Fit parameters using maximum likelihood estimation */
+    void fitMaximumLikelihood(const std::vector<double>& values);
+    
+    //==========================================================================
+    // PRIVATE BATCH IMPLEMENTATION METHODS
+    //==========================================================================
+    
+    /** @brief Internal implementation for batch PDF calculation */
+    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                       double alpha, double beta, double log_gamma_alpha, 
+                                       double alpha_log_beta, double alpha_minus_one) const noexcept;
+    
+    /** @brief Internal implementation for batch log PDF calculation */
+    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                          double alpha, double beta, double log_gamma_alpha, 
+                                          double alpha_log_beta, double alpha_minus_one) const noexcept;
+    
+    /** @brief Internal implementation for batch CDF calculation */
+    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                 double alpha, double beta) const noexcept;
+    
     //==========================================================================
     // DISTRIBUTION PARAMETERS
     //==========================================================================
@@ -138,6 +1205,11 @@ private:
     
     /** @brief Rate parameter β - must be positive (β = 1/scale) */
     double beta_{constants::math::ONE};
+    
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<double> atomicAlpha_{constants::math::ONE};
+    mutable std::atomic<double> atomicBeta_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
     // PERFORMANCE CACHE
@@ -224,6 +1296,11 @@ private:
         
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicAlpha_.store(alpha_, std::memory_order_release);
+        atomicBeta_.store(beta_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
     }
     
     /**
@@ -246,617 +1323,6 @@ private:
      * Uses series expansion and asymptotic approximation
      */
     static double computeDigamma(double x) noexcept;
-
-    friend std::istream& operator>>(std::istream& is,
-            libstats::GammaDistribution& distribution);
-
-public:
-    //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
-    //==========================================================================
-    
-    /**
-     * Constructs a Gamma distribution with given shape and rate parameters.
-     * 
-     * @param alpha Shape parameter α (must be positive, default: 1.0)
-     * @param beta Rate parameter β (must be positive, default: 1.0)
-     * @throws std::invalid_argument if parameters are invalid
-     * 
-     * Implementation in .cpp: Complex validation and cache initialization logic
-     */
-    explicit GammaDistribution(double alpha = constants::math::ONE, 
-                              double beta = constants::math::ONE);
-    
-    /**
-     * Thread-safe copy constructor
-     * 
-     * Implementation in .cpp: Complex thread-safe copying with lock management,
-     * parameter validation, and efficient cache value copying
-     */
-    GammaDistribution(const GammaDistribution& other);
-    
-    /**
-     * Copy assignment operator
-     * 
-     * Implementation in .cpp: Complex thread-safe assignment with deadlock prevention,
-     * atomic lock acquisition using std::lock, and parameter validation
-     */
-    GammaDistribution& operator=(const GammaDistribution& other);
-    
-    /**
-     * Move constructor (DEFENSIVE THREAD SAFETY)
-     * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept due to potential lock acquisition exceptions
-     */
-    GammaDistribution(GammaDistribution&& other);
-    
-    /**
-     * Move assignment operator (DEFENSIVE THREAD SAFETY)
-     * Implementation in .cpp: Thread-safe move with deadlock prevention
-     * @warning NOT noexcept due to potential lock acquisition exceptions
-     */
-    GammaDistribution& operator=(GammaDistribution&& other);
-
-    /**
-     * @brief Destructor - explicitly defaulted to satisfy Rule of Five
-     * Implementation inline: Trivial destruction, kept for performance
-     * 
-     * Note: C++20 Best Practice - Rule of Five uses complexity-based placement:
-     * - Simple operations (destructor) stay inline for performance
-     * - Complex operations (copy/move) moved to .cpp for maintainability
-     */
-    ~GammaDistribution() override = default;
-    
-    //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
-    //==========================================================================
-    
-    /**
-     * @brief Safely create a Gamma distribution without throwing exceptions
-     * 
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
-     * 
-     * @param alpha Shape parameter α (must be positive)
-     * @param beta Rate parameter β (must be positive)
-     * @return Result containing either a valid GammaDistribution or error info
-     * 
-     * @par Usage Example:
-     * @code
-     * auto result = GammaDistribution::create(2.0, 0.5);
-     * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
-     *     // Use distribution safely...
-     * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
-     * }
-     * @endcode
-     */
-    [[nodiscard]] static Result<GammaDistribution> create(double alpha = 1.0, double beta = 1.0) noexcept {
-        auto validation = validateGammaParameters(alpha, beta);
-        if (validation.isError()) {
-            return Result<GammaDistribution>::makeError(validation.error_code, validation.message);
-        }
-        
-        // Use private factory to bypass validation
-        return Result<GammaDistribution>::ok(createUnchecked(alpha, beta));
-    }
-    
-    /**
-     * @brief Safely create a Gamma distribution using shape-scale parameterization
-     * 
-     * @param alpha Shape parameter α (must be positive)
-     * @param scale Scale parameter θ = 1/β (must be positive)
-     * @return Result containing either a valid GammaDistribution or error info
-     */
-    [[nodiscard]] static Result<GammaDistribution> createWithScale(double alpha, double scale) noexcept {
-        if (scale <= 0.0) {
-            return Result<GammaDistribution>::makeError(ValidationError::InvalidParameter, 
-                                                        "Scale parameter must be positive");
-        }
-        return create(alpha, 1.0 / scale);
-    }
-    
-    /**
-     * @brief Safely try to set parameters without throwing exceptions
-     * 
-     * @param alpha New shape parameter
-     * @param beta New rate parameter
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetParameters(double alpha, double beta) noexcept {
-        auto validation = validateGammaParameters(alpha, beta);
-        if (validation.isError()) {
-            return validation;
-        }
-        
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        alpha_ = alpha;
-        beta_ = beta;
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-        
-        return VoidResult::ok(true);
-    }
-    
-    /**
-     * @brief Check if current parameters are valid
-     * @return VoidResult indicating validity
-     */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateGammaParameters(alpha_, beta_);
-    }
-
-    //==========================================================================
-    // CORE PROBABILITY METHODS
-    //==========================================================================
-
-    /**
-     * Computes the probability density function for the Gamma distribution.
-     * 
-     * For Gamma distribution: f(x) = (β^α / Γ(α)) * x^(α-1) * e^(-βx) for x ≥ 0
-     * Uses log-space computation for numerical stability.
-     * 
-     * @param x The value at which to evaluate the PDF
-     * @return Probability density for the given value, 0 for x < 0
-     */
-    [[nodiscard]] double getProbability(double x) const override;
-
-    /**
-     * Computes the logarithm of the probability density function for numerical stability.
-     * 
-     * For Gamma distribution: log(f(x)) = α*log(β) - log(Γ(α)) + (α-1)*log(x) - βx for x > 0
-     * 
-     * @param x The value at which to evaluate the log-PDF
-     * @return Natural logarithm of the probability density, or -∞ for x ≤ 0
-     */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
-
-    /**
-     * Evaluates the CDF at x using the regularized incomplete gamma function.
-     * 
-     * For Gamma distribution: F(x) = γ(α, βx) / Γ(α) where γ is the lower incomplete gamma function
-     * 
-     * @param x The value at which to evaluate the CDF
-     * @return Cumulative probability P(X ≤ x)
-     */
-    [[nodiscard]] double getCumulativeProbability(double x) const override;
-    
-    /**
-     * @brief Computes the quantile function (inverse CDF)
-     * 
-     * For Gamma distribution: F^(-1)(p) computed using Newton-Raphson iteration
-     * 
-     * @param p Probability value in [0,1]
-     * @return x such that P(X ≤ x) = p
-     * @throws std::invalid_argument if p not in [0,1]
-     */
-    [[nodiscard]] double getQuantile(double p) const override;
-    
-    /**
-     * @brief Generate single random sample from distribution
-     * 
-     * Uses Marsaglia-Tsang squeeze method for α ≥ 1, Ahrens-Dieter for α < 1
-     * 
-     * @param rng Random number generator
-     * @return Single random sample
-     */
-    [[nodiscard]] double sample(std::mt19937& rng) const override;
-
-    //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
-    //==========================================================================
-
-    /**
-     * Gets the shape parameter α.
-     * Thread-safe: acquires shared lock to protect alpha_
-     * 
-     * @return Current shape parameter value
-     */
-    [[nodiscard]] double getAlpha() const noexcept { 
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return alpha_; 
-    }
-    
-    /**
-     * Gets the rate parameter β.
-     * Thread-safe: acquires shared lock to protect beta_
-     * 
-     * @return Current rate parameter value
-     */
-    [[nodiscard]] double getBeta() const noexcept { 
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return beta_; 
-    }
-    
-    /**
-     * Gets the scale parameter θ = 1/β.
-     * Uses cached value to eliminate division.
-     * 
-     * @return Scale parameter value
-     */
-    [[nodiscard]] double getScale() const noexcept;
-    
-    /**
-     * Sets the shape parameter α (exception-based API).
-     * 
-     * @param alpha New shape parameter (must be positive)
-     * @throws std::invalid_argument if alpha <= 0 or is not finite
-     */
-    void setAlpha(double alpha);
-    
-    /**
-     * @brief Safely set the shape parameter α without throwing exceptions (Result-based API).
-     * 
-     * @param alpha New shape parameter (must be positive)
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetAlpha(double alpha) noexcept;
-    
-    /**
-     * Sets the rate parameter β (exception-based API).
-     * 
-     * @param beta New rate parameter (must be positive)
-     * @throws std::invalid_argument if beta <= 0 or is not finite
-     */
-    void setBeta(double beta);
-    
-    /**
-     * @brief Safely set the rate parameter β without throwing exceptions (Result-based API).
-     * 
-     * @param beta New rate parameter (must be positive)
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetBeta(double beta) noexcept;
-    
-    /**
-     * Sets the scale parameter θ = 1/β.
-     * 
-     * @param scale New scale parameter (must be positive)
-     * @throws std::invalid_argument if scale <= 0 or is not finite
-     */
-    void setScale(double scale);
-    
-    /**
-     * Sets both parameters simultaneously.
-     * 
-     * @param alpha New shape parameter
-     * @param beta New rate parameter
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    void setParameters(double alpha, double beta);
-    
-    /**
-     * Sets parameters using shape-scale parameterization.
-     * 
-     * @param alpha New shape parameter
-     * @param scale New scale parameter
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    void setParametersWithScale(double alpha, double scale);
-    
-    /**
-     * Gets the mean of the distribution.
-     * For Gamma distribution, mean = α/β = αθ
-     * Uses cached value to eliminate division.
-     * 
-     * @return Mean value
-     */
-    [[nodiscard]] double getMean() const noexcept override;
-    
-    /**
-     * Gets the variance of the distribution.
-     * For Gamma distribution, variance = α/β² = αθ²
-     * Uses cached value to eliminate divisions and multiplications.
-     * 
-     * @return Variance value
-     */
-    [[nodiscard]] double getVariance() const noexcept override;
-    
-    /**
-     * @brief Gets the skewness of the distribution.
-     * For Gamma distribution, skewness = 2/√α
-     * Uses cached value to eliminate square root computation.
-     * 
-     * @return Skewness value (2/√α)
-     */
-    [[nodiscard]] double getSkewness() const noexcept override;
-    
-    /**
-     * @brief Gets the kurtosis of the distribution.
-     * For Gamma distribution, excess kurtosis = 6/α
-     * Uses direct computation for efficiency.
-     * 
-     * @return Excess kurtosis value (6/α)
-     */
-    [[nodiscard]] double getKurtosis() const noexcept override;
-    
-    /**
-     * @brief Gets the number of parameters for this distribution.
-     * For Gamma distribution, there are 2 parameters: alpha (shape) and beta (rate)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Number of parameters (always 2)
-     */
-    [[nodiscard]] int getNumParameters() const noexcept override {
-        return 2;
-    }
-    
-    /**
-     * @brief Gets the distribution name.
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Distribution name
-     */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "Gamma";
-    }
-    
-    /**
-     * @brief Checks if the distribution is discrete.
-     * For Gamma distribution, it's continuous
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return false (always continuous)
-     */
-    [[nodiscard]] bool isDiscrete() const noexcept override {
-        return false;
-    }
-    
-    /**
-     * @brief Gets the lower bound of the distribution support.
-     * For Gamma distribution, support is [0, ∞)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Lower bound (0)
-     */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override {
-        return 0.0;
-    }
-    
-    /**
-     * @brief Gets the upper bound of the distribution support.
-     * For Gamma distribution, support is [0, ∞)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Upper bound (+infinity)
-     */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        return std::numeric_limits<double>::infinity();
-    }
-    
-    /**
-     * Gets the mode of the distribution.
-     * For Gamma distribution, mode = (α-1)/β = (α-1)θ for α ≥ 1, 0 for α < 1
-     * 
-     * @return Mode value
-     */
-    [[nodiscard]] double getMode() const noexcept;
-
-    //==========================================================================
-    // DISTRIBUTION MANAGEMENT
-    //==========================================================================
-
-    /**
-     * Fits the distribution parameters to the given data using maximum likelihood estimation.
-     * For Gamma distribution, uses method of moments as initial guess, then Newton-Raphson.
-     * 
-     * @param values Vector of observed positive data
-     * @throws std::invalid_argument if values is empty or contains non-positive values
-     */
-    void fit(const std::vector<double>& values) override;
-
-    /**
-     * Resets the distribution to default parameters (α = 1.0, β = 1.0).
-     * This corresponds to the standard exponential distribution.
-     */
-    void reset() noexcept override;
-
-    /**
-     * Returns a string representation of the distribution.
-     * 
-     * @return String describing the distribution parameters
-     */
-    std::string toString() const override;
-    
-    //==========================================================================
-    // COMPARISON OPERATORS
-    //==========================================================================
-    
-    /**
-     * Equality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are equal within tolerance
-     */
-    bool operator==(const GammaDistribution& other) const;
-    
-    /**
-     * Inequality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are not equal
-     */
-    bool operator!=(const GammaDistribution& other) const { return !(*this == other); }
-    
-    //==========================================================================
-    // SIMD BATCH OPERATIONS
-    //==========================================================================
-    
-    /**
-     * Batch computation of probability densities using SIMD optimization.
-     * Processes multiple values simultaneously for improved performance.
-     * 
-     * @param values Input array of values to evaluate
-     * @param results Output array for probability densities (must be same size as values)
-     * @param count Number of values to process
-     * @note This method is optimized for large batch sizes where SIMD overhead is justified
-     */
-    void getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
-    
-    /**
-     * Batch computation of log probability densities using SIMD optimization.
-     * Processes multiple values simultaneously for improved performance.
-     * 
-     * @param values Input array of values to evaluate
-     * @param results Output array for log probability densities (must be same size as values)
-     * @param count Number of values to process
-     * @note This method is optimized for large batch sizes where SIMD overhead is justified
-     */
-    void getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
-    
-    /**
-     * SIMD-optimized batch cumulative probability calculation
-     * Computes CDF for multiple values simultaneously using vectorized operations
-     * @param values Array of input values
-     * @param results Array to store cumulative probability results (must be pre-allocated)
-     * @param count Number of values to process
-     * @warning Arrays must be aligned to SIMD_ALIGNMENT for optimal performance
-     */
-    void getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const;
-    
-    /**
-     * Ultra-high performance lock-free batch operations
-     * These methods assume cache is valid and skip all locking - use with extreme care
-     * @warning Only call when you can guarantee cache validity and thread safety
-     */
-    void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
-    void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
-
-    //==========================================================================
-    // GAMMA-SPECIFIC UTILITY METHODS
-    //==========================================================================
-    
-    /**
-     * @brief Check if this is an exponential distribution (α = 1)
-     * 
-     * @return true if α = 1 within tolerance
-     */
-    [[nodiscard]] bool isExponentialDistribution() const noexcept;
-    
-    /**
-     * @brief Check if this is a chi-squared distribution (β = 0.5)
-     * 
-     * @return true if β = 0.5 within tolerance
-     */
-    [[nodiscard]] bool isChiSquaredDistribution() const noexcept;
-    
-    /**
-     * @brief Get the degrees of freedom if this is a chi-squared distribution
-     * 
-     * @return 2α if β = 0.5, otherwise throws exception
-     * @throws std::logic_error if not a chi-squared distribution
-     */
-    [[nodiscard]] double getDegreesOfFreedom() const;
-    
-    /**
-     * @brief Compute the entropy of the distribution
-     * 
-     * H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α)
-     * 
-     * @return Entropy value
-     */
-    [[nodiscard]] double getEntropy() const override;
-    
-    /**
-     * @brief Check if the distribution is suitable for normal approximation
-     * 
-     * Returns true if α is large enough (typically α > 100) for normal approximation
-     * 
-     * @return true if normal approximation is accurate
-     */
-    [[nodiscard]] bool canUseNormalApproximation() const noexcept;
-    
-    /**
-     * @brief Create a gamma distribution from mean and variance
-     * 
-     * Uses method of moments: α = mean²/variance, β = mean/variance
-     * 
-     * @param mean Desired mean (must be positive)
-     * @param variance Desired variance (must be positive)
-     * @return Result containing GammaDistribution or error
-     */
-    [[nodiscard]] static Result<GammaDistribution> createFromMoments(double mean, double variance) noexcept;
-
-private:
-    //==========================================================================
-    // PRIVATE FACTORY METHODS
-    //==========================================================================
-    
-    /**
-     * @brief Create a distribution without parameter validation (for internal use)
-     * @param alpha Shape parameter (assumed valid)
-     * @param beta Rate parameter (assumed valid)
-     * @return GammaDistribution with the given parameters
-     */
-    static GammaDistribution createUnchecked(double alpha, double beta) noexcept {
-        GammaDistribution dist(alpha, beta, true); // bypass validation
-        return dist;
-    }
-    
-    /**
-     * @brief Private constructor that bypasses validation (for internal use)
-     * @param alpha Shape parameter (assumed valid)
-     * @param beta Rate parameter (assumed valid)
-     * @param bypassValidation Internal flag to skip validation
-     */
-    GammaDistribution(double alpha, double beta, bool /*bypassValidation*/) noexcept
-        : DistributionBase(), alpha_(alpha), beta_(beta) {
-        // Cache will be updated on first use
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-    }
-    
-    //==========================================================================
-    // PRIVATE COMPUTATIONAL METHODS
-    //==========================================================================
-    
-    /** @brief Compute incomplete gamma function using continued fractions */
-    [[nodiscard]] static double incompleteGamma(double a, double x) noexcept;
-    
-    /** @brief Compute regularized incomplete gamma function P(a,x) */
-    [[nodiscard]] static double regularizedIncompleteGamma(double a, double x) noexcept;
-    
-    /** @brief Compute quantile using Newton-Raphson with bracketing */
-    [[nodiscard]] double computeQuantile(double p) const noexcept;
-    
-    /** @brief Sample using Marsaglia-Tsang method for α ≥ 1 */
-    [[nodiscard]] double sampleMarsagliaTsang(std::mt19937& rng) const noexcept;
-    
-    /** @brief Sample using Ahrens-Dieter method for α < 1 */
-    [[nodiscard]] double sampleAhrensDieter(std::mt19937& rng) const noexcept;
-    
-    /** @brief Fit parameters using method of moments */
-    void fitMethodOfMoments(const std::vector<double>& values);
-    
-    /** @brief Fit parameters using maximum likelihood estimation */
-    void fitMaximumLikelihood(const std::vector<double>& values);
-    
-    //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
-    //==========================================================================
-    
-    /** @brief Internal implementation for batch PDF calculation */
-    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                       double alpha, double beta, double log_gamma_alpha, 
-                                       double alpha_log_beta, double alpha_minus_one) const noexcept;
-    
-    /** @brief Internal implementation for batch log PDF calculation */
-    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                          double alpha, double beta, double log_gamma_alpha, 
-                                          double alpha_log_beta, double alpha_minus_one) const noexcept;
-    
-    /** @brief Internal implementation for batch CDF calculation */
-    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                 double alpha, double beta) const noexcept;
 };
-
-/**
- * @brief Stream output operator
- * @param os Output stream
- * @param dist Distribution to output
- * @return Reference to the output stream
- */
-std::ostream& operator<<(std::ostream& os, const GammaDistribution& dist);
 
 } // namespace libstats

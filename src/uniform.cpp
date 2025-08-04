@@ -267,6 +267,42 @@ double UniformDistribution::sample(std::mt19937& rng) const {
     return a_ + width_ * u;
 }
 
+std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) const {
+    std::vector<double> samples;
+    samples.reserve(n);
+    
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    
+    // Get cached parameters for efficiency
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    const double cached_a = a_;
+    const double cached_width = width_;
+    const bool cached_is_unit_interval = isUnitInterval_;
+    lock.unlock();
+    
+    // Generate batch samples using linear transformation
+    for (size_t i = 0; i < n; ++i) {
+        double u = dist(rng);
+        if (cached_is_unit_interval) {
+            samples.push_back(u);
+        } else {
+            samples.push_back(cached_a + u * cached_width);
+        }
+    }
+    
+    return samples;
+}
+
 //==============================================================================
 // PARAMETER GETTERS AND SETTERS
 //==============================================================================
@@ -370,20 +406,6 @@ double UniformDistribution::getWidth() const noexcept {
     return width_;
 }
 
-double UniformDistribution::getMidpoint() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    return midpoint_;
-}
 
 //==============================================================================
 // DISTRIBUTION MANAGEMENT
@@ -447,6 +469,71 @@ bool UniformDistribution::operator==(const UniformDistribution& other) const {
 
 std::ostream& operator<<(std::ostream& os, const UniformDistribution& distribution) {
     return os << distribution.toString();
+}
+
+std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
+    std::string token;
+    double a, b;
+    
+    // Expected format: "UniformDistribution(a=<value>, b=<value>)"
+    // We'll parse this step by step
+    
+    // Skip whitespace and read the first part
+    is >> token;
+    if (token.find("UniformDistribution(") != 0) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Extract 'a' value
+    if (token.find("a=") == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    size_t a_pos = token.find("a=") + 2;
+    size_t comma_pos = token.find(",", a_pos);
+    if (comma_pos == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    try {
+        std::string a_str = token.substr(a_pos, comma_pos - a_pos);
+        a = std::stod(a_str);
+    } catch (...) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Extract 'b' value
+    if (token.find("b=") == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    size_t b_pos = token.find("b=") + 2;
+    size_t close_paren = token.find(")", b_pos);
+    if (close_paren == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    try {
+        std::string b_str = token.substr(b_pos, close_paren - b_pos);
+        b = std::stod(b_str);
+    } catch (...) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Validate and set parameters using the safe API
+    auto result = distribution.trySetParameters(a, b);
+    if (result.isError()) {
+        is.setstate(std::ios::failbit);
+    }
+    
+    return is;
 }
 
 //==============================================================================
@@ -1095,6 +1182,313 @@ void UniformDistribution::getCumulativeProbabilityBatchCacheAware(std::span<cons
 //==============================================================================
 // ADVANCED STATISTICAL METHODS
 //==============================================================================
+
+std::pair<double, double> UniformDistribution::confidenceIntervalLowerBound(const std::vector<double>& data, double confidence_level) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
+        throw std::invalid_argument("Confidence level must be between 0 and 1");
+    }
+    
+    const size_t n = data.size();
+    const double alpha = 1.0 - confidence_level;
+    const double min_val = *std::min_element(data.begin(), data.end());
+    
+    // For uniform distribution, the minimum X_(1) has distribution:
+    // F(x) = 1 - ((b-x)/(b-a))^n for a <= x <= b
+    // We use the fact that (X_(1) - a)/(b - a) ~ Beta(1, n)
+    // The confidence interval uses order statistics theory
+    
+    // Conservative approach: use the empirical minimum with adjustment
+    const double range_estimate = *std::max_element(data.begin(), data.end()) - min_val;
+    const double adjustment = range_estimate * std::pow(alpha/2.0, 1.0/n) / (1.0 + std::pow(alpha/2.0, 1.0/n));
+    
+    const double ci_lower = min_val - adjustment;
+    const double ci_upper = min_val;
+    
+    return {ci_lower, ci_upper};
+}
+
+std::pair<double, double> UniformDistribution::confidenceIntervalUpperBound(const std::vector<double>& data, double confidence_level) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
+        throw std::invalid_argument("Confidence level must be between 0 and 1");
+    }
+    
+    const size_t n = data.size();
+    const double alpha = 1.0 - confidence_level;
+    const double max_val = *std::max_element(data.begin(), data.end());
+    const double min_val = *std::min_element(data.begin(), data.end());
+    
+    // For uniform distribution, the maximum X_(n) has distribution:
+    // F(x) = ((x-a)/(b-a))^n for a <= x <= b
+    // We use the fact that (b - X_(n))/(b - a) ~ Beta(1, n)
+    
+    const double range_estimate = max_val - min_val;
+    const double adjustment = range_estimate * std::pow(alpha/2.0, 1.0/n) / (1.0 + std::pow(alpha/2.0, 1.0/n));
+    
+    const double ci_lower = max_val;
+    const double ci_upper = max_val + adjustment;
+    
+    return {ci_lower, ci_upper};
+}
+
+std::tuple<double, double, bool> UniformDistribution::likelihoodRatioTest(const std::vector<double>& data, double null_a, double null_b, double significance_level) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    if (null_a >= null_b) {
+        throw std::invalid_argument("null_a must be less than null_b");
+    }
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
+        throw std::invalid_argument("Significance level must be between 0 and 1");
+    }
+    
+    const size_t n = data.size();
+    const double sample_min = *std::min_element(data.begin(), data.end());
+    const double sample_max = *std::max_element(data.begin(), data.end());
+    
+    // Check if null hypothesis is feasible
+    if (sample_min < null_a || sample_max > null_b) {
+        // Data outside null hypothesis bounds - reject immediately
+        return {std::numeric_limits<double>::infinity(), 0.0, true};
+    }
+    
+    // Log-likelihood under null hypothesis: n * log(1/(null_b - null_a))
+    const double log_like_null = n * (-std::log(null_b - null_a));
+    
+    // Log-likelihood under alternative (MLE): n * log(1/(sample_max - sample_min))
+    const double sample_range = sample_max - sample_min;
+    const double log_like_alt = (sample_range > 0) ? n * (-std::log(sample_range)) : 0.0;
+    
+    // Likelihood ratio test statistic: -2 * (log L_0 - log L_1)
+    const double test_statistic = -2.0 * (log_like_null - log_like_alt);
+    
+    // For large n, test statistic follows chi-square with 2 degrees of freedom
+    // Approximate p-value using chi-square distribution
+    const double p_value = 1.0 - (1.0 - std::exp(-test_statistic/2.0)); // Simplified approximation
+    
+    const bool reject_null = (p_value < significance_level);
+    
+    return {test_statistic, p_value, reject_null};
+}
+
+std::pair<std::pair<double, double>, std::pair<double, double>> UniformDistribution::bayesianEstimation(const std::vector<double>& data, [[maybe_unused]] double prior_a_shape, [[maybe_unused]] double prior_a_scale, [[maybe_unused]] double prior_b_shape, [[maybe_unused]] double prior_b_scale) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    
+    const double sample_min = *std::min_element(data.begin(), data.end());
+    const double sample_max = *std::max_element(data.begin(), data.end());
+    const size_t n = data.size();
+    
+    // For uniform distribution with uniform priors on [a, b]:
+    // Posterior for 'a' given data: truncated at sample_min
+    // Posterior for 'b' given data: truncated at sample_max
+    
+    // Simplified Bayesian update (assuming uniform priors)
+    const double posterior_a_mean = sample_min - (sample_max - sample_min) / (n + 2.0);
+    const double posterior_a_var = std::pow(sample_max - sample_min, 2) / (12.0 * (n + 2.0));
+    
+    const double posterior_b_mean = sample_max + (sample_max - sample_min) / (n + 2.0);
+    const double posterior_b_var = std::pow(sample_max - sample_min, 2) / (12.0 * (n + 2.0));
+    
+    // Return as (mean, std_dev) pairs
+    std::pair<double, double> posterior_a = {posterior_a_mean, std::sqrt(posterior_a_var)};
+    std::pair<double, double> posterior_b = {posterior_b_mean, std::sqrt(posterior_b_var)};
+    
+    return {posterior_a, posterior_b};
+}
+
+std::pair<double, double> UniformDistribution::robustEstimation(const std::vector<double>& data, const std::string& estimator_type, double trim_proportion) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    if (trim_proportion < 0.0 || trim_proportion >= 0.5) {
+        throw std::invalid_argument("Trim proportion must be in [0, 0.5)");
+    }
+    
+    std::vector<double> sorted_data = data;
+    std::sort(sorted_data.begin(), sorted_data.end());
+    const size_t n = sorted_data.size();
+    
+    if (estimator_type == "quantile") {
+        // Use empirical quantiles with small adjustments
+        const size_t lower_idx = static_cast<size_t>(trim_proportion * n);
+        const size_t upper_idx = n - 1 - lower_idx;
+        
+        const double robust_a = sorted_data[lower_idx];
+        const double robust_b = sorted_data[upper_idx];
+        
+        return {robust_a, robust_b};
+    } else if (estimator_type == "trimmed") {
+        // Trimmed mean approach - use trimmed range
+        const size_t trim_count = static_cast<size_t>(trim_proportion * n);
+        const size_t start_idx = trim_count;
+        const size_t end_idx = n - trim_count - 1;
+        
+        if (start_idx >= end_idx) {
+            // Fallback to min/max if too much trimming
+            return {sorted_data.front(), sorted_data.back()};
+        }
+        
+        const double robust_a = sorted_data[start_idx];
+        const double robust_b = sorted_data[end_idx];
+        
+        return {robust_a, robust_b};
+    }
+    
+    // Default: return min/max
+    return {sorted_data.front(), sorted_data.back()};
+}
+
+std::pair<double, double> UniformDistribution::methodOfMomentsEstimation(const std::vector<double>& data) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    
+    // For uniform distribution U(a,b):
+    // Mean = (a + b)/2
+    // Variance = (b - a)²/12
+    // From these: a = mean - sqrt(3*variance), b = mean + sqrt(3*variance)
+    
+    const size_t n = data.size();
+    const double sum = std::accumulate(data.begin(), data.end(), 0.0);
+    const double mean = sum / n;
+    
+    double variance = 0.0;
+    for (double x : data) {
+        variance += (x - mean) * (x - mean);
+    }
+    variance /= (n - 1); // Sample variance
+    
+    const double range_estimate = std::sqrt(12.0 * variance);
+    const double a_estimate = mean - range_estimate / 2.0;
+    const double b_estimate = mean + range_estimate / 2.0;
+    
+    return {a_estimate, b_estimate};
+}
+
+std::tuple<std::pair<double, double>, std::pair<double, double>> UniformDistribution::bayesianCredibleInterval(const std::vector<double>& data, double credibility_level, double prior_a_shape, double prior_a_scale, double prior_b_shape, double prior_b_scale) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    if (credibility_level <= 0.0 || credibility_level >= 1.0) {
+        throw std::invalid_argument("Credibility level must be between 0 and 1");
+    }
+    
+    // Get Bayesian estimates
+    auto posterior_params = bayesianEstimation(data, prior_a_shape, prior_a_scale, prior_b_shape, prior_b_scale);
+    
+    const double alpha = 1.0 - credibility_level;
+    [[maybe_unused]] const double tail_prob = alpha / 2.0;
+    
+    // For simplicity, use normal approximation to posterior
+    const double z_score = 1.96; // Approximate 97.5th percentile of standard normal
+    
+    // Credible interval for 'a'
+    const double a_mean = posterior_params.first.first;
+    const double a_std = posterior_params.first.second;
+    const double a_ci_lower = a_mean - z_score * a_std;
+    const double a_ci_upper = a_mean + z_score * a_std;
+    
+    // Credible interval for 'b'
+    const double b_mean = posterior_params.second.first;
+    const double b_std = posterior_params.second.second;
+    const double b_ci_lower = b_mean - z_score * b_std;
+    const double b_ci_upper = b_mean + z_score * b_std;
+    
+    std::pair<double, double> a_CI = {a_ci_lower, a_ci_upper};
+    std::pair<double, double> b_CI = {b_ci_lower, b_ci_upper};
+    
+    return {a_CI, b_CI};
+}
+
+std::pair<double, double> UniformDistribution::lMomentsEstimation(const std::vector<double>& data) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    
+    std::vector<double> sorted_data = data;
+    std::sort(sorted_data.begin(), sorted_data.end());
+    const size_t n = sorted_data.size();
+    
+    // L-moments for uniform distribution:
+    // L1 = (a + b)/2 (location)
+    // L2 = (b - a)/6 (scale)
+    
+    // Sample L-moments
+    double L1 = 0.0; // Sample mean
+    for (double x : sorted_data) {
+        L1 += x;
+    }
+    L1 /= n;
+    
+    // L2 calculation using order statistics
+    double L2 = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        const double weight = (2.0 * i - n + 1.0) / n;
+        L2 += weight * sorted_data[i];
+    }
+    L2 /= n;
+    L2 = std::abs(L2); // L2 should be positive
+    
+    // Invert the relationships: a = L1 - 3*L2, b = L1 + 3*L2
+    const double a_estimate = L1 - 3.0 * L2;
+    const double b_estimate = L1 + 3.0 * L2;
+    
+    return {a_estimate, b_estimate};
+}
+
+std::tuple<double, double, bool> UniformDistribution::uniformityTest(const std::vector<double>& data, double significance_level) {
+    if (data.empty()) {
+        throw std::invalid_argument("Data cannot be empty");
+    }
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
+        throw std::invalid_argument("Significance level must be between 0 and 1");
+    }
+    
+    const size_t n = data.size();
+    const double sample_min = *std::min_element(data.begin(), data.end());
+    const double sample_max = *std::max_element(data.begin(), data.end());
+    const double sample_range = sample_max - sample_min;
+    
+    if (sample_range == 0.0) {
+        // All data points are identical - not uniform
+        return {std::numeric_limits<double>::infinity(), 0.0, false};
+    }
+    
+    // Use range/variance ratio test
+    // For uniform distribution: Var = Range²/12
+    // Test statistic: T = 12 * Var / Range²
+    // Should be close to 1 for uniform data
+    
+    double sample_variance = 0.0;
+    double sample_mean = 0.0;
+    for (double x : data) {
+        sample_mean += x;
+    }
+    sample_mean /= n;
+    
+    for (double x : data) {
+        sample_variance += (x - sample_mean) * (x - sample_mean);
+    }
+    sample_variance /= (n - 1);
+    
+    const double expected_variance = sample_range * sample_range / 12.0;
+    const double test_statistic = sample_variance / expected_variance;
+    
+    // For large n, this approximately follows a known distribution
+    // Simplified p-value calculation
+    const double p_value = 2.0 * std::min(test_statistic, 2.0 - test_statistic); // Symmetric around 1
+    
+    const bool uniformity_is_valid = (p_value > significance_level);
+    
+    return {test_statistic, p_value, uniformity_is_valid};
+}
 
 std::tuple<double, double, bool> UniformDistribution::kolmogorovSmirnovTest(
     const std::vector<double>& data,

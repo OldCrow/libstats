@@ -123,129 +123,17 @@ namespace libstats {
  * @since 1.0.0
  */
 class DiscreteDistribution : public DistributionBase
-{   
-private:
-    //==========================================================================
-    // DISTRIBUTION PARAMETERS
-    //==========================================================================
-    
-    /** @brief Lower bound parameter a (inclusive) */
-    int a_{0};
-    
-    /** @brief Upper bound parameter b (inclusive) */
-    int b_{1};
-    
-    /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<int> atomicA_{0};
-    mutable std::atomic<int> atomicB_{1};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PERFORMANCE CACHE
-    //==========================================================================
-    
-    /** @brief Cached value of (b - a + 1) - the number of possible outcomes */
-    mutable int range_{2};
-    
-    /** @brief Cached value of 1.0/range for efficiency in PMF calculations */
-    mutable double probability_{0.5};
-    
-    /** @brief Cached value of (a + b)/2.0 for efficiency in mean calculations */
-    mutable double mean_{0.5};
-    
-    /** @brief Cached value of ((b - a)(b - a + 2))/12.0 for efficiency in variance calculations */
-    mutable double variance_{0.25};
-    
-    /** @brief Cached value of log(probability_) for efficiency in log-PMF calculations */
-    mutable double logProbability_{-constants::math::LN2};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS
-    //==========================================================================
-    
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-    
-    /** @brief True if this is a binary distribution [0,1] for optimization */
-    mutable bool isBinary_{true};
-    
-    /** @brief True if this is a standard die [1,6] for optimization */
-    mutable bool isStandardDie_{false};
-    
-    /** @brief True if this is a symmetric distribution around zero for optimization */
-    mutable bool isSymmetric_{false};
-    
-    /** @brief True if the range is small (≤ 10) for lookup table optimization */
-    mutable bool isSmallRange_{true};
-    
-    /** @brief True if the range is large (> 1000) for approximation algorithms */
-    mutable bool isLargeRange_{false};
-
-    /**
-     * Updates cached values when parameters change - assumes mutex is already held
-     */
-    void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        range_ = b_ - a_ + 1;
-        probability_ = 1.0 / static_cast<double>(range_);
-        mean_ = (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
-        
-        // Variance for discrete uniform: ((b-a)(b-a+2))/12
-        const double width = static_cast<double>(b_ - a_);
-        variance_ = (width * (width + 2.0)) / 12.0;
-        
-        logProbability_ = -std::log(static_cast<double>(range_));
-        
-        // Optimization flags
-        isBinary_ = (a_ == 0 && b_ == 1);
-        isStandardDie_ = (a_ == 1 && b_ == 6);
-        isSymmetric_ = (a_ == -b_);
-        isSmallRange_ = (range_ <= 10);
-        isLargeRange_ = (range_ > 1000);
-        
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-        
-        // Update atomic parameters for lock-free access
-        atomicA_.store(a_, std::memory_order_release);
-        atomicB_.store(b_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
-    
-    /**
-     * Validates parameters for the Discrete Uniform distribution
-     * @param a Lower bound parameter (integer)
-     * @param b Upper bound parameter (integer, must be >= a)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    static void validateParameters(int a, int b) {
-        if (a > b) {
-            throw std::invalid_argument("Upper bound (b) must be greater than or equal to lower bound (a)");
-        }
-        // Check for integer overflow in range calculation
-        if (b > INT_MAX - 1 || a < INT_MIN + 1) {
-            throw std::invalid_argument("Parameter range too large - risk of integer overflow");
-        }
-        // Additional safety check for very large ranges
-        const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
-        if (range_check > INT_MAX) {
-            throw std::invalid_argument("Parameter range exceeds maximum supported size");
-        }
-    }
-
-    friend std::istream& operator>>(std::istream& is,
-            libstats::DiscreteDistribution& distribution);
-
+{
 public:
     //==========================================================================
     // CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
-     * Constructs a Discrete Uniform distribution with given integer bounds.
+     * @brief Constructs a Discrete Uniform distribution with given bounds.
      * 
-     * @param a Lower bound (inclusive, default: 0)
-     * @param b Upper bound (inclusive, default: 1, must be >= a)
+     * @param a Lower bound (default: 0)
+     * @param b Upper bound (default: 1, must be > a)
      * @throws std::invalid_argument if parameters are invalid
      * 
      * Implementation in .cpp: Complex validation and cache initialization logic
@@ -253,7 +141,7 @@ public:
     explicit DiscreteDistribution(int a = 0, int b = 1);
     
     /**
-     * Thread-safe copy constructor
+     * @brief Thread-safe copy constructor
      * 
      * Implementation in .cpp: Complex thread-safe copying with lock management,
      * parameter validation, and efficient cache value copying
@@ -261,7 +149,7 @@ public:
     DiscreteDistribution(const DiscreteDistribution& other);
     
     /**
-     * Copy assignment operator
+     * @brief Copy assignment operator
      * 
      * Implementation in .cpp: Complex thread-safe assignment with deadlock prevention,
      * atomic lock acquisition using std::lock, and parameter validation
@@ -269,14 +157,14 @@ public:
     DiscreteDistribution& operator=(const DiscreteDistribution& other);
     
     /**
-     * Move constructor (DEFENSIVE THREAD SAFETY)
+     * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
     DiscreteDistribution(DiscreteDistribution&& other);
     
     /**
-     * Move assignment operator (DEFENSIVE THREAD SAFETY)
+     * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
@@ -327,6 +215,274 @@ public:
         // Use private factory to bypass validation
         return Result<DiscreteDistribution>::ok(createUnchecked(a, b));
     }
+    
+    //==========================================================================
+    // PARAMETER GETTERS AND SETTERS
+    //==========================================================================
+
+    /**
+     * Gets the lower bound parameter a.
+     * Thread-safe: acquires shared lock to protect a_
+     *
+     * @return Current lower bound value
+     */
+    [[nodiscard]] int getLowerBound() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return a_;
+    }
+    
+    /**
+     * Gets the upper bound parameter b.
+     * Thread-safe: acquires shared lock to protect b_
+     *
+     * @return Current upper bound value
+     */
+    [[nodiscard]] int getUpperBound() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return b_;
+    }
+    
+    /**
+     * @brief Fast lock-free atomic getter for lower bound parameter a
+     * 
+     * Provides high-performance access to the lower bound parameter using atomic operations
+     * for lock-free fast path. Falls back to locked getter if atomic parameters
+     * are not valid (e.g., during parameter updates).
+     * 
+     * @return Current lower bound parameter value
+     * 
+     * @note This method is optimized for high-frequency access patterns where
+     *       the distribution parameters are relatively stable. It uses atomic
+     *       loads with acquire semantics for proper memory synchronization.
+     * 
+     * @par Performance Characteristics:
+     * - Lock-free fast path: ~2-5ns per call
+     * - Fallback to locked path: ~50-100ns per call
+     * - Thread-safe without blocking other readers
+     * 
+     * @par Usage Example:
+     * @code
+     * // High-frequency parameter access in performance-critical loops
+     * for (size_t i = 0; i < large_dataset.size(); ++i) {
+     *     int lower = dist.getLowerBoundAtomic();  // Lock-free access
+     *     results[i] = compute_something(data[i], lower);
+     * }
+     * @endcode
+     */
+    [[nodiscard]] int getLowerBoundAtomic() const noexcept {
+        // Fast path: check if atomic parameters are valid
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            // Lock-free atomic access with proper memory ordering
+            return atomicA_.load(std::memory_order_acquire);
+        }
+        
+        // Fallback: use traditional locked getter if atomic parameters are stale
+        return getLowerBound();
+    }
+    
+    /**
+     * @brief Fast lock-free atomic getter for upper bound parameter b
+     * 
+     * Provides high-performance access to the upper bound parameter using atomic operations
+     * for lock-free fast path. Falls back to locked getter if atomic parameters
+     * are not valid (e.g., during parameter updates).
+     * 
+     * @return Current upper bound parameter value
+     * 
+     * @note This method is optimized for high-frequency access patterns where
+     *       the distribution parameters are relatively stable. It uses atomic
+     *       loads with acquire semantics for proper memory synchronization.
+     * 
+     * @par Performance Characteristics:
+     * - Lock-free fast path: ~2-5ns per call
+     * - Fallback to locked path: ~50-100ns per call
+     * - Thread-safe without blocking other readers
+     * 
+     * @par Usage Example:
+     * @code
+     * // High-frequency parameter access in performance-critical loops
+     * for (size_t i = 0; i < large_dataset.size(); ++i) {
+     *     int upper = dist.getUpperBoundAtomic();  // Lock-free access
+     *     results[i] = compute_something(data[i], upper);
+     * }
+     * @endcode
+     */
+    [[nodiscard]] int getUpperBoundAtomic() const noexcept {
+        // Fast path: check if atomic parameters are valid
+        if (atomicParamsValid_.load(std::memory_order_acquire)) {
+            // Lock-free atomic access with proper memory ordering
+            return atomicB_.load(std::memory_order_acquire);
+        }
+        
+        // Fallback: use traditional locked getter if atomic parameters are stale
+        return getUpperBound();
+    }
+    
+    /**
+     * Sets the lower bound parameter a.
+     *
+     * @param a New lower bound (must be <= current upper bound)
+     * @throws std::invalid_argument if a > b or parameters are invalid
+     */
+    void setLowerBound(int a);
+    
+    /**
+     * Sets the upper bound parameter b.
+     *
+     * @param b New upper bound (must be >= current lower bound)
+     * @throws std::invalid_argument if b < a or parameters are invalid
+     */
+    void setUpperBound(int b);
+    
+    /**
+     * Sets both bounds simultaneously.
+     *
+     * @param a New lower bound
+     * @param b New upper bound (must be >= a)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    void setBounds(int a, int b);
+    
+    /**
+     * Gets the mean of the distribution.
+     * For Discrete Uniform distribution, mean = (a + b)/2
+     * Uses cached value to eliminate addition and division.
+     *
+     * @return Mean value
+     */
+    [[nodiscard]] double getMean() const noexcept override;
+    
+    /**
+     * Gets the variance of the distribution.
+     * For Discrete Uniform distribution, variance = ((b-a)(b-a+2))/12
+     * Uses cached value to eliminate multiplications and divisions.
+     *
+     * @return Variance value
+     */
+    [[nodiscard]] double getVariance() const noexcept override;
+    
+    /**
+     * @brief Gets the skewness of the distribution.
+     * For Discrete Uniform distribution, skewness = 0 (perfectly symmetric)
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Skewness value (always 0)
+     */
+    [[nodiscard]] double getSkewness() const noexcept override {
+        return 0.0;  // Discrete uniform distribution is perfectly symmetric
+    }
+    
+    /**
+     * @brief Gets the kurtosis of the distribution.
+     * For Discrete Uniform distribution, excess kurtosis ≈ -1.2 for large ranges
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Excess kurtosis value (approximately -1.2)
+     */
+    [[nodiscard]] double getKurtosis() const noexcept override {
+        return -1.2;  // Approximate excess kurtosis for discrete uniform
+    }
+    
+    /**
+     * @brief Gets the number of parameters for this distribution.
+     * For Discrete Uniform distribution, there are 2 parameters: a (lower) and b (upper)
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Number of parameters (always 2)
+     */
+    [[nodiscard]] int getNumParameters() const noexcept override {
+        return 2;
+    }
+    
+    /**
+     * @brief Gets the distribution name.
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return Distribution name
+     */
+    [[nodiscard]] std::string getDistributionName() const override {
+        return "Discrete";
+    }
+    
+    /**
+     * @brief Checks if the distribution is discrete.
+     * For Discrete Uniform distribution, it's discrete
+     * Inline for performance - no thread safety needed for constant
+     *
+     * @return true (always discrete)
+     */
+    [[nodiscard]] bool isDiscrete() const noexcept override {
+        return true;
+    }
+    
+    /**
+     * @brief Gets the lower bound of the distribution support.
+     * For Discrete Uniform distribution, support is {a, a+1, ..., b}
+     *
+     * @return Lower bound (parameter a as double)
+     */
+    [[nodiscard]] double getSupportLowerBound() const noexcept override {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return static_cast<double>(a_);
+    }
+    
+    /**
+     * @brief Gets the upper bound of the distribution support.
+     * For Discrete Uniform distribution, support is {a, a+1, ..., b}
+     *
+     * @return Upper bound (parameter b as double)
+     */
+    [[nodiscard]] double getSupportUpperBound() const noexcept override {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return static_cast<double>(b_);
+    }
+    
+    /**
+     * Gets the range of the distribution (b - a + 1).
+     * This is the number of possible outcomes.
+     * Uses cached value to eliminate arithmetic.
+     *
+     * @return Range of the distribution
+     */
+    [[nodiscard]] int getRange() const noexcept;
+    
+    /**
+     * Gets the probability of any single outcome.
+     * For discrete uniform, each outcome has probability 1/(b-a+1).
+     * Uses cached value to eliminate division.
+     *
+     * @return Probability of any single outcome
+     */
+    [[nodiscard]] double getSingleOutcomeProbability() const noexcept;
+    
+    //==============================================================================
+    // RESULT-BASED SETTERS
+    //==============================================================================
+    
+    /**
+     * @brief Safely try to set lower bound without throwing exceptions
+     *
+     * @param a New lower bound parameter (must be <= current upper bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetLowerBound(int a) noexcept;
+    
+    /**
+     * @brief Safely try to set upper bound without throwing exceptions
+     *
+     * @param b New upper bound parameter (must be >= current lower bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetUpperBound(int b) noexcept;
+    
+    /**
+     * @brief Safely try to set both bounds without throwing exceptions
+     *
+     * @param a New lower bound parameter (inclusive)
+     * @param b New upper bound parameter (inclusive, must be >= a)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetBounds(int a, int b) noexcept;
     
     /**
      * @brief Safely try to set parameters without throwing exceptions
@@ -413,215 +569,6 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
-    //==========================================================================
-
-    /**
-     * Gets the lower bound parameter a.
-     * Thread-safe: acquires shared lock to protect a_
-     * 
-     * @return Current lower bound value
-     */
-    [[nodiscard]] int getLowerBound() const noexcept { 
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return a_; 
-    }
-    
-    /**
-     * Gets the upper bound parameter b.
-     * Thread-safe: acquires shared lock to protect b_
-     * 
-     * @return Current upper bound value
-     */
-    [[nodiscard]] int getUpperBound() const noexcept { 
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return b_; 
-    }
-    
-    /**
-     * Fast lock-free getter for lower bound parameter using atomic copy.
-     * PERFORMANCE: Uses atomic load - no locking overhead
-     * WARNING: May return stale value if parameters are being updated
-     * 
-     * @return Atomic copy of lower bound parameter (may be slightly stale)
-     */
-    [[nodiscard]] int getLowerBoundAtomic() const noexcept {
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            return atomicA_.load(std::memory_order_acquire);
-        }
-        // Fallback to locked version if atomic copy not valid
-        return getLowerBound();
-    }
-    
-    /**
-     * Fast lock-free getter for upper bound parameter using atomic copy.
-     * PERFORMANCE: Uses atomic load - no locking overhead
-     * WARNING: May return stale value if parameters are being updated
-     * 
-     * @return Atomic copy of upper bound parameter (may be slightly stale)
-     */
-    [[nodiscard]] int getUpperBoundAtomic() const noexcept {
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            return atomicB_.load(std::memory_order_acquire);
-        }
-        // Fallback to locked version if atomic copy not valid
-        return getUpperBound();
-    }
-    
-    /**
-     * Sets the lower bound parameter a.
-     * 
-     * @param a New lower bound (must be <= current upper bound)
-     * @throws std::invalid_argument if a > b or parameters are invalid
-     */
-    void setLowerBound(int a);
-    
-    /**
-     * Sets the upper bound parameter b.
-     * 
-     * @param b New upper bound (must be >= current lower bound)
-     * @throws std::invalid_argument if b < a or parameters are invalid
-     */
-    void setUpperBound(int b);
-    
-    /**
-     * Sets both bounds simultaneously.
-     * 
-     * @param a New lower bound
-     * @param b New upper bound (must be >= a)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    void setBounds(int a, int b);
-    
-    /**
-     * @brief Safely try to set lower bound without throwing exceptions
-     * 
-     * @param a New lower bound parameter (must be <= current upper bound)
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetLowerBound(int a) noexcept;
-    
-    /**
-     * @brief Safely try to set upper bound without throwing exceptions
-     * 
-     * @param b New upper bound parameter (must be >= current lower bound)
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetUpperBound(int b) noexcept;
-    
-    /**
-     * Gets the mean of the distribution.
-     * For Discrete Uniform distribution, mean = (a + b)/2
-     * Uses cached value to eliminate addition and division.
-     * 
-     * @return Mean value
-     */
-    [[nodiscard]] double getMean() const noexcept override;
-    
-    /**
-     * Gets the variance of the distribution.
-     * For Discrete Uniform distribution, variance = ((b-a)(b-a+2))/12
-     * Uses cached value to eliminate multiplications and divisions.
-     * 
-     * @return Variance value
-     */
-    [[nodiscard]] double getVariance() const noexcept override;
-    
-    /**
-     * @brief Gets the skewness of the distribution.
-     * For Discrete Uniform distribution, skewness = 0 (perfectly symmetric)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Skewness value (always 0)
-     */
-    [[nodiscard]] double getSkewness() const noexcept override {
-        return 0.0;  // Discrete uniform distribution is perfectly symmetric
-    }
-    
-    /**
-     * @brief Gets the kurtosis of the distribution.
-     * For Discrete Uniform distribution, excess kurtosis ≈ -1.2 for large ranges
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Excess kurtosis value (approximately -1.2)
-     */
-    [[nodiscard]] double getKurtosis() const noexcept override {
-        return -1.2;  // Approximate excess kurtosis for discrete uniform
-    }
-    
-    /**
-     * @brief Gets the number of parameters for this distribution.
-     * For Discrete Uniform distribution, there are 2 parameters: a (lower) and b (upper)
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Number of parameters (always 2)
-     */
-    [[nodiscard]] int getNumParameters() const noexcept override {
-        return 2;
-    }
-    
-    /**
-     * @brief Gets the distribution name.
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return Distribution name
-     */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "Discrete";
-    }
-    
-    /**
-     * @brief Checks if the distribution is discrete.
-     * For Discrete Uniform distribution, it's discrete
-     * Inline for performance - no thread safety needed for constant
-     * 
-     * @return true (always discrete)
-     */
-    [[nodiscard]] bool isDiscrete() const noexcept override {
-        return true;
-    }
-    
-    /**
-     * @brief Gets the lower bound of the distribution support.
-     * For Discrete Uniform distribution, support is {a, a+1, ..., b}
-     * 
-     * @return Lower bound (parameter a as double)
-     */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return static_cast<double>(a_);
-    }
-    
-    /**
-     * @brief Gets the upper bound of the distribution support.
-     * For Discrete Uniform distribution, support is {a, a+1, ..., b}
-     * 
-     * @return Upper bound (parameter b as double)
-     */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return static_cast<double>(b_);
-    }
-    
-    /**
-     * Gets the range of the distribution (b - a + 1).
-     * This is the number of possible outcomes.
-     * Uses cached value to eliminate arithmetic.
-     * 
-     * @return Range of the distribution
-     */
-    [[nodiscard]] int getRange() const noexcept;
-    
-    /**
-     * Gets the probability of any single outcome.
-     * For discrete uniform, each outcome has probability 1/(b-a+1).
-     * Uses cached value to eliminate division.
-     * 
-     * @return Probability of any single outcome
-     */
-    [[nodiscard]] double getSingleOutcomeProbability() const noexcept;
-
-    //==========================================================================
     // DISTRIBUTION MANAGEMENT
     //==========================================================================
 
@@ -648,25 +595,329 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
-     * Equality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are equal
+     * @brief Confidence interval for lower bound a
+     *
+     * Computes confidence interval for lower bound using order statistics.
+     * Utilizes exact distribution of the minimum for discrete uniform distributions.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @return Pair of (lower_bound, upper_bound) for a
+     * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    bool operator==(const DiscreteDistribution& other) const;
+    [[nodiscard]] static std::pair<int, int> confidenceIntervalLowerBound(
+        const std::vector<double>& data, double confidence_level = 0.95);
     
     /**
-     * Inequality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are not equal
+     * @brief Confidence interval for upper bound b
+     *
+     * Computes confidence interval for upper bound using order statistics.
+     * Utilizes exact distribution of the maximum for discrete uniform distributions.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @return Pair of (lower_bound, upper_bound) for b
+     * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    bool operator!=(const DiscreteDistribution& other) const { return !(*this == other); }
+    [[nodiscard]] static std::pair<int, int> confidenceIntervalUpperBound(
+        const std::vector<double>& data, double confidence_level = 0.95);
+    
+    /**
+     * @brief Likelihood ratio test for Discrete Uniform bounds
+     *
+     * Tests H0: (a, b) = (a₀, b₀) vs H1: (a, b) ≠ (a₀, b₀) using likelihood ratio statistic.
+     * Adapted for discrete case with exact computation of likelihood ratios.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @param null_a Null hypothesis value for a lower bound
+     * @param null_b Null hypothesis value for b upper bound
+     * @param significance_level Significance level for test
+     * @return Tuple of (test_statistic, p_value, reject_null)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
+        const std::vector<double>& data, int null_a, int null_b, double significance_level = 0.05);
+    
+    /**
+     * @brief Bayesian estimation for Discrete Uniform bounds
+     *
+     * Uses Beta-like conjugate priors for discrete uniform bounds estimation.
+     * Returns posterior parameters as distributions for both bounds.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @param prior_a_alpha Prior alpha for a (default: 1.0)
+     * @param prior_a_beta Prior beta for a (default: 1.0)
+     * @param prior_b_alpha Prior alpha for b (default: 1.0)
+     * @param prior_b_beta Prior beta for b (default: 1.0)
+     * @return Pair of (posterior_a_interval, posterior_b_interval)
+     */
+    [[nodiscard]] static std::pair<std::pair<double, double>, std::pair<double, double>> bayesianEstimation(
+        const std::vector<double>& data, double prior_a_alpha = 1.0, double prior_a_beta = 1.0,
+        double prior_b_alpha = 1.0, double prior_b_beta = 1.0);
+    
+    /**
+     * @brief Robust estimation using mode-based methods
+     *
+     * Provides robust estimation of Discrete Uniform bounds using discrete-specific methods.
+     * Uses mode ranges and frequency analysis for outlier resistance.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @param estimator_type Type of robust estimator ("mode_range", "frequency_trim")
+     * @param trim_proportion Proportion to trim (default: 0.1)
+     * @return Pair of (robust_a_estimate, robust_b_estimate)
+     */
+    [[nodiscard]] static std::pair<int, int> robustEstimation(
+        const std::vector<double>& data, const std::string& estimator_type = "mode_range",
+        double trim_proportion = 0.1);
+    
+    /**
+     * @brief Method of moments estimation
+     *
+     * Estimates Discrete Uniform bounds by matching sample moments with theoretical moments:
+     * For discrete uniform on {a, a+1, ..., b}:
+     * - Mean = (a + b) / 2
+     * - Variance = (b - a + 1)² - 1) / 12
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @return Pair of (a_estimate, b_estimate)
+     * @throws std::invalid_argument if data is empty or invalid
+     */
+    [[nodiscard]] static std::pair<int, int> methodOfMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Bayesian credible interval from posterior distributions
+     *
+     * Calculates Bayesian credible intervals for lower and upper bounds
+     * from their posterior distributions after observing discrete data.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
+     * @param prior_a_alpha Prior alpha for a parameter (default: 1.0)
+     * @param prior_a_beta Prior beta for a parameter (default: 1.0)
+     * @param prior_b_alpha Prior alpha for b parameter (default: 1.0)
+     * @param prior_b_beta Prior beta for b parameter (default: 1.0)
+     * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
+     */
+    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>> bayesianCredibleInterval(
+        const std::vector<double>& data, double credibility_level = 0.95,
+        double prior_a_alpha = 1.0, double prior_a_beta = 1.0,
+        double prior_b_alpha = 1.0, double prior_b_beta = 1.0);
+    
+    /**
+     * @brief L-moments parameter estimation
+     *
+     * Uses L-moments (linear combinations of order statistics) for robust
+     * parameter estimation. For discrete uniform on {a,...,b}: uses sample order statistics.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @return Pair of (a_estimate, b_estimate)
+     */
+    [[nodiscard]] static std::pair<int, int> lMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Discrete uniformity test using chi-square goodness-of-fit
+     *
+     * Tests whether the data follows a discrete uniform distribution.
+     * Uses exact discrete probability calculations for small ranges.
+     *
+     * @param data Vector of observed integer data (as doubles)
+     * @param significance_level Significance level for test
+     * @return Tuple of (test_statistic, p_value, uniformity_is_valid)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> discreteUniformityTest(
+        const std::vector<double>& data, double significance_level = 0.05);
+    
+    
+    //==========================================================================
+    // GOODNESS-OF-FIT TESTS
+    //==========================================================================
+    
+    /**
+     * @brief Chi-squared goodness-of-fit test for discrete distributions
+     *
+     * Tests the null hypothesis that observed data follows the specified discrete distribution.
+     * Particularly appropriate for discrete distributions.
+     *
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (chi_squared_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> chiSquaredGoodnessOfFitTest(
+        const std::vector<double>& data,
+        const DiscreteDistribution& distribution,
+        double alpha = 0.05);
+
+    /**
+     * @brief Anderson-Darling goodness-of-fit test for discrete distributions
+     *
+     * Tests the null hypothesis that data follows the specified discrete distribution.
+     * More sensitive to tail differences than the KS test and adapted for discrete cases.
+     *
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (AD_statistic, p_value, reject_null)
+     * @note Uses asymptotic p-value approximation adjusted for discrete distributions
+     */
+    static std::tuple<double, double, bool> andersonDarlingTest(
+        const std::vector<double>& data,
+        const DiscreteDistribution& distribution,
+        double alpha = 0.05);
+    
+    /**
+     * @brief Kolmogorov-Smirnov goodness-of-fit test
+     *
+     * Tests the null hypothesis that data follows the specified discrete distribution.
+     * Note: KS test is generally less appropriate for discrete data than chi-squared.
+     *
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (KS_statistic, p_value, reject_null)
+     */
+    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+        const std::vector<double>& data,
+        const DiscreteDistribution& distribution,
+        double alpha = 0.05);
+    
+    //==========================================================================
+    // CROSS-VALIDATION AND MODEL SELECTION
+    //==========================================================================
+    
+    /**
+     * @brief K-fold cross-validation for parameter estimation
+     *
+     * Performs k-fold cross-validation to assess parameter estimation quality
+     * and model stability for discrete distributions.
+     *
+     * @param data Sample data for cross-validation
+     * @param k Number of folds (default: 5)
+     * @param random_seed Seed for random fold assignment (default: 42)
+     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
+     */
+    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
+        const std::vector<double>& data,
+        int k = 5,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Leave-one-out cross-validation for parameter estimation
+     *
+     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
+     * estimation quality for discrete distributions.
+     *
+     * @param data Sample data for cross-validation
+     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
+     */
+    static std::tuple<double, double, double> leaveOneOutCrossValidation(
+        const std::vector<double>& data);
+    
+    //==========================================================================
+    // INFORMATION CRITERIA
+    //==========================================================================
+    
+    /**
+     * @brief Model comparison using information criteria
+     *
+     * Computes various information criteria (AIC, BIC, AICc) for model selection.
+     * Lower values indicate better model fit while penalizing complexity.
+     *
+     * @param data Sample data used for fitting
+     * @param fitted_distribution The fitted discrete distribution
+     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
+     */
+    static std::tuple<double, double, double, double> computeInformationCriteria(
+        const std::vector<double>& data,
+        const DiscreteDistribution& fitted_distribution);
+    
+    //==========================================================================
+    // BOOTSTRAP METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     *
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the discrete distribution parameters (lower and upper bounds).
+     *
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Tuple of ((lower_bound_CI_lower, lower_bound_CI_upper), (upper_bound_CI_lower, upper_bound_CI_upper))
+     */
+    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data,
+        double confidence_level = 0.95,
+        int n_bootstrap = 1000,
+        unsigned int random_seed = 42);
+    
+    //==========================================================================
+    // DISCRETE-SPECIFIC UTILITY METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Generate multiple random integer samples efficiently
+     *
+     * Optimized for multiple samples with reduced RNG overhead
+     *
+     * @param rng Random number generator
+     * @param count Number of samples to generate
+     * @return Vector of random integer samples
+     */
+    [[nodiscard]] std::vector<int> sampleIntegers(std::mt19937& rng, std::size_t count) const;
+    
+    /**
+     * @brief Check if a value is in the support of the distribution
+     *
+     * @param x Value to check (will be rounded to nearest integer)
+     * @return true if the rounded value is in {a, a+1, ..., b}
+     */
+    [[nodiscard]] bool isInSupport(double x) const noexcept;
+    
+    /**
+     * @brief Get all possible outcomes as a vector
+     *
+     * @return Vector containing all integers from a to b (inclusive)
+     * @warning Only call for small ranges to avoid memory issues
+     */
+    [[nodiscard]] std::vector<int> getAllOutcomes() const;
     
     //==========================================================================
     // SIMD BATCH OPERATIONS
+    // 
+    // 🛡️  DEVELOPER SAFETY GUIDE FOR BATCH OPERATIONS 🛡️
+    // 
+    // These methods provide high-performance batch probability calculations with
+    // comprehensive safety guarantees. While they internally use optimized SIMD
+    // operations with raw pointers, all unsafe operations are encapsulated behind
+    // thoroughly validated public interfaces.
+    // 
+    // SAFETY FEATURES PROVIDED:
+    // ✅ Automatic input validation and bounds checking
+    // ✅ Thread-safe parameter caching with proper locking
+    // ✅ Runtime CPU feature detection for SIMD compatibility
+    // ✅ Graceful fallback to scalar operations when SIMD unavailable
+    // ✅ Memory alignment handled automatically
+    // 
+    // RECOMMENDED USAGE PATTERNS:
+    // 1. For basic users: Use these raw pointer interfaces with pre-allocated arrays
+    // 2. For C++20 users: Prefer the std::span interfaces below for type safety
+    // 3. For parallel processing: Use the ParallelUtils-integrated methods
+    // 4. For maximum safety: Use the cache-aware methods with additional validation
+    // 
+    // PERFORMANCE CHARACTERISTICS:
+    // - Small arrays (< ~64 elements): Uses scalar loops, no SIMD overhead
+    // - Large arrays (≥ ~64 elements): Uses SIMD vectorization when beneficial
+    // - Thread-safe caching minimizes parameter validation overhead
+    // - Zero-copy operation on properly sized input arrays
+    // - Note: Discrete distributions have limited SIMD benefits due to branching logic
     //==========================================================================
     
     /**
@@ -856,138 +1107,155 @@ public:
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint = {}) const;
 
+    
     //==========================================================================
-    // DISCRETE-SPECIFIC UTILITY METHODS
+    // COMPARISON OPERATORS
     //==========================================================================
     
     /**
-     * @brief Generate multiple random integer samples efficiently
-     * 
-     * Optimized for multiple samples with reduced RNG overhead
-     * 
-     * @param rng Random number generator
-     * @param count Number of samples to generate
-     * @return Vector of random integer samples
+     * Equality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are equal
      */
-    [[nodiscard]] std::vector<int> sampleIntegers(std::mt19937& rng, std::size_t count) const;
+    bool operator==(const DiscreteDistribution& other) const;
     
     /**
-     * @brief Check if a value is in the support of the distribution
-     * 
-     * @param x Value to check (will be rounded to nearest integer)
-     * @return true if the rounded value is in {a, a+1, ..., b}
+     * Inequality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are not equal
      */
-    [[nodiscard]] bool isInSupport(double x) const noexcept;
-    
-    /**
-     * @brief Get all possible outcomes as a vector
-     * 
-     * @return Vector containing all integers from a to b (inclusive)
-     * @warning Only call for small ranges to avoid memory issues
-     */
-    [[nodiscard]] std::vector<int> getAllOutcomes() const;
+    bool operator!=(const DiscreteDistribution& other) const { return !(*this == other); }
 
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
     /**
-     * @brief Chi-squared goodness-of-fit test for discrete distributions
-     * 
-     * Tests the null hypothesis that observed data follows the specified discrete distribution.
-     * Particularly appropriate for discrete distributions.
-     * 
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (chi_squared_statistic, p_value, reject_null)
+     * @brief Stream input operator
+     * @param is Input stream
+     * @param dist Distribution to input
+     * @return Reference to the input stream
      */
-    static std::tuple<double, double, bool> chiSquaredGoodnessOfFitTest(
-        const std::vector<double>& data,
-        const DiscreteDistribution& distribution,
-        double alpha = 0.05);
+    friend std::istream& operator>>(std::istream& is, libstats::DiscreteDistribution& dist);
     
     /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     * 
-     * Tests the null hypothesis that data follows the specified discrete distribution.
-     * Note: KS test is generally less appropriate for discrete data than chi-squared.
-     * 
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
+     * @brief Stream output operator
+     * @param os Output stream
+     * @param dist Distribution to output
+     * @return Reference to the output stream
      */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data,
-        const DiscreteDistribution& distribution,
-        double alpha = 0.05);
-    
-    //==========================================================================
-    // CROSS-VALIDATION AND MODEL SELECTION
-    //==========================================================================
-    
-    /**
-     * @brief K-fold cross-validation for parameter estimation
-     * 
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability for discrete distributions.
-     * 
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
-     */
-    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data,
-        int k = 5,
-        unsigned int random_seed = 42);
-    
-    /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     * 
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality for discrete distributions.
-     * 
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
-     */
-    static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
-    
-    /**
-     * @brief Bootstrap parameter confidence intervals
-     * 
-     * Uses bootstrap resampling to estimate confidence intervals for
-     * the discrete distribution parameters (lower and upper bounds).
-     * 
-     * @param data Sample data for bootstrap resampling
-     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
-     * @param n_bootstrap Number of bootstrap samples (default: 1000)
-     * @param random_seed Seed for random sampling (default: 42)
-     * @return Tuple of ((lower_bound_CI_lower, lower_bound_CI_upper), (upper_bound_CI_lower, upper_bound_CI_upper))
-     */
-    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
-        const std::vector<double>& data,
-        double confidence_level = 0.95,
-        int n_bootstrap = 1000,
-        unsigned int random_seed = 42);
-    
-    /**
-     * @brief Model comparison using information criteria
-     * 
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     * 
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted discrete distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data,
-        const DiscreteDistribution& fitted_distribution);
+    friend std::ostream& operator<<(std::ostream& os, const libstats::DiscreteDistribution& dist);
 
 private:
+    
+    //==========================================================================
+    // DISTRIBUTION PARAMETERS
+    //==========================================================================
+    
+    /** @brief Lower bound parameter a (inclusive) */
+    int a_{0};
+    
+    /** @brief Upper bound parameter b (inclusive) */
+    int b_{1};
+    
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<int> atomicA_{0};
+    mutable std::atomic<int> atomicB_{1};
+    mutable std::atomic<bool> atomicParamsValid_{false};
+
+    //==========================================================================
+    // PERFORMANCE CACHE
+    //==========================================================================
+    
+    /** @brief Cached value of (b - a + 1) - the number of possible outcomes */
+    mutable int range_{2};
+    
+    /** @brief Cached value of 1.0/range for efficiency in PMF calculations */
+    mutable double probability_{0.5};
+    
+    /** @brief Cached value of (a + b)/2.0 for efficiency in mean calculations */
+    mutable double mean_{0.5};
+    
+    /** @brief Cached value of ((b - a)(b - a + 2))/12.0 for efficiency in variance calculations */
+    mutable double variance_{0.25};
+    
+    /** @brief Cached value of log(probability_) for efficiency in log-PMF calculations */
+    mutable double logProbability_{-constants::math::LN2};
+    
+    //==========================================================================
+    // OPTIMIZATION FLAGS
+    //==========================================================================
+    
+    /** @brief Atomic cache validity flag for lock-free fast path optimization */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+    
+    /** @brief True if this is a binary distribution [0,1] for optimization */
+    mutable bool isBinary_{true};
+    
+    /** @brief True if this is a standard die [1,6] for optimization */
+    mutable bool isStandardDie_{false};
+    
+    /** @brief True if this is a symmetric distribution around zero for optimization */
+    mutable bool isSymmetric_{false};
+    
+    /** @brief True if the range is small (≤ 10) for lookup table optimization */
+    mutable bool isSmallRange_{true};
+    
+    /** @brief True if the range is large (> 1000) for approximation algorithms */
+    mutable bool isLargeRange_{false};
+
+    /**
+     * Updates cached values when parameters change - assumes mutex is already held
+     */
+    void updateCacheUnsafe() const noexcept override {
+        // Primary calculations - compute once, reuse multiple times
+        range_ = b_ - a_ + 1;
+        probability_ = 1.0 / static_cast<double>(range_);
+        mean_ = (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
+        
+        // Variance for discrete uniform: ((b-a)(b-a+2))/12
+        const double width = static_cast<double>(b_ - a_);
+        variance_ = (width * (width + 2.0)) / 12.0;
+        
+        logProbability_ = -std::log(static_cast<double>(range_));
+        
+        // Optimization flags
+        isBinary_ = (a_ == 0 && b_ == 1);
+        isStandardDie_ = (a_ == 1 && b_ == 6);
+        isSymmetric_ = (a_ == -b_);
+        isSmallRange_ = (range_ <= 10);
+        isLargeRange_ = (range_ > 1000);
+        
+        cache_valid_ = true;
+        cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicA_.store(a_, std::memory_order_release);
+        atomicB_.store(b_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
+    }
+    
+    /**
+     * Validates parameters for the Discrete Uniform distribution
+     * @param a Lower bound parameter (integer)
+     * @param b Upper bound parameter (integer, must be >= a)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    static void validateParameters(int a, int b) {
+        if (a > b) {
+            throw std::invalid_argument("Upper bound (b) must be greater than or equal to lower bound (a)");
+        }
+        // Check for integer overflow in range calculation
+        if (b > INT_MAX - 1 || a < INT_MIN + 1) {
+            throw std::invalid_argument("Parameter range too large - risk of integer overflow");
+        }
+        // Additional safety check for very large ranges
+        const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
+        if (range_check > INT_MAX) {
+            throw std::invalid_argument("Parameter range exceeds maximum supported size");
+        }
+    }
+    
     //==========================================================================
     // PRIVATE FACTORY METHODS
     //==========================================================================
@@ -1046,13 +1314,5 @@ private:
         return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
     }
 };
-
-/**
- * @brief Stream output operator
- * @param os Output stream
- * @param dist Distribution to output
- * @return Reference to the output stream
- */
-std::ostream& operator<<(std::ostream& os, const DiscreteDistribution& dist);
 
 } // namespace libstats

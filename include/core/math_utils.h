@@ -346,6 +346,24 @@ template<MathFunction<double> F>
  */
 [[nodiscard]] double inverse_f_cdf(double p, double df1, double df2) noexcept;
 
+/**
+ * @brief Gamma distribution CDF
+ * @param x value (x >= 0)
+ * @param shape shape parameter (alpha > 0)
+ * @param scale scale parameter (beta > 0) 
+ * @return P(X <= x) where X ~ Gamma(shape, scale)
+ */
+[[nodiscard]] double gamma_cdf(double x, double shape, double scale) noexcept;
+
+/**
+ * @brief Inverse gamma distribution CDF (quantile function)
+ * @param p probability value in (0, 1)
+ * @param shape shape parameter (alpha > 0)
+ * @param scale scale parameter (beta > 0) 
+ * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale)
+ */
+[[nodiscard]] double gamma_inverse_cdf(double p, double shape, double scale) noexcept;
+
 // =============================================================================
 // STATISTICAL UTILITIES
 // =============================================================================

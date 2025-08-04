@@ -310,8 +310,8 @@ TEST_F(ExponentialEnhancedTest, InformationCriteria) {
     EXPECT_TRUE(std::isfinite(log_likelihood));
 }
 
-TEST_F(ExponentialEnhancedTest, BootstrapParameterConfidenceInterval) {
-    auto [lambda_ci_lower, lambda_ci_upper] = ExponentialDistribution::bootstrapParameterConfidenceInterval(
+TEST_F(ExponentialEnhancedTest, BootstrapParameterConfidenceIntervals) {
+    auto [lambda_ci_lower, lambda_ci_upper] = ExponentialDistribution::bootstrapParameterConfidenceIntervals(
         exponential_data_, 0.95, 1000, 456);
     
     // Check that confidence intervals are reasonable

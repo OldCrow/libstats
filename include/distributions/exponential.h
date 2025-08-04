@@ -102,96 +102,13 @@ namespace libstats {
  */
 class ExponentialDistribution : public DistributionBase
 {   
-private:
-    //==========================================================================
-    // DISTRIBUTION PARAMETERS
-    //==========================================================================
-    
-    /** @brief Rate parameter λ - must be positive */
-    double lambda_{constants::math::ONE};
-    
-    /** @brief C++20 atomic copy of parameter for lock-free access */
-    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PERFORMANCE CACHE
-    //==========================================================================
-    
-    /** @brief Cached value of ln(λ) for efficiency in log probability calculations */
-    mutable double logLambda_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of 1/λ (mean and scale parameter) for efficiency */
-    mutable double invLambda_{constants::math::ONE};
-    
-    /** @brief Cached value of -λ for efficiency in PDF and log-PDF calculations */
-    mutable double negLambda_{-constants::math::ONE};
-    
-    /** @brief Cached value of 1/λ² for variance calculation efficiency */
-    mutable double invLambdaSquared_{constants::math::ONE};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS
-    //==========================================================================
-    
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-    
-    /** @brief True if λ = 1 for unit exponential optimizations */
-    mutable bool isUnitRate_{true};
-    
-    /** @brief True if λ is very large (> 1000) for numerical stability */
-    mutable bool isHighRate_{false};
-    
-    /** @brief True if λ is very small (< 0.001) for numerical stability */
-    mutable bool isLowRate_{false};
-
-    /**
-     * Updates cached values when parameters change - assumes mutex is already held
-     */
-    void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        invLambda_ = constants::math::ONE / lambda_;
-        invLambdaSquared_ = invLambda_ * invLambda_;
-        
-        // Core cached values
-        logLambda_ = std::log(lambda_);
-        negLambda_ = -lambda_;
-        
-        // Optimization flags
-        isUnitRate_ = (std::abs(lambda_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        isHighRate_ = (lambda_ > constants::math::THOUSAND);
-        isLowRate_ = (lambda_ < constants::math::THOUSANDTH);
-        
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-        
-        // Update atomic parameters for lock-free access
-        atomicLambda_.store(lambda_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
-    
-    /**
-     * Validates parameters for the Exponential distribution
-     * @param lambda Rate parameter (must be positive and finite)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    static void validateParameters(double lambda) {
-        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= constants::math::ZERO_DOUBLE) {
-            throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
-        }
-    }
-
-    friend std::istream& operator>>(std::istream& is,
-            libstats::ExponentialDistribution& distribution);
-
 public:
     //==========================================================================
     // CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
-     * Constructs an Exponential distribution with given rate parameter.
+     * @brief Constructs an Exponential distribution with given rate parameter.
      * 
      * @param lambda Rate parameter λ (must be positive)
      * @throws std::invalid_argument if lambda is invalid
@@ -201,7 +118,7 @@ public:
     explicit ExponentialDistribution(double lambda = constants::math::ONE);
     
     /**
-     * Thread-safe copy constructor
+     * @brief Thread-safe copy constructor
      * 
      * Implementation in .cpp: Complex thread-safe copying with lock management,
      * parameter validation, and efficient cache value copying
@@ -209,7 +126,7 @@ public:
     ExponentialDistribution(const ExponentialDistribution& other);
     
     /**
-     * Copy assignment operator
+     * @brief Copy assignment operator
      * 
      * Implementation in .cpp: Complex thread-safe assignment with deadlock prevention,
      * atomic lock acquisition using std::lock, and parameter validation
@@ -217,14 +134,14 @@ public:
     ExponentialDistribution& operator=(const ExponentialDistribution& other);
     
     /**
-     * Move constructor (DEFENSIVE THREAD SAFETY)
+     * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
     ExponentialDistribution(ExponentialDistribution&& other);
     
     /**
-     * Move assignment operator (C++11 COMPLIANT)
+     * @brief Move assignment operator (C++11 COMPLIANT)
      * Implementation in .cpp: Thread-safe move with atomic operations
      * @note noexcept compliant using atomic state management
      */
@@ -274,85 +191,6 @@ public:
         // Use private factory to bypass validation
         return Result<ExponentialDistribution>::ok(createUnchecked(lambda));
     }
-    
-    /**
-     * @brief Safely try to set parameters without throwing exceptions
-     * 
-     * @param lambda New rate parameter
-     * @return VoidResult indicating success or failure
-     * 
-     * Implementation in .cpp: Complex thread-safe parameter validation and atomic state management
-     */
-    [[nodiscard]] VoidResult trySetParameters(double lambda) noexcept;
-    
-    /**
-     * @brief Check if current parameters are valid
-     * @return VoidResult indicating validity
-     */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateExponentialParameters(lambda_);
-    }
-
-    //==========================================================================
-    // CORE PROBABILITY METHODS
-    //==========================================================================
-
-    /**
-     * Computes the probability density function for the Exponential distribution.
-     * 
-     * @param x The value at which to evaluate the PDF
-     * @return Probability density (or approximated probability for discrete sampling)
-     */
-    [[nodiscard]] double getProbability(double x) const override;
-
-    /**
-     * Computes the logarithm of the probability density function for numerical stability.
-     * 
-     * For exponential distribution: log(f(x)) = log(λ) - λx for x ≥ 0
-     * 
-     * @param x The value at which to evaluate the log-PDF
-     * @return Natural logarithm of the probability density, or -∞ for invalid values
-     */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
-
-    /**
-     * Evaluates the CDF at x using the standard exponential CDF formula
-     * For exponential distribution: F(x) = 1 - exp(-λx) for x ≥ 0, 0 otherwise
-     * 
-     * @param x The value at which to evaluate the CDF
-     * @return Cumulative probability P(X ≤ x)
-     */
-    [[nodiscard]] double getCumulativeProbability(double x) const override;
-    
-    /**
-     * @brief Computes the quantile function (inverse CDF)
-     * For exponential distribution: F^(-1)(p) = -ln(1-p)/λ
-     * 
-     * @param p Probability value in [0,1]
-     * @return x such that P(X ≤ x) = p
-     * @throws std::invalid_argument if p not in [0,1]
-     */
-    [[nodiscard]] double getQuantile(double p) const override;
-    
-    /**
-     * @brief Generate single random sample from distribution
-     * Uses inverse transform method: X = -ln(U)/λ where U ~ Uniform(0,1)
-     * 
-     * @param rng Random number generator
-     * @return Single random sample
-     */
-    [[nodiscard]] double sample(std::mt19937& rng) const override;
-    
-    /**
-     * @brief Generate multiple random samples from distribution
-     * Optimized batch sampling using inverse transform method
-     * 
-     * @param rng Random number generator
-     * @param n Number of samples to generate
-     * @return Vector of random samples
-     */
-    [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
     // PARAMETER GETTERS AND SETTERS
@@ -414,14 +252,6 @@ public:
      * @throws std::invalid_argument if lambda <= 0 or is not finite
      */
     void setLambda(double lambda);
-    
-    /**
-     * @brief Safely set the rate parameter λ without throwing exceptions (Result-based API).
-     * 
-     * @param lambda New rate parameter (must be positive)
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetLambda(double lambda) noexcept;
     
     /**
      * Gets the mean of the distribution.
@@ -525,6 +355,97 @@ public:
      * @return Scale parameter (1/λ)
      */
     [[nodiscard]] double getScale() const noexcept;
+    
+    //==============================================================================
+    // RESULT-BASED SETTERS
+    //==============================================================================
+    
+    /**
+     * @brief Safely set the rate parameter λ without throwing exceptions (Result-based API).
+     *
+     * @param lambda New rate parameter (must be positive)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetLambda(double lambda) noexcept;
+
+    /**
+     * @brief Safely try to set parameters without throwing exceptions
+     *
+     * @param lambda New rate parameter
+     * @return VoidResult indicating success or failure
+     * 
+     * Implementation in .cpp: Complex thread-safe parameter validation and atomic state management
+     */
+    [[nodiscard]] VoidResult trySetParameters(double lambda) noexcept;
+    
+    /**
+     * @brief Check if current parameters are valid
+     * @return VoidResult indicating validity
+     */
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return validateExponentialParameters(lambda_);
+    }
+
+    //==========================================================================
+    // CORE PROBABILITY METHODS
+    //==========================================================================
+
+    /**
+     * Computes the probability density function for the Exponential distribution.
+     * 
+     * @param x The value at which to evaluate the PDF
+     * @return Probability density (or approximated probability for discrete sampling)
+     */
+    [[nodiscard]] double getProbability(double x) const override;
+
+    /**
+     * Computes the logarithm of the probability density function for numerical stability.
+     * 
+     * For exponential distribution: log(f(x)) = log(λ) - λx for x ≥ 0
+     * 
+     * @param x The value at which to evaluate the log-PDF
+     * @return Natural logarithm of the probability density, or -∞ for invalid values
+     */
+    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+
+    /**
+     * Evaluates the CDF at x using the standard exponential CDF formula
+     * For exponential distribution: F(x) = 1 - exp(-λx) for x ≥ 0, 0 otherwise
+     * 
+     * @param x The value at which to evaluate the CDF
+     * @return Cumulative probability P(X ≤ x)
+     */
+    [[nodiscard]] double getCumulativeProbability(double x) const override;
+    
+    /**
+     * @brief Computes the quantile function (inverse CDF)
+     * For exponential distribution: F^(-1)(p) = -ln(1-p)/λ
+     * 
+     * @param p Probability value in [0,1]
+     * @return x such that P(X ≤ x) = p
+     * @throws std::invalid_argument if p not in [0,1]
+     */
+    [[nodiscard]] double getQuantile(double p) const override;
+    
+    /**
+     * @brief Generate single random sample from distribution
+     * Uses inverse transform method: X = -ln(U)/λ where U ~ Uniform(0,1)
+     * 
+     * @param rng Random number generator
+     * @return Single random sample
+     */
+    [[nodiscard]] double sample(std::mt19937& rng) const override;
+    
+    /**
+     * @brief Generate multiple random samples from distribution
+     * Optimized batch sampling using inverse transform method
+     * 
+     * @param rng Random number generator
+     * @param n Number of samples to generate
+     * @return Vector of random samples
+     */
+    [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
     // DISTRIBUTION MANAGEMENT
@@ -689,6 +610,10 @@ public:
         const std::vector<double>& data,
         double alpha = 0.05);
     
+    //==========================================================================
+    // GOODNESS-OF-FIT TESTS
+    //==========================================================================
+    
     /**
      * @brief Kolmogorov-Smirnov goodness-of-fit test
      * 
@@ -757,23 +682,9 @@ public:
     static std::tuple<double, double, double> leaveOneOutCrossValidation(
         const std::vector<double>& data);
     
-    /**
-     * @brief Bootstrap parameter confidence intervals
-     * 
-     * Uses bootstrap resampling to estimate confidence intervals for
-     * the rate parameter λ.
-     * 
-     * @param data Sample data for bootstrap resampling
-     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
-     * @param n_bootstrap Number of bootstrap samples (default: 1000)
-     * @param random_seed Seed for random sampling (default: 42)
-     * @return Pair of (rate_CI_lower, rate_CI_upper)
-     */
-    static std::pair<double, double> bootstrapParameterConfidenceInterval(
-        const std::vector<double>& data,
-        double confidence_level = 0.95,
-        int n_bootstrap = 1000,
-        unsigned int random_seed = 42);
+    //==========================================================================
+    // INFORMATION CRITERIA
+    //==========================================================================
     
     /**
      * @brief Model comparison using information criteria
@@ -788,6 +699,98 @@ public:
     static std::tuple<double, double, double, double> computeInformationCriteria(
         const std::vector<double>& data,
         const ExponentialDistribution& fitted_distribution);
+    
+    //==========================================================================
+    // BOOTSTRAP METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     *
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the rate parameter λ. Returns a single pair since exponential has only one parameter.
+     *
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Pair of (rate_CI_lower, rate_CI_upper)
+     */
+    static std::pair<double, double> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data,
+        double confidence_level = 0.95,
+        int n_bootstrap = 1000,
+        unsigned int random_seed = 42);
+    
+    //==========================================================================
+    // EXPONENTIAL-SPECIFIC UTILITY METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Compute the half-life of the exponential process
+     *
+     * Half-life is the time required for the quantity to reduce to half its initial value.
+     * For exponential distribution: half_life = ln(2) / rate
+     *
+     * @return Half-life value
+     */
+    [[nodiscard]] double getHalfLife() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return std::log(2.0) / lambda_;
+    }
+    
+    
+    /**
+     * @brief Check if the distribution has the memoryless property
+     *
+     * The exponential distribution is memoryless: P(X > s+t | X > s) = P(X > t)
+     * This method always returns true for exponential distributions.
+     *
+     * @return true (exponential distribution is always memoryless)
+     */
+    [[nodiscard]] constexpr bool isMemoryless() const noexcept {
+        return true;
+    }
+    
+    /**
+     * @brief Get the median of the distribution
+     *
+     * For exponential distribution: median = ln(2) / λ
+     * This is the value where P(X ≤ median) = 0.5
+     *
+     * @return Median value
+     */
+    [[nodiscard]] double getMedian() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return constants::math::LN2 / lambda_;  // Use precomputed ln(2)
+    }
+    
+    /**
+     * @brief Compute the entropy of the distribution
+     *
+     * For exponential distribution: H(X) = 1 - ln(λ)
+     * Entropy measures the average information content.
+     *
+     * @return Entropy value
+     */
+    [[nodiscard]] double getEntropy() const noexcept override {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return constants::math::ONE - std::log(lambda_);
+    }
+    
+    /**
+     * @brief Get the mode of the distribution
+     *
+     * For exponential distribution, the mode is always 0.
+     * This is where the PDF achieves its maximum value.
+     *
+     * @return Mode value (always 0.0)
+     */
+    [[nodiscard]] constexpr double getMode() const noexcept {
+        return constants::math::ZERO_DOUBLE;
+    }
+    
+    
     
     //==========================================================================
     // SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
@@ -1079,6 +1082,25 @@ public:
      */
     bool operator!=(const ExponentialDistribution& other) const { return !(*this == other); }
     
+    //==========================================================================
+    // FRIEND FUNCTION STREAM OPERATORS
+    //==========================================================================
+    
+    /**
+     * @brief Stream input operator
+     * @param is Input stream
+     * @param dist Distribution to input
+     * @return Reference to the input stream
+     */
+    friend std::istream& operator>>(std::istream& is, libstats::ExponentialDistribution& dist);
+    
+    /**
+     * @brief Stream output operator
+     * @param os Output stream
+     * @param dist Distribution to output
+     * @return Reference to the output stream
+     */
+    friend std::ostream& operator<<(std::ostream& os, const libstats::ExponentialDistribution& dist);
 
 private:
     //==========================================================================
@@ -1129,14 +1151,88 @@ private:
     
     // Note: Redundant SIMD methods removed - SIMD optimization is handled
     // internally within the *UnsafeImpl methods above
-};
+    
+    //==========================================================================
+    // DISTRIBUTION PARAMETERS
+    //==========================================================================
+    
+    /** @brief Rate parameter λ - must be positive */
+    double lambda_{constants::math::ONE};
+    
+    /** @brief C++20 atomic copy of parameter for lock-free access */
+    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
-/**
- * @brief Stream output operator
- * @param os Output stream
- * @param dist Distribution to output
- * @return Reference to the output stream
- */
-std::ostream& operator<<(std::ostream& os, const ExponentialDistribution& dist);
+    //==========================================================================
+    // PERFORMANCE CACHE
+    //==========================================================================
+    
+    /** @brief Cached value of ln(λ) for efficiency in log probability calculations */
+    mutable double logLambda_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of 1/λ (mean and scale parameter) for efficiency */
+    mutable double invLambda_{constants::math::ONE};
+    
+    /** @brief Cached value of -λ for efficiency in PDF and log-PDF calculations */
+    mutable double negLambda_{-constants::math::ONE};
+    
+    /** @brief Cached value of 1/λ² for variance calculation efficiency */
+    mutable double invLambdaSquared_{constants::math::ONE};
+    
+    //==========================================================================
+    // OPTIMIZATION FLAGS
+    //==========================================================================
+    
+    /** @brief Atomic cache validity flag for lock-free fast path optimization */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+    
+    /** @brief True if λ = 1 for unit exponential optimizations */
+    mutable bool isUnitRate_{true};
+    
+    /** @brief True if λ is very large (> 1000) for numerical stability */
+    mutable bool isHighRate_{false};
+    
+    /** @brief True if λ is very small (< 0.001) for numerical stability */
+    mutable bool isLowRate_{false};
+
+    /**
+     * Updates cached values when parameters change - assumes mutex is already held
+     */
+    void updateCacheUnsafe() const noexcept override {
+        // Primary calculations - compute once, reuse multiple times
+        invLambda_ = constants::math::ONE / lambda_;
+        invLambdaSquared_ = invLambda_ * invLambda_;
+        
+        // Core cached values
+        logLambda_ = std::log(lambda_);
+        negLambda_ = -lambda_;
+        
+        // Optimization flags
+        isUnitRate_ = (std::abs(lambda_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        isHighRate_ = (lambda_ > constants::math::THOUSAND);
+        isLowRate_ = (lambda_ < constants::math::THOUSANDTH);
+        
+        cache_valid_ = true;
+        cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicLambda_.store(lambda_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
+    }
+    
+    /**
+     * Validates parameters for the Exponential distribution
+     * @param lambda Rate parameter (must be positive and finite)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    static void validateParameters(double lambda) {
+        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= constants::math::ZERO_DOUBLE) {
+            throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
+        }
+    }
+
+    friend std::istream& operator>>(std::istream& is,
+            libstats::ExponentialDistribution& distribution);
+};
 
 } // namespace libstats

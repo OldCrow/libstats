@@ -115,6 +115,98 @@ ExponentialDistribution& ExponentialDistribution::operator=(ExponentialDistribut
 }
 
 //==============================================================================
+// PARAMETER GETTERS AND SETTERS
+//==============================================================================
+
+void ExponentialDistribution::setLambda(double lambda) {
+    validateParameters(lambda);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+}
+
+double ExponentialDistribution::getMean() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    return invLambda_;
+}
+
+double ExponentialDistribution::getVariance() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    return invLambdaSquared_;
+}
+
+double ExponentialDistribution::getScale() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    return invLambda_;
+}
+
+//==============================================================================
+// RESULT-BASED SETTERS
+//==============================================================================
+
+VoidResult ExponentialDistribution::trySetLambda(double lambda) noexcept {
+    auto validation = validateExponentialParameters(lambda);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+
+    return VoidResult::ok(true);
+}
+
+VoidResult ExponentialDistribution::trySetParameters(double lambda) noexcept {
+    auto validation = validateExponentialParameters(lambda);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+//==============================================================================
 // CORE PROBABILITY METHODS
 //==============================================================================
 
@@ -305,64 +397,6 @@ std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n)
 }
 
 //==============================================================================
-// PARAMETER GETTERS AND SETTERS
-//==============================================================================
-
-void ExponentialDistribution::setLambda(double lambda) {
-    validateParameters(lambda);
-    
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    lambda_ = lambda;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-}
-
-double ExponentialDistribution::getMean() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    return invLambda_;
-}
-
-double ExponentialDistribution::getVariance() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    return invLambdaSquared_;
-}
-
-double ExponentialDistribution::getScale() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    return invLambda_;
-}
-
-//==============================================================================
 // DISTRIBUTION MANAGEMENT
 //==============================================================================
 
@@ -407,24 +441,693 @@ std::string ExponentialDistribution::toString() const {
 }
 
 //==============================================================================
-// COMPARISON OPERATORS
+// ADVANCED STATISTICAL METHODS
 //==============================================================================
 
-bool ExponentialDistribution::operator==(const ExponentialDistribution& other) const {
-    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-    std::lock(lock1, lock2);
+std::pair<double, double> ExponentialDistribution::confidenceIntervalRate(
+    const std::vector<double>& data, 
+    double confidence_level) {
     
-    return std::abs(lambda_ - other.lambda_) <= constants::precision::DEFAULT_TOLERANCE;
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    if (confidence_level <= constants::math::ZERO_DOUBLE || confidence_level >= constants::math::ONE) {
+        throw std::invalid_argument("Confidence level must be between 0 and 1");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const std::size_t n = data.size();
+    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    
+    // For exponential distribution, confidence interval for λ using chi-squared distribution
+    // The exact statistic is: 2n*X̄*λ ~ χ²(2n), where X̄ is the sample mean
+    // Rearranging: λ ~ χ²(2n) / (2n*X̄) = χ²(2n) / (2*ΣXᵢ)
+    // For confidence interval: P(χ²_{α/2,2n} < 2n*X̄*λ < χ²_{1-α/2,2n}) = confidence_level
+    const double alpha = constants::math::ONE - confidence_level;
+    const double dof = constants::math::TWO * static_cast<double>(n);
+    
+    // Get chi-squared quantiles - note the order for proper bounds
+    const double chi_lower = math::inverse_chi_squared_cdf(alpha * constants::math::HALF, dof);
+    const double chi_upper = math::inverse_chi_squared_cdf(constants::math::ONE - alpha * constants::math::HALF, dof);
+    
+    // Transform to rate parameter confidence interval
+    // λ_lower = χ²{α/2,2n} / (2*ΣXᵢ), λ_upper = χ²{1-α/2,2n} / (2*ΣXᵢ)
+    const double lambda_lower = chi_lower / (constants::math::TWO * sample_sum);
+    const double lambda_upper = chi_upper / (constants::math::TWO * sample_sum);
+    
+    return {lambda_lower, lambda_upper};
 }
 
-//==============================================================================
-// STREAM OPERATORS
-//==============================================================================
-
-std::ostream& operator<<(std::ostream& os, const ExponentialDistribution& distribution) {
-    return os << distribution.toString();
+std::pair<double, double> ExponentialDistribution::confidenceIntervalScale(
+    const std::vector<double>& data,
+    double confidence_level) {
+    
+    // Get rate parameter confidence interval
+    const auto [lambda_lower, lambda_upper] = confidenceIntervalRate(data, confidence_level);
+    
+    // Transform to scale parameter (reciprocal relationship)
+    const double scale_lower = constants::math::ONE / lambda_upper;
+    const double scale_upper = constants::math::ONE / lambda_lower;
+    
+    return {scale_lower, scale_upper};
 }
+
+std::tuple<double, double, bool> ExponentialDistribution::likelihoodRatioTest(
+    const std::vector<double>& data,
+    double null_lambda,
+    double alpha) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    if (null_lambda <= constants::math::ZERO_DOUBLE) {
+        throw std::invalid_argument("Null hypothesis lambda must be positive");
+    }
+    
+    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+        throw std::invalid_argument("Alpha must be between 0 and 1");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const std::size_t n = data.size();
+    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sample_mean = sample_sum / static_cast<double>(n);
+    const double mle_lambda = constants::math::ONE / sample_mean;
+    
+    // Log-likelihood under null hypothesis: n*ln(λ₀) - λ₀*Σxᵢ
+    const double log_likelihood_null = static_cast<double>(n) * std::log(null_lambda) - null_lambda * sample_sum;
+    
+    // Log-likelihood under alternative (MLE): n*ln(λ̂) - λ̂*Σxᵢ = n*ln(λ̂) - n
+    const double log_likelihood_alt = static_cast<double>(n) * std::log(mle_lambda) - static_cast<double>(n);
+    
+    // Likelihood ratio statistic: -2ln(Λ) = 2(ℓ(λ̂) - ℓ(λ₀))
+    const double lr_statistic = constants::math::TWO * (log_likelihood_alt - log_likelihood_null);
+    
+    // Under H₀: LR ~ χ²(1)
+    const double p_value = constants::math::ONE - math::chi_squared_cdf(lr_statistic, constants::math::ONE);
+    const bool reject_null = p_value < alpha;
+    
+    return {lr_statistic, p_value, reject_null};
+}
+
+std::pair<double, double> ExponentialDistribution::bayesianEstimation(
+    const std::vector<double>& data,
+    double prior_shape,
+    double prior_rate) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    if (prior_shape <= constants::math::ZERO_DOUBLE || prior_rate <= constants::math::ZERO_DOUBLE) {
+        throw std::invalid_argument("Prior parameters must be positive");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const std::size_t n = data.size();
+    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    
+    // Posterior parameters for Gamma(α, β) conjugate prior
+    // Prior: λ ~ Gamma(α, β)
+    // Likelihood: xᵢ ~ Exponential(λ)
+    // Posterior: λ|x ~ Gamma(α + n, β + Σxᵢ)
+    const double posterior_shape = prior_shape + static_cast<double>(n);
+    const double posterior_rate = prior_rate + sample_sum;
+    
+    return {posterior_shape, posterior_rate};
+}
+
+std::pair<double, double> ExponentialDistribution::bayesianCredibleInterval(
+    const std::vector<double>& data,
+    double credibility_level,
+    double prior_shape,
+    double prior_rate) {
+    
+    if (credibility_level <= constants::math::ZERO_DOUBLE || credibility_level >= constants::math::ONE) {
+        throw std::invalid_argument("Credibility level must be between 0 and 1");
+    }
+    
+    // Get posterior parameters
+    const auto [post_shape, post_rate] = bayesianEstimation(data, prior_shape, prior_rate);
+    
+    // Calculate credible interval from posterior Gamma distribution
+    // For now, use a simple approximation - implement proper gamma quantile later
+    [[maybe_unused]] const double alpha = constants::math::ONE - credibility_level;
+    const double mean = post_shape / post_rate;
+    const double std_dev = std::sqrt(post_shape) / post_rate;
+    const double z_alpha_2 = constants::math::ONE + constants::math::HALF; // Approximate normal quantile
+    const double lower_quantile = mean - z_alpha_2 * std_dev;
+    const double upper_quantile = mean + z_alpha_2 * std_dev;
+    
+    return {lower_quantile, upper_quantile};
+}
+
+double ExponentialDistribution::robustEstimation(
+    const std::vector<double>& data,
+    const std::string& estimator_type,
+    double trim_proportion) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    if (trim_proportion < constants::math::ZERO_DOUBLE || trim_proportion >= constants::math::HALF) {
+        throw std::invalid_argument("Trim proportion must be between 0 and 0.5");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    std::vector<double> sorted_data = data;
+    std::ranges::sort(sorted_data);
+    
+    const std::size_t n = sorted_data.size();
+    const std::size_t trim_count = static_cast<std::size_t>(std::floor(trim_proportion * static_cast<double>(n)));
+    
+    if (estimator_type == "winsorized") {
+        // Winsorized estimation: replace extreme values with boundary values
+        if (trim_count > 0) {
+            const double lower_bound = sorted_data[trim_count];
+            const double upper_bound = sorted_data[n - 1 - trim_count];
+            
+            for (std::size_t i = 0; i < trim_count; ++i) {
+                sorted_data[i] = lower_bound;
+                sorted_data[n - 1 - i] = upper_bound;
+            }
+        }
+    } else if (estimator_type == "trimmed") {
+        // Trimmed estimation: remove extreme values
+        if (trim_count > 0) {
+            sorted_data.erase(sorted_data.begin(), sorted_data.begin() + static_cast<std::ptrdiff_t>(trim_count));
+            sorted_data.erase(sorted_data.end() - static_cast<std::ptrdiff_t>(trim_count), sorted_data.end());
+        }
+    } else {
+        throw std::invalid_argument("Estimator type must be 'winsorized' or 'trimmed'");
+    }
+    
+    if (sorted_data.empty()) {
+        throw std::runtime_error("No data remaining after trimming");
+    }
+    
+    // Calculate robust mean
+    const double robust_sum = std::accumulate(sorted_data.begin(), sorted_data.end(), constants::math::ZERO_DOUBLE);
+    const double robust_mean = robust_sum / static_cast<double>(sorted_data.size());
+    
+    return constants::math::ONE / robust_mean;
+}
+
+double ExponentialDistribution::methodOfMomentsEstimation(
+    const std::vector<double>& data) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    // For exponential distribution: E[X] = 1/λ, so λ = 1/sample_mean
+    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sample_mean = sample_sum / static_cast<double>(data.size());
+    
+    return constants::math::ONE / sample_mean;
+}
+
+double ExponentialDistribution::lMomentsEstimation(
+    const std::vector<double>& data) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    // For exponential distribution, L₁ = mean = 1/λ
+    // So this is equivalent to method of moments for exponential
+    std::vector<double> sorted_data = data;
+    std::ranges::sort(sorted_data);
+    
+    const std::size_t n = sorted_data.size();
+    double l1 = constants::math::ZERO_DOUBLE; // First L-moment (mean)
+    
+    // Calculate L₁ using order statistics
+    for (std::size_t i = 0; i < n; ++i) {
+        l1 += sorted_data[i];
+    }
+    l1 /= static_cast<double>(n);
+    
+    return constants::math::ONE / l1;
+}
+
+std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariationTest(
+    const std::vector<double>& data, double alpha) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+        throw std::invalid_argument("Alpha must be between 0 and 1");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const size_t n = data.size();
+    if (n < 2) {
+        throw std::invalid_argument("At least 2 data points required for coefficient of variation test");
+    }
+    
+    // Calculate sample mean and sample standard deviation
+    const double sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sample_mean = sum / static_cast<double>(n);
+    
+    // Calculate sample variance (unbiased estimator)
+    double sum_squared_deviations = constants::math::ZERO_DOUBLE;
+    for (double value : data) {
+        const double deviation = value - sample_mean;
+        sum_squared_deviations += deviation * deviation;
+    }
+    const double sample_variance = sum_squared_deviations / static_cast<double>(n - 1);
+    const double sample_std_dev = std::sqrt(sample_variance);
+    
+    // Calculate coefficient of variation
+    const double cv = sample_std_dev / sample_mean;
+    
+    // For exponential distribution, the theoretical CV = 1
+    // Test statistic: how far the observed CV is from 1
+    const double cv_statistic = std::abs(cv - constants::math::ONE);
+    
+    // For large n, the CV of exponential follows approximately normal distribution
+    // with mean = 1 and variance ≈ 1/n (asymptotic result)
+    const double cv_std_error = constants::math::ONE / std::sqrt(static_cast<double>(n));
+    const double z_statistic = cv_statistic / cv_std_error;
+    
+    // Two-tailed test p-value using normal approximation
+    const double p_value = constants::math::TWO * (constants::math::ONE - math::normal_cdf(z_statistic));
+    
+    const bool reject_null = p_value < alpha;
+    
+    return {cv_statistic, p_value, reject_null};
+}
+
+std::tuple<double, double, bool> ExponentialDistribution::kolmogorovSmirnovTest(
+    const std::vector<double>& data,
+    const ExponentialDistribution& distribution,
+    double alpha) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+        throw std::invalid_argument("Alpha must be between 0 and 1");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    // Sort data for empirical CDF calculation
+    std::vector<double> sorted_data = data;
+    std::ranges::sort(sorted_data);
+    
+    const size_t n = sorted_data.size();
+    double max_diff = constants::math::ZERO_DOUBLE;
+    
+    // Calculate KS statistic: max|F_n(x) - F(x)|
+    for (size_t i = 0; i < n; ++i) {
+        const double x = sorted_data[i];
+        
+        // Empirical CDF at x: F_n(x) = (i+1)/n
+        const double empirical_cdf = static_cast<double>(i + 1) / static_cast<double>(n);
+        
+        // Theoretical exponential CDF: F(x) = 1 - exp(-λx)
+        const double theoretical_cdf = distribution.getCumulativeProbability(x);
+        
+        // Check both F_n(x) - F(x) and F(x) - F_{n-1}(x)
+        const double diff1 = std::abs(empirical_cdf - theoretical_cdf);
+        
+        double diff2 = constants::math::ZERO_DOUBLE;
+        if (i > 0) {
+            const double prev_empirical_cdf = static_cast<double>(i) / static_cast<double>(n);
+            diff2 = std::abs(theoretical_cdf - prev_empirical_cdf);
+        }
+        
+        max_diff = std::max({max_diff, diff1, diff2});
+    }
+    
+    // Asymptotic p-value approximation for KS test
+    // P-value ≈ 2 * exp(-2 * n * D²) for large n
+    const double n_double = static_cast<double>(n);
+    const double p_value_approx = constants::math::TWO * std::exp(-constants::math::TWO * n_double * max_diff * max_diff);
+    
+    // Clamp p-value to [0, 1]
+    const double p_value = std::min(constants::math::ONE, std::max(constants::math::ZERO_DOUBLE, p_value_approx));
+    
+    const bool reject_null = p_value < alpha;
+    
+    return {max_diff, p_value, reject_null};
+}
+
+std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
+    const std::vector<double>& data, const ExponentialDistribution& distribution, double alpha) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+        throw std::invalid_argument("Alpha must be between 0 and 1");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    // Sort data for AD test
+    std::vector<double> sorted_data = data;
+    std::ranges::sort(sorted_data);
+    
+    const size_t n = sorted_data.size();
+    const double n_double = static_cast<double>(n);
+    
+    // Calculate Anderson-Darling statistic
+    double ad_statistic = -n_double;
+    
+    for (size_t i = 0; i < n; ++i) {
+        const double x = sorted_data[i];
+        const double cdf_val = distribution.getCumulativeProbability(x);
+        
+        // Protect against log(0) by using small positive value
+        const double cdf_safe = std::max(cdf_val, constants::probability::MIN_PROBABILITY);
+        [[maybe_unused]] const double cdf_complement_safe = std::max(constants::math::ONE - cdf_val, constants::probability::MIN_PROBABILITY);
+        
+        // AD statistic formula: A² = -n - (1/n) * Σ[(2i-1) * ln(F(X_i)) + (2n+1-2i) * ln(1-F(X_{n+1-i}))]
+        const double term1 = (constants::math::TWO * static_cast<double>(i + 1) - constants::math::ONE) * std::log(cdf_safe);
+        
+        // For the second term, we need F(X_{n-i}) = F(X_{n+1-i-1})
+        const size_t reverse_idx = n - 1 - i;
+        const double x_reverse = sorted_data[reverse_idx];
+        const double cdf_reverse = distribution.getCumulativeProbability(x_reverse);
+        const double cdf_reverse_complement_safe = std::max(constants::math::ONE - cdf_reverse, constants::probability::MIN_PROBABILITY);
+        
+        const double term2 = (constants::math::TWO * static_cast<double>(n - i) - constants::math::ONE) * std::log(cdf_reverse_complement_safe);
+        
+        ad_statistic -= (term1 + term2);
+    }
+    
+    ad_statistic /= n_double;
+    
+    // Adjust for exponential distribution (modification for known parameters)
+    // For exponential distribution with estimated parameter, adjust the statistic
+    const double ad_adjusted = ad_statistic * (constants::math::ONE + 0.6 / n_double);
+    
+    // Approximate p-value for exponential distribution Anderson-Darling test
+    // Using asymptotic approximation for exponential case
+    double p_value;
+    if (ad_adjusted < 0.2) {
+        p_value = constants::math::ONE - std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
+    } else if (ad_adjusted < 0.34) {
+        p_value = constants::math::ONE - std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
+    } else if (ad_adjusted < 0.6) {
+        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
+    } else {
+        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
+    }
+    
+    // Clamp p-value to [0, 1]
+    p_value = std::min(constants::math::ONE, std::max(constants::math::ZERO_DOUBLE, p_value));
+    
+    const bool reject_null = p_value < alpha;
+    
+    return {ad_adjusted, p_value, reject_null};
+}
+
+std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCrossValidation(
+    const std::vector<double>& data,
+    int k,
+    unsigned int random_seed) {
+    
+    if (data.size() < static_cast<size_t>(k)) {
+        throw std::invalid_argument("Data size must be at least k for k-fold cross-validation");
+    }
+    if (k <= 1) {
+        throw std::invalid_argument("Number of folds k must be greater than 1");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const size_t n = data.size();
+    const size_t fold_size = n / k;
+    
+    // Create shuffled indices for random fold assignment
+    std::vector<size_t> indices(n);
+    std::iota(indices.begin(), indices.end(), 0);
+    
+    std::mt19937 rng(random_seed);
+    std::shuffle(indices.begin(), indices.end(), rng);
+    
+    std::vector<std::tuple<double, double, double>> results;
+    results.reserve(k);
+    
+    for (int fold = 0; fold < k; ++fold) {
+        // Define validation set indices for this fold
+        const size_t start_idx = fold * fold_size;
+        const size_t end_idx = (fold == k - 1) ? n : (fold + 1) * fold_size;
+        
+        // Create training and validation sets
+        std::vector<double> training_data;
+        std::vector<double> validation_data;
+        training_data.reserve(n - (end_idx - start_idx));
+        validation_data.reserve(end_idx - start_idx);
+        
+        for (size_t i = 0; i < n; ++i) {
+            if (i >= start_idx && i < end_idx) {
+                validation_data.push_back(data[indices[i]]);
+            } else {
+                training_data.push_back(data[indices[i]]);
+            }
+        }
+        
+        // Fit model on training data (MLE estimation)
+        const double training_sum = std::accumulate(training_data.begin(), training_data.end(), constants::math::ZERO_DOUBLE);
+        const double training_mean = training_sum / static_cast<double>(training_data.size());
+        const double fitted_rate = constants::math::ONE / training_mean;
+        
+        ExponentialDistribution fitted_model(fitted_rate);
+        
+        // Evaluate on validation data
+        double rate_error = constants::math::ZERO_DOUBLE;
+        double scale_error = constants::math::ZERO_DOUBLE;
+        double log_likelihood = constants::math::ZERO_DOUBLE;
+        
+        // Calculate prediction errors and log-likelihood
+        const double validation_sum = std::accumulate(validation_data.begin(), validation_data.end(), constants::math::ZERO_DOUBLE);
+        const double validation_mean = validation_sum / static_cast<double>(validation_data.size());
+        const double true_rate_estimate = constants::math::ONE / validation_mean;
+        const double true_scale_estimate = validation_mean;
+        
+        // Rate parameter error
+        rate_error = std::abs(fitted_rate - true_rate_estimate);
+        
+        // Scale parameter error (1/λ)
+        const double fitted_scale = constants::math::ONE / fitted_rate;
+        scale_error = std::abs(fitted_scale - true_scale_estimate);
+        
+        // Log-likelihood on validation set
+        for (double val : validation_data) {
+            log_likelihood += fitted_model.getLogProbability(val);
+        }
+        
+        results.emplace_back(rate_error, scale_error, log_likelihood);
+    }
+    
+    return results;
+}
+
+std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossValidation(
+    const std::vector<double>& data) {
+    
+    if (data.size() < 3) {
+        throw std::invalid_argument("At least 3 data points required for LOOCV");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const size_t n = data.size();
+    std::vector<double> absolute_errors;
+    std::vector<double> squared_errors;
+    double total_log_likelihood = constants::math::ZERO_DOUBLE;
+    
+    absolute_errors.reserve(n);
+    squared_errors.reserve(n);
+    
+    for (size_t i = 0; i < n; ++i) {
+        // Create training set excluding point i
+        std::vector<double> training_data;
+        training_data.reserve(n - 1);
+        
+        for (size_t j = 0; j < n; ++j) {
+            if (j != i) {
+                training_data.push_back(data[j]);
+            }
+        }
+        
+        // Fit model on training data (MLE estimation)
+        const double training_sum = std::accumulate(training_data.begin(), training_data.end(), constants::math::ZERO_DOUBLE);
+        const double training_mean = training_sum / static_cast<double>(training_data.size());
+        const double fitted_rate = constants::math::ONE / training_mean;
+        
+        ExponentialDistribution fitted_model(fitted_rate);
+        
+        // Evaluate on left-out point
+        // For exponential distribution, the "prediction" is the mean (1/λ)
+        const double predicted_mean = constants::math::ONE / fitted_rate;
+        const double actual_value = data[i];
+        
+        const double absolute_error = std::abs(actual_value - predicted_mean);
+        const double squared_error = (actual_value - predicted_mean) * (actual_value - predicted_mean);
+        
+        absolute_errors.push_back(absolute_error);
+        squared_errors.push_back(squared_error);
+        
+        total_log_likelihood += fitted_model.getLogProbability(actual_value);
+    }
+    
+    // Calculate summary statistics
+    const double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
+    const double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
+    const double root_mean_squared_error = std::sqrt(mean_squared_error);
+    
+    return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
+}
+
+std::tuple<double, double, double, double> ExponentialDistribution::computeInformationCriteria(
+    const std::vector<double>& data,
+    const ExponentialDistribution& fitted_distribution) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const double n = static_cast<double>(data.size());
+    const int k = 1; // Exponential distribution has 1 parameter (λ)
+    
+    // Calculate log-likelihood
+    double log_likelihood = constants::math::ZERO_DOUBLE;
+    for (double val : data) {
+        log_likelihood += fitted_distribution.getLogProbability(val);
+    }
+    
+    // Compute information criteria
+    const double aic = constants::math::TWO * static_cast<double>(k) - constants::math::TWO * log_likelihood;
+    const double bic = std::log(n) * static_cast<double>(k) - constants::math::TWO * log_likelihood;
+    
+    // AICc (corrected AIC for small sample sizes)
+    double aicc;
+    if (n - static_cast<double>(k) - constants::math::ONE > constants::math::ZERO_DOUBLE) {
+        aicc = aic + (constants::math::TWO * static_cast<double>(k) * (static_cast<double>(k) + constants::math::ONE)) / (n - static_cast<double>(k) - constants::math::ONE);
+    } else {
+        aicc = std::numeric_limits<double>::infinity(); // Undefined for small samples
+    }
+    
+    return {aic, bic, aicc, log_likelihood};
+}
+
+std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceIntervals(
+    const std::vector<double>& data,
+    double confidence_level,
+    int n_bootstrap,
+    unsigned int random_seed) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    if (confidence_level <= constants::math::ZERO_DOUBLE || confidence_level >= constants::math::ONE) {
+        throw std::invalid_argument("Confidence level must be between 0 and 1");
+    }
+    if (n_bootstrap <= 0) {
+        throw std::invalid_argument("Number of bootstrap samples must be positive");
+    }
+    
+    // Check for positive values
+    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+        throw std::invalid_argument("All data values must be positive for exponential distribution");
+    }
+    
+    const size_t n = data.size();
+    std::vector<double> bootstrap_rates;
+    bootstrap_rates.reserve(n_bootstrap);
+    
+    std::mt19937 rng(random_seed);
+    std::uniform_int_distribution<size_t> dist(0, n - 1);
+    
+    // Generate bootstrap samples
+    for (int b = 0; b < n_bootstrap; ++b) {
+        std::vector<double> bootstrap_sample;
+        bootstrap_sample.reserve(n);
+        
+        // Sample with replacement
+        for (size_t i = 0; i < n; ++i) {
+            bootstrap_sample.push_back(data[dist(rng)]);
+        }
+        
+        // Estimate rate parameter for bootstrap sample (MLE)
+        const double bootstrap_sum = std::accumulate(bootstrap_sample.begin(), bootstrap_sample.end(), constants::math::ZERO_DOUBLE);
+        const double bootstrap_mean = bootstrap_sum / static_cast<double>(bootstrap_sample.size());
+        const double bootstrap_rate = constants::math::ONE / bootstrap_mean;
+        
+        bootstrap_rates.push_back(bootstrap_rate);
+    }
+    
+    // Sort for quantile calculation
+    std::sort(bootstrap_rates.begin(), bootstrap_rates.end());
+    
+    // Calculate confidence intervals using percentile method
+    const double alpha = constants::math::ONE - confidence_level;
+    const double lower_percentile = alpha * constants::math::HALF;
+    const double upper_percentile = constants::math::ONE - alpha * constants::math::HALF;
+    
+    const size_t lower_idx = static_cast<size_t>(lower_percentile * (n_bootstrap - 1));
+    const size_t upper_idx = static_cast<size_t>(upper_percentile * (n_bootstrap - 1));
+    
+    return {bootstrap_rates[lower_idx], bootstrap_rates[upper_idx]};
+}
+
 
 //==============================================================================
 // SIMD BATCH OPERATIONS
@@ -1102,603 +1805,21 @@ void ExponentialDistribution::getCumulativeProbabilityBatchCacheAware(std::span<
     // Cache access recorded implicitly through batch operations
 }
 
+
 //==============================================================================
-// ADVANCED STATISTICAL METHODS
+// COMPARISON OPERATORS
 //==============================================================================
 
-std::pair<double, double> ExponentialDistribution::confidenceIntervalRate(
-    const std::vector<double>& data, 
-    double confidence_level) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    if (confidence_level <= constants::math::ZERO_DOUBLE || confidence_level >= constants::math::ONE) {
-        throw std::invalid_argument("Confidence level must be between 0 and 1");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    const std::size_t n = data.size();
-    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
-    
-    // For exponential distribution, confidence interval for λ using chi-squared distribution
-    // The exact statistic is: 2n*X̄*λ ~ χ²(2n), where X̄ is the sample mean
-    // Rearranging: λ ~ χ²(2n) / (2n*X̄) = χ²(2n) / (2*ΣXᵢ)
-    // For confidence interval: P(χ²_{α/2,2n} < 2n*X̄*λ < χ²_{1-α/2,2n}) = confidence_level
-    const double alpha = constants::math::ONE - confidence_level;
-    const double dof = constants::math::TWO * static_cast<double>(n);
-    
-    // Get chi-squared quantiles - note the order for proper bounds
-    const double chi_lower = math::inverse_chi_squared_cdf(alpha * constants::math::HALF, dof);
-    const double chi_upper = math::inverse_chi_squared_cdf(constants::math::ONE - alpha * constants::math::HALF, dof);
-    
-    // Transform to rate parameter confidence interval
-    // λ_lower = χ²{α/2,2n} / (2*ΣXᵢ), λ_upper = χ²{1-α/2,2n} / (2*ΣXᵢ)
-    const double lambda_lower = chi_lower / (constants::math::TWO * sample_sum);
-    const double lambda_upper = chi_upper / (constants::math::TWO * sample_sum);
-    
-    return {lambda_lower, lambda_upper};
-}
-
-std::pair<double, double> ExponentialDistribution::confidenceIntervalScale(
-    const std::vector<double>& data,
-    double confidence_level) {
-    
-    // Get rate parameter confidence interval
-    const auto [lambda_lower, lambda_upper] = confidenceIntervalRate(data, confidence_level);
-    
-    // Transform to scale parameter (reciprocal relationship)
-    const double scale_lower = constants::math::ONE / lambda_upper;
-    const double scale_upper = constants::math::ONE / lambda_lower;
-    
-    return {scale_lower, scale_upper};
-}
-
-std::tuple<double, double, bool> ExponentialDistribution::likelihoodRatioTest(
-    const std::vector<double>& data,
-    double null_lambda,
-    double alpha) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    if (null_lambda <= constants::math::ZERO_DOUBLE) {
-        throw std::invalid_argument("Null hypothesis lambda must be positive");
-    }
-    
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    const std::size_t n = data.size();
-    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
-    const double sample_mean = sample_sum / static_cast<double>(n);
-    const double mle_lambda = constants::math::ONE / sample_mean;
-    
-    // Log-likelihood under null hypothesis: n*ln(λ₀) - λ₀*Σxᵢ
-    const double log_likelihood_null = static_cast<double>(n) * std::log(null_lambda) - null_lambda * sample_sum;
-    
-    // Log-likelihood under alternative (MLE): n*ln(λ̂) - λ̂*Σxᵢ = n*ln(λ̂) - n
-    const double log_likelihood_alt = static_cast<double>(n) * std::log(mle_lambda) - static_cast<double>(n);
-    
-    // Likelihood ratio statistic: -2ln(Λ) = 2(ℓ(λ̂) - ℓ(λ₀))
-    const double lr_statistic = constants::math::TWO * (log_likelihood_alt - log_likelihood_null);
-    
-    // Under H₀: LR ~ χ²(1)
-    const double p_value = constants::math::ONE - math::chi_squared_cdf(lr_statistic, constants::math::ONE);
-    const bool reject_null = p_value < alpha;
-    
-    return {lr_statistic, p_value, reject_null};
-}
-
-std::pair<double, double> ExponentialDistribution::bayesianEstimation(
-    const std::vector<double>& data,
-    double prior_shape,
-    double prior_rate) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    if (prior_shape <= constants::math::ZERO_DOUBLE || prior_rate <= constants::math::ZERO_DOUBLE) {
-        throw std::invalid_argument("Prior parameters must be positive");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    const std::size_t n = data.size();
-    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
-    
-    // Posterior parameters for Gamma(α, β) conjugate prior
-    // Prior: λ ~ Gamma(α, β)
-    // Likelihood: xᵢ ~ Exponential(λ)
-    // Posterior: λ|x ~ Gamma(α + n, β + Σxᵢ)
-    const double posterior_shape = prior_shape + static_cast<double>(n);
-    const double posterior_rate = prior_rate + sample_sum;
-    
-    return {posterior_shape, posterior_rate};
-}
-
-std::pair<double, double> ExponentialDistribution::bayesianCredibleInterval(
-    const std::vector<double>& data,
-    double credibility_level,
-    double prior_shape,
-    double prior_rate) {
-    
-    if (credibility_level <= constants::math::ZERO_DOUBLE || credibility_level >= constants::math::ONE) {
-        throw std::invalid_argument("Credibility level must be between 0 and 1");
-    }
-    
-    // Get posterior parameters
-    const auto [post_shape, post_rate] = bayesianEstimation(data, prior_shape, prior_rate);
-    
-    // Calculate credible interval from posterior Gamma distribution
-    // For now, use a simple approximation - implement proper gamma quantile later
-    [[maybe_unused]] const double alpha = constants::math::ONE - credibility_level;
-    const double mean = post_shape / post_rate;
-    const double std_dev = std::sqrt(post_shape) / post_rate;
-    const double z_alpha_2 = constants::math::ONE + constants::math::HALF; // Approximate normal quantile
-    const double lower_quantile = mean - z_alpha_2 * std_dev;
-    const double upper_quantile = mean + z_alpha_2 * std_dev;
-    
-    return {lower_quantile, upper_quantile};
-}
-
-double ExponentialDistribution::robustEstimation(
-    const std::vector<double>& data,
-    const std::string& estimator_type,
-    double trim_proportion) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    if (trim_proportion < constants::math::ZERO_DOUBLE || trim_proportion >= constants::math::HALF) {
-        throw std::invalid_argument("Trim proportion must be between 0 and 0.5");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    std::vector<double> sorted_data = data;
-    std::ranges::sort(sorted_data);
-    
-    const std::size_t n = sorted_data.size();
-    const std::size_t trim_count = static_cast<std::size_t>(std::floor(trim_proportion * static_cast<double>(n)));
-    
-    if (estimator_type == "winsorized") {
-        // Winsorized estimation: replace extreme values with boundary values
-        if (trim_count > 0) {
-            const double lower_bound = sorted_data[trim_count];
-            const double upper_bound = sorted_data[n - 1 - trim_count];
-            
-            for (std::size_t i = 0; i < trim_count; ++i) {
-                sorted_data[i] = lower_bound;
-                sorted_data[n - 1 - i] = upper_bound;
-            }
-        }
-    } else if (estimator_type == "trimmed") {
-        // Trimmed estimation: remove extreme values
-        if (trim_count > 0) {
-            sorted_data.erase(sorted_data.begin(), sorted_data.begin() + static_cast<std::ptrdiff_t>(trim_count));
-            sorted_data.erase(sorted_data.end() - static_cast<std::ptrdiff_t>(trim_count), sorted_data.end());
-        }
-    } else {
-        throw std::invalid_argument("Estimator type must be 'winsorized' or 'trimmed'");
-    }
-    
-    if (sorted_data.empty()) {
-        throw std::runtime_error("No data remaining after trimming");
-    }
-    
-    // Calculate robust mean
-    const double robust_sum = std::accumulate(sorted_data.begin(), sorted_data.end(), constants::math::ZERO_DOUBLE);
-    const double robust_mean = robust_sum / static_cast<double>(sorted_data.size());
-    
-    return constants::math::ONE / robust_mean;
-}
-
-double ExponentialDistribution::methodOfMomentsEstimation(
-    const std::vector<double>& data) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    // For exponential distribution: E[X] = 1/λ, so λ = 1/sample_mean
-    const double sample_sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
-    const double sample_mean = sample_sum / static_cast<double>(data.size());
-    
-    return constants::math::ONE / sample_mean;
-}
-
-double ExponentialDistribution::lMomentsEstimation(
-    const std::vector<double>& data) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    // For exponential distribution, L₁ = mean = 1/λ
-    // So this is equivalent to method of moments for exponential
-    std::vector<double> sorted_data = data;
-    std::ranges::sort(sorted_data);
-    
-    const std::size_t n = sorted_data.size();
-    double l1 = constants::math::ZERO_DOUBLE; // First L-moment (mean)
-    
-    // Calculate L₁ using order statistics
-    for (std::size_t i = 0; i < n; ++i) {
-        l1 += sorted_data[i];
-    }
-    l1 /= static_cast<double>(n);
-    
-    return constants::math::ONE / l1;
-}
-
-std::tuple<double, double, bool> ExponentialDistribution::kolmogorovSmirnovTest(
-    const std::vector<double>& data,
-    const ExponentialDistribution& distribution,
-    double alpha) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    // Sort data for empirical CDF calculation
-    std::vector<double> sorted_data = data;
-    std::ranges::sort(sorted_data);
-    
-    const size_t n = sorted_data.size();
-    double max_diff = constants::math::ZERO_DOUBLE;
-    
-    // Calculate KS statistic: max|F_n(x) - F(x)|
-    for (size_t i = 0; i < n; ++i) {
-        const double x = sorted_data[i];
-        
-        // Empirical CDF at x: F_n(x) = (i+1)/n
-        const double empirical_cdf = static_cast<double>(i + 1) / static_cast<double>(n);
-        
-        // Theoretical exponential CDF: F(x) = 1 - exp(-λx)
-        const double theoretical_cdf = distribution.getCumulativeProbability(x);
-        
-        // Check both F_n(x) - F(x) and F(x) - F_{n-1}(x)
-        const double diff1 = std::abs(empirical_cdf - theoretical_cdf);
-        
-        double diff2 = constants::math::ZERO_DOUBLE;
-        if (i > 0) {
-            const double prev_empirical_cdf = static_cast<double>(i) / static_cast<double>(n);
-            diff2 = std::abs(theoretical_cdf - prev_empirical_cdf);
-        }
-        
-        max_diff = std::max({max_diff, diff1, diff2});
-    }
-    
-    // Asymptotic p-value approximation for KS test
-    // P-value ≈ 2 * exp(-2 * n * D²) for large n
-    const double n_double = static_cast<double>(n);
-    const double p_value_approx = constants::math::TWO * std::exp(-constants::math::TWO * n_double * max_diff * max_diff);
-    
-    // Clamp p-value to [0, 1]
-    const double p_value = std::min(constants::math::ONE, std::max(constants::math::ZERO_DOUBLE, p_value_approx));
-    
-    const bool reject_null = p_value < alpha;
-    
-    return {max_diff, p_value, reject_null};
-}
-
-std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCrossValidation(
-    const std::vector<double>& data,
-    int k,
-    unsigned int random_seed) {
-    
-    if (data.size() < static_cast<size_t>(k)) {
-        throw std::invalid_argument("Data size must be at least k for k-fold cross-validation");
-    }
-    if (k <= 1) {
-        throw std::invalid_argument("Number of folds k must be greater than 1");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    const size_t n = data.size();
-    const size_t fold_size = n / k;
-    
-    // Create shuffled indices for random fold assignment
-    std::vector<size_t> indices(n);
-    std::iota(indices.begin(), indices.end(), 0);
-    
-    std::mt19937 rng(random_seed);
-    std::shuffle(indices.begin(), indices.end(), rng);
-    
-    std::vector<std::tuple<double, double, double>> results;
-    results.reserve(k);
-    
-    for (int fold = 0; fold < k; ++fold) {
-        // Define validation set indices for this fold
-        const size_t start_idx = fold * fold_size;
-        const size_t end_idx = (fold == k - 1) ? n : (fold + 1) * fold_size;
-        
-        // Create training and validation sets
-        std::vector<double> training_data;
-        std::vector<double> validation_data;
-        training_data.reserve(n - (end_idx - start_idx));
-        validation_data.reserve(end_idx - start_idx);
-        
-        for (size_t i = 0; i < n; ++i) {
-            if (i >= start_idx && i < end_idx) {
-                validation_data.push_back(data[indices[i]]);
-            } else {
-                training_data.push_back(data[indices[i]]);
-            }
-        }
-        
-        // Fit model on training data (MLE estimation)
-        const double training_sum = std::accumulate(training_data.begin(), training_data.end(), constants::math::ZERO_DOUBLE);
-        const double training_mean = training_sum / static_cast<double>(training_data.size());
-        const double fitted_rate = constants::math::ONE / training_mean;
-        
-        ExponentialDistribution fitted_model(fitted_rate);
-        
-        // Evaluate on validation data
-        double rate_error = constants::math::ZERO_DOUBLE;
-        double scale_error = constants::math::ZERO_DOUBLE;
-        double log_likelihood = constants::math::ZERO_DOUBLE;
-        
-        // Calculate prediction errors and log-likelihood
-        const double validation_sum = std::accumulate(validation_data.begin(), validation_data.end(), constants::math::ZERO_DOUBLE);
-        const double validation_mean = validation_sum / static_cast<double>(validation_data.size());
-        const double true_rate_estimate = constants::math::ONE / validation_mean;
-        const double true_scale_estimate = validation_mean;
-        
-        // Rate parameter error
-        rate_error = std::abs(fitted_rate - true_rate_estimate);
-        
-        // Scale parameter error (1/λ)
-        const double fitted_scale = constants::math::ONE / fitted_rate;
-        scale_error = std::abs(fitted_scale - true_scale_estimate);
-        
-        // Log-likelihood on validation set
-        for (double val : validation_data) {
-            log_likelihood += fitted_model.getLogProbability(val);
-        }
-        
-        results.emplace_back(rate_error, scale_error, log_likelihood);
-    }
-    
-    return results;
-}
-
-std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossValidation(
-    const std::vector<double>& data) {
-    
-    if (data.size() < 3) {
-        throw std::invalid_argument("At least 3 data points required for LOOCV");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    const size_t n = data.size();
-    std::vector<double> absolute_errors;
-    std::vector<double> squared_errors;
-    double total_log_likelihood = constants::math::ZERO_DOUBLE;
-    
-    absolute_errors.reserve(n);
-    squared_errors.reserve(n);
-    
-    for (size_t i = 0; i < n; ++i) {
-        // Create training set excluding point i
-        std::vector<double> training_data;
-        training_data.reserve(n - 1);
-        
-        for (size_t j = 0; j < n; ++j) {
-            if (j != i) {
-                training_data.push_back(data[j]);
-            }
-        }
-        
-        // Fit model on training data (MLE estimation)
-        const double training_sum = std::accumulate(training_data.begin(), training_data.end(), constants::math::ZERO_DOUBLE);
-        const double training_mean = training_sum / static_cast<double>(training_data.size());
-        const double fitted_rate = constants::math::ONE / training_mean;
-        
-        ExponentialDistribution fitted_model(fitted_rate);
-        
-        // Evaluate on left-out point
-        // For exponential distribution, the "prediction" is the mean (1/λ)
-        const double predicted_mean = constants::math::ONE / fitted_rate;
-        const double actual_value = data[i];
-        
-        const double absolute_error = std::abs(actual_value - predicted_mean);
-        const double squared_error = (actual_value - predicted_mean) * (actual_value - predicted_mean);
-        
-        absolute_errors.push_back(absolute_error);
-        squared_errors.push_back(squared_error);
-        
-        total_log_likelihood += fitted_model.getLogProbability(actual_value);
-    }
-    
-    // Calculate summary statistics
-    const double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
-    const double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
-    const double root_mean_squared_error = std::sqrt(mean_squared_error);
-    
-    return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
-}
-
-std::tuple<double, double, double, double> ExponentialDistribution::computeInformationCriteria(
-    const std::vector<double>& data,
-    const ExponentialDistribution& fitted_distribution) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    const double n = static_cast<double>(data.size());
-    const int k = 1; // Exponential distribution has 1 parameter (λ)
-    
-    // Calculate log-likelihood
-    double log_likelihood = constants::math::ZERO_DOUBLE;
-    for (double val : data) {
-        log_likelihood += fitted_distribution.getLogProbability(val);
-    }
-    
-    // Compute information criteria
-    const double aic = constants::math::TWO * static_cast<double>(k) - constants::math::TWO * log_likelihood;
-    const double bic = std::log(n) * static_cast<double>(k) - constants::math::TWO * log_likelihood;
-    
-    // AICc (corrected AIC for small sample sizes)
-    double aicc;
-    if (n - static_cast<double>(k) - constants::math::ONE > constants::math::ZERO_DOUBLE) {
-        aicc = aic + (constants::math::TWO * static_cast<double>(k) * (static_cast<double>(k) + constants::math::ONE)) / (n - static_cast<double>(k) - constants::math::ONE);
-    } else {
-        aicc = std::numeric_limits<double>::infinity(); // Undefined for small samples
-    }
-    
-    return {aic, bic, aicc, log_likelihood};
-}
-
-std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceInterval(
-    const std::vector<double>& data,
-    double confidence_level,
-    int n_bootstrap,
-    unsigned int random_seed) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (confidence_level <= constants::math::ZERO_DOUBLE || confidence_level >= constants::math::ONE) {
-        throw std::invalid_argument("Confidence level must be between 0 and 1");
-    }
-    if (n_bootstrap <= 0) {
-        throw std::invalid_argument("Number of bootstrap samples must be positive");
-    }
-    
-    // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
-        throw std::invalid_argument("All data values must be positive for exponential distribution");
-    }
-    
-    const size_t n = data.size();
-    std::vector<double> bootstrap_rates;
-    bootstrap_rates.reserve(n_bootstrap);
-    
-    std::mt19937 rng(random_seed);
-    std::uniform_int_distribution<size_t> dist(0, n - 1);
-    
-    // Generate bootstrap samples
-    for (int b = 0; b < n_bootstrap; ++b) {
-        std::vector<double> bootstrap_sample;
-        bootstrap_sample.reserve(n);
-        
-        // Sample with replacement
-        for (size_t i = 0; i < n; ++i) {
-            bootstrap_sample.push_back(data[dist(rng)]);
-        }
-        
-        // Estimate rate parameter for bootstrap sample (MLE)
-        const double bootstrap_sum = std::accumulate(bootstrap_sample.begin(), bootstrap_sample.end(), constants::math::ZERO_DOUBLE);
-        const double bootstrap_mean = bootstrap_sum / static_cast<double>(bootstrap_sample.size());
-        const double bootstrap_rate = constants::math::ONE / bootstrap_mean;
-        
-        bootstrap_rates.push_back(bootstrap_rate);
-    }
-    
-    // Sort for quantile calculation
-    std::sort(bootstrap_rates.begin(), bootstrap_rates.end());
-    
-    // Calculate confidence intervals using percentile method
-    const double alpha = constants::math::ONE - confidence_level;
-    const double lower_percentile = alpha * constants::math::HALF;
-    const double upper_percentile = constants::math::ONE - alpha * constants::math::HALF;
-    
-    const size_t lower_idx = static_cast<size_t>(lower_percentile * (n_bootstrap - 1));
-    const size_t upper_idx = static_cast<size_t>(upper_percentile * (n_bootstrap - 1));
-    
-    return {bootstrap_rates[lower_idx], bootstrap_rates[upper_idx]};
+bool ExponentialDistribution::operator==(const ExponentialDistribution& other) const {
+    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+    std::lock(lock1, lock2);
+    
+    return std::abs(lambda_ - other.lambda_) <= constants::precision::DEFAULT_TOLERANCE;
 }
 
 //==============================================================================
-// RESULT-BASED SETTERS
-//==============================================================================
-
-VoidResult ExponentialDistribution::trySetLambda(double lambda) noexcept {
-    auto validation = validateExponentialParameters(lambda);
-    if (validation.isError()) {
-        return validation;
-    }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    lambda_ = lambda;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    atomicParamsValid_.store(false, std::memory_order_release);
-
-    return VoidResult::ok(true);
-}
-
-VoidResult ExponentialDistribution::trySetParameters(double lambda) noexcept {
-    auto validation = validateExponentialParameters(lambda);
-    if (validation.isError()) {
-        return validation;
-    }
-    
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    lambda_ = lambda;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    atomicParamsValid_.store(false, std::memory_order_release);
-    
-    return VoidResult::ok(true);
-}
-
-//==============================================================================
-// SMART AUTO-DISPATCH BATCH OPERATIONS (C++20 Simplified API)
+// SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
 //==============================================================================
 
 void ExponentialDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -1727,7 +1848,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values, std
         strategy = dispatcher.selectOptimalStrategy(
             count,
             performance::DistributionType::EXPONENTIAL,
-            performance::ComputationComplexity::MODERATE, // exp() is moderate complexity
+            performance::ComputationComplexity::MODERATE,
             system
         );
     } else {
@@ -1815,7 +1936,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values, 
         strategy = dispatcher.selectOptimalStrategy(
             count,
             performance::DistributionType::EXPONENTIAL,
-            performance::ComputationComplexity::SIMPLE, // log arithmetic is simpler than exp
+            performance::ComputationComplexity::MODERATE,
             system
         );
     } else {
@@ -1903,7 +2024,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
         strategy = dispatcher.selectOptimalStrategy(
             count,
             performance::DistributionType::EXPONENTIAL,
-            performance::ComputationComplexity::MODERATE, // exp() for CDF is moderate complexity
+            performance::ComputationComplexity::MODERATE,
             system
         );
     } else {
@@ -1963,6 +2084,58 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
             break;
         }
     }
+}
+
+//==============================================================================
+// STREAM OPERATORS
+//==============================================================================
+
+std::ostream& operator<<(std::ostream& os, const ExponentialDistribution& distribution) {
+    return os << distribution.toString();
+}
+
+std::istream& operator>>(std::istream& is, ExponentialDistribution& distribution) {
+    std::string token;
+    double lambda;
+    
+    // Expected format: "ExponentialDistribution(lambda=<value>)"
+    // We'll parse this step by step
+    
+    // Skip whitespace and read the first part
+    is >> token;
+    if (token.find("ExponentialDistribution(") != 0) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Extract lambda value
+    if (token.find("lambda=") == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    size_t lambda_pos = token.find("lambda=") + 7;
+    size_t close_paren = token.find(")", lambda_pos);
+    if (close_paren == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    try {
+        std::string lambda_str = token.substr(lambda_pos, close_paren - lambda_pos);
+        lambda = std::stod(lambda_str);
+    } catch (...) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Validate and set parameter using the safe API
+    auto result = distribution.trySetParameters(lambda);
+    if (result.isError()) {
+        is.setstate(std::ios::failbit);
+    }
+    
+    return is;
 }
 
 } // namespace libstats

@@ -118,128 +118,13 @@ namespace libstats {
  */
 class UniformDistribution : public DistributionBase
 {   
-private:
-    //==========================================================================
-    // DISTRIBUTION PARAMETERS
-    //==========================================================================
-    
-    /** @brief Lower bound parameter a */
-    double a_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Upper bound parameter b */
-    double b_{constants::math::ONE};
-
-    //==========================================================================
-    // PERFORMANCE CACHE
-    //==========================================================================
-    
-    /** @brief Cached value of (b - a) for efficiency in PDF and variance calculations */
-    mutable double width_{constants::math::ONE};
-    
-    /** @brief Cached value of 1/(b - a) for efficiency in PDF calculations */
-    mutable double invWidth_{constants::math::ONE};
-    
-    /** @brief Cached value of (a + b)/2 for efficiency in mean and median calculations */
-    mutable double midpoint_{constants::math::HALF};
-    
-    /** @brief Cached value of (b - a)² for efficiency in variance calculations */
-    mutable double widthSquared_{constants::math::ONE};
-    
-    /** @brief Cached value of (b - a)²/12 for efficiency in variance calculations */
-    mutable double variance_{constants::math::ONE_TWELFTH};
-    
-    //==========================================================================
-    // ATOMIC PARAMETER COPIES (for lock-free access)
-    //==========================================================================
-    
-    /** @brief Atomic copy of lower bound parameter a for lock-free access */
-    mutable std::atomic<double> atomicA_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Atomic copy of upper bound parameter b for lock-free access */
-    mutable std::atomic<double> atomicB_{constants::math::ONE};
-    
-    /** @brief Atomic validity flag for atomic parameter copies */
-    mutable std::atomic<bool> atomicParamsValid_{false};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS
-    //==========================================================================
-    
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-    
-    /** @brief True if this is the unit interval [0,1] for optimization */
-    mutable bool isUnitInterval_{true};
-    
-    /** @brief True if this is the standard interval [-1,1] for optimization */
-    mutable bool isStandardInterval_{false};
-    
-    /** @brief True if this is a symmetric interval around zero [-c,c] */
-    mutable bool isSymmetricInterval_{false};
-    
-    /** @brief True if the width is very small (< tolerance) for numerical stability */
-    mutable bool isNarrowInterval_{false};
-    
-    /** @brief True if the width is very large (> 1000) for numerical stability */
-    mutable bool isWideInterval_{false};
-
-    /**
-     * Updates cached values when parameters change - assumes mutex is already held
-     */
-    void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        width_ = b_ - a_;
-        invWidth_ = constants::math::ONE / width_;
-        midpoint_ = (a_ + b_) * constants::math::HALF;
-        widthSquared_ = width_ * width_;
-        variance_ = widthSquared_ * constants::math::ONE_TWELFTH;
-        
-        // Optimization flags
-        isUnitInterval_ = (std::abs(a_ - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                         (std::abs(b_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        isStandardInterval_ = (std::abs(a_ + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                             (std::abs(b_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        isSymmetricInterval_ = (std::abs(a_ + b_) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        isNarrowInterval_ = (width_ < constants::precision::DEFAULT_TOLERANCE);
-        isWideInterval_ = (width_ > constants::math::THOUSAND);
-        
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-        
-        // CRITICAL: Update atomic parameters for lock-free access
-        atomicA_.store(a_, std::memory_order_release);
-        atomicB_.store(b_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
-    
-    /**
-     * Validates parameters for the Uniform distribution
-     * @param a Lower bound parameter
-     * @param b Upper bound parameter (must be > a)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    static void validateParameters(double a, double b) {
-        if (std::isnan(a) || std::isinf(a) || std::isnan(b) || std::isinf(b)) {
-            throw std::invalid_argument("Uniform distribution parameters must be finite numbers");
-        }
-        if (a >= b) {
-            throw std::invalid_argument("Upper bound (b) must be strictly greater than lower bound (a)");
-        }
-    }
-
-    friend std::istream& operator>>(std::istream& is,
-            libstats::UniformDistribution& distribution);
-
 public:
     //==========================================================================
     // CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
-     * Constructs a Uniform distribution with given bounds.
+     * @brief Constructs a Uniform distribution with given bounds.
      * 
      * @param a Lower bound (default: 0.0)
      * @param b Upper bound (default: 1.0, must be > a)
@@ -251,7 +136,7 @@ public:
                                 double b = constants::math::ONE);
     
     /**
-     * Thread-safe copy constructor
+     * @brief Thread-safe copy constructor
      * 
      * Implementation in .cpp: Complex thread-safe copying with lock management,
      * parameter validation, and efficient cache value copying
@@ -259,7 +144,7 @@ public:
     UniformDistribution(const UniformDistribution& other);
     
     /**
-     * Copy assignment operator
+     * @brief Copy assignment operator
      * 
      * Implementation in .cpp: Complex thread-safe assignment with deadlock prevention,
      * atomic lock acquisition using std::lock, and parameter validation
@@ -267,8 +152,9 @@ public:
     UniformDistribution& operator=(const UniformDistribution& other);
     
     /**
-     * Move constructor (DEFENSIVE THREAD SAFETY)
+     * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
+     * @warning NOT noexcept due to potential lock acquisition exceptions
      */
     UniformDistribution(UniformDistribution&& other) noexcept;
     
@@ -324,81 +210,6 @@ public:
         // Use private factory to bypass validation
         return Result<UniformDistribution>::ok(createUnchecked(a, b));
     }
-    
-    /**
-     * @brief Safely try to set parameters without throwing exceptions
-     * 
-     * @param a New lower bound parameter
-     * @param b New upper bound parameter (must be > a)
-     * @return VoidResult indicating success or failure
-     * 
-     * Implementation in .cpp: Complex thread-safe parameter validation and atomic state management
-     */
-    [[nodiscard]] VoidResult trySetParameters(double a, double b) noexcept;
-    
-    /**
-     * @brief Check if current parameters are valid
-     * @return VoidResult indicating validity
-     */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateUniformParameters(a_, b_);
-    }
-
-    //==========================================================================
-    // CORE PROBABILITY METHODS
-    //==========================================================================
-
-    /**
-     * Computes the probability density function for the Uniform distribution.
-     * 
-     * For uniform distribution: f(x) = 1/(b-a) for a ≤ x ≤ b, 0 otherwise
-     * 
-     * @param x The value at which to evaluate the PDF
-     * @return Probability density (constant 1/(b-a) within support, 0 outside)
-     */
-    [[nodiscard]] double getProbability(double x) const override;
-
-    /**
-     * Computes the logarithm of the probability density function for numerical stability.
-     * 
-     * For uniform distribution: log(f(x)) = -log(b-a) for a ≤ x ≤ b, -∞ otherwise
-     * 
-     * @param x The value at which to evaluate the log-PDF
-     * @return Natural logarithm of the probability density, or -∞ for values outside support
-     */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
-
-    /**
-     * Evaluates the CDF at x using the standard uniform CDF formula.
-     * 
-     * For uniform distribution: F(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
-     * 
-     * @param x The value at which to evaluate the CDF
-     * @return Cumulative probability P(X ≤ x)
-     */
-    [[nodiscard]] double getCumulativeProbability(double x) const override;
-    
-    /**
-     * @brief Computes the quantile function (inverse CDF)
-     * 
-     * For uniform distribution: F^(-1)(p) = a + p(b-a)
-     * 
-     * @param p Probability value in [0,1]
-     * @return x such that P(X ≤ x) = p
-     * @throws std::invalid_argument if p not in [0,1]
-     */
-    [[nodiscard]] double getQuantile(double p) const override;
-    
-    /**
-     * @brief Generate single random sample from distribution
-     * 
-     * Uses linear transformation of uniform(0,1): X = a + (b-a) * U where U ~ Uniform(0,1)
-     * 
-     * @param rng Random number generator
-     * @return Single random sample
-     */
-    [[nodiscard]] double sample(std::mt19937& rng) const override;
 
     //==========================================================================
     // PARAMETER GETTERS AND SETTERS
@@ -467,28 +278,12 @@ public:
     void setLowerBound(double a);
     
     /**
-     * @brief Safely set the lower bound parameter a without throwing exceptions (Result-based API).
-     * 
-     * @param a New lower bound (must be < current upper bound)
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetLowerBound(double a) noexcept;
-    
-    /**
      * Sets the upper bound parameter b.
      * 
      * @param b New upper bound (must be > current lower bound)
      * @throws std::invalid_argument if b <= a or parameters are invalid
      */
     void setUpperBound(double b);
-    
-    /**
-     * @brief Safely set the upper bound parameter b without throwing exceptions (Result-based API).
-     * 
-     * @param b New upper bound (must be > current lower bound)
-     * @return VoidResult indicating success or failure
-     */
-    [[nodiscard]] VoidResult trySetUpperBound(double b) noexcept;
     
     /**
      * Sets both bounds simultaneously.
@@ -609,7 +404,115 @@ public:
      * 
      * @return Midpoint of the distribution
      */
-    [[nodiscard]] double getMidpoint() const noexcept;
+    [[nodiscard]] double getMidpoint() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (a_ + b_) * constants::math::HALF;  // Multiplication is faster than division
+    }
+    
+    //==========================================================================
+    // RESULT-BASED SETTERS
+    //==========================================================================
+
+    /**
+     * @brief Safely set the lower bound parameter a without throwing exceptions (Result-based API).
+     * 
+     * @param a New lower bound (must be < current upper bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetLowerBound(double a) noexcept;
+    
+    /**
+     * @brief Safely set the upper bound parameter b without throwing exceptions (Result-based API).
+     * 
+     * @param b New upper bound (must be > current lower bound)
+     * @return VoidResult indicating success or failure
+     */
+    [[nodiscard]] VoidResult trySetUpperBound(double b) noexcept;
+
+    /**
+     * @brief Safely try to set parameters without throwing exceptions
+     *
+     * @param a New lower bound parameter
+     * @param b New upper bound parameter (must be > a)
+     * @return VoidResult indicating success or failure
+     *
+     * Implementation in .cpp: Complex thread-safe parameter validation and atomic state management
+     */
+    [[nodiscard]] VoidResult trySetParameters(double a, double b) noexcept;
+
+    /**
+     * @brief Check if current parameters are valid
+     * @return VoidResult indicating validity
+     */
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return validateUniformParameters(a_, b_);
+    }
+    
+    //==========================================================================
+    // CORE PROBABILITY METHODS
+    //==========================================================================
+
+    /**
+     * Computes the probability density function for the Uniform distribution.
+     *
+     * For uniform distribution: f(x) = 1/(b-a) for a ≤ x ≤ b, 0 otherwise
+     *
+     * @param x The value at which to evaluate the PDF
+     * @return Probability density (constant 1/(b-a) within support, 0 outside)
+     */
+    [[nodiscard]] double getProbability(double x) const override;
+
+    /**
+     * Computes the logarithm of the probability density function for numerical stability.
+     *
+     * For uniform distribution: log(f(x)) = -log(b-a) for a ≤ x ≤ b, -∞ otherwise
+     *
+     * @param x The value at which to evaluate the log-PDF
+     * @return Natural logarithm of the probability density, or -∞ for values outside support
+     */
+    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+
+    /**
+     * Evaluates the CDF at x using the standard uniform CDF formula.
+     *
+     * For uniform distribution: F(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
+     *
+     * @param x The value at which to evaluate the CDF
+     * @return Cumulative probability P(X ≤ x)
+     */
+    [[nodiscard]] double getCumulativeProbability(double x) const override;
+    
+    /**
+     * @brief Computes the quantile function (inverse CDF)
+     *
+     * For uniform distribution: F^(-1)(p) = a + p(b-a)
+     *
+     * @param p Probability value in [0,1]
+     * @return x such that P(X ≤ x) = p
+     * @throws std::invalid_argument if p not in [0,1]
+     */
+    [[nodiscard]] double getQuantile(double p) const override;
+    
+    /**
+     * @brief Generate single random sample from distribution
+     *
+     * Uses linear transformation of uniform(0,1): X = a + (b-a) * U where U ~ Uniform(0,1)
+     *
+     * @param rng Random number generator
+     * @return Single random sample
+     */
+    [[nodiscard]] double sample(std::mt19937& rng) const override;
+
+    /**
+     * @brief Generate multiple random samples from distribution
+     * Optimized batch sampling using linear transformation method
+     *
+     * @param rng Random number generator
+     * @param n Number of samples to generate
+     * @return Vector of random samples
+     */
+    [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
     // DISTRIBUTION MANAGEMENT
@@ -638,70 +541,326 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
-     * Equality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are equal within tolerance
+     * @brief Confidence interval for lower bound a
+     *
+     * Computes confidence interval for lower bound using order statistics.
+     * Utilizes exact distribution of the minimum statistic.
+     *
+     * @param data Vector of observed data
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @return Pair of (lower_bound, upper_bound) for a
+     * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    bool operator==(const UniformDistribution& other) const;
+    [[nodiscard]] static std::pair<double, double> confidenceIntervalLowerBound(
+        const std::vector<double>& data, double confidence_level = 0.95);
     
     /**
-     * Inequality comparison operator with thread-safe locking
-     * @param other Other distribution to compare with
-     * @return true if parameters are not equal
+     * @brief Confidence interval for upper bound b
+     *
+     * Computes confidence interval for upper bound using order statistics.
+     * Utilizes exact distribution of the maximum statistic.
+     *
+     * @param data Vector of observed data
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @return Pair of (lower_bound, upper_bound) for b
+     * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    bool operator!=(const UniformDistribution& other) const { return !(*this == other); }
+    [[nodiscard]] static std::pair<double, double> confidenceIntervalUpperBound(
+        const std::vector<double>& data, double confidence_level = 0.95);
+    
+    /**
+     * @brief Likelihood ratio test for Uniform bounds
+     *
+     * Tests H0: (a, b) = (a₀, b₀) vs H1: (a, b) ≠ (a₀, b₀) using likelihood ratio statistic.
+     * The test statistic -2ln(Λ) follows χ²(2) distribution under H0.
+     *
+     * @param data Vector of observed data
+     * @param null_a Null hypothesis value for a lower bound
+     * @param null_b Null hypothesis value for b upper bound
+     * @param significance_level Significance level for test
+     * @return Tuple of (test_statistic, p_value, reject_null)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
+        const std::vector<double>& data, double null_a, double null_b, double significance_level = 0.05);
+    
+    /**
+     * @brief Bayesian estimation for Uniform bounds
+     *
+     * Uses Uniform-prior-based Bayesian estimation for bounds a and b.
+     * Returns posterior parameters as intervals for both bounds.
+     *
+     * @param data Vector of observed data
+     * @param prior_a_shape Prior shape for a (default: 1.0)
+     * @param prior_a_scale Prior scale for a (default: 1.0)
+     * @param prior_b_shape Prior shape for b (default: 1.0)
+     * @param prior_b_scale Prior scale for b (default: 1.0)
+     * @return Pair of (posterior_a_interval, posterior_b_interval)
+     */
+    [[nodiscard]] static std::pair<std::pair<double, double>, std::pair<double, double>> bayesianEstimation(
+        const std::vector<double>& data, double prior_a_shape = 1.0, double prior_a_scale = 1.0,
+        double prior_b_shape = 1.0, double prior_b_scale = 1.0);
+    
+    /**
+     * @brief Robust estimation using quantiles
+     *
+     * Provides robust estimation of Uniform bounds that is less sensitive to outliers.
+     * Utilizes quantile-based methods with trimming.
+     *
+     * @param data Vector of observed data
+     * @param estimator_type Type of robust estimator ("quantile", "trimmed")
+     * @param trim_proportion Proportion to trim (default: 0.05)
+     * @return Pair of (robust_a_estimate, robust_b_estimate)
+     */
+    [[nodiscard]] static std::pair<double, double> robustEstimation(
+        const std::vector<double>& data, const std::string& estimator_type = "quantile",
+        double trim_proportion = 0.05);
+    
+    /**
+     * @brief Method of moments estimation
+     *
+     * Estimates Uniform bounds by matching sample moments with theoretical moments:
+     * a = min(data)
+     * b = max(data)
+     *
+     * @param data Vector of observed data
+     * @return Pair of (a_estimate, b_estimate)
+     * @throws std::invalid_argument if data is empty or has zero range
+     */
+    [[nodiscard]] static std::pair<double, double> methodOfMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Bayesian credible interval from posterior distributions
+     *
+     * Calculates Bayesian credible intervals for lower and upper bounds
+     * from their posterior distributions after observing data.
+     *
+     * @param data Vector of observed data
+     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
+     * @param prior_a_shape Prior shape for a parameter (default: 1.0)
+     * @param prior_a_scale Prior scale for a parameter (default: 1.0)
+     * @param prior_b_shape Prior shape for b parameter (default: 1.0)
+     * @param prior_b_scale Prior scale for b parameter (default: 1.0)
+     * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
+     */
+    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>> bayesianCredibleInterval(
+        const std::vector<double>& data, double credibility_level = 0.95,
+        double prior_a_shape = 1.0, double prior_a_scale = 1.0,
+        double prior_b_shape = 1.0, double prior_b_scale = 1.0);
+    
+    /**
+     * @brief L-moments parameter estimation
+     *
+     * Uses L-moments (linear combinations of order statistics) for robust
+     * parameter estimation. For uniform: L1 = (a+b)/2, L2 = (b-a)/6.
+     *
+     * @param data Vector of observed data
+     * @return Pair of (a_estimate, b_estimate)
+     */
+    [[nodiscard]] static std::pair<double, double> lMomentsEstimation(
+        const std::vector<double>& data);
+    
+    /**
+     * @brief Uniformity test using range/variance ratio
+     *
+     * Tests whether the data could naturally arise from a Uniform distribution.
+     * For large samples, compares range and variance ratio.
+     *
+     * @param data Vector of observed data
+     * @param significance_level Significance level for test
+     * @return Tuple of (test_statistic, p_value, uniformity_is_valid)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> uniformityTest(
+        const std::vector<double>& data, double significance_level = 0.05);
+    
     
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+    // GOODNESS-OF-FIT TESTS
     //==========================================================================
     
     /**
-     * @brief Smart auto-dispatch batch probability calculation
-     * 
-     * This method automatically selects the optimal execution strategy based on:
-     * - Batch size and system capabilities
-     * - Available CPU features (SIMD support)
-     * - Threading overhead characteristics
-     * 
-     * Users should prefer this method over manual strategy selection.
-     * 
-     * @param values Input values to evaluate
-     * @param results Output array for probability densities
-     * @param hint Optional performance hints for advanced users
+     * @brief Kolmogorov-Smirnov goodness-of-fit test
+     *
+     * Tests the null hypothesis that data follows the specified Uniform distribution.
+     *
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (KS_statistic, p_value, reject_null)
      */
-    void getProbability(std::span<const double> values, std::span<double> results,
-                       const performance::PerformanceHint& hint = {}) const;
+    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+        const std::vector<double>& data,
+        const UniformDistribution& distribution,
+        double alpha = 0.05);
     
     /**
-     * @brief Smart auto-dispatch batch log probability calculation
-     * 
-     * Automatically selects optimal execution strategy for log probability computation.
-     * 
-     * @param values Input values to evaluate
-     * @param results Output array for log probability densities
-     * @param hint Optional performance hints for advanced users
+     * @brief Anderson-Darling goodness-of-fit test
+     *
+     * Tests the null hypothesis that data follows the specified Uniform distribution.
+     * More sensitive to deviations in the tails than KS test.
+     *
+     * @param data Sample data to test
+     * @param distribution Theoretical distribution to test against
+     * @param alpha Significance level (default: 0.05)
+     * @return Tuple of (AD_statistic, p_value, reject_null)
      */
-    void getLogProbability(std::span<const double> values, std::span<double> results,
-                          const performance::PerformanceHint& hint = {}) const;
-    
-    /**
-     * @brief Smart auto-dispatch batch cumulative probability calculation
-     * 
-     * Automatically selects optimal execution strategy for CDF computation.
-     * 
-     * @param values Input values to evaluate
-     * @param results Output array for cumulative probabilities
-     * @param hint Optional performance hints for advanced users
-     */
-    void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                 const performance::PerformanceHint& hint = {}) const;
+    static std::tuple<double, double, bool> andersonDarlingTest(
+        const std::vector<double>& data,
+        const UniformDistribution& distribution,
+        double alpha = 0.05);
     
     //==========================================================================
-    // SIMD BATCH OPERATIONS (Legacy - prefer auto-dispatch methods above)
+    // CROSS-VALIDATION METHODS
+    //==========================================================================
+    
+    /**
+     * @brief K-fold cross-validation for parameter estimation
+     *
+     * Performs k-fold cross-validation to assess parameter estimation quality
+     * and model stability. Splits data into k folds, trains on k-1 folds,
+     * and validates on the remaining fold.
+     *
+     * @param data Sample data for cross-validation
+     * @param k Number of folds (default: 5)
+     * @param random_seed Seed for random fold assignment (default: 42)
+     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
+     */
+    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
+        const std::vector<double>& data,
+        int k = 5,
+        unsigned int random_seed = 42);
+    
+    /**
+     * @brief Leave-one-out cross-validation for parameter estimation
+     *
+     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
+     * estimation quality. For each data point, trains on all other points
+     * and validates on the left-out point.
+     *
+     * @param data Sample data for cross-validation
+     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
+     */
+    static std::tuple<double, double, double> leaveOneOutCrossValidation(
+        const std::vector<double>& data);
+    
+    //==========================================================================
+    // INFORMATION CRITERIA
+    //==========================================================================
+    
+    /**
+     * @brief Model comparison using information criteria
+     *
+     * Computes various information criteria (AIC, BIC, AICc) for model selection.
+     * Lower values indicate better model fit while penalizing complexity.
+     *
+     * @param data Sample data used for fitting
+     * @param fitted_distribution The fitted Uniform distribution
+     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
+     */
+    static std::tuple<double, double, double, double> computeInformationCriteria(
+        const std::vector<double>& data,
+        const UniformDistribution& fitted_distribution);
+    
+    //==========================================================================
+    // BOOTSTRAP METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     *
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the distribution parameters (lower and upper bounds).
+     *
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
+     */
+    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data,
+        double confidence_level = 0.95,
+        int n_bootstrap = 1000,
+        unsigned int random_seed = 42);
+    
+    //==========================================================================
+    // UNIFORM-SPECIFIC UTILITY METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Get the range of the distribution
+     *
+     * Range is the difference between upper and lower bounds: (b - a)
+     *
+     * @return Range value (b - a)
+     */
+    [[nodiscard]] double getRange() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return b_ - a_;  // Direct subtraction is most efficient
+    }
+    
+    
+    /**
+     * @brief Check if a value is contained within the distribution's support
+     *
+     * Tests whether x is in the closed interval [a, b].
+     *
+     * @param x Value to check
+     * @return true if a ≤ x ≤ b, false otherwise
+     */
+    [[nodiscard]] bool contains(double x) const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return x >= a_ && x <= b_;
+    }
+    
+    /**
+     * @brief Compute the entropy of the distribution
+     *
+     * For uniform distribution: H(X) = ln(b - a)
+     * Entropy measures the average information content.
+     *
+     * @return Entropy value
+     */
+    [[nodiscard]] double getEntropy() const noexcept override {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return std::log(b_ - a_);  // ln(range)
+    }
+    
+    /**
+     * @brief Check if this is the unit interval [0,1]
+     *
+     * Tests whether a = 0 and b = 1 within numerical tolerance.
+     * The unit interval is the standard uniform distribution.
+     *
+     * @return true if a ≈ 0 and b ≈ 1, false otherwise
+     */
+    [[nodiscard]] bool isUnitInterval() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (std::abs(a_ - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
+               (std::abs(b_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+    }
+    
+    /**
+     * @brief Check if this is symmetric around zero
+     *
+     * Tests whether the distribution is of the form [-c, c] for some c > 0.
+     * This means a = -b (or equivalently, a + b = 0).
+     *
+     * @return true if a + b ≈ 0, false otherwise
+     */
+    [[nodiscard]] bool isSymmetricAroundZero() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return std::abs(a_ + b_) <= constants::precision::DEFAULT_TOLERANCE;
+    }
+    
+    
+    
+    //==========================================================================
+    // SIMD BATCH OPERATIONS (Legacy - prefer auto-dispatch methods)
     //==========================================================================
     
     /**
@@ -850,105 +1009,74 @@ public:
                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const;
     
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
     //==========================================================================
     
     /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     * 
-     * Tests the null hypothesis that data follows the specified Uniform distribution.
-     * 
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
+     * @brief Smart auto-dispatch batch probability calculation
+     *
+     * This method automatically selects the optimal execution strategy based on:
+     * - Batch size and system capabilities
+     * - Available CPU features (SIMD support)
+     * - Threading overhead characteristics
+     *
+     * Users should prefer this method over manual strategy selection.
+     *
+     * @param values Input values to evaluate
+     * @param results Output array for probability densities
+     * @param hint Optional performance hints for advanced users
      */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data,
-        const UniformDistribution& distribution,
-        double alpha = 0.05);
+    void getProbability(std::span<const double> values, std::span<double> results,
+                       const performance::PerformanceHint& hint = {}) const;
     
     /**
-     * @brief Anderson-Darling goodness-of-fit test
-     * 
-     * Tests the null hypothesis that data follows the specified Uniform distribution.
-     * More sensitive to deviations in the tails than KS test.
-     * 
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (AD_statistic, p_value, reject_null)
+     * @brief Smart auto-dispatch batch log probability calculation
+     *
+     * Automatically selects optimal execution strategy for log probability computation.
+     *
+     * @param values Input values to evaluate
+     * @param results Output array for log probability densities
+     * @param hint Optional performance hints for advanced users
      */
-    static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data,
-        const UniformDistribution& distribution,
-        double alpha = 0.05);
+    void getLogProbability(std::span<const double> values, std::span<double> results,
+                          const performance::PerformanceHint& hint = {}) const;
+    
+    /**
+     * @brief Smart auto-dispatch batch cumulative probability calculation
+     *
+     * Automatically selects optimal execution strategy for CDF computation.
+     *
+     * @param values Input values to evaluate
+     * @param results Output array for cumulative probabilities
+     * @param hint Optional performance hints for advanced users
+     */
+    void getCumulativeProbability(std::span<const double> values, std::span<double> results,
+                                 const performance::PerformanceHint& hint = {}) const;
     
     //==========================================================================
-    // CROSS-VALIDATION AND MODEL SELECTION
+    // COMPARISON OPERATORS
     //==========================================================================
     
     /**
-     * @brief K-fold cross-validation for parameter estimation
-     * 
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability. Splits data into k folds, trains on k-1 folds,
-     * and validates on the remaining fold.
-     * 
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
+     * Equality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are equal within tolerance
      */
-    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data,
-        int k = 5,
-        unsigned int random_seed = 42);
+    bool operator==(const UniformDistribution& other) const;
     
     /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     * 
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality. For each data point, trains on all other points
-     * and validates on the left-out point.
-     * 
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
+     * Inequality comparison operator with thread-safe locking
+     * @param other Other distribution to compare with
+     * @return true if parameters are not equal
      */
-    static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
+    bool operator!=(const UniformDistribution& other) const { return !(*this == other); }
     
-    /**
-     * @brief Bootstrap parameter confidence intervals
-     * 
-     * Uses bootstrap resampling to estimate confidence intervals for
-     * the distribution parameters (lower and upper bounds).
-     * 
-     * @param data Sample data for bootstrap resampling
-     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
-     * @param n_bootstrap Number of bootstrap samples (default: 1000)
-     * @param random_seed Seed for random sampling (default: 42)
-     * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
-     */
-    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
-        const std::vector<double>& data,
-        double confidence_level = 0.95,
-        int n_bootstrap = 1000,
-        unsigned int random_seed = 42);
+    //==========================================================================
+    // FRIEND FUNCTIONS
+    //==========================================================================
     
-    /**
-     * @brief Model comparison using information criteria
-     * 
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     * 
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted Uniform distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data,
-        const UniformDistribution& fitted_distribution);
+    friend std::istream& operator>>(std::istream& is, libstats::UniformDistribution& distribution);
+    friend std::ostream& operator<<(std::ostream& os, const UniformDistribution& dist);
 
 private:
     //==========================================================================
@@ -994,14 +1122,108 @@ private:
     /** @brief Internal implementation for batch CDF calculation */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                  double a, double b, double inv_width) const noexcept;
-};
+    
+    //==========================================================================
+    // DISTRIBUTION PARAMETERS
+    //==========================================================================
+    
+    /** @brief Lower bound parameter a */
+    double a_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Upper bound parameter b */
+    double b_{constants::math::ONE};
+    
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<double> atomicA_{constants::math::ZERO_DOUBLE};
+    mutable std::atomic<double> atomicB_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
-/**
- * @brief Stream output operator
- * @param os Output stream
- * @param dist Distribution to output
- * @return Reference to the output stream
- */
-std::ostream& operator<<(std::ostream& os, const UniformDistribution& dist);
+    //==========================================================================
+    // PERFORMANCE CACHE
+    //==========================================================================
+    
+    /** @brief Cached value of (b - a) for efficiency */
+    mutable double width_{constants::math::ONE};
+    
+    /** @brief Cached value of 1/(b - a) for efficiency in PDF calculations */
+    mutable double invWidth_{constants::math::ONE};
+    
+    /** @brief Cached value of (a + b)/2 for efficiency in mean calculations */
+    mutable double midpoint_{constants::math::HALF};
+    
+    /** @brief Cached value of (b - a)² for efficiency in variance calculations */
+    mutable double widthSquared_{constants::math::ONE};
+    
+    /** @brief Cached value of (b - a)²/12 for efficiency in variance calculations */
+    mutable double variance_{constants::math::ONE / 12.0};
+    
+    /** @brief Cached value of -ln(b - a) for efficiency in log-PDF calculations */
+    mutable double logInvWidth_{constants::math::ZERO_DOUBLE};
+    
+    //==========================================================================
+    // OPTIMIZATION FLAGS
+    //==========================================================================
+    
+    /** @brief Atomic cache validity flag for lock-free fast path optimization */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+    
+    /** @brief True if this is the unit interval [0,1] for optimizations */
+    mutable bool isUnitInterval_{true};
+    
+    /** @brief True if this is a symmetric interval [-c,c] for optimizations */
+    mutable bool isSymmetric_{false};
+    
+    /** @brief True if the interval width is very small for numerical stability */
+    mutable bool isNarrowInterval_{false};
+    
+    /** @brief True if the interval width is very large for numerical stability */
+    mutable bool isWideInterval_{false};
+
+    /**
+     * Updates cached values when parameters change - assumes mutex is already held
+     */
+    void updateCacheUnsafe() const noexcept override {
+        // Primary calculations - compute once, reuse multiple times
+        width_ = b_ - a_;
+        invWidth_ = constants::math::ONE / width_;
+        widthSquared_ = width_ * width_;
+        
+        // Core cached values
+        midpoint_ = (a_ + b_) * constants::math::HALF;
+        variance_ = widthSquared_ / 12.0;
+        logInvWidth_ = -std::log(width_);
+        
+        // Optimization flags
+        isUnitInterval_ = (std::abs(a_ - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE &&
+                          std::abs(b_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        isSymmetric_ = (std::abs(a_ + b_) <= constants::precision::DEFAULT_TOLERANCE);
+        isNarrowInterval_ = (width_ < constants::precision::DEFAULT_TOLERANCE * 100.0);
+        isWideInterval_ = (width_ > constants::math::THOUSAND);
+        
+        cache_valid_ = true;
+        cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicA_.store(a_, std::memory_order_release);
+        atomicB_.store(b_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
+    }
+    
+    /**
+     * Validates parameters for the Uniform distribution
+     * @param a Lower bound parameter
+     * @param b Upper bound parameter (must be > a)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    static void validateParameters(double a, double b) {
+        if (std::isnan(a) || std::isinf(a) || std::isnan(b) || std::isinf(b)) {
+            throw std::invalid_argument("Uniform distribution parameters must be finite numbers");
+        }
+        
+        if (a >= b) {
+            throw std::invalid_argument("Upper bound (b) must be strictly greater than lower bound (a)");
+        }
+    }
+};
 
 } // namespace libstats
