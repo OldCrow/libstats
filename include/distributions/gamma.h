@@ -5,7 +5,11 @@
 #include "../core/error_handling.h" // Safe error handling without exceptions
 #include <mutex>       // For thread-safe cache updates
 #include <shared_mutex> // For shared_mutex and shared_lock
+#include "../platform/work_stealing_pool.h" // For WorkStealingPool
+#include "../platform/adaptive_cache.h"       // For AdaptiveCache
+#include "../core/performance_dispatcher.h"  // For PerformanceHint
 #include <atomic>      // For atomic cache validation
+#include <span>        // For C++20 std::span
 
 namespace libstats {
 
@@ -1323,6 +1327,12 @@ private:
      * Uses series expansion and asymptotic approximation
      */
     static double computeDigamma(double x) noexcept;
+    
+    /**
+     * Computes the trigamma function ψ'(x) = d²/dx² log(Γ(x))
+     * Uses series expansion and asymptotic approximation
+     */
+    static double computeTrigamma(double x) noexcept;
 };
 
 } // namespace libstats

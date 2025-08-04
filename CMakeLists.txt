@@ -245,7 +245,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/uniform.cpp                   # Uniform distribution implementation
     src/poisson.cpp                   # Poisson distribution implementation
     src/discrete.cpp                  # Discrete distribution implementation
-    # src/gamma.cpp                   # TODO: implement gamma distribution
+    src/gamma.cpp                     # Gamma distribution implementation
 )
 
 # SIMD sources are added separately by the SIMD detection system
