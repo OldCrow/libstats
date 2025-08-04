@@ -3,6 +3,7 @@
 #include "../core/distribution_base.h"
 #include "../core/constants.h"
 #include "../platform/simd.h" // Ensure SIMD operations are available
+#include "../platform/simd_policy.h" // For centralized SIMD policy decisions
 #include "../core/error_handling.h" // Safe error handling without exceptions
 #include "../core/performance_dispatcher.h" // For smart auto-dispatch
 #include "../platform/parallel_execution.h" // Level 0-3 parallel execution support
@@ -167,15 +168,6 @@ public:
         
         // Use private factory to bypass validation
         return Result<GaussianDistribution>::ok(createUnchecked(mean, standardDeviation));
-    }
-    
-    /**
-     * @brief Check if current parameters are valid
-     * @return VoidResult indicating validity
-     */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateGaussianParameters(mean_, standardDeviation_);
     }
 
     //==========================================================================
@@ -387,6 +379,15 @@ public:
      * @return VoidResult indicating success or failure
      */
     [[nodiscard]] VoidResult trySetParameters(double mean, double standardDeviation) noexcept;
+    
+    /**
+     * @brief Check if current parameters are valid
+     * @return VoidResult indicating validity
+     */
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return validateGaussianParameters(mean_, standardDeviation_);
+    }
     
     //==========================================================================
     // CORE PROBABILITY METHODS
@@ -714,6 +715,10 @@ public:
         const GaussianDistribution& restricted_model,
         const GaussianDistribution& unrestricted_model,
         double alpha = 0.05);
+    
+    //==========================================================================
+    // GOODNESS-OF-FIT TESTS
+    //==========================================================================
 
     /**
      * @brief Kolmogorov-Smirnov goodness-of-fit test
@@ -750,7 +755,7 @@ public:
         double alpha = 0.05);
 
     //==========================================================================
-    // CROSS-VALIDATION AND MODEL SELECTION
+    // CROSS-VALIDATION METHODS
     //==========================================================================
 
     /**
@@ -782,24 +787,10 @@ public:
      */
     static std::tuple<double, double, double> leaveOneOutCrossValidation(
         const std::vector<double>& data);
-
-    /**
-     * @brief Bootstrap parameter confidence intervals
-     * 
-     * Uses bootstrap resampling to estimate confidence intervals for
-     * the distribution parameters (mean and standard deviation).
-     * 
-     * @param data Sample data for bootstrap resampling
-     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
-     * @param n_bootstrap Number of bootstrap samples (default: 1000)
-     * @param random_seed Seed for random sampling (default: 42)
-     * @return Tuple of ((mean_CI_lower, mean_CI_upper), (std_CI_lower, std_CI_upper))
-     */
-    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
-        const std::vector<double>& data,
-        double confidence_level = 0.95,
-        int n_bootstrap = 1000,
-        unsigned int random_seed = 42);
+    
+    //==========================================================================
+    // INFORMATION CRITERIA
+    //==========================================================================
 
     /**
      * @brief Model comparison using information criteria
@@ -814,6 +805,117 @@ public:
     static std::tuple<double, double, double, double> computeInformationCriteria(
         const std::vector<double>& data,
         const GaussianDistribution& fitted_distribution);
+    
+    //==========================================================================
+    // BOOTSTRAP METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Bootstrap parameter confidence intervals
+     *
+     * Uses bootstrap resampling to estimate confidence intervals for
+     * the distribution parameters (mean and standard deviation).
+     *
+     * @param data Sample data for bootstrap resampling
+     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
+     * @param n_bootstrap Number of bootstrap samples (default: 1000)
+     * @param random_seed Seed for random sampling (default: 42)
+     * @return Tuple of ((mean_CI_lower, mean_CI_upper), (std_CI_lower, std_CI_upper))
+     */
+    static std::tuple<std::pair<double, double>, std::pair<double, double>> bootstrapParameterConfidenceIntervals(
+        const std::vector<double>& data,
+        double confidence_level = 0.95,
+        int n_bootstrap = 1000,
+        unsigned int random_seed = 42);
+    
+    //==========================================================================
+    // GAUSSIAN-SPECIFIC UTILITY METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Compute the standardized value (z-score) for a given x
+     *
+     * Z-score transforms a value to the number of standard deviations from the mean:
+     * z = (x - μ) / σ
+     *
+     * @param x Value to standardize
+     * @return Standardized value (z-score)
+     */
+    [[nodiscard]] double getStandardizedValue(double x) const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (x - mean_) * invStandardDeviation_;  // Use cached 1/σ for efficiency
+    }
+    
+    /**
+     * @brief Convert a standardized value (z-score) back to the original scale
+     *
+     * Transforms a z-score back to the original distribution scale:
+     * x = μ + σ * z
+     *
+     * @param z Standardized value (z-score)
+     * @return Value in original scale
+     */
+    [[nodiscard]] double getValueFromStandardized(double z) const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return mean_ + standardDeviation_ * z;
+    }
+    
+    /**
+     * @brief Check if this is a standard normal distribution
+     *
+     * Tests whether μ = 0 and σ = 1 within numerical tolerance.
+     * Standard normal distribution is N(0,1).
+     *
+     * @return true if μ ≈ 0 and σ ≈ 1, false otherwise
+     */
+    [[nodiscard]] bool isStandardNormal() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
+               (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+    }
+    
+    /**
+     * @brief Compute the entropy of the distribution
+     *
+     * For Gaussian distribution: H(X) = 0.5 * ln(2πeσ²) = 0.5 * (ln(2π) + 1 + 2*ln(σ))
+     * Entropy measures the average information content.
+     * Uses efficient computation with precomputed constants.
+     *
+     * @return Entropy value
+     */
+    [[nodiscard]] double getEntropy() const noexcept override {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        // H(X) = 0.5 * (ln(2π) + 1 + 2*ln(σ))
+        return constants::math::HALF_LN_2PI + constants::math::HALF + std::log(standardDeviation_);
+    }
+    
+    /**
+     * @brief Get the median of the distribution
+     *
+     * For Gaussian distribution, the median equals the mean.
+     * This is a property of symmetric distributions.
+     *
+     * @return Median value (equals μ)
+     */
+    [[nodiscard]] double getMedian() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return mean_;  // For Gaussian, median = mean
+    }
+    
+    /**
+     * @brief Get the mode of the distribution
+     *
+     * For Gaussian distribution, the mode equals the mean.
+     * This is where the PDF achieves its maximum value.
+     *
+     * @return Mode value (equals μ)
+     */
+    [[nodiscard]] double getMode() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return mean_;  // For Gaussian, mode = mean
+    }
+    
+    
 
     //==========================================================================
     // SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
@@ -1075,10 +1177,24 @@ public:
     bool operator!=(const GaussianDistribution& other) const { return !(*this == other); }
 
     //==========================================================================
-    // FRIEND FUNCTIONS
+    // FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
 
-    friend std::ostream& operator<<(std::ostream&, const libstats::GaussianDistribution&);
+    /**
+     * @brief Stream input operator
+     * @param is Input stream
+     * @param dist Distribution to input
+     * @return Reference to the input stream
+     */
+    friend std::istream& operator>>(std::istream&, libstats::GaussianDistribution& dist);
+    
+    /**
+     * @brief Stream output operator
+     * @param os Output stream
+     * @param dist Distribution to output
+     * @return Reference to the output stream
+     */
+    friend std::ostream& operator<<(std::ostream&, const libstats::GaussianDistribution& dist);
 
 private:
     //==========================================================================
@@ -1152,6 +1268,15 @@ private:
 
     /** @brief True if σ² < 0.0625 for numerical stability path */
     mutable bool isLowVariance_{false};
+    
+    //==========================================================================
+    // THREAD SAFETY
+    //==========================================================================
+
+    // Note: Using base class cache_mutex_ instead of separate rw_mutex_
+
+    /** @brief Atomic cache validity flag for lock-free fast path */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     /**
      * Updates cached values when parameters change - assumes mutex is already held
@@ -1217,16 +1342,6 @@ private:
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                  double mean, double sigma_sqrt2, 
                                                  bool is_standard_normal) const noexcept;
-
-    //==========================================================================
-    // THREAD SAFETY
-    //==========================================================================
-
-    // Note: Using base class cache_mutex_ instead of separate rw_mutex_
-
-    /** @brief Atomic cache validity flag for lock-free fast path */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
 };
 
 } // namespace libstats

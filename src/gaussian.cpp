@@ -2481,6 +2481,71 @@ std::ostream& operator<<(std::ostream& os, const GaussianDistribution& distribut
     return os << distribution.toString();
 }
 
+std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
+    std::string token;
+    double mean, stddev;
+    
+    // Expected format: "GaussianDistribution(mean=<value>, stddev=<value>)"
+    // We'll parse this step by step
+    
+    // Skip whitespace and read the first part
+    is >> token;
+    if (token.find("GaussianDistribution(") != 0) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Extract mean value
+    if (token.find("mean=") == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    size_t mean_pos = token.find("mean=") + 5;
+    size_t comma_pos = token.find(",", mean_pos);
+    if (comma_pos == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    try {
+        std::string mean_str = token.substr(mean_pos, comma_pos - mean_pos);
+        mean = std::stod(mean_str);
+    } catch (...) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Extract stddev value
+    if (token.find("stddev=") == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    size_t stddev_pos = token.find("stddev=") + 7;
+    size_t close_paren = token.find(")", stddev_pos);
+    if (close_paren == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    try {
+        std::string stddev_str = token.substr(stddev_pos, close_paren - stddev_pos);
+        stddev = std::stod(stddev_str);
+    } catch (...) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Validate and set parameters using the safe API
+    auto result = distribution.trySetParameters(mean, stddev);
+    if (result.isError()) {
+        is.setstate(std::ios::failbit);
+    }
+    
+    return is;
+}
+
 //==============================================================================
 // PRIVATE HELPER METHODS
 //==============================================================================
@@ -2721,5 +2786,28 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double*
     // Step 2: results = 0.5 * (1 + erf_values)
     simd::VectorOps::scalar_multiply(results, constants::math::HALF, results, count);
 }
+
+#ifdef DEBUG
+//==============================================================================
+// DEBUG METHODS
+//==============================================================================
+
+bool GaussianDistribution::isUsingStandardNormalOptimization() const {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Return the current state of the standard normal optimization flag
+    return isStandardNormal_;
+}
+
+#endif // DEBUG
 
 } // namespace libstats

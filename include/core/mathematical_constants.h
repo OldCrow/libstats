@@ -117,6 +117,7 @@ namespace math {
     inline constexpr double E_INV = 1.0 / E;
     inline constexpr double PHI_INV = 1.0 / PHI;
     inline constexpr double PI_INV = 1.0 / PI;
+    inline constexpr double INV_LN2 = 1.0 / LN2;
     inline constexpr double INV_SQRT_2PI = 1.0 / SQRT_2PI;
     inline constexpr double INV_SQRT_2 = 1.0 / SQRT_2;
     inline constexpr double INV_SQRT_3 = 1.0 / SQRT_3;
