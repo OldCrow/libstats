@@ -508,17 +508,20 @@ double calculate_ad_statistic(const std::vector<double>& data, const Distributio
     const auto n = static_cast<double>(sorted_data.size());
     double ad_sum = 0.0;
     
-    // Calculate Anderson-Darling statistic
+    // Calculate Anderson-Darling statistic using numerically stable approach
     for (std::size_t i = 0; i < sorted_data.size(); ++i) {
         double F_xi = dist.getCumulativeProbability(sorted_data[i]);
-        double F_xi_rev = dist.getCumulativeProbability(sorted_data[sorted_data.size() - 1 - i]);
-        
-        // Clamp F values to avoid log(0)
-        F_xi = std::max(constants::precision::ZERO, std::min(1.0 - constants::precision::ZERO, F_xi));
-        F_xi_rev = std::max(constants::precision::ZERO, std::min(1.0 - constants::precision::ZERO, F_xi_rev));
-        
-        double weight = 2.0 * static_cast<double>(i + 1) - 1.0;
-        ad_sum += weight * (std::log(F_xi) + std::log(1.0 - F_xi_rev));
+
+        // Clamp F values to avoid numerical issues with log(0) and log(negative)
+        // Use
+        F_xi = std::max(constants::thresholds::ANDERSON_DARLING_MIN_PROB, 
+                       std::min(1.0 - constants::thresholds::ANDERSON_DARLING_MIN_PROB, F_xi));
+
+        // Calculate log terms with safe bounds
+        double log_F_xi = std::log(F_xi);
+        double log_one_minus_F_xi = std::log(1.0 - F_xi);
+
+        ad_sum += (2 * static_cast<double>(i) + 1) * log_F_xi + (2 * (n - i) - 1) * log_one_minus_F_xi;
     }
     
     return -n - ad_sum / n;

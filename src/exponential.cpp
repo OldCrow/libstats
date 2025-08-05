@@ -1225,9 +1225,8 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafe(const double* 
 
 void ExponentialDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                            double lambda, double neg_lambda) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    // Check if vectorization is beneficial (SIMDPolicy handles all CPU detection)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
     
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
@@ -1281,9 +1280,8 @@ void ExponentialDistribution::getProbabilityBatchUnsafeImpl(const double* values
 
 void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                               double log_lambda, double neg_lambda) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    // Check if vectorization is beneficial (SIMDPolicy handles all CPU detection)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
     
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
@@ -1329,9 +1327,8 @@ void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(const double* val
 
 void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                      double neg_lambda) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (matching Gaussian pattern)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count) && 
-                         (cpu::supports_sse2() || cpu::supports_avx() || cpu::supports_avx2() || cpu::supports_avx512());
+    // Check if vectorization is beneficial (SIMDPolicy handles all CPU detection)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
     
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD

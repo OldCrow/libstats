@@ -139,6 +139,10 @@ public:
     static std::vector<double> generatePoissonTestData() {
         return {2, 1, 4, 3, 2, 5, 1, 3, 2, 4, 3, 2, 1, 4, 3};
     }
+    
+    static std::vector<double> generateGammaTestData() {
+        return {0.8, 1.5, 2.1, 0.9, 1.2, 2.8, 1.1, 1.8, 0.7, 2.3};
+    }
 };
 
 } // namespace BasicTestUtilities

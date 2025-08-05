@@ -1,4 +1,5 @@
 #include "../include/platform/cpu_detection.h"
+#include "../include/platform/platform_constants.h"
 #include <iostream>
 #include <iomanip>
 
@@ -77,6 +78,25 @@ int main() {
         std::cout << "  Double Vector Width: " << libstats::cpu::optimal_double_width() << std::endl;
         std::cout << "  Float Vector Width: " << libstats::cpu::optimal_float_width() << std::endl;
         std::cout << "  Memory Alignment: " << libstats::cpu::optimal_alignment() << " bytes" << std::endl;
+        
+        std::cout << "\n=== CPU Generation Detection ===" << std::endl;
+        std::cout << "  is_sandy_ivy_bridge(): " << (libstats::cpu::is_sandy_ivy_bridge() ? "YES" : "NO") << std::endl;
+        std::cout << "  is_haswell_broadwell(): " << (libstats::cpu::is_haswell_broadwell() ? "YES" : "NO") << std::endl;
+        std::cout << "  is_skylake_generation(): " << (libstats::cpu::is_skylake_generation() ? "YES" : "NO") << std::endl;
+        std::cout << "  is_kaby_coffee_lake(): " << (libstats::cpu::is_kaby_coffee_lake() ? "YES" : "NO") << std::endl;
+        std::cout << "  is_modern_intel(): " << (libstats::cpu::is_modern_intel() ? "YES" : "NO") << std::endl;
+        
+        std::cout << "\n=== Adaptive Parallel Constants ===" << std::endl;
+        std::cout << "  min_elements_for_parallel(): " << libstats::constants::parallel::adaptive::min_elements_for_parallel() << std::endl;
+        std::cout << "  min_elements_for_distribution_parallel(): " << libstats::constants::parallel::adaptive::min_elements_for_distribution_parallel() << std::endl;
+        std::cout << "  min_elements_for_simple_distribution_parallel(): " << libstats::constants::parallel::adaptive::min_elements_for_simple_distribution_parallel() << std::endl;
+        std::cout << "  grain_size(): " << libstats::constants::parallel::adaptive::grain_size() << std::endl;
+        
+        std::cout << "\n=== Direct Constants Comparison ===" << std::endl;
+        std::cout << "  avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL: " << libstats::constants::parallel::avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
+        std::cout << "  avx::MIN_ELEMENTS_FOR_PARALLEL: " << libstats::constants::parallel::avx::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
+        std::cout << "  fallback::MIN_ELEMENTS_FOR_PARALLEL: " << libstats::constants::parallel::fallback::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
+        std::cout << "  Legacy constants (backward compat): " << libstats::constants::parallel::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
         
         std::cout << "\n=== Test Results ===" << std::endl;
         std::cout << "✓ All CPU detection tests completed successfully!" << std::endl;

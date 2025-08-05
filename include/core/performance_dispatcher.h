@@ -6,6 +6,16 @@
 #include <optional>
 #include <span>
 
+// Forward declarations for foundational layer dependencies
+namespace libstats {
+namespace simd {
+    class SIMDPolicy;
+    // We need the actual enum for the interface, so include the header
+}
+}
+
+#include "../platform/simd_policy.h"
+
 /**
  * @file performance_dispatcher.h
  * @brief Intelligent auto-dispatch system for optimal performance strategy selection
@@ -99,7 +109,29 @@ private:
 class PerformanceDispatcher {
 public:
     /**
-     * @brief Decision thresholds (learned from benchmarks and adaptive tuning)
+     * @brief Default constructor - initializes with architecture-aware thresholds
+     */
+    PerformanceDispatcher();
+    
+    /**
+     * @brief Constructor with explicit system capabilities
+     * @param system System capabilities for threshold initialization
+     */
+    explicit PerformanceDispatcher(const SystemCapabilities& system);
+    /**
+     * @brief SIMD architecture profiles with optimal thresholds
+     */
+    enum class SIMDArchitecture {
+        NONE,       ///< No SIMD support
+        SSE2,       ///< 128-bit SIMD, older x86 processors
+        AVX,        ///< 256-bit SIMD, moderate x86 processors  
+        AVX2,       ///< 256-bit with integer support, modern x86
+        AVX512,     ///< 512-bit SIMD, high-end x86 processors
+        NEON        ///< 128-bit SIMD, ARM processors
+    };
+    
+    /**
+     * @brief Decision thresholds (architecture-aware with capability refinement)
      */
     struct Thresholds {
         size_t simd_min = 8;                     ///< SIMD overhead threshold
@@ -107,13 +139,65 @@ public:
         size_t work_stealing_min = 10000;        ///< Work-stealing benefit threshold
         size_t cache_aware_min = 50000;          ///< Cache optimization threshold
         
-        // Distribution-specific overrides
+        // Distribution-specific overrides (architecture-dependent)
         size_t uniform_parallel_min = 65536;     ///< Simple operations need higher threshold
         size_t gaussian_parallel_min = 256;      ///< Complex operations benefit earlier
         size_t exponential_parallel_min = 512;   ///< Moderate complexity
         size_t discrete_parallel_min = 1024;     ///< Integer operations
         size_t poisson_parallel_min = 512;       ///< Complex discrete distribution
         size_t gamma_parallel_min = 256;         ///< Most complex distribution
+        
+        /**
+         * @brief Create thresholds based on SIMDPolicy level
+         * @param level SIMD level from SIMDPolicy
+         * @param system System capabilities for refinement
+         * @return Optimized thresholds for the SIMD level
+         */
+        static Thresholds createForSIMDLevel(simd::SIMDPolicy::Level level, const SystemCapabilities& system);
+        
+        /**
+         * @brief Create architecture-specific thresholds (legacy compatibility)
+         * @param arch SIMD architecture detected
+         * @param system System capabilities for refinement
+         * @return Optimized thresholds for the architecture
+         */
+        static Thresholds createForArchitecture(SIMDArchitecture arch, const SystemCapabilities& system);
+        
+        /**
+         * @brief Get SSE2-optimized thresholds (128-bit SIMD)
+         */
+        static Thresholds getSSE2Profile();
+        
+        /**
+         * @brief Get AVX-optimized thresholds (256-bit SIMD, limited efficiency)
+         */
+        static Thresholds getAVXProfile();
+        
+        /**
+         * @brief Get AVX2-optimized thresholds (256-bit SIMD with integer support)
+         */
+        static Thresholds getAVX2Profile();
+        
+        /**
+         * @brief Get AVX-512-optimized thresholds (512-bit SIMD, high efficiency)
+         */
+        static Thresholds getAVX512Profile();
+        
+        /**
+         * @brief Get NEON-optimized thresholds (128-bit ARM SIMD)
+         */
+        static Thresholds getNEONProfile();
+        
+        /**
+         * @brief Get fallback thresholds (no SIMD support)
+         */
+        static Thresholds getScalarProfile();
+        
+        /**
+         * @brief Refine thresholds based on measured system performance
+         * @param system System capabilities for fine-tuning
+         */
+        void refineWithCapabilities(const SystemCapabilities& system);
     };
     
     /**
@@ -169,6 +253,30 @@ private:
     size_t getDistributionSpecificParallelThreshold(DistributionType dist_type) const;
     bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
     bool shouldUseCacheAware(size_t batch_size, const SystemCapabilities& system) const;
+    
+    /**
+     * @brief Detect the highest available SIMD architecture
+     * @param system System capabilities for detection
+     * @return Detected SIMD architecture
+     */
+    static SIMDArchitecture detectSIMDArchitecture(const SystemCapabilities& system) noexcept;
+    
+    /**
+     * @brief Select strategy based on system capabilities and performance metrics
+     * 
+     * Uses measured SIMD efficiency, threading overhead, and memory bandwidth
+     * to make adaptive decisions based on actual hardware performance.
+     * 
+     * @param batch_size Number of elements to process
+     * @param dist_type Type of distribution for complexity estimation
+     * @param system Measured system capabilities
+     * @return Optimal strategy for this hardware and workload
+     */
+    Strategy selectStrategyBasedOnCapabilities(
+        size_t batch_size,
+        DistributionType dist_type,
+        const SystemCapabilities& system
+    ) const;
 };
 
 /**

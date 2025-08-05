@@ -8,8 +8,8 @@
 #include <span>
 #include <sstream>
 
-// Include the Gaussian distribution
-#include "../include/distributions/gaussian.h"
+// Include the Gamma distribution
+#include "../include/distributions/gamma.h"
 #include "basic_test_template.h"
 
 using namespace std;
@@ -17,41 +17,41 @@ using namespace libstats;
 using namespace BasicTestUtilities;
 
 int main() {
-    StandardizedBasicTest::printTestHeader("Gaussian");
+    StandardizedBasicTest::printTestHeader("Gamma");
     
     try {
         // Test 1: Constructors and Destructor
         StandardizedBasicTest::printTestStart(1, "Constructors and Destructor");
-        cout << "This test verifies all ways to create Gaussian distributions: default (0,1), parameterized (5, 0)," << endl;
-        cout << "copy (parameterized), move (temporary (10,3)) constructors, and the safe factory method that avoids exceptions." << endl;
+        cout << "This test verifies all ways to create Gamma distributions: default (1,1), parameterized (2,3)," << endl;
+        cout << "copy (parameterized), move (temporary (5,0.5)) constructors, and the safe factory method that avoids exceptions." << endl;
         
         // Default constructor test
-        GaussianDistribution default_gauss;
-        StandardizedBasicTest::printProperty("Default Mean", default_gauss.getMean());
-        StandardizedBasicTest::printProperty("Default Std Dev", default_gauss.getStandardDeviation());
+        GammaDistribution default_gamma;
+        StandardizedBasicTest::printProperty("Default Alpha (shape)", default_gamma.getAlpha());
+        StandardizedBasicTest::printProperty("Default Beta (rate)", default_gamma.getBeta());
         
         // Parameterized constructor test
-        GaussianDistribution param_gauss(5.0, 2.0);
-        StandardizedBasicTest::printProperty("Param Mean", param_gauss.getMean());
-        StandardizedBasicTest::printProperty("Param Std Dev", param_gauss.getStandardDeviation());
+        GammaDistribution param_gamma(2.0, 3.0);
+        StandardizedBasicTest::printProperty("Param Alpha", param_gamma.getAlpha());
+        StandardizedBasicTest::printProperty("Param Beta", param_gamma.getBeta());
         
         // Copy constructor test
-        GaussianDistribution copy_gauss(param_gauss);
-        StandardizedBasicTest::printProperty("Copy Mean", copy_gauss.getMean());
-        StandardizedBasicTest::printProperty("Copy Std Dev", copy_gauss.getStandardDeviation());
+        GammaDistribution copy_gamma(param_gamma);
+        StandardizedBasicTest::printProperty("Copy Alpha", copy_gamma.getAlpha());
+        StandardizedBasicTest::printProperty("Copy Beta", copy_gamma.getBeta());
         
         // Move constructor test
-        GaussianDistribution temp_gauss(10.0, 3.0);
-        GaussianDistribution move_gauss(std::move(temp_gauss));
-        StandardizedBasicTest::printProperty("Move Mean", move_gauss.getMean());
-        StandardizedBasicTest::printProperty("Move Std Dev", move_gauss.getStandardDeviation());
+        GammaDistribution temp_gamma(5.0, 0.5);
+        GammaDistribution move_gamma(std::move(temp_gamma));
+        StandardizedBasicTest::printProperty("Move Alpha", move_gamma.getAlpha());
+        StandardizedBasicTest::printProperty("Move Beta", move_gamma.getBeta());
         
         // Safe factory method test
-        auto result = GaussianDistribution::create(0.0, 1.0);
+        auto result = GammaDistribution::create(1.0, 1.0);
         if (result.isOk()) {
-            auto factory_gauss = std::move(result.value);
-            StandardizedBasicTest::printProperty("Factory Mean", factory_gauss.getMean());
-            StandardizedBasicTest::printProperty("Factory Std Dev", factory_gauss.getStandardDeviation());
+            auto factory_gamma = std::move(result.value);
+            StandardizedBasicTest::printProperty("Factory Alpha", factory_gamma.getAlpha());
+            StandardizedBasicTest::printProperty("Factory Beta", factory_gamma.getBeta());
         }
         
         StandardizedBasicTest::printTestSuccess("All constructor and destructor tests passed");
@@ -61,42 +61,44 @@ int main() {
         StandardizedBasicTest::printTestStart(2, "Parameter Getters and Setters");
         cout << "This test verifies parameter access methods: normal getters, atomic (lock-free) getters," << endl;
         cout << "exception-based setters, and safe setters that return Result types instead of throwing." << endl;
-        cout << "Using a Standard Normal (0.0, 1.0) distribution as the results are well known." << endl;
+        cout << "Using a Gamma(2.0, 1.0) distribution as the results are well known (mean=2, variance=2)." << endl;
         
-        GaussianDistribution gauss_dist(0.0, 1.0);
+        GammaDistribution gamma_dist(2.0, 1.0);
         
         // Test getters
-        StandardizedBasicTest::printProperty("Initial Mean", gauss_dist.getMean());
-        StandardizedBasicTest::printProperty("Initial Std Dev", gauss_dist.getStandardDeviation());
-        StandardizedBasicTest::printProperty("Variance", gauss_dist.getVariance());
-        StandardizedBasicTest::printProperty("Skewness", gauss_dist.getSkewness());
-        StandardizedBasicTest::printProperty("Kurtosis", gauss_dist.getKurtosis());
-        StandardizedBasicTest::printPropertyInt("Num Parameters", gauss_dist.getNumParameters());
+        StandardizedBasicTest::printProperty("Initial Alpha", gamma_dist.getAlpha());
+        StandardizedBasicTest::printProperty("Initial Beta", gamma_dist.getBeta());
+        StandardizedBasicTest::printProperty("Scale (1/Beta)", gamma_dist.getScale());
+        StandardizedBasicTest::printProperty("Mean", gamma_dist.getMean());
+        StandardizedBasicTest::printProperty("Variance", gamma_dist.getVariance());
+        StandardizedBasicTest::printProperty("Skewness", gamma_dist.getSkewness());
+        StandardizedBasicTest::printProperty("Kurtosis", gamma_dist.getKurtosis());
+        StandardizedBasicTest::printPropertyInt("Num Parameters", gamma_dist.getNumParameters());
         
         // Test atomic getters (lock-free access)
-        StandardizedBasicTest::printProperty("Atomic Mean", gauss_dist.getMeanAtomic());
-        StandardizedBasicTest::printProperty("Atomic Std Dev", gauss_dist.getStandardDeviationAtomic());
+        StandardizedBasicTest::printProperty("Atomic Alpha", gamma_dist.getAlphaAtomic());
+        StandardizedBasicTest::printProperty("Atomic Beta", gamma_dist.getBetaAtomic());
         
         // Test setters
-        gauss_dist.setMean(3.0);
-        gauss_dist.setStandardDeviation(1.5);
-        StandardizedBasicTest::printProperty("After setting - Mean", gauss_dist.getMean());
-        StandardizedBasicTest::printProperty("After setting - Std Dev", gauss_dist.getStandardDeviation());
+        gamma_dist.setAlpha(3.0);
+        gamma_dist.setBeta(2.0);
+        StandardizedBasicTest::printProperty("After setting - Alpha", gamma_dist.getAlpha());
+        StandardizedBasicTest::printProperty("After setting - Beta", gamma_dist.getBeta());
         
         // Test simultaneous parameter setting
-        gauss_dist.setParameters(10.0, 2.5);
-        StandardizedBasicTest::printProperty("After setParameters - Mean", gauss_dist.getMean());
-        StandardizedBasicTest::printProperty("After setParameters - Std Dev", gauss_dist.getStandardDeviation());
+        gamma_dist.setParameters(4.0, 1.5);
+        StandardizedBasicTest::printProperty("After setParameters - Alpha", gamma_dist.getAlpha());
+        StandardizedBasicTest::printProperty("After setParameters - Beta", gamma_dist.getBeta());
         
         // Test safe setters (no exceptions)
-        auto set_result = gauss_dist.trySetMean(7.0);
+        auto set_result = gamma_dist.trySetAlpha(2.5);
         if (set_result.isOk()) {
-            StandardizedBasicTest::printProperty("Safe set mean - Mean", gauss_dist.getMean());
+            StandardizedBasicTest::printProperty("Safe set alpha - Alpha", gamma_dist.getAlpha());
         }
         
-        set_result = gauss_dist.trySetStandardDeviation(3.0);
+        set_result = gamma_dist.trySetBeta(0.8);
         if (set_result.isOk()) {
-            StandardizedBasicTest::printProperty("Safe set std dev - Std Dev", gauss_dist.getStandardDeviation());
+            StandardizedBasicTest::printProperty("Safe set beta - Beta", gamma_dist.getBeta());
         }
         
         StandardizedBasicTest::printTestSuccess("All parameter getter/setter tests passed");
@@ -105,50 +107,49 @@ int main() {
         // Test 3: Core Probability Methods
         StandardizedBasicTest::printTestStart(3, "Core Probability Methods");
         cout << "This test verifies the core statistical functions: PDF, log PDF, CDF, quantiles," << endl;
-        cout << "and Gaussian-specific utilities like z-scores, entropy, median/mode (all equal for Gaussian)." << endl;
-        cout << "Expected: PDF(0)≈0.399, CDF(0)=0.5, CDF(1)≈0.841, quantile(0.5)=0 for Standard Normal (0, 1)." << endl;
+        cout << "and Gamma-specific utilities like mode and entropy for different parameter values." << endl;
+        cout << "Expected: For Gamma(2,1): mean=2, mode=1, relatively skewed right distribution." << endl;
         
-        GaussianDistribution std_normal(0.0, 1.0);
-        double x = 1.0;
+        GammaDistribution test_gamma(2.0, 1.0);
+        double x = 1.5;
         
-        StandardizedBasicTest::printProperty("PDF(1.0)", std_normal.getProbability(x));
-        StandardizedBasicTest::printProperty("Log PDF(1.0)", std_normal.getLogProbability(x));
-        StandardizedBasicTest::printProperty("CDF(1.0)", std_normal.getCumulativeProbability(x));
-        StandardizedBasicTest::printProperty("Quantile(0.5)", std_normal.getQuantile(0.5));
-        StandardizedBasicTest::printProperty("Quantile(0.8413)", std_normal.getQuantile(0.8413454746));
+        StandardizedBasicTest::printProperty("PDF(1.5)", test_gamma.getProbability(x));
+        StandardizedBasicTest::printProperty("Log PDF(1.5)", test_gamma.getLogProbability(x));
+        StandardizedBasicTest::printProperty("CDF(1.5)", test_gamma.getCumulativeProbability(x));
+        StandardizedBasicTest::printProperty("Quantile(0.5)", test_gamma.getQuantile(0.5));
+        StandardizedBasicTest::printProperty("Quantile(0.9)", test_gamma.getQuantile(0.9));
         
         // Test edge cases
-        StandardizedBasicTest::printProperty("PDF(0.0)", std_normal.getProbability(0.0));
-        StandardizedBasicTest::printProperty("CDF(0.0)", std_normal.getCumulativeProbability(0.0));
+        StandardizedBasicTest::printProperty("PDF(0.1)", test_gamma.getProbability(0.1));
+        StandardizedBasicTest::printProperty("CDF(0.1)", test_gamma.getCumulativeProbability(0.1));
         
-        // Test Gaussian-specific utility methods
-        StandardizedBasicTest::printProperty("Z-score for x=1", std_normal.getStandardizedValue(1.0));
-        StandardizedBasicTest::printProperty("Value from z=1", std_normal.getValueFromStandardized(1.0));
-        StandardizedBasicTest::printProperty("Entropy", std_normal.getEntropy());
-        StandardizedBasicTest::printProperty("Median", std_normal.getMedian());
-        StandardizedBasicTest::printProperty("Mode", std_normal.getMode());
+        // Test Gamma-specific utility methods
+        StandardizedBasicTest::printProperty("Mode", test_gamma.getMode());
+        StandardizedBasicTest::printProperty("Entropy", test_gamma.getEntropy());
+        StandardizedBasicTest::printProperty("Median", test_gamma.getMedian());
         
         // Test distribution properties
-        cout << "Is standard normal: " << (std_normal.isStandardNormal() ? "YES" : "NO") << endl;
-        cout << "Is discrete: " << (std_normal.isDiscrete() ? "YES" : "NO") << endl;
-        cout << "Distribution name: " << std_normal.getDistributionName() << endl;
+        cout << "Is discrete: " << (test_gamma.isDiscrete() ? "YES" : "NO") << endl;
+        cout << "Distribution name: " << test_gamma.getDistributionName() << endl;
+        StandardizedBasicTest::printProperty("Support lower bound", test_gamma.getSupportLowerBound());
+        StandardizedBasicTest::printProperty("Support upper bound", test_gamma.getSupportUpperBound());
         
         StandardizedBasicTest::printTestSuccess("All core probability method tests passed");
         StandardizedBasicTest::printNewline();
         
         // Test 4: Random Sampling
         StandardizedBasicTest::printTestStart(4, "Random Sampling");
-        cout << "This test verifies random number generation using the Box-Muller algorithm." << endl;
-        cout << "Sample statistics should approximately match distribution parameters for large samples." << endl;
+        cout << "This test verifies random number generation using Marsaglia-Tsang (alpha>=1) and" << endl;
+        cout << "Ahrens-Dieter (alpha<1) algorithms. Sample statistics should approximately match distribution parameters." << endl;
         
         mt19937 rng(42);
         
         // Single sample
-        double single_sample = std_normal.sample(rng);
+        double single_sample = test_gamma.sample(rng);
         StandardizedBasicTest::printProperty("Single sample", single_sample);
         
         // Multiple samples
-        vector<double> samples = std_normal.sample(rng, 10);
+        vector<double> samples = test_gamma.sample(rng, 10);
         StandardizedBasicTest::printSamples(samples, "10 random samples");
         
         // Verify sample statistics approximately match distribution
@@ -156,6 +157,8 @@ int main() {
         double sample_var = StandardizedBasicTest::computeSampleVariance(samples);
         StandardizedBasicTest::printProperty("Sample mean", sample_mean);
         StandardizedBasicTest::printProperty("Sample variance", sample_var);
+        StandardizedBasicTest::printProperty("Expected mean (α/β)", test_gamma.getMean());
+        StandardizedBasicTest::printProperty("Expected variance (α/β²)", test_gamma.getVariance());
         
         StandardizedBasicTest::printTestSuccess("All sampling tests passed");
         StandardizedBasicTest::printNewline();
@@ -163,19 +166,19 @@ int main() {
         // Test 5: Distribution Management
         StandardizedBasicTest::printTestStart(5, "Distribution Management");
         cout << "This test verifies parameter fitting using Maximum Likelihood Estimation (MLE)," << endl;
-        cout << "distribution reset to default (0, 1) parameters, and string representation formatting." << endl;
+        cout << "distribution reset to default (1, 1) parameters, and string representation formatting." << endl;
         
         // Test fitting
-        vector<double> fit_data = StandardizedBasicTest::generateGaussianTestData();
-        GaussianDistribution fitted_dist;
+        vector<double> fit_data = StandardizedBasicTest::generateGammaTestData();
+        GammaDistribution fitted_dist;
         fitted_dist.fit(fit_data);
-        StandardizedBasicTest::printProperty("Fitted Mean", fitted_dist.getMean());
-        StandardizedBasicTest::printProperty("Fitted Std Dev", fitted_dist.getStandardDeviation());
+        StandardizedBasicTest::printProperty("Fitted Alpha", fitted_dist.getAlpha());
+        StandardizedBasicTest::printProperty("Fitted Beta", fitted_dist.getBeta());
         
         // Test reset
         fitted_dist.reset();
-        StandardizedBasicTest::printProperty("After reset - Mean", fitted_dist.getMean());
-        StandardizedBasicTest::printProperty("After reset - Std Dev", fitted_dist.getStandardDeviation());
+        StandardizedBasicTest::printProperty("After reset - Alpha", fitted_dist.getAlpha());
+        StandardizedBasicTest::printProperty("After reset - Beta", fitted_dist.getBeta());
         
         // Test toString
         string dist_str = fitted_dist.toString();
@@ -190,10 +193,10 @@ int main() {
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large." << endl;
         cout << "Compares performance and verifies correctness against traditional batch methods." << endl;
         
-        GaussianDistribution test_dist(0.0, 1.0);
+        GammaDistribution test_dist(2.0, 1.0);
         
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
-        vector<double> small_test_values = {-2.5, -1.2, 0.3, 1.8, 2.1};
+        vector<double> small_test_values = {0.5, 1.2, 2.1, 0.8, 1.5};
         vector<double> small_pdf_results(small_test_values.size());
         vector<double> small_log_pdf_results(small_test_values.size());
         vector<double> small_cdf_results(small_test_values.size());
@@ -269,7 +272,7 @@ int main() {
         // Generate diverse realistic test data instead of all zeros
         vector<double> large_input(large_size);
         std::mt19937 gen(42);
-        std::uniform_real_distribution<> dis(-3.0, 3.0);
+        std::uniform_real_distribution<> dis(0.1, 5.0);  // Positive values for Gamma
         for (size_t i = 0; i < large_size; ++i) {
             large_input[i] = dis(gen);
         }
@@ -325,9 +328,9 @@ int main() {
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions." << endl;
         
-        GaussianDistribution dist1(0.0, 1.0);
-        GaussianDistribution dist2(0.0, 1.0);
-        GaussianDistribution dist3(1.0, 2.0);
+        GammaDistribution dist1(2.0, 1.0);
+        GammaDistribution dist2(2.0, 1.0);
+        GammaDistribution dist3(3.0, 2.0);
         
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -340,12 +343,12 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         
         // Test stream input (using proper format from output)
-        GaussianDistribution input_dist;
+        GammaDistribution input_dist;
         ss.seekg(0); // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
-            cout << "Parsed mean: " << input_dist.getMean() << endl;
-            cout << "Parsed std dev: " << input_dist.getStandardDeviation() << endl;
+            cout << "Parsed alpha: " << input_dist.getAlpha() << endl;
+            cout << "Parsed beta: " << input_dist.getBeta() << endl;
         } else {
             cout << "Stream input failed" << endl;
         }
@@ -355,7 +358,7 @@ int main() {
         
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
-        auto error_result = GaussianDistribution::create(0.0, -1.0);
+        auto error_result = GammaDistribution::create(0.0, -1.0);  // Invalid parameters
         if (error_result.isError()) {
             StandardizedBasicTest::printTestSuccess("Error handling works: " + error_result.message);
         } else {
@@ -363,13 +366,13 @@ int main() {
             return 1;
         }
         
-        StandardizedBasicTest::printCompletionMessage("Gaussian");
+        StandardizedBasicTest::printCompletionMessage("Gamma");
         
         StandardizedBasicTest::printSummaryHeader();
         StandardizedBasicTest::printSummaryItem("Safe factory creation and error handling");
-        StandardizedBasicTest::printSummaryItem("All distribution properties (mean, variance, skewness, kurtosis)");
+        StandardizedBasicTest::printSummaryItem("All distribution properties (mean, variance, skewness, kurtosis, mode)");
         StandardizedBasicTest::printSummaryItem("PDF, Log PDF, CDF, and quantile functions");
-        StandardizedBasicTest::printSummaryItem("Random sampling (Box-Muller algorithm)");
+        StandardizedBasicTest::printSummaryItem("Random sampling (Marsaglia-Tsang and Ahrens-Dieter algorithms)");
         StandardizedBasicTest::printSummaryItem("Parameter fitting (MLE)");
         StandardizedBasicTest::printSummaryItem("Smart auto-dispatch batch operations with strategy selection");
         StandardizedBasicTest::printSummaryItem("Large batch auto-dispatch validation and correctness");

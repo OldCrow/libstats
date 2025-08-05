@@ -255,6 +255,11 @@ namespace parallel {
                 inline constexpr std::size_t DISCRETE_PDF_THRESHOLD = 524288;    // Expect 1-2x speedup
                 inline constexpr std::size_t DISCRETE_CDF_THRESHOLD = 32768;     // Expect 2-3x speedup
                 inline constexpr std::size_t DISCRETE_LOGPDF_THRESHOLD = 4096;   // Expect 2-3x speedup
+                
+                // Gamma distribution - moderate complexity, similar to Gaussian
+                inline constexpr std::size_t GAMMA_PDF_THRESHOLD = 128;          // Expect 2-3x speedup
+                inline constexpr std::size_t GAMMA_CDF_THRESHOLD = 256;          // Expect 2-4x speedup  
+                inline constexpr std::size_t GAMMA_LOGPDF_THRESHOLD = 64;        // Expect 2-3x speedup
             }
         }
     }
@@ -422,6 +427,8 @@ namespace parallel {
                 return avx512::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
             } else if (features.avx2) {
                 return avx2::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
+            } else if (cpu::is_sandy_ivy_bridge()) {
+                return avx::legacy_intel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
             } else if (features.avx) {
                 return avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
             } else if (features.sse2) {

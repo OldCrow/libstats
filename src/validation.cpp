@@ -410,16 +410,25 @@ ADTestResult anderson_darling_test(const std::vector<double>& data,
     const size_t n = sorted_data.size();
     double ad_statistic = 0.0;
     
-    // Calculate Anderson-Darling statistic
+    // Calculate Anderson-Darling statistic using numerically stable approach
     for (size_t i = 0; i < n; ++i) {
         const double cdf_val = distribution.getCumulativeProbability(sorted_data[i]);
         const double cdf_complement = distribution.getCumulativeProbability(sorted_data[n - 1 - i]);
         
-        // Avoid log(0) by clamping values
-        const double log_cdf = std::log(std::max(cdf_val, 1e-16));
-        const double log_complement = std::log(std::max(1.0 - cdf_complement, 1e-16));
+        // Clamp CDF values to avoid numerical issues with log(0) and log(negative)
+        // Use threshold from constants to ensure consistency
+        const double clamped_cdf = std::max(constants::thresholds::ANDERSON_DARLING_MIN_PROB, 
+                                           std::min(1.0 - constants::thresholds::ANDERSON_DARLING_MIN_PROB, cdf_val));
+        const double clamped_complement = std::max(constants::thresholds::ANDERSON_DARLING_MIN_PROB, 
+                                                  std::min(1.0 - constants::thresholds::ANDERSON_DARLING_MIN_PROB, cdf_complement));
         
-        ad_statistic += (2 * i + 1) * (log_cdf + log_complement);
+        // Calculate log terms with safe bounds
+        const double log_cdf = std::log(clamped_cdf);
+        const double log_one_minus_complement = std::log(1.0 - clamped_complement);
+        
+        // Accumulate with proper weighting
+        const double weight = 2.0 * static_cast<double>(i + 1) - 1.0;
+        ad_statistic += weight * (log_cdf + log_one_minus_complement);
     }
     
     ad_statistic = -static_cast<double>(n) - ad_statistic / n;

@@ -2482,34 +2482,46 @@ std::ostream& operator<<(std::ostream& os, const GaussianDistribution& distribut
 }
 
 std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
-    std::string token;
+    std::string line;
     double mean, stddev;
     
     // Expected format: "GaussianDistribution(mean=<value>, stddev=<value>)"
-    // We'll parse this step by step
+    // Read the entire line to handle spaces in the format
     
-    // Skip whitespace and read the first part
-    is >> token;
-    if (token.find("GaussianDistribution(") != 0) {
+    // Skip leading whitespace and read the entire formatted string
+    if (!std::getline(is, line)) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Trim leading whitespace
+    size_t start = line.find_first_not_of(" \t\n\r");
+    if (start == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    line = line.substr(start);
+    
+    if (line.find("GaussianDistribution(") != 0) {
         is.setstate(std::ios::failbit);
         return is;
     }
     
     // Extract mean value
-    if (token.find("mean=") == std::string::npos) {
+    if (line.find("mean=") == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
     
-    size_t mean_pos = token.find("mean=") + 5;
-    size_t comma_pos = token.find(",", mean_pos);
+    size_t mean_pos = line.find("mean=") + 5;
+    size_t comma_pos = line.find(",", mean_pos);
     if (comma_pos == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
     
     try {
-        std::string mean_str = token.substr(mean_pos, comma_pos - mean_pos);
+        std::string mean_str = line.substr(mean_pos, comma_pos - mean_pos);
         mean = std::stod(mean_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
@@ -2517,20 +2529,20 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
     }
     
     // Extract stddev value
-    if (token.find("stddev=") == std::string::npos) {
+    if (line.find("stddev=") == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
     
-    size_t stddev_pos = token.find("stddev=") + 7;
-    size_t close_paren = token.find(")", stddev_pos);
+    size_t stddev_pos = line.find("stddev=") + 7;
+    size_t close_paren = line.find(")", stddev_pos);
     if (close_paren == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
     
     try {
-        std::string stddev_str = token.substr(stddev_pos, close_paren - stddev_pos);
+        std::string stddev_str = line.substr(stddev_pos, close_paren - stddev_pos);
         stddev = std::stod(stddev_str);
     } catch (...) {
         is.setstate(std::ios::failbit);

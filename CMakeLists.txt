@@ -786,6 +786,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_poisson_basic tests/test_poisson_basic.cpp)
     create_libstats_gtest(test_poisson_enhanced tests/test_poisson_enhanced.cpp)
     
+    # gamma.h - Gamma distribution implementation
+    create_libstats_test(test_gamma_basic tests/test_gamma_basic.cpp)
+    create_libstats_gtest(test_gamma_enhanced tests/test_gamma_enhanced.cpp)
+    
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
@@ -872,6 +876,8 @@ if(LIBSTATS_BUILD_TESTS)
             test_uniform_enhanced
             test_poisson_basic
             test_poisson_enhanced
+            test_gamma_basic
+            test_gamma_enhanced
             
             # Additional tests: Cross-cutting concerns
             test_dynamic_linking

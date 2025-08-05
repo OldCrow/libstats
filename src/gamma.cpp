@@ -26,6 +26,9 @@ GammaDistribution::GammaDistribution(double alpha, double beta) {
     alpha_ = alpha;
     beta_ = beta;
     updateCacheUnsafe();
+    
+    // Precompute values for dispatcher's first use
+    performance::SystemCapabilities::current();
 }
 
 // Copy constructor
@@ -36,6 +39,9 @@ GammaDistribution::GammaDistribution(const GammaDistribution& other) {
     cache_valid_ = other.cache_valid_;
     atomicAlpha_.store(alpha_, std::memory_order_release);
     atomicBeta_.store(beta_, std::memory_order_release);
+    
+    // Precompute values for dispatcher's first use
+    performance::SystemCapabilities::current();
 }
 
 // Copy assignment operator
@@ -57,6 +63,9 @@ GammaDistribution::GammaDistribution(GammaDistribution&& other) {
     cache_valid_ = other.cache_valid_;
     atomicAlpha_.store(alpha_, std::memory_order_release);
     atomicBeta_.store(beta_, std::memory_order_release);
+    
+    // Precompute values for dispatcher's first use
+    performance::SystemCapabilities::current();
 }
 
 // Move assignment operator
@@ -143,6 +152,57 @@ double GammaDistribution::getMode() const noexcept {
         return 0.0;
     }
     return (alpha_ - 1.0) / beta_;
+}
+
+void GammaDistribution::setAlpha(double alpha) {
+    // Copy current beta for validation (thread-safe)
+    double currentBeta;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentBeta = beta_;
+    }
+    
+    // Validate parameters
+    validateParameters(alpha, currentBeta);
+    
+    // Update with unique lock
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    alpha_ = alpha;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void GammaDistribution::setBeta(double beta) {
+    // Copy current alpha for validation (thread-safe)
+    double currentAlpha;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentAlpha = alpha_;
+    }
+    
+    // Validate parameters
+    validateParameters(currentAlpha, beta);
+    
+    // Update with unique lock
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    beta_ = beta;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void GammaDistribution::setParameters(double alpha, double beta) {
+    // Validate parameters
+    validateParameters(alpha, beta);
+    
+    // Update with unique lock
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    alpha_ = alpha;
+    beta_ = beta;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 //==============================================================================
@@ -249,7 +309,7 @@ double GammaDistribution::getProbability(double x) const {
 
 double GammaDistribution::getLogProbability(double x) const noexcept {
     if (x < 0.0) {
-        return constants::probability::MIN_LOG_PROBABILITY;
+        return constants::probability::NEGATIVE_INFINITY;
     }
     
     // Ensure cache is valid
@@ -872,8 +932,25 @@ std::tuple<double, double, bool> GammaDistribution::kolmogorovSmirnovTest(
     double critical_value = 1.36 / std::sqrt(n); // Approximation for KS test critical value
     bool reject_null = ks_statistic > critical_value;
 
-    // P-value calculation for KS test (asymptotic approximation)
-    double p_value = std::exp(-2 * n * ks_statistic * ks_statistic);
+    // P-value calculation for KS test (improved asymptotic approximation)
+    // Use Kolmogorov distribution approximation
+    double lambda = std::sqrt(n) * ks_statistic;
+    double p_value;
+    
+    if (lambda < 0.27) {
+        p_value = 1.0;
+    } else if (lambda < 1.0) {
+        p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
+    } else {
+        // Asymptotic series for large lambda
+        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
+        // Add correction terms
+        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
+        p_value *= std::max(0.0, correction);
+    }
+    
+    // Ensure p-value is in valid range
+    p_value = std::min(1.0, std::max(0.0, p_value));
 
     return std::make_tuple(ks_statistic, p_value, reject_null);
 }
@@ -888,25 +965,27 @@ std::tuple<double, double, bool> GammaDistribution::andersonDarlingTest(
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
-    size_t n = sorted_data.size();
+    // Use the centralized AD statistic calculation from math_utils
+    double ad_statistic = math::calculate_ad_statistic(data, distribution);
 
-    double ad_statistic = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-        [[maybe_unused]] double empirical_cdf = double(i + 1) / n;
-        double theoretical_cdf = distribution.getCumulativeProbability(sorted_data[i]);
-        if (theoretical_cdf > 0 && theoretical_cdf < 1) {
-            ad_statistic += (2 * i + 1) * (std::log(theoretical_cdf) + std::log(1.0 - theoretical_cdf));
-        }
+    // Use the same p-value approximation as Gaussian distribution for consistency
+    const double n = static_cast<double>(data.size());
+    const double modified_stat = ad_statistic * (1.0 + 0.75 / n + 2.25 / (n * n));
+    
+    // Approximate p-value using exponential approximation
+    double p_value;
+    if (modified_stat >= 13.0) {
+        p_value = 0.0;
+    } else if (modified_stat >= 6.0) {
+        p_value = std::exp(-1.28 * modified_stat);
+    } else {
+        p_value = std::exp(-1.8 * modified_stat + 1.5);
     }
-    ad_statistic = -n - ad_statistic / n;
-
-    double critical_value = 2.492; // Approximation for AD test critical value
-    bool reject_null = ad_statistic > critical_value;
-
-    // P-value calculation for AD test (asymptotic approximation)
-    double p_value = std::exp(-ad_statistic);
+    
+    // Clamp p-value to [0, 1]
+    p_value = std::min(1.0, std::max(0.0, p_value));
+    
+    const bool reject_null = p_value < significance_level;
 
     return std::make_tuple(ad_statistic, p_value, reject_null);
 }
@@ -1280,31 +1359,103 @@ void GammaDistribution::getProbabilityBatchParallel(std::span<const double> valu
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
-    if (values.empty()) return;
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_beta = beta_;
+    const double cached_log_gamma_alpha = logGammaAlpha_;
+    const double cached_alpha_log_beta = alphaLogBeta_;
+    const double cached_alpha_minus_one = alphaMinusOne_;
+    
+    lock.unlock(); // Release lock before parallel processing
     
     // Use ParallelUtils::parallelFor for optimal work distribution
-    if (parallel::should_use_parallel(values.size())) {
-        ParallelUtils::parallelFor(0, values.size(), [this, &values, &results](size_t i) {
-            results[i] = this->getProbability(values[i]);
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Inlined computation using cached parameters
+            const double x = values[i];
+            if (x <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+            }
         });
     } else {
-        for (size_t i = 0; i < values.size(); ++i) {
-            results[i] = this->getProbability(values[i]);
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+            }
         }
     }
 }
 
 void GammaDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size() || values.empty()) return;
+    if (values.size() != results.size()) {
+        // In noexcept context, we can't throw, so return early on size mismatch
+        return;
+    }
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_beta = beta_;
+    const double cached_log_gamma_alpha = logGammaAlpha_;
+    const double cached_alpha_log_beta = alphaLogBeta_;
+    const double cached_alpha_minus_one = alphaMinusOne_;
+    
+    lock.unlock(); // Release lock before parallel processing
     
     // Use ParallelUtils::parallelFor for optimal work distribution
-    if (parallel::should_use_parallel(values.size())) {
-        ParallelUtils::parallelFor(0, values.size(), [this, &values, &results](size_t i) {
-            results[i] = this->getLogProbability(values[i]);
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Inlined computation using cached parameters
+            const double x = values[i];
+            if (x <= 0.0) {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            } else {
+                results[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+            }
         });
     } else {
-        for (size_t i = 0; i < values.size(); ++i) {
-            results[i] = this->getLogProbability(values[i]);
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x <= 0.0) {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            } else {
+                results[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+            }
         }
     }
 }
@@ -1313,16 +1464,48 @@ void GammaDistribution::getCumulativeProbabilityBatchParallel(std::span<const do
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
-    if (values.empty()) return;
+    
+    const std::size_t count = values.size();
+    if (count == 0) return;
+    
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_alpha = alpha_;
+    const double cached_beta = beta_;
+    
+    lock.unlock(); // Release lock before parallel processing
     
     // Use ParallelUtils::parallelFor for optimal work distribution
-    if (parallel::should_use_parallel(values.size())) {
-        ParallelUtils::parallelFor(0, values.size(), [this, &values, &results](size_t i) {
-            results[i] = this->getCumulativeProbability(values[i]);
+    if (parallel::should_use_parallel(count)) {
+        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Inlined computation using cached parameters
+            const double x = values[i];
+            if (x <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = math::gamma_p(cached_alpha, cached_beta * x);
+            }
         });
     } else {
-        for (size_t i = 0; i < values.size(); ++i) {
-            results[i] = this->getCumulativeProbability(values[i]);
+        // Fall back to serial processing for small datasets
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = math::gamma_p(cached_alpha, cached_beta * x);
+            }
         }
     }
 }
@@ -1334,14 +1517,40 @@ void GammaDistribution::getProbabilityBatchWorkStealing(std::span<const double> 
     }
     if (values.empty()) return;
     
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_beta = beta_;
+    const double cached_log_gamma_alpha = logGammaAlpha_;
+    const double cached_alpha_log_beta = alphaLogBeta_;
+    const double cached_alpha_minus_one = alphaMinusOne_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
     // Submit work to work-stealing pool for dynamic load balancing
     size_t chunk_size = std::max(1UL, values.size() / pool.getThreadCount());
     
     for (size_t start = 0; start < values.size(); start += chunk_size) {
         size_t end = std::min(start + chunk_size, values.size());
-        pool.submit([this, &values, &results, start, end]() {
+        pool.submit([&values, &results, start, end, cached_alpha_log_beta, cached_alpha_minus_one, cached_beta, cached_log_gamma_alpha]() {
             for (size_t i = start; i < end; ++i) {
-                results[i] = this->getProbability(values[i]);
+                // Inlined computation using cached parameters
+                const double x = values[i];
+                if (x <= 0.0) {
+                    results[i] = 0.0;
+                } else {
+                    results[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                }
             }
         });
     }
@@ -1357,10 +1566,14 @@ void GammaDistribution::getProbabilityBatchCacheAware(std::span<const double> va
     }
     if (values.empty()) return;
     
+    // Cache parameters once outside the loop to avoid repeated atomic calls
+    const double cached_alpha = getAlphaAtomic();
+    const double cached_beta = getBetaAtomic();
+    const std::string param_suffix = "_" + std::to_string(cached_alpha) + "_" + std::to_string(cached_beta);
+    
     // Use cache-aware processing for frequently accessed values
     for (size_t i = 0; i < values.size(); ++i) {
-        std::string key = "pdf_" + std::to_string(values[i]) + "_" + 
-                         std::to_string(getAlphaAtomic()) + "_" + std::to_string(getBetaAtomic());
+        std::string key = "pdf_" + std::to_string(values[i]) + param_suffix;
         
         auto cached_result = cache_manager.get(key);
         if (cached_result) {
@@ -1379,14 +1592,40 @@ void GammaDistribution::getLogProbabilityBatchWorkStealing(std::span<const doubl
     }
     if (values.empty()) return;
     
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_beta = beta_;
+    const double cached_log_gamma_alpha = logGammaAlpha_;
+    const double cached_alpha_log_beta = alphaLogBeta_;
+    const double cached_alpha_minus_one = alphaMinusOne_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
     // Submit work to work-stealing pool for dynamic load balancing
     size_t chunk_size = std::max(1UL, values.size() / pool.getThreadCount());
     
     for (size_t start = 0; start < values.size(); start += chunk_size) {
         size_t end = std::min(start + chunk_size, values.size());
-        pool.submit([this, &values, &results, start, end]() {
+        pool.submit([&values, &results, start, end, cached_alpha_log_beta, cached_alpha_minus_one, cached_beta, cached_log_gamma_alpha]() {
             for (size_t i = start; i < end; ++i) {
-                results[i] = this->getLogProbability(values[i]);
+                // Inlined computation using cached parameters
+                const double x = values[i];
+                if (x <= 0.0) {
+                    results[i] = constants::probability::NEGATIVE_INFINITY;
+                } else {
+                    results[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                }
             }
         });
     }
@@ -1402,10 +1641,14 @@ void GammaDistribution::getLogProbabilityBatchCacheAware(std::span<const double>
     }
     if (values.empty()) return;
     
+    // Cache parameters once outside the loop to avoid repeated atomic calls
+    const double cached_alpha = getAlphaAtomic();
+    const double cached_beta = getBetaAtomic();
+    const std::string param_suffix = "_" + std::to_string(cached_alpha) + "_" + std::to_string(cached_beta);
+    
     // Use cache-aware processing for frequently accessed values
     for (size_t i = 0; i < values.size(); ++i) {
-        std::string key = "logpdf_" + std::to_string(values[i]) + "_" + 
-                         std::to_string(getAlphaAtomic()) + "_" + std::to_string(getBetaAtomic());
+        std::string key = "logpdf_" + std::to_string(values[i]) + param_suffix;
         
         auto cached_result = cache_manager.get(key);
         if (cached_result) {
@@ -1424,14 +1667,38 @@ void GammaDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<cons
     }
     if (values.empty()) return;
     
+    // Ensure cache is valid once before parallel processing
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    // Cache parameters for thread-safe parallel access
+    const double cached_alpha = alpha_;
+    const double cached_beta = beta_;
+    
+    lock.unlock(); // Release lock before parallel processing
+    
     // Submit work to work-stealing pool for dynamic load balancing
     size_t chunk_size = std::max(1UL, values.size() / pool.getThreadCount());
     
     for (size_t start = 0; start < values.size(); start += chunk_size) {
         size_t end = std::min(start + chunk_size, values.size());
-        pool.submit([this, &values, &results, start, end]() {
+        pool.submit([&values, &results, start, end, cached_alpha, cached_beta]() {
             for (size_t i = start; i < end; ++i) {
-                results[i] = this->getCumulativeProbability(values[i]);
+                // Inlined computation using cached parameters
+                const double x = values[i];
+                if (x <= 0.0) {
+                    results[i] = 0.0;
+                } else {
+                    results[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                }
             }
         });
     }
@@ -1447,10 +1714,14 @@ void GammaDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const 
     }
     if (values.empty()) return;
     
+    // Cache parameters once outside the loop to avoid repeated atomic calls
+    const double cached_alpha = getAlphaAtomic();
+    const double cached_beta = getBetaAtomic();
+    
     // Use cache-aware processing for frequently accessed values
     for (size_t i = 0; i < values.size(); ++i) {
         std::string key = "cdf_" + std::to_string(values[i]) + "_" + 
-                         std::to_string(getAlphaAtomic()) + "_" + std::to_string(getBetaAtomic());
+                         std::to_string(cached_alpha) + "_" + std::to_string(cached_beta);
         
         auto cached_result = cache_manager.get(key);
         if (cached_result) {
@@ -1467,31 +1738,63 @@ void GammaDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const 
 //==============================================================================
 
 void GammaDistribution::getProbability(std::span<const double> values, std::span<double> results,
-                                       const performance::PerformanceHint& /* hint */) const {
+                                       const performance::PerformanceHint& hint) const {
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
     if (values.empty()) return;
     
+    // Handle single-value case efficiently
+    if (values.size() == 1) {
+        results[0] = getProbability(values[0]);
+        return;
+    }
+    
     // Auto-dispatch based on batch size and performance hints
     size_t batch_size = values.size();
     
-    // Use performance dispatcher for optimal strategy
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        // Use performance dispatcher for optimal strategy
+        static thread_local performance::PerformanceDispatcher dispatcher;
+        const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
 
-    auto strategy = dispatcher.selectOptimalStrategy(
-        batch_size,
-        performance::DistributionType::GAMMA,
-        performance::ComputationComplexity::COMPLEX,
-        system
-    );
+        strategy = dispatcher.selectOptimalStrategy(
+            batch_size,
+            performance::DistributionType::GAMMA,
+            performance::ComputationComplexity::COMPLEX,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (batch_size <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
 
     switch (strategy) {
         case performance::Strategy::SCALAR:
-            for (size_t i = 0; i < batch_size; ++i) {
-                results[i] = getProbability(values[i]);
-            }
+            // Use batch unsafe method to avoid repeated lock overhead
+            getProbabilityBatchUnsafe(values.data(), results.data(), batch_size);
             break;
         case performance::Strategy::SIMD_BATCH:
             getProbabilityBatch(values.data(), results.data(), batch_size);
@@ -1499,43 +1802,77 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
         case performance::Strategy::PARALLEL_SIMD:
             getProbabilityBatchParallel(values, results);
             break;
-        case performance::Strategy::WORK_STEALING:
+        case performance::Strategy::WORK_STEALING: {
             static thread_local WorkStealingPool default_pool;
             getProbabilityBatchWorkStealing(values, results, default_pool);
             break;
-        case performance::Strategy::CACHE_AWARE:
+        }
+        case performance::Strategy::CACHE_AWARE: {
             static thread_local cache::AdaptiveCache<std::string, double> default_cache;
             getProbabilityBatchCacheAware(values, results, default_cache);
             break;
+        }
     }
 }
 
 void GammaDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
-                                          const performance::PerformanceHint& /* hint */) const {
+                                          const performance::PerformanceHint& hint) const {
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
     if (values.empty()) return;
     
+    // Handle single-value case efficiently
+    if (values.size() == 1) {
+        results[0] = getLogProbability(values[0]);
+        return;
+    }
+    
     // Auto-dispatch based on batch size and performance hints
     size_t batch_size = values.size();
     
-    // Use performance dispatcher for optimal strategy
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        // Use performance dispatcher for optimal strategy
+        static thread_local performance::PerformanceDispatcher dispatcher;
+        const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
 
-    auto strategy = dispatcher.selectOptimalStrategy(
-        batch_size,
-        performance::DistributionType::GAMMA,
-        performance::ComputationComplexity::COMPLEX,
-        system
-    );
+        strategy = dispatcher.selectOptimalStrategy(
+            batch_size,
+            performance::DistributionType::GAMMA,
+            performance::ComputationComplexity::COMPLEX,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (batch_size <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
 
     switch (strategy) {
         case performance::Strategy::SCALAR:
-            for (size_t i = 0; i < batch_size; ++i) {
-                results[i] = getLogProbability(values[i]);
-            }
+            // Use batch unsafe method to avoid repeated lock overhead
+            getLogProbabilityBatchUnsafe(values.data(), results.data(), batch_size);
             break;
         case performance::Strategy::SIMD_BATCH:
             getLogProbabilityBatch(values.data(), results.data(), batch_size);
@@ -1543,43 +1880,77 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
         case performance::Strategy::PARALLEL_SIMD:
             getLogProbabilityBatchParallel(values, results);
             break;
-        case performance::Strategy::WORK_STEALING:
+        case performance::Strategy::WORK_STEALING: {
             static thread_local WorkStealingPool default_pool;
             getLogProbabilityBatchWorkStealing(values, results, default_pool);
             break;
-        case performance::Strategy::CACHE_AWARE:
+        }
+        case performance::Strategy::CACHE_AWARE: {
             static thread_local cache::AdaptiveCache<std::string, double> default_cache;
             getLogProbabilityBatchCacheAware(values, results, default_cache);
             break;
+        }
     }
 }
 
 void GammaDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                                 const performance::PerformanceHint& /* hint */) const {
+                                                 const performance::PerformanceHint& hint) const {
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
     if (values.empty()) return;
     
+    // Handle single-value case efficiently
+    if (values.size() == 1) {
+        results[0] = getCumulativeProbability(values[0]);
+        return;
+    }
+    
     // Auto-dispatch based on batch size and performance hints
     size_t batch_size = values.size();
     
-    // Use performance dispatcher for optimal strategy
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
+    // Smart dispatch based on problem characteristics
+    auto strategy = performance::Strategy::SCALAR;
+    
+    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
+        // Use performance dispatcher for optimal strategy
+        static thread_local performance::PerformanceDispatcher dispatcher;
+        const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
 
-    auto strategy = dispatcher.selectOptimalStrategy(
-        batch_size,
-        performance::DistributionType::GAMMA,
-        performance::ComputationComplexity::COMPLEX,
-        system
-    );
+        strategy = dispatcher.selectOptimalStrategy(
+            batch_size,
+            performance::DistributionType::GAMMA,
+            performance::ComputationComplexity::COMPLEX,
+            system
+        );
+    } else {
+        // Handle performance hints
+        switch (hint.strategy) {
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
+                strategy = performance::Strategy::SCALAR;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
+                strategy = performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
+                strategy = (batch_size <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
+                break;
+            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
+                strategy = performance::Strategy::PARALLEL_SIMD;
+                break;
+            default:
+                strategy = performance::Strategy::SCALAR;
+                break;
+        }
+    }
 
     switch (strategy) {
         case performance::Strategy::SCALAR:
-            for (size_t i = 0; i < batch_size; ++i) {
-                results[i] = getCumulativeProbability(values[i]);
-            }
+            // Use batch unsafe method to avoid repeated lock overhead
+            getCumulativeProbabilityBatchUnsafe(values.data(), results.data(), batch_size);
             break;
         case performance::Strategy::SIMD_BATCH:
             getCumulativeProbabilityBatch(values.data(), results.data(), batch_size);
@@ -1587,14 +1958,16 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
         case performance::Strategy::PARALLEL_SIMD:
             getCumulativeProbabilityBatchParallel(values, results);
             break;
-        case performance::Strategy::WORK_STEALING:
+        case performance::Strategy::WORK_STEALING: {
             static thread_local WorkStealingPool default_pool;
             getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
             break;
-        case performance::Strategy::CACHE_AWARE:
+        }
+        case performance::Strategy::CACHE_AWARE: {
             static thread_local cache::AdaptiveCache<std::string, double> default_cache;
             getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
             break;
+        }
     }
 }
 
@@ -1897,7 +2270,7 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
                                                          double alpha_log_beta, double alpha_minus_one) const noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < 0.0) {
-            results[i] = -std::numeric_limits<double>::infinity();
+            results[i] = constants::probability::NEGATIVE_INFINITY;
         } else {
             results[i] = alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i];
         }
@@ -2004,5 +2377,6 @@ double GammaDistribution::computeDigamma(double x) noexcept {
     
     return result;
 }
+
 
 } // namespace libstats

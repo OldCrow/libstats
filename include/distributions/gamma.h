@@ -449,6 +449,46 @@ public:
      */
     [[nodiscard]] double getMode() const noexcept;
     
+    /**
+     * @brief Get the median of the distribution
+     * For Gamma distribution, median is approximated using the quantile function
+     * 
+     * @return Median value (quantile at p=0.5)
+     */
+    [[nodiscard]] double getMedian() const noexcept {
+        return getQuantile(0.5);
+    }
+    
+    
+    //==========================================================================
+    // PARAMETER SETTERS
+    //==========================================================================
+    
+    /**
+     * @brief Set the shape parameter α
+     * 
+     * @param alpha New shape parameter (must be positive)
+     * @throws std::invalid_argument if alpha <= 0
+     */
+    void setAlpha(double alpha);
+    
+    /**
+     * @brief Set the rate parameter β
+     * 
+     * @param beta New rate parameter (must be positive) 
+     * @throws std::invalid_argument if beta <= 0
+     */
+    void setBeta(double beta);
+    
+    /**
+     * @brief Set both parameters simultaneously
+     * 
+     * @param alpha New shape parameter (must be positive)
+     * @param beta New rate parameter (must be positive)
+     * @throws std::invalid_argument if either parameter <= 0
+     */
+    void setParameters(double alpha, double beta);
+    
     //==========================================================================
     // RESULT-BASED SETTERS
     //==========================================================================
