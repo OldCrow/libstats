@@ -1093,7 +1093,9 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
 //==============================================================================
 
 void ExponentialDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1118,7 +1120,9 @@ void ExponentialDistribution::getProbabilityBatch(const double* values, double* 
 }
 
 void ExponentialDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1143,7 +1147,9 @@ void ExponentialDistribution::getLogProbabilityBatch(const double* values, doubl
 }
 
 void ExponentialDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1352,7 +1358,9 @@ void ExponentialDistribution::getProbabilityBatchParallel(std::span<const double
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1402,7 +1410,9 @@ void ExponentialDistribution::getProbabilityBatchParallel(std::span<const double
 }
 
 void ExponentialDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size() || values.empty()) return;
+    if (values.size() != results.size() || values.empty()) {
+        return;
+    }
     
     const std::size_t count = values.size();
     
@@ -1459,7 +1469,9 @@ void ExponentialDistribution::getCumulativeProbabilityBatchParallel(std::span<co
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1514,7 +1526,9 @@ void ExponentialDistribution::getProbabilityBatchWorkStealing(std::span<const do
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1572,7 +1586,9 @@ void ExponentialDistribution::getProbabilityBatchCacheAware(std::span<const doub
         throw std::invalid_argument("Input and output span sizes must match");
     }
     
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // Check cache for batch results
     const std::string cache_key = "exp_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());
@@ -1599,7 +1615,9 @@ void ExponentialDistribution::getLogProbabilityBatchWorkStealing(std::span<const
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1657,7 +1675,9 @@ void ExponentialDistribution::getLogProbabilityBatchCacheAware(std::span<const d
         throw std::invalid_argument("Input and output span sizes must match");
     }
     
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // Check cache for batch results
     const std::string cache_key = "exp_log_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());
@@ -1684,7 +1704,9 @@ void ExponentialDistribution::getCumulativeProbabilityBatchWorkStealing(std::spa
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1741,7 +1763,9 @@ void ExponentialDistribution::getCumulativeProbabilityBatchCacheAware(std::span<
         throw std::invalid_argument("Input and output span sizes must match");
     }
     
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // Check cache for batch results
     const std::string cache_key = "exp_cdf_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());

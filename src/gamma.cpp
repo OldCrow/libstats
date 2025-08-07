@@ -357,8 +357,12 @@ double GammaDistribution::getQuantile(double p) const {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
     
-    if (p == 0.0) return 0.0;
-    if (p == 1.0) return std::numeric_limits<double>::infinity();
+    if (p == 0.0) {
+        return 0.0;
+    }
+    if (p == 1.0) {
+        return std::numeric_limits<double>::infinity();
+    }
     
     // Use Newton-Raphson iteration with bracketing
     return computeQuantile(p);
@@ -434,7 +438,7 @@ std::string GammaDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
     oss << "GammaDistribution(alpha=" << alpha_ << ", beta=" << beta_ << ")";
-return oss.str();
+    return oss.str();
 }
 
 //==============================================================================
@@ -470,8 +474,12 @@ std::pair<double, double> GammaDistribution::confidenceIntervalShape(
     // Chi-square critical value
     [[maybe_unused]] double alpha_level = 1.0 - confidence_level;
     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-    if (confidence_level == 0.99) chi2_critical = 6.635;
-    if (confidence_level == 0.90) chi2_critical = 2.706;
+    if (confidence_level == 0.99) {
+        chi2_critical = 6.635;
+    }
+    if (confidence_level == 0.90) {
+        chi2_critical = 2.706;
+    }
     
     // Profile likelihood bounds (simplified approximation)
     // For large samples, use asymptotic normality
@@ -507,8 +515,12 @@ std::pair<double, double> GammaDistribution::confidenceIntervalRate(
     // Chi-square critical value
     [[maybe_unused]] double alpha_level = 1.0 - confidence_level;
     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-    if (confidence_level == 0.99) chi2_critical = 6.635;
-    if (confidence_level == 0.90) chi2_critical = 2.706;
+    if (confidence_level == 0.99) {
+        chi2_critical = 6.635;
+    }
+    if (confidence_level == 0.90) {
+        chi2_critical = 2.706;
+    }
     
     // For rate parameter β, use asymptotic normality
     // Variance of MLE for β is approximately β²/(n*α)
@@ -575,8 +587,12 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
     
     // Chi-square critical values for df=2
     double chi2_critical = 5.991;  // χ²(2, 0.05) ≈ 5.991 for 95% confidence
-    if (significance_level == 0.01) chi2_critical = 9.210;
-    if (significance_level == 0.10) chi2_critical = 4.605;
+    if (significance_level == 0.01) {
+        chi2_critical = 9.210;
+    }
+    if (significance_level == 0.10) {
+        chi2_critical = 4.605;
+    }
     
     // Approximate p-value using chi-square distribution
     // For a more accurate p-value, we would use the complementary gamma function
@@ -1263,7 +1279,9 @@ Result<GammaDistribution> GammaDistribution::createFromMoments(double mean, doub
 //==============================================================================
 
 void GammaDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1283,7 +1301,9 @@ void GammaDistribution::getProbabilityBatch(const double* values, double* result
 }
 
 void GammaDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1303,7 +1323,9 @@ void GammaDistribution::getLogProbabilityBatch(const double* values, double* res
 }
 
 void GammaDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1322,7 +1344,9 @@ void GammaDistribution::getCumulativeProbabilityBatch(const double* values, doub
 }
 
 void GammaDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Use atomic parameters for lock-free access
     double alpha = atomicAlpha_.load(std::memory_order_acquire);
@@ -1336,7 +1360,9 @@ void GammaDistribution::getProbabilityBatchUnsafe(const double* values, double* 
 }
 
 void GammaDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Use atomic parameters for lock-free access
     double alpha = atomicAlpha_.load(std::memory_order_acquire);
@@ -1350,7 +1376,9 @@ void GammaDistribution::getLogProbabilityBatchUnsafe(const double* values, doubl
 }
 
 void GammaDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Use atomic parameters for lock-free access
     double alpha = atomicAlpha_.load(std::memory_order_acquire);
@@ -1369,7 +1397,9 @@ void GammaDistribution::getProbabilityBatchParallel(std::span<const double> valu
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1422,7 +1452,9 @@ void GammaDistribution::getLogProbabilityBatchParallel(std::span<const double> v
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1474,7 +1506,9 @@ void GammaDistribution::getCumulativeProbabilityBatchParallel(std::span<const do
     }
     
     const std::size_t count = values.size();
-    if (count == 0) return;
+    if (count == 0) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1523,7 +1557,9 @@ void GammaDistribution::getProbabilityBatchWorkStealing(std::span<const double> 
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1573,7 +1609,9 @@ void GammaDistribution::getProbabilityBatchCacheAware(std::span<const double> va
         throw std::invalid_argument("Input and output spans must have the same size");
     }
     
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // For cache-aware processing, use smaller chunks to better utilize cache
     // Use a reasonable default chunk size when cache manager doesn't provide one
@@ -1595,7 +1633,9 @@ void GammaDistribution::getLogProbabilityBatchWorkStealing(std::span<const doubl
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1645,7 +1685,9 @@ void GammaDistribution::getLogProbabilityBatchCacheAware(std::span<const double>
         throw std::invalid_argument("Input and output spans must have the same size");
     }
     
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // For cache-aware processing, use smaller chunks to better utilize cache
     // Use a reasonable default chunk size when cache manager doesn't provide one
@@ -1667,7 +1709,9 @@ void GammaDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<cons
     if (values.size() != results.size()) {
         throw std::invalid_argument("Input and output spans must have the same size");
     }
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // Ensure cache is valid once before parallel processing
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1715,7 +1759,9 @@ void GammaDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const 
         throw std::invalid_argument("Input and output spans must have the same size");
     }
     
-    if (values.empty()) return;
+    if (values.empty()) {
+        return;
+    }
     
     // For cache-aware processing, use smaller chunks to better utilize cache
     // Use a reasonable default chunk size when cache manager doesn't provide one
@@ -1939,13 +1985,19 @@ double GammaDistribution::incompleteGamma(double a, double x) noexcept {
             double an = -i * (i - a);
             b += 2.0;
             d = an * d + b;
-            if (std::abs(d) < 1e-30) d = 1e-30;
+            if (std::abs(d) < 1e-30) {
+                d = 1e-30;
+            }
             c = b + an / c;
-            if (std::abs(c) < 1e-30) c = 1e-30;
+            if (std::abs(c) < 1e-30) {
+                c = 1e-30;
+            }
             d = 1.0 / d;
             double del = d * c;
             h *= del;
-            if (std::abs(del - 1.0) < 1e-15) break;
+            if (std::abs(del - 1.0) < 1e-15) {
+                break;
+            }
         }
         
         double upper_incomplete = std::exp(-x + a * std::log(x) - std::lgamma(a)) * h;
@@ -1967,8 +2019,12 @@ double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcep
 
 double GammaDistribution::computeQuantile(double p) const noexcept {
     // Quantile function using Newton-Raphson iteration with initial guess
-    if (p <= 0.0) return 0.0;
-    if (p >= 1.0) return std::numeric_limits<double>::infinity();
+    if (p <= 0.0) {
+        return 0.0;
+    }
+    if (p >= 1.0) {
+        return std::numeric_limits<double>::infinity();
+    }
     
     // Initial guess using Wilson-Hilferty transformation for large α
     double initial_guess;
