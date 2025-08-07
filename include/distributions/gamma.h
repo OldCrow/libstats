@@ -1394,7 +1394,7 @@ private:
         variance_ = mean_ * scale_;
         
         // Advanced functions
-        digammaAlpha_ = computeDigamma(alpha_);
+        digammaAlpha_ = GammaDistribution::computeDigamma(alpha_);
         sqrtAlpha_ = std::sqrt(alpha_);
         
         // Optimization flags

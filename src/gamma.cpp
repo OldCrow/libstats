@@ -2167,8 +2167,8 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
     const int max_iterations = 100;
     
     for (int i = 0; i < max_iterations; ++i) {
-        double digamma_alpha = computeDigamma(alpha_est);
-        double trigamma_alpha = computeTrigamma(alpha_est);
+        double digamma_alpha = GammaDistribution::computeDigamma(alpha_est);
+        double trigamma_alpha = GammaDistribution::computeTrigamma(alpha_est);
         
         double f = std::log(alpha_est) - digamma_alpha - s;
         double df = 1.0 / alpha_est - trigamma_alpha;
