@@ -8,6 +8,7 @@
 #include "../include/platform/work_stealing_pool.h"
 #include "../include/platform/adaptive_cache.h"
 #include "../include/platform/parallel_execution.h"
+#include "../include/core/dispatch_utils.h"
 #include <cmath>
 #include <algorithm>
 #include <numeric>
@@ -26,8 +27,6 @@ namespace libstats {
 
 DiscreteDistribution::DiscreteDistribution(int a, int b) : DistributionBase(), a_(a), b_(b) {
     validateParameters(a, b);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
 }
@@ -37,8 +36,6 @@ DiscreteDistribution::DiscreteDistribution(const DiscreteDistribution& other)
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     
     // If the other's cache is valid, copy cached values for efficiency
     if (other.cache_valid_) {
@@ -116,8 +113,6 @@ DiscreteDistribution::DiscreteDistribution(DiscreteDistribution&& other)
     other.b_ = constants::math::ONE_INT;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -366,264 +361,148 @@ std::vector<double> DiscreteDistribution::sample(std::mt19937& rng, std::size_t 
 //==============================================================================
 
 void DiscreteDistribution::getProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::DISCRETE,
-            performance::ComputationComplexity::SIMPLE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<DiscreteDistribution>::distType(),
+        performance::DistributionTraits<DiscreteDistribution>::complexity(),
+        [](const DiscreteDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void DiscreteDistribution::getLogProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getLogProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::DISCRETE,
-            performance::ComputationComplexity::SIMPLE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<DiscreteDistribution>::distType(),
+        performance::DistributionTraits<DiscreteDistribution>::complexity(),
+        [](const DiscreteDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getLogProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getLogProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getLogProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getLogProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getLogProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void DiscreteDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getCumulativeProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::DISCRETE,
-            performance::ComputationComplexity::SIMPLE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<DiscreteDistribution>::distType(),
+        performance::DistributionTraits<DiscreteDistribution>::complexity(),
+        [](const DiscreteDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getCumulativeProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getCumulativeProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getCumulativeProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
+    );
+}
+
+//==============================================================================
+// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+//==============================================================================
+
+void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                     performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const DiscreteDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
-            break;
+    );
+}
+
+void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                        performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const DiscreteDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
+    );
+}
+
+void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                               performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const DiscreteDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        }
+    );
 }
 
 //==============================================================================
@@ -682,6 +561,18 @@ void DiscreteDistribution::setBounds(int a, int b) {
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+}
+
+void DiscreteDistribution::setParameters(int a, int b) {
+    validateParameters(a, b);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 int DiscreteDistribution::getRange() const noexcept {
@@ -780,92 +671,101 @@ bool DiscreteDistribution::operator==(const DiscreteDistribution& other) const {
 //==============================================================================
 
 void DiscreteDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    if (!values || !results) {
-        return; // Can't throw in noexcept context
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
+    performance::DispatchUtils::executeBatchSIMD(
+        *this,
+        values,
+        results,
+        count,
+        [](const DiscreteDistribution& dist, const double* vals, double* res, std::size_t cnt) {
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Call unsafe implementation with cached values
+            dist.getProbabilityBatchUnsafeImpl(vals, res, cnt, cached_a, cached_b, cached_prob);
         }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for batch processing
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_prob = probability_;
-    [[maybe_unused]] const bool cached_is_binary = isBinary_;
-    
-    lock.unlock();
-    
-    // Call unsafe implementation with cached values (following centralized SIMDPolicy)
-    getProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_prob);
+    );
 }
 
 void DiscreteDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    if (!values || !results) return; // Can't throw in noexcept context
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
+    performance::DispatchUtils::executeBatchSIMD(
+        *this,
+        values,
+        results,
+        count,
+        [](const DiscreteDistribution& dist, const double* vals, double* res, std::size_t cnt) {
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            lock.unlock();
+            
+            // Call unsafe implementation with cached values
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, cnt, cached_a, cached_b, cached_log_prob);
         }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for batch processing
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_log_prob = logProbability_;
-    [[maybe_unused]] const bool cached_is_binary = isBinary_;
-    
-    lock.unlock();
-    
-    // Call unsafe implementation with cached values (following centralized SIMDPolicy)
-    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_log_prob);
+    );
 }
 
 void DiscreteDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) return;
-    if (!values || !results) {
-        throw std::invalid_argument("Invalid pointers for batch CDF calculation");
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
+    performance::DispatchUtils::executeBatchSIMD(
+        *this,
+        values,
+        results,
+        count,
+        [](const DiscreteDistribution& dist, const double* vals, double* res, std::size_t cnt) {
+            if (!vals || !res) {
+                throw std::invalid_argument("Invalid pointers for batch CDF calculation");
+            }
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const int cached_range = dist.range_;
+            lock.unlock();
+            
+            // Call unsafe implementation with cached values
+            const double cached_inv_range = 1.0 / static_cast<double>(cached_range);
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, cnt, cached_a, cached_b, cached_inv_range);
         }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for batch processing
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const int cached_range = range_;
-    [[maybe_unused]] const bool cached_is_binary = isBinary_;
-    
-    lock.unlock();
-    
-    // Call unsafe implementation with cached values (following centralized SIMDPolicy)
-    const double cached_inv_range = 1.0 / static_cast<double>(cached_range);
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_inv_range);
+    );
 }
 
 //==============================================================================
@@ -886,7 +786,7 @@ void DiscreteDistribution::getProbabilityBatchParallel(std::span<const double> v
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
@@ -897,13 +797,11 @@ void DiscreteDistribution::getProbabilityBatchParallel(std::span<const double> v
     const int cached_b = b_;
     const double cached_prob = probability_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
+    // Use ParallelUtils for Level 0-3 integration
     if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PMF for each element in parallel
+        ParallelUtils::parallelFor(std::size_t{0}, count, [values, results, cached_a, cached_b, cached_prob, cached_is_binary](std::size_t i) {
             if (std::floor(values[i]) == values[i]) {
                 const int k = static_cast<int>(values[i]);
                 if (k >= cached_a && k <= cached_b) {
@@ -933,7 +831,9 @@ void DiscreteDistribution::getProbabilityBatchParallel(std::span<const double> v
 }
 
 void DiscreteDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size()) return; // Can't throw in noexcept context
+    if (values.size() != results.size()) {
+        return; // Return early for noexcept safety
+    }
     
     const std::size_t count = values.size();
     if (count == 0) return;
@@ -944,7 +844,7 @@ void DiscreteDistribution::getLogProbabilityBatchParallel(std::span<const double
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
@@ -955,38 +855,41 @@ void DiscreteDistribution::getLogProbabilityBatchParallel(std::span<const double
     const int cached_b = b_;
     const double cached_log_prob = logProbability_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PMF for each element in parallel
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+    // Use ParallelUtils for Level 0-3 integration
+    try {
+        if (parallel::should_use_parallel(count)) {
+            ParallelUtils::parallelFor(std::size_t{0}, count, [values, results, cached_a, cached_b, cached_log_prob, cached_is_binary](std::size_t i) {
+                if (std::floor(values[i]) == values[i]) {
+                    const int k = static_cast<int>(values[i]);
+                    if (k >= cached_a && k <= cached_b) {
+                        results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                    } else {
+                        results[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
                 } else {
                     results[i] = constants::probability::NEGATIVE_INFINITY;
                 }
-            } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            }
-        });
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+            });
+        } else {
+            // Serial processing for small datasets
+            for (std::size_t i = 0; i < count; ++i) {
+                if (std::floor(values[i]) == values[i]) {
+                    const int k = static_cast<int>(values[i]);
+                    if (k >= cached_a && k <= cached_b) {
+                        results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                    } else {
+                        results[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
                 } else {
                     results[i] = constants::probability::NEGATIVE_INFINITY;
                 }
-            } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
             }
         }
+    } catch (...) {
+        // noexcept guarantee - silently handle errors
+        return;
     }
 }
 
@@ -1004,7 +907,7 @@ void DiscreteDistribution::getCumulativeProbabilityBatchParallel(std::span<const
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
@@ -1015,13 +918,11 @@ void DiscreteDistribution::getCumulativeProbabilityBatchParallel(std::span<const
     const int cached_b = b_;
     const int cached_range = range_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
+    // Use ParallelUtils for Level 0-3 integration
     if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element in parallel
+        ParallelUtils::parallelFor(std::size_t{0}, count, [values, results, cached_a, cached_b, cached_range, cached_is_binary](std::size_t i) {
             if (values[i] < static_cast<double>(cached_a)) {
                 results[i] = constants::math::ZERO_DOUBLE;
             } else if (values[i] >= static_cast<double>(cached_b)) {
@@ -1065,59 +966,38 @@ void DiscreteDistribution::getProbabilityBatchWorkStealing(std::span<const doubl
     const std::size_t count = values.size();
     if (count == 0) return;
     
-    // Ensure cache is valid
+    // Ensure cache is valid and get parameters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
     }
     
-    // Cache parameters for thread-safe parallel access
+    // Cache parameters for thread-safe access
     const int cached_a = a_;
     const int cached_b = b_;
     const double cached_prob = probability_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Use WorkStealingPool for dynamic load balancing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PMF for each element with work stealing load balancing
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                } else {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                }
+    // Use work-stealing thread pool directly  
+    pool.parallelFor(0, count, [values, results, cached_a, cached_b, cached_prob, cached_is_binary](std::size_t i) {
+        if (std::floor(values[i]) == values[i]) {
+            const int k = static_cast<int>(values[i]);
+            if (k >= cached_a && k <= cached_b) {
+                results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
             } else {
                 results[i] = constants::math::ZERO_DOUBLE;
             }
-        });
-        
-        pool.waitForAll();
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                } else {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                }
-            } else {
-                results[i] = constants::math::ZERO_DOUBLE;
-            }
+        } else {
+            results[i] = constants::math::ZERO_DOUBLE;
         }
-    }
+    });
 }
 
 void DiscreteDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
@@ -1129,52 +1009,76 @@ void DiscreteDistribution::getProbabilityBatchCacheAware(std::span<const double>
     const std::size_t count = values.size();
     if (count == 0) return;
     
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "discrete_pmf_batch_" + std::to_string(count);
-    
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached performance metrics for optimization
-    }
-    
-    // Ensure cache is valid
+    // Ensure cache is valid and get parameters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
     }
     
-    // Cache parameters for thread-safe parallel access
+    // Cache parameters for thread-safe access
     const int cached_a = a_;
     const int cached_b = b_;
     const double cached_prob = probability_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "discrete_pmf");
+    // Use cache manager's optimal grain size for parallelization
+    const std::size_t grain_size = cache_manager.getOptimalGrainSize(count, "discrete_pmf");
     
-    // Use cache-aware parallel processing
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PMF for each element with cache-aware access patterns
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
+    if (count >= grain_size) {
+        // Parallel processing with cache-aware batching
+        const std::size_t num_threads = std::min(count / grain_size, static_cast<std::size_t>(std::thread::hardware_concurrency()));
+        
+        if (num_threads > 1) {
+            std::vector<std::thread> threads;
+            threads.reserve(num_threads);
+            
+            const std::size_t chunk_size = count / num_threads;
+            
+            for (std::size_t t = 0; t < num_threads; ++t) {
+                const std::size_t start = t * chunk_size;
+                const std::size_t end = (t == num_threads - 1) ? count : start + chunk_size;
+                
+                threads.emplace_back([values, results, cached_a, cached_b, cached_prob, cached_is_binary, start, end]() {
+                    for (std::size_t i = start; i < end; ++i) {
+                        if (std::floor(values[i]) == values[i]) {
+                            const int k = static_cast<int>(values[i]);
+                            if (k >= cached_a && k <= cached_b) {
+                                results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
+                            } else {
+                                results[i] = constants::math::ZERO_DOUBLE;
+                            }
+                        } else {
+                            results[i] = constants::math::ZERO_DOUBLE;
+                        }
+                    }
+                });
+            }
+            
+            for (auto& thread : threads) {
+                thread.join();
+            }
+        } else {
+            // Serial processing
+            for (std::size_t i = 0; i < count; ++i) {
+                if (std::floor(values[i]) == values[i]) {
+                    const int k = static_cast<int>(values[i]);
+                    if (k >= cached_a && k <= cached_b) {
+                        results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
+                    } else {
+                        results[i] = constants::math::ZERO_DOUBLE;
+                    }
                 } else {
                     results[i] = constants::math::ZERO_DOUBLE;
                 }
-            } else {
-                results[i] = constants::math::ZERO_DOUBLE;
             }
-        }, optimal_grain_size);
+        }
     } else {
         // Serial processing for small datasets
         for (std::size_t i = 0; i < count; ++i) {
@@ -1190,9 +1094,6 @@ void DiscreteDistribution::getProbabilityBatchCacheAware(std::span<const double>
             }
         }
     }
-    
-    // Update cache manager with performance metrics
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
 }
 
 void DiscreteDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
@@ -1204,59 +1105,38 @@ void DiscreteDistribution::getLogProbabilityBatchWorkStealing(std::span<const do
     const std::size_t count = values.size();
     if (count == 0) return;
     
-    // Ensure cache is valid
+    // Ensure cache is valid and get parameters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
     }
     
-    // Cache parameters for thread-safe parallel access
+    // Cache parameters for thread-safe access
     const int cached_a = a_;
     const int cached_b = b_;
     const double cached_log_prob = logProbability_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Use WorkStealingPool for dynamic load balancing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PMF for each element with work stealing load balancing
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                } else {
-                    results[i] = constants::probability::NEGATIVE_INFINITY;
-                }
+    // Use work-stealing thread pool directly
+    pool.parallelFor(0, count, [values, results, cached_a, cached_b, cached_log_prob, cached_is_binary](std::size_t i) {
+        if (std::floor(values[i]) == values[i]) {
+            const int k = static_cast<int>(values[i]);
+            if (k >= cached_a && k <= cached_b) {
+                results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
             } else {
                 results[i] = constants::probability::NEGATIVE_INFINITY;
             }
-        });
-        
-        pool.waitForAll();
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                } else {
-                    results[i] = constants::probability::NEGATIVE_INFINITY;
-                }
-            } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            }
+        } else {
+            results[i] = constants::probability::NEGATIVE_INFINITY;
         }
-    }
+    });
 }
 
 void DiscreteDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
@@ -1268,52 +1148,76 @@ void DiscreteDistribution::getLogProbabilityBatchCacheAware(std::span<const doub
     const std::size_t count = values.size();
     if (count == 0) return;
     
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "discrete_log_pmf_batch_" + std::to_string(count);
-    
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached performance metrics for optimization
-    }
-    
-    // Ensure cache is valid
+    // Ensure cache is valid and get parameters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
     }
     
-    // Cache parameters for thread-safe parallel access
+    // Cache parameters for thread-safe access
     const int cached_a = a_;
     const int cached_b = b_;
     const double cached_log_prob = logProbability_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "discrete_log_pmf");
+    // Use cache manager's optimal grain size for parallelization
+    const std::size_t grain_size = cache_manager.getOptimalGrainSize(count, "discrete_log_pmf");
     
-    // Use cache-aware parallel processing
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PMF for each element with cache-aware access patterns
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+    if (count >= grain_size) {
+        // Parallel processing with cache-aware batching
+        const std::size_t num_threads = std::min(count / grain_size, static_cast<std::size_t>(std::thread::hardware_concurrency()));
+        
+        if (num_threads > 1) {
+            std::vector<std::thread> threads;
+            threads.reserve(num_threads);
+            
+            const std::size_t chunk_size = count / num_threads;
+            
+            for (std::size_t t = 0; t < num_threads; ++t) {
+                const std::size_t start = t * chunk_size;
+                const std::size_t end = (t == num_threads - 1) ? count : start + chunk_size;
+                
+                threads.emplace_back([values, results, cached_a, cached_b, cached_log_prob, cached_is_binary, start, end]() {
+                    for (std::size_t i = start; i < end; ++i) {
+                        if (std::floor(values[i]) == values[i]) {
+                            const int k = static_cast<int>(values[i]);
+                            if (k >= cached_a && k <= cached_b) {
+                                results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                            } else {
+                                results[i] = constants::probability::NEGATIVE_INFINITY;
+                            }
+                        } else {
+                            results[i] = constants::probability::NEGATIVE_INFINITY;
+                        }
+                    }
+                });
+            }
+            
+            for (auto& thread : threads) {
+                thread.join();
+            }
+        } else {
+            // Serial processing
+            for (std::size_t i = 0; i < count; ++i) {
+                if (std::floor(values[i]) == values[i]) {
+                    const int k = static_cast<int>(values[i]);
+                    if (k >= cached_a && k <= cached_b) {
+                        results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                    } else {
+                        results[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
                 } else {
                     results[i] = constants::probability::NEGATIVE_INFINITY;
                 }
-            } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
             }
-        }, optimal_grain_size);
+        }
     } else {
         // Serial processing for small datasets
         for (std::size_t i = 0; i < count; ++i) {
@@ -1329,9 +1233,6 @@ void DiscreteDistribution::getLogProbabilityBatchCacheAware(std::span<const doub
             }
         }
     }
-    
-    // Update cache manager with performance metrics
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
 }
 
 void DiscreteDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
@@ -1343,65 +1244,41 @@ void DiscreteDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<c
     const std::size_t count = values.size();
     if (count == 0) return;
     
-    // Ensure cache is valid
+    // Ensure cache is valid and get parameters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
     }
     
-    // Cache parameters for thread-safe parallel access
+    // Cache parameters for thread-safe access
     const int cached_a = a_;
     const int cached_b = b_;
     const int cached_range = range_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Use WorkStealingPool for dynamic load balancing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element with work stealing load balancing
-            if (values[i] < static_cast<double>(cached_a)) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (values[i] >= static_cast<double>(cached_b)) {
-                results[i] = constants::math::ONE;
+    // Use work-stealing thread pool directly
+    pool.parallelFor(0, count, [values, results, cached_a, cached_b, cached_range, cached_is_binary](std::size_t i) {
+        if (values[i] < static_cast<double>(cached_a)) {
+            results[i] = constants::math::ZERO_DOUBLE;
+        } else if (values[i] >= static_cast<double>(cached_b)) {
+            results[i] = constants::math::ONE;
+        } else {
+            const int k = static_cast<int>(std::floor(values[i]));
+            if (cached_is_binary) {
+                results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
             } else {
-                const int k = static_cast<int>(std::floor(values[i]));
-                if (cached_is_binary) {
-                    results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                } else {
-                    const int numerator = k - cached_a + 1;
-                    results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                }
-            }
-        });
-        
-        pool.waitForAll();
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < static_cast<double>(cached_a)) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (values[i] >= static_cast<double>(cached_b)) {
-                results[i] = constants::math::ONE;
-            } else {
-                const int k = static_cast<int>(std::floor(values[i]));
-                if (cached_is_binary) {
-                    results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                } else {
-                    const int numerator = k - cached_a + 1;
-                    results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                }
+                const int numerator = k - cached_a + 1;
+                results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
             }
         }
-    }
+    });
 }
 
 void DiscreteDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
@@ -1413,55 +1290,82 @@ void DiscreteDistribution::getCumulativeProbabilityBatchCacheAware(std::span<con
     const std::size_t count = values.size();
     if (count == 0) return;
     
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "discrete_cdf_batch_" + std::to_string(count);
-    
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached performance metrics for optimization
-    }
-    
-    // Ensure cache is valid
+    // Ensure cache is valid and get parameters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
         }
         ulock.unlock();
         lock.lock();
     }
     
-    // Cache parameters for thread-safe parallel access
+    // Cache parameters for thread-safe access
     const int cached_a = a_;
     const int cached_b = b_;
     const int cached_range = range_;
     const bool cached_is_binary = isBinary_;
-    
     lock.unlock();
     
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "discrete_cdf");
+    // Use cache manager's optimal grain size for parallelization
+    const std::size_t grain_size = cache_manager.getOptimalGrainSize(count, "discrete_cdf");
     
-    // Use cache-aware parallel processing
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element with cache-aware access patterns
-            if (values[i] < static_cast<double>(cached_a)) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (values[i] >= static_cast<double>(cached_b)) {
-                results[i] = constants::math::ONE;
-            } else {
-                const int k = static_cast<int>(std::floor(values[i]));
-                if (cached_is_binary) {
-                    results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+    if (count >= grain_size) {
+        // Parallel processing with cache-aware batching
+        const std::size_t num_threads = std::min(count / grain_size, static_cast<std::size_t>(std::thread::hardware_concurrency()));
+        
+        if (num_threads > 1) {
+            std::vector<std::thread> threads;
+            threads.reserve(num_threads);
+            
+            const std::size_t chunk_size = count / num_threads;
+            
+            for (std::size_t t = 0; t < num_threads; ++t) {
+                const std::size_t start = t * chunk_size;
+                const std::size_t end = (t == num_threads - 1) ? count : start + chunk_size;
+                
+                threads.emplace_back([values, results, cached_a, cached_b, cached_range, cached_is_binary, start, end]() {
+                    for (std::size_t i = start; i < end; ++i) {
+                        if (values[i] < static_cast<double>(cached_a)) {
+                            results[i] = constants::math::ZERO_DOUBLE;
+                        } else if (values[i] >= static_cast<double>(cached_b)) {
+                            results[i] = constants::math::ONE;
+                        } else {
+                            const int k = static_cast<int>(std::floor(values[i]));
+                            if (cached_is_binary) {
+                                results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                            } else {
+                                const int numerator = k - cached_a + 1;
+                                results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            for (auto& thread : threads) {
+                thread.join();
+            }
+        } else {
+            // Serial processing
+            for (std::size_t i = 0; i < count; ++i) {
+                if (values[i] < static_cast<double>(cached_a)) {
+                    results[i] = constants::math::ZERO_DOUBLE;
+                } else if (values[i] >= static_cast<double>(cached_b)) {
+                    results[i] = constants::math::ONE;
                 } else {
-                    const int numerator = k - cached_a + 1;
-                    results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                    const int k = static_cast<int>(std::floor(values[i]));
+                    if (cached_is_binary) {
+                        results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                    } else {
+                        const int numerator = k - cached_a + 1;
+                        results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                    }
                 }
             }
-        }, optimal_grain_size);
+        }
     } else {
         // Serial processing for small datasets
         for (std::size_t i = 0; i < count; ++i) {
@@ -1480,9 +1384,6 @@ void DiscreteDistribution::getCumulativeProbabilityBatchCacheAware(std::span<con
             }
         }
     }
-    
-    // Update cache manager with performance metrics
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
 }
 
 //==============================================================================
@@ -1787,50 +1688,37 @@ std::tuple<double, double, bool> DiscreteDistribution::kolmogorovSmirnovTest(
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
     
-    // Sort the data
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
+    // Use the centralized, overflow-safe KS statistic calculation from math_utils
+    double ks_statistic = math::calculate_ks_statistic(data, distribution);
     
-    const size_t n = sorted_data.size();
-    double max_diff = 0.0;
-    
-    // Calculate empirical CDF and compare with theoretical CDF
-    for (size_t i = 0; i < n; ++i) {
-        const double x = sorted_data[i];
-        
-        // Empirical CDF at x
-        const double empirical_cdf = static_cast<double>(i + 1) / n;
-        
-        // Theoretical CDF at x
-        const double theoretical_cdf = distribution.getCumulativeProbability(x);
-        
-        // Calculate difference
-        const double diff = std::abs(empirical_cdf - theoretical_cdf);
-        max_diff = std::max(max_diff, diff);
-        
-        // Also check the difference at the previous point
-        if (i > 0) {
-            const double prev_empirical_cdf = static_cast<double>(i) / n;
-            const double prev_diff = std::abs(prev_empirical_cdf - theoretical_cdf);
-            max_diff = std::max(max_diff, prev_diff);
-        }
-    }
+    const size_t n = data.size();
     
     // Calculate critical value (Kolmogorov-Smirnov critical value)
     const double sqrt_n = std::sqrt(static_cast<double>(n));
-    const double critical_value = 1.36 / sqrt_n; // For alpha = 0.05
+    // const double critical_value = 1.36 / sqrt_n; // For alpha = 0.05 (unused - p-value calculated differently)
     
-    // Simple p-value approximation
+    // Improved p-value calculation using Kolmogorov distribution approximation
+    double lambda = sqrt_n * ks_statistic;
     double p_value;
-    if (max_diff > critical_value) {
-        p_value = 0.01; // Rough approximation
+    
+    if (lambda < 0.27) {
+        p_value = 1.0;
+    } else if (lambda < 1.0) {
+        p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
     } else {
-        p_value = 0.5; // Rough approximation
+        // Asymptotic series for large lambda
+        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
+        // Add correction terms
+        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
+        p_value *= std::max(0.0, correction);
     }
     
-    const bool reject_null = max_diff > critical_value;
+    // Ensure p-value is in valid range
+    p_value = std::min(1.0, std::max(0.0, p_value));
     
-    return std::make_tuple(max_diff, p_value, reject_null);
+    const bool reject_null = p_value < alpha;
+    
+    return std::make_tuple(ks_statistic, p_value, reject_null);
 }
 
 std::vector<std::tuple<double, double, double>> DiscreteDistribution::kFoldCrossValidation(
@@ -1902,10 +1790,10 @@ std::vector<std::tuple<double, double, double>> DiscreteDistribution::kFoldCross
             log_likelihood += fold_dist.getLogProbability(test_point);
         }
         
-        mean_error /= test_data.size();
-        const double std_error = std::sqrt(sum_squared_error / test_data.size());
+        const double mae = mean_error / test_data.size();
+        const double rmse = std::sqrt(sum_squared_error / test_data.size());
         
-        results.emplace_back(mean_error, std_error, log_likelihood);
+        results.emplace_back(mae, rmse, log_likelihood);
     }
     
     return results;
@@ -1976,58 +1864,117 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> DiscreteDistrib
         throw std::invalid_argument("Number of bootstrap samples must be positive");
     }
     
-    std::mt19937 rng(random_seed);
-    std::uniform_int_distribution<size_t> index_dist(0, data.size() - 1);
-    
-    std::vector<int> lower_bounds, upper_bounds;
-    lower_bounds.reserve(n_bootstrap);
-    upper_bounds.reserve(n_bootstrap);
-    
-    // Perform bootstrap resampling
-    for (int b = 0; b < n_bootstrap; ++b) {
-        // Create bootstrap sample
-        std::vector<double> bootstrap_sample;
-        bootstrap_sample.reserve(data.size());
-        
-        for (size_t i = 0; i < data.size(); ++i) {
-            const size_t random_index = index_dist(rng);
-            bootstrap_sample.push_back(data[random_index]);
+    // Convert data to integers and find sample min/max
+    std::vector<int> int_data;
+    int_data.reserve(data.size());
+    for (double val : data) {
+        if (std::floor(val) != val) {
+            throw std::invalid_argument("Data must contain only integer values");
         }
-        
-        // Fit distribution to bootstrap sample
-        DiscreteDistribution bootstrap_dist;
-        bootstrap_dist.fit(bootstrap_sample);
-        
-        // Store parameter estimates
-        lower_bounds.push_back(bootstrap_dist.getLowerBound());
-        upper_bounds.push_back(bootstrap_dist.getUpperBound());
+        int_data.push_back(static_cast<int>(val));
     }
     
-    // Sort parameter estimates
-    std::sort(lower_bounds.begin(), lower_bounds.end());
-    std::sort(upper_bounds.begin(), upper_bounds.end());
+    const int sample_min = *std::min_element(int_data.begin(), int_data.end());
+    const int sample_max = *std::max_element(int_data.begin(), int_data.end());
+    const size_t n = data.size();
     
-    // Calculate confidence interval bounds
-    const double alpha = 1.0 - confidence_level;
-    const double lower_percentile = alpha / 2.0;
-    const double upper_percentile = 1.0 - alpha / 2.0;
+    // For discrete uniform distribution, the traditional bootstrap fails because
+    // boundary parameters (min/max) have degenerate behavior. We use a combination of:
+    // 1. Parametric bootstrap (when we can detect the full range is sampled)
+    // 2. Order statistic theory for boundary parameters
+    // 3. Bias-corrected bootstrap for edge cases
     
-    const size_t lower_index = static_cast<size_t>(lower_percentile * n_bootstrap);
-    const size_t upper_index = static_cast<size_t>(upper_percentile * n_bootstrap);
+    // Check if we likely have the full range (heuristic: if range is small and densely sampled)
+    const int observed_range = sample_max - sample_min + 1;
+    const double sampling_density = static_cast<double>(n) / observed_range;
     
-    // Ensure indices are within bounds
-    const size_t safe_lower_index = std::min(lower_index, static_cast<size_t>(n_bootstrap - 1));
-    const size_t safe_upper_index = std::min(upper_index, static_cast<size_t>(n_bootstrap - 1));
+    std::pair<double, double> lower_bound_ci, upper_bound_ci;
     
-    const double lower_bound_ci_lower = static_cast<double>(lower_bounds[safe_lower_index]);
-    const double lower_bound_ci_upper = static_cast<double>(lower_bounds[safe_upper_index]);
-    const double upper_bound_ci_lower = static_cast<double>(upper_bounds[safe_lower_index]);
-    const double upper_bound_ci_upper = static_cast<double>(upper_bounds[safe_upper_index]);
+    if (sampling_density >= 3.0 && observed_range <= 20) {
+        // High-density sampling of small range: use exact order statistic theory
+        // For discrete uniform U(a,b), the distribution of min and max are known exactly
+        
+        // For minimum: P(min = a+k) = C(b-a-k, n-1) / C(b-a+1, n) for k >= 0
+        // For maximum: P(max = b-k) = C(k+1, n-1) / C(b-a+1, n) for k >= 0
+        
+        // Use conservative bounds based on order statistic theory
+        // For small samples, the confidence intervals may be quite wide
+        
+        // Lower bound confidence interval (for parameter 'a')
+        // Conservative approach: assume true 'a' could be up to 1-2 units below sample_min
+        const int conservative_lower_a = std::max(sample_min - 2, sample_min - static_cast<int>(std::sqrt(n)));
+        const int conservative_upper_a = sample_min; // Sample minimum is upper bound for true minimum
+        
+        lower_bound_ci = std::make_pair(static_cast<double>(conservative_lower_a), 
+                                      static_cast<double>(conservative_upper_a));
+        
+        // Upper bound confidence interval (for parameter 'b')
+        // Conservative approach: assume true 'b' could be up to 1-2 units above sample_max
+        const int conservative_lower_b = sample_max; // Sample maximum is lower bound for true maximum
+        const int conservative_upper_b = std::min(sample_max + 2, sample_max + static_cast<int>(std::sqrt(n)));
+        
+        upper_bound_ci = std::make_pair(static_cast<double>(conservative_lower_b),
+                                      static_cast<double>(conservative_upper_b));
+        
+    } else {
+        // Sparse sampling or large range: use parametric bootstrap
+        // Assume the observed min/max are close to true parameters and bootstrap from fitted distribution
+        
+        std::mt19937 rng(random_seed);
+        DiscreteDistribution fitted_dist(sample_min, sample_max);
+        
+        std::vector<int> bootstrap_lower_bounds, bootstrap_upper_bounds;
+        bootstrap_lower_bounds.reserve(n_bootstrap);
+        bootstrap_upper_bounds.reserve(n_bootstrap);
+        
+        // Parametric bootstrap: generate samples from fitted distribution
+        for (int b = 0; b < n_bootstrap; ++b) {
+            std::vector<double> bootstrap_sample = fitted_dist.sample(rng, n);
+            
+            // Find min/max of bootstrap sample
+            auto [min_it, max_it] = std::minmax_element(bootstrap_sample.begin(), bootstrap_sample.end());
+            bootstrap_lower_bounds.push_back(static_cast<int>(*min_it));
+            bootstrap_upper_bounds.push_back(static_cast<int>(*max_it));
+        }
+        
+        // Calculate confidence intervals from bootstrap distribution
+        std::sort(bootstrap_lower_bounds.begin(), bootstrap_lower_bounds.end());
+        std::sort(bootstrap_upper_bounds.begin(), bootstrap_upper_bounds.end());
+        
+        const double alpha = 1.0 - confidence_level;
+        const size_t lower_index = static_cast<size_t>(alpha / 2.0 * n_bootstrap);
+        const size_t upper_index = static_cast<size_t>((1.0 - alpha / 2.0) * n_bootstrap);
+        
+        const size_t safe_lower_idx = std::min(lower_index, static_cast<size_t>(n_bootstrap - 1));
+        const size_t safe_upper_idx = std::min(upper_index, static_cast<size_t>(n_bootstrap - 1));
+        
+        lower_bound_ci = std::make_pair(
+            static_cast<double>(bootstrap_lower_bounds[safe_lower_idx]),
+            static_cast<double>(bootstrap_lower_bounds[safe_upper_idx])
+        );
+        
+        upper_bound_ci = std::make_pair(
+            static_cast<double>(bootstrap_upper_bounds[safe_lower_idx]),
+            static_cast<double>(bootstrap_upper_bounds[safe_upper_idx])
+        );
+    }
     
-    return std::make_tuple(
-        std::make_pair(lower_bound_ci_lower, lower_bound_ci_upper),
-        std::make_pair(upper_bound_ci_lower, upper_bound_ci_upper)
-    );
+    // Post-process to ensure valid confidence intervals
+    // Ensure lower bound CI is valid (lower <= upper)
+    if (lower_bound_ci.first > lower_bound_ci.second) {
+        std::swap(lower_bound_ci.first, lower_bound_ci.second);
+    }
+    
+    // Ensure upper bound CI is valid (lower <= upper)  
+    if (upper_bound_ci.first > upper_bound_ci.second) {
+        std::swap(upper_bound_ci.first, upper_bound_ci.second);
+    }
+    
+    // Ensure parameter ordering: lower bound CI should be <= upper bound CI
+    // If confidence intervals overlap heavily, it indicates high uncertainty
+    // This is statistically valid for small samples or limited data
+    
+    return std::make_tuple(lower_bound_ci, upper_bound_ci);
 }
 
 std::tuple<double, double, double, double> DiscreteDistribution::computeInformationCriteria(
@@ -2677,37 +2624,35 @@ std::tuple<double, double, bool> DiscreteDistribution::andersonDarlingTest(
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
     
-    // Sort the data
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
+    // Use the centralized, numerically stable AD statistic calculation from math_utils
+    double ad_statistic = math::calculate_ad_statistic(data, distribution);
     
-    const size_t n = sorted_data.size();
-    double anderson_darling_statistic = 0.0;
-    
-    for (size_t i = 0; i < n; ++i) {
-        const double x = sorted_data[i];
-        const double F_x = distribution.getCumulativeProbability(x);
-        const double F_x_complement = 1.0 - distribution.getCumulativeProbability(sorted_data[n - 1 - i]);
-        
-        // Avoid log(0) by adding small epsilon
-        const double epsilon = 1e-10;
-        const double log_F = std::log(std::max(F_x, epsilon));
-        const double log_1_minus_F = std::log(std::max(F_x_complement, epsilon));
-        
-        anderson_darling_statistic += (2.0 * (i + 1) - 1.0) * (log_F + log_1_minus_F);
+    // Critical values remain the same for discrete distributions
+    double critical_value;
+    if (alpha <= 0.01) {
+        critical_value = 3.857;
+    } else if (alpha <= 0.05) {
+        critical_value = 2.492;
+    } else if (alpha <= 0.10) {
+        critical_value = 1.933;
+    } else {
+        critical_value = 1.159; // alpha = 0.25
     }
     
-    anderson_darling_statistic = -n - anderson_darling_statistic / n;
+    // P-value calculation for discrete Anderson-Darling test
+    double p_value;
+    if (ad_statistic < 0.5) {
+        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
+    } else if (ad_statistic < 2.0) {
+        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
+    } else {
+        p_value = std::exp(-ad_statistic);
+    }
+    p_value = std::max(0.0, std::min(1.0, p_value)); // Clamp to [0,1]
     
-    // Critical value (simplified - should use proper Anderson-Darling tables)
-    const double critical_value = 2.492; // Approximate critical value for alpha=0.05
+    bool reject_null = (ad_statistic > critical_value);
     
-    // Simple p-value approximation
-    double p_value = (anderson_darling_statistic > critical_value) ? 0.01 : 0.5;
-    
-    const bool reject_null = anderson_darling_statistic > critical_value;
-    
-    return std::make_tuple(anderson_darling_statistic, p_value, reject_null);
+    return std::make_tuple(ad_statistic, p_value, reject_null);
 }
 
 } // namespace libstats

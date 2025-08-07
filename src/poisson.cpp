@@ -8,6 +8,7 @@
 #include "../include/core/safety.h"
 #include "../include/platform/parallel_execution.h"
 #include "../include/platform/thread_pool.h"
+#include "../include/core/dispatch_utils.h"
 #include <sstream>
 #include <cmath>
 #include <vector>
@@ -33,8 +34,6 @@ namespace libstats {
 PoissonDistribution::PoissonDistribution(double lambda) 
     : DistributionBase(), lambda_(lambda) {
     validateParameters(lambda);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -42,8 +41,6 @@ PoissonDistribution::PoissonDistribution(const PoissonDistribution& other)
     : DistributionBase(other) {
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     lambda_ = other.lambda_;
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -69,8 +66,6 @@ PoissonDistribution::PoissonDistribution(PoissonDistribution&& other)
     other.lambda_ = constants::math::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -124,6 +119,15 @@ PoissonDistribution& PoissonDistribution::operator=(PoissonDistribution&& other)
 //==============================================================================
 
 void PoissonDistribution::setLambda(double lambda) {
+    validateParameters(lambda);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+}
+
+void PoissonDistribution::setParameters(double lambda) {
     validateParameters(lambda);
     
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
@@ -348,249 +352,148 @@ std::vector<double> PoissonDistribution::sample(std::mt19937& rng, size_t n) con
 //==============================================================================
 
 void PoissonDistribution::getProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-
-    const size_t count = values.size();
-    if (count == 0) return;
-
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getProbability(values[0]);
-        return;
-    }
-
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::POISSON,
-            performance::ComputationComplexity::COMPLEX,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<PoissonDistribution>::distType(),
+        performance::DistributionTraits<PoissonDistribution>::complexity(),
+        [](const PoissonDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getProbability(values[i]);
-            }
-            break;
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getProbabilityBatch(values.data(), results.data(), count);
-            break;
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getProbabilityBatchParallel(values, results);
-            break;
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void PoissonDistribution::getLogProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-
-    const size_t count = values.size();
-    if (count == 0) return;
-
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getLogProbability(values[0]);
-        return;
-    }
-
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::POISSON,
-            performance::ComputationComplexity::COMPLEX,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<PoissonDistribution>::distType(),
+        performance::DistributionTraits<PoissonDistribution>::complexity(),
+        [](const PoissonDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getLogProbability(values[i]);
-            }
-            break;
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getLogProbabilityBatch(values.data(), results.data(), count);
-            break;
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getLogProbabilityBatchParallel(values, results);
-            break;
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getLogProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getLogProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void PoissonDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-
-    const size_t count = values.size();
-    if (count == 0) return;
-
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getCumulativeProbability(values[0]);
-        return;
-    }
-
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::POISSON,
-            performance::ComputationComplexity::COMPLEX,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<PoissonDistribution>::distType(),
+        performance::DistributionTraits<PoissonDistribution>::complexity(),
+        [](const PoissonDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
+    );
+}
 
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getCumulativeProbability(values[i]);
-            }
-            break;
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getCumulativeProbabilityBatch(values.data(), results.data(), count);
-            break;
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getCumulativeProbabilityBatchParallel(values, results);
-            break;
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
+//==============================================================================
+// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+//==============================================================================
+
+void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                    performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const PoissonDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
-            break;
+    );
+}
+
+void PoissonDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                       performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const PoissonDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
+    );
+}
+
+void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                              performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const PoissonDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        }
+    );
 }
 
 //==============================================================================
@@ -2377,45 +2280,24 @@ std::tuple<double, double, bool> PoissonDistribution::kolmogorovSmirnovTest(
         }
     }
     
-    // Sort data for empirical CDF calculation
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
+    // Use the centralized, overflow-safe KS statistic calculation from math_utils
+    double ks_statistic = math::calculate_ks_statistic(data, distribution);
     
-    const size_t n = sorted_data.size();
-    double max_diff = 0.0;
-    
-    // Calculate maximum difference between empirical and theoretical CDFs
-    for (size_t i = 0; i < n; ++i) {
-        const double x = sorted_data[i];
-        
-        // Empirical CDF at x
-        const double emp_cdf = static_cast<double>(i + 1) / n;
-        
-        // Theoretical CDF at x
-        const double theo_cdf = distribution.getCumulativeProbability(x);
-        
-        // Check both F(x) - Fn(x) and Fn(x) - F(x)
-        const double diff1 = std::abs(emp_cdf - theo_cdf);
-        const double diff2 = (i > 0) ? std::abs(static_cast<double>(i) / n - theo_cdf) : theo_cdf;
-        
-        max_diff = std::max({max_diff, diff1, diff2});
-    }
-    
-    const double ks_statistic = max_diff;
+    const size_t n = data.size();
     
     // Approximate p-value using Kolmogorov distribution
     // For discrete distributions, this is an approximation
-    const double sqrt_n = std::sqrt(n);
+    const double sqrt_n = std::sqrt(static_cast<double>(n));
     const double lambda_ks = sqrt_n * ks_statistic;
     
-    // Approximation for p-value (simplified)
+    // Improved p-value calculation for discrete distributions
     double p_value;
     if (lambda_ks < 0.27) {
         p_value = 1.0;
     } else if (lambda_ks < 1.0) {
         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
     } else {
-        // Asymptotic approximation
+        // Asymptotic approximation with correction terms
         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
         for (int k = 1; k <= 10; ++k) {
             p_value += 2.0 * std::pow(-1, k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);
@@ -2452,49 +2334,12 @@ std::tuple<double, double, bool> PoissonDistribution::andersonDarlingTest(
         }
     }
     
-    // Sort data
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
+    // Use the centralized, numerically stable AD statistic calculation from math_utils
+    double ad_statistic = math::calculate_ad_statistic(data, distribution);
     
-    const size_t n = sorted_data.size();
-    const double n_double = static_cast<double>(n);
-    
-    // Anderson-Darling statistic calculation for discrete distributions
-    double ad_statistic = 0.0;
-    
-    for (size_t i = 0; i < n; ++i) {
-        const double x_i = sorted_data[i];
-        const double F_i = distribution.getCumulativeProbability(x_i);
-        
-        // Handle boundary cases
-        const double F_i_safe = std::max(constants::probability::MIN_PROBABILITY, 
-                                        std::min(1.0 - constants::probability::MIN_PROBABILITY, F_i));
-        
-        // Weighted sum for Anderson-Darling statistic
-        // AD = -n - (1/n) * Σ[(2i-1) * ln(F(X_i)) + (2(n-i)+1) * ln(1-F(X_{n+1-i}))]
-        const double weight_left = (2.0 * (i + 1) - 1.0);
-        const double weight_right = (2.0 * (n - i) - 1.0);
-        
-        const double log_F = std::log(F_i_safe);
-        
-        ad_statistic += weight_left * log_F;
-        if (i < n - 1) { // Avoid double counting the last element
-            const double x_ni = sorted_data[n - 1 - i];
-            const double F_ni = distribution.getCumulativeProbability(x_ni);
-            const double F_ni_safe = std::max(constants::probability::MIN_PROBABILITY,
-                                             std::min(1.0 - constants::probability::MIN_PROBABILITY, F_ni));
-            ad_statistic += weight_right * std::log(1.0 - F_ni_safe);
-        }
-    }
-    
-    ad_statistic = -n_double - ad_statistic / n_double;
-    
-    // Approximate p-value calculation for discrete Anderson-Darling test
-    // This is an approximation adapted for discrete distributions
-    double p_value;
-    
-    // Critical values and p-value approximation for Poisson Anderson-Darling test
+    // Critical values and p-value approximation for discrete Anderson-Darling test
     // These are approximations since exact distribution is complex for discrete case
+    double p_value;
     if (ad_statistic < 0.5) {
         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
     } else if (ad_statistic < 2.0) {

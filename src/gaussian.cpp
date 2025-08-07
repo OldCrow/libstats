@@ -6,6 +6,7 @@
 #include "../include/platform/simd_policy.h"
 #include "../include/platform/parallel_thresholds.h"
 #include "../include/core/validation.h"
+#include "../include/core/dispatch_utils.h"
 #include <cmath>
 #include <vector>
 #include <algorithm>
@@ -34,9 +35,6 @@ namespace libstats {
 GaussianDistribution::GaussianDistribution(double mean, double standardDeviation) 
     : DistributionBase(), mean_(mean), standardDeviation_(standardDeviation) {
     validateParameters(mean, standardDeviation);
-    
-    // Precompute values for dispatcher's first use
-    performance::SystemCapabilities::current();
 }
 
 GaussianDistribution::GaussianDistribution(const GaussianDistribution& other) 
@@ -44,9 +42,6 @@ GaussianDistribution::GaussianDistribution(const GaussianDistribution& other)
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     mean_ = other.mean_;
     standardDeviation_ = other.standardDeviation_;
-    
-    // Precompute values for dispatcher's first use
-    performance::SystemCapabilities::current();
 }
 
 GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution& other) {
@@ -74,9 +69,6 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other)
     other.standardDeviation_ = constants::math::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // Precompute values for dispatcher's first use
-    performance::SystemCapabilities::current();
 }
 
 GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) noexcept {
@@ -1349,8 +1341,8 @@ std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCross
         fitted_model.fit(training_data);
         
         // Evaluate on validation data
-        double mean_error = 0.0;
-        double std_error = 0.0;
+        // double mean_error = 0.0;  // No longer used - MAE calculated directly from errors vector
+        // double std_error = 0.0;   // No longer used
         double log_likelihood = 0.0;
         
         // Calculate prediction errors and log-likelihood
@@ -1365,16 +1357,18 @@ std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCross
             log_likelihood += fitted_model.getLogProbability(val);
         }
         
-        // Calculate mean and standard deviation of errors
-        mean_error = std::accumulate(errors.begin(), errors.end(), 0.0) / errors.size();
+        // Calculate MAE and RMSE
+        double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / errors.size();
         
-        double variance_error = 0.0;
+        // Calculate RMSE = sqrt(mean(squared_errors))
+        double mse = 0.0;
         for (double error : errors) {
-            variance_error += (error - mean_error) * (error - mean_error);
+            mse += error * error;
         }
-        std_error = std::sqrt(variance_error / errors.size());
+        mse /= errors.size();
+        double rmse = std::sqrt(mse);
         
-        results.emplace_back(mean_error, std_error, log_likelihood);
+        results.emplace_back(mae, rmse, log_likelihood);
     }
     
     return results;
@@ -2198,266 +2192,150 @@ void GaussianDistribution::getCumulativeProbabilityBatchCacheAware(std::span<con
 
 void GaussianDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::GAUSSIAN,
-            performance::ComputationComplexity::MODERATE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<GaussianDistribution>::distType(),
+        performance::DistributionTraits<GaussianDistribution>::complexity(),
+        [](const GaussianDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void GaussianDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
                                            const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getLogProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::GAUSSIAN,
-            performance::ComputationComplexity::MODERATE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<GaussianDistribution>::distType(),
+        performance::DistributionTraits<GaussianDistribution>::complexity(),
+        [](const GaussianDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getLogProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getLogProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getLogProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getLogProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getLogProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void GaussianDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                                    const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getCumulativeProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::GAUSSIAN,
-            performance::ComputationComplexity::COMPLEX,  // CDF uses erf() which is complex
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<GaussianDistribution>::distType(),
+        performance::DistributionTraits<GaussianDistribution>::complexity(),
+        [](const GaussianDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getCumulativeProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getCumulativeProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getCumulativeProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
+    );
+}
+
+//==============================================================================
+// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+//==============================================================================
+
+void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                     performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const GaussianDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
-            break;
+    );
+}
+
+void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                        performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const GaussianDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
+    );
+}
+
+void GaussianDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                               performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const GaussianDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        }
+    );
 }
 
 //==============================================================================

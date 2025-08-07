@@ -59,9 +59,9 @@ public:
     // =============================================================================
     
     /**
-     * @brief Default constructor
+     * @brief Default constructor with system initialization
      */
-    DistributionBase() = default;
+    DistributionBase();
     
     /**
      * @brief Virtual destructor for proper polymorphic cleanup

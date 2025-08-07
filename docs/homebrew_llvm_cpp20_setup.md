@@ -189,6 +189,84 @@ Ranges work: 2 4 6 8 10
 - **Build System**: Make, Ninja compatible
 - **Library Types**: Static and shared libraries supported
 
+## Local Library Linking on macOS
+
+### Dynamic vs Static Linking for Local Projects
+
+When working with locally built libraries that are **not installed** to standard system paths (like `/usr/local/lib` or `/usr/lib`), macOS has specific requirements for dynamic linking that often cause runtime errors.
+
+#### The Problem
+
+If your project builds a dynamic library (`.dylib`) in a local build directory, attempting to link against it and run the resulting executable will fail with:
+
+```
+dyld: Library not loaded: @rpath/libYourProject.dylib
+  Referenced from: /path/to/your/executable
+  Reason: image not found
+```
+
+This happens because macOS's dynamic linker (`dyld`) cannot find the library at runtime - it's not in the standard system library directories and the executable doesn't know where to look for it.
+
+#### Solution 1: Static Linking (Recommended for Local Development)
+
+The simplest solution is to link against the static library (`.a` file) instead:
+
+```bash
+/usr/local/opt/llvm/bin/clang++ -std=c++20 -stdlib=libc++ \
+  -I/usr/local/opt/llvm/include/c++/v1 \
+  -I./include \
+  -L/usr/local/opt/llvm/lib/c++ \
+  -L./build \
+  -Wl,-rpath,/usr/local/opt/llvm/lib/c++ \
+  source.cpp -o output_binary ./build/libYourProject.a
+```
+
+Or using the `-l` flag:
+
+```bash
+/usr/local/opt/llvm/bin/clang++ -std=c++20 -stdlib=libc++ \
+  -I/usr/local/opt/llvm/include/c++/v1 \
+  -I./include \
+  -L/usr/local/opt/llvm/lib/c++ \
+  -L./build \
+  -Wl,-rpath,/usr/local/opt/llvm/lib/c++ \
+  -static \
+  source.cpp -o output_binary -lYourProject
+```
+
+#### Solution 2: Dynamic Linking with Local Library Path
+
+If you must use dynamic linking, you need to tell the linker where to find the library at runtime by adding the local build directory to the rpath:
+
+```bash
+/usr/local/opt/llvm/bin/clang++ -std=c++20 -stdlib=libc++ \
+  -I/usr/local/opt/llvm/include/c++/v1 \
+  -I./include \
+  -L/usr/local/opt/llvm/lib/c++ \
+  -L./build \
+  -Wl,-rpath,/usr/local/opt/llvm/lib/c++ \
+  -Wl,-rpath,./build \
+  source.cpp -o output_binary -lYourProject
+```
+
+**Note:** The `-Wl,-rpath,./build` tells the dynamic linker to also search in the `./build` directory for libraries at runtime.
+
+#### Solution 3: Environment Variable (Temporary)
+
+For quick testing, you can set the library path at runtime:
+
+```bash
+DYLD_LIBRARY_PATH=./build ./output_binary
+```
+
+**Warning:** This method is not recommended for production and may not work with System Integrity Protection (SIP) enabled on newer macOS versions.
+
+### Best Practice Recommendations
+
+1. **For development/testing**: Use static linking (`.a` files) - it's simpler and avoids path issues
+2. **For distributed applications**: Use dynamic linking with proper installation to standard paths
+3. **For local libraries in build directories**: Always use static linking or add the build directory to rpath
+
 ## Troubleshooting
 
 ### Compilation Errors
@@ -200,9 +278,11 @@ Ranges work: 2 4 6 8 10
 - Confirm `-L/usr/local/opt/llvm/lib/c++` is in linker flags
 - Verify rpath is set: `-Wl,-rpath,/usr/local/opt/llvm/lib/c++`
 - Check that LLVM libraries exist: `ls /usr/local/opt/llvm/lib/c++/`
+- **For local libraries**: Use static linking or add build directory to rpath
 
 ### Runtime Issues
 - Ensure rpath is correctly set for dynamic linking
 - Verify LLVM libraries are accessible: `otool -L your_binary`
+- **Library not found errors**: Check if using local dynamic libraries - switch to static linking
 
 This configuration provides a robust foundation for C++20 development on older MacOS systems using Homebrew LLVM.

@@ -398,6 +398,29 @@ public:
     [[nodiscard]] double getWidth() const noexcept;
     
     /**
+     * Gets the mode of the distribution.
+     * For Uniform distribution, mode is not unique - any value in [a, b] is a mode.
+     * This method returns the midpoint (a + b) / 2.0 as a representative mode.
+     *
+     * @return Mode value (midpoint of the range)
+     */
+    [[nodiscard]] double getMode() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (a_ + b_) / 2.0;
+    }
+    
+    /**
+     * Gets the median of the distribution.
+     * For Uniform distribution, median is (a + b) / 2.0.
+     *
+     * @return Median value
+     */
+    [[nodiscard]] double getMedian() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (a_ + b_) / 2.0;
+    }
+    
+    /**
      * Gets the midpoint of the distribution (a + b)/2.
      * This is also the mean and median of the distribution.
      * Uses cached value to eliminate addition and division.
@@ -440,6 +463,16 @@ public:
      */
     [[nodiscard]] VoidResult trySetParameters(double a, double b) noexcept;
 
+    /**
+     * @brief Sets both parameters simultaneously (exception-based API).
+     * Thread-safe: acquires unique lock for cache invalidation
+     * 
+     * @param a New lower bound parameter
+     * @param b New upper bound parameter (must be > a)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    void setParameters(double a, double b);
+    
     /**
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
@@ -872,6 +905,7 @@ public:
      * @param count Number of values to process
      * @note This method is optimized for large batch sizes where SIMD overhead is justified
      */
+    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
     
     /**
@@ -883,6 +917,7 @@ public:
      * @param count Number of values to process
      * @note This method is optimized for large batch sizes where SIMD overhead is justified
      */
+    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
     
     /**
@@ -893,15 +928,19 @@ public:
      * @param count Number of values to process
      * @warning Arrays must be aligned to SIMD_ALIGNMENT for optimal performance
      */
-    void getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const;
+    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
+    void getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept;
     
     /**
      * Ultra-high performance lock-free batch operations
      * These methods assume cache is valid and skip all locking - use with extreme care
      * @warning Only call when you can guarantee cache validity and thread safety
      */
+    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
+    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept;
 
     //==========================================================================
@@ -916,6 +955,7 @@ public:
      * @param results C++20 span of output results (must be same size as values)
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
     
     /**
@@ -925,6 +965,7 @@ public:
      * @param results C++20 span of output results (must be same size as values)
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept;
     
     /**
@@ -934,6 +975,7 @@ public:
      * @param results C++20 span of output results (must be same size as values)
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
     
     /**
@@ -945,6 +987,7 @@ public:
      * @param pool Reference to WorkStealingPool for load balancing
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
                                         WorkStealingPool& pool) const;
     
@@ -957,6 +1000,7 @@ public:
      * @param cache_manager Reference to adaptive cache manager
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                       cache::AdaptiveCache<std::string, double>& cache_manager) const;
     
@@ -969,6 +1013,7 @@ public:
      * @param pool Reference to WorkStealingPool for load balancing
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
                                            WorkStealingPool& pool) const;
     
@@ -981,6 +1026,7 @@ public:
      * @param cache_manager Reference to adaptive cache manager
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                          cache::AdaptiveCache<std::string, double>& cache_manager) const;
     
@@ -993,6 +1039,7 @@ public:
      * @param pool Reference to WorkStealingPool for load balancing
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
                                                   WorkStealingPool& pool) const;
     
@@ -1005,6 +1052,7 @@ public:
      * @param cache_manager Reference to adaptive cache manager
      * @throws std::invalid_argument if span sizes don't match
      */
+    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
     void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const;
     
@@ -1052,6 +1100,58 @@ public:
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                  const performance::PerformanceHint& hint = {}) const;
+
+    //==========================================================================
+    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    //==========================================================================
+
+    /**
+     * @brief Explicit strategy batch probability calculation for power users
+     * 
+     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
+     * Use when you have specific performance requirements or want deterministic execution.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for probability densities
+     * @param strategy Explicit execution strategy to use
+     * @throws std::invalid_argument if strategy is not supported
+     * 
+     * @deprecated Consider migrating to auto-dispatch with hints for better portability
+     */
+    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                   performance::Strategy strategy) const;
+
+    /**
+     * @brief Explicit strategy batch log probability calculation for power users
+     * 
+     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
+     * Use when you have specific performance requirements or want deterministic execution.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for log probability densities
+     * @param strategy Explicit execution strategy to use
+     * @throws std::invalid_argument if strategy is not supported
+     * 
+     * @deprecated Consider migrating to auto-dispatch with hints for better portability
+     */
+    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                      performance::Strategy strategy) const;
+
+    /**
+     * @brief Explicit strategy batch cumulative probability calculation for power users
+     * 
+     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
+     * Use when you have specific performance requirements or want deterministic execution.
+     * 
+     * @param values Input values to evaluate
+     * @param results Output array for cumulative probabilities
+     * @param strategy Explicit execution strategy to use
+     * @throws std::invalid_argument if strategy is not supported
+     * 
+     * @deprecated Consider migrating to auto-dispatch with hints for better portability
+     */
+    void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                             performance::Strategy strategy) const;
     
     //==========================================================================
     // COMPARISON OPERATORS

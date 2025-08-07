@@ -162,7 +162,72 @@ namespace libstats {
     
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;
-constexpr int LIBSTATS_VERSION_MINOR = 7;
-constexpr int LIBSTATS_VERSION_PATCH = 1;
-    constexpr const char* VERSION_STRING = "0.7.1";
+constexpr int LIBSTATS_VERSION_MINOR = 8;
+constexpr int LIBSTATS_VERSION_PATCH = 0;
+    constexpr const char* VERSION_STRING = "0.8.0";
+    
+    /**
+     * @brief Initialize performance systems to eliminate cold-start delays
+     * 
+     * This function performs one-time initialization of libstats' performance-critical
+     * systems to eliminate cold-start latency during first-time batch operation dispatch.
+     * 
+     * **What gets initialized:**
+     * - System capability detection and benchmarking (CPU features, SIMD support)
+     * - Performance dispatcher with optimized thresholds
+     * - SIMD policy detection and configuration
+     * - Performance history singleton
+     * - Thread pool infrastructure
+     * 
+     * **When to call:**
+     * - Once at application startup, before using batch operations
+     * - In unit tests setup to ensure consistent performance measurements
+     * - Before performance-critical code sections to avoid cold-start penalty
+     * 
+     * **Performance impact:**
+     * - First call: ~10-50ms initialization time (system-dependent)
+     * - Subsequent calls: ~1-2ns (fast path with static flag)
+     * - Eliminates 10-50ms delay from first batch operation call
+     * 
+     * **Thread safety:**
+     * - Thread-safe: safe to call from multiple threads concurrently
+     * - Uses static initialization guard for one-time setup
+     * 
+     * @example Basic usage:
+     * @code
+     * #include "libstats.h"
+     * 
+     * int main() {
+     *     // Initialize performance systems once at startup
+     *     libstats::initialize_performance_systems();
+     *     
+     *     // Now batch operations will have optimal performance from the start
+     *     auto dist = libstats::Gaussian::create(0.0, 1.0);
+     *     if (dist.isOk()) {
+     *         std::vector<double> values(10000);
+     *         std::vector<double> results(10000);
+     *         dist.value.getProbability(values, results); // No cold-start delay
+     *     }
+     *     return 0;
+     * }
+     * @endcode
+     * 
+     * @example Unit test usage:
+     * @code
+     * class StatisticalTestSuite : public ::testing::Test {
+     * protected:
+     *     static void SetUpTestSuite() {
+     *         // Initialize once for all tests in this suite
+     *         libstats::initialize_performance_systems();
+     *     }
+     * };
+     * @endcode
+     * 
+     * @note This function is optional but recommended for performance-critical applications.
+     *       All libstats functionality works correctly without calling this function,
+     *       but the first batch operation may experience initialization latency.
+     * 
+     * @since 0.7.2
+     */
+    void initialize_performance_systems();
 }

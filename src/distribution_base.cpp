@@ -3,6 +3,7 @@
 #include "../include/core/math_utils.h"
 #include "../include/core/safety.h"
 #include "../include/platform/parallel_execution.h"
+#include "../include/core/performance_dispatcher.h"
 #include <algorithm>
 #include <numeric>
 #include <cmath>
@@ -14,6 +15,23 @@ namespace libstats {
 // =============================================================================
 // RULE OF FIVE IMPLEMENTATION
 // =============================================================================
+
+DistributionBase::DistributionBase() {
+    // Initialize all critical system components during base class construction
+    // This ensures one-time initialization overhead happens during object creation,
+    // not during the first method call, providing predictable performance.
+    
+    // Initialize SystemCapabilities (thread_local singleton)
+    performance::SystemCapabilities::current();
+    
+    // Initialize PerformanceDispatcher (static thread_local)
+    // This triggers SIMD level detection and threshold initialization
+    static thread_local performance::PerformanceDispatcher dispatcher;
+    
+    // Initialize PerformanceHistory (static global singleton)
+    // This ensures the performance tracking system is ready
+    [[maybe_unused]] auto& history = performance::PerformanceDispatcher::getPerformanceHistory();
+}
 
 DistributionBase::DistributionBase(const DistributionBase& /* other */) {
     // Copy constructor - deliberately do not copy cache state

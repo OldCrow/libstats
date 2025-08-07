@@ -34,7 +34,7 @@ if(APPLE OR (UNIX AND NOT WIN32))
     endif()
 endif()
 
-project(libstats VERSION 0.7.1 LANGUAGES CXX)
+project(libstats VERSION 0.8.0 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
@@ -230,6 +230,7 @@ set(LIBSTATS_INFRASTRUCTURE_SOURCES
     src/performance_history.cpp       # Performance data collection and analysis
     src/performance_dispatcher.cpp    # Smart auto-dispatch system
     src/system_capabilities.cpp       # System capability detection
+    src/libstats_init.cpp             # Performance system initialization
 )
 
 # Level 4: Distribution Framework (Depends on Level 0-3)
@@ -749,6 +750,9 @@ if(LIBSTATS_BUILD_TESTS)
     
     # system_capabilities.cpp - System capability detection and integration
     create_libstats_gtest(test_system_capabilities tests/test_system_capabilities.cpp)
+    
+    # Performance system initialization
+    create_libstats_gtest(test_performance_initialization tests/test_performance_initialization.cpp)
     
     # =======================================================================
     # LEVEL 4 TESTS: Complete Distribution Framework

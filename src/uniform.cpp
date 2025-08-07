@@ -6,6 +6,7 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/work_stealing_pool.h"
 #include "../include/platform/adaptive_cache.h"
+#include "../include/core/dispatch_utils.h"
 #include <sstream>
 #include <cmath>
 #include <vector>
@@ -22,8 +23,6 @@ namespace libstats {
 UniformDistribution::UniformDistribution(double a, double b) 
     : DistributionBase(), a_(a), b_(b) {
     validateParameters(a, b);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -32,8 +31,6 @@ UniformDistribution::UniformDistribution(const UniformDistribution& other)
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -62,8 +59,6 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
     other.b_ = constants::math::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -361,6 +356,18 @@ void UniformDistribution::setBounds(double a, double b) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
+void UniformDistribution::setParameters(double a, double b) {
+    validateParameters(a, b);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
 double UniformDistribution::getMean() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -592,7 +599,7 @@ void UniformDistribution::getLogProbabilityBatch(const double* values, double* r
     getLogProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_log_inv_width);
 }
 
-void UniformDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
+void UniformDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
     if (count == 0) return;
     
     // Ensure cache is valid
@@ -1503,35 +1510,22 @@ std::tuple<double, double, bool> UniformDistribution::kolmogorovSmirnovTest(
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
     
+    // Use the overflow-safe KS statistic calculation from math_utils
+    double ks_statistic = math::calculate_ks_statistic(data, distribution);
+    
     const size_t n = data.size();
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
-    
-    // Compute KS statistic: max difference between empirical and theoretical CDF
-    double max_diff = 0.0;
-    
-    for (size_t i = 0; i < n; ++i) {
-        double empirical_cdf = static_cast<double>(i + 1) / n;
-        double theoretical_cdf = distribution.getCumulativeProbability(sorted_data[i]);
-        
-        // Check both F_n(x) - F(x) and F(x) - F_{n-1}(x)
-        double diff1 = std::abs(empirical_cdf - theoretical_cdf);
-        double diff2 = (i > 0) ? std::abs(theoretical_cdf - static_cast<double>(i) / n) : theoretical_cdf;
-        
-        max_diff = std::max({max_diff, diff1, diff2});
-    }
     
     // Asymptotic critical value for KS test
     double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);
     
     // Asymptotic p-value approximation (Kolmogorov distribution)
-    double ks_stat_scaled = max_diff * std::sqrt(n);
+    double ks_stat_scaled = ks_statistic * std::sqrt(n);
     double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);
     p_value = std::max(0.0, std::min(1.0, p_value)); // Clamp to [0,1]
     
-    bool reject_null = (max_diff > critical_value);
+    bool reject_null = (ks_statistic > critical_value);
     
-    return std::make_tuple(max_diff, p_value, reject_null);
+    return std::make_tuple(ks_statistic, p_value, reject_null);
 }
 
 std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
@@ -1547,33 +1541,8 @@ std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
     
-    const size_t n = data.size();
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
-    
-    // Compute Anderson-Darling statistic
-    double ad_stat = 0.0;
-    
-    for (size_t i = 0; i < n; ++i) {
-        double cdf_val = distribution.getCumulativeProbability(sorted_data[i]);
-        
-        // Clamp CDF to avoid log(0) - be more conservative with clamping
-        cdf_val = std::max(1e-15, std::min(1.0 - 1e-15, cdf_val));
-        
-        // Anderson-Darling formula: A² = -n - (1/n) * Σ[(2i-1)*ln(F(xi)) + (2(n-i)+1)*ln(1-F(xi))]
-        double i_plus_1 = static_cast<double>(i + 1);
-        double n_double = static_cast<double>(n);
-        
-        double term1 = (2.0 * i_plus_1 - 1.0) * std::log(cdf_val);
-        double term2 = (2.0 * (n_double - i_plus_1) + 1.0) * std::log(1.0 - cdf_val);
-        
-        // Check for numerical issues
-        if (std::isfinite(term1) && std::isfinite(term2)) {
-            ad_stat += term1 + term2;
-        }
-    }
-    
-    ad_stat = -static_cast<double>(n) - ad_stat / static_cast<double>(n);
+    // Use the overflow-safe AD statistic calculation from math_utils
+    double ad_stat = math::calculate_ad_statistic(data, distribution);
     
     // Asymptotic critical values for Anderson-Darling test (approximate)
     double critical_value;
@@ -1737,16 +1706,18 @@ std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossV
             total_log_likelihood += std::isfinite(log_prob) ? log_prob : -1000.0; // Penalty for out-of-bounds
         }
         
-        // Calculate metrics
-        double mean_error = std::accumulate(errors.begin(), errors.end(), 0.0) / errors.size();
+        // Calculate metrics - MAE and RMSE
+        double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / errors.size();
         
-        double variance = 0.0;
+        // Calculate RMSE = sqrt(mean(squared_errors))
+        double mse = 0.0;
         for (double error : errors) {
-            variance += (error - mean_error) * (error - mean_error);
+            mse += error * error;
         }
-        double std_error = std::sqrt(variance / errors.size());
+        mse /= errors.size();
+        double rmse = std::sqrt(mse);
         
-        results.emplace_back(mean_error, std_error, total_log_likelihood);
+        results.emplace_back(mae, rmse, total_log_likelihood);
     }
     
     return results;
@@ -1953,266 +1924,150 @@ VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
 
 void UniformDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::UNIFORM,
-            performance::ComputationComplexity::SIMPLE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<UniformDistribution>::distType(),
+        performance::DistributionTraits<UniformDistribution>::complexity(),
+        [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void UniformDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
                                            const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getLogProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::UNIFORM,
-            performance::ComputationComplexity::SIMPLE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<UniformDistribution>::distType(),
+        performance::DistributionTraits<UniformDistribution>::complexity(),
+        [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getLogProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getLogProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getLogProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getLogProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getLogProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void UniformDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                                   const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getCumulativeProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::UNIFORM,
-            performance::ComputationComplexity::SIMPLE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<UniformDistribution>::distType(),
+        performance::DistributionTraits<UniformDistribution>::complexity(),
+        [](const UniformDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getCumulativeProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getCumulativeProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getCumulativeProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
+    );
+}
+
+//==============================================================================
+// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+//==============================================================================
+
+void UniformDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                    performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
-            break;
+    );
+}
+
+void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                       performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
+    );
+}
+
+void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                              performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const UniformDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        }
+    );
 }
 
 } // namespace libstats

@@ -6,6 +6,7 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h" // For parallel execution policies
 #include "../include/platform/work_stealing_pool.h" // For WorkStealingPool
+#include "../include/core/dispatch_utils.h" // For DispatchUtils::autoDispatch
 #include <iostream>
 #include "../include/platform/thread_pool.h" // For ThreadPool
 #include <sstream>
@@ -27,8 +28,6 @@ namespace libstats {
 ExponentialDistribution::ExponentialDistribution(double lambda) 
     : DistributionBase(), lambda_(lambda) {
     validateParameters(lambda);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -36,8 +35,6 @@ ExponentialDistribution::ExponentialDistribution(const ExponentialDistribution& 
     : DistributionBase(other) {
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     lambda_ = other.lambda_;
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -63,8 +60,6 @@ ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other
     other.lambda_ = constants::math::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
-    // Ensure SystemCapabilities are initialized
-    performance::SystemCapabilities::current();
     // Cache will be updated on first use
 }
 
@@ -125,6 +120,16 @@ void ExponentialDistribution::setLambda(double lambda) {
     lambda_ = lambda;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+}
+
+void ExponentialDistribution::setParameters(double lambda) {
+    validateParameters(lambda);
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    lambda_ = lambda;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 double ExponentialDistribution::getMean() const noexcept {
@@ -770,46 +775,20 @@ std::tuple<double, double, bool> ExponentialDistribution::kolmogorovSmirnovTest(
         throw std::invalid_argument("All data values must be positive for exponential distribution");
     }
     
-    // Sort data for empirical CDF calculation
-    std::vector<double> sorted_data = data;
-    std::ranges::sort(sorted_data);
-    
-    const size_t n = sorted_data.size();
-    double max_diff = constants::math::ZERO_DOUBLE;
-    
-    // Calculate KS statistic: max|F_n(x) - F(x)|
-    for (size_t i = 0; i < n; ++i) {
-        const double x = sorted_data[i];
-        
-        // Empirical CDF at x: F_n(x) = (i+1)/n
-        const double empirical_cdf = static_cast<double>(i + 1) / static_cast<double>(n);
-        
-        // Theoretical exponential CDF: F(x) = 1 - exp(-λx)
-        const double theoretical_cdf = distribution.getCumulativeProbability(x);
-        
-        // Check both F_n(x) - F(x) and F(x) - F_{n-1}(x)
-        const double diff1 = std::abs(empirical_cdf - theoretical_cdf);
-        
-        double diff2 = constants::math::ZERO_DOUBLE;
-        if (i > 0) {
-            const double prev_empirical_cdf = static_cast<double>(i) / static_cast<double>(n);
-            diff2 = std::abs(theoretical_cdf - prev_empirical_cdf);
-        }
-        
-        max_diff = std::max({max_diff, diff1, diff2});
-    }
+    // Use the overflow-safe KS statistic calculation from math_utils
+    double ks_statistic = math::calculate_ks_statistic(data, distribution);
     
     // Asymptotic p-value approximation for KS test
     // P-value ≈ 2 * exp(-2 * n * D²) for large n
-    const double n_double = static_cast<double>(n);
-    const double p_value_approx = constants::math::TWO * std::exp(-constants::math::TWO * n_double * max_diff * max_diff);
+    const double n_double = static_cast<double>(data.size());
+    const double p_value_approx = constants::math::TWO * std::exp(-constants::math::TWO * n_double * ks_statistic * ks_statistic);
     
     // Clamp p-value to [0, 1]
     const double p_value = std::min(constants::math::ONE, std::max(constants::math::ZERO_DOUBLE, p_value_approx));
     
     const bool reject_null = p_value < alpha;
     
-    return {max_diff, p_value, reject_null};
+    return {ks_statistic, p_value, reject_null};
 }
 
 std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
@@ -827,46 +806,18 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
         throw std::invalid_argument("All data values must be positive for exponential distribution");
     }
     
-    // Sort data for AD test
-    std::vector<double> sorted_data = data;
-    std::ranges::sort(sorted_data);
-    
-    const size_t n = sorted_data.size();
-    const double n_double = static_cast<double>(n);
-    
-    // Calculate Anderson-Darling statistic
-    double ad_statistic = -n_double;
-    
-    for (size_t i = 0; i < n; ++i) {
-        const double x = sorted_data[i];
-        const double cdf_val = distribution.getCumulativeProbability(x);
-        
-        // Protect against log(0) by using small positive value
-        const double cdf_safe = std::max(cdf_val, constants::probability::MIN_PROBABILITY);
-        [[maybe_unused]] const double cdf_complement_safe = std::max(constants::math::ONE - cdf_val, constants::probability::MIN_PROBABILITY);
-        
-        // AD statistic formula: A² = -n - (1/n) * Σ[(2i-1) * ln(F(X_i)) + (2n+1-2i) * ln(1-F(X_{n+1-i}))]
-        const double term1 = (constants::math::TWO * static_cast<double>(i + 1) - constants::math::ONE) * std::log(cdf_safe);
-        
-        // For the second term, we need F(X_{n-i}) = F(X_{n+1-i-1})
-        const size_t reverse_idx = n - 1 - i;
-        const double x_reverse = sorted_data[reverse_idx];
-        const double cdf_reverse = distribution.getCumulativeProbability(x_reverse);
-        const double cdf_reverse_complement_safe = std::max(constants::math::ONE - cdf_reverse, constants::probability::MIN_PROBABILITY);
-        
-        const double term2 = (constants::math::TWO * static_cast<double>(n - i) - constants::math::ONE) * std::log(cdf_reverse_complement_safe);
-        
-        ad_statistic -= (term1 + term2);
-    }
-    
-    ad_statistic /= n_double;
+    // Use the overflow-safe AD statistic calculation from math_utils
+    double ad_statistic = math::calculate_ad_statistic(data, distribution);
     
     // Adjust for exponential distribution (modification for known parameters)
     // For exponential distribution with estimated parameter, adjust the statistic
+    const size_t n = data.size();
+    const double n_double = static_cast<double>(n);
     const double ad_adjusted = ad_statistic * (constants::math::ONE + 0.6 / n_double);
     
-    // Approximate p-value for exponential distribution Anderson-Darling test
-    // Using asymptotic approximation for exponential case
+    // Improved p-value approximation for exponential distribution Anderson-Darling test
+    // Based on D'Agostino and Stephens (1986) formulas for exponential distribution
+    // with enhanced handling for large statistics
     double p_value;
     if (ad_adjusted < 0.2) {
         p_value = constants::math::ONE - std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
@@ -874,8 +825,12 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
         p_value = constants::math::ONE - std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
     } else if (ad_adjusted < 0.6) {
         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
-    } else {
+    } else if (ad_adjusted < 2.0) {
         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
+    } else {
+        // For very large AD statistics, p-value should be very small (close to 0)
+        // Use asymptotic approximation for extreme values
+        p_value = std::exp(-ad_adjusted * constants::math::TWO);
     }
     
     // Clamp p-value to [0, 1]
@@ -943,29 +898,33 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
         ExponentialDistribution fitted_model(fitted_rate);
         
         // Evaluate on validation data
-        double rate_error = constants::math::ZERO_DOUBLE;
-        double scale_error = constants::math::ZERO_DOUBLE;
+        std::vector<double> absolute_errors;
+        std::vector<double> squared_errors;
         double log_likelihood = constants::math::ZERO_DOUBLE;
         
+        absolute_errors.reserve(validation_data.size());
+        squared_errors.reserve(validation_data.size());
+        
         // Calculate prediction errors and log-likelihood
-        const double validation_sum = std::accumulate(validation_data.begin(), validation_data.end(), constants::math::ZERO_DOUBLE);
-        const double validation_mean = validation_sum / static_cast<double>(validation_data.size());
-        const double true_rate_estimate = constants::math::ONE / validation_mean;
-        const double true_scale_estimate = validation_mean;
-        
-        // Rate parameter error
-        rate_error = std::abs(fitted_rate - true_rate_estimate);
-        
-        // Scale parameter error (1/λ)
-        const double fitted_scale = constants::math::ONE / fitted_rate;
-        scale_error = std::abs(fitted_scale - true_scale_estimate);
-        
-        // Log-likelihood on validation set
         for (double val : validation_data) {
+            // For exponential distribution, the "prediction" is the mean (1/λ)
+            const double predicted_mean = constants::math::ONE / fitted_rate;
+            
+            const double absolute_error = std::abs(val - predicted_mean);
+            const double squared_error = (val - predicted_mean) * (val - predicted_mean);
+            
+            absolute_errors.push_back(absolute_error);
+            squared_errors.push_back(squared_error);
+            
             log_likelihood += fitted_model.getLogProbability(val);
         }
         
-        results.emplace_back(rate_error, scale_error, log_likelihood);
+        // Calculate MAE and RMSE
+        const double mae = std::accumulate(absolute_errors.begin(), absolute_errors.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(absolute_errors.size());
+        const double mse = std::accumulate(squared_errors.begin(), squared_errors.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(squared_errors.size());
+        const double rmse = std::sqrt(mse);
+        
+        results.emplace_back(mae, rmse, log_likelihood);
     }
     
     return results;
@@ -1821,266 +1780,150 @@ bool ExponentialDistribution::operator==(const ExponentialDistribution& other) c
 
 void ExponentialDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                             const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::EXPONENTIAL,
-            performance::ComputationComplexity::MODERATE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<ExponentialDistribution>::distType(),
+        performance::DistributionTraits<ExponentialDistribution>::complexity(),
+        [](const ExponentialDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void ExponentialDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
                                                const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getLogProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::EXPONENTIAL,
-            performance::ComputationComplexity::MODERATE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<ExponentialDistribution>::distType(),
+        performance::DistributionTraits<ExponentialDistribution>::complexity(),
+        [](const ExponentialDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getLogProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getLogProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getLogProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getLogProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
-        }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getLogProbabilityBatchCacheAware(values, results, default_cache);
-            break;
-        }
-    }
+    );
 }
 
 void ExponentialDistribution::getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                                       const performance::PerformanceHint& hint) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const size_t count = values.size();
-    if (count == 0) return;
-    
-    // Handle single-value case efficiently
-    if (count == 1) {
-        results[0] = getCumulativeProbability(values[0]);
-        return;
-    }
-    
-    // Get global dispatcher and system capabilities
-    static thread_local performance::PerformanceDispatcher dispatcher;
-    const performance::SystemCapabilities& system = performance::SystemCapabilities::current();
-    
-    // Smart dispatch based on problem characteristics
-    auto strategy = performance::Strategy::SCALAR;
-    
-    if (hint.strategy == performance::PerformanceHint::PreferredStrategy::AUTO) {
-        strategy = dispatcher.selectOptimalStrategy(
-            count,
-            performance::DistributionType::EXPONENTIAL,
-            performance::ComputationComplexity::MODERATE,
-            system
-        );
-    } else {
-        // Handle performance hints
-        switch (hint.strategy) {
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SCALAR:
-                strategy = performance::Strategy::SCALAR;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                strategy = performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                strategy = (count <= 8) ? performance::Strategy::SCALAR : performance::Strategy::SIMD_BATCH;
-                break;
-            case performance::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                strategy = performance::Strategy::PARALLEL_SIMD;
-                break;
-            default:
-                strategy = performance::Strategy::SCALAR;
-                break;
+    performance::DispatchUtils::autoDispatch(
+        *this,
+        values,
+        results,
+        hint,
+        performance::DistributionTraits<ExponentialDistribution>::distType(),
+        performance::DistributionTraits<ExponentialDistribution>::complexity(),
+        [](const ExponentialDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
-    
-    // Execute using selected strategy
-    switch (strategy) {
-        case performance::Strategy::SCALAR:
-            // Use simple loop for tiny batches (< 8 elements)
-            for (size_t i = 0; i < count; ++i) {
-                results[i] = getCumulativeProbability(values[i]);
-            }
-            break;
-            
-        case performance::Strategy::SIMD_BATCH:
-            // Use existing SIMD implementation
-            getCumulativeProbabilityBatch(values.data(), results.data(), count);
-            break;
-            
-        case performance::Strategy::PARALLEL_SIMD:
-            // Use existing parallel implementation
-            getCumulativeProbabilityBatchParallel(values, results);
-            break;
-            
-        case performance::Strategy::WORK_STEALING: {
-            // Use work-stealing pool for load balancing
-            static thread_local WorkStealingPool default_pool;
-            getCumulativeProbabilityBatchWorkStealing(values, results, default_pool);
-            break;
+    );
+}
+
+//==============================================================================
+// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+//==============================================================================
+
+void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                        performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const ExponentialDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getProbabilityBatch(vals, res, count);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getProbabilityBatchParallel(vals, res);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getProbabilityBatchCacheAware(vals, res, cache);
         }
-            
-        case performance::Strategy::CACHE_AWARE: {
-            // Use cache-aware implementation
-            static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-            getCumulativeProbabilityBatchCacheAware(values, results, default_cache);
-            break;
+    );
+}
+
+void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                           performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const ExponentialDistribution& dist, double value) { return dist.getLogProbability(value); },
+        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getLogProbabilityBatch(vals, res, count);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getLogProbabilityBatchParallel(vals, res);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
         }
-    }
+    );
+}
+
+void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
+                                                                  performance::Strategy strategy) const {
+    performance::DispatchUtils::executeWithStrategy(
+        *this,
+        values,
+        results,
+        strategy,
+        [](const ExponentialDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
+        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
+            dist.getCumulativeProbabilityBatch(vals, res, count);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            dist.getCumulativeProbabilityBatchParallel(vals, res);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+        },
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        }
+    );
 }
 
 //==============================================================================
