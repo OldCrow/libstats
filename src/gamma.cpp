@@ -1546,7 +1546,7 @@ void GammaDistribution::getProbabilityBatchWorkStealing(std::span<const double> 
     lock.unlock(); // Release lock before parallel processing
     
     // Submit work to work-stealing pool for dynamic load balancing
-    size_t chunk_size = std::max(1UL, values.size() / pool.getThreadCount());
+    size_t chunk_size = std::max(static_cast<size_t>(1), values.size() / pool.getThreadCount());
     
     for (size_t start = 0; start < values.size(); start += chunk_size) {
         size_t end = std::min(start + chunk_size, values.size());
@@ -1618,7 +1618,7 @@ void GammaDistribution::getLogProbabilityBatchWorkStealing(std::span<const doubl
     lock.unlock(); // Release lock before parallel processing
     
     // Submit work to work-stealing pool for dynamic load balancing
-    size_t chunk_size = std::max(1UL, values.size() / pool.getThreadCount());
+    size_t chunk_size = std::max(static_cast<size_t>(1), values.size() / pool.getThreadCount());
     
     for (size_t start = 0; start < values.size(); start += chunk_size) {
         size_t end = std::min(start + chunk_size, values.size());
@@ -1688,7 +1688,7 @@ void GammaDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<cons
     lock.unlock(); // Release lock before parallel processing
     
     // Submit work to work-stealing pool for dynamic load balancing
-    size_t chunk_size = std::max(1UL, values.size() / pool.getThreadCount());
+    size_t chunk_size = std::max(static_cast<size_t>(1), values.size() / pool.getThreadCount());
     
     for (size_t start = 0; start < values.size(); start += chunk_size) {
         size_t end = std::min(start + chunk_size, values.size());
