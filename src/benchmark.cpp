@@ -195,7 +195,7 @@ BenchmarkStats Benchmark::calculateStats(const std::vector<double>& times, doubl
     stats.samples = times.size();
     
     // Calculate mean
-    stats.mean = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+    stats.mean = std::accumulate(times.begin(), times.end(), 0.0) / static_cast<double>(times.size());
     
     // Calculate median
     std::vector<double> sortedTimes = times;
@@ -214,7 +214,7 @@ BenchmarkStats Benchmark::calculateStats(const std::vector<double>& times, doubl
         const double diff = time - stats.mean;
         sumSquaredDiffs += diff * diff;
     }
-    stats.stddev = std::sqrt(sumSquaredDiffs / times.size());
+    stats.stddev = std::sqrt(sumSquaredDiffs / static_cast<double>(times.size()));
     
     // Min and max
     stats.min = *std::min_element(times.begin(), times.end());
@@ -342,20 +342,20 @@ void StatsBenchmarkUtils::benchmarkBasicStats(
     benchmark.addTest("Mean Calculation", [&data]() {
         for (const auto& vec : data) {
             volatile double sum = std::accumulate(vec.begin(), vec.end(), 0.0);
-            [[maybe_unused]] volatile double mean = sum / vec.size();
+            [[maybe_unused]] volatile double mean = sum / static_cast<double>(vec.size());
         }
     }, 0, static_cast<double>(data.size()));
 
     // Variance calculation benchmark
     benchmark.addTest("Variance Calculation", [&data]() {
         for (const auto& vec : data) {
-            const double mean = std::accumulate(vec.begin(), vec.end(), 0.0) / vec.size();
+            const double mean = std::accumulate(vec.begin(), vec.end(), 0.0) / static_cast<double>(vec.size());
             double sumSq = 0.0;
             for (double val : vec) {
                 const double diff = val - mean;
                 sumSq += diff * diff;
             }
-            [[maybe_unused]] volatile double variance = sumSq / vec.size();
+            [[maybe_unused]] volatile double variance = sumSq / static_cast<double>(vec.size());
         }
     }, 0, static_cast<double>(data.size()));
 
@@ -435,7 +435,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(
             }
             [[maybe_unused]] volatile double result = dotProduct;
         }
-    }, 0, data.size() / 2.0);
+    }, 0, static_cast<double>(data.size()) / 2.0);
 }
 
 //========== RegressionTester Implementation ==========
@@ -572,27 +572,27 @@ std::pair<std::size_t, std::size_t> Benchmark::getOptimalBenchmarkParams() const
     // Adjust based on CPU characteristics
     if (cpuFeatures.topology.physical_cores >= 16) {
         // High-core count systems - more iterations for stable results
-        iterations = static_cast<std::size_t>(iterations * 1.5);
-        warmupRuns = static_cast<std::size_t>(warmupRuns * 1.2);
+        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.5);
+        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.2);
     } else if (cpuFeatures.topology.physical_cores <= 4) {
         // Low-core count systems - fewer iterations to save time
-        iterations = static_cast<std::size_t>(iterations * 0.8);
-        warmupRuns = static_cast<std::size_t>(warmupRuns * 0.8);
+        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.8);
+        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 0.8);
     }
     
     // Adjust for cache characteristics
     if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) { // 16MB+
         // Large cache - can handle more iterations efficiently
-        iterations = static_cast<std::size_t>(iterations * 1.2);
+        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.2);
     } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) { // 4MB or less
         // Small cache - reduce iterations to minimize cache pressure
-        iterations = static_cast<std::size_t>(iterations * 0.9);
+        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.9);
     }
     
     // Adjust for hyperthreading
     if (cpuFeatures.topology.logical_cores > cpuFeatures.topology.physical_cores) {
         // Hyperthreading enabled - more warmup needed for stable results
-        warmupRuns = static_cast<std::size_t>(warmupRuns * 1.3);
+        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.3);
     }
     
     // Ensure minimum values

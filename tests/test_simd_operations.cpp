@@ -196,7 +196,7 @@ void test_transcendental_functions() {
             erf_values[0] = 0.0;  // Use a safe value for size=1
         } else {
             for (size_t i = 0; i < size; ++i) {
-                erf_values[i] = -2.0 + static_cast<double>(i) * 4.0 / (size - 1);
+                erf_values[i] = -2.0 + static_cast<double>(i) * 4.0 / static_cast<double>(size - 1);
             }
         }
         

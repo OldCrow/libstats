@@ -85,12 +85,12 @@ public:
 class StatisticalTestUtils {
 public:
     static std::pair<double, double> calculateSampleStats(const std::vector<double>& samples) {
-        double mean = std::accumulate(samples.begin(), samples.end(), 0.0) / samples.size();
+        double mean = std::accumulate(samples.begin(), samples.end(), 0.0) / static_cast<double>(samples.size());
         double variance = 0.0;
         for (double x : samples) {
             variance += (x - mean) * (x - mean);
         }
-        variance /= samples.size();
+        variance /= static_cast<double>(samples.size());
         return {mean, variance};
     }
     

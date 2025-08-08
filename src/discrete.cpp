@@ -1790,8 +1790,8 @@ std::vector<std::tuple<double, double, double>> DiscreteDistribution::kFoldCross
             log_likelihood += fold_dist.getLogProbability(test_point);
         }
         
-        const double mae = mean_error / test_data.size();
-        const double rmse = std::sqrt(sum_squared_error / test_data.size());
+        const double mae = mean_error / static_cast<double>(test_data.size());
+        const double rmse = std::sqrt(sum_squared_error / static_cast<double>(test_data.size()));
         
         results.emplace_back(mae, rmse, log_likelihood);
     }
@@ -1840,8 +1840,8 @@ std::tuple<double, double, double> DiscreteDistribution::leaveOneOutCrossValidat
         total_log_likelihood += fold_dist.getLogProbability(test_point);
     }
     
-    const double mean_absolute_error = total_absolute_error / n;
-    const double root_mean_squared_error = std::sqrt(total_squared_error / n);
+    const double mean_absolute_error = total_absolute_error / static_cast<double>(n);
+    const double root_mean_squared_error = std::sqrt(total_squared_error / static_cast<double>(n));
     
     return std::make_tuple(mean_absolute_error, root_mean_squared_error, total_log_likelihood);
 }
@@ -2001,7 +2001,7 @@ std::tuple<double, double, double, double> DiscreteDistribution::computeInformat
     // AICc (corrected AIC for small samples)
     double aicc;
     if (n > k + 1) {
-        aicc = aic + (2.0 * k * (k + 1)) / (n - k - 1);
+        aicc = aic + (2.0 * k * (k + 1)) / (static_cast<double>(n) - k - 1);
     } else {
         aicc = std::numeric_limits<double>::infinity(); // AICc undefined for small samples
     }
@@ -2205,7 +2205,7 @@ std::pair<int, int> DiscreteDistribution::confidenceIntervalLowerBound(
     // This is a simplified approximation
     const size_t n = int_data.size();
     const double alpha = 1.0 - confidence_level;
-    const int margin = static_cast<int>(std::ceil(alpha * n / 2.0));
+    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));
     
     const int lower_bound = std::max(0, observed_min - margin);
     const int upper_bound = observed_min + margin;
@@ -2243,7 +2243,7 @@ std::pair<int, int> DiscreteDistribution::confidenceIntervalUpperBound(
     // This is a simplified approximation
     const size_t n = int_data.size();
     const double alpha = 1.0 - confidence_level;
-    const int margin = static_cast<int>(std::ceil(alpha * n / 2.0));
+    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));
     
     const int lower_bound = observed_max - margin;
     const int upper_bound = observed_max + margin;
@@ -2411,7 +2411,7 @@ std::pair<int, int> DiscreteDistribution::robustEstimation(
         }
     } else if (estimator_type == "frequency_trim") {
         // Trim extreme values based on frequency
-        const size_t trim_count = static_cast<size_t>(trim_proportion * n);
+        const size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(n));
         if (trim_count < n) {
             filtered_data.assign(int_data.begin() + trim_count, int_data.end() - trim_count);
         } else {
@@ -2454,8 +2454,8 @@ std::pair<int, int> DiscreteDistribution::methodOfMomentsEstimation(const std::v
         throw std::invalid_argument("No valid integer values in data");
     }
     
-    const double sample_mean = sum / valid_count;
-    const double sample_variance = (sum_squares / valid_count) - (sample_mean * sample_mean);
+    const double sample_mean = sum / static_cast<double>(valid_count);
+    const double sample_variance = (sum_squares / static_cast<double>(valid_count)) - (sample_mean * sample_mean);
     
     // For discrete uniform distribution U(a,b):
     // Mean = (a + b) / 2
@@ -2534,7 +2534,7 @@ std::pair<int, int> DiscreteDistribution::lMomentsEstimation(const std::vector<d
     for (int val : int_data) {
         l1 += val;
     }
-    l1 /= n;
+    l1 /= static_cast<double>(n);
     
     // L2 (scale) = half the mean absolute difference
     double l2 = 0.0;
@@ -2543,7 +2543,7 @@ std::pair<int, int> DiscreteDistribution::lMomentsEstimation(const std::vector<d
             l2 += std::abs(int_data[i] - int_data[j]);
         }
     }
-    l2 /= (2.0 * n * n);
+    l2 /= (2.0 * static_cast<double>(n) * static_cast<double>(n));
     
     // For discrete uniform distribution:
     // L1 = (a + b) / 2

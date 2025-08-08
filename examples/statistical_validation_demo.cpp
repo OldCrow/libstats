@@ -98,7 +98,7 @@ int main() {
             total_mae += mae;
             total_loglik += loglik;
         }
-        std::cout << "   → Average MAE: " << (total_mae / cv_results.size()) << std::endl;
+        std::cout << "   → Average MAE: " << (total_mae / static_cast<double>(cv_results.size())) << std::endl;
         std::cout << "   → Total Log-Likelihood: " << total_loglik << std::endl;
         
         // Test 4: Leave-one-out cross-validation (smaller dataset for speed)

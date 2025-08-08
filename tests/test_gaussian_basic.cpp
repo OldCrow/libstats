@@ -292,7 +292,7 @@ int main() {
         StandardizedBasicTest::printLargeBatchValidation(large_output[0], large_output[4999], "Auto-dispatch PDF (diverse data)");
         
         cout << "Large batch auto-dispatch time: " << large_auto_time << "μs, Traditional: " << large_trad_time << "μs" << endl;
-        double speedup = (double)large_trad_time / large_auto_time;
+        double speedup = static_cast<double>(large_trad_time) / static_cast<double>(large_auto_time);
         cout << "Speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
         cout << "Strategy selected: SIMD_BATCH or PARALLEL_SIMD (expected for batch size=" << large_size << ")" << endl;
         

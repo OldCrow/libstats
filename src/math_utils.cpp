@@ -362,7 +362,7 @@ std::vector<double> empirical_cdf(std::span<const double> data) {
     std::sort(sorted_data.begin(), sorted_data.end());
     std::vector<double> cdf(sorted_data.size());
     for (std::size_t i = 0; i < sorted_data.size(); ++i) {
-        cdf[i] = static_cast<double>(i + 1) / sorted_data.size();
+        cdf[i] = static_cast<double>(i + 1) / static_cast<double>(sorted_data.size());
     }
     return cdf;
 }
@@ -390,14 +390,14 @@ std::vector<double> calculate_quantiles(std::span<const double> data, std::span<
             result.push_back(sorted_data.back());
         } else {
             // Use linear interpolation between data points
-            double pos = q * (sorted_data.size() - 1);
+            double pos = q * static_cast<double>(sorted_data.size() - 1);
             std::size_t lower_idx = static_cast<std::size_t>(std::floor(pos));
             std::size_t upper_idx = static_cast<std::size_t>(std::ceil(pos));
             
             if (lower_idx == upper_idx) {
                 result.push_back(sorted_data[lower_idx]);
             } else {
-                double weight = pos - lower_idx;
+                double weight = pos - static_cast<double>(lower_idx);
                 double interpolated = sorted_data[lower_idx] * (1.0 - weight) + 
                                     sorted_data[upper_idx] * weight;
                 result.push_back(interpolated);
@@ -423,7 +423,7 @@ std::array<double, 4> sample_moments(std::span<const double> data) {
         }
         sum += x;
     }
-    double mean = sum / n;
+    double mean = sum / static_cast<double>(n);
     
     // Calculate central moments
     double m2 = 0.0, m3 = 0.0, m4 = 0.0;
@@ -438,12 +438,12 @@ std::array<double, 4> sample_moments(std::span<const double> data) {
         m4 += diff4;
     }
     
-    m2 /= n;
-    m3 /= n;
-    m4 /= n;
+    m2 /= static_cast<double>(n);
+    m3 /= static_cast<double>(n);
+    m4 /= static_cast<double>(n);
     
     // Calculate variance (sample variance with Bessel's correction)
-    double variance = (n > 1) ? (m2 * n) / (n - 1) : m2;
+    double variance = (n > 1) ? (m2 * static_cast<double>(n)) / static_cast<double>(n - 1) : m2;
     
     // Calculate skewness and kurtosis
     double skewness = std::numeric_limits<double>::quiet_NaN();
@@ -521,7 +521,7 @@ double calculate_ad_statistic(const std::vector<double>& data, const Distributio
         double log_F_xi = std::log(F_xi);
         double log_one_minus_F_xi = std::log(1.0 - F_xi);
 
-        ad_sum += (2 * static_cast<double>(i) + 1) * log_F_xi + (2 * (n - i) - 1) * log_one_minus_F_xi;
+        ad_sum += (2 * static_cast<double>(i) + 1) * log_F_xi + (2 * static_cast<double>(n) - static_cast<double>(i) - 1) * log_one_minus_F_xi;
     }
     
     return -n - ad_sum / n;

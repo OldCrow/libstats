@@ -138,7 +138,7 @@ private:
             
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            times.push_back(duration.count() / 1000.0); // Convert to microseconds
+            times.push_back(static_cast<double>(duration.count()) / 1000.0); // Convert to microseconds
         }
         
         // Return median time
@@ -181,11 +181,11 @@ private:
             
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            times.push_back(duration.count() / 1000.0);
+            times.push_back(static_cast<double>(duration.count()) / 1000.0);
         }
         
         // Use the sinks to prevent the compiler from optimizing away the entire loops
-        if (sink_double < -1e9 || sink_size > 1e9) {
+        if (sink_double < -1e9 || static_cast<double>(sink_size) > 1e9) {
             std::cout << "Impossible sink values" << std::endl;
         }
         
@@ -220,7 +220,7 @@ private:
             
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            times.push_back(duration.count() / 1000.0);
+            times.push_back(static_cast<double>(duration.count()) / 1000.0);
         }
         
         std::sort(times.begin(), times.end());
@@ -253,7 +253,7 @@ private:
             sink += result; // Force use of result
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            times.push_back(duration.count() / 1000.0);
+            times.push_back(static_cast<double>(duration.count()) / 1000.0);
         }
         
         std::sort(times.begin(), times.end());

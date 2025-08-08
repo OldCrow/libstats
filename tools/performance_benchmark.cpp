@@ -255,7 +255,7 @@ private:
             auto end = std::chrono::high_resolution_clock::now();
             
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            times.push_back(duration.count() / 1000.0); // Convert to microseconds
+            times.push_back(static_cast<double>(duration.count()) / 1000.0); // Convert to microseconds
         }
         
         // Return median time

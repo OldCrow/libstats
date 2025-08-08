@@ -524,7 +524,7 @@ std::pair<double, double> GammaDistribution::confidenceIntervalRate(
     
     // For rate parameter β, use asymptotic normality
     // Variance of MLE for β is approximately β²/(n*α)
-    double se_beta = beta_hat / std::sqrt(n * mle_estimates.first);
+    double se_beta = beta_hat / std::sqrt(static_cast<double>(n) * mle_estimates.first);
     double margin = std::sqrt(chi2_critical / 2.0) * se_beta;
     
     double lower_bound = std::max(0.001, beta_hat - margin);
@@ -563,8 +563,8 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
     }
     
     // Log-likelihood under null hypothesis H0: (α₀, β₀)
-    double log_likelihood_null = n * null_shape * std::log(null_rate) 
-                               - n * std::lgamma(null_shape)
+    double log_likelihood_null = static_cast<double>(n) * null_shape * std::log(null_rate) 
+                               - static_cast<double>(n) * std::lgamma(null_shape)
                                + (null_shape - 1.0) * sum_log_x
                                - null_rate * sum_x;
     
@@ -574,8 +574,8 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
     double beta_hat = mle_estimates.second;
     
     // Log-likelihood under alternative hypothesis H1: (α̂, β̂)
-    double log_likelihood_alt = n * alpha_hat * std::log(beta_hat)
-                              - n * std::lgamma(alpha_hat)
+    double log_likelihood_alt = static_cast<double>(n) * alpha_hat * std::log(beta_hat)
+                              - static_cast<double>(n) * std::lgamma(alpha_hat)
                               + (alpha_hat - 1.0) * sum_log_x
                               - beta_hat * sum_x;
     
@@ -653,16 +653,16 @@ std::tuple<double, double, double, double> GammaDistribution::bayesianEstimation
     
     // Combine prior and data information using weighted averages
     // Weight by effective sample sizes
-    [[maybe_unused]] double effective_n_alpha = n + prior_shape_shape;
-    [[maybe_unused]] double effective_n_beta = n + prior_rate_shape;
+    [[maybe_unused]] double effective_n_alpha = static_cast<double>(n) + prior_shape_shape;
+    [[maybe_unused]] double effective_n_beta = static_cast<double>(n) + prior_rate_shape;
     
     // Posterior shape parameter (α) - approximate Bayesian update
-    double posterior_alpha_shape = prior_shape_shape + n * alpha_estimate;
-    double posterior_alpha_rate = prior_shape_rate + n;
+    double posterior_alpha_shape = prior_shape_shape + static_cast<double>(n) * alpha_estimate;
+    double posterior_alpha_rate = prior_shape_rate + static_cast<double>(n);
     
     // Posterior rate parameter (β) - approximate Bayesian update
-    double posterior_beta_shape = prior_rate_shape + n * beta_estimate;
-    double posterior_beta_rate = prior_rate_rate + n;
+    double posterior_beta_shape = prior_rate_shape + static_cast<double>(n) * beta_estimate;
+    double posterior_beta_rate = prior_rate_rate + static_cast<double>(n);
     
     // Return posterior hyperparameters: (α_shape, α_rate, β_shape, β_rate)
     return std::make_tuple(posterior_alpha_shape, posterior_alpha_rate,
@@ -690,7 +690,7 @@ std::pair<double, double> GammaDistribution::robustEstimation(
     
     if (estimator_type == "trimmed") {
         // Trimmed estimator: remove extreme values
-        size_t trim_count = static_cast<size_t>(trim_proportion * data.size());
+        size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(data.size()));
         if (trim_count * 2 >= data.size()) {
             throw std::invalid_argument("Trim proportion too large");
         }
@@ -701,7 +701,7 @@ std::pair<double, double> GammaDistribution::robustEstimation(
     else if (estimator_type == "winsorized") {
         // Winsorized estimator: replace extreme values with less extreme ones
         processed_data = sorted_data;
-        size_t trim_count = static_cast<size_t>(trim_proportion * data.size());
+        size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(data.size()));
         
         if (trim_count > 0 && trim_count * 2 < data.size()) {
             double lower_bound = sorted_data[trim_count];
@@ -716,8 +716,8 @@ std::pair<double, double> GammaDistribution::robustEstimation(
     else if (estimator_type == "quantile") {
         // Quantile-based estimator: use interquartile range
         processed_data = sorted_data;
-        size_t q1_idx = static_cast<size_t>(0.25 * data.size());
-        size_t q3_idx = static_cast<size_t>(0.75 * data.size());
+        size_t q1_idx = static_cast<size_t>(0.25 * static_cast<double>(data.size()));
+        size_t q3_idx = static_cast<size_t>(0.75 * static_cast<double>(data.size()));
         
         if (q3_idx > q1_idx) {
             processed_data.assign(sorted_data.begin() + q1_idx, 
@@ -752,7 +752,7 @@ std::pair<double, double> GammaDistribution::methodOfMomentsEstimation(
     size_t n = data.size();
     
     // Calculate sample mean
-    double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     
     // Calculate sample variance
     double sum_sq_diff = 0.0;
@@ -760,7 +760,7 @@ std::pair<double, double> GammaDistribution::methodOfMomentsEstimation(
         double diff = value - sample_mean;
         sum_sq_diff += diff * diff;
     }
-    double sample_variance = sum_sq_diff / (n - 1);
+    double sample_variance = sum_sq_diff / static_cast<double>(n - 1);
     
     if (sample_variance <= 0.0) {
         throw std::invalid_argument("Sample variance must be positive");
@@ -848,12 +848,12 @@ std::pair<double, double> GammaDistribution::lMomentsEstimation(
     
     // Calculate L-moments (first two)
     // L1 (L-mean) = mean of order statistics
-    double L1 = std::accumulate(sorted_data.begin(), sorted_data.end(), 0.0) / n;
+    double L1 = std::accumulate(sorted_data.begin(), sorted_data.end(), 0.0) / static_cast<double>(n);
     
     // L2 (L-scale) = expectation of (X(2) - X(1)) for sample size 2
     double L2 = 0.0;
     for (size_t i = 0; i < n; ++i) {
-        double weight = (2.0 * i - n + 1.0) / n;
+        double weight = (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);
         L2 += weight * sorted_data[i];
     }
     L2 /= 2.0;
@@ -894,14 +894,14 @@ std::tuple<double, double, bool> GammaDistribution::normalApproximationTest(
 
     size_t n = data.size();
     double normal_mean = alpha_hat;
-    double normal_var = alpha_hat / n;
+    double normal_var = alpha_hat / static_cast<double>(n);
     double normal_sd = std::sqrt(normal_var);
 
     double threshold_z = math::inverse_normal_cdf(1.0 - significance_level / 2.0);
     double lower_bound = normal_mean - threshold_z * normal_sd;
     double upper_bound = normal_mean + threshold_z * normal_sd;
 
-    double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
 
     bool reject_null = (sample_mean < lower_bound || sample_mean > upper_bound);
 
@@ -1045,8 +1045,8 @@ std::vector<std::tuple<double, double, double>> GammaDistribution::kFoldCrossVal
         }
         
         // Calculate MAE and RMSE
-        const double mae = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / absolute_errors.size();
-        const double mse = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / squared_errors.size();
+        const double mae = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / static_cast<double>(absolute_errors.size());
+        const double mse = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / static_cast<double>(squared_errors.size());
         const double rmse = std::sqrt(mse);
         
         results.emplace_back(mae, rmse, log_likelihood);
@@ -1091,8 +1091,8 @@ std::tuple<double, double, double> GammaDistribution::leaveOneOutCrossValidation
     }
 
     // Calculate summary statistics
-    const double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / n;
-    const double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / n;
+    const double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / static_cast<double>(n);
+    const double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / static_cast<double>(n);
     const double root_mean_squared_error = std::sqrt(mean_squared_error);
 
     return std::make_tuple(mean_absolute_error, root_mean_squared_error, total_log_likelihood);
@@ -1121,10 +1121,10 @@ std::tuple<double, double, double, double> GammaDistribution::computeInformation
     double aic = 2 * k - 2 * log_likelihood;
 
     // BIC (Bayesian Information Criterion)
-    double bic = k * std::log(n) - 2 * log_likelihood;
+    double bic = k * std::log(static_cast<double>(n)) - 2 * log_likelihood;
 
     // AICc (Corrected AIC for small sample sizes)
-    double aicc = aic + (2 * k * (k + 1)) / (n - k - 1);
+    double aicc = aic + (2 * k * (k + 1)) / static_cast<double>(n - k - 1);
 
     return std::make_tuple(aic, bic, aicc, log_likelihood);
 }
@@ -1175,8 +1175,8 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> GammaDistributi
 
     // Calculate confidence intervals using percentile method
     double alpha_level = (1.0 - confidence_level) / 2.0;
-    size_t lower_idx = static_cast<size_t>(alpha_level * bootstrap_alphas.size());
-    size_t upper_idx = static_cast<size_t>((1.0 - alpha_level) * bootstrap_alphas.size()) - 1;
+    size_t lower_idx = static_cast<size_t>(alpha_level * static_cast<double>(bootstrap_alphas.size()));
+    size_t upper_idx = static_cast<size_t>((1.0 - alpha_level) * static_cast<double>(bootstrap_alphas.size())) - 1;
 
     double alpha_lower = bootstrap_alphas[lower_idx];
     double alpha_upper = bootstrap_alphas[upper_idx];
@@ -2155,8 +2155,8 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
         sum_log_x += std::log(x);
     }
     
-    double mean_x = sum_x / n;
-    double mean_log_x = sum_log_x / n;
+    double mean_x = sum_x / static_cast<double>(n);
+    double mean_log_x = sum_log_x / static_cast<double>(n);
     
     // Initial guess using method of moments
     double s = std::log(mean_x) - mean_log_x;

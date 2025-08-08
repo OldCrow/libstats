@@ -294,73 +294,73 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
     // Refine SIMD thresholds based on efficiency
     if (simd_efficiency < 0.8) {
         // SIMD is inefficient, raise thresholds
-        simd_min = static_cast<size_t>(simd_min * (1.5 / simd_efficiency));
+        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * (1.5 / simd_efficiency));
         
         // Also raise distribution-specific parallel thresholds
-        uniform_parallel_min = static_cast<size_t>(uniform_parallel_min * 1.5);
-        gaussian_parallel_min = static_cast<size_t>(gaussian_parallel_min * 1.5);
-        exponential_parallel_min = static_cast<size_t>(exponential_parallel_min * 1.5);
-        discrete_parallel_min = static_cast<size_t>(discrete_parallel_min * 1.5);
-        poisson_parallel_min = static_cast<size_t>(poisson_parallel_min * 1.5);
-        gamma_parallel_min = static_cast<size_t>(gamma_parallel_min * 1.5);
+        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 1.5);
+        gaussian_parallel_min = static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 1.5);
+        exponential_parallel_min = static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 1.5);
+        discrete_parallel_min = static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 1.5);
+        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 1.5);
+        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);
     } else if (simd_efficiency > 1.5) {
         // SIMD is very efficient, lower thresholds
-        simd_min = static_cast<size_t>(simd_min * 0.7);
+        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * 0.7);
         
         // Lower distribution-specific thresholds
-        uniform_parallel_min = static_cast<size_t>(uniform_parallel_min * 0.8);
-        gaussian_parallel_min = static_cast<size_t>(gaussian_parallel_min * 0.8);
-        exponential_parallel_min = static_cast<size_t>(exponential_parallel_min * 0.8);
-        discrete_parallel_min = static_cast<size_t>(discrete_parallel_min * 0.8);
-        poisson_parallel_min = static_cast<size_t>(poisson_parallel_min * 0.8);
-        gamma_parallel_min = static_cast<size_t>(gamma_parallel_min * 0.8);
+        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 0.8);
+        gaussian_parallel_min = static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 0.8);
+        exponential_parallel_min = static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 0.8);
+        discrete_parallel_min = static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 0.8);
+        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 0.8);
+        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 0.8);
     }
     
     // Refine parallel thresholds based on threading overhead
     if (threading_overhead > 100000.0) {  // > 100μs overhead
         // High threading overhead, raise parallel thresholds
         double multiplier = std::min(3.0, threading_overhead / 50000.0);
-        parallel_min = static_cast<size_t>(parallel_min * multiplier);
-        work_stealing_min = static_cast<size_t>(work_stealing_min * multiplier);
+        parallel_min = static_cast<size_t>(static_cast<double>(parallel_min) * multiplier);
+        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * multiplier);
         
         // Raise distribution-specific thresholds
-        uniform_parallel_min = static_cast<size_t>(uniform_parallel_min * multiplier);
-        gaussian_parallel_min = static_cast<size_t>(gaussian_parallel_min * multiplier);
-        exponential_parallel_min = static_cast<size_t>(exponential_parallel_min * multiplier);
-        discrete_parallel_min = static_cast<size_t>(discrete_parallel_min * multiplier);
-        poisson_parallel_min = static_cast<size_t>(poisson_parallel_min * multiplier);
-        gamma_parallel_min = static_cast<size_t>(gamma_parallel_min * multiplier);
+        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * multiplier);
+        gaussian_parallel_min = static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * multiplier);
+        exponential_parallel_min = static_cast<size_t>(static_cast<double>(exponential_parallel_min) * multiplier);
+        discrete_parallel_min = static_cast<size_t>(static_cast<double>(discrete_parallel_min) * multiplier);
+        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * multiplier);
+        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * multiplier);
     } else if (threading_overhead < 10000.0) {  // < 10μs overhead
         // Low threading overhead, lower parallel thresholds
         double multiplier = std::max(0.5, threading_overhead / 20000.0);
-        parallel_min = static_cast<size_t>(parallel_min * multiplier);
-        work_stealing_min = static_cast<size_t>(work_stealing_min * multiplier);
+        parallel_min = static_cast<size_t>(static_cast<double>(parallel_min) * multiplier);
+        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * multiplier);
         
         // Lower distribution-specific thresholds
-        uniform_parallel_min = static_cast<size_t>(uniform_parallel_min * multiplier);
-        gaussian_parallel_min = static_cast<size_t>(gaussian_parallel_min * multiplier);
-        exponential_parallel_min = static_cast<size_t>(exponential_parallel_min * multiplier);
-        discrete_parallel_min = static_cast<size_t>(discrete_parallel_min * multiplier);
-        poisson_parallel_min = static_cast<size_t>(poisson_parallel_min * multiplier);
-        gamma_parallel_min = static_cast<size_t>(gamma_parallel_min * multiplier);
+        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * multiplier);
+        gaussian_parallel_min = static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * multiplier);
+        exponential_parallel_min = static_cast<size_t>(static_cast<double>(exponential_parallel_min) * multiplier);
+        discrete_parallel_min = static_cast<size_t>(static_cast<double>(discrete_parallel_min) * multiplier);
+        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * multiplier);
+        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * multiplier);
     }
     
     // Refine cache-aware thresholds based on memory bandwidth
     if (memory_bandwidth < 20.0) {
         // Low memory bandwidth, raise cache-aware threshold
-        cache_aware_min = static_cast<size_t>(cache_aware_min * 1.5);
+        cache_aware_min = static_cast<size_t>(static_cast<double>(cache_aware_min) * 1.5);
     } else if (memory_bandwidth > 100.0) {
         // High memory bandwidth, lower cache-aware threshold
-        cache_aware_min = static_cast<size_t>(cache_aware_min * 0.7);
+        cache_aware_min = static_cast<size_t>(static_cast<double>(cache_aware_min) * 0.7);
     }
     
     // Adjust work-stealing based on core count
     if (logical_cores <= 2) {
         // Few cores, raise work-stealing threshold significantly
-        work_stealing_min = static_cast<size_t>(work_stealing_min * 2.0);
+        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 2.0);
     } else if (logical_cores >= 16) {
         // Many cores, lower work-stealing threshold
-        work_stealing_min = static_cast<size_t>(work_stealing_min * 0.8);
+        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 0.8);
     }
     
     // Ensure minimums

@@ -80,7 +80,7 @@ namespace {
     std::vector<double> calculate_empirical_cdf(const std::vector<double>& sorted_data) {
         std::vector<double> ecdf(sorted_data.size());
         for (size_t i = 0; i < sorted_data.size(); ++i) {
-            ecdf[i] = static_cast<double>(i + 1) / sorted_data.size();
+            ecdf[i] = static_cast<double>(i + 1) / static_cast<double>(sorted_data.size());
         }
         return ecdf;
     }
@@ -129,7 +129,7 @@ namespace {
         z -= 1.0;
         double x = coeff[0];
         for (size_t i = 1; i < 9; ++i) {
-            x += coeff[i] / (z + i);
+            x += coeff[i] / (z + static_cast<double>(i));
         }
         
         const double t = z + g + 0.5;
@@ -376,7 +376,7 @@ KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
         
         // Calculate both D+ and D- differences
         const double diff_plus = empirical_cdf - theoretical_cdf;
-        const double diff_minus = theoretical_cdf - static_cast<double>(i) / n;
+        const double diff_minus = theoretical_cdf - static_cast<double>(i) / static_cast<double>(n);
         
         max_diff = std::max({max_diff, std::abs(diff_plus), std::abs(diff_minus)});
     }
@@ -431,10 +431,10 @@ ADTestResult anderson_darling_test(const std::vector<double>& data,
         ad_statistic += weight * (log_cdf + log_one_minus_complement);
     }
     
-    ad_statistic = -static_cast<double>(n) - ad_statistic / n;
+    ad_statistic = -static_cast<double>(n) - ad_statistic / static_cast<double>(n);
     
     // Adjust for sample size (Anderson-Darling adjustment)
-    const double adjusted_statistic = ad_statistic * (1.0 + 0.75/n + 2.25/(n*n));
+    const double adjusted_statistic = ad_statistic * (1.0 + 0.75/static_cast<double>(n) + 2.25/(static_cast<double>(n)*static_cast<double>(n)));
     
     // Calculate p-value
     const double p_value = interpolate_ad_pvalue(adjusted_statistic);
@@ -599,11 +599,11 @@ namespace {
         double max_diff = 0.0;
         
         for (size_t i = 0; i < n; ++i) {
-            const double empirical_cdf = static_cast<double>(i + 1) / n;
+            const double empirical_cdf = static_cast<double>(i + 1) / static_cast<double>(n);
             const double theoretical_cdf = distribution.getCumulativeProbability(sorted_sample[i]);
             
             const double diff_plus = empirical_cdf - theoretical_cdf;
-            const double diff_minus = theoretical_cdf - static_cast<double>(i) / n;
+            const double diff_minus = theoretical_cdf - static_cast<double>(i) / static_cast<double>(n);
             
             max_diff = std::max({max_diff, std::abs(diff_plus), std::abs(diff_minus)});
         }
@@ -636,13 +636,13 @@ namespace {
             const double log_cdf = std::log(std::max(1e-300, cdf_val));
             const double log_1_minus_cdf = std::log(std::max(1e-300, 1.0 - cdf_val));
             
-            const double term1 = (2.0 * (i + 1) - 1.0) * log_cdf;
-            const double term2 = (2.0 * (n - i) - 1.0) * log_1_minus_cdf;
+            const double term1 = (2.0 * static_cast<double>(i + 1) - 1.0) * log_cdf;
+            const double term2 = (2.0 * static_cast<double>(n - i) - 1.0) * log_1_minus_cdf;
             
             statistic += term1 + term2;
         }
         
-        return -static_cast<double>(n) - statistic / n;
+        return -static_cast<double>(n) - statistic / static_cast<double>(n);
     }
     
     /**
@@ -655,7 +655,7 @@ namespace {
     double calculate_percentile(const std::vector<double>& sorted_values, double percentile) {
         if (sorted_values.empty()) return 0.0;
         
-        const double index = (percentile / 100.0) * (sorted_values.size() - 1);
+        const double index = (percentile / 100.0) * static_cast<double>(sorted_values.size() - 1);
         const size_t lower_index = static_cast<size_t>(std::floor(index));
         const size_t upper_index = static_cast<size_t>(std::ceil(index));
         
@@ -663,7 +663,7 @@ namespace {
             return sorted_values[lower_index];
         }
         
-        const double weight = index - lower_index;
+        const double weight = index - static_cast<double>(lower_index);
         return sorted_values[lower_index] * (1.0 - weight) + sorted_values[upper_index] * weight;
     }
 }
@@ -701,7 +701,7 @@ BootstrapTestResult bootstrap_kolmogorov_smirnov_test(
                                                  return stat >= observed_statistic;
                                              });
     
-    const double bootstrap_p_value = static_cast<double>(count_greater) / num_bootstrap;
+    const double bootstrap_p_value = static_cast<double>(count_greater) / static_cast<double>(num_bootstrap);
     const bool reject_null = bootstrap_p_value < alpha;
     
     std::ostringstream interpretation;
@@ -751,7 +751,7 @@ BootstrapTestResult bootstrap_anderson_darling_test(
                                                  return stat >= observed_statistic;
                                              });
     
-    const double bootstrap_p_value = static_cast<double>(count_greater) / num_bootstrap;
+    const double bootstrap_p_value = static_cast<double>(count_greater) / static_cast<double>(num_bootstrap);
     const bool reject_null = bootstrap_p_value < alpha;
     
     std::ostringstream interpretation;
@@ -804,7 +804,7 @@ BootstrapTestResult bootstrap_parameter_test(
                                                  return stat >= observed_statistic;
                                              });
     
-    const double bootstrap_p_value = static_cast<double>(count_greater) / num_bootstrap;
+    const double bootstrap_p_value = static_cast<double>(count_greater) / static_cast<double>(num_bootstrap);
     const bool reject_null = bootstrap_p_value < alpha;
     
     std::ostringstream interpretation;
@@ -850,14 +850,14 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(
         
         // Calculate sample mean and variance
         double sum = std::accumulate(bootstrap_sample.begin(), bootstrap_sample.end(), 0.0);
-        double mean = sum / bootstrap_sample.size();
+        double mean = sum / static_cast<double>(bootstrap_sample.size());
         bootstrap_means.push_back(mean);
         
         double variance = 0.0;
         for (double value : bootstrap_sample) {
             variance += (value - mean) * (value - mean);
         }
-        variance /= (bootstrap_sample.size() - 1);
+        variance /= static_cast<double>(bootstrap_sample.size() - 1);
         bootstrap_variances.push_back(variance);
     }
     

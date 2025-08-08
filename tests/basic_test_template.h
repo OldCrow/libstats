@@ -100,7 +100,7 @@ public:
         for (double sample : samples) {
             sum += sample;
         }
-        return sum / samples.size();
+        return sum / static_cast<double>(samples.size());
     }
     
     static double computeSampleVariance(const std::vector<double>& samples) {
@@ -111,7 +111,7 @@ public:
             double diff = sample - mean;
             sumSquaredDiffs += diff * diff;
         }
-        return sumSquaredDiffs / (samples.size() - 1);
+        return sumSquaredDiffs / static_cast<double>(samples.size() - 1);
     }
     
     // Helper function to check if two values are approximately equal

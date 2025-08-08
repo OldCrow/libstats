@@ -103,7 +103,7 @@ private:
             libstats::simd::VectorOps::vector_multiply(data.data(), data.data(), result.data(), test_size);
         }
         auto end = high_resolution_clock::now();
-        double simd_time = duration_cast<microseconds>(end - start).count() / 10.0;
+        double simd_time = static_cast<double>(duration_cast<microseconds>(end - start).count()) / 10.0;
         
         // Scalar throughput
         start = high_resolution_clock::now();
@@ -113,7 +113,7 @@ private:
             }
         }
         end = high_resolution_clock::now();
-        double scalar_time = duration_cast<microseconds>(end - start).count() / 10.0;
+        double scalar_time = static_cast<double>(duration_cast<microseconds>(end - start).count()) / 10.0;
         
         std::cout << std::fixed << std::setprecision(1);
         std::cout << "SIMD Multiply Throughput: " << simd_time << " μs (" << test_size / simd_time << " MOps/s)\n";

@@ -169,7 +169,7 @@ int main() {
     std::cout << std::endl;
     
     std::cout << "\n   ⚡ Performance: Processed 16 PDFs in " << duration.count() << " nanoseconds"
-              << " (" << std::setprecision(2) << duration.count() / 16.0 << " ns per PDF)" << std::endl;
+              << " (" << std::setprecision(2) << static_cast<double>(duration.count()) / 16.0 << " ns per PDF)" << std::endl;
     std::cout << "   ✓ libstats selected optimal strategy based on data size and system capabilities" << std::endl;
     
     std::cout << "=== Example completed successfully ===" << std::endl;

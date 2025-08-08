@@ -151,7 +151,7 @@ WorkStealingPool::Statistics WorkStealingPool::getStatistics() const {
     
     const std::size_t totalStealAttempts = stats.workSteals + stats.failedSteals;
     if (totalStealAttempts > constants::math::ZERO_INT) {
-        stats.stealSuccessRate = static_cast<double>(stats.workSteals) / totalStealAttempts;
+        stats.stealSuccessRate = static_cast<double>(stats.workSteals) / static_cast<double>(totalStealAttempts);
     }
     
     return stats;

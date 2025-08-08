@@ -257,7 +257,7 @@ namespace {
                 
                 if (duration.count() > 0) {
                     // Calculate frequency: cycles per nanosecond * conversion factor = Hz
-                    double freq = static_cast<double>(cycles) / duration.count() * constants::simd::cpu::NANOSECONDS_TO_HZ;
+                    double freq = static_cast<double>(cycles) / static_cast<double>(duration.count()) * constants::simd::cpu::NANOSECONDS_TO_HZ;
                     return static_cast<uint64_t>(freq);
                 }
             #elif defined(_MSC_VER)
@@ -798,7 +798,7 @@ std::optional<uint64_t> estimate_cpu_frequency(uint32_t duration_ms) {
     
     if (duration.count() > 0) {
         // Calculate frequency: cycles per nanosecond * conversion factor = Hz
-        double freq = static_cast<double>(cycles) / duration.count() * constants::simd::cpu::NANOSECONDS_TO_HZ;
+        double freq = static_cast<double>(cycles) / static_cast<double>(duration.count()) * constants::simd::cpu::NANOSECONDS_TO_HZ;
         return static_cast<uint64_t>(freq);
     }
     

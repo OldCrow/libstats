@@ -102,8 +102,8 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
             });
         
         // Confidence increases with performance difference and number of data points
-        double performance_ratio = static_cast<double>(worst_it->second) / best_it->second;
-        double data_confidence = std::min(1.0, strategy_performance.size() / 5.0);
+        double performance_ratio = static_cast<double>(worst_it->second) / static_cast<double>(best_it->second);
+        double data_confidence = std::min(1.0, static_cast<double>(strategy_performance.size()) / 5.0);
         confidence_score = std::min(1.0, (performance_ratio - 1.0) * data_confidence);
     } else {
         confidence_score = 0.5; // Medium confidence with only one data point

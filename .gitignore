@@ -55,6 +55,7 @@ CMakeCXXCompiler.cmake
 CMakeSystem.cmake
 
 # Build directories
+build*/
 build/
 build_*/
 Build/

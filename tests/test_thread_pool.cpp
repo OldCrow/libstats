@@ -455,7 +455,7 @@ private:
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         
         // Calculate sequential mean for comparison
-        double sequentialMean = std::accumulate(data.begin(), data.end(), 0.0) / data.size();
+        double sequentialMean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(data.size());
         
         // Verify the parallel mean is close to sequential mean
         bool correct = std::abs(parallelMean - sequentialMean) < TOLERANCE;
@@ -489,7 +489,7 @@ private:
             double diff = val - sequentialMean;
             sumSquaredDiffs += diff * diff;
         }
-        double sequentialVar = sumSquaredDiffs / data.size();
+        double sequentialVar = sumSquaredDiffs / static_cast<double>(data.size());
         
         bool varCorrect = std::abs(parallelVar - sequentialVar) < 1e-6;
         std::cout << "  Parallel variance test: " << (varCorrect ? "Passed" : "Failed") << std::endl;
@@ -552,7 +552,7 @@ private:
         
         std::cout << "  Sequential time: " << sequential_duration.count() << " μs" << std::endl;
         std::cout << "  Parallel time: " << parallel_duration.count() << " μs" << std::endl;
-        std::cout << "  Speedup: " << static_cast<double>(sequential_duration.count()) / parallel_duration.count() << "x" << std::endl;
+        std::cout << "  Speedup: " << static_cast<double>(sequential_duration.count()) / static_cast<double>(parallel_duration.count()) << "x" << std::endl;
         
         // Verify both give same result
         bool correct = std::abs(sequentialSum - parallelSum) < 1e-6;
@@ -592,7 +592,7 @@ private:
         parallel_duration = std::chrono::duration_cast<std::chrono::microseconds>(parallel_end - start);
 
         // Calculate speedup
-        double largeSpeedup = static_cast<double>(sequential_duration.count()) / parallel_duration.count();
+        double largeSpeedup = static_cast<double>(sequential_duration.count()) / static_cast<double>(parallel_duration.count());
         
         std::cout << "  Large dataset sequential time: " << sequential_duration.count() << " μs" << std::endl;
         std::cout << "  Large dataset parallel time: " << parallel_duration.count() << " μs" << std::endl;
@@ -627,7 +627,7 @@ private:
             // Submit a statistical computation task
             auto future = pool.submit([]() {
                 std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0};
-                return std::accumulate(data.begin(), data.end(), 0.0) / data.size();
+                return std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(data.size());
             });
             
             double mean = future.get();
@@ -674,7 +674,7 @@ private:
             double sum = ParallelUtils::parallelReduce(0, data.size(), 0.0,
                 [&](std::size_t i) { return data[i]; },
                 [](double a, double b) { return a + b; });
-            double mean = sum / data.size();
+            double mean = sum / static_cast<double>(data.size());
             
             double expected = (1.0 + 1000.0) / 2.0;
             [[maybe_unused]] bool correct = std::abs(mean - expected) < TOLERANCE;

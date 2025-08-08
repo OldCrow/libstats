@@ -290,9 +290,9 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
         auto work_stealing_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
         // Calculate speedups
-        double simd_speedup = (double)sequential_time / simd_time;
-        double parallel_speedup = (double)sequential_time / parallel_time;
-        double ws_speedup = (double)sequential_time / work_stealing_time;
+        double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
+        double parallel_speedup = static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
+        double ws_speedup = static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
         
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
         std::cout << "  SIMD Batch: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
@@ -384,7 +384,7 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     end = std::chrono::high_resolution_clock::now();
     auto second_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     
-    double cache_speedup = (double)first_time / second_time;
+    double cache_speedup = static_cast<double>(first_time) / static_cast<double>(second_time);
     
     std::cout << "  First getter calls (cache miss): " << first_time << "ns\n";
     std::cout << "  Second getter calls (cache hit): " << second_time << "ns\n";
@@ -437,7 +437,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
         std::vector<double> auto_logpmf_results(batch_size);
         std::vector<double> auto_cdf_results(batch_size);
         
-        std::mt19937 gen(42 + i);
+        std::mt19937 gen(42 + static_cast<unsigned int>(i));
         std::uniform_int_distribution<> dis(1, 6);
         for (size_t j = 0; j < batch_size; ++j) {
             test_values[j] = static_cast<double>(dis(gen));
@@ -651,9 +651,9 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.cache_aware_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
         // Calculate speedups
-        result.parallel_speedup = (double)result.simd_time_us / result.parallel_time_us;
-        result.work_stealing_speedup = (double)result.simd_time_us / result.work_stealing_time_us;
-        result.cache_aware_speedup = (double)result.simd_time_us / result.cache_aware_time_us;
+        result.parallel_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
+        result.work_stealing_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.work_stealing_time_us);
+        result.cache_aware_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.cache_aware_time_us);
         
         benchmark_results.push_back(result);
         

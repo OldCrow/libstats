@@ -250,7 +250,7 @@ private:
             performOperation(dist, input_span, output_span, operation, "simd");
         }
         auto serial_end = high_resolution_clock::now();
-        result.simd_time_us = duration_cast<microseconds>(serial_end - serial_start).count() / double(TIMING_ITERATIONS);
+        result.simd_time_us = static_cast<double>(duration_cast<microseconds>(serial_end - serial_start).count()) / static_cast<double>(TIMING_ITERATIONS);
         
         // Benchmark True Serial (element by element)
         auto true_serial_start = high_resolution_clock::now();
@@ -258,7 +258,7 @@ private:
             performOperation(dist, input_span, output_span, operation, "serial");
         }
         auto true_serial_end = high_resolution_clock::now();
-        result.serial_time_us = duration_cast<microseconds>(true_serial_end - true_serial_start).count() / double(TIMING_ITERATIONS);
+        result.serial_time_us = static_cast<double>(duration_cast<microseconds>(true_serial_end - true_serial_start).count()) / static_cast<double>(TIMING_ITERATIONS);
         
         // Benchmark Parallel
         auto parallel_start = high_resolution_clock::now();
@@ -266,7 +266,7 @@ private:
             performOperation(dist, input_span, output_span, operation, "parallel");
         }
         auto parallel_end = high_resolution_clock::now();
-        result.parallel_time_us = duration_cast<microseconds>(parallel_end - parallel_start).count() / double(TIMING_ITERATIONS);
+        result.parallel_time_us = static_cast<double>(duration_cast<microseconds>(parallel_end - parallel_start).count()) / static_cast<double>(TIMING_ITERATIONS);
         
         // Calculate speedups
         result.parallel_speedup = result.simd_time_us / result.parallel_time_us;

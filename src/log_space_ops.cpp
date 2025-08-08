@@ -30,7 +30,7 @@ void LogSpaceOps::initialize() {
     constexpr double step = (x_max - x_min) / (LOOKUP_TABLE_SIZE - 1);
     
     for (std::size_t i = 0; i < LOOKUP_TABLE_SIZE; ++i) {
-        double x = x_min + i * step;
+        double x = x_min + static_cast<double>(i) * step;
         logOnePlusExpTable_[i] = std::log1p(std::exp(x));
     }
     
@@ -175,7 +175,7 @@ double LogSpaceOps::lookupLogOnePlusExp(double x) noexcept {
     }
     
     // Linear interpolation
-    const double frac = index_real - index_low;
+    const double frac = index_real - static_cast<double>(index_low);
     const double low_val = logOnePlusExpTable_[index_low];
     const double high_val = logOnePlusExpTable_[index_high];
     

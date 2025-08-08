@@ -76,7 +76,7 @@ CacheMonitor::PerformanceTrend CacheMonitor::analyzeTrends(std::chrono::seconds 
         hit_rates.push_back(metrics.hit_rate.load());
         
         double mem_eff = metrics.memory_usage.load() > constants::math::ZERO_INT ? 
-            static_cast<double>(metrics.hits.load()) / metrics.memory_usage.load() : constants::math::ZERO_DOUBLE;
+            static_cast<double>(metrics.hits.load()) / static_cast<double>(metrics.memory_usage.load()) : constants::math::ZERO_DOUBLE;
         memory_effs.push_back(mem_eff);
         
         access_times.push_back(metrics.average_access_time.load());
@@ -241,7 +241,7 @@ std::vector<CacheAdvisor::OptimizationRecommendation> CacheAdvisor::analyzeAndRe
     std::vector<OptimizationRecommendation> recommendations;
     
     double hit_rate = metrics.hit_rate.load();
-    double memory_usage_mb = metrics.memory_usage.load() / (1024.0 * 1024.0);
+    double memory_usage_mb = static_cast<double>(metrics.memory_usage.load()) / (1024.0 * 1024.0);
     double prefetch_effectiveness = metrics.getPrefetchEffectiveness();
     
     // Analyze hit rate
@@ -252,7 +252,7 @@ std::vector<CacheAdvisor::OptimizationRecommendation> CacheAdvisor::analyzeAndRe
         rec.expected_improvement = 0.3;
         rec.priority = 8;
         recommendations.push_back(rec);
-    } else if (hit_rate > 0.95 && memory_usage_mb > memory_info.available_cache_mb) {
+    } else if (hit_rate > 0.95 && memory_usage_mb > static_cast<double>(memory_info.available_cache_mb)) {
         OptimizationRecommendation rec;
         rec.action = OptimizationRecommendation::Action::DECREASE_SIZE;
         rec.description = "Very high hit rate with high memory usage. Cache can be reduced.";
@@ -282,7 +282,7 @@ std::vector<CacheAdvisor::OptimizationRecommendation> CacheAdvisor::analyzeAndRe
     size_t evictions = metrics.evictions.load();
     size_t total_accesses = metrics.hits.load() + metrics.misses.load();
     double eviction_rate = total_accesses > 0 ? 
-        static_cast<double>(evictions) / total_accesses : 0.0;
+        static_cast<double>(evictions) / static_cast<double>(total_accesses) : 0.0;
     
     if (eviction_rate > 0.1) {  // High eviction rate
         OptimizationRecommendation rec;
@@ -294,7 +294,7 @@ std::vector<CacheAdvisor::OptimizationRecommendation> CacheAdvisor::analyzeAndRe
     }
     
     // Memory pressure response
-    if (memory_info.high_pressure && memory_usage_mb > memory_info.available_cache_mb * 0.8) {
+    if (memory_info.high_pressure && memory_usage_mb > static_cast<double>(memory_info.available_cache_mb) * 0.8) {
         OptimizationRecommendation rec;
         rec.action = OptimizationRecommendation::Action::CHANGE_EVICTION_POLICY;
         rec.description = "High memory pressure. Consider more aggressive eviction policy.";
@@ -439,24 +439,24 @@ AdaptiveCacheConfig createPatternAwareConfig(const AccessPatternAnalyzer::Patter
     switch (pattern_info.type) {
         case AccessPatternAnalyzer::PatternType::SEQUENTIAL:
             // Sequential patterns benefit from larger caches and longer TTL
-            config.max_cache_size = static_cast<size_t>(config.max_cache_size * constants::cache::patterns::SEQUENTIAL_SIZE_MULTIPLIER);
-            config.max_memory_bytes = static_cast<size_t>(config.max_memory_bytes * constants::cache::patterns::SEQUENTIAL_SIZE_MULTIPLIER);
-            config.ttl = std::chrono::milliseconds(static_cast<long>(config.ttl.count() * 1.5));
+            config.max_cache_size = static_cast<size_t>(static_cast<double>(config.max_cache_size) * constants::cache::patterns::SEQUENTIAL_SIZE_MULTIPLIER);
+            config.max_memory_bytes = static_cast<size_t>(static_cast<double>(config.max_memory_bytes) * constants::cache::patterns::SEQUENTIAL_SIZE_MULTIPLIER);
+            config.ttl = std::chrono::milliseconds(static_cast<long>(static_cast<double>(config.ttl.count()) * 1.5));
             config.enable_prefetching = true;
             config.prefetch_queue_size *= 2;  // More aggressive prefetching
             break;
             
         case AccessPatternAnalyzer::PatternType::RANDOM:
             // Random patterns benefit from smaller, faster caches
-            config.max_cache_size = static_cast<size_t>(config.max_cache_size * constants::cache::patterns::RANDOM_SIZE_MULTIPLIER);
-            config.max_memory_bytes = static_cast<size_t>(config.max_memory_bytes * constants::cache::patterns::RANDOM_SIZE_MULTIPLIER);
+            config.max_cache_size = static_cast<size_t>(static_cast<double>(config.max_cache_size) * constants::cache::patterns::RANDOM_SIZE_MULTIPLIER);
+            config.max_memory_bytes = static_cast<size_t>(static_cast<double>(config.max_memory_bytes) * constants::cache::patterns::RANDOM_SIZE_MULTIPLIER);
             config.eviction_threshold *= 0.9;  // More aggressive eviction
             config.enable_prefetching = false; // Prefetching less effective for random access
             break;
             
         case AccessPatternAnalyzer::PatternType::MIXED:
             // Mixed patterns use default configuration with some tuning
-            config.max_cache_size = static_cast<size_t>(config.max_cache_size * constants::cache::patterns::MIXED_SIZE_MULTIPLIER);
+            config.max_cache_size = static_cast<size_t>(static_cast<double>(config.max_cache_size) * constants::cache::patterns::MIXED_SIZE_MULTIPLIER);
             config.enable_prefetching = pattern_info.locality_score > 0.5; // Enable if good locality
             break;
             
@@ -469,11 +469,11 @@ AdaptiveCacheConfig createPatternAwareConfig(const AccessPatternAnalyzer::Patter
     // Adjust based on locality score
     if (pattern_info.locality_score > 0.8) {
         // High locality - extend TTL and enable background optimization
-        config.ttl = std::chrono::milliseconds(static_cast<long>(config.ttl.count() * 1.3));
+        config.ttl = std::chrono::milliseconds(static_cast<long>(static_cast<double>(config.ttl.count()) * 1.3));
         config.enable_background_optimization = true;
     } else if (pattern_info.locality_score < 0.3) {
         // Low locality - shorter TTL and more aggressive eviction
-        config.ttl = std::chrono::milliseconds(static_cast<long>(config.ttl.count() * 0.7));
+        config.ttl = std::chrono::milliseconds(static_cast<long>(static_cast<double>(config.ttl.count()) * 0.7));
         config.eviction_threshold *= 0.85;
     }
     
@@ -514,7 +514,7 @@ AccessPatternAnalyzer::PatternInfo AccessPatternAnalyzer::analyzePattern() const
         }
     }
     
-    info.sequential_ratio = static_cast<double>(sequential_pairs) / total_pairs;
+    info.sequential_ratio = static_cast<double>(sequential_pairs) / static_cast<double>(total_pairs);
     
     // Calculate locality score (how often recent keys are re-accessed)
     size_t recent_reaccess = 0;
@@ -527,7 +527,7 @@ AccessPatternAnalyzer::PatternInfo AccessPatternAnalyzer::analyzePattern() const
         }
     }
     
-    info.locality_score = window_size > 0 ? static_cast<double>(recent_reaccess) / window_size : 0.0;
+    info.locality_score = window_size > 0 ? static_cast<double>(recent_reaccess) / static_cast<double>(window_size) : 0.0;
     
     // Determine pattern type
     if (info.sequential_ratio >= constants::cache::patterns::SEQUENTIAL_PATTERN_THRESHOLD) {

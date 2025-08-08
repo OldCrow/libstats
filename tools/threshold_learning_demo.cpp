@@ -101,7 +101,7 @@ private:
                 // Simulate different strategies with realistic performance patterns
                 
                 // Scalar strategy - consistent but slower for large sizes
-                auto scalar_time = static_cast<uint64_t>(size * 10 * noise(rng_));
+                auto scalar_time = static_cast<uint64_t>(static_cast<double>(size) * 10.0 * noise(rng_));
                 history.recordPerformance(
                     performance::Strategy::SCALAR, 
                     performance::DistributionType::GAUSSIAN, 
@@ -110,7 +110,7 @@ private:
                 );
                 
                 // SIMD strategy - good for medium sizes
-                auto simd_time = static_cast<uint64_t>(size * 3 * noise(rng_));
+                auto simd_time = static_cast<uint64_t>(static_cast<double>(size) * 3.0 * noise(rng_));
                 if (size < 10000) {
                     simd_time += 500; // SIMD overhead for small sizes
                 }
@@ -122,7 +122,7 @@ private:
                 );
                 
                 // Parallel strategy - best for large sizes but has overhead
-                auto parallel_time = static_cast<uint64_t>(size * 2 * noise(rng_));
+                auto parallel_time = static_cast<uint64_t>(static_cast<double>(size) * 2.0 * noise(rng_));
                 if (size < 1000) {
                     parallel_time += 5000; // High parallel overhead for small sizes
                 }

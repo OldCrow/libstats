@@ -405,9 +405,9 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         }
         
         // Calculate speedups
-        double simd_speedup = (double)sequential_time / simd_time;
-        double parallel_speedup = (double)sequential_time / parallel_time;
-        double ws_speedup = (double)sequential_time / work_stealing_time;
+        double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
+        double parallel_speedup = static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
+        double ws_speedup = static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
         
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
         std::cout << "  SIMD Batch: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
@@ -462,7 +462,7 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
         std::vector<double> auto_results(batch_size);
         std::vector<double> traditional_results(batch_size);
         
-        std::mt19937 gen(42 + i);
+        std::mt19937 gen(42 + static_cast<unsigned int>(i));
         std::uniform_real_distribution<> dis(0.1, 5.0);
         for (size_t j = 0; j < batch_size; ++j) {
             test_values[j] = dis(gen);
@@ -499,7 +499,7 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
         if (traditional_time == 0) {
             EXPECT_LT(auto_time, 100) << "Auto-dispatch should complete quickly for small batches (batch size " << batch_size << ")";
         } else {
-            double performance_ratio = (double)auto_time / traditional_time;
+            double performance_ratio = static_cast<double>(auto_time) / static_cast<double>(traditional_time);
             if (batch_size <= 100) {
                 EXPECT_LT(performance_ratio, 10.0) << "Auto-dispatch should be reasonable for small batches (batch size " << batch_size << ")";
             } else {
@@ -536,7 +536,7 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     end = std::chrono::high_resolution_clock::now();
     auto second_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     
-    double cache_speedup = (double)first_time / second_time;
+    double cache_speedup = static_cast<double>(first_time) / static_cast<double>(second_time);
     
     std::cout << "  First getter calls (cache miss): " << first_time << "ns\n";
     std::cout << "  Second getter calls (cache hit): " << second_time << "ns\n";
@@ -722,9 +722,9 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.cache_aware_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
         // Calculate speedups
-        result.parallel_speedup = result.simd_time_us > 0 ? (double)result.simd_time_us / result.parallel_time_us : 0.0;
-        result.work_stealing_speedup = result.simd_time_us > 0 ? (double)result.simd_time_us / result.work_stealing_time_us : 0.0;
-        result.cache_aware_speedup = result.simd_time_us > 0 ? (double)result.simd_time_us / result.cache_aware_time_us : 0.0;
+        result.parallel_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us) : 0.0;
+        result.work_stealing_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.work_stealing_time_us) : 0.0;
+        result.cache_aware_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.cache_aware_time_us) : 0.0;
         
         benchmark_results.push_back(result);
     }

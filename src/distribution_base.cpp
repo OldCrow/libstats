@@ -149,7 +149,7 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
         
         results.residuals.reserve(data.size());
         for (size_t i = 0; i < sorted_data.size(); ++i) {
-            double empirical_cdf = (i + constants::math::ONE) / (data.size() + constants::math::ONE);
+            double empirical_cdf = (static_cast<double>(i) + constants::math::ONE) / (static_cast<double>(data.size()) + constants::math::ONE);
             double theoretical_cdf = getCumulativeProbability(sorted_data[i]);
             double residual = empirical_cdf - theoretical_cdf;
             results.residuals.push_back(residual);
@@ -419,7 +419,7 @@ std::vector<double> DistributionBase::calculateEmpiricalCDF(const std::vector<do
     cdf_values.reserve(data.size());
     
     for (size_t i = 0; i < data.size(); ++i) {
-        double empirical_cdf = (i + constants::math::ONE) / (data.size() + constants::math::ONE);
+        double empirical_cdf = (static_cast<double>(i) + constants::math::ONE) / (static_cast<double>(data.size()) + constants::math::ONE);
         cdf_values.push_back(empirical_cdf);
     }
     

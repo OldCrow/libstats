@@ -77,13 +77,13 @@ void test_enhanced_pvalues() {
     for (double r : residuals) {
         mean_residual += r;
     }
-    mean_residual /= residuals.size();
+    mean_residual /= static_cast<double>(residuals.size());
     
     double var_residual = 0.0;
     for (double r : residuals) {
         var_residual += (r - mean_residual) * (r - mean_residual);
     }
-    var_residual /= (residuals.size() - 1);
+    var_residual /= static_cast<double>(residuals.size() - 1);
     
     std::cout << "   Mean residual: " << std::fixed << std::setprecision(6) << mean_residual << std::endl;
     std::cout << "   Residual variance: " << var_residual << std::endl;

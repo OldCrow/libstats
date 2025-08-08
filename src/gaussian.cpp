@@ -657,29 +657,29 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalMean(
     }
     
     const size_t n = data.size();
-    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / n;
+    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
     
     double margin_of_error;
     
     if (population_variance_known || n >= 30) {
         // Use normal distribution (z-score)
         const double sample_var = std::inner_product(
-            data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE) / n - sample_mean * sample_mean;
+            data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE) / static_cast<double>(n) - sample_mean * sample_mean;
         const double sample_std = std::sqrt(sample_var);
         const double alpha = constants::math::ONE - confidence_level;
         const double z_alpha_2 = math::inverse_normal_cdf(constants::math::ONE - alpha * constants::math::HALF);
-        margin_of_error = z_alpha_2 * sample_std / std::sqrt(n);
+        margin_of_error = z_alpha_2 * sample_std / std::sqrt(static_cast<double>(n));
     } else {
         // Use t-distribution
         const double sample_var = std::inner_product(
             data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
             std::plus<>(),
             [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
-        ) / (n - 1);
+        ) / static_cast<double>(n - 1);
         const double sample_std = std::sqrt(sample_var);
         const double alpha = constants::math::ONE - confidence_level;
         const double t_alpha_2 = math::inverse_t_cdf(constants::math::ONE - alpha * constants::math::HALF, static_cast<double>(n - 1));
-        margin_of_error = t_alpha_2 * sample_std / std::sqrt(n);
+        margin_of_error = t_alpha_2 * sample_std / std::sqrt(static_cast<double>(n));
     }
     
     return {sample_mean - margin_of_error, sample_mean + margin_of_error};
@@ -697,14 +697,14 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalVariance(
     }
     
     const size_t n = data.size();
-    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / n;
+    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
     
     // Calculate sample variance
     const double sample_var = std::inner_product(
         data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
         std::plus<>(),
         [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
-    ) / (n - 1);
+    ) / static_cast<double>(n - 1);
     
     const double alpha = constants::math::ONE - confidence_level;
     const double df = static_cast<double>(n - 1);
@@ -733,18 +733,18 @@ std::tuple<double, double, bool> GaussianDistribution::oneSampleTTest(
     }
     
     const size_t n = data.size();
-    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / n;
+    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
     
     // Calculate sample standard deviation
     const double sample_var = std::inner_product(
         data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
         std::plus<>(),
         [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
-    ) / (n - 1);
+    ) / static_cast<double>(n - 1);
     const double sample_std = std::sqrt(sample_var);
     
     // Calculate t-statistic
-    const double t_statistic = (sample_mean - hypothesized_mean) / (sample_std / std::sqrt(n));
+    const double t_statistic = (sample_mean - hypothesized_mean) / (sample_std / std::sqrt(static_cast<double>(n)));
     
     // Calculate p-value (two-tailed) using constants for 2.0 and 1.0
     const double p_value = constants::math::TWO * (constants::math::ONE - math::t_cdf(std::abs(t_statistic), static_cast<double>(n - 1)));
@@ -771,38 +771,38 @@ std::tuple<double, double, bool> GaussianDistribution::twoSampleTTest(
     const size_t n2 = data2.size();
     
     // Sample means
-    const double mean1 = std::accumulate(data1.begin(), data1.end(), constants::math::ZERO_DOUBLE) / n1;
-    const double mean2 = std::accumulate(data2.begin(), data2.end(), constants::math::ZERO_DOUBLE) / n2;
+    const double mean1 = std::accumulate(data1.begin(), data1.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n1);
+    const double mean2 = std::accumulate(data2.begin(), data2.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n2);
     
     // Sample variances
     const double var1 = std::inner_product(
         data1.begin(), data1.end(), data1.begin(), constants::math::ZERO_DOUBLE,
         std::plus<>(),
         [mean1](double x, double y) { return (x - mean1) * (y - mean1); }
-    ) / (n1 - 1);
+    ) / static_cast<double>(n1 - 1);
     
     const double var2 = std::inner_product(
         data2.begin(), data2.end(), data2.begin(), constants::math::ZERO_DOUBLE,
         std::plus<>(),
         [mean2](double x, double y) { return (x - mean2) * (y - mean2); }
-    ) / (n2 - 1);
+    ) / static_cast<double>(n2 - 1);
     
     double t_statistic, degrees_of_freedom;
     
     if (equal_variances) {
         // Pooled t-test
-        const double pooled_var = ((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2);
-        const double pooled_std = std::sqrt(pooled_var * (constants::math::ONE/n1 + constants::math::ONE/n2));
+        const double pooled_var = (static_cast<double>(n1 - 1) * var1 + static_cast<double>(n2 - 1) * var2) / static_cast<double>(n1 + n2 - 2);
+        const double pooled_std = std::sqrt(pooled_var * (constants::math::ONE/static_cast<double>(n1) + constants::math::ONE/static_cast<double>(n2)));
         t_statistic = (mean1 - mean2) / pooled_std;
         degrees_of_freedom = static_cast<double>(n1 + n2 - 2);
     } else {
         // Welch's t-test
-        const double se = std::sqrt(var1/n1 + var2/n2);
+        const double se = std::sqrt(var1/static_cast<double>(n1) + var2/static_cast<double>(n2));
         t_statistic = (mean1 - mean2) / se;
         
         // Welch-Satterthwaite equation for degrees of freedom
-        const double numerator = std::pow(var1/n1 + var2/n2, constants::math::TWO);
-        const double denominator = std::pow(var1/n1, constants::math::TWO)/(n1-1) + std::pow(var2/n2, constants::math::TWO)/(n2-1);
+        const double numerator = std::pow(var1/static_cast<double>(n1) + var2/static_cast<double>(n2), constants::math::TWO);
+        const double denominator = std::pow(var1/static_cast<double>(n1), constants::math::TWO)/static_cast<double>(n1-1) + std::pow(var2/static_cast<double>(n2), constants::math::TWO)/static_cast<double>(n2-1);
         degrees_of_freedom = numerator / denominator;
     }
     
@@ -852,18 +852,18 @@ std::tuple<double, double, double, double> GaussianDistribution::bayesianEstimat
     }
     
     const size_t n = data.size();
-    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / n;
+    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
     const double sample_sum_sq = std::inner_product(data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE);
     
     // Normal-Inverse-Gamma conjugate prior update
-    const double posterior_precision = prior_precision + n;
-    const double posterior_mean = (prior_precision * prior_mean + n * sample_mean) / posterior_precision;
-    const double posterior_shape = prior_shape + n / constants::math::TWO;
+    const double posterior_precision = prior_precision + static_cast<double>(n);
+    const double posterior_mean = (prior_precision * prior_mean + static_cast<double>(n) * sample_mean) / posterior_precision;
+    const double posterior_shape = prior_shape + static_cast<double>(n) / constants::math::TWO;
     
-    const double sum_sq_deviations = sample_sum_sq - n * sample_mean * sample_mean;
+    const double sum_sq_deviations = sample_sum_sq - static_cast<double>(n) * sample_mean * sample_mean;
     const double prior_mean_diff = sample_mean - prior_mean;
     const double posterior_rate = prior_rate + constants::math::HALF * sum_sq_deviations +
-                                  constants::math::HALF * (prior_precision * n * prior_mean_diff * prior_mean_diff) / posterior_precision;
+                                  constants::math::HALF * (prior_precision * static_cast<double>(n) * prior_mean_diff * prior_mean_diff) / posterior_precision;
     
     return {posterior_mean, posterior_precision, posterior_shape, posterior_rate};
 }
@@ -1005,14 +1005,14 @@ std::pair<double, double> GaussianDistribution::methodOfMomentsEstimation(
     const size_t n = data.size();
     
     // First moment (mean)
-    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / n;
+    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
     
     // Second central moment (variance)
     const double sample_variance = std::inner_product(
         data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
         std::plus<>(),
         [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }
-    ) / n;  // Population variance (divide by n, not n-1)
+    ) / static_cast<double>(n);  // Population variance (divide by n, not n-1)
     
     const double sample_stddev = std::sqrt(sample_variance);
     
@@ -1036,11 +1036,11 @@ std::pair<double, double> GaussianDistribution::lMomentsEstimation(
     double l2 = constants::math::ZERO_DOUBLE; // L-scale
     
     // L1 (L-mean) = mean of order statistics
-    l1 = std::accumulate(sorted_data.begin(), sorted_data.end(), constants::math::ZERO_DOUBLE) / n;
+    l1 = std::accumulate(sorted_data.begin(), sorted_data.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
     
     // L2 (L-scale) = 0.5 * E[X_{2:2} - X_{1:2}]
     for (size_t i = 0; i < n; ++i) {
-        const double weight = (constants::math::TWO * i + constants::math::ONE - n) / n;
+        const double weight = (constants::math::TWO * static_cast<double>(i) + constants::math::ONE - static_cast<double>(n)) / static_cast<double>(n);
         l2 += weight * sorted_data[i];
     }
     l2 = constants::math::HALF * l2;
@@ -1064,7 +1064,7 @@ std::vector<double> GaussianDistribution::calculateHigherMoments(
     
     const size_t n = data.size();
     const double sample_mean = center_on_mean ?
-        std::accumulate(data.begin(), data.end(), 0.0) / n : 0.0;
+        std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n) : 0.0;
     
     std::vector<double> moments(6, 0.0);
     
@@ -1083,7 +1083,7 @@ std::vector<double> GaussianDistribution::calculateHigherMoments(
     
     // Normalize by sample size
     for (double& moment : moments) {
-        moment /= n;
+        moment /= static_cast<double>(n);
     }
     
     return moments;
@@ -1101,7 +1101,7 @@ std::tuple<double, double, bool> GaussianDistribution::jarqueBeraTest(
     }
     
     const size_t n = data.size();
-    const double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     
     // Calculate sample variance, skewness, and kurtosis
     double m2 = 0.0, m3 = 0.0, m4 = 0.0;
@@ -1117,15 +1117,15 @@ std::tuple<double, double, bool> GaussianDistribution::jarqueBeraTest(
         m4 += dev4;
     }
     
-    m2 /= n;
-    m3 /= n;
-    m4 /= n;
+    m2 /= static_cast<double>(n);
+    m3 /= static_cast<double>(n);
+    m4 /= static_cast<double>(n);
     
     const double skewness = m3 / std::pow(m2, 1.5);
     const double kurtosis = m4 / (m2 * m2) - constants::thresholds::EXCESS_KURTOSIS_OFFSET; // Excess kurtosis
     
     // Jarque-Bera statistic
-    const double jb_statistic = n * (skewness * skewness / constants::math::SIX + kurtosis * kurtosis / constants::math::TWO_TWENTY_FIVE);
+    const double jb_statistic = static_cast<double>(n) * (skewness * skewness / constants::math::SIX + kurtosis * kurtosis / constants::math::TWO_TWENTY_FIVE);
     
     // P-value from chi-squared distribution with 2 degrees of freedom
     const double p_value = constants::math::ONE - math::chi_squared_cdf(jb_statistic, constants::math::TWO);
@@ -1155,7 +1155,7 @@ std::tuple<double, double, bool> GaussianDistribution::shapiroWilkTest(
     // For full implementation, would need lookup tables for coefficients
     
     // Calculate sample variance
-    const double sample_mean = std::accumulate(sorted_data.begin(), sorted_data.end(), 0.0) / n;
+    const double sample_mean = std::accumulate(sorted_data.begin(), sorted_data.end(), 0.0) / static_cast<double>(n);
     double ss = 0.0;
     for (double x : sorted_data) {
         ss += (x - sample_mean) * (x - sample_mean);
@@ -1165,7 +1165,7 @@ std::tuple<double, double, bool> GaussianDistribution::shapiroWilkTest(
     // This is a basic approximation - full implementation would use proper coefficients
     double numerator = 0.0;
     for (size_t i = 0; i < n / 2; ++i) {
-        const double coeff = math::inverse_normal_cdf((i + constants::math::THREE_QUARTERS) / (n + constants::math::HALF));
+        const double coeff = math::inverse_normal_cdf((static_cast<double>(i) + constants::math::THREE_QUARTERS) / (static_cast<double>(n) + constants::math::HALF));
         numerator += coeff * (sorted_data[n - 1 - i] - sorted_data[i]);
     }
     
@@ -1358,14 +1358,14 @@ std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCross
         }
         
         // Calculate MAE and RMSE
-        double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / errors.size();
+        double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / static_cast<double>(errors.size());
         
         // Calculate RMSE = sqrt(mean(squared_errors))
         double mse = 0.0;
         for (double error : errors) {
             mse += error * error;
         }
-        mse /= errors.size();
+        mse /= static_cast<double>(errors.size());
         double rmse = std::sqrt(mse);
         
         results.emplace_back(mae, rmse, log_likelihood);
@@ -1418,8 +1418,8 @@ std::tuple<double, double, double> GaussianDistribution::leaveOneOutCrossValidat
     }
     
     // Calculate summary statistics
-    double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / n;
-    double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / n;
+    double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / static_cast<double>(n);
+    double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / static_cast<double>(n);
     double root_mean_squared_error = std::sqrt(mean_squared_error);
     
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};

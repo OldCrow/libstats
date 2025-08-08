@@ -1209,7 +1209,7 @@ std::pair<double, double> UniformDistribution::confidenceIntervalLowerBound(cons
     
     // Conservative approach: use the empirical minimum with adjustment
     const double range_estimate = *std::max_element(data.begin(), data.end()) - min_val;
-    const double adjustment = range_estimate * std::pow(alpha/2.0, 1.0/n) / (1.0 + std::pow(alpha/2.0, 1.0/n));
+    const double adjustment = range_estimate * std::pow(alpha/2.0, 1.0/static_cast<double>(n)) / (1.0 + std::pow(alpha/2.0, 1.0/static_cast<double>(n)));
     
     const double ci_lower = min_val - adjustment;
     const double ci_upper = min_val;
@@ -1235,7 +1235,7 @@ std::pair<double, double> UniformDistribution::confidenceIntervalUpperBound(cons
     // We use the fact that (b - X_(n))/(b - a) ~ Beta(1, n)
     
     const double range_estimate = max_val - min_val;
-    const double adjustment = range_estimate * std::pow(alpha/2.0, 1.0/n) / (1.0 + std::pow(alpha/2.0, 1.0/n));
+    const double adjustment = range_estimate * std::pow(alpha/2.0, 1.0/static_cast<double>(n)) / (1.0 + std::pow(alpha/2.0, 1.0/static_cast<double>(n)));
     
     const double ci_lower = max_val;
     const double ci_upper = max_val + adjustment;
@@ -1265,11 +1265,11 @@ std::tuple<double, double, bool> UniformDistribution::likelihoodRatioTest(const 
     }
     
     // Log-likelihood under null hypothesis: n * log(1/(null_b - null_a))
-    const double log_like_null = n * (-std::log(null_b - null_a));
+    const double log_like_null = static_cast<double>(n) * (-std::log(null_b - null_a));
     
     // Log-likelihood under alternative (MLE): n * log(1/(sample_max - sample_min))
     const double sample_range = sample_max - sample_min;
-    const double log_like_alt = (sample_range > 0) ? n * (-std::log(sample_range)) : 0.0;
+    const double log_like_alt = (sample_range > 0) ? static_cast<double>(n) * (-std::log(sample_range)) : 0.0;
     
     // Likelihood ratio test statistic: -2 * (log L_0 - log L_1)
     const double test_statistic = -2.0 * (log_like_null - log_like_alt);
@@ -1297,11 +1297,11 @@ std::pair<std::pair<double, double>, std::pair<double, double>> UniformDistribut
     // Posterior for 'b' given data: truncated at sample_max
     
     // Simplified Bayesian update (assuming uniform priors)
-    const double posterior_a_mean = sample_min - (sample_max - sample_min) / (n + 2.0);
-    const double posterior_a_var = std::pow(sample_max - sample_min, 2) / (12.0 * (n + 2.0));
+    const double posterior_a_mean = sample_min - (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
+    const double posterior_a_var = std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
     
-    const double posterior_b_mean = sample_max + (sample_max - sample_min) / (n + 2.0);
-    const double posterior_b_var = std::pow(sample_max - sample_min, 2) / (12.0 * (n + 2.0));
+    const double posterior_b_mean = sample_max + (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
+    const double posterior_b_var = std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
     
     // Return as (mean, std_dev) pairs
     std::pair<double, double> posterior_a = {posterior_a_mean, std::sqrt(posterior_a_var)};
@@ -1324,7 +1324,7 @@ std::pair<double, double> UniformDistribution::robustEstimation(const std::vecto
     
     if (estimator_type == "quantile") {
         // Use empirical quantiles with small adjustments
-        const size_t lower_idx = static_cast<size_t>(trim_proportion * n);
+        const size_t lower_idx = static_cast<size_t>(trim_proportion * static_cast<double>(n));
         const size_t upper_idx = n - 1 - lower_idx;
         
         const double robust_a = sorted_data[lower_idx];
@@ -1333,7 +1333,7 @@ std::pair<double, double> UniformDistribution::robustEstimation(const std::vecto
         return {robust_a, robust_b};
     } else if (estimator_type == "trimmed") {
         // Trimmed mean approach - use trimmed range
-        const size_t trim_count = static_cast<size_t>(trim_proportion * n);
+        const size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(n));
         const size_t start_idx = trim_count;
         const size_t end_idx = n - trim_count - 1;
         
@@ -1364,13 +1364,13 @@ std::pair<double, double> UniformDistribution::methodOfMomentsEstimation(const s
     
     const size_t n = data.size();
     const double sum = std::accumulate(data.begin(), data.end(), 0.0);
-    const double mean = sum / n;
+    const double mean = sum / static_cast<double>(n);
     
     double variance = 0.0;
     for (double x : data) {
         variance += (x - mean) * (x - mean);
     }
-    variance /= (n - 1); // Sample variance
+    variance /= static_cast<double>(n - 1); // Sample variance
     
     const double range_estimate = std::sqrt(12.0 * variance);
     const double a_estimate = mean - range_estimate / 2.0;
@@ -1432,15 +1432,15 @@ std::pair<double, double> UniformDistribution::lMomentsEstimation(const std::vec
     for (double x : sorted_data) {
         L1 += x;
     }
-    L1 /= n;
+    L1 /= static_cast<double>(n);
     
     // L2 calculation using order statistics
     double L2 = 0.0;
     for (size_t i = 0; i < n; ++i) {
-        const double weight = (2.0 * i - n + 1.0) / n;
+        const double weight = (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);
         L2 += weight * sorted_data[i];
     }
-    L2 /= n;
+    L2 /= static_cast<double>(n);
     L2 = std::abs(L2); // L2 should be positive
     
     // Invert the relationships: a = L1 - 3*L2, b = L1 + 3*L2
@@ -1478,12 +1478,12 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(const std::
     for (double x : data) {
         sample_mean += x;
     }
-    sample_mean /= n;
+    sample_mean /= static_cast<double>(n);
     
     for (double x : data) {
         sample_variance += (x - sample_mean) * (x - sample_mean);
     }
-    sample_variance /= (n - 1);
+    sample_variance /= static_cast<double>(n - 1);
     
     const double expected_variance = sample_range * sample_range / 12.0;
     const double test_statistic = sample_variance / expected_variance;
@@ -1707,14 +1707,14 @@ std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossV
         }
         
         // Calculate metrics - MAE and RMSE
-        double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / errors.size();
+        double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / static_cast<double>(errors.size());
         
         // Calculate RMSE = sqrt(mean(squared_errors))
         double mse = 0.0;
         for (double error : errors) {
             mse += error * error;
         }
-        mse /= errors.size();
+        mse /= static_cast<double>(errors.size());
         double rmse = std::sqrt(mse);
         
         results.emplace_back(mae, rmse, total_log_likelihood);
@@ -1773,13 +1773,13 @@ std::tuple<double, double, double> UniformDistribution::leaveOneOutCrossValidati
     }
     
     // Calculate final metrics
-    double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / errors.size();
+    double mae = std::accumulate(errors.begin(), errors.end(), 0.0) / static_cast<double>(errors.size());
     
     double mse = 0.0;
     for (double error : errors) {
         mse += error * error;
     }
-    mse /= errors.size();
+    mse /= static_cast<double>(errors.size());
     double rmse = std::sqrt(mse);
     
     return std::make_tuple(mae, rmse, total_log_likelihood);
@@ -1890,7 +1890,7 @@ std::tuple<double, double, double, double> UniformDistribution::computeInformati
     // AICc (corrected AIC for small sample sizes)
     double aicc = aic;
     if (n > k + 1) {
-        aicc += (2.0 * k * (k + 1)) / (n - k - 1);
+        aicc += (2.0 * k * (k + 1)) / static_cast<double>(n - k - 1);
     }
     
     return std::make_tuple(aic, bic, aicc, log_likelihood);

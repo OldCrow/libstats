@@ -34,7 +34,7 @@ if(APPLE OR (UNIX AND NOT WIN32))
     endif()
 endif()
 
-project(libstats VERSION 0.8.0 LANGUAGES CXX)
+project(libstats VERSION 0.8.1 LANGUAGES CXX)
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
@@ -149,8 +149,47 @@ if(MSVC)
     endif()
 
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # ClangCL or Clang on Windows
-    add_compile_options(-Wall -Wextra -O2)
+    # ClangCL or Clang on Windows or MSVC-strict mode
+    if(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
+        # MSVC-like strict warnings without compatibility flags (they cause system header conflicts)
+        add_compile_options(
+            -Wall -Wextra -Werror
+            # Type conversion warnings (MSVC-like strictness)
+            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
+            -Wdouble-promotion
+            # Additional strict warnings
+            -Wshadow -Wunused -Wcast-align -Wcast-qual
+            -Wold-style-cast -Woverloaded-virtual
+            -Wextra-semi -Wmissing-declarations
+            # Allow some warnings that are too strict for practical development
+            -Wno-sign-conversion  # Too many false positives in standard library interactions
+            -Wno-unused-parameter  # Common in template/callback code
+            -Wno-padded           # Not practical for cross-platform development
+        )
+        message(STATUS "MSVC-strict mode enabled (type conversion and strictness warnings as ERRORS)")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
+        # MSVC-like strict warnings WITHOUT -Werror for development efficiency
+        add_compile_options(
+            -Wall -Wextra
+            # Type conversion warnings (MSVC-like strictness) - but as warnings only
+            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
+            -Wdouble-promotion
+            # Additional strict warnings
+            -Wshadow -Wunused -Wcast-align -Wcast-qual
+            -Wold-style-cast -Woverloaded-virtual
+            -Wextra-semi -Wmissing-declarations
+            # Allow some warnings that are too strict for practical development
+            -Wno-sign-conversion  # Too many false positives in standard library interactions
+            -Wno-unused-parameter  # Common in template/callback code
+            -Wno-padded           # Not practical for cross-platform development
+            -Wno-deprecated-declarations  # API updates in progress - not MSVC-specific
+        )
+        message(STATUS "MSVC-warn mode enabled (type conversion and strictness warnings as WARNINGS)")
+    else()
+        # Standard Clang compilation
+        add_compile_options(-Wall -Wextra -O2)
+    endif()
+    
     if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
         add_compile_options(-mavx2)
         add_compile_definitions(LIBSTATS_HAS_AVX2=1)
@@ -160,7 +199,59 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     endif()
 
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    add_compile_options(-Wall -Wextra -O3)
+    if(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
+        # GCC-specific strict warnings and compatibility checks
+        add_compile_options(
+            -Wall -Wextra -Werror -pedantic
+            # GCC-specific conversion warnings
+            -Wconversion -Wfloat-conversion -Wdouble-promotion
+            -Wsign-conversion -Wold-style-cast
+            # GCC-specific diagnostic warnings
+            -Wlogical-op -Wduplicated-cond -Wduplicated-branches
+            -Wrestrict -Wnull-dereference -Wjump-misses-init
+            # Template and name resolution differences
+            -Wtrampolines -Wunsafe-loop-optimizations
+            -Wvector-operation-performance -Wsuggest-override
+            -Wsuggest-final-types -Wsuggest-final-methods
+            # Memory and alignment warnings
+            -Wcast-align=strict -Wstrict-overflow=2
+            -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2
+            # GCC's stricter undefined behavior detection
+            -Wshift-overflow=2 -Wstringop-overflow=4
+            # Allow some warnings that are too pedantic
+            -Wno-inline -Wno-padded -Wno-unused-parameter
+            -Wno-sign-conversion  # Too noisy with standard library
+        )
+        message(STATUS "GCC-strict mode enabled (GCC-specific warnings and optimizations as ERRORS)")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
+        # GCC-specific strict warnings WITHOUT -Werror for development efficiency
+        add_compile_options(
+            -Wall -Wextra -pedantic
+            # GCC-specific conversion warnings - but as warnings only
+            -Wconversion -Wfloat-conversion -Wdouble-promotion
+            -Wsign-conversion -Wold-style-cast
+            # GCC-specific diagnostic warnings
+            -Wlogical-op -Wduplicated-cond -Wduplicated-branches
+            -Wrestrict -Wnull-dereference -Wjump-misses-init
+            # Template and name resolution differences
+            -Wtrampolines -Wunsafe-loop-optimizations
+            -Wvector-operation-performance -Wsuggest-override
+            -Wsuggest-final-types -Wsuggest-final-methods
+            # Memory and alignment warnings
+            -Wcast-align=strict -Wstrict-overflow=2
+            -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2
+            # GCC's stricter undefined behavior detection
+            -Wshift-overflow=2 -Wstringop-overflow=4
+            # Allow some warnings that are too pedantic
+            -Wno-inline -Wno-padded -Wno-unused-parameter
+            -Wno-sign-conversion  # Too noisy with standard library
+        )
+        message(STATUS "GCC-warn mode enabled (GCC-specific warnings and optimizations as WARNINGS)")
+    else()
+        # Standard GCC compilation
+        add_compile_options(-Wall -Wextra -O3)
+    endif()
+    
     # CONSERVATIVE SIMD approach: Only enable what we're confident will work
     # Since we use runtime dispatch, we don't need to enable all SIMD at compile time
     # We'll just enable SSE2 (universal on x86_64) and let runtime dispatch handle the rest

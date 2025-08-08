@@ -79,7 +79,7 @@ namespace {
         
         // Calculate approximate bandwidth (very rough estimate)
         double bytes_transferred = array_size * sizeof(double) * 100;
-        double seconds = duration.count() / 1e6;
+        double seconds = static_cast<double>(duration.count()) / 1e6;
         return (bytes_transferred / seconds) / 1e9; // GB/s
     }
 }

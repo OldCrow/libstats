@@ -107,7 +107,7 @@ int main() {
     
     cout << "   Scalar addition time (" << iterations << " iterations): " << scalar_time.count() << " ns" << endl;
     cout << "   Average per iteration: " << scalar_time.count() / iterations << " ns" << endl;
-    cout << "   Average per iteration: " << scalar_time.count() / iterations / 1000.0 << " µs" << endl;
+    cout << "   Average per iteration: " << static_cast<double>(scalar_time.count()) / static_cast<double>(iterations) / 1000.0 << " µs" << endl;
     
     // Benchmark SIMD addition (if available)
 #ifdef LIBSTATS_HAS_AVX2

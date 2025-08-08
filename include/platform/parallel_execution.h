@@ -166,7 +166,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
             break;
         case 1: // Computation-bound operations
             // Larger grains for computation to amortize thread overhead
-            adjusted_grain = static_cast<std::size_t>(adjusted_grain * constants::math::TWO);
+            adjusted_grain = static_cast<std::size_t>(static_cast<double>(adjusted_grain) * constants::math::TWO);
             break;
         case 2: // Mixed operations (default)
         default:

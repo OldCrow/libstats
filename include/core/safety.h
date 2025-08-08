@@ -391,7 +391,7 @@ inline bool normalize_probabilities(std::vector<double>& probs) noexcept {
     
     // If sum is too small, set to uniform distribution
     if (sum < constants::precision::ZERO) {
-        const double uniform_prob = 1.0 / probs.size();
+        const double uniform_prob = 1.0 / static_cast<double>(probs.size());
         for (double& prob : probs) {
             prob = uniform_prob;
         }

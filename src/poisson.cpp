@@ -887,7 +887,7 @@ void PoissonDistribution::fit(const std::vector<double>& values) {
     
     // For Poisson distribution, MLE gives λ = sample mean
     double sum = std::accumulate(values.begin(), values.end(), constants::math::ZERO_DOUBLE);
-    double sample_mean = sum / values.size();
+    double sample_mean = sum / static_cast<double>(values.size());
     
     // Ensure fitted lambda is positive
     if (sample_mean <= constants::math::ZERO_DOUBLE) {
@@ -1653,14 +1653,14 @@ std::pair<double, double> PoissonDistribution::confidenceIntervalRate(
     double lower_bound;
     if (total_count > 0) {
         const double chi2_lower = libstats::math::inverse_chi_squared_cdf(alpha_half, 2 * total_count);
-        lower_bound = chi2_lower / (2.0 * n);
+        lower_bound = chi2_lower / (2.0 * static_cast<double>(n));
     } else {
         lower_bound = constants::math::ZERO_DOUBLE;
     }
     
     // Upper bound: chi2_upper/2n where chi2_upper has 2*(total_count+1) degrees of freedom
     const double chi2_upper = libstats::math::inverse_chi_squared_cdf(constants::math::ONE - alpha_half, 2 * (total_count + 1));
-    const double upper_bound = chi2_upper / (constants::math::TWO * n);
+    const double upper_bound = chi2_upper / (constants::math::TWO * static_cast<double>(n));
     
     return {lower_bound, upper_bound};
 }
@@ -1691,7 +1691,7 @@ std::tuple<double, double, bool> PoissonDistribution::likelihoodRatioTest(
     }
     
     const size_t n = data.size();
-    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / n;
+    const double sample_mean = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) / static_cast<double>(n);
     
     // MLE estimate of lambda
     const double lambda_hat = sample_mean;
@@ -1737,7 +1737,7 @@ double PoissonDistribution::methodOfMomentsEstimation(const std::vector<double>&
     
     // For Poisson distribution, method of moments estimator is simply the sample mean
     // since E[X] = Var[X] = λ
-    const double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / data.size();
+    const double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(data.size());
     
     if (sample_mean <= 0.0) {
         throw std::invalid_argument("Sample mean must be positive for Poisson distribution");
@@ -1774,7 +1774,7 @@ std::pair<double, double> PoissonDistribution::bayesianEstimation(
     // For Poisson likelihood and Gamma(α, β) prior:
     // Posterior is Gamma(α + Σx_i, β + n)
     const double posterior_shape = prior_shape + sum_x;
-    const double posterior_rate = prior_rate + n;
+    const double posterior_rate = prior_rate + static_cast<double>(n);
     
     return {posterior_shape, posterior_rate};
 }
@@ -1808,7 +1808,7 @@ std::pair<double, double> PoissonDistribution::bayesianCredibleInterval(
     // For Poisson likelihood and Gamma(α, β) prior:
     // Posterior is Gamma(α + Σx_i, β + n)
     const double posterior_shape = prior_shape + sum_x;
-    const double posterior_rate = prior_rate + n;
+    const double posterior_rate = prior_rate + static_cast<double>(n);
     
     // Calculate credible interval using inverse gamma CDF
     const double alpha = constants::math::ONE - credibility_level;
@@ -1851,7 +1851,7 @@ double PoissonDistribution::robustEstimation(
     
     if (estimator_type == "winsorized") {
         // Winsorized mean: replace extreme values with percentiles
-        const size_t trim_count = static_cast<size_t>(trim_proportion * n);
+        const size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(n));
         const double lower_val = sorted_data[trim_count];
         const double upper_val = sorted_data[n - 1 - trim_count];
         
@@ -1865,11 +1865,11 @@ double PoissonDistribution::robustEstimation(
                 sum += sorted_data[i];
             }
         }
-        estimate = sum / n;
+        estimate = sum / static_cast<double>(n);
         
     } else if (estimator_type == "trimmed") {
         // Trimmed mean: remove extreme values
-        const size_t trim_count = static_cast<size_t>(trim_proportion * n);
+        const size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(n));
         const size_t start_idx = trim_count;
         const size_t end_idx = n - trim_count;
         
@@ -1881,7 +1881,7 @@ double PoissonDistribution::robustEstimation(
         for (size_t i = start_idx; i < end_idx; ++i) {
             sum += sorted_data[i];
         }
-        estimate = sum / (end_idx - start_idx);
+        estimate = sum / static_cast<double>(end_idx - start_idx);
         
     } else if (estimator_type == "median") {
         // Median estimator
@@ -1919,7 +1919,7 @@ double PoissonDistribution::lMomentsEstimation(const std::vector<double>& data) 
     
     // For Poisson distribution, L-moments estimator: λ = L₁ (first L-moment = mean)
     // Since E[X] = λ for Poisson, the first L-moment equals the sample mean
-    const double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / data.size();
+    const double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(data.size());
     
     if (sample_mean <= 0.0) {
         throw std::invalid_argument("L-moments estimate must be positive for Poisson distribution");
@@ -1949,7 +1949,7 @@ std::tuple<double, double, bool> PoissonDistribution::overdispersionTest(
     }
     
     const size_t n = data.size();
-    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     
     // Calculate sample variance
     double variance = 0.0;
@@ -1957,14 +1957,14 @@ std::tuple<double, double, bool> PoissonDistribution::overdispersionTest(
         const double diff = value - mean;
         variance += diff * diff;
     }
-    variance /= (n - 1); // Sample variance with Bessel's correction
+    variance /= static_cast<double>(n - 1); // Sample variance with Bessel's correction
     
     // Overdispersion index: variance/mean ratio
     const double dispersion_index = variance / mean;
     
     // Test statistic: (n-1) * (variance/mean - 1) / sqrt(2*(n-1))
     // Under null hypothesis (no overdispersion), this follows standard normal
-    const double test_statistic = (n - 1) * (dispersion_index - constants::math::ONE) / std::sqrt(constants::math::TWO * (n - 1));
+    const double test_statistic = static_cast<double>(n - 1) * (dispersion_index - constants::math::ONE) / std::sqrt(constants::math::TWO * static_cast<double>(n - 1));
     
     // Two-sided test for overdispersion
     const double p_value = constants::math::TWO * (constants::math::ONE - libstats::math::normal_cdf(std::abs(test_statistic)));
@@ -1996,21 +1996,21 @@ std::tuple<double, double, bool> PoissonDistribution::excessZerosTest(
     
     const size_t n = data.size();
     const size_t observed_zeros = std::count(data.begin(), data.end(), 0.0);
-    const double lambda_hat = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double lambda_hat = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     
     // Expected number of zeros under Poisson(λ): n * e^(-λ)
-    const double expected_zeros = n * std::exp(-lambda_hat);
+    const double expected_zeros = static_cast<double>(n) * std::exp(-lambda_hat);
     
     // Variance of number of zeros: n * e^(-λ) * (1 - e^(-λ))
     const double exp_neg_lambda = std::exp(-lambda_hat);
-    const double variance_zeros = n * exp_neg_lambda * (constants::math::ONE - exp_neg_lambda);
+    const double variance_zeros = static_cast<double>(n) * exp_neg_lambda * (constants::math::ONE - exp_neg_lambda);
     
     if (variance_zeros <= 0.0) {
         throw std::runtime_error("Variance of zeros count is non-positive");
     }
     
     // Z-test statistic for excess zeros
-    const double z_statistic = (observed_zeros - expected_zeros) / std::sqrt(variance_zeros);
+    const double z_statistic = (static_cast<double>(observed_zeros) - expected_zeros) / std::sqrt(variance_zeros);
     
     // Two-sided p-value
     const double p_value = constants::math::TWO * (constants::math::ONE - libstats::math::normal_cdf(std::abs(z_statistic)));
@@ -2082,7 +2082,7 @@ std::tuple<double, double, bool> PoissonDistribution::rateStabilityTest(
         rss += residual * residual;
     }
     
-    const double mse = rss / (n - 2); // Mean squared error
+    const double mse = rss / static_cast<double>(n - 2); // Mean squared error
     const double se_slope = std::sqrt(mse / (sum_xx - n_double * mean_x * mean_x)); // Standard error of slope
     
     // t-statistic for testing H0: slope = 0
@@ -2207,7 +2207,7 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
     
     for (int k = 0; k <= max_value + 5; ++k) {
         current_observed += observed_freq[k];
-        double expected = n * distribution.getProbabilityExact(k);
+        double expected = static_cast<double>(n) * distribution.getProbabilityExact(k);
         
         // If we have enough expected frequency or we're at the end, close the group
         if (expected >= constants::thresholds::DEFAULT_EXPECTED_FREQUENCY_THRESHOLD || (current_observed > 0 && k >= max_value)) {
@@ -2216,7 +2216,7 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
             // Calculate total expected frequency for this group
             double group_expected = 0.0;
             for (int j = current_group_start; j <= k; ++j) {
-                group_expected += n * distribution.getProbabilityExact(j);
+                group_expected += static_cast<double>(n) * distribution.getProbabilityExact(j);
             }
             expected_freq.push_back(group_expected);
             
@@ -2433,8 +2433,8 @@ std::vector<std::tuple<double, double, double>> PoissonDistribution::kFoldCrossV
         }
         
         // Calculate metrics for this fold
-        const double mae = total_absolute_error / validation_data.size();
-        const double rmse = std::sqrt(total_squared_error / validation_data.size());
+        const double mae = total_absolute_error / static_cast<double>(validation_data.size());
+        const double rmse = std::sqrt(total_squared_error / static_cast<double>(validation_data.size()));
         
         results.emplace_back(mae, rmse, total_log_likelihood);
     }
@@ -2496,8 +2496,8 @@ std::tuple<double, double, double> PoissonDistribution::leaveOneOutCrossValidati
     }
     
     // Calculate summary statistics
-    const double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / n;
-    const double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / n;
+    const double mean_absolute_error = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) / static_cast<double>(n);
+    const double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / static_cast<double>(n);
     const double root_mean_squared_error = std::sqrt(mean_squared_error);
     
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};

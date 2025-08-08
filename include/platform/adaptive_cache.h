@@ -84,13 +84,13 @@ struct CacheMetrics {
     void updateHitRate() noexcept {
         size_t total = hits.load() + misses.load();
         if (total > 0) {
-            hit_rate.store(static_cast<double>(hits.load()) / total, std::memory_order_relaxed);
+            hit_rate.store(static_cast<double>(hits.load()) / static_cast<double>(total), std::memory_order_relaxed);
         }
     }
     
     double getPrefetchEffectiveness() const noexcept {
         size_t total_prefetch = prefetch_hits.load() + prefetch_misses.load();
-        return total_prefetch > 0 ? static_cast<double>(prefetch_hits.load()) / total_prefetch : 0.0;
+        return total_prefetch > 0 ? static_cast<double>(prefetch_hits.load()) / static_cast<double>(total_prefetch) : 0.0;
     }
 };
 
@@ -182,7 +182,7 @@ struct CacheEntry {
     double getRecency() const noexcept {
         auto now = std::chrono::steady_clock::now();
         auto age_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_access_time).count();
-        return 1.0 / (1.0 + age_ms / 1000.0);  // Exponential decay
+        return 1.0 / (1.0 + static_cast<double>(age_ms) / 1000.0);  // Exponential decay
     }
     
     double getFrequency() const noexcept {
@@ -462,7 +462,7 @@ public:
         stats.memory_usage = metrics.memory_usage.load();
         stats.hit_rate = metrics.hit_rate.load();
         stats.memory_efficiency = stats.memory_usage > 0 ? 
-            static_cast<double>(metrics.hits.load()) / stats.memory_usage : 0.0;
+            static_cast<double>(metrics.hits.load()) / static_cast<double>(stats.memory_usage) : 0.0;
         stats.prefetch_effectiveness = metrics.getPrefetchEffectiveness();
         stats.evictions = metrics.evictions.load();
         stats.average_access_time = metrics.average_access_time.load();
@@ -525,7 +525,7 @@ public:
         
         // Adjust based on cache performance metrics (CONSERVATIVE)
         double hit_rate = metrics_.hit_rate.load();
-        double memory_pressure = static_cast<double>(metrics_.memory_usage.load()) / config_.max_memory_bytes;
+        double memory_pressure = static_cast<double>(metrics_.memory_usage.load()) / static_cast<double>(config_.max_memory_bytes);
         
         // Only reduce grain size for very poor hit rates (< 30%)
         if (hit_rate < 0.3) {
@@ -601,7 +601,7 @@ private:
                          const std::chrono::high_resolution_clock::time_point& end) const {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         double current_avg = metrics_.average_access_time.load();
-        double new_time = duration.count();
+        double new_time = static_cast<double>(duration.count());
         
         // Exponential moving average
         double alpha = 0.1;
@@ -651,9 +651,9 @@ private:
         if (current_size > max_size) {
             // We're over the limit - evict enough to get back under
             eviction_count = current_size - max_size + 1;
-        } else if (current_size >= static_cast<size_t>(max_size * 0.9)) {
+        } else if (current_size >= static_cast<size_t>(static_cast<double>(max_size) * 0.9)) {
             // We're close to the limit - evict a few to make room
-            eviction_count = std::max(size_t(1), static_cast<size_t>(current_size * 0.1));
+            eviction_count = std::max(size_t(1), static_cast<size_t>(static_cast<double>(current_size) * 0.1));
         } else {
             return; // No eviction needed
         }
@@ -700,13 +700,13 @@ private:
         
         if (hit_rate < config_.hit_rate_target && cache_size < config_.max_cache_size) {
             // Increase cache size if hit rate is low
-            config_.max_cache_size = std::min(config_.max_cache_size * 1.2, 
-                                            static_cast<double>(config_.max_cache_size * 2));
+            config_.max_cache_size = std::min(static_cast<size_t>(static_cast<double>(config_.max_cache_size) * 1.2), 
+                                            config_.max_cache_size * 2);
             metrics_.adaptive_resizes.fetch_add(1, std::memory_order_relaxed);
         } else if (hit_rate > 0.95 && cache_size > config_.min_cache_size * 2) {
             // Decrease cache size if hit rate is very high (over-provisioned)
-            config_.max_cache_size = std::max(config_.max_cache_size * 0.9,
-                                            static_cast<double>(config_.min_cache_size));
+            config_.max_cache_size = std::max(static_cast<size_t>(static_cast<double>(config_.max_cache_size) * 0.9),
+                                            config_.min_cache_size);
             metrics_.adaptive_resizes.fetch_add(1, std::memory_order_relaxed);
         }
     }
@@ -974,10 +974,10 @@ BenchmarkResult<Key, Value> benchmarkCache(
     auto stats = cache.getStats();
     
     BenchmarkResult<Key, Value> result;
-    result.hit_rate = static_cast<double>(hits) / num_operations;
+    result.hit_rate = static_cast<double>(hits) / static_cast<double>(num_operations);
     result.average_access_time_us = stats.average_access_time;
     result.memory_efficiency = stats.memory_efficiency;
-    result.operations_per_second = static_cast<size_t>(num_operations * 1000000.0 / duration.count());
+    result.operations_per_second = static_cast<size_t>(static_cast<double>(num_operations) * 1000000.0 / static_cast<double>(duration.count()));
     result.config_description = "Adaptive Cache Benchmark";
     
     return result;

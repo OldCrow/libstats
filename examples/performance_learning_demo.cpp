@@ -222,16 +222,16 @@ void demonstrate_adaptive_learning() {
                 uint64_t adjusted_duration = duration;
                 switch (strategy) {
                     case libstats::performance::Strategy::SCALAR:
-                        adjusted_duration = static_cast<uint64_t>(duration * 1.5); // Slower
+                        adjusted_duration = static_cast<uint64_t>(static_cast<double>(duration) * 1.5); // Slower
                         break;
                     case libstats::performance::Strategy::SIMD_BATCH:
                         adjusted_duration = duration; // Baseline
                         break;
                     case libstats::performance::Strategy::PARALLEL_SIMD:
                         if (size > 5000) {
-                            adjusted_duration = static_cast<uint64_t>(duration * 0.7); // Faster for large sizes
+                            adjusted_duration = static_cast<uint64_t>(static_cast<double>(duration) * 0.7); // Faster for large sizes
                         } else {
-                            adjusted_duration = static_cast<uint64_t>(duration * 1.2); // Slower for small sizes
+                            adjusted_duration = static_cast<uint64_t>(static_cast<double>(duration) * 1.2); // Slower for small sizes
                         }
                         break;
                     default:
@@ -261,7 +261,7 @@ void demonstrate_adaptive_learning() {
     for (auto size : training_sizes) {
         auto recommendation = history.getBestStrategy(libstats::performance::DistributionType::GAUSSIAN, size);
         
-        double avg_time_us = recommendation.expected_time_ns / 1000.0;
+        double avg_time_us = static_cast<double>(recommendation.expected_time_ns) / 1000.0;
         
         std::cout << std::setw(15) << size
                   << std::setw(20) << strategyToString(recommendation.recommended_strategy)

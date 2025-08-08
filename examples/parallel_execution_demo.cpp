@@ -213,7 +213,7 @@ void demonstrate_cache_awareness() {
         std::cout << "\nCache-aware grain sizing:" << std::endl;
         for (auto size : test_sizes) {
             auto grain = libstats::parallel::get_adaptive_grain_size(0, size); // Memory-bound
-            double cache_ratio = static_cast<double>(size) / elements_in_cache;
+            double cache_ratio = static_cast<double>(size) / static_cast<double>(elements_in_cache);
             
             std::cout << "  " << std::setw(10) << size << " elements (" 
                       << std::fixed << std::setprecision(1) << cache_ratio 

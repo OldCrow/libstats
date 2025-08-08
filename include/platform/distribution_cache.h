@@ -47,12 +47,12 @@ struct DistributionCacheMetricsSnapshot {
     
     double statisticalHitRate() const noexcept {
         size_t total = statistical_hits + parameter_hits + computation_hits;
-        return total > 0 ? static_cast<double>(statistical_hits) / total : 0.0;
+        return total > 0 ? static_cast<double>(statistical_hits) / static_cast<double>(total) : 0.0;
     }
     
     double totalHitRate() const noexcept {
         size_t total_hits = statistical_hits + parameter_hits + computation_hits;
-        return total_hits > 0 ? static_cast<double>(total_hits) / (total_hits + 1) : 0.0;
+        return total_hits > 0 ? static_cast<double>(total_hits) / static_cast<double>(total_hits + 1) : 0.0;
     }
 };
 
