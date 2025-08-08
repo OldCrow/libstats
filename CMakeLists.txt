@@ -5,6 +5,27 @@ if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)  # find_package uses upper-case <PACKAGENAME>_ROOT variables
 endif()
 
+# Automatic parallel job detection for optimal build performance
+include(ProcessorCount)
+ProcessorCount(CPU_COUNT)
+if(CPU_COUNT EQUAL 0)
+    # Fallback if detection fails
+    set(CPU_COUNT 4)
+    message(STATUS "CPU count detection failed, defaulting to 4 parallel jobs")
+else()
+    message(STATUS "Detected ${CPU_COUNT} CPU cores - enabling parallel builds")
+endif()
+
+# Set MAKEFLAGS environment variable for make-based generators
+if(CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
+    set(ENV{MAKEFLAGS} "-j${CPU_COUNT}")
+    message(STATUS "Set MAKEFLAGS=-j${CPU_COUNT} for make-based build")
+endif()
+
+# Set parallel options for CMake build command (for use with cmake --build)
+set(CMAKE_BUILD_PARALLEL_LEVEL ${CPU_COUNT} CACHE STRING "Number of parallel build jobs" FORCE)
+message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
+
 # Detect Homebrew LLVM and fallback to system compiler (macOS/Linux only)
 set(HOMEBREW_LLVM_ROOT "/usr/local/opt/llvm")
 set(HOMEBREW_LLVM_ROOT_ARM "/opt/homebrew/opt/llvm")
@@ -158,8 +179,8 @@ if(MSVC)
         message(STATUS "MSVC Debug build: /W3 /Od /Zi /RTC1 /MDd")
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
         # MSVC Dev: Light optimization, debug info, good for development and debugging
-        add_compile_options(/W3 /O1 /Zi /MD)
-        message(STATUS "MSVC Dev build: /W3 /O1 /Zi /MD")
+        add_compile_options(/W3 /O1 /Zi /MD /wd4996)  # /wd4996 disables deprecation warnings
+        message(STATUS "MSVC Dev build: /W3 /O1 /Zi /MD /wd4996")
     elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
         # MSVC-specific strict warnings and compatibility checks as ERRORS
         add_compile_options(/W4 /WX /permissive-)
@@ -168,10 +189,10 @@ if(MSVC)
         message(STATUS "MSVC-strict mode enabled (strict warnings as ERRORS)")
     elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
         # MSVC-specific strict warnings WITHOUT /WX for development efficiency
-        add_compile_options(/W4 /permissive-)
+        add_compile_options(/W4 /permissive- /wd4996)  # /wd4996 disables deprecation warnings
         # Enable additional MSVC-specific warnings (but not as errors)
         add_compile_options(/w14242 /w14254 /w14263 /w14265 /w14287 /w14289 /w14296 /w14311 /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826 /w14905 /w14906 /w14928)
-        message(STATUS "MSVC-warn mode enabled (strict warnings as WARNINGS)")
+        message(STATUS "MSVC-warn mode enabled (strict warnings as WARNINGS, deprecation disabled)")
     else()
         # Default MSVC compilation
         add_compile_options(/W3)
@@ -199,8 +220,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         message(STATUS "Clang Debug build: -O0 -g -Wall -Wextra")
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
         # Clang Dev: Light optimization, debug info, good for development and debugging
-        add_compile_options(-O1 -g -Wall -Wextra)
-        message(STATUS "Clang Dev build: -O1 -g -Wall -Wextra")
+        add_compile_options(-O1 -g -Wall -Wextra -Wno-deprecated-declarations)
+        message(STATUS "Clang Dev build: -O1 -g -Wall -Wextra -Wno-deprecated-declarations")
     elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
         # Clang-specific strict warnings and compatibility checks as ERRORS
         add_compile_options(
@@ -278,9 +299,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             -Wno-sign-conversion  # Too many false positives in standard library interactions
             -Wno-unused-parameter  # Common in template/callback code
             -Wno-padded           # Not practical for cross-platform development
-            -Wno-deprecated-declarations  # API updates in progress - not MSVC-specific
+            -Wno-deprecated-declarations  # API updates in progress
         )
-        message(STATUS "Clang with MSVC-warn compatibility mode enabled (type conversion warnings as WARNINGS)")
+        message(STATUS "Clang with MSVC-warn compatibility mode enabled (type conversion warnings as WARNINGS, deprecation disabled)")
     else()
         # Default Clang compilation
         add_compile_options(-Wall -Wextra -O2)
@@ -308,8 +329,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         message(STATUS "GCC Debug build: -O0 -g -Wall -Wextra -fstack-protector-strong")
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
         # GCC Dev: Light optimization, debug info, good for development and debugging
-        add_compile_options(-O1 -g -Wall -Wextra)
-        message(STATUS "GCC Dev build: -O1 -g -Wall -Wextra")
+        add_compile_options(-O1 -g -Wall -Wextra -Wno-deprecated-declarations)
+        message(STATUS "GCC Dev build: -O1 -g -Wall -Wextra -Wno-deprecated-declarations")
     elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
         # GCC-specific strict warnings and compatibility checks as ERRORS
         add_compile_options(
@@ -356,8 +377,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
             # Allow some warnings that are too pedantic
             -Wno-inline -Wno-padded -Wno-unused-parameter
             -Wno-sign-conversion  # Too noisy with standard library
+            -Wno-deprecated-declarations  # API updates in progress
         )
-        message(STATUS "GCC-warn mode enabled (GCC-specific warnings as WARNINGS)")
+        message(STATUS "GCC-warn mode enabled (GCC-specific warnings as WARNINGS, deprecation disabled)")
     else()
         # Default GCC compilation
         add_compile_options(-Wall -Wextra -O3)
