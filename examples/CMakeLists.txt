@@ -16,10 +16,13 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     # Apply same compiler flags as main library
     if(APPLE)
         target_compile_options(${EXAMPLE_NAME} PRIVATE -stdlib=libc++)
-        target_link_options(${EXAMPLE_NAME} PRIVATE
-            -L${LLVM_ROOT}/lib/c++
-            -Wl,-rpath,${LLVM_ROOT}/lib/c++
-        )
+        # Only apply Homebrew LLVM linking if it's being used
+        if(USING_HOMEBREW_LLVM AND LLVM_ROOT)
+            target_link_options(${EXAMPLE_NAME} PRIVATE
+                -L${LLVM_ROOT}/lib/c++
+                -Wl,-rpath,${LLVM_ROOT}/lib/c++
+            )
+        endif()
     endif()
     
     # Add SIMD compile definitions

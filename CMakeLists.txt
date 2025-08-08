@@ -666,67 +666,86 @@ add_compile_definitions(
     $<$<CXX_COMPILER_ID:MSVC>:_CRT_NONSTDC_NO_DEPRECATE>
 )
 
-# Apply optimized build flags using generator expressions
-# This logic is BUILD-TYPE driven for cross-compiler compatibility
-# Build types determine flag sets regardless of actual compiler used
-add_compile_options(
-    # =============================================================================
-    # Standard CMake Build Types (compiler-agnostic)
-    # =============================================================================
-    
-    # Release builds (all compilers) 
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<CONFIG:Release>>:/W3 /O2 /DNDEBUG>
-    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<CONFIG:Release>>:${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX}>
-    
-    # Debug builds (all compilers)
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<CONFIG:Debug>>:/W3 /Od /Zi /RTC1 /MDd>
-    $<$<AND:$<CXX_COMPILER_ID:GNU>,$<CONFIG:Debug>>:${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -fstack-protector-strong>
-    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<CONFIG:Debug>>:${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX}>
-    
-    # Dev builds (all compilers) - good balance of optimization and debugging
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>>:/W3 /O1 /Zi /MD /wd4996>
-    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>>:${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations>
-    
-    # =============================================================================
-    # CROSS-COMPILER COMPATIBILITY MODES (build-type driven)
-    # These apply specific flag sets regardless of actual compiler
-    # =============================================================================
-    
-    # ClangStrict: Clang-style strict warnings as ERRORS (any compiler can use)
-    $<$<STREQUAL:${CMAKE_BUILD_TYPE},ClangStrict>:${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror>
-    
-    # ClangWarn: Clang-style warnings as WARNINGS (any compiler can use)
-    $<$<STREQUAL:${CMAKE_BUILD_TYPE},ClangWarn>:${LIBSTATS_CLANG_STRICT_WARNINGS} -Wno-deprecated-declarations>
-    
-    # GCCStrict: GCC-style strict warnings as ERRORS (any compiler can use)
-    $<$<STREQUAL:${CMAKE_BUILD_TYPE},GCCStrict>:${LIBSTATS_GCC_STRICT_WARNINGS} -Werror>
-    
-    # GCCWarn: GCC-style warnings as WARNINGS (any compiler can use)
-    $<$<STREQUAL:${CMAKE_BUILD_TYPE},GCCWarn>:${LIBSTATS_GCC_STRICT_WARNINGS} -Wno-deprecated-declarations>
-    
-    # MSVCStrict: MSVC-compatible strict warnings as ERRORS (any compiler can use)
-    # MSVC native
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>>:/W4 /WX /permissive- ${LIBSTATS_MSVC_ENHANCED_WARNINGS} /we4289>
-    # Non-MSVC compilers using MSVC-compatible flags
-    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>>:${LIBSTATS_MSVC_COMPAT_WARNINGS} -Werror>
-    
-    # MSVCWarn: MSVC-compatible warnings as WARNINGS (any compiler can use)
-    # MSVC native
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>:/W4 /permissive- /wd4996 ${LIBSTATS_MSVC_ENHANCED_WARNINGS}>
-    # Non-MSVC compilers using MSVC-compatible flags
-    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>:${LIBSTATS_MSVC_COMPAT_WARNINGS} -Wno-deprecated-declarations>
-    
-    # =============================================================================
-    # Default builds for remaining cases
-    # =============================================================================
-    
-    # MSVC default (when none of the above conditions match)
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<OR:$<CONFIG:Release>,$<CONFIG:Debug>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>>>:/W3>
-    
-    # Unix-style compilers default (when none of the above conditions match)
-    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<NOT:$<OR:$<CONFIG:Release>,$<CONFIG:Debug>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>>>:${LIBSTATS_COMMON_WARNINGS_UNIX} -O2>
-    $<$<AND:$<CXX_COMPILER_ID:GNU>,$<NOT:$<OR:$<CONFIG:Release>,$<CONFIG:Debug>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>>>:${LIBSTATS_COMMON_WARNINGS_UNIX} ${LIBSTATS_OPT_FULL_UNIX}>
-)
+# Apply build type and compiler-specific flags using traditional CMake approach
+# This maintains the generator expression benefits while ensuring reliability
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # MSVC compiler flags
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(/W3 /O2 /DNDEBUG)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(/W3 /Od /Zi /RTC1 /MDd)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+        add_compile_options(/W3 /O1 /Zi /MD /wd4996)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
+        add_compile_options(/W4 /WX /permissive- /we4289)
+        add_compile_options(${LIBSTATS_MSVC_ENHANCED_WARNINGS})
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
+        add_compile_options(/W4 /permissive- /wd4996)
+        add_compile_options(${LIBSTATS_MSVC_ENHANCED_WARNINGS})
+    else()
+        add_compile_options(/W3)
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+    # Clang/AppleClang compiler flags
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX})
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX})
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+        add_compile_options(${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
+        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
+        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Wno-deprecated-declarations)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
+        # GCC build type with Clang compiler - use Clang equivalent flags
+        message(WARNING "GCCStrict build type requested with Clang compiler. Using Clang-compatible flags instead.")
+        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
+        # GCC build type with Clang compiler - use Clang equivalent flags
+        message(WARNING "GCCWarn build type requested with Clang compiler. Using Clang-compatible flags instead.")
+        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Wno-deprecated-declarations)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
+        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Werror)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
+        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Wno-deprecated-declarations)
+    else()
+        add_compile_options(${LIBSTATS_COMMON_WARNINGS_UNIX} -O2)
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC compiler flags
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX})
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -fstack-protector-strong)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+        add_compile_options(${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
+        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
+        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Wno-deprecated-declarations)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
+        add_compile_options(${LIBSTATS_GCC_STRICT_WARNINGS} -Werror)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
+        add_compile_options(${LIBSTATS_GCC_STRICT_WARNINGS} -Wno-deprecated-declarations)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
+        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Werror)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
+        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Wno-deprecated-declarations)
+    else()
+        add_compile_options(${LIBSTATS_COMMON_WARNINGS_UNIX} ${LIBSTATS_OPT_FULL_UNIX})
+    endif()
+else()
+    # Unknown compiler - use sensible defaults
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(-O3 -DNDEBUG)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(-O0 -g)
+    else()
+        add_compile_options(-O2)
+    endif()
+endif()
 
 # Apply SIMD-specific compilation flags using generator expressions
 add_compile_options(
