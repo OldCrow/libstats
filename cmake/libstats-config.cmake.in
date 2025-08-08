@@ -4,6 +4,12 @@ include(CMakeFindDependencyMacro)
 
 # Find dependencies
 find_dependency(Threads)
+if(@LIBSTATS_HAS_TBB@)
+    find_dependency(TBB)
+endif()
+if(@LIBSTATS_HAS_OPENMP@)
+    find_dependency(OpenMP)
+endif()
 
 # Include the targets file
 include("${CMAKE_CURRENT_LIST_DIR}/libstats-targets.cmake")

@@ -446,15 +446,39 @@ bool test_neon() {
     message(STATUS "  Sources: ${_final_sources}")
 endfunction()
 
-# Function to configure SIMD compilation for a target
+# Create SIMD interface target for centralized SIMD configuration
+# This interface target acts as a modern CMake way to propagate SIMD settings
+function(create_simd_interface_target)
+    # Create interface library for SIMD definitions
+    add_library(libstats_simd_interface INTERFACE)
+    
+    get_property(_definitions CACHE LIBSTATS_SIMD_DEFINITIONS PROPERTY VALUE)
+    
+    # Add all SIMD compile definitions to the interface target
+    if(_definitions)
+        target_compile_definitions(libstats_simd_interface INTERFACE ${_definitions})
+    endif()
+    
+    # Create alias for consistency with other interface targets
+    add_library(libstats::simd ALIAS libstats_simd_interface)
+    
+    message(STATUS "SIMD interface target created with definitions: ${_definitions}")
+endfunction()
+
+# Function to configure SIMD compilation for a target using modern CMake approach
 function(configure_simd_target TARGET_NAME)
     get_property(_sse2 CACHE LIBSTATS_HAS_SSE2 PROPERTY VALUE)
     get_property(_avx CACHE LIBSTATS_HAS_AVX PROPERTY VALUE)
     get_property(_avx2 CACHE LIBSTATS_HAS_AVX2 PROPERTY VALUE)
     get_property(_avx512 CACHE LIBSTATS_HAS_AVX512 PROPERTY VALUE)
     get_property(_neon CACHE LIBSTATS_HAS_NEON PROPERTY VALUE)
-    get_property(_definitions CACHE LIBSTATS_SIMD_DEFINITIONS PROPERTY VALUE)
     
+    # Link to SIMD interface target for definitions (modern CMake approach)
+    if(TARGET libstats_simd_interface)
+        target_link_libraries(${TARGET_NAME} PRIVATE libstats::simd)
+    endif()
+    
+    # Configure source-specific SIMD compilation flags
     if(_sse2)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
@@ -504,7 +528,4 @@ function(configure_simd_target TARGET_NAME)
                 PROPERTIES COMPILE_FLAGS "-mfpu=neon")
         endif()
     endif()
-    
-    # Add compile definitions
-    target_compile_definitions(${TARGET_NAME} PRIVATE ${_definitions})
 endfunction()

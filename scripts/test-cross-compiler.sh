@@ -48,7 +48,7 @@ print_warning() {
 # Clean function
 cleanup_build_dirs() {
     print_section "Cleaning previous build directories"
-    for config in MSVCStrict GCCStrict Release Debug; do
+    for config in ClangStrict ClangWarn GCCStrict GCCWarn MSVCStrict MSVCWarn Release Debug; do
         build_dir="build-$(echo $config | tr '[:upper:]' '[:lower:]')"
         if [ -d "$build_dir" ]; then
             echo "  Removing $build_dir"
@@ -163,8 +163,12 @@ if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
     echo "  --help     Show this help message"
     echo
     echo "This script tests the codebase against multiple compiler configurations:"
-    echo "  • MSVCStrict: MSVC-like strictness (type conversions, implicit casts)"
-    echo "  • GCCStrict: GCC-specific warnings (undefined behavior, duplicated conditions)"
+    echo "  • ClangStrict: Clang-specific warnings (modern C++ standards, performance) - ERRORS"
+    echo "  • ClangWarn: Clang-specific warnings (modern C++ standards, performance) - WARNINGS"
+    echo "  • GCCStrict: GCC-specific warnings (undefined behavior, duplicated conditions) - ERRORS"
+    echo "  • GCCWarn: GCC-specific warnings (undefined behavior, duplicated conditions) - WARNINGS"
+    echo "  • MSVCStrict: MSVC-like strictness (type conversions, implicit casts) - ERRORS"
+    echo "  • MSVCWarn: MSVC-like strictness (type conversions, implicit casts) - WARNINGS"
     echo "  • Release: Standard release build (baseline compatibility)"
     echo "  • Debug: Standard debug build (baseline compatibility)"
     echo
@@ -183,10 +187,12 @@ main() {
     fi
     
     # Test each configuration
-    test_build_config "MSVCStrict" "MSVC-like strictness (type conversions, implicit casts) - ERRORS"
-    test_build_config "MSVCWarn" "MSVC-like strictness (type conversions, implicit casts) - WARNINGS"
+    test_build_config "ClangStrict" "Clang-specific warnings (modern C++ standards, performance) - ERRORS"
+    test_build_config "ClangWarn" "Clang-specific warnings (modern C++ standards, performance) - WARNINGS"
     test_build_config "GCCStrict" "GCC-specific warnings (undefined behavior, duplicated conditions) - ERRORS"
     test_build_config "GCCWarn" "GCC-specific warnings (undefined behavior, duplicated conditions) - WARNINGS"
+    test_build_config "MSVCStrict" "MSVC-like strictness (type conversions, implicit casts) - ERRORS"
+    test_build_config "MSVCWarn" "MSVC-like strictness (type conversions, implicit casts) - WARNINGS"
     test_build_config "Release" "Standard release build (baseline compatibility)"
     test_build_config "Debug" "Standard debug build (baseline compatibility)"
     

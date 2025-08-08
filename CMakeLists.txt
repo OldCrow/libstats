@@ -1,9 +1,12 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.20)
 
 # Set CMake policies
 if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)  # find_package uses upper-case <PACKAGENAME>_ROOT variables
 endif()
+
+# Verbose messaging control
+option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 
 # Automatic parallel job detection for optimal build performance
 include(ProcessorCount)
@@ -11,47 +14,98 @@ ProcessorCount(CPU_COUNT)
 if(CPU_COUNT EQUAL 0)
     # Fallback if detection fails
     set(CPU_COUNT 4)
-    message(STATUS "CPU count detection failed, defaulting to 4 parallel jobs")
+    if(LIBSTATS_VERBOSE_BUILD)
+        message(STATUS "CPU count detection failed, defaulting to 4 parallel jobs")
+    endif()
 else()
-    message(STATUS "Detected ${CPU_COUNT} CPU cores - enabling parallel builds")
+    if(LIBSTATS_VERBOSE_BUILD)
+        message(STATUS "Detected ${CPU_COUNT} CPU cores - enabling parallel builds")
+    endif()
 endif()
 
 # Set MAKEFLAGS environment variable for make-based generators
 if(CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
     set(ENV{MAKEFLAGS} "-j${CPU_COUNT}")
-    message(STATUS "Set MAKEFLAGS=-j${CPU_COUNT} for make-based build")
+    if(LIBSTATS_VERBOSE_BUILD)
+        message(STATUS "Set MAKEFLAGS=-j${CPU_COUNT} for make-based build")
+    endif()
 endif()
 
 # Set parallel options for CMake build command (for use with cmake --build)
 set(CMAKE_BUILD_PARALLEL_LEVEL ${CPU_COUNT} CACHE STRING "Number of parallel build jobs" FORCE)
-message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
+if(LIBSTATS_VERBOSE_BUILD)
+    message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
+endif()
 
-# Detect Homebrew LLVM and fallback to system compiler (macOS/Linux only)
-set(HOMEBREW_LLVM_ROOT "/usr/local/opt/llvm")
+# Optimized Homebrew LLVM detection with caching (macOS/Linux only)
+# Cache results to avoid repeated filesystem checks during reconfiguration
+set(HOMEBREW_LLVM_ROOT_INTEL "/usr/local/opt/llvm")
 set(HOMEBREW_LLVM_ROOT_ARM "/opt/homebrew/opt/llvm")
 
-# Homebrew LLVM detection (Intel Mac path first, then ARM Mac path)
+# Function to detect and cache Homebrew LLVM installation
+function(detect_homebrew_llvm)
+    # Check if detection has already been cached
+    if(DEFINED CACHE{LIBSTATS_HOMEBREW_LLVM_ROOT})
+        # Use cached result
+        set(LLVM_ROOT "${LIBSTATS_HOMEBREW_LLVM_ROOT}" PARENT_SCOPE)
+        if(NOT "${LIBSTATS_HOMEBREW_LLVM_ROOT}" STREQUAL "")
+            set(USING_HOMEBREW_LLVM TRUE PARENT_SCOPE)
+            if(LIBSTATS_VERBOSE_BUILD)
+                message(STATUS "Using cached Homebrew LLVM detection: ${LIBSTATS_HOMEBREW_LLVM_ROOT}")
+            endif()
+        else()
+            set(USING_HOMEBREW_LLVM FALSE PARENT_SCOPE)
+            if(LIBSTATS_VERBOSE_BUILD)
+                message(STATUS "Using cached result: Homebrew LLVM not available")
+            endif()
+        endif()
+        return()
+    endif()
+    
+    # Perform detection and cache result
+    if(LIBSTATS_VERBOSE_BUILD)
+        message(STATUS "Detecting Homebrew LLVM installation...")
+    endif()
+    
+    # Check ARM64 path first (more common on modern Macs)
+    if(EXISTS "${HOMEBREW_LLVM_ROOT_ARM}/bin/clang++")
+        set(LIBSTATS_HOMEBREW_LLVM_ROOT "${HOMEBREW_LLVM_ROOT_ARM}" CACHE STRING "Detected Homebrew LLVM root path" FORCE)
+        set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT_ARM}" PARENT_SCOPE)
+        set(USING_HOMEBREW_LLVM TRUE PARENT_SCOPE)
+        message(STATUS "Found Homebrew LLVM (ARM64): ${HOMEBREW_LLVM_ROOT_ARM}")
+    # Check Intel path as fallback
+    elseif(EXISTS "${HOMEBREW_LLVM_ROOT_INTEL}/bin/clang++")
+        set(LIBSTATS_HOMEBREW_LLVM_ROOT "${HOMEBREW_LLVM_ROOT_INTEL}" CACHE STRING "Detected Homebrew LLVM root path" FORCE)
+        set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT_INTEL}" PARENT_SCOPE)
+        set(USING_HOMEBREW_LLVM TRUE PARENT_SCOPE)
+        message(STATUS "Found Homebrew LLVM (Intel): ${HOMEBREW_LLVM_ROOT_INTEL}")
+    else()
+        # Cache negative result to avoid repeated checks
+        set(LIBSTATS_HOMEBREW_LLVM_ROOT "" CACHE STRING "Homebrew LLVM not found" FORCE)
+        set(USING_HOMEBREW_LLVM FALSE PARENT_SCOPE)
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "Homebrew LLVM not found, will use system compiler")
+        endif()
+    endif()
+endfunction()
+
+# Apply Homebrew LLVM detection (macOS/Linux only)
 if(APPLE OR (UNIX AND NOT WIN32))
-    if(EXISTS "${HOMEBREW_LLVM_ROOT}/bin/clang++")
-        set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT}")
+    detect_homebrew_llvm()
+    
+    if(USING_HOMEBREW_LLVM)
+        # Configure Homebrew LLVM
         set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
         set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
         set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-        set(USING_HOMEBREW_LLVM TRUE)
-        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
-    elseif(EXISTS "${HOMEBREW_LLVM_ROOT_ARM}/bin/clang++")
-        set(LLVM_ROOT "${HOMEBREW_LLVM_ROOT_ARM}")
-        set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
-        set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
-        set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-        set(USING_HOMEBREW_LLVM TRUE)
         message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
     else()
         # Fallback to system compiler
         find_program(CMAKE_C_COMPILER clang)
         find_program(CMAKE_CXX_COMPILER clang++)
-        set(USING_HOMEBREW_LLVM FALSE)
-        message(STATUS "Homebrew LLVM not found, using system compiler: ${CMAKE_CXX_COMPILER}")
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "Using system compiler: ${CMAKE_CXX_COMPILER}")
+        endif()
     endif()
 endif()
 
@@ -95,29 +149,239 @@ if(APPLE)
         message(STATUS "Using system libc++ with Apple Clang")
     endif()
     
-    # Optional TBB support for parallel execution policies
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(TBB QUIET tbb)
-        if(TBB_FOUND)
-            include_directories(${TBB_INCLUDE_DIRS})
-            link_directories(${TBB_LIBRARY_DIRS})
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
-            set(LIBSTATS_HAS_TBB TRUE)
-            message(STATUS "TBB found - parallel execution policies enabled")
-        else()
-            set(LIBSTATS_HAS_TBB FALSE)
-            message(STATUS "TBB not found - parallel execution policies may not work")
+    # Comprehensive Threading System Detection with Caching
+    # Cache results to avoid repeated detection during reconfiguration
+    
+    # Function to detect and cache comprehensive threading capabilities
+    function(detect_threading_systems)
+        # Check if detection has already been cached
+        if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
+            if(LIBSTATS_VERBOSE_BUILD)
+                message(STATUS "Using cached threading system detection results")
+            endif()
+            return()
         endif()
-    else()
+        
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "Detecting comprehensive threading system capabilities...")
+        endif()
+        
+        # 1. TBB Detection (Enhanced)
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "  Checking for Intel TBB...")
+        endif()
+        find_package(PkgConfig QUIET)
         set(LIBSTATS_HAS_TBB FALSE)
-        message(STATUS "PkgConfig not found - cannot detect TBB")
-    endif()
+        
+        if(PkgConfig_FOUND)
+            pkg_check_modules(TBB QUIET tbb)
+            if(TBB_FOUND)
+                include_directories(${TBB_INCLUDE_DIRS})
+                link_directories(${TBB_LIBRARY_DIRS})
+                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                set(LIBSTATS_HAS_TBB TRUE)
+                message(STATUS "    ✓ TBB found via pkg-config - parallel execution policies enhanced")
+            endif()
+        endif()
+        
+        # Fallback to find_package for TBB if pkg-config failed
+        if(NOT LIBSTATS_HAS_TBB)
+            find_package(TBB QUIET)
+            if(TBB_FOUND)
+                set(LIBSTATS_HAS_TBB TRUE)
+                message(STATUS "    ✓ TBB found via find_package - parallel execution policies enhanced")
+            else()
+                message(STATUS "    ✗ TBB not found - C++20 execution policies may have limited performance")
+            endif()
+        endif()
+        
+        # 2. OpenMP Detection
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "  Checking for OpenMP...")
+        endif()
+        find_package(OpenMP QUIET)
+        if(OpenMP_CXX_FOUND)
+            set(LIBSTATS_HAS_OPENMP TRUE CACHE BOOL "OpenMP support available")
+            # Don't automatically link OpenMP - let parallel_execution.h handle detection
+            message(STATUS "    ✓ OpenMP found - available as parallel execution fallback")
+        else()
+            set(LIBSTATS_HAS_OPENMP FALSE CACHE BOOL "OpenMP support not available")
+            message(STATUS "    ✗ OpenMP not found")
+        endif()
+        
+        # 3. Pthread Detection (Unix/Linux systems)
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "  Checking for POSIX Threads (pthreads)...")
+        endif()
+        find_package(Threads QUIET)
+        if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
+            set(LIBSTATS_HAS_PTHREADS TRUE CACHE BOOL "POSIX threads support available")
+            message(STATUS "    ✓ POSIX threads found - available as parallel execution fallback")
+        else()
+            set(LIBSTATS_HAS_PTHREADS FALSE CACHE BOOL "POSIX threads not available")
+            message(STATUS "    ✗ POSIX threads not found or not using pthread implementation")
+        endif()
+        
+        # 4. C++20 Execution Policy Detection (Compile-time)
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "  Checking for C++20 execution policy support...")
+        endif()
+        # This will be detected at compile-time by parallel_execution.h
+        # but we can do some basic feature testing here
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_STANDARD EQUAL 20)
+            if(USING_HOMEBREW_LLVM)
+                message(STATUS "    ~ C++20 execution policies: Enhanced with LLVM experimental PSTL")
+            else()
+                message(STATUS "    ~ C++20 execution policies: May be available with Apple Clang")
+            endif()
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_STANDARD EQUAL 20)
+            message(STATUS "    ~ C++20 execution policies: May be available with GCC (requires libstdc++9+)")
+        elseif(MSVC AND CMAKE_CXX_STANDARD EQUAL 20)
+            message(STATUS "    ~ C++20 execution policies: Available with MSVC 2019+ and C++20")
+        else()
+            message(STATUS "    ~ C++20 execution policies: Detection deferred to runtime")
+        endif()
+        
+        # 5. Platform-Specific Threading (Detection Only - Implementation in parallel_execution.h)
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "  Platform-specific threading systems:")
+        endif()
+        if(APPLE)
+            message(STATUS "    ✓ Grand Central Dispatch (GCD) - Available on macOS")
+            set(LIBSTATS_HAS_GCD TRUE CACHE BOOL "Grand Central Dispatch available")
+        else()
+            set(LIBSTATS_HAS_GCD FALSE CACHE BOOL "Grand Central Dispatch not available")
+        endif()
+        
+        if(WIN32)
+            # Check for Windows Vista+ (required for Thread Pool API)
+            if(DEFINED _WIN32_WINNT)
+                if(_WIN32_WINNT GREATER_EQUAL 0x0600)
+                    message(STATUS "    ✓ Windows Thread Pool API - Available (Windows Vista+)")
+                    set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API available")
+                else()
+                    message(STATUS "    ✗ Windows Thread Pool API - Requires Windows Vista+ (_WIN32_WINNT >= 0x0600)")
+                    set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool API not available")
+                endif()
+            else()
+                message(STATUS "    ~ Windows Thread Pool API - Available if _WIN32_WINNT >= 0x0600 (not set)")
+                set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API likely available")
+            endif()
+        else()
+            set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool API not available")
+        endif()
+        
+        # Cache all TBB variables for consistency
+        set(LIBSTATS_HAS_TBB ${LIBSTATS_HAS_TBB} CACHE BOOL "Intel TBB support available")
+        
+        # Mark detection as complete
+        set(LIBSTATS_THREADING_DETECTION_COMPLETE TRUE CACHE BOOL "Threading detection completed")
+        
+        # Summary
+        message(STATUS "Threading System Detection Summary:")
+        message(STATUS "  - Intel TBB: ${LIBSTATS_HAS_TBB}")
+        message(STATUS "  - OpenMP: ${LIBSTATS_HAS_OPENMP}")
+        message(STATUS "  - POSIX Threads: ${LIBSTATS_HAS_PTHREADS}")
+        message(STATUS "  - Grand Central Dispatch: ${LIBSTATS_HAS_GCD}")
+        message(STATUS "  - Windows Thread Pool: ${LIBSTATS_HAS_WIN_THREADPOOL}")
+        message(STATUS "  - C++20 execution policies: Runtime detection enabled")
+    endfunction()
+    
+    # Execute comprehensive threading detection
+    detect_threading_systems()
 
 elseif(UNIX AND NOT APPLE)
     # Linux specific configuration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-soname,libstats.so.${PROJECT_VERSION_MAJOR}")
+    
+    # Comprehensive Threading System Detection for Linux
+    function(detect_threading_systems_linux)
+        if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
+            message(STATUS "Using cached threading system detection results")
+            return()
+        endif()
+        
+        message(STATUS "Detecting comprehensive threading system capabilities (Linux)...")
+        
+        # 1. TBB Detection
+        message(STATUS "  Checking for Intel TBB...")
+        find_package(TBB QUIET)
+        if(TBB_FOUND)
+            set(LIBSTATS_HAS_TBB TRUE CACHE BOOL "Intel TBB support available")
+            message(STATUS "    ✓ TBB found via find_package - parallel execution policies enhanced")
+        else()
+            find_package(PkgConfig QUIET)
+            if(PkgConfig_FOUND)
+                pkg_check_modules(TBB QUIET tbb)
+                if(TBB_FOUND)
+                    include_directories(${TBB_INCLUDE_DIRS})
+                    link_directories(${TBB_LIBRARY_DIRS})
+                    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                    set(LIBSTATS_HAS_TBB TRUE CACHE BOOL "Intel TBB support available")
+                    message(STATUS "    ✓ TBB found via pkg-config - parallel execution policies enhanced")
+                else()
+                    set(LIBSTATS_HAS_TBB FALSE CACHE BOOL "Intel TBB support not available")
+                    message(STATUS "    ✗ TBB not found - C++20 execution policies may have limited performance")
+                endif()
+            else()
+                set(LIBSTATS_HAS_TBB FALSE CACHE BOOL "Intel TBB support not available")
+                message(STATUS "    ✗ TBB not found - C++20 execution policies may have limited performance")
+            endif()
+        endif()
+        
+        # 2. OpenMP Detection
+        message(STATUS "  Checking for OpenMP...")
+        find_package(OpenMP QUIET)
+        if(OpenMP_CXX_FOUND)
+            set(LIBSTATS_HAS_OPENMP TRUE CACHE BOOL "OpenMP support available")
+            message(STATUS "    ✓ OpenMP found - available as parallel execution fallback")
+        else()
+            set(LIBSTATS_HAS_OPENMP FALSE CACHE BOOL "OpenMP support not available")
+            message(STATUS "    ✗ OpenMP not found")
+        endif()
+        
+        # 3. Pthread Detection (Standard on Linux)
+        message(STATUS "  Checking for POSIX Threads (pthreads)...")
+        find_package(Threads REQUIRED)  # Required on Linux
+        if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
+            set(LIBSTATS_HAS_PTHREADS TRUE CACHE BOOL "POSIX threads support available")
+            message(STATUS "    ✓ POSIX threads found - available as parallel execution fallback")
+        else()
+            set(LIBSTATS_HAS_PTHREADS FALSE CACHE BOOL "POSIX threads not available")
+            message(STATUS "    ✗ POSIX threads not found - this is unexpected on Linux")
+        endif()
+        
+        # 4. C++20 Execution Policy Detection
+        message(STATUS "  Checking for C++20 execution policy support...")
+        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_STANDARD EQUAL 20)
+            message(STATUS "    ~ C++20 execution policies: May be available with GCC (requires libstdc++9+)")
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_STANDARD EQUAL 20)
+            message(STATUS "    ~ C++20 execution policies: May be available with Clang (requires libc++14+)")
+        else()
+            message(STATUS "    ~ C++20 execution policies: Detection deferred to runtime")
+        endif()
+        
+        # 5. Platform-Specific Threading (Linux-specific)
+        message(STATUS "  Platform-specific threading systems:")
+        set(LIBSTATS_HAS_GCD FALSE CACHE BOOL "Grand Central Dispatch not available on Linux")
+        set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool API not available")
+        message(STATUS "    ✗ Grand Central Dispatch - Not available on Linux")
+        message(STATUS "    ✗ Windows Thread Pool API - Not available on Linux")
+        
+        set(LIBSTATS_THREADING_DETECTION_COMPLETE TRUE CACHE BOOL "Threading detection completed")
+        
+        # Summary
+        message(STATUS "Threading System Detection Summary (Linux):")
+        message(STATUS "  - Intel TBB: ${LIBSTATS_HAS_TBB}")
+        message(STATUS "  - OpenMP: ${LIBSTATS_HAS_OPENMP}")
+        message(STATUS "  - POSIX Threads: ${LIBSTATS_HAS_PTHREADS}")
+        message(STATUS "  - Grand Central Dispatch: ${LIBSTATS_HAS_GCD}")
+        message(STATUS "  - Windows Thread Pool: ${LIBSTATS_HAS_WIN_THREADPOOL}")
+        message(STATUS "  - C++20 execution policies: Runtime detection enabled")
+    endfunction()
+    
+    detect_threading_systems_linux()
 
 elseif(WIN32)
     # Windows specific configuration
@@ -126,16 +390,99 @@ elseif(WIN32)
     add_definitions(-D_USE_MATH_DEFINES)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     
-    # Find TBB and GTest using find_package (no Homebrew or pkg-config on Windows)
-    find_package(TBB QUIET)
-    if(TBB_FOUND)
-        set(LIBSTATS_HAS_TBB TRUE)
-        message(STATUS "TBB found - parallel execution policies enabled (Windows)")
-    else()
-        set(LIBSTATS_HAS_TBB FALSE)
-        message(STATUS "TBB not found - parallel execution policies may not work (Windows)")
-    endif()
-
+    # Comprehensive Threading System Detection for Windows
+    function(detect_threading_systems_windows)
+        if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
+            message(STATUS "Using cached threading system detection results")
+            return()
+        endif()
+        
+        message(STATUS "Detecting comprehensive threading system capabilities (Windows)...")
+        
+        # 1. TBB Detection (Windows)
+        message(STATUS "  Checking for Intel TBB...")
+        find_package(TBB QUIET)
+        if(TBB_FOUND)
+            set(LIBSTATS_HAS_TBB TRUE CACHE BOOL "Intel TBB support available")
+            message(STATUS "    ✓ TBB found via find_package - parallel execution policies enhanced")
+        else()
+            set(LIBSTATS_HAS_TBB FALSE CACHE BOOL "Intel TBB support not available")
+            message(STATUS "    ✗ TBB not found - C++20 execution policies may have limited performance")
+        endif()
+        
+        # 2. OpenMP Detection (Windows)
+        message(STATUS "  Checking for OpenMP...")
+        find_package(OpenMP QUIET)
+        if(OpenMP_CXX_FOUND)
+            set(LIBSTATS_HAS_OPENMP TRUE CACHE BOOL "OpenMP support available")
+            message(STATUS "    ✓ OpenMP found - available as parallel execution fallback")
+        else()
+            set(LIBSTATS_HAS_OPENMP FALSE CACHE BOOL "OpenMP support not available")
+            message(STATUS "    ✗ OpenMP not found")
+        endif()
+        
+        # 3. Windows Threading API Detection
+        message(STATUS "  Checking for Windows threading APIs...")
+        # Standard Win32 threads are always available on Windows
+        set(LIBSTATS_HAS_WIN32_THREADS TRUE CACHE BOOL "Win32 threads support available")
+        message(STATUS "    ✓ Win32 threads - Available on Windows")
+        
+        # Windows Thread Pool API (Vista+)
+        if(DEFINED CMAKE_SYSTEM_VERSION AND CMAKE_SYSTEM_VERSION VERSION_GREATER_EQUAL "6.0")
+            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API available")
+            message(STATUS "    ✓ Windows Thread Pool API - Available (detected Windows Vista+)")
+        elseif(DEFINED _WIN32_WINNT)
+            if(_WIN32_WINNT GREATER_EQUAL 0x0600)
+                set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API available")
+                message(STATUS "    ✓ Windows Thread Pool API - Available (_WIN32_WINNT >= 0x0600)")
+            else()
+                set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool API not available")
+                message(STATUS "    ✗ Windows Thread Pool API - Requires Windows Vista+ (_WIN32_WINNT >= 0x0600)")
+            endif()
+        else()
+            # Default to available for modern Windows builds
+            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API likely available")
+            message(STATUS "    ~ Windows Thread Pool API - Likely available (Windows Vista+ assumed)")
+        endif()
+        
+        # 4. C++20 Execution Policy Detection (Windows)
+        message(STATUS "  Checking for C++20 execution policy support...")
+        if(MSVC AND CMAKE_CXX_STANDARD EQUAL 20)
+            if(MSVC_VERSION GREATER_EQUAL 1920)  # VS 2019+
+                message(STATUS "    ✓ C++20 execution policies: Available with MSVC 2019+ and C++20")
+            else()
+                message(STATUS "    ~ C++20 execution policies: May be available (MSVC version check failed)")
+            endif()
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_STANDARD EQUAL 20)
+            message(STATUS "    ~ C++20 execution policies: May be available with Clang-cl")
+        else()
+            message(STATUS "    ~ C++20 execution policies: Detection deferred to runtime")
+        endif()
+        
+        # 5. Platform-Specific Threading (Windows-specific)
+        message(STATUS "  Platform-specific threading systems:")
+        set(LIBSTATS_HAS_GCD FALSE CACHE BOOL "Grand Central Dispatch not available on Windows")
+        set(LIBSTATS_HAS_PTHREADS FALSE CACHE BOOL "POSIX threads not natively available on Windows")
+        message(STATUS "    ✗ Grand Central Dispatch - Not available on Windows")
+        message(STATUS "    ✗ POSIX threads - Not natively available on Windows")
+        
+        set(LIBSTATS_THREADING_DETECTION_COMPLETE TRUE CACHE BOOL "Threading detection completed")
+        
+        # Summary
+        message(STATUS "Threading System Detection Summary (Windows):")
+        message(STATUS "  - Intel TBB: ${LIBSTATS_HAS_TBB}")
+        message(STATUS "  - OpenMP: ${LIBSTATS_HAS_OPENMP}")
+        message(STATUS "  - Win32 Threads: ${LIBSTATS_HAS_WIN32_THREADS}")
+        message(STATUS "  - Windows Thread Pool API: ${LIBSTATS_HAS_WIN_THREADPOOL}")
+        message(STATUS "  - Grand Central Dispatch: ${LIBSTATS_HAS_GCD}")
+        message(STATUS "  - POSIX Threads: ${LIBSTATS_HAS_PTHREADS}")
+        message(STATUS "  - C++20 execution policies: Runtime detection enabled")
+    endfunction()
+    
+    # Execute comprehensive threading detection for Windows
+    detect_threading_systems_windows()
+    
+    # Find GTest using find_package (no Homebrew or pkg-config on Windows)
     find_package(GTest QUIET)
     if(GTest_FOUND)
         set(GTEST_FOUND TRUE)
@@ -157,263 +504,324 @@ option(LIBSTATS_CONSERVATIVE_SIMD "Use conservative SIMD settings (disable newer
 # Perform comprehensive SIMD detection
 detect_simd_features()
 
-# Compiler flags - Organized by build type for cross-platform compatibility
 # =============================================================================
+# CONSOLIDATED TBB DETECTION FUNCTION
+# =============================================================================
+# Unified TBB detection logic for all platforms
+function(detect_tbb_unified)
+    if(DEFINED CACHE{LIBSTATS_TBB_DETECTION_COMPLETE})
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "Using cached TBB detection results")
+        endif()
+        return()
+    endif()
+    
+    if(LIBSTATS_VERBOSE_BUILD)
+        message(STATUS "Detecting Intel TBB...")
+    endif()
+    set(LIBSTATS_HAS_TBB FALSE)
+    
+    # Method 1: find_package (preferred for vcpkg, conan, system installs)
+    find_package(TBB QUIET)
+    if(TBB_FOUND)
+        set(LIBSTATS_HAS_TBB TRUE)
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "  ✓ TBB found via find_package")
+        endif()
+    else()
+        # Method 2: pkg-config (preferred for Homebrew, Linux package managers)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(TBB QUIET tbb)
+            if(TBB_FOUND)
+                include_directories(${TBB_INCLUDE_DIRS})
+                link_directories(${TBB_LIBRARY_DIRS})
+                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                set(LIBSTATS_HAS_TBB TRUE)
+                if(LIBSTATS_VERBOSE_BUILD)
+                    message(STATUS "  ✓ TBB found via pkg-config")
+                endif()
+            endif()
+        endif()
+    endif()
+    
+    # Cache result
+    set(LIBSTATS_HAS_TBB ${LIBSTATS_HAS_TBB} CACHE BOOL "Intel TBB support available")
+    set(LIBSTATS_TBB_DETECTION_COMPLETE TRUE CACHE BOOL "TBB detection completed")
+    
+    if(LIBSTATS_HAS_TBB)
+        message(STATUS "Intel TBB: AVAILABLE - parallel execution policies enhanced")
+    else()
+        message(STATUS "Intel TBB: NOT FOUND - C++20 execution policies may have limited performance")
+    endif()
+endfunction()
+
+# Execute unified TBB detection
+detect_tbb_unified()
+
+# =============================================================================
+# SHARED COMPILER FLAG DEFINITIONS
+# =============================================================================
+# Define reusable flag sets to reduce repetition and improve maintainability
+
+# Common warning flag sets
+set(LIBSTATS_COMMON_WARNINGS_UNIX -Wall -Wextra)
+set(LIBSTATS_COMMON_WARNINGS_MSVC /W3)
+
+# Strict warning flag sets (shared between compiler-specific modes)
+set(LIBSTATS_CLANG_STRICT_WARNINGS
+    -Wall -Wextra -pedantic
+    # Type conversion warnings (strict)
+    -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
+    -Wdouble-promotion -Wsign-conversion
+    # Additional strict warnings
+    -Wshadow -Wunused -Wcast-align -Wcast-qual
+    -Wold-style-cast -Woverloaded-virtual
+    -Wextra-semi -Wmissing-declarations
+    # Clang-specific warnings
+    -Wloop-analysis -Wlogical-op-parentheses -Wbool-conversion
+    -Wint-conversion -Wnull-dereference -Wuninitialized
+    -Wconditional-uninitialized -Wstring-conversion
+    # Allow some warnings that are too strict for practical development
+    -Wno-unused-parameter  # Common in template/callback code
+    -Wno-padded           # Not practical for cross-platform development
+    -Wno-c++98-compat     # We're using C++20
+    -Wno-c++98-compat-pedantic
+)
+
+set(LIBSTATS_GCC_STRICT_WARNINGS
+    -Wall -Wextra -pedantic
+    # GCC-specific conversion warnings
+    -Wconversion -Wfloat-conversion -Wdouble-promotion
+    -Wsign-conversion -Wold-style-cast
+    # GCC-specific diagnostic warnings
+    -Wlogical-op -Wduplicated-cond -Wduplicated-branches
+    -Wrestrict -Wnull-dereference -Wjump-misses-init
+    # Template and name resolution differences
+    -Wtrampolines -Wunsafe-loop-optimizations
+    -Wvector-operation-performance -Wsuggest-override
+    -Wsuggest-final-types -Wsuggest-final-methods
+    # Memory and alignment warnings
+    -Wcast-align=strict -Wstrict-overflow=2
+    -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2
+    # GCC's stricter undefined behavior detection
+    -Wshift-overflow=2 -Wstringop-overflow=4
+    # Allow some warnings that are too pedantic
+    -Wno-inline -Wno-padded -Wno-unused-parameter
+    -Wno-sign-conversion  # Too noisy with standard library
+)
+
+# MSVC-compatible warning flags for cross-compiler testing
+set(LIBSTATS_MSVC_COMPAT_WARNINGS
+    -Wall -Wextra
+    # Type conversion warnings (MSVC-like strictness)
+    -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
+    -Wdouble-promotion
+    # Additional strict warnings
+    -Wshadow -Wunused -Wcast-align -Wcast-qual
+    -Wold-style-cast -Woverloaded-virtual
+    -Wextra-semi -Wmissing-declarations
+    # Allow some warnings that are too strict for practical development
+    -Wno-sign-conversion  # Too many false positives in standard library interactions
+    -Wno-unused-parameter  # Common in template/callback code
+    -Wno-padded           # Not practical for cross-platform development
+)
+
+# Enhanced MSVC warning sets
+set(LIBSTATS_MSVC_ENHANCED_WARNINGS
+    /w14242 /w14254 /w14263 /w14265 /w14287 /w14289 /w14296 /w14311
+    /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826
+    /w14905 /w14906 /w14928
+)
+
+# Optimization levels for different build types
+set(LIBSTATS_OPT_NONE_UNIX -O0)
+set(LIBSTATS_OPT_LIGHT_UNIX -O1)
+set(LIBSTATS_OPT_FULL_UNIX -O3)
+set(LIBSTATS_OPT_NONE_MSVC /Od)
+set(LIBSTATS_OPT_LIGHT_MSVC /O1)
+set(LIBSTATS_OPT_FULL_MSVC /O2)
+
+# Debug information flags
+set(LIBSTATS_DEBUG_INFO_UNIX -g)
+set(LIBSTATS_DEBUG_INFO_MSVC /Zi)
+
+# =============================================================================
+# COMPILER-SPECIFIC BUILD CONFIGURATION WITH GENERATOR EXPRESSIONS
+# =============================================================================
+# Use generator expressions to reduce repetitive if/elseif chains
 # Standard CMake Build Types (Release, Debug) - Cross-platform
 # Custom Compiler-Specific Build Types (ClangStrict, ClangWarn, MSVCStrict, MSVCWarn, GCCStrict, GCCWarn)
 # =============================================================================
 
-if(MSVC)
-    # MSVC-specific compiler definitions for Windows compatibility
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)  # Allow standard C functions
-    add_compile_definitions(_CRT_NONSTDC_NO_DEPRECATE)  # Allow POSIX function names
-    
-    # MSVC build type configurations
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # MSVC Release: Maximum optimization, minimal warnings
-        add_compile_options(/W3 /O2 /DNDEBUG)
-        message(STATUS "MSVC Release build: /W3 /O2 /DNDEBUG")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # MSVC Debug: No optimization, debug info, runtime checks
-        add_compile_options(/W3 /Od /Zi /RTC1 /MDd)
-        message(STATUS "MSVC Debug build: /W3 /Od /Zi /RTC1 /MDd")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-        # MSVC Dev: Light optimization, debug info, good for development and debugging
-        add_compile_options(/W3 /O1 /Zi /MD /wd4996)  # /wd4996 disables deprecation warnings
-        message(STATUS "MSVC Dev build: /W3 /O1 /Zi /MD /wd4996")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
-        # MSVC-specific strict warnings and compatibility checks as ERRORS
-        add_compile_options(/W4 /WX /permissive-)
-        # Enable additional MSVC-specific warnings
-        add_compile_options(/w14242 /w14254 /w14263 /w14265 /w14287 /we4289 /w14296 /w14311 /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826 /w14905 /w14906 /w14928)
-        message(STATUS "MSVC-strict mode enabled (strict warnings as ERRORS)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
-        # MSVC-specific strict warnings WITHOUT /WX for development efficiency
-        add_compile_options(/W4 /permissive- /wd4996)  # /wd4996 disables deprecation warnings
-        # Enable additional MSVC-specific warnings (but not as errors)
-        add_compile_options(/w14242 /w14254 /w14263 /w14265 /w14287 /w14289 /w14296 /w14311 /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826 /w14905 /w14906 /w14928)
-        message(STATUS "MSVC-warn mode enabled (strict warnings as WARNINGS, deprecation disabled)")
-    else()
-        # Default MSVC compilation
-        add_compile_options(/W3)
-        message(STATUS "MSVC default build: /W3")
-    endif()
-    
-    # SIMD flags for MSVC (x64 only)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        add_compile_options(/arch:AVX2)
-        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
-        add_compile_definitions(LIBSTATS_HAS_AVX=1)
-        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
-        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
-    endif()
+# =============================================================================
+# MODERN CMAKE COMPILER CONFIGURATION WITH GENERATOR EXPRESSIONS
+# =============================================================================
+# This section replaces repetitive if/elseif chains with modern generator expressions
+# and uses shared flag lists for better maintainability
 
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # Clang build type configurations (including ClangCL on Windows)
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Clang Release: Maximum optimization, minimal warnings
-        add_compile_options(-O3 -DNDEBUG -Wall)
-        message(STATUS "Clang Release build: -O3 -DNDEBUG -Wall")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Clang Debug: No optimization, debug info, extensive checks
-        add_compile_options(-O0 -g -Wall -Wextra)
-        message(STATUS "Clang Debug build: -O0 -g -Wall -Wextra")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-        # Clang Dev: Light optimization, debug info, good for development and debugging
-        add_compile_options(-O1 -g -Wall -Wextra -Wno-deprecated-declarations)
-        message(STATUS "Clang Dev build: -O1 -g -Wall -Wextra -Wno-deprecated-declarations")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
-        # Clang-specific strict warnings and compatibility checks as ERRORS
-        add_compile_options(
-            -Wall -Wextra -Werror -pedantic
-            # Type conversion warnings (strict)
-            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
-            -Wdouble-promotion -Wsign-conversion
-            # Additional strict warnings
-            -Wshadow -Wunused -Wcast-align -Wcast-qual
-            -Wold-style-cast -Woverloaded-virtual
-            -Wextra-semi -Wmissing-declarations
-            # Clang-specific warnings
-            -Wloop-analysis -Wlogical-op-parentheses -Wbool-conversion
-            -Wint-conversion -Wnull-dereference -Wuninitialized
-            -Wconditional-uninitialized -Wstring-conversion
-            # Allow some warnings that are too strict for practical development
-            -Wno-unused-parameter  # Common in template/callback code
-            -Wno-padded           # Not practical for cross-platform development
-            -Wno-c++98-compat     # We're using C++20
-            -Wno-c++98-compat-pedantic
-        )
-        message(STATUS "Clang-strict mode enabled (Clang-specific warnings as ERRORS)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
-        # Clang-specific strict warnings WITHOUT -Werror for development efficiency
-        add_compile_options(
-            -Wall -Wextra -pedantic
-            # Type conversion warnings (strict) - but as warnings only
-            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
-            -Wdouble-promotion -Wsign-conversion
-            # Additional strict warnings
-            -Wshadow -Wunused -Wcast-align -Wcast-qual
-            -Wold-style-cast -Woverloaded-virtual
-            -Wextra-semi -Wmissing-declarations
-            # Clang-specific warnings
-            -Wloop-analysis -Wlogical-op-parentheses -Wbool-conversion
-            -Wint-conversion -Wnull-dereference -Wuninitialized
-            -Wconditional-uninitialized -Wstring-conversion
-            # Allow some warnings that are too strict for practical development
-            -Wno-unused-parameter  # Common in template/callback code
-            -Wno-padded           # Not practical for cross-platform development
-            -Wno-c++98-compat     # We're using C++20
-            -Wno-c++98-compat-pedantic
-            -Wno-deprecated-declarations  # API updates in progress
-        )
-        message(STATUS "Clang-warn mode enabled (Clang-specific warnings as WARNINGS)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
-        # MSVC-like strict warnings for compatibility testing (Clang with MSVC-like flags)
-        add_compile_options(
-            -Wall -Wextra -Werror
-            # Type conversion warnings (MSVC-like strictness)
-            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
-            -Wdouble-promotion
-            # Additional strict warnings
-            -Wshadow -Wunused -Wcast-align -Wcast-qual
-            -Wold-style-cast -Woverloaded-virtual
-            -Wextra-semi -Wmissing-declarations
-            # Allow some warnings that are too strict for practical development
-            -Wno-sign-conversion  # Too many false positives in standard library interactions
-            -Wno-unused-parameter  # Common in template/callback code
-            -Wno-padded           # Not practical for cross-platform development
-        )
-        message(STATUS "Clang with MSVC-strict compatibility mode enabled (type conversion warnings as ERRORS)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
-        # MSVC-like strict warnings WITHOUT -Werror for development efficiency
-        add_compile_options(
-            -Wall -Wextra
-            # Type conversion warnings (MSVC-like strictness) - but as warnings only
-            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
-            -Wdouble-promotion
-            # Additional strict warnings
-            -Wshadow -Wunused -Wcast-align -Wcast-qual
-            -Wold-style-cast -Woverloaded-virtual
-            -Wextra-semi -Wmissing-declarations
-            # Allow some warnings that are too strict for practical development
-            -Wno-sign-conversion  # Too many false positives in standard library interactions
-            -Wno-unused-parameter  # Common in template/callback code
-            -Wno-padded           # Not practical for cross-platform development
-            -Wno-deprecated-declarations  # API updates in progress
-        )
-        message(STATUS "Clang with MSVC-warn compatibility mode enabled (type conversion warnings as WARNINGS, deprecation disabled)")
-    else()
-        # Default Clang compilation
-        add_compile_options(-Wall -Wextra -O2)
-        message(STATUS "Clang default build: -Wall -Wextra -O2")
-    endif()
-    
-    # SIMD flags for Clang (including ClangCL on Windows)
-    if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-        add_compile_options(-mavx2)
-        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
-        add_compile_definitions(LIBSTATS_HAS_AVX=1)
-        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
-        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
-    endif()
+# MSVC-specific compiler definitions (Windows compatibility)
+add_compile_definitions(
+    $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
+    $<$<CXX_COMPILER_ID:MSVC>:_CRT_NONSTDC_NO_DEPRECATE>
+)
 
+# Apply optimized build flags using generator expressions
+# This logic is BUILD-TYPE driven for cross-compiler compatibility
+# Build types determine flag sets regardless of actual compiler used
+add_compile_options(
+    # =============================================================================
+    # Standard CMake Build Types (compiler-agnostic)
+    # =============================================================================
+    
+    # Release builds (all compilers) 
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<CONFIG:Release>>:/W3 /O2 /DNDEBUG>
+    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<CONFIG:Release>>:${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX}>
+    
+    # Debug builds (all compilers)
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<CONFIG:Debug>>:/W3 /Od /Zi /RTC1 /MDd>
+    $<$<AND:$<CXX_COMPILER_ID:GNU>,$<CONFIG:Debug>>:${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -fstack-protector-strong>
+    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<CONFIG:Debug>>:${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX}>
+    
+    # Dev builds (all compilers) - good balance of optimization and debugging
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>>:/W3 /O1 /Zi /MD /wd4996>
+    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>>:${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations>
+    
+    # =============================================================================
+    # CROSS-COMPILER COMPATIBILITY MODES (build-type driven)
+    # These apply specific flag sets regardless of actual compiler
+    # =============================================================================
+    
+    # ClangStrict: Clang-style strict warnings as ERRORS (any compiler can use)
+    $<$<STREQUAL:${CMAKE_BUILD_TYPE},ClangStrict>:${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror>
+    
+    # ClangWarn: Clang-style warnings as WARNINGS (any compiler can use)
+    $<$<STREQUAL:${CMAKE_BUILD_TYPE},ClangWarn>:${LIBSTATS_CLANG_STRICT_WARNINGS} -Wno-deprecated-declarations>
+    
+    # GCCStrict: GCC-style strict warnings as ERRORS (any compiler can use)
+    $<$<STREQUAL:${CMAKE_BUILD_TYPE},GCCStrict>:${LIBSTATS_GCC_STRICT_WARNINGS} -Werror>
+    
+    # GCCWarn: GCC-style warnings as WARNINGS (any compiler can use)
+    $<$<STREQUAL:${CMAKE_BUILD_TYPE},GCCWarn>:${LIBSTATS_GCC_STRICT_WARNINGS} -Wno-deprecated-declarations>
+    
+    # MSVCStrict: MSVC-compatible strict warnings as ERRORS (any compiler can use)
+    # MSVC native
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>>:/W4 /WX /permissive- ${LIBSTATS_MSVC_ENHANCED_WARNINGS} /we4289>
+    # Non-MSVC compilers using MSVC-compatible flags
+    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>>:${LIBSTATS_MSVC_COMPAT_WARNINGS} -Werror>
+    
+    # MSVCWarn: MSVC-compatible warnings as WARNINGS (any compiler can use)
+    # MSVC native
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>:/W4 /permissive- /wd4996 ${LIBSTATS_MSVC_ENHANCED_WARNINGS}>
+    # Non-MSVC compilers using MSVC-compatible flags
+    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>:${LIBSTATS_MSVC_COMPAT_WARNINGS} -Wno-deprecated-declarations>
+    
+    # =============================================================================
+    # Default builds for remaining cases
+    # =============================================================================
+    
+    # MSVC default (when none of the above conditions match)
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<OR:$<CONFIG:Release>,$<CONFIG:Debug>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>>>:/W3>
+    
+    # Unix-style compilers default (when none of the above conditions match)
+    $<$<AND:$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<NOT:$<OR:$<CONFIG:Release>,$<CONFIG:Debug>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>>>:${LIBSTATS_COMMON_WARNINGS_UNIX} -O2>
+    $<$<AND:$<CXX_COMPILER_ID:GNU>,$<NOT:$<OR:$<CONFIG:Release>,$<CONFIG:Debug>,$<STREQUAL:${CMAKE_BUILD_TYPE},Dev>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},ClangWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},GCCWarn>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCStrict>,$<STREQUAL:${CMAKE_BUILD_TYPE},MSVCWarn>>>>:${LIBSTATS_COMMON_WARNINGS_UNIX} ${LIBSTATS_OPT_FULL_UNIX}>
+)
+
+# Apply SIMD-specific compilation flags using generator expressions
+add_compile_options(
+    # MSVC SIMD (x64 only)
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:/arch:AVX2>
+    
+    # Clang SIMD (Windows x64 only for ClangCL)
+    $<$<AND:$<CXX_COMPILER_ID:Clang>,$<PLATFORM_ID:Windows>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:-mavx2>
+    
+    # GCC SIMD (Conservative approach - SSE2 baseline only)
+    $<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBSTATS_HAS_SSE2}>>:-msse2>
+)
+
+# Apply SIMD compile definitions using generator expressions
+add_compile_definitions(
+    # MSVC SIMD definitions (x64 only)
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:LIBSTATS_HAS_AVX2=1>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:LIBSTATS_HAS_AVX=1>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:LIBSTATS_HAS_SSE2=1>
+    
+    # Clang SIMD definitions (Windows x64 only)
+    $<$<AND:$<CXX_COMPILER_ID:Clang>,$<PLATFORM_ID:Windows>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:LIBSTATS_HAS_AVX2=1>
+    $<$<AND:$<CXX_COMPILER_ID:Clang>,$<PLATFORM_ID:Windows>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:LIBSTATS_HAS_AVX=1>
+    $<$<AND:$<CXX_COMPILER_ID:Clang>,$<PLATFORM_ID:Windows>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>>:LIBSTATS_HAS_SSE2=1>
+    
+    # GCC/Clang SIMD definitions (runtime-dispatched, conservative approach)
+    $<$<BOOL:${LIBSTATS_HAS_SSE2}>:LIBSTATS_HAS_SSE2=1>
+    $<$<BOOL:${LIBSTATS_HAS_AVX}>:LIBSTATS_HAS_AVX=1>
+    $<$<BOOL:${LIBSTATS_HAS_AVX2}>:LIBSTATS_HAS_AVX2=1>
+    $<$<BOOL:${LIBSTATS_HAS_AVX512}>:LIBSTATS_HAS_AVX512=1>
+    $<$<BOOL:${LIBSTATS_HAS_NEON}>:LIBSTATS_HAS_NEON=1>
+)
+
+# Display configuration information (evaluate once at configure time)
+# Cross-Compiler Build Type Status Messages
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(STATUS "Release build (${CMAKE_CXX_COMPILER_ID}): Optimized for performance")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Debug build (${CMAKE_CXX_COMPILER_ID}): Full debugging information")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+    message(STATUS "Dev build (${CMAKE_CXX_COMPILER_ID}): Balanced optimization and debugging")
+# Cross-Compiler Compatibility Modes  
+elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
+    message(STATUS "Clang-strict mode (${CMAKE_CXX_COMPILER_ID}): Clang-style warnings as ERRORS - cross-compiler compatible")
+elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
+    message(STATUS "Clang-warn mode (${CMAKE_CXX_COMPILER_ID}): Clang-style warnings as WARNINGS - cross-compiler compatible")
+elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
+    message(STATUS "GCC-strict mode (${CMAKE_CXX_COMPILER_ID}): GCC-style warnings as ERRORS - cross-compiler compatible")
+elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
+    message(STATUS "GCC-warn mode (${CMAKE_CXX_COMPILER_ID}): GCC-style warnings as WARNINGS - cross-compiler compatible")
+elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(STATUS "MSVC-strict mode (MSVC native): MSVC warnings as ERRORS with enhanced diagnostics")
+    else()
+        message(STATUS "MSVC-strict mode (${CMAKE_CXX_COMPILER_ID} emulating MSVC): MSVC-compatible warnings as ERRORS")
+    endif()
+elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(STATUS "MSVC-warn mode (MSVC native): MSVC warnings with enhanced diagnostics")
+    else()
+        message(STATUS "MSVC-warn mode (${CMAKE_CXX_COMPILER_ID} emulating MSVC): MSVC-compatible warnings")
+    endif()
+else()
+    message(STATUS "Default build (${CMAKE_CXX_COMPILER_ID}): Standard configuration")
+endif()
+
+# SIMD Status Messages (compiler-specific)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    # GCC build type configurations
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # GCC Release: Maximum optimization, minimal warnings
-        add_compile_options(-O3 -DNDEBUG -Wall)
-        message(STATUS "GCC Release build: -O3 -DNDEBUG -Wall")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # GCC Debug: No optimization, debug info, extensive checks
-        add_compile_options(-O0 -g -Wall -Wextra -fstack-protector-strong)
-        message(STATUS "GCC Debug build: -O0 -g -Wall -Wextra -fstack-protector-strong")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-        # GCC Dev: Light optimization, debug info, good for development and debugging
-        add_compile_options(-O1 -g -Wall -Wextra -Wno-deprecated-declarations)
-        message(STATUS "GCC Dev build: -O1 -g -Wall -Wextra -Wno-deprecated-declarations")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
-        # GCC-specific strict warnings and compatibility checks as ERRORS
-        add_compile_options(
-            -Wall -Wextra -Werror -pedantic
-            # GCC-specific conversion warnings
-            -Wconversion -Wfloat-conversion -Wdouble-promotion
-            -Wsign-conversion -Wold-style-cast
-            # GCC-specific diagnostic warnings
-            -Wlogical-op -Wduplicated-cond -Wduplicated-branches
-            -Wrestrict -Wnull-dereference -Wjump-misses-init
-            # Template and name resolution differences
-            -Wtrampolines -Wunsafe-loop-optimizations
-            -Wvector-operation-performance -Wsuggest-override
-            -Wsuggest-final-types -Wsuggest-final-methods
-            # Memory and alignment warnings
-            -Wcast-align=strict -Wstrict-overflow=2
-            -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2
-            # GCC's stricter undefined behavior detection
-            -Wshift-overflow=2 -Wstringop-overflow=4
-            # Allow some warnings that are too pedantic
-            -Wno-inline -Wno-padded -Wno-unused-parameter
-            -Wno-sign-conversion  # Too noisy with standard library
-        )
-        message(STATUS "GCC-strict mode enabled (GCC-specific warnings as ERRORS)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
-        # GCC-specific strict warnings WITHOUT -Werror for development efficiency
-        add_compile_options(
-            -Wall -Wextra -pedantic
-            # GCC-specific conversion warnings - but as warnings only
-            -Wconversion -Wfloat-conversion -Wdouble-promotion
-            -Wsign-conversion -Wold-style-cast
-            # GCC-specific diagnostic warnings
-            -Wlogical-op -Wduplicated-cond -Wduplicated-branches
-            -Wrestrict -Wnull-dereference -Wjump-misses-init
-            # Template and name resolution differences
-            -Wtrampolines -Wunsafe-loop-optimizations
-            -Wvector-operation-performance -Wsuggest-override
-            -Wsuggest-final-types -Wsuggest-final-methods
-            # Memory and alignment warnings
-            -Wcast-align=strict -Wstrict-overflow=2
-            -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2
-            # GCC's stricter undefined behavior detection
-            -Wshift-overflow=2 -Wstringop-overflow=4
-            # Allow some warnings that are too pedantic
-            -Wno-inline -Wno-padded -Wno-unused-parameter
-            -Wno-sign-conversion  # Too noisy with standard library
-            -Wno-deprecated-declarations  # API updates in progress
-        )
-        message(STATUS "GCC-warn mode enabled (GCC-specific warnings as WARNINGS, deprecation disabled)")
-    else()
-        # Default GCC compilation
-        add_compile_options(-Wall -Wextra -O3)
-        message(STATUS "GCC default build: -Wall -Wextra -O3")
-    endif()
-    
-    # CONSERVATIVE SIMD approach: Only enable what we're confident will work
-    # Since we use runtime dispatch, we don't need to enable all SIMD at compile time
-    # We'll just enable SSE2 (universal on x86_64) and let runtime dispatch handle the rest
+    # GCC SIMD status messages
+    set(SIMD_FEATURES "")
     if(LIBSTATS_HAS_SSE2)
-        add_compile_options(-msse2)
-        add_compile_definitions(LIBSTATS_HAS_SSE2=1)
-        message(STATUS "SIMD: SSE2 enabled (safe baseline for x86_64)")
+        list(APPEND SIMD_FEATURES "SSE2")
     endif()
     if(LIBSTATS_HAS_AVX)
-        add_compile_definitions(LIBSTATS_HAS_AVX=1)
-        message(STATUS "SIMD: AVX compilation enabled (runtime-dispatched)")
+        list(APPEND SIMD_FEATURES "AVX")
     endif()
     if(LIBSTATS_HAS_AVX2)
-        add_compile_definitions(LIBSTATS_HAS_AVX2=1)
-        message(STATUS "SIMD: AVX2 compilation enabled (runtime-dispatched)")
+        list(APPEND SIMD_FEATURES "AVX2")
     endif()
     if(LIBSTATS_HAS_AVX512)
-        add_compile_definitions(LIBSTATS_HAS_AVX512=1)
-        message(STATUS "SIMD: AVX-512 compilation enabled (runtime-dispatched)")
+        list(APPEND SIMD_FEATURES "AVX-512")
     endif()
     if(LIBSTATS_HAS_NEON)
-        add_compile_definitions(LIBSTATS_HAS_NEON=1)
-        message(STATUS "SIMD: NEON enabled")
+        list(APPEND SIMD_FEATURES "NEON")
     endif()
-    # Disable -march=native to avoid generating unsupported instructions
-    # if(NOT CMAKE_BUILD_TYPE STREQUAL "Distribution")
-    #     add_compile_options(-march=native)
-    # endif()
+    if(SIMD_FEATURES)
+        string(JOIN ", " SIMD_LIST ${SIMD_FEATURES})
+        message(STATUS "SIMD: ${SIMD_LIST} enabled (runtime-dispatched)")
+    endif()
+elseif(LIBSTATS_HAS_NEON)
+    message(STATUS "SIMD: NEON enabled (${CMAKE_CXX_COMPILER_ID} ARM64)")
 endif()
 
 # =============================================================================
@@ -487,14 +895,14 @@ add_library(libstats_foundation_obj OBJECT ${LIBSTATS_FOUNDATION_SOURCES})
 target_include_directories(libstats_foundation_obj PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_compile_definitions(libstats_foundation_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+# SIMD definitions will be linked through interface target
 
 # Core utilities object library (Level 2)
 add_library(libstats_core_utilities_obj OBJECT ${LIBSTATS_CORE_UTILITIES_SOURCES})
 target_include_directories(libstats_core_utilities_obj PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_compile_definitions(libstats_core_utilities_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+# SIMD definitions will be linked through interface target
 add_dependencies(libstats_core_utilities_obj libstats_foundation_obj)
 
 # Platform capabilities object library (Level 2)
@@ -502,7 +910,7 @@ add_library(libstats_platform_obj OBJECT ${LIBSTATS_PLATFORM_SOURCES})
 target_include_directories(libstats_platform_obj PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_compile_definitions(libstats_platform_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+# SIMD definitions will be linked through interface target
 add_dependencies(libstats_platform_obj libstats_foundation_obj)
 
 # Advanced infrastructure object library (Level 3)
@@ -510,7 +918,7 @@ add_library(libstats_infrastructure_obj OBJECT ${LIBSTATS_INFRASTRUCTURE_SOURCES
 target_include_directories(libstats_infrastructure_obj PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_compile_definitions(libstats_infrastructure_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+# SIMD definitions will be linked through interface target
 add_dependencies(libstats_infrastructure_obj libstats_foundation_obj libstats_core_utilities_obj libstats_platform_obj)
 
 # Distribution framework object library (Level 4)
@@ -518,7 +926,7 @@ add_library(libstats_framework_obj OBJECT ${LIBSTATS_FRAMEWORK_SOURCES})
 target_include_directories(libstats_framework_obj PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_compile_definitions(libstats_framework_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+# SIMD definitions will be linked through interface target
 add_dependencies(libstats_framework_obj libstats_foundation_obj libstats_core_utilities_obj libstats_platform_obj libstats_infrastructure_obj)
 
 # Distribution implementations object library (Level 5)
@@ -526,7 +934,7 @@ add_library(libstats_distributions_obj OBJECT ${LIBSTATS_DISTRIBUTIONS_SOURCES})
 target_include_directories(libstats_distributions_obj PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_compile_definitions(libstats_distributions_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+# SIMD definitions will be linked through interface target
 add_dependencies(libstats_distributions_obj libstats_foundation_obj libstats_core_utilities_obj libstats_platform_obj libstats_infrastructure_obj libstats_framework_obj)
 
 # SIMD object library (Platform-dependent, can compile in parallel)
@@ -534,7 +942,7 @@ add_library(libstats_simd_obj OBJECT ${LIBSTATS_SIMD_SOURCES})
 target_include_directories(libstats_simd_obj PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_compile_definitions(libstats_simd_obj PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+# SIMD definitions will be linked through interface target
 add_dependencies(libstats_simd_obj libstats_foundation_obj)  # SIMD depends on CPU detection
 
 # =============================================================================
@@ -601,6 +1009,9 @@ elseif(UNIX AND NOT APPLE)
         SOVERSION ${PROJECT_VERSION_MAJOR}
     )
 endif()
+
+# Create SIMD interface target for modern CMake approach
+create_simd_interface_target()
 
 # Configure SIMD compilation for all object libraries and final targets
 # This ensures SIMD-specific compile flags are applied correctly to each component
@@ -691,16 +1102,51 @@ if(LIBSTATS_BUILD_TESTS)
         endif()
     endif()
     
-    # Function to create a test executable with proper flags
-    function(create_libstats_test TEST_NAME SOURCE_FILE)
-        add_executable(${TEST_NAME} ${SOURCE_FILE})
-        
+    # Common test configuration function - reduces code duplication across test types
+    function(configure_common_test_settings TEST_NAME)
         # Set output directory to build/tests
         set_target_properties(${TEST_NAME} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
             RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests
             RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests
         )
+        
+        # Apply same compiler flags as main library
+        if(APPLE)
+            target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
+        endif()
+        
+        # Add include directories
+        target_include_directories(${TEST_NAME} PRIVATE 
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+        
+        # Platform-specific linking
+        if(APPLE AND USING_HOMEBREW_LLVM)
+            target_link_options(${TEST_NAME} PRIVATE
+                -L${LLVM_ROOT}/lib/c++
+                -Wl,-rpath,${LLVM_ROOT}/lib/c++
+            )
+        endif()
+        
+        # Link to SIMD interface target for modern CMake approach
+        if(TARGET libstats_simd_interface)
+            target_link_libraries(${TEST_NAME} PRIVATE libstats::simd)
+        endif()
+        
+        # Add to test suite
+        add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
+        
+        # Set working directory for tests
+        set_tests_properties(${TEST_NAME} PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+    endfunction()
+    
+    # Function to create a test executable with proper flags (static library)
+    function(create_libstats_test TEST_NAME SOURCE_FILE)
+        add_executable(${TEST_NAME} ${SOURCE_FILE})
         
         # Link against static library by default for tests
         target_link_libraries(${TEST_NAME} PRIVATE libstats_static)
@@ -710,121 +1156,25 @@ if(LIBSTATS_BUILD_TESTS)
             target_link_libraries(${TEST_NAME} PRIVATE ${TBB_LIBRARIES})
         endif()
         
-        # Apply same compiler flags as main library
-        if(APPLE)
-            target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
-        endif()
-        
-        # Add include directories
-        target_include_directories(${TEST_NAME} PRIVATE 
-            ${CMAKE_CURRENT_SOURCE_DIR}/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/src
-        )
-        
-        # Platform-specific linking
-        if(APPLE AND USING_HOMEBREW_LLVM)
-            target_link_options(${TEST_NAME} PRIVATE
-                -L${LLVM_ROOT}/lib/c++
-                -Wl,-rpath,${LLVM_ROOT}/lib/c++
-            )
-        endif()
-        
-        # Add SIMD compile definitions
-        if(LIBSTATS_HAS_SSE2)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_SSE2=1)
-        endif()
-        if(LIBSTATS_HAS_AVX)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX=1)
-        endif()
-        if(LIBSTATS_HAS_AVX2)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX2=1)
-        endif()
-        if(LIBSTATS_HAS_AVX512)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX512=1)
-        endif()
-        if(LIBSTATS_HAS_NEON)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_NEON=1)
-        endif()
-        
-        # Add to test suite
-        add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
-        
-        # Set working directory for tests
-        set_tests_properties(${TEST_NAME} PROPERTIES
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        )
+        # Apply common test settings
+        configure_common_test_settings(${TEST_NAME})
     endfunction()
     
     # Function to create a test executable linked to dynamic library
     function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
         add_executable(${TEST_NAME} ${SOURCE_FILE})
         
-        # Set output directory to build/tests
-        set_target_properties(${TEST_NAME} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
-            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests
-            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests
-        )
-        
         # Link against shared library instead of static
         target_link_libraries(${TEST_NAME} PRIVATE libstats_shared)
         
-        # Apply same compiler flags as main library
-        if(APPLE)
-            target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
-        endif()
-        
-        # Add include directories
-        target_include_directories(${TEST_NAME} PRIVATE 
-            ${CMAKE_CURRENT_SOURCE_DIR}/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/src
-        )
-        
-        # Platform-specific linking
-        if(APPLE AND USING_HOMEBREW_LLVM)
-            target_link_options(${TEST_NAME} PRIVATE
-                -L${LLVM_ROOT}/lib/c++
-                -Wl,-rpath,${LLVM_ROOT}/lib/c++
-            )
-        endif()
-        
-        # Add SIMD compile definitions
-        if(LIBSTATS_HAS_SSE2)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_SSE2=1)
-        endif()
-        if(LIBSTATS_HAS_AVX)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX=1)
-        endif()
-        if(LIBSTATS_HAS_AVX2)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX2=1)
-        endif()
-        if(LIBSTATS_HAS_AVX512)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX512=1)
-        endif()
-        if(LIBSTATS_HAS_NEON)
-            target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_NEON=1)
-        endif()
-        
-        # Add to test suite
-        add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
-        
-        # Set working directory for tests
-        set_tests_properties(${TEST_NAME} PROPERTIES
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        )
+        # Apply common test settings
+        configure_common_test_settings(${TEST_NAME})
     endfunction()
     
     # Function to create a GTest-based test executable
     function(create_libstats_gtest TEST_NAME SOURCE_FILE)
         if(GTEST_FOUND)
             add_executable(${TEST_NAME} ${SOURCE_FILE})
-            
-            # Set output directory to build/tests
-            set_target_properties(${TEST_NAME} PROPERTIES
-                RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
-                RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests
-                RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests
-            )
             
             # Link against static library and GTest
             target_link_libraries(${TEST_NAME} PRIVATE libstats_static)
@@ -850,49 +1200,8 @@ if(LIBSTATS_BUILD_TESTS)
                 target_include_directories(${TEST_NAME} PRIVATE ${GTEST_INCLUDE_DIRS})
             endif()
             
-            # Apply same compiler flags as main library
-            if(APPLE)
-                target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
-            endif()
-            
-            # Add include directories
-            target_include_directories(${TEST_NAME} PRIVATE 
-                ${CMAKE_CURRENT_SOURCE_DIR}/include
-                ${CMAKE_CURRENT_SOURCE_DIR}/src
-            )
-            
-            # Platform-specific linking
-            if(APPLE AND USING_HOMEBREW_LLVM)
-                target_link_options(${TEST_NAME} PRIVATE
-                    -L${LLVM_ROOT}/lib/c++
-                    -Wl,-rpath,${LLVM_ROOT}/lib/c++
-                )
-            endif()
-            
-            # Add SIMD compile definitions
-            if(LIBSTATS_HAS_SSE2)
-                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_SSE2=1)
-            endif()
-            if(LIBSTATS_HAS_AVX)
-                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX=1)
-            endif()
-            if(LIBSTATS_HAS_AVX2)
-                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX2=1)
-            endif()
-            if(LIBSTATS_HAS_AVX512)
-                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_AVX512=1)
-            endif()
-            if(LIBSTATS_HAS_NEON)
-                target_compile_definitions(${TEST_NAME} PRIVATE LIBSTATS_HAS_NEON=1)
-            endif()
-            
-            # Add to test suite
-            add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
-            
-            # Set working directory for tests
-            set_tests_properties(${TEST_NAME} PROPERTIES
-                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-            )
+            # Apply common test settings
+            configure_common_test_settings(${TEST_NAME})
         else()
             message(WARNING "GTest not found - skipping GTest-based test: ${TEST_NAME}")
         endif()
@@ -1150,8 +1459,10 @@ if(LIBSTATS_BUILD_TOOLS)
             endif()
         endif()
         
-        # Add SIMD compile definitions
-        target_compile_definitions(${tool_name} PRIVATE ${LIBSTATS_SIMD_DEFINITIONS})
+        # Link to SIMD interface target for modern CMake approach
+        if(TARGET libstats_simd_interface)
+            target_link_libraries(${tool_name} PRIVATE libstats::simd)
+        endif()
         
         set_target_properties(${tool_name} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tools
@@ -1185,7 +1496,7 @@ endif()
 add_subdirectory(examples)
 
 # Install targets
-install(TARGETS libstats_headers libstats_static libstats_shared
+install(TARGETS libstats_headers libstats_static libstats_shared libstats_simd_interface
     EXPORT libstats-targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
