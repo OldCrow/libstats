@@ -240,18 +240,67 @@ These tools generate CSV reports and provide detailed analysis for optimizing li
 - **GTest** (optional): For unit testing
 - **Intel TBB** (optional): For enhanced parallel algorithm support
 
-### Build Commands
+### Build System Overview
+
+libstats provides a comprehensive build system designed for cross-platform development and compiler testing. The system automatically detects your compiler and applies appropriate optimization flags.
+
+**📖 Complete Build Documentation**: See [docs/BUILD_TYPES.md](docs/BUILD_TYPES.md) for detailed build type reference and cross-compiler compatibility testing.
+
+#### Quick Build Types Reference
+
+| Build Type | Purpose | Usage | Optimization |
+|------------|---------|-------|-------------|
+| **Dev** | Daily development (default) | `cmake ..` | Light (-O1) + debug |
+| **Release** | Production builds | `cmake -DCMAKE_BUILD_TYPE=Release ..` | Maximum (-O2/-O3) |
+| **Debug** | Full debugging | `cmake -DCMAKE_BUILD_TYPE=Debug ..` | None (-O0) + checks |
+| **ClangStrict** | Clang error checking | `cmake -DCMAKE_BUILD_TYPE=ClangStrict ..` | Warnings as errors |
+| **GCCStrict** | GCC error checking | `cmake -DCMAKE_BUILD_TYPE=GCCStrict ..` | Warnings as errors |
+| **MSVCStrict** | MSVC error checking | `cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..` | Warnings as errors |
+
+### Basic Build Commands
+
 ```bash
-# Debug build
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make
+# Quick start (uses Dev build type by default)
+mkdir build && cd build
+cmake ..              # Automatically selects Dev build
+make -j$(nproc)
 
-# Release build with optimizations
+# Production build
 cmake -DCMAKE_BUILD_TYPE=Release ..
-make
+make -j$(nproc)
 
-# Run tests (if GTest available)
+# Full debugging
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+make -j$(nproc)
+```
+
+### Cross-Compiler Testing
+
+```bash
+# Test with strict Clang warnings
+mkdir build_clang_strict && cd build_clang_strict
+cmake -DCMAKE_BUILD_TYPE=ClangStrict ..
+make -j$(nproc)
+
+# Test MSVC compatibility (even when using Clang)
+mkdir build_msvc_compat && cd build_msvc_compat  
+cmake -DCMAKE_BUILD_TYPE=MSVCWarn ..
+make -j$(nproc)
+
+# Test with GCC strict warnings
+cmake -DCMAKE_BUILD_TYPE=GCCStrict ..
+make -j$(nproc)
+```
+
+### Testing
+
+```bash
+# Run all tests
 ctest --verbose
+
+# Run specific test categories
+ctest --verbose -R "test_gaussian"
+ctest --verbose -R "test_performance"
 
 # Run examples
 ./examples/basic_usage

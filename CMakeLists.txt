@@ -36,6 +36,14 @@ endif()
 
 project(libstats VERSION 0.8.1 LANGUAGES CXX)
 
+# Set default build type if none was specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to 'Dev' as none was specified.")
+    set(CMAKE_BUILD_TYPE Dev CACHE STRING "Choose the type of build." FORCE)
+    # Set the possible values of build type for cmake-gui
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "Dev" "ClangStrict" "ClangWarn" "MSVCStrict" "MSVCWarn" "GCCStrict" "GCCWarn")
+endif()
+
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -128,17 +136,48 @@ option(LIBSTATS_CONSERVATIVE_SIMD "Use conservative SIMD settings (disable newer
 # Perform comprehensive SIMD detection
 detect_simd_features()
 
-# Compiler flags
+# Compiler flags - Organized by build type for cross-platform compatibility
+# =============================================================================
+# Standard CMake Build Types (Release, Debug) - Cross-platform
+# Custom Compiler-Specific Build Types (ClangStrict, ClangWarn, MSVCStrict, MSVCWarn, GCCStrict, GCCWarn)
+# =============================================================================
+
 if(MSVC)
-    # MSVC-specific compiler flags for warnings and optimization
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(/W4 /O2)
-    else()
-        add_compile_options(/W4)
-    endif()
     # MSVC-specific compiler definitions for Windows compatibility
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)  # Allow standard C functions
     add_compile_definitions(_CRT_NONSTDC_NO_DEPRECATE)  # Allow POSIX function names
+    
+    # MSVC build type configurations
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        # MSVC Release: Maximum optimization, minimal warnings
+        add_compile_options(/W3 /O2 /DNDEBUG)
+        message(STATUS "MSVC Release build: /W3 /O2 /DNDEBUG")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # MSVC Debug: No optimization, debug info, runtime checks
+        add_compile_options(/W3 /Od /Zi /RTC1 /MDd)
+        message(STATUS "MSVC Debug build: /W3 /Od /Zi /RTC1 /MDd")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+        # MSVC Dev: Light optimization, debug info, good for development and debugging
+        add_compile_options(/W3 /O1 /Zi /MD)
+        message(STATUS "MSVC Dev build: /W3 /O1 /Zi /MD")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
+        # MSVC-specific strict warnings and compatibility checks as ERRORS
+        add_compile_options(/W4 /WX /permissive-)
+        # Enable additional MSVC-specific warnings
+        add_compile_options(/w14242 /w14254 /w14263 /w14265 /w14287 /we4289 /w14296 /w14311 /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826 /w14905 /w14906 /w14928)
+        message(STATUS "MSVC-strict mode enabled (strict warnings as ERRORS)")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
+        # MSVC-specific strict warnings WITHOUT /WX for development efficiency
+        add_compile_options(/W4 /permissive-)
+        # Enable additional MSVC-specific warnings (but not as errors)
+        add_compile_options(/w14242 /w14254 /w14263 /w14265 /w14287 /w14289 /w14296 /w14311 /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826 /w14905 /w14906 /w14928)
+        message(STATUS "MSVC-warn mode enabled (strict warnings as WARNINGS)")
+    else()
+        # Default MSVC compilation
+        add_compile_options(/W3)
+        message(STATUS "MSVC default build: /W3")
+    endif()
+    
     # SIMD flags for MSVC (x64 only)
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         add_compile_options(/arch:AVX2)
@@ -149,9 +188,66 @@ if(MSVC)
     endif()
 
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # ClangCL or Clang on Windows or MSVC-strict mode
-    if(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
-        # MSVC-like strict warnings without compatibility flags (they cause system header conflicts)
+    # Clang build type configurations (including ClangCL on Windows)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        # Clang Release: Maximum optimization, minimal warnings
+        add_compile_options(-O3 -DNDEBUG -Wall)
+        message(STATUS "Clang Release build: -O3 -DNDEBUG -Wall")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # Clang Debug: No optimization, debug info, extensive checks
+        add_compile_options(-O0 -g -Wall -Wextra)
+        message(STATUS "Clang Debug build: -O0 -g -Wall -Wextra")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+        # Clang Dev: Light optimization, debug info, good for development and debugging
+        add_compile_options(-O1 -g -Wall -Wextra)
+        message(STATUS "Clang Dev build: -O1 -g -Wall -Wextra")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
+        # Clang-specific strict warnings and compatibility checks as ERRORS
+        add_compile_options(
+            -Wall -Wextra -Werror -pedantic
+            # Type conversion warnings (strict)
+            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
+            -Wdouble-promotion -Wsign-conversion
+            # Additional strict warnings
+            -Wshadow -Wunused -Wcast-align -Wcast-qual
+            -Wold-style-cast -Woverloaded-virtual
+            -Wextra-semi -Wmissing-declarations
+            # Clang-specific warnings
+            -Wloop-analysis -Wlogical-op-parentheses -Wbool-conversion
+            -Wint-conversion -Wnull-dereference -Wuninitialized
+            -Wconditional-uninitialized -Wstring-conversion
+            # Allow some warnings that are too strict for practical development
+            -Wno-unused-parameter  # Common in template/callback code
+            -Wno-padded           # Not practical for cross-platform development
+            -Wno-c++98-compat     # We're using C++20
+            -Wno-c++98-compat-pedantic
+        )
+        message(STATUS "Clang-strict mode enabled (Clang-specific warnings as ERRORS)")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
+        # Clang-specific strict warnings WITHOUT -Werror for development efficiency
+        add_compile_options(
+            -Wall -Wextra -pedantic
+            # Type conversion warnings (strict) - but as warnings only
+            -Wconversion -Wfloat-conversion -Wimplicit-int-conversion -Wshorten-64-to-32
+            -Wdouble-promotion -Wsign-conversion
+            # Additional strict warnings
+            -Wshadow -Wunused -Wcast-align -Wcast-qual
+            -Wold-style-cast -Woverloaded-virtual
+            -Wextra-semi -Wmissing-declarations
+            # Clang-specific warnings
+            -Wloop-analysis -Wlogical-op-parentheses -Wbool-conversion
+            -Wint-conversion -Wnull-dereference -Wuninitialized
+            -Wconditional-uninitialized -Wstring-conversion
+            # Allow some warnings that are too strict for practical development
+            -Wno-unused-parameter  # Common in template/callback code
+            -Wno-padded           # Not practical for cross-platform development
+            -Wno-c++98-compat     # We're using C++20
+            -Wno-c++98-compat-pedantic
+            -Wno-deprecated-declarations  # API updates in progress
+        )
+        message(STATUS "Clang-warn mode enabled (Clang-specific warnings as WARNINGS)")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
+        # MSVC-like strict warnings for compatibility testing (Clang with MSVC-like flags)
         add_compile_options(
             -Wall -Wextra -Werror
             # Type conversion warnings (MSVC-like strictness)
@@ -166,7 +262,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             -Wno-unused-parameter  # Common in template/callback code
             -Wno-padded           # Not practical for cross-platform development
         )
-        message(STATUS "MSVC-strict mode enabled (type conversion and strictness warnings as ERRORS)")
+        message(STATUS "Clang with MSVC-strict compatibility mode enabled (type conversion warnings as ERRORS)")
     elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
         # MSVC-like strict warnings WITHOUT -Werror for development efficiency
         add_compile_options(
@@ -184,12 +280,14 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             -Wno-padded           # Not practical for cross-platform development
             -Wno-deprecated-declarations  # API updates in progress - not MSVC-specific
         )
-        message(STATUS "MSVC-warn mode enabled (type conversion and strictness warnings as WARNINGS)")
+        message(STATUS "Clang with MSVC-warn compatibility mode enabled (type conversion warnings as WARNINGS)")
     else()
-        # Standard Clang compilation
+        # Default Clang compilation
         add_compile_options(-Wall -Wextra -O2)
+        message(STATUS "Clang default build: -Wall -Wextra -O2")
     endif()
     
+    # SIMD flags for Clang (including ClangCL on Windows)
     if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
         add_compile_options(-mavx2)
         add_compile_definitions(LIBSTATS_HAS_AVX2=1)
@@ -199,8 +297,21 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     endif()
 
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    if(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
-        # GCC-specific strict warnings and compatibility checks
+    # GCC build type configurations
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        # GCC Release: Maximum optimization, minimal warnings
+        add_compile_options(-O3 -DNDEBUG -Wall)
+        message(STATUS "GCC Release build: -O3 -DNDEBUG -Wall")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # GCC Debug: No optimization, debug info, extensive checks
+        add_compile_options(-O0 -g -Wall -Wextra -fstack-protector-strong)
+        message(STATUS "GCC Debug build: -O0 -g -Wall -Wextra -fstack-protector-strong")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+        # GCC Dev: Light optimization, debug info, good for development and debugging
+        add_compile_options(-O1 -g -Wall -Wextra)
+        message(STATUS "GCC Dev build: -O1 -g -Wall -Wextra")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
+        # GCC-specific strict warnings and compatibility checks as ERRORS
         add_compile_options(
             -Wall -Wextra -Werror -pedantic
             # GCC-specific conversion warnings
@@ -222,7 +333,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
             -Wno-inline -Wno-padded -Wno-unused-parameter
             -Wno-sign-conversion  # Too noisy with standard library
         )
-        message(STATUS "GCC-strict mode enabled (GCC-specific warnings and optimizations as ERRORS)")
+        message(STATUS "GCC-strict mode enabled (GCC-specific warnings as ERRORS)")
     elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
         # GCC-specific strict warnings WITHOUT -Werror for development efficiency
         add_compile_options(
@@ -246,10 +357,11 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
             -Wno-inline -Wno-padded -Wno-unused-parameter
             -Wno-sign-conversion  # Too noisy with standard library
         )
-        message(STATUS "GCC-warn mode enabled (GCC-specific warnings and optimizations as WARNINGS)")
+        message(STATUS "GCC-warn mode enabled (GCC-specific warnings as WARNINGS)")
     else()
-        # Standard GCC compilation
+        # Default GCC compilation
         add_compile_options(-Wall -Wextra -O3)
+        message(STATUS "GCC default build: -Wall -Wextra -O3")
     endif()
     
     # CONSERVATIVE SIMD approach: Only enable what we're confident will work
