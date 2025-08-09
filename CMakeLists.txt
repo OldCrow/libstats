@@ -8,6 +8,9 @@ endif()
 # Verbose messaging control
 option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 
+# Threading system preference control
+option(LIBSTATS_FORCE_TBB "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)" OFF)
+
 # Automatic parallel job detection for optimal build performance
 include(ProcessorCount)
 ProcessorCount(CPU_COUNT)
@@ -556,8 +559,20 @@ function(detect_tbb_unified)
     endif()
 endfunction()
 
-# Execute unified TBB detection
-detect_tbb_unified()
+# Execute unified TBB detection with platform preference
+# On macOS, prefer GCD over TBB for better integration with the platform
+# unless explicitly overridden by LIBSTATS_FORCE_TBB
+if(APPLE AND LIBSTATS_HAS_GCD AND NOT LIBSTATS_FORCE_TBB)
+    message(STATUS "macOS detected with GCD available - TBB detection skipped (GCD preferred)")
+    message(STATUS "  To force TBB usage on macOS, set -DLIBSTATS_FORCE_TBB=ON")
+    set(LIBSTATS_HAS_TBB FALSE CACHE BOOL "TBB disabled in favor of GCD on macOS" FORCE)
+    set(LIBSTATS_TBB_DETECTION_COMPLETE TRUE CACHE BOOL "TBB detection skipped for GCD preference" FORCE)
+else()
+    if(LIBSTATS_FORCE_TBB AND APPLE)
+        message(STATUS "LIBSTATS_FORCE_TBB=ON - forcing TBB detection even on macOS with GCD")
+    endif()
+    detect_tbb_unified()
+endif()
 
 # =============================================================================
 # SHARED COMPILER FLAG DEFINITIONS
