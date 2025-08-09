@@ -163,8 +163,8 @@ namespace libstats {
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;
 constexpr int LIBSTATS_VERSION_MINOR = 8;
-constexpr int LIBSTATS_VERSION_PATCH = 1;
-    constexpr const char* VERSION_STRING = "0.8.1";
+constexpr int LIBSTATS_VERSION_PATCH = 2;
+    constexpr const char* VERSION_STRING = "0.8.2";
     
     /**
      * @brief Initialize performance systems to eliminate cold-start delays

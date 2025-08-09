@@ -37,7 +37,7 @@ public:
     static void printBenchmarkHeader(const std::string& distribution_name, size_t dataset_size) {
         std::cout << "\n=== " << distribution_name << " Enhanced Performance Benchmark ===" << std::endl;
         std::cout << "Dataset size: " << dataset_size << " elements" << std::endl;
-        std::cout << "Hardware threads: " << std::thread::hardware_concurrency() << std::endl;
+        std::cout << "Hardware threads: " << static_cast<std::size_t>(std::thread::hardware_concurrency()) << std::endl;
     }
     
     static void printBenchmarkResults(const std::vector<BenchmarkResult>& results) {
@@ -64,7 +64,7 @@ public:
     static void printPerformanceAnalysis(const std::vector<BenchmarkResult>& results) {
         std::cout << "\nPerformance Analysis:" << std::endl;
         
-        if (std::thread::hardware_concurrency() > 2) {
+        if (static_cast<std::size_t>(std::thread::hardware_concurrency()) > 2) {
             for (const auto& result : results) {
                 if (result.parallel_speedup > 0.8) {
                     std::cout << "  ✓ " << result.operation_name << " parallel shows good speedup" << std::endl;
@@ -105,10 +105,10 @@ public:
                                      const std::string& operation_name,
                                      double tolerance = 1e-10) {
         bool all_correct = true;
-        const size_t check_count = std::min(size_t(100), test_values.size());
+        const std::size_t check_count = std::min(static_cast<std::size_t>(100), test_values.size());
         
-        for (size_t i = 0; i < check_count; ++i) {
-            size_t idx = i * (test_values.size() / check_count);
+        for (std::size_t i = 0; i < check_count; ++i) {
+            std::size_t idx = i * (test_values.size() / check_count);
             double expected;
             
             if (operation_name == "PDF") {
@@ -145,18 +145,18 @@ template<typename Distribution>
 class ThreadSafetyTester {
 public:
     static void testBasicThreadSafety(const Distribution& dist, const std::string& dist_name) {
-        const int num_threads = 4;
-        constexpr int samples_per_thread = 1000;
+        const std::size_t num_threads = 4;
+        constexpr std::size_t samples_per_thread = 1000;
         
         std::vector<std::thread> threads;
-        std::vector<std::vector<double>> results(num_threads);
+        std::vector<std::vector<double>> results(static_cast<std::size_t>(num_threads));
         
-        for (int t = 0; t < num_threads; ++t) {
+        for (std::size_t t = 0; t < num_threads; ++t) {
             threads.emplace_back([&dist, &results, t]() {
-                std::mt19937 local_rng(42 + t);
-                results[t].reserve(static_cast<size_t>(samples_per_thread));
+                std::mt19937 local_rng(static_cast<unsigned int>(42 + static_cast<int>(t)));
+                results[t].reserve(samples_per_thread);
                 
-                for (int i = 0; i < samples_per_thread; ++i) {
+                for (std::size_t i = 0; i < samples_per_thread; ++i) {
                     results[t].push_back(dist.sample(local_rng));
                 }
             });
@@ -167,7 +167,7 @@ public:
         }
         
         // Verify that all threads produced valid results
-        for (int t = 0; t < num_threads; ++t) {
+        for (std::size_t t = 0; t < num_threads; ++t) {
             EXPECT_EQ(results[t].size(), samples_per_thread);
             for (double val : results[t]) {
                 EXPECT_TRUE(std::isfinite(val));

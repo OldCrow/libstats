@@ -109,8 +109,8 @@ void WorkStealingPool::submit(Task task) {
     // Try to submit to current worker's local queue first
     const int workerId = currentWorkerId_;
     if (workerId >= constants::math::ZERO_INT && workerId < static_cast<int>(workers_.size())) {
-        std::lock_guard<std::mutex> lock(workers_[workerId]->queueMutex);
-        workers_[workerId]->localQueue.push_back(std::move(task));
+        std::lock_guard<std::mutex> lock(workers_[static_cast<std::size_t>(workerId)]->queueMutex);
+        workers_[static_cast<std::size_t>(workerId)]->localQueue.push_back(std::move(task));
         activeTasks_.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
         return;
     }
@@ -169,7 +169,7 @@ void WorkStealingPool::workerLoop(int workerId) {
     currentWorkerId_ = workerId;
     
     // Ensure worker data is valid
-    if (workerId < constants::math::ZERO_INT || workerId >= static_cast<int>(workers_.size()) || !workers_[workerId]) {
+    if (workerId < constants::math::ZERO_INT || workerId >= static_cast<int>(workers_.size()) || !workers_[static_cast<std::size_t>(workerId)]) {
         // Still need to signal readiness even if invalid to prevent constructor deadlock
         {
             std::lock_guard<std::mutex> lock(readinessMutex_);
@@ -179,7 +179,7 @@ void WorkStealingPool::workerLoop(int workerId) {
         return;
     }
     
-    auto& workerData = *workers_[workerId];
+    auto& workerData = *workers_[static_cast<std::size_t>(workerId)];
     
     // Perform thread self-optimization if enabled (this is where QoS setting happens)
     if (workerData.enableOptimization) {
@@ -251,22 +251,22 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
     if (numWorkers <= constants::math::ONE_INT) return Task{};
     
     // Validate thief ID
-    if (thiefId < constants::math::ZERO_INT || thiefId >= static_cast<int>(numWorkers) || !workers_[thiefId]) {
+    if (thiefId < constants::math::ZERO_INT || thiefId >= static_cast<int>(numWorkers) || !workers_[static_cast<std::size_t>(thiefId)]) {
         return Task{};
     }
     
-    auto& thiefData = *workers_[thiefId];
+    auto& thiefData = *workers_[static_cast<std::size_t>(thiefId)];
     
     // Try to steal from a random victim (avoid always stealing from the same worker)
     std::uniform_int_distribution<int> dist(constants::math::ZERO_INT, static_cast<int>(numWorkers) - constants::math::ONE_INT);
     const int startVictim = dist(thiefData.rng);
     
     for (std::size_t attempt = constants::math::ZERO_INT; attempt < numWorkers - constants::math::ONE_INT; ++attempt) {
-        const int victimId = static_cast<int>((startVictim + attempt) % numWorkers);
+        const int victimId = static_cast<int>((static_cast<std::size_t>(startVictim) + attempt) % numWorkers);
         if (victimId == thiefId) continue;
         
         // Validate victim ID and check if still valid
-        if (victimId < constants::math::ZERO_INT || victimId >= static_cast<int>(numWorkers) || !workers_[victimId]) {
+        if (victimId < constants::math::ZERO_INT || victimId >= static_cast<int>(numWorkers) || !workers_[static_cast<std::size_t>(victimId)]) {
             continue;
         }
         
@@ -275,7 +275,7 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
             return Task{};
         }
         
-        auto& victimData = *workers_[victimId];
+        auto& victimData = *workers_[static_cast<std::size_t>(victimId)];
         
         // Try to steal from the back of victim's queue
         std::lock_guard<std::mutex> lock(victimData.queueMutex);
@@ -292,7 +292,7 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
 void WorkStealingPool::executeTask(Task&& task, int workerId) {
     try {
         task();
-        workers_[workerId]->tasksExecuted.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
+        workers_[static_cast<std::size_t>(workerId)]->tasksExecuted.fetch_add(constants::math::ONE_INT, std::memory_order_relaxed);
     } catch (const std::exception& e) {
         std::cerr << "Exception in work-stealing pool task (worker " << workerId << "): " << e.what() << std::endl;
     } catch (...) {

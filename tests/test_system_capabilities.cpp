@@ -28,8 +28,8 @@ TEST_F(SystemCapabilitiesIntegrationTest, ReasonableSystemValues) {
     // Test that detected values are within reasonable ranges
     
     // Core counts
-    EXPECT_GE(capabilities.logical_cores(), 1);
-    EXPECT_LE(capabilities.logical_cores(), 256);  // Reasonable upper bound
+    EXPECT_GE(capabilities.logical_cores(), static_cast<std::size_t>(1));
+    EXPECT_LE(capabilities.logical_cores(), static_cast<std::size_t>(256));  // Reasonable upper bound
     EXPECT_GE(capabilities.physical_cores(), 1);
     EXPECT_LE(capabilities.physical_cores(), capabilities.logical_cores());
     
@@ -55,7 +55,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, ReasonableSystemValues) {
     EXPECT_LE(capabilities.threading_overhead_ns(), 1000000.0);  // 1ms max overhead
     
     EXPECT_GE(capabilities.memory_bandwidth_gb_s(), 0.0);
-    EXPECT_LE(capabilities.memory_bandwidth_gb_s(), 1000.0);  // 1TB/s upper bound
+    EXPECT_LE(capabilities.memory_bandwidth_gb_s(), 100.0);  // 100GB/s upper bound (clamped in benchmark)
 }
 
 TEST_F(SystemCapabilitiesIntegrationTest, SIMDCapabilityConsistency) {
@@ -81,17 +81,17 @@ TEST_F(SystemCapabilitiesIntegrationTest, SIMDCapabilityConsistency) {
 
 TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
     // Test that multiple threads can safely access system capabilities
-    constexpr int num_threads = 8;
-    constexpr int accesses_per_thread = 1000;
+    constexpr std::size_t num_threads = 8;
+    constexpr std::size_t accesses_per_thread = 1000;
     
     std::vector<std::thread> threads;
-    std::vector<bool> success(num_threads, false);
+    std::vector<bool> success(static_cast<std::size_t>(num_threads), false);
     
-    for (int t = 0; t < num_threads; ++t) {
+    for (std::size_t t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
             bool thread_success = true;
             
-            for (int i = 0; i < accesses_per_thread && thread_success; ++i) {
+            for (std::size_t i = 0; i < accesses_per_thread && thread_success; ++i) {
                 const SystemCapabilities& caps = SystemCapabilities::current();
                 
                 // Verify consistency
@@ -120,7 +120,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
     }
     
     // All threads should have succeeded
-    for (int t = 0; t < num_threads; ++t) {
+    for (std::size_t t = 0; t < num_threads; ++t) {
         EXPECT_TRUE(success[t]) << "Thread " << t << " failed consistency checks";
     }
 }
@@ -144,7 +144,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, PerformanceCharacteristicsRealistic) {
     // Memory bandwidth should be realistic for the era
     if (capabilities.memory_bandwidth_gb_s() > 0.0) {
         EXPECT_GE(capabilities.memory_bandwidth_gb_s(), 0.1);   // At least 100MB/s
-        EXPECT_LE(capabilities.memory_bandwidth_gb_s(), 500.0); // At most 500GB/s
+        EXPECT_LE(capabilities.memory_bandwidth_gb_s(), 100.0); // At most 100GB/s (clamped)
     }
 }
 

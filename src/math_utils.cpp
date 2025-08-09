@@ -521,7 +521,9 @@ double calculate_ad_statistic(const std::vector<double>& data, const Distributio
         double log_F_xi = std::log(F_xi);
         double log_one_minus_F_xi = std::log(1.0 - F_xi);
 
-        ad_sum += (2 * static_cast<double>(i) + 1) * log_F_xi + (2 * static_cast<double>(n) - static_cast<double>(i) - 1) * log_one_minus_F_xi;
+        // Correct Anderson-Darling formula with proper indexing (i+1 for 1-based indexing)
+        ad_sum += (2.0 * static_cast<double>(i + 1) - 1.0) * log_F_xi + 
+                  (2.0 * n - 2.0 * static_cast<double>(i + 1) + 1.0) * log_one_minus_F_xi;
     }
     
     return -n - ad_sum / n;

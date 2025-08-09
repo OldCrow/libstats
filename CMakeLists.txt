@@ -112,7 +112,7 @@ if(APPLE OR (UNIX AND NOT WIN32))
     endif()
 endif()
 
-project(libstats VERSION 0.8.1 LANGUAGES CXX)
+project(libstats VERSION 0.8.2 LANGUAGES CXX)
 
 # Set default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -1514,6 +1514,7 @@ if(LIBSTATS_BUILD_TOOLS)
     add_libstats_tool(performance_dispatcher_tool performance_dispatcher_tool.cpp)
     add_libstats_tool(system_capabilities_inspector system_capabilities_inspector.cpp)
     add_libstats_tool(threshold_learning_demo threshold_learning_demo.cpp)
+    add_libstats_tool(adaptive_learning_analyzer adaptive_learning_analyzer.cpp)
     
     message(STATUS "Tools enabled:")
     message(STATUS "  - cpu_info: System CPU capability detection")
@@ -1524,6 +1525,7 @@ if(LIBSTATS_BUILD_TOOLS)
     message(STATUS "  - performance_dispatcher_tool: Interactive Phase 3 performance framework demonstration")
     message(STATUS "  - system_capabilities_inspector: Detailed system capability inspection and performance analysis")
     message(STATUS "  - threshold_learning_demo: Adaptive threshold learning demonstration and performance optimization showcase")
+    message(STATUS "  - adaptive_learning_analyzer: Comprehensive adaptive learning system exerciser and performance data analyzer")
 endif()
 
 # Examples

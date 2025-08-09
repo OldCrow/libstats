@@ -859,7 +859,7 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
     }
     
     const size_t n = data.size();
-    const size_t fold_size = n / k;
+    const size_t fold_size = n / static_cast<std::size_t>(k);
     
     // Create shuffled indices for random fold assignment
     std::vector<size_t> indices(n);
@@ -869,12 +869,12 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
     std::shuffle(indices.begin(), indices.end(), rng);
     
     std::vector<std::tuple<double, double, double>> results;
-    results.reserve(k);
+    results.reserve(static_cast<std::size_t>(k));
     
     for (int fold = 0; fold < k; ++fold) {
         // Define validation set indices for this fold
-        const size_t start_idx = fold * fold_size;
-        const size_t end_idx = (fold == k - 1) ? n : (fold + 1) * fold_size;
+        const size_t start_idx = static_cast<std::size_t>(fold) * fold_size;
+        const size_t end_idx = (fold == k - 1) ? n : (static_cast<std::size_t>(fold) + 1) * fold_size;
         
         // Create training and validation sets
         std::vector<double> training_data;
@@ -1050,7 +1050,7 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
     
     const size_t n = data.size();
     std::vector<double> bootstrap_rates;
-    bootstrap_rates.reserve(n_bootstrap);
+    bootstrap_rates.reserve(static_cast<std::size_t>(n_bootstrap));
     
     std::mt19937 rng(random_seed);
     std::uniform_int_distribution<size_t> dist(0, n - 1);

@@ -397,7 +397,7 @@ namespace {
             features.avx512dq = (ebx & (1 << 17)) != 0;
             features.avx512cd = (ebx & (1 << 28)) != 0;
             features.avx512bw = (ebx & (1 << 30)) != 0;
-            features.avx512vl = (ebx & (1 << 31)) != 0;
+            features.avx512vl = (ebx & (1U << 31)) != 0;
         }
         
         #if defined(__APPLE__)

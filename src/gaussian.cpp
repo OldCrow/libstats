@@ -1074,9 +1074,9 @@ std::vector<double> GaussianDistribution::calculateHigherMoments(
         
         for (int k = 0; k < 6; ++k) {
             if (center_on_mean) {
-                moments[k] += std::pow(deviation, k + 1);
+                moments[static_cast<std::size_t>(k)] += std::pow(deviation, k + 1);
             } else {
-                moments[k] += std::pow(x, k + 1);
+                moments[static_cast<std::size_t>(k)] += std::pow(x, k + 1);
             }
         }
     }
@@ -1305,7 +1305,7 @@ std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCross
     }
     
     const size_t n = data.size();
-    const size_t fold_size = n / k;
+    const size_t fold_size = n / static_cast<std::size_t>(k);
     
     // Create shuffled indices for random fold assignment
     std::vector<size_t> indices(n);
@@ -1315,12 +1315,12 @@ std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCross
     std::shuffle(indices.begin(), indices.end(), rng);
     
     std::vector<std::tuple<double, double, double>> results;
-    results.reserve(k);
+    results.reserve(static_cast<std::size_t>(k));
     
     for (int fold = 0; fold < k; ++fold) {
         // Define validation set indices for this fold
-        const size_t start_idx = fold * fold_size;
-        const size_t end_idx = (fold == k - 1) ? n : (fold + 1) * fold_size;
+        const size_t start_idx = static_cast<std::size_t>(fold) * fold_size;
+        const size_t end_idx = (fold == k - 1) ? n : (static_cast<std::size_t>(fold) + 1) * fold_size;
         
         // Create training and validation sets
         std::vector<double> training_data;
@@ -1444,8 +1444,8 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> GaussianDistrib
     const size_t n = data.size();
     std::vector<double> bootstrap_means;
     std::vector<double> bootstrap_stds;
-    bootstrap_means.reserve(n_bootstrap);
-    bootstrap_stds.reserve(n_bootstrap);
+    bootstrap_means.reserve(static_cast<std::size_t>(n_bootstrap));
+    bootstrap_stds.reserve(static_cast<std::size_t>(n_bootstrap));
     
     std::mt19937 rng(random_seed);
     std::uniform_int_distribution<size_t> dist(0, n - 1);

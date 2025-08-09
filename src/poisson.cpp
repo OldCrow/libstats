@@ -570,7 +570,7 @@ double PoissonDistribution::computePMFSmall(int k) const noexcept {
     // Direct computation for small lambda
     if (k < static_cast<int>(FACTORIAL_CACHE.size())) {
         // Use cached factorial
-        return std::pow(lambda_, k) * expNegLambda_ / FACTORIAL_CACHE[k];
+        return std::pow(lambda_, k) * expNegLambda_ / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
     } else {
         // Use log-space computation
         return std::exp(computeLogPMF(k));
@@ -604,7 +604,7 @@ double PoissonDistribution::computeCDF(int k) const noexcept {
 double PoissonDistribution::factorial(int n) noexcept {
     if (n < 0) return constants::math::ZERO_DOUBLE;
     if (n < static_cast<int>(FACTORIAL_CACHE.size())) {
-        return FACTORIAL_CACHE[n];
+        return FACTORIAL_CACHE[static_cast<std::size_t>(n)];
     }
     
     // Use Stirling's approximation for large n
@@ -622,7 +622,7 @@ double PoissonDistribution::logFactorial(int n) noexcept {
     if (n == 0 || n == 1) return constants::math::ZERO_DOUBLE;
     
     if (n < static_cast<int>(FACTORIAL_CACHE.size())) {
-        return std::log(FACTORIAL_CACHE[n]);
+        return std::log(FACTORIAL_CACHE[static_cast<std::size_t>(n)]);
     }
     
     // Use Stirling's approximation: log(n!) ≈ n*log(n) - n + 0.5*log(2πn)
@@ -746,7 +746,7 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             if (k == 0) {
                 results[i] = exp_neg_lambda;
             } else if (lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
-                results[i] = std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[k];
+                results[i] = std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
             } else {
                 double log_result = k * log_lambda - lambda - logFactorial(k);
                 results[i] = std::exp(log_result);
@@ -771,7 +771,7 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
         if (k == 0) {
             results[i] = exp_neg_lambda;
         } else if (lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
-            results[i] = std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[k];
+            results[i] = std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
         } else {
             double log_result = k * log_lambda - lambda - logFactorial(k);
             results[i] = std::exp(log_result);
@@ -1030,7 +1030,7 @@ void PoissonDistribution::getProbabilityBatchParallel(std::span<const double> in
                 output_results[i] = cached_exp_neg_lambda;
             } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
                 // Direct computation for small lambda and k
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
+                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
             } else {
                 // Log-space computation
                 const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
@@ -1057,7 +1057,7 @@ void PoissonDistribution::getProbabilityBatchParallel(std::span<const double> in
                 output_results[i] = cached_exp_neg_lambda;
             } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
                 // Direct computation for small lambda and k using cached factorial
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
+                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
             } else {
                 // Use log-space computation for numerical stability
                 const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
@@ -1246,7 +1246,7 @@ void PoissonDistribution::getProbabilityBatchWorkStealing(std::span<const double
                 output_results[i] = cached_exp_neg_lambda;
             } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
                 // Direct computation for small lambda and k
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
+                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
             } else {
                 // Log-space computation
                 const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
@@ -1426,7 +1426,7 @@ void PoissonDistribution::getProbabilityBatchCacheAware(std::span<const double> 
             
             // Compute PMF using cached parameters
             if (cached_is_small_lambda && k <= constants::thresholds::poisson::SMALL_K_CACHE_THRESHOLD) {
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
+                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
             } else {
                 const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
                 output_results[i] = std::exp(log_pmf);
@@ -1448,7 +1448,7 @@ void PoissonDistribution::getProbabilityBatchCacheAware(std::span<const double> 
             
             // Compute PMF using cached parameters
             if (cached_is_small_lambda && k <= constants::thresholds::poisson::SMALL_K_CACHE_THRESHOLD) {
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[k];
+                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
             } else {
                 const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
                 output_results[i] = std::exp(log_pmf);
@@ -1995,7 +1995,7 @@ std::tuple<double, double, bool> PoissonDistribution::excessZerosTest(
     }
     
     const size_t n = data.size();
-    const size_t observed_zeros = std::count(data.begin(), data.end(), 0.0);
+    const size_t observed_zeros = static_cast<size_t>(std::count(data.begin(), data.end(), 0.0));
     const double lambda_hat = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     
     // Expected number of zeros under Poisson(λ): n * e^(-λ)
@@ -2384,7 +2384,7 @@ std::vector<std::tuple<double, double, double>> PoissonDistribution::kFoldCrossV
     
     const size_t n = data.size();
     std::vector<std::tuple<double, double, double>> results;
-    results.reserve(k);
+    results.reserve(static_cast<size_t>(k));
     
     // Create random indices for k-fold splitting
     std::vector<size_t> indices(n);
@@ -2392,12 +2392,12 @@ std::vector<std::tuple<double, double, double>> PoissonDistribution::kFoldCrossV
     std::mt19937 rng(random_seed);
     std::shuffle(indices.begin(), indices.end(), rng);
     
-    const size_t fold_size = n / k;
+    const size_t fold_size = n / static_cast<size_t>(k);
     
     for (int fold = 0; fold < k; ++fold) {
         // Determine fold boundaries
-        const size_t start_idx = fold * fold_size;
-        const size_t end_idx = (fold == k - 1) ? n : (fold + 1) * fold_size;
+        const size_t start_idx = static_cast<size_t>(fold) * fold_size;
+        const size_t end_idx = (fold == k - 1) ? n : (static_cast<size_t>(fold) + 1) * fold_size;
         
         // Create training and validation sets
         std::vector<double> training_data;
@@ -2581,7 +2581,7 @@ std::pair<double, double> PoissonDistribution::bootstrapParameterConfidenceInter
     
     const size_t n = data.size();
     std::vector<double> bootstrap_lambdas;
-    bootstrap_lambdas.reserve(n_bootstrap);
+    bootstrap_lambdas.reserve(static_cast<size_t>(n_bootstrap));
     
     std::mt19937 rng(random_seed);
     std::uniform_int_distribution<size_t> dist(0, n - 1);

@@ -25,17 +25,19 @@ protected:
  * Test that initialization function can be called safely multiple times
  */
 TEST_F(PerformanceInitializationTest, MultipleInitializationCallsAreSafe) {
-    // First call - should perform initialization
+    // Note: Since SetUpTestSuite() already called initialize_performance_systems(),
+    // all calls in this test are actually subsequent calls using the fast path.
+    // This test verifies thread-safety and idempotent behavior rather than
+    // measuring true first-time vs subsequent initialization performance.
+    
     auto start1 = std::chrono::high_resolution_clock::now();
     libstats::initialize_performance_systems();
     auto end1 = std::chrono::high_resolution_clock::now();
     
-    // Second call - should be fast path (already initialized)
     auto start2 = std::chrono::high_resolution_clock::now();
     libstats::initialize_performance_systems();
     auto end2 = std::chrono::high_resolution_clock::now();
     
-    // Third call - should also be fast path
     auto start3 = std::chrono::high_resolution_clock::now();
     libstats::initialize_performance_systems();
     auto end3 = std::chrono::high_resolution_clock::now();
@@ -45,15 +47,19 @@ TEST_F(PerformanceInitializationTest, MultipleInitializationCallsAreSafe) {
     auto duration3 = std::chrono::duration_cast<std::chrono::nanoseconds>(end3 - start3).count();
     
     std::cout << "Initialization call timings:" << std::endl;
-    std::cout << "  First call:  " << duration1 << " ns" << std::endl;
-    std::cout << "  Second call: " << duration2 << " ns" << std::endl;
-    std::cout << "  Third call:  " << duration3 << " ns" << std::endl;
+    std::cout << "  First test call:  " << duration1 << " ns" << std::endl;
+    std::cout << "  Second test call: " << duration2 << " ns" << std::endl;
+    std::cout << "  Third test call:  " << duration3 << " ns" << std::endl;
     
-    // Subsequent calls should be much faster (fast path)
-    // Note: We can't guarantee exact timing due to system variability,
-    // but the pattern should be evident
-    EXPECT_LT(duration2, duration1 / 10); // Should be at least 10x faster
-    EXPECT_LT(duration3, duration1 / 10); // Should be at least 10x faster
+    // Since all calls are fast path, just verify they complete in reasonable time
+    // (under 10 microseconds is very reasonable for a static flag check)
+    EXPECT_LT(duration1, 10000); // Should complete in under 10μs
+    EXPECT_LT(duration2, 10000); // Should complete in under 10μs  
+    EXPECT_LT(duration3, 10000); // Should complete in under 10μs
+    
+    // Verify the function doesn't crash when called multiple times (idempotent)
+    EXPECT_NO_THROW(libstats::initialize_performance_systems());
+    EXPECT_NO_THROW(libstats::initialize_performance_systems());
 }
 
 /**

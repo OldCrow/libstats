@@ -519,7 +519,7 @@ AccessPatternAnalyzer::PatternInfo AccessPatternAnalyzer::analyzePattern() const
     // Calculate locality score (how often recent keys are re-accessed)
     size_t recent_reaccess = 0;
     size_t window_size = std::min(access_history_.size(), size_t(32));
-    std::unordered_set<uint64_t> recent_keys(access_history_.end() - window_size, access_history_.end());
+    std::unordered_set<uint64_t> recent_keys(access_history_.end() - static_cast<std::ptrdiff_t>(window_size), access_history_.end());
     
     for (size_t i = access_history_.size() - window_size; i > 0 && i > access_history_.size() - 2 * window_size; --i) {
         if (recent_keys.count(access_history_[i-1]) > 0) {

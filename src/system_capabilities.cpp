@@ -63,24 +63,50 @@ namespace {
     
     // Estimate memory bandwidth (simplified)
     double estimateMemoryBandwidth() {
-        // This is a simplified estimation - in production, you'd want more sophisticated benchmarking
-        constexpr size_t array_size = 1024 * 1024; // 1MB
-        std::vector<double> data(array_size, 1.0);
+        // Use larger arrays and prevent compiler optimizations
+        constexpr size_t array_size = 16 * 1024 * 1024; // 16MB to exceed cache sizes
+        constexpr size_t iterations = 10;
+        
+        // Create two separate arrays to avoid overlapping memory issues
+        std::vector<double> source(array_size, 1.0);
+        std::vector<double> destination(array_size, 0.0);
+        
+        // Fill source with unique values to prevent optimization
+        for (size_t i = 0; i < array_size; ++i) {
+            source[i] = static_cast<double>(i % 1000) + 0.5;
+        }
         
         auto start = std::chrono::high_resolution_clock::now();
         
-        // Simple memory copy operation
-        for (size_t i = 0; i < 100; ++i) {
-            std::copy(data.begin(), data.begin() + array_size/2, data.begin() + array_size/2);
+        // Memory copy operations with volatile to prevent optimization
+        volatile double sink = 0.0;
+        for (size_t iter = 0; iter < iterations; ++iter) {
+            // Copy source to destination
+            std::copy(source.begin(), source.end(), destination.begin());
+            
+            // Ensure the operation isn't optimized away
+            sink += destination[iter % array_size];
         }
         
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
         
-        // Calculate approximate bandwidth (very rough estimate)
-        double bytes_transferred = array_size * sizeof(double) * 100;
-        double seconds = static_cast<double>(duration.count()) / 1e6;
-        return (bytes_transferred / seconds) / 1e9; // GB/s
+        // Use the sink to prevent dead code elimination
+        (void)sink;
+        
+        // Calculate bandwidth: bytes_read + bytes_written per iteration
+        double bytes_transferred = 2.0 * array_size * sizeof(double) * iterations;
+        double seconds = static_cast<double>(duration.count()) / 1e9;
+        
+        // Avoid division by zero and return a reasonable fallback
+        if (seconds <= 0.0 || !std::isfinite(seconds)) {
+            return 25.0; // Reasonable fallback for DDR3-1600 dual channel
+        }
+        
+        double bandwidth = (bytes_transferred / seconds) / 1e9; // GB/s
+        
+        // Clamp to reasonable bounds to handle measurement errors
+        return std::max(1.0, std::min(100.0, bandwidth));
     }
 }
 

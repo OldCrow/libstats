@@ -45,13 +45,13 @@ TEST_F(PerformanceHistoryTest, ThreadSafetyTest) {
     // Launch multiple threads recording performance data
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([this, t]() {
-            std::mt19937 rng(t);  // Seed with thread number
+            std::mt19937 rng(static_cast<unsigned int>(t));  // Seed with thread number
             std::uniform_int_distribution<uint64_t> time_dist(100, 10000);
             
             for (int i = 0; i < records_per_thread; ++i) {
                 Strategy strategy = (i % 2 == 0) ? Strategy::SCALAR : Strategy::SIMD_BATCH;
                 DistributionType dist_type = (i % 3 == 0) ? DistributionType::GAUSSIAN : DistributionType::EXPONENTIAL;
-                size_t batch_size = 100 + (i % 900);  // 100-999
+                size_t batch_size = 100 + static_cast<size_t>(i % 900);  // 100-999
                 uint64_t exec_time = time_dist(rng);
                 
                 history.recordPerformance(strategy, dist_type, batch_size, exec_time);
@@ -65,7 +65,7 @@ TEST_F(PerformanceHistoryTest, ThreadSafetyTest) {
     }
     
     // Verify total executions
-    EXPECT_EQ(history.getTotalExecutions(), num_threads * records_per_thread);
+    EXPECT_EQ(history.getTotalExecutions(), static_cast<size_t>(num_threads * records_per_thread));
     
     // Verify we can retrieve data for different strategies
     auto scalar_gaussian = history.getPerformanceStats(Strategy::SCALAR, DistributionType::GAUSSIAN);
@@ -80,8 +80,8 @@ TEST_F(PerformanceHistoryTest, ThreadSafetyTest) {
 TEST_F(PerformanceHistoryTest, StrategyRecommendation) {
     // Record data showing SIMD is faster than scalar for medium batches
     for (int i = 0; i < 10; ++i) {
-        history.recordPerformance(Strategy::SCALAR, DistributionType::GAUSSIAN, 1000, 5000 + i * 100);
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::GAUSSIAN, 1000, 2000 + i * 50);
+        history.recordPerformance(Strategy::SCALAR, DistributionType::GAUSSIAN, 1000, static_cast<uint64_t>(5000 + i * 100));
+        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::GAUSSIAN, 1000, static_cast<uint64_t>(2000 + i * 50));
     }
     
     // Get recommendation
@@ -109,20 +109,20 @@ TEST_F(PerformanceHistoryTest, OptimalThresholdLearning) {
     // Record performance data across different batch sizes to learn thresholds
     // Small batches: scalar is better
     for (int i = 0; i < 10; ++i) {
-        history.recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 10, 100 + i);
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 10, 200 + i);
+        history.recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 10, static_cast<uint64_t>(100 + i));
+        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 10, static_cast<uint64_t>(200 + i));
     }
     
     // Medium batches: SIMD is better
     for (int i = 0; i < 10; ++i) {
-        history.recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 1000, 5000 + i * 100);
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 1000, 2000 + i * 50);
+        history.recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 1000, static_cast<uint64_t>(5000 + i * 100));
+        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 1000, static_cast<uint64_t>(2000 + i * 50));
     }
     
     // Large batches: parallel is best
     for (int i = 0; i < 10; ++i) {
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 10000, 15000 + i * 200);
-        history.recordPerformance(Strategy::PARALLEL_SIMD, DistributionType::EXPONENTIAL, 10000, 8000 + i * 100);
+        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 10000, static_cast<uint64_t>(15000 + i * 200));
+        history.recordPerformance(Strategy::PARALLEL_SIMD, DistributionType::EXPONENTIAL, 10000, static_cast<uint64_t>(8000 + i * 100));
     }
     
     auto thresholds = history.learnOptimalThresholds(DistributionType::EXPONENTIAL);

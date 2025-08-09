@@ -295,15 +295,15 @@ inline std::pair<size_t, size_t> get_chunk_bounds(size_t chunk_index, size_t chu
 /// GCD-based parallel for_each implementation
 template<typename Iterator, typename UnaryFunction>
 void gcd_for_each(Iterator first, Iterator last, UnaryFunction f) noexcept(noexcept(f(*first))) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
     
     dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
                    ^(size_t chunk_index) {
                        const auto [start_idx, end_idx] = get_chunk_bounds(chunk_index, chunk_size, total_elements);
-                       auto chunk_first = first + start_idx;
-                       auto chunk_last = first + end_idx;
+                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
                        std::for_each(chunk_first, chunk_last, f);
                    });
 }
@@ -311,16 +311,16 @@ void gcd_for_each(Iterator first, Iterator last, UnaryFunction f) noexcept(noexc
 /// GCD-based parallel transform implementation
 template<typename Iterator1, typename Iterator2, typename UnaryOp>
 void gcd_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) noexcept(noexcept(op(*first1))) {
-    const size_t total_elements = std::distance(first1, last1);
+    const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
     
     dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
                    ^(size_t chunk_index) {
                        const auto [start_idx, end_idx] = get_chunk_bounds(chunk_index, chunk_size, total_elements);
-                       auto chunk_first1 = first1 + start_idx;
-                       auto chunk_last1 = first1 + end_idx;
-                       auto chunk_first2 = first2 + start_idx;
+                       auto chunk_first1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
+                       auto chunk_last1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
+                       auto chunk_first2 = first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
                        std::transform(chunk_first1, chunk_last1, chunk_first2, op);
                    });
 }
@@ -328,7 +328,7 @@ void gcd_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp 
 /// GCD-based parallel fill implementation
 template<typename Iterator, typename T>
 void gcd_fill(Iterator first, Iterator last, const T& value) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     
     dispatch_apply(total_elements / chunk_size + ((total_elements % chunk_size) ? 1 : 0),
@@ -336,8 +336,8 @@ void gcd_fill(Iterator first, Iterator last, const T& value) {
                    ^(size_t chunk_index) {
                        const size_t start_idx = chunk_index * chunk_size;
                        const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + start_idx;
-                       auto chunk_last = first + end_idx;
+                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
                        std::fill(chunk_first, chunk_last, value);
                    });
 }
@@ -345,7 +345,7 @@ void gcd_fill(Iterator first, Iterator last, const T& value) {
 /// GCD-based parallel reduce implementation
 template<typename Iterator, typename T, typename BinaryOp>
 T gcd_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = (total_elements + chunk_size - 1) / chunk_size;
     
@@ -356,8 +356,8 @@ T gcd_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
                    ^(size_t chunk_index) {
                        const size_t start_idx = chunk_index * chunk_size;
                        const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + start_idx;
-                       auto chunk_last = first + end_idx;
+                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
                        results_ptr[chunk_index] = std::accumulate(chunk_first, chunk_last, init, op);
                    });
     
@@ -369,7 +369,7 @@ T gcd_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
 template<typename Iterator, typename T>
 typename std::iterator_traits<Iterator>::difference_type
 gcd_count(Iterator first, Iterator last, const T& value) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = (total_elements + chunk_size - 1) / chunk_size;
     
@@ -380,8 +380,8 @@ gcd_count(Iterator first, Iterator last, const T& value) {
                    ^(size_t chunk_index) {
                        const size_t start_idx = chunk_index * chunk_size;
                        const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + start_idx;
-                       auto chunk_last = first + end_idx;
+                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
                        results_ptr[chunk_index] = std::count(chunk_first, chunk_last, value);
                    });
     
@@ -394,7 +394,7 @@ gcd_count(Iterator first, Iterator last, const T& value) {
 template<typename Iterator, typename UnaryPredicate>
 typename std::iterator_traits<Iterator>::difference_type
 gcd_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = (total_elements + chunk_size - 1) / chunk_size;
     
@@ -405,8 +405,8 @@ gcd_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
                    ^(size_t chunk_index) {
                        const size_t start_idx = chunk_index * chunk_size;
                        const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + start_idx;
-                       auto chunk_last = first + end_idx;
+                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
                        results_ptr[chunk_index] = std::count_if(chunk_first, chunk_last, pred);
                    });
     
@@ -461,7 +461,7 @@ inline size_t get_wintp_chunk_size(size_t total_elements) noexcept {
 /// Windows Thread Pool-based parallel for_each implementation
 template<typename Iterator, typename UnaryFunction>
 void wintp_for_each(Iterator first, Iterator last, UnaryFunction f) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_wintp_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
     
@@ -477,8 +477,8 @@ void wintp_for_each(Iterator first, Iterator last, UnaryFunction f) {
     // Create work items
     for (size_t i = 0; i < num_chunks; ++i) {
         const auto [start_idx, end_idx] = get_chunk_bounds(i, chunk_size, total_elements);
-        auto chunk_first = first + start_idx;
-        auto chunk_last = first + end_idx;
+        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
         
         completion_flags[i].store(false, std::memory_order_relaxed);
         work_data[i].work_function = [chunk_first, chunk_last, f]() {
@@ -505,7 +505,7 @@ void wintp_for_each(Iterator first, Iterator last, UnaryFunction f) {
 /// Windows Thread Pool-based parallel transform implementation
 template<typename Iterator1, typename Iterator2, typename UnaryOp>
 void wintp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
-    const size_t total_elements = std::distance(first1, last1);
+    const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t chunk_size = get_wintp_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
     
@@ -520,9 +520,9 @@ void wintp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryO
     // Create work items
     for (size_t i = 0; i < num_chunks; ++i) {
         const auto [start_idx, end_idx] = get_chunk_bounds(i, chunk_size, total_elements);
-        auto chunk_first1 = first1 + start_idx;
-        auto chunk_last1 = first1 + end_idx;
-        auto chunk_first2 = first2 + start_idx;
+        auto chunk_first1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
+        auto chunk_last1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
+        auto chunk_first2 = first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
         
         work_data[i].work_function = [chunk_first1, chunk_last1, chunk_first2, op]() {
             std::transform(chunk_first1, chunk_last1, chunk_first2, op);
@@ -548,7 +548,7 @@ void wintp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryO
 /// Windows Thread Pool-based parallel reduce implementation
 template<typename Iterator, typename T, typename BinaryOp>
 T wintp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_wintp_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
     
@@ -563,8 +563,8 @@ T wintp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     // Create work items
     for (size_t i = 0; i < num_chunks; ++i) {
         const auto [start_idx, end_idx] = get_chunk_bounds(i, chunk_size, total_elements);
-        auto chunk_first = first + start_idx;
-        auto chunk_last = first + end_idx;
+        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
         
         work_data[i].work_function = [chunk_first, chunk_last, &partial_results, i, init, op]() {
             partial_results[i] = std::accumulate(chunk_first, chunk_last, init, op);
@@ -613,7 +613,7 @@ inline size_t get_openmp_chunk_size(size_t total_elements) noexcept {
 /// OpenMP-based parallel for_each implementation
 template<typename Iterator, typename UnaryFunction>
 void openmp_for_each(Iterator first, Iterator last, UnaryFunction f) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
     if (total_elements < get_optimal_parallel_threshold()) {
@@ -623,14 +623,14 @@ void openmp_for_each(Iterator first, Iterator last, UnaryFunction f) {
     
     #pragma omp parallel for schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        f(*(first + i));
+        f(*(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
     }
 }
 
 /// OpenMP-based parallel transform implementation
 template<typename Iterator1, typename Iterator2, typename UnaryOp>
 void openmp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
-    const size_t total_elements = std::distance(first1, last1);
+    const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
     if (total_elements < get_optimal_parallel_threshold()) {
@@ -640,14 +640,14 @@ void openmp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unary
     
     #pragma omp parallel for schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        *(first2 + i) = op(*(first1 + i));
+        *(first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(i)) = op(*(first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(i)));
     }
 }
 
 /// OpenMP-based parallel fill implementation
 template<typename Iterator, typename T>
 void openmp_fill(Iterator first, Iterator last, const T& value) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
     if (total_elements < get_optimal_parallel_threshold()) {
@@ -657,14 +657,14 @@ void openmp_fill(Iterator first, Iterator last, const T& value) {
     
     #pragma omp parallel for schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        *(first + i) = value;
+        *(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)) = value;
     }
 }
 
 /// OpenMP-based parallel reduce implementation
 template<typename Iterator, typename T, typename BinaryOp>
 T openmp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
     if (total_elements < get_optimal_parallel_threshold()) {
@@ -677,7 +677,7 @@ T openmp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     for (size_t i = 0; i < total_elements; ++i) {
         // Note: This assumes op is associative and commutative (like +)
         // For more complex operations, we'd need a different approach
-        result = op(result, *(first + i));
+        result = op(result, *(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
     }
     
     return result;
@@ -687,7 +687,7 @@ T openmp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
 template<typename Iterator, typename T>
 typename std::iterator_traits<Iterator>::difference_type
 openmp_count(Iterator first, Iterator last, const T& value) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
     if (total_elements < get_optimal_parallel_threshold()) {
@@ -698,7 +698,7 @@ openmp_count(Iterator first, Iterator last, const T& value) {
     
     #pragma omp parallel for reduction(+:result) schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        if (*(first + i) == value) {
+        if (*(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)) == value) {
             ++result;
         }
     }
@@ -710,7 +710,7 @@ openmp_count(Iterator first, Iterator last, const T& value) {
 template<typename Iterator, typename UnaryPredicate>
 typename std::iterator_traits<Iterator>::difference_type
 openmp_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
     if (total_elements < get_optimal_parallel_threshold()) {
@@ -721,7 +721,7 @@ openmp_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
     
     #pragma omp parallel for reduction(+:result) schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        if (pred(*(first + i))) {
+        if (pred(*(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)))) {
             ++result;
         }
     }
@@ -771,7 +771,7 @@ inline size_t get_pthread_chunk_size(size_t total_elements) noexcept {
 /// pthreads-based parallel for_each implementation
 template<typename Iterator, typename UnaryFunction>
 void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_pthread_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
     const size_t max_threads = std::min(num_chunks, cpu::get_logical_core_count());
@@ -788,8 +788,8 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
     for (size_t t = 0; t < max_threads; ++t) {
         const size_t start_idx = (t * total_elements) / max_threads;
         const size_t end_idx = ((t + 1) * total_elements) / max_threads;
-        auto chunk_first = first + start_idx;
-        auto chunk_last = first + end_idx;
+        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
         
         work_items[t].work_function = [chunk_first, chunk_last, f]() {
             std::for_each(chunk_first, chunk_last, f);
@@ -818,7 +818,7 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
 /// pthreads-based parallel transform implementation
 template<typename Iterator1, typename Iterator2, typename UnaryOp>
 void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
-    const size_t total_elements = std::distance(first1, last1);
+    const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), cpu::get_logical_core_count());
     
     if (total_elements < get_optimal_parallel_threshold() || max_threads <= 1) {
@@ -833,9 +833,9 @@ void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unar
     for (size_t t = 0; t < max_threads; ++t) {
         const size_t start_idx = (t * total_elements) / max_threads;
         const size_t end_idx = ((t + 1) * total_elements) / max_threads;
-        auto chunk_first1 = first1 + start_idx;
-        auto chunk_last1 = first1 + end_idx;
-        auto chunk_first2 = first2 + start_idx;
+        auto chunk_first1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
+        auto chunk_last1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
+        auto chunk_first2 = first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
         
         work_items[t].work_function = [chunk_first1, chunk_last1, chunk_first2, op]() {
             std::transform(chunk_first1, chunk_last1, chunk_first2, op);
@@ -863,7 +863,7 @@ void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unar
 /// pthreads-based parallel reduce implementation
 template<typename Iterator, typename T, typename BinaryOp>
 T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
-    const size_t total_elements = std::distance(first, last);
+    const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), cpu::get_logical_core_count());
     
     if (total_elements < get_optimal_parallel_threshold() || max_threads <= 1) {
@@ -878,8 +878,8 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     for (size_t t = 0; t < max_threads; ++t) {
         const size_t start_idx = (t * total_elements) / max_threads;
         const size_t end_idx = ((t + 1) * total_elements) / max_threads;
-        auto chunk_first = first + start_idx;
-        auto chunk_last = first + end_idx;
+        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
         
         work_items[t].work_function = [chunk_first, chunk_last, &partial_results, t, init, op]() {
             partial_results[t] = std::accumulate(chunk_first, chunk_last, init, op);

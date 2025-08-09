@@ -1455,7 +1455,7 @@ std::vector<int> DiscreteDistribution::getAllOutcomes() const {
     }
     
     std::vector<int> outcomes;
-    outcomes.reserve(range);
+    outcomes.reserve(static_cast<std::size_t>(range));
     
     for (int k = a_; k <= b_; ++k) {
         outcomes.push_back(k);
@@ -1745,15 +1745,15 @@ std::vector<std::tuple<double, double, double>> DiscreteDistribution::kFoldCross
     std::mt19937 rng(random_seed);
     std::shuffle(indices.begin(), indices.end(), rng);
     
-    const size_t fold_size = data.size() / k;
-    const size_t remainder = data.size() % k;
+    const size_t fold_size = data.size() / static_cast<std::size_t>(k);
+    const size_t remainder = data.size() % static_cast<std::size_t>(k);
     
     std::vector<std::tuple<double, double, double>> results;
-    results.reserve(k);
+    results.reserve(static_cast<std::size_t>(k));
     
     for (int fold = 0; fold < k; ++fold) {
         // Determine test set boundaries
-        const size_t test_start = fold * fold_size + std::min(static_cast<size_t>(fold), remainder);
+        const size_t test_start = static_cast<std::size_t>(fold) * fold_size + std::min(static_cast<size_t>(fold), remainder);
         const size_t test_size = fold_size + (static_cast<size_t>(fold) < remainder ? 1 : 0);
         const size_t test_end = test_start + test_size;
         
@@ -1924,8 +1924,8 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> DiscreteDistrib
         DiscreteDistribution fitted_dist(sample_min, sample_max);
         
         std::vector<int> bootstrap_lower_bounds, bootstrap_upper_bounds;
-        bootstrap_lower_bounds.reserve(n_bootstrap);
-        bootstrap_upper_bounds.reserve(n_bootstrap);
+        bootstrap_lower_bounds.reserve(static_cast<std::size_t>(n_bootstrap));
+        bootstrap_upper_bounds.reserve(static_cast<std::size_t>(n_bootstrap));
         
         // Parametric bootstrap: generate samples from fitted distribution
         for (int b = 0; b < n_bootstrap; ++b) {
@@ -2413,7 +2413,7 @@ std::pair<int, int> DiscreteDistribution::robustEstimation(
         // Trim extreme values based on frequency
         const size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(n));
         if (trim_count < n) {
-            filtered_data.assign(int_data.begin() + trim_count, int_data.end() - trim_count);
+            filtered_data.assign(int_data.begin() + static_cast<std::ptrdiff_t>(trim_count), int_data.end() - static_cast<std::ptrdiff_t>(trim_count));
         } else {
             filtered_data = int_data;
         }

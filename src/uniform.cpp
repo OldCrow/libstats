@@ -1647,14 +1647,14 @@ std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossV
     std::shuffle(indices.begin(), indices.end(), rng);
     
     std::vector<std::tuple<double, double, double>> results;
-    results.reserve(k);
+    results.reserve(static_cast<std::size_t>(k));
     
-    const size_t fold_size = n / k;
-    const size_t remainder = n % k;
+    const size_t fold_size = n / static_cast<std::size_t>(k);
+    const size_t remainder = n % static_cast<std::size_t>(k);
     
     for (int fold = 0; fold < k; ++fold) {
         // Determine validation set indices for this fold
-        size_t start_idx = fold * fold_size + std::min(static_cast<size_t>(fold), remainder);
+        size_t start_idx = static_cast<std::size_t>(fold) * fold_size + std::min(static_cast<size_t>(fold), remainder);
         size_t end_idx = start_idx + fold_size + (static_cast<size_t>(fold) < remainder ? 1 : 0);
         
         // Split data into training and validation sets
@@ -1809,8 +1809,8 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> UniformDistribu
     
     std::vector<double> bootstrap_a_estimates;
     std::vector<double> bootstrap_b_estimates;
-    bootstrap_a_estimates.reserve(n_bootstrap);
-    bootstrap_b_estimates.reserve(n_bootstrap);
+    bootstrap_a_estimates.reserve(static_cast<std::size_t>(n_bootstrap));
+    bootstrap_b_estimates.reserve(static_cast<std::size_t>(n_bootstrap));
     
     for (int boot = 0; boot < n_bootstrap; ++boot) {
         // Generate bootstrap sample

@@ -695,8 +695,8 @@ std::pair<double, double> GammaDistribution::robustEstimation(
             throw std::invalid_argument("Trim proportion too large");
         }
         
-        processed_data.assign(sorted_data.begin() + trim_count, 
-                             sorted_data.end() - trim_count);
+        processed_data.assign(sorted_data.begin() + static_cast<std::ptrdiff_t>(trim_count), 
+                             sorted_data.end() - static_cast<std::ptrdiff_t>(trim_count));
     } 
     else if (estimator_type == "winsorized") {
         // Winsorized estimator: replace extreme values with less extreme ones
@@ -720,8 +720,8 @@ std::pair<double, double> GammaDistribution::robustEstimation(
         size_t q3_idx = static_cast<size_t>(0.75 * static_cast<double>(data.size()));
         
         if (q3_idx > q1_idx) {
-            processed_data.assign(sorted_data.begin() + q1_idx, 
-                                 sorted_data.begin() + q3_idx + 1);
+            processed_data.assign(sorted_data.begin() + static_cast<std::ptrdiff_t>(q1_idx), 
+                                 sorted_data.begin() + static_cast<std::ptrdiff_t>(q3_idx + 1));
         }
     }
     else {
@@ -1003,10 +1003,10 @@ std::vector<std::tuple<double, double, double>> GammaDistribution::kFoldCrossVal
 
     std::vector<std::tuple<double, double, double>> results;
 
-    size_t fold_size = data.size() / k;
+    size_t fold_size = data.size() / static_cast<size_t>(k);
     for (int fold = 0; fold < k; ++fold) {
-        size_t start = fold * fold_size;
-        size_t end = (fold + 1) * fold_size;
+        size_t start = static_cast<size_t>(fold) * fold_size;
+        size_t end = static_cast<size_t>(fold + 1) * fold_size;
 
         std::vector<double> training_data;
         std::vector<double> validation_data;
@@ -1071,7 +1071,7 @@ std::tuple<double, double, double> GammaDistribution::leaveOneOutCrossValidation
 
     for (size_t i = 0; i < n; ++i) {
         std::vector<double> train_data = data;
-        train_data.erase(train_data.begin() + i);
+        train_data.erase(train_data.begin() + static_cast<std::ptrdiff_t>(i));
 
         GammaDistribution model;
         model.fit(train_data);
@@ -1124,7 +1124,7 @@ std::tuple<double, double, double, double> GammaDistribution::computeInformation
     double bic = k * std::log(static_cast<double>(n)) - 2 * log_likelihood;
 
     // AICc (Corrected AIC for small sample sizes)
-    double aicc = aic + (2 * k * (k + 1)) / static_cast<double>(n - k - 1);
+    double aicc = aic + (2 * k * (k + 1)) / static_cast<double>(n - static_cast<size_t>(k) - 1);
 
     return std::make_tuple(aic, bic, aicc, log_likelihood);
 }
@@ -1146,8 +1146,8 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> GammaDistributi
 
     std::vector<double> bootstrap_alphas;
     std::vector<double> bootstrap_betas;
-    bootstrap_alphas.reserve(n_bootstrap);
-    bootstrap_betas.reserve(n_bootstrap);
+    bootstrap_alphas.reserve(static_cast<size_t>(n_bootstrap));
+    bootstrap_betas.reserve(static_cast<size_t>(n_bootstrap));
 
     for (int i = 0; i < n_bootstrap; ++i) {
         // Generate bootstrap sample

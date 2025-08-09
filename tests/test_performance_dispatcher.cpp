@@ -186,20 +186,20 @@ TEST_F(PerformanceDispatcherTest, EdgeCases) {
 
 TEST_F(PerformanceDispatcherTest, ThreadSafety) {
     // Test that multiple threads can safely use the dispatcher
-    constexpr int num_threads = 4;
-    constexpr int selections_per_thread = 100;
+    constexpr std::size_t num_threads = 4;
+    constexpr std::size_t selections_per_thread = 1000;
     
     std::vector<std::thread> threads;
-    std::vector<std::vector<Strategy>> results(num_threads);
+    std::vector<std::vector<Strategy>> results(static_cast<std::size_t>(num_threads));
     
-    for (int t = 0; t < num_threads; ++t) {
+    for (std::size_t t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
             PerformanceDispatcher dispatcher;
             const SystemCapabilities& system = SystemCapabilities::current();
-            results[t].reserve(selections_per_thread);
+            results[t].reserve(static_cast<std::size_t>(selections_per_thread));
             
-            for (int i = 0; i < selections_per_thread; ++i) {
-                size_t batch_size = 100 + (i % 10000);
+            for (std::size_t i = 0; i < selections_per_thread; ++i) {
+                size_t batch_size = 100 + static_cast<std::size_t>(i % 10000);
                 DistributionType dist_type = static_cast<DistributionType>(i % 6);
                 ComputationComplexity complexity = static_cast<ComputationComplexity>(i % 3);
                 
@@ -207,7 +207,7 @@ TEST_F(PerformanceDispatcherTest, ThreadSafety) {
                 results[t].push_back(strategy);
                 
                 // Also record some performance data
-                PerformanceDispatcher::recordPerformance(strategy, dist_type, batch_size, 1000 + (i % 5000));
+                PerformanceDispatcher::recordPerformance(strategy, dist_type, batch_size, static_cast<uint64_t>(1000 + (i % 5000)));
             }
         });
     }
@@ -218,7 +218,7 @@ TEST_F(PerformanceDispatcherTest, ThreadSafety) {
     }
     
     // Verify results
-    for (int t = 0; t < num_threads; ++t) {
+    for (std::size_t t = 0; t < num_threads; ++t) {
         EXPECT_EQ(results[t].size(), selections_per_thread);
         // All strategies should be valid
         for (auto strategy : results[t]) {

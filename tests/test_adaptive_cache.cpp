@@ -61,7 +61,7 @@ void test_cache_eviction() {
     // Check that cache is limited in size
     [[maybe_unused]] auto stats = cache.getStats();
     
-    assert(stats.size <= config.max_cache_size);
+    assert(stats.size <= static_cast<std::size_t>(config.max_cache_size));
     
     // Verify some entries were evicted
     int found_count = 0;
@@ -178,7 +178,7 @@ void test_prefetching() {
     assert(metrics.prefetch_hits.load() > 0 || metrics.prefetch_misses.load() > 0);
     
     std::cout << "✓ Prefetching passed (prefetched " << prefetch_hits 
-              << " out of " << prefetch_keys.size() << " keys)" << std::endl;
+              << " out of " << static_cast<std::size_t>(prefetch_keys.size()) << " keys)" << std::endl;
 }
 
 void test_memory_pressure_detection() {
@@ -220,7 +220,7 @@ void test_cache_advisor() {
     
     auto recommendations = advisor.analyzeAndRecommend(mock_metrics, mock_config, memory_info);
     
-    std::cout << "✓ Cache advisor generated " << recommendations.size() << " recommendations:" << std::endl;
+    std::cout << "✓ Cache advisor generated " << static_cast<std::size_t>(recommendations.size()) << " recommendations:" << std::endl;
     for (const auto& rec : recommendations) {
         std::cout << "  Priority " << rec.priority << ": " << rec.description << std::endl;
     }
@@ -250,9 +250,9 @@ void test_cache_monitor() {
     // Simulate some cache metrics over time
     for (int i = 0; i < 10; ++i) {
         CacheMetrics metrics;
-        metrics.hits.store(100 + i * 10);
-        metrics.misses.store(20 + i * 2);
-        metrics.memory_usage.store(1024 * 1024 + i * 1024);
+        metrics.hits.store(static_cast<unsigned long>(100 + i * 10));
+        metrics.misses.store(static_cast<unsigned long>(20 + i * 2));
+        metrics.memory_usage.store(static_cast<unsigned long>(1024 * 1024 + i * 1024));
         metrics.average_access_time.store(100.0 + i);
         metrics.updateHitRate();
         

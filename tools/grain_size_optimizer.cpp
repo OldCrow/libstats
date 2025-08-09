@@ -44,7 +44,7 @@ private:
     std::vector<std::size_t> getTestDataSizes() {
         const auto& features = libstats::cpu::get_features();
         std::size_t l3_elements = features.l3_cache_size > 0 ? 
-            features.l3_cache_size / sizeof(double) : 262144; // 2MB fallback
+            static_cast<std::size_t>(features.l3_cache_size) / sizeof(double) : 262144; // 2MB fallback
             
         return {
             64, 128, 256, 512, 1024,           // Small sizes
@@ -63,7 +63,7 @@ private:
     std::vector<std::size_t> getTestGrainSizes(std::size_t data_size) {
         const auto& features = libstats::cpu::get_features();
         std::size_t simd_width = libstats::constants::platform::get_optimal_simd_block_size();
-        std::size_t cache_line_elements = features.cache_line_size / sizeof(double);
+        std::size_t cache_line_elements = static_cast<std::size_t>(features.cache_line_size) / sizeof(double);
         
         std::vector<std::size_t> grain_sizes;
         
@@ -117,7 +117,7 @@ private:
                 sink_double += result;
             } else if (op_name == "count_if") {
                 auto result = libstats::parallel::safe_count_if(data.begin(), data.end(), operation);
-                sink_size += result;
+                sink_size += static_cast<std::size_t>(result);
             }
         }
         
@@ -133,7 +133,7 @@ private:
                 sink_double += result; // Force use of result
             } else if (op_name == "count_if") {
                 auto result = libstats::parallel::safe_count_if(data.begin(), data.end(), operation);
-                sink_size += result; // Force use of result
+                sink_size += static_cast<std::size_t>(result); // Force use of result
             }
             
             auto end = std::chrono::high_resolution_clock::now();
@@ -162,7 +162,7 @@ private:
                 sink_double += result[0];
             } else if (op_name == "count_if") {
                 auto result = std::count_if(data.begin(), data.end(), operation);
-                sink_size += result;
+                sink_size += static_cast<std::size_t>(result);
             }
         }
         
@@ -175,7 +175,7 @@ private:
                 sink_double += result[0]; // Use result to prevent optimization
             } else if (op_name == "count_if") {
                 auto result = std::count_if(data.begin(), data.end(), operation);
-                sink_size += static_cast<size_t>(result); // Force use of result
+                sink_size += static_cast<std::size_t>(result); // Force use of result
             }
             // Note: reduce is handled separately with benchmarkSerialReduce
             

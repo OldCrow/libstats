@@ -219,13 +219,13 @@ void demonstrate_adaptive_learning() {
             // Test multiple strategies for comparison
             for (auto strategy : test_strategies) {
                 // Add some realistic variance based on strategy (simulated)
-                uint64_t adjusted_duration = duration;
+                uint64_t adjusted_duration = static_cast<uint64_t>(duration);
                 switch (strategy) {
                     case libstats::performance::Strategy::SCALAR:
                         adjusted_duration = static_cast<uint64_t>(static_cast<double>(duration) * 1.5); // Slower
                         break;
                     case libstats::performance::Strategy::SIMD_BATCH:
-                        adjusted_duration = duration; // Baseline
+                        adjusted_duration = static_cast<uint64_t>(duration); // Baseline
                         break;
                     case libstats::performance::Strategy::PARALLEL_SIMD:
                         if (size > 5000) {

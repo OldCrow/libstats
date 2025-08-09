@@ -696,10 +696,10 @@ BootstrapTestResult bootstrap_kolmogorov_smirnov_test(
     }
     
     // Calculate bootstrap p-value
-    const size_t count_greater = std::count_if(bootstrap_statistics.begin(), bootstrap_statistics.end(),
+    const size_t count_greater = static_cast<size_t>(std::count_if(bootstrap_statistics.begin(), bootstrap_statistics.end(),
                                              [observed_statistic](double stat) {
                                                  return stat >= observed_statistic;
-                                             });
+                                             }));
     
     const double bootstrap_p_value = static_cast<double>(count_greater) / static_cast<double>(num_bootstrap);
     const bool reject_null = bootstrap_p_value < alpha;
@@ -746,10 +746,10 @@ BootstrapTestResult bootstrap_anderson_darling_test(
     }
     
     // Calculate bootstrap p-value
-    const size_t count_greater = std::count_if(bootstrap_statistics.begin(), bootstrap_statistics.end(),
+    const size_t count_greater = static_cast<size_t>(std::count_if(bootstrap_statistics.begin(), bootstrap_statistics.end(),
                                              [observed_statistic](double stat) {
                                                  return stat >= observed_statistic;
-                                             });
+                                             }));
     
     const double bootstrap_p_value = static_cast<double>(count_greater) / static_cast<double>(num_bootstrap);
     const bool reject_null = bootstrap_p_value < alpha;
@@ -799,10 +799,10 @@ BootstrapTestResult bootstrap_parameter_test(
     }
     
     // Calculate bootstrap p-value (two-tailed test)
-    const size_t count_greater = std::count_if(bootstrap_statistics.begin(), bootstrap_statistics.end(),
+    const size_t count_greater = static_cast<size_t>(std::count_if(bootstrap_statistics.begin(), bootstrap_statistics.end(),
                                              [observed_statistic](double stat) {
                                                  return stat >= observed_statistic;
-                                             });
+                                             }));
     
     const double bootstrap_p_value = static_cast<double>(count_greater) / static_cast<double>(num_bootstrap);
     const bool reject_null = bootstrap_p_value < alpha;

@@ -137,14 +137,14 @@ private:
         auto serial_time = timeOperation([&]() {
             auto result = std::count_if(data.begin(), data.end(), 
                                        [](double x) { return x > 50.0; });
-            sink += result;  // Force use of result
+            sink += static_cast<std::size_t>(result);  // Force use of result
         }, num_runs);
         
         // Parallel count_if
         auto parallel_time = timeOperation([&]() {
             auto result = libstats::parallel::safe_count_if(data.begin(), data.end(),
                                                           [](double x) { return x > 50.0; });
-            sink += result;  // Force use of result
+            sink += static_cast<std::size_t>(result);  // Force use of result
         }, num_runs);
         
         printResults("Count_if", serial_time, parallel_time);
