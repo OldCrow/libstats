@@ -133,53 +133,29 @@ std::optional<std::pair<std::size_t, std::size_t>> PerformanceHistory::learnOpti
             if (last_underscore != std::string::npos) {
                 std::size_t batch_category = std::stoull(key.substr(last_underscore + 1));
                 
-                // Determine strategy from key
+                // Determine strategy from key - improved parsing
                 Strategy strategy = Strategy::SCALAR;
-                if (key.find("SCALAR") != std::string::npos) strategy = Strategy::SCALAR;
-                else if (key.find("SIMD_BATCH") != std::string::npos) strategy = Strategy::SIMD_BATCH;
+                if (key.find("WORK_STEALING") != std::string::npos) strategy = Strategy::WORK_STEALING;
+                else if (key.find("CACHE_AWARE") != std::string::npos) strategy = Strategy::CACHE_AWARE;
                 else if (key.find("PARALLEL_SIMD") != std::string::npos) strategy = Strategy::PARALLEL_SIMD;
+                else if (key.find("SIMD_BATCH") != std::string::npos) strategy = Strategy::SIMD_BATCH;
+                else if (key.find("SCALAR") != std::string::npos) strategy = Strategy::SCALAR;
                 
                 batch_performance[batch_category][strategy] = stats.getAverageTimeNs();
             }
         }
     }
     
-    // Find crossover points where one strategy becomes better than another
-    std::size_t simd_threshold = 100;  // Default fallback
-    std::size_t parallel_threshold = 5000;  // Default fallback
-    
-    // Look for the batch size where SIMD becomes better than SCALAR
-    for (const auto& [batch_cat, strategies] : batch_performance) {
-        auto scalar_it = strategies.find(Strategy::SCALAR);
-        auto simd_it = strategies.find(Strategy::SIMD_BATCH);
-        
-        if (scalar_it != strategies.end() && simd_it != strategies.end()) {
-            if (simd_it->second < scalar_it->second) {
-                simd_threshold = std::max(simd_threshold, batch_cat * 1000); // Convert back from category
-                break;
-            }
-        }
+    // Need at least 3 batch sizes with data for meaningful learning
+    if (batch_performance.size() < 3) {
+        return std::nullopt;
     }
     
-    // Look for the batch size where PARALLEL becomes better than SIMD
-    for (const auto& [batch_cat, strategies] : batch_performance) {
-        auto simd_it = strategies.find(Strategy::SIMD_BATCH);
-        auto parallel_it = strategies.find(Strategy::PARALLEL_SIMD);
-        
-        if (simd_it != strategies.end() && parallel_it != strategies.end()) {
-            if (parallel_it->second < simd_it->second) {
-                parallel_threshold = std::max(parallel_threshold, batch_cat * 1000); // Convert back from category
-                break;
-            }
-        }
-    }
+    // Advanced threshold detection with stability analysis
+    std::size_t simd_threshold = findOptimalThreshold(batch_performance, Strategy::SCALAR, Strategy::SIMD_BATCH);
+    std::size_t parallel_threshold = findOptimalThreshold(batch_performance, Strategy::SIMD_BATCH, Strategy::PARALLEL_SIMD);
     
-    // Only return thresholds if we have sufficient data
-    if (batch_performance.size() >= 3) {
-        return std::make_pair(simd_threshold, parallel_threshold);
-    }
-    
-    return std::nullopt;
+    return std::make_pair(simd_threshold, parallel_threshold);
 }
 
 void PerformanceHistory::clearHistory() noexcept {
@@ -201,7 +177,49 @@ std::string PerformanceHistory::generateKey(
 }
 
 std::size_t PerformanceHistory::categorizeBatchSize(std::size_t batch_size) noexcept {
-    return batch_size / 1000;
+    // Enhanced categorization with better granularity around threshold boundaries
+    // Focus on preserving critical crossover points
+    if (batch_size <= 8) return 8;
+    else if (batch_size <= 10) return 10;
+    else if (batch_size <= 16) return 16;
+    else if (batch_size <= 20) return 20;
+    else if (batch_size <= 25) return 25;
+    else if (batch_size <= 32) return 32;
+    else if (batch_size <= 40) return 40;
+    else if (batch_size <= 50) return 50;
+    else if (batch_size <= 64) return 64;
+    else if (batch_size <= 80) return 80;
+    else if (batch_size <= 100) return 100;
+    else if (batch_size <= 128) return 128;
+    else if (batch_size <= 160) return 160;
+    else if (batch_size <= 200) return 200;
+    else if (batch_size <= 250) return 250;
+    else if (batch_size <= 320) return 320;
+    else if (batch_size <= 400) return 400;
+    else if (batch_size <= 500) return 500;
+    else if (batch_size <= 640) return 640;
+    else if (batch_size <= 800) return 800;
+    else if (batch_size <= 1000) return 1000;
+    else if (batch_size <= 1280) return 1280;
+    else if (batch_size <= 1600) return 1600;
+    else if (batch_size <= 2000) return 2000;
+    else if (batch_size <= 2500) return 2500;
+    else if (batch_size <= 3200) return 3200;
+    else if (batch_size <= 4000) return 4000;
+    else if (batch_size <= 5000) return 5000;
+    else if (batch_size <= 6400) return 6400;
+    else if (batch_size <= 8000) return 8000;
+    else if (batch_size <= 10000) return 10000;
+    else if (batch_size <= 12800) return 12800;
+    else if (batch_size <= 16000) return 16000;
+    else if (batch_size <= 20000) return 20000;
+    else if (batch_size <= 25000) return 25000;
+    else if (batch_size <= 32000) return 32000;
+    else if (batch_size <= 40000) return 40000;
+    else if (batch_size <= 50000) return 50000;
+    else if (batch_size <= 64000) return 64000;
+    else if (batch_size <= 80000) return 80000;
+    else return 100000;
 }
 
 const char* PerformanceHistory::strategyToString(Strategy strategy) noexcept {
@@ -225,6 +243,96 @@ const char* PerformanceHistory::distributionTypeToString(DistributionType dist_t
         case DistributionType::GAMMA: return "GAMMA";
         default: return "UNKNOWN";
     }
+}
+
+std::size_t PerformanceHistory::findOptimalThreshold(
+    const std::map<std::size_t, std::map<Strategy, std::uint64_t>>& batch_performance,
+    Strategy baseline_strategy,
+    Strategy target_strategy
+) noexcept {
+    // Fallback thresholds based on strategy type
+    std::size_t fallback_threshold = 100;  // Default for SIMD
+    if (target_strategy == Strategy::PARALLEL_SIMD) fallback_threshold = 5000;
+    else if (target_strategy == Strategy::WORK_STEALING) fallback_threshold = 10000;
+    else if (target_strategy == Strategy::CACHE_AWARE) fallback_threshold = 50000;
+    
+    // Collect crossover candidates with performance ratios
+    std::vector<std::pair<std::size_t, double>> crossover_candidates;
+    
+    for (const auto& [batch_size, strategies] : batch_performance) {
+        auto baseline_it = strategies.find(baseline_strategy);
+        auto target_it = strategies.find(target_strategy);
+        
+        if (baseline_it != strategies.end() && target_it != strategies.end()) {
+            uint64_t baseline_time = baseline_it->second;
+            uint64_t target_time = target_it->second;
+            
+            // Only consider if target is actually better than baseline
+            if (target_time < baseline_time && baseline_time > 0) {
+                // Calculate performance improvement ratio
+                double improvement_ratio = static_cast<double>(baseline_time) / static_cast<double>(target_time);
+                // Only consider significant improvements (at least 5%)
+                if (improvement_ratio > 1.05) {
+                    crossover_candidates.emplace_back(batch_size, improvement_ratio);
+                }
+            }
+        }
+    }
+    
+    // If no crossover points found, return fallback
+    if (crossover_candidates.empty()) {
+        return fallback_threshold;
+    }
+    
+    // Find the earliest batch size with stable performance advantage
+    // Sort by batch size
+    std::sort(crossover_candidates.begin(), crossover_candidates.end());
+    
+    // Advanced stability analysis: look for consistent performance advantage
+    // across multiple consecutive batch sizes
+    constexpr double MIN_IMPROVEMENT_RATIO = 1.1;  // Require 10% improvement
+    constexpr size_t MIN_STABILITY_WINDOW = 2;     // Require stability across 2+ sizes
+    
+    for (size_t i = 0; i < crossover_candidates.size(); ++i) {
+        const auto& [candidate_size, improvement_ratio] = crossover_candidates[i];
+        
+        // Check if this candidate has sufficient improvement
+        if (improvement_ratio < MIN_IMPROVEMENT_RATIO) {
+            continue;
+        }
+        
+        // Check stability: count consecutive candidates with good performance
+        size_t stability_count = 1;
+        for (size_t j = i + 1; j < crossover_candidates.size() && 
+             j < i + 3; ++j) {  // Look at most 3 ahead
+            if (crossover_candidates[j].second >= MIN_IMPROVEMENT_RATIO) {
+                stability_count++;
+            } else {
+                break;
+            }
+        }
+        
+        // If we have sufficient stability, this is our threshold
+        if (stability_count >= MIN_STABILITY_WINDOW) {
+            return candidate_size;
+        }
+    }
+    
+    // Fallback: find the candidate with the highest improvement ratio
+    auto best_candidate = std::max_element(
+        crossover_candidates.begin(), crossover_candidates.end(),
+        [](const auto& a, const auto& b) {
+            return a.second < b.second;  // Compare improvement ratios
+        }
+    );
+    
+    if (best_candidate != crossover_candidates.end() && 
+        best_candidate->second >= MIN_IMPROVEMENT_RATIO) {
+        return best_candidate->first;
+    }
+    
+    // Ultimate fallback
+    return fallback_threshold;
 }
 
 } // namespace performance

@@ -48,8 +48,17 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     )
 endfunction()
 
-# Core usage examples
+# Quick start and core usage examples
+create_example(quick_start_tutorial quick_start_tutorial.cpp)
 create_example(basic_usage basic_usage.cpp)
+
+# Distribution-specific examples
+create_example(uniform_usage_demo uniform_usage_demo.cpp)
+create_example(poisson_usage_demo poisson_usage_demo.cpp)
+create_example(comparative_distributions_demo comparative_distributions_demo.cpp)
+create_example(error_handling_demo error_handling_demo.cpp)
+
+# Advanced examples
 create_example(statistical_validation_demo statistical_validation_demo.cpp)
 create_example(parallel_execution_demo parallel_execution_demo.cpp)
 create_example(performance_learning_demo performance_learning_demo.cpp)
@@ -57,13 +66,3 @@ create_example(performance_learning_demo performance_learning_demo.cpp)
 # Performance benchmarks
 create_example(gaussian_performance_benchmark gaussian_performance_benchmark.cpp)
 create_example(exponential_performance_benchmark exponential_performance_benchmark.cpp)
-
-# Future examples (to be implemented)
-# add_executable(parameter_fitting parameter_fitting.cpp)
-# target_link_libraries(parameter_fitting libstats)
-# 
-# add_executable(validation_demo validation_demo.cpp)
-# target_link_libraries(validation_demo libstats)
-# 
-# add_executable(performance_demo performance_demo.cpp)
-# target_link_libraries(performance_demo libstats)

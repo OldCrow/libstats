@@ -24,10 +24,58 @@
 #include "../include/distributions/discrete.h"
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/exponential.h"
+#include "../include/distributions/gamma.h"
 #include "../include/core/performance_dispatcher.h"
+#include "../include/core/constants.h"
+#include "tool_utils.h"
 
 using namespace std::chrono;
 using namespace libstats;
+using namespace libstats::constants;
+
+// Tool-specific benchmark constants
+namespace {
+    // Benchmark timing constants
+    constexpr int DEFAULT_RNG_SEED = 42;
+    constexpr double SPEEDUP_SLOWDOWN_THRESHOLD = 0.5;  // Below this is "extreme slowdown"
+    
+    // Distribution-specific test parameters
+    namespace distribution_params {
+        // Poisson parameters
+        constexpr double DEFAULT_POISSON_LAMBDA = 3.5;
+        constexpr int POISSON_TEST_LAMBDA = 3;
+        
+        // Discrete distribution range
+        constexpr int DISCRETE_MIN = 0;
+        constexpr int DISCRETE_MAX = 10;
+        constexpr int DISCRETE_TEST_MIN = -2;
+        constexpr int DISCRETE_TEST_MAX = 12;
+        
+        // Uniform distribution range
+        constexpr double UNIFORM_MIN = 0.0;
+        constexpr double UNIFORM_MAX = 1.0;
+        constexpr double UNIFORM_TEST_MIN = -0.5;
+        constexpr double UNIFORM_TEST_MAX = 1.5;
+        
+        // Gaussian distribution parameters
+        constexpr double GAUSSIAN_MEAN = 0.0;
+        constexpr double GAUSSIAN_STDDEV = 1.0;
+        constexpr double GAUSSIAN_TEST_STDDEV = 2.0;  // Wider range for testing
+        
+        // Exponential distribution parameter
+        constexpr double EXPONENTIAL_LAMBDA = 1.0;
+        constexpr double EXPONENTIAL_TEST_LAMBDA = 0.5;
+        
+        // Gamma distribution parameters
+        constexpr double GAMMA_ALPHA = 2.0;
+        constexpr double GAMMA_BETA = 1.0;
+        constexpr double GAMMA_TEST_ALPHA = 1.5;
+        constexpr double GAMMA_TEST_BETA = 2.0;
+    }
+    
+    // Output file configuration
+    constexpr const char* RESULTS_CSV_FILENAME = "parallel_threshold_benchmark_results.csv";
+}
 
 struct BenchmarkResult {
     std::size_t data_size;
@@ -45,30 +93,47 @@ class ParallelThresholdBenchmark {
 private:
     std::mt19937 gen_;
     std::vector<BenchmarkResult> results_;
+    std::vector<std::size_t> test_sizes_;
     
-    // Test data sizes - start small and work up
-    std::vector<std::size_t> test_sizes_ = {
-        64, 128, 256, 512, 1024, 2048, 4096, 8192, 
-        16384, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152
-    };
+    void initializeTestSizes(bool include_large) {
+        // Base test sizes - start small and work up to 524K elements
+        test_sizes_ = {
+            64, 128, 256, 512, 1024, 2048, 4096, 8192, 
+            16384, 32768, 65536, 131072, 262144, 524288
+        };
+        
+        // Add the large (and slow) test sizes only if requested
+        if (include_large) {
+            test_sizes_.push_back(1048576);  // 1M elements
+            test_sizes_.push_back(2097152);  // 2M elements
+        }
+    }
     
     // Number of iterations for timing stability
     static constexpr int TIMING_ITERATIONS = 10;
     static constexpr int WARMUP_ITERATIONS = 3;
     
 public:
-    ParallelThresholdBenchmark() : gen_(42) {}
+    ParallelThresholdBenchmark(bool include_large = false) : gen_(DEFAULT_RNG_SEED) {
+        initializeTestSizes(include_large);
+    }
     
     void runAllBenchmarks() {
-        std::cout << "=== Parallel Threshold Benchmark ===\n";
-        std::cout << "Hardware: " << std::thread::hardware_concurrency() << " threads\n";
-        std::cout << "Platform: " << parallel::execution_support_string() << "\n\n";
+        using namespace libstats::tools;
+        
+        // Initialize performance systems for accurate threshold determination
+        libstats::initialize_performance_systems();
+        
+        // Display tool header with system information
+        system_info::displayToolHeader("Parallel Threshold Benchmark", 
+                                       "Distribution-specific threshold optimization with adaptive learning");
         
         benchmarkUniformDistribution();
         benchmarkPoissonDistribution(); 
         benchmarkDiscreteDistribution();
         benchmarkGaussianDistribution();
         benchmarkExponentialDistribution();
+        benchmarkGammaDistribution();
         
         analyzeResults();
         saveResults();
@@ -76,15 +141,17 @@ public:
     
 private:
     void benchmarkUniformDistribution() {
-        std::cout << "Benchmarking Uniform Distribution...\n";
-        UniformDistribution uniform(0.0, 1.0);
+        using namespace libstats::tools;
+        
+        display::subsectionHeader("Uniform Distribution Benchmark");
+        UniformDistribution uniform(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX);
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
             
             // Generate test data
             std::vector<double> test_data(size);
-            std::uniform_real_distribution<double> dis(-0.5, 1.5);
+            std::uniform_real_distribution<double> dis(distribution_params::UNIFORM_TEST_MIN, distribution_params::UNIFORM_TEST_MAX);
             for (auto& val : test_data) {
                 val = dis(gen_);
             }
@@ -106,15 +173,17 @@ private:
     }
     
     void benchmarkPoissonDistribution() {
-        std::cout << "Benchmarking Poisson Distribution...\n";
-        PoissonDistribution poisson(3.5);
+        using namespace libstats::tools;
+        
+        display::subsectionHeader("Poisson Distribution Benchmark");
+        PoissonDistribution poisson(distribution_params::DEFAULT_POISSON_LAMBDA);
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
             
             // Generate test data (integer values for Poisson)
             std::vector<double> test_data(size);
-            std::poisson_distribution<int> dis(3);
+            std::poisson_distribution<int> dis(distribution_params::POISSON_TEST_LAMBDA);
             for (auto& val : test_data) {
                 val = static_cast<double>(dis(gen_));
             }
@@ -136,15 +205,17 @@ private:
     }
     
     void benchmarkDiscreteDistribution() {
-        std::cout << "Benchmarking Discrete Distribution...\n";
-        DiscreteDistribution discrete(0, 10);
+        using namespace libstats::tools;
+        
+        display::subsectionHeader("Discrete Distribution Benchmark");
+        DiscreteDistribution discrete(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX);
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
             
             // Generate test data (integer values)
             std::vector<double> test_data(size);
-            std::uniform_int_distribution<int> dis(-2, 12);
+            std::uniform_int_distribution<int> dis(distribution_params::DISCRETE_TEST_MIN, distribution_params::DISCRETE_TEST_MAX);
             for (auto& val : test_data) {
                 val = static_cast<double>(dis(gen_));
             }
@@ -166,15 +237,17 @@ private:
     }
     
     void benchmarkGaussianDistribution() {
-        std::cout << "Benchmarking Gaussian Distribution...\n";
-        GaussianDistribution gaussian(0.0, 1.0);
+        using namespace libstats::tools;
+        
+        display::subsectionHeader("Gaussian Distribution Benchmark");
+        GaussianDistribution gaussian(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV);
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
             
             // Generate test data (normal distribution values)
             std::vector<double> test_data(size);
-            std::normal_distribution<double> dis(0.0, 2.0);  // Wider range
+            std::normal_distribution<double> dis(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_TEST_STDDEV);  // Wider range
             for (auto& val : test_data) {
                 val = dis(gen_);
             }
@@ -196,15 +269,17 @@ private:
     }
     
     void benchmarkExponentialDistribution() {
-        std::cout << "Benchmarking Exponential Distribution...\n";
-        ExponentialDistribution exponential(1.0);
+        using namespace libstats::tools;
+        
+        display::subsectionHeader("Exponential Distribution Benchmark");
+        ExponentialDistribution exponential(distribution_params::EXPONENTIAL_LAMBDA);
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
             
             // Generate test data (exponential distribution values)
             std::vector<double> test_data(size);
-            std::exponential_distribution<double> dis(0.5);  // λ=0.5
+            std::exponential_distribution<double> dis(distribution_params::EXPONENTIAL_TEST_LAMBDA);
             for (auto& val : test_data) {
                 val = dis(gen_);
             }
@@ -219,6 +294,38 @@ private:
             
             // Benchmark CDF
             auto cdf_result = benchmarkOperation(exponential, test_data, "CDF", "Exponential");
+            results_.push_back(cdf_result);
+            
+            std::cout << " ✓\n";
+        }
+    }
+    
+    void benchmarkGammaDistribution() {
+        using namespace libstats::tools;
+        
+        display::subsectionHeader("Gamma Distribution Benchmark");
+        GammaDistribution gamma(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA);
+        
+        for (auto size : test_sizes_) {
+            std::cout << "  Testing size: " << size << std::flush;
+            
+            // Generate test data (gamma distribution values)
+            std::vector<double> test_data(size);
+            std::gamma_distribution<double> dis(distribution_params::GAMMA_TEST_ALPHA, distribution_params::GAMMA_TEST_BETA);
+            for (auto& val : test_data) {
+                val = dis(gen_);
+            }
+            
+            // Benchmark PDF
+            auto pdf_result = benchmarkOperation(gamma, test_data, "PDF", "Gamma");
+            results_.push_back(pdf_result);
+            
+            // Benchmark LogPDF
+            auto logpdf_result = benchmarkOperation(gamma, test_data, "LogPDF", "Gamma");
+            results_.push_back(logpdf_result);
+            
+            // Benchmark CDF
+            auto cdf_result = benchmarkOperation(gamma, test_data, "CDF", "Gamma");
             results_.push_back(cdf_result);
             
             std::cout << " ✓\n";
@@ -299,22 +406,22 @@ private:
                 }
             }
         } else if (method == "simd") {
-            // SIMD batch operations
+            // SIMD batch operations using explicit strategy to ensure SIMD benchmarking
             if (operation == "PDF") {
-                dist.getProbabilityBatch(input.data(), output.data(), input.size());
+                dist.getProbabilityWithStrategy(input, output, libstats::performance::Strategy::SIMD_BATCH);
             } else if (operation == "LogPDF") {
-                dist.getLogProbabilityBatch(input.data(), output.data(), input.size());
+                dist.getLogProbabilityWithStrategy(input, output, libstats::performance::Strategy::SIMD_BATCH);
             } else if (operation == "CDF") {
-                dist.getCumulativeProbabilityBatch(input.data(), output.data(), input.size());
+                dist.getCumulativeProbabilityWithStrategy(input, output, libstats::performance::Strategy::SIMD_BATCH);
             }
         } else if (method == "parallel") {
-            // Parallel operations
+            // Parallel operations using explicit strategy to ensure parallel benchmarking
             if (operation == "PDF") {
-                dist.getProbabilityBatchParallel(input, output);
+                dist.getProbabilityWithStrategy(input, output, libstats::performance::Strategy::PARALLEL_SIMD);
             } else if (operation == "LogPDF") {
-                dist.getLogProbabilityBatchParallel(input, output);
+                dist.getLogProbabilityWithStrategy(input, output, libstats::performance::Strategy::PARALLEL_SIMD);
             } else if (operation == "CDF") {
-                dist.getCumulativeProbabilityBatchParallel(input, output);
+                dist.getCumulativeProbabilityWithStrategy(input, output, libstats::performance::Strategy::PARALLEL_SIMD);
             }
         }
     }
@@ -329,27 +436,27 @@ private:
             grouped_results[key].push_back(&result);
         }
         
-        std::cout << std::left << std::setw(15) << "Dist_Op" 
+        std::cout << std::left << std::setw(20) << "Dist_Op" 
                   << std::setw(10) << "Size" 
                   << std::setw(12) << "Serial(μs)"
                   << std::setw(12) << "SIMD(μs)"
                   << std::setw(12) << "Parallel(μs)"
-                  << std::setw(12) << "P-Speedup"
                   << std::setw(12) << "S-Speedup"
+                  << std::setw(12) << "P-Speedup"
                   << std::setw(12) << "Beneficial?" << "\n";
-        std::cout << std::string(110, '-') << "\n";
+        std::cout << std::string(120, '-') << "\n";
         
         for (const auto& [key, results] : grouped_results) {
             std::size_t beneficial_threshold = SIZE_MAX;
             
             for (const auto* result : results) {
-                std::cout << std::left << std::setw(15) << key
+                std::cout << std::left << std::setw(20) << key
                           << std::setw(10) << result->data_size
                           << std::setw(12) << std::fixed << std::setprecision(1) << result->serial_time_us
                           << std::setw(12) << std::fixed << std::setprecision(1) << result->simd_time_us
                           << std::setw(12) << std::fixed << std::setprecision(1) << result->parallel_time_us
-                          << std::setw(12) << std::fixed << std::setprecision(2) << result->parallel_speedup
                           << std::setw(12) << std::fixed << std::setprecision(2) << result->simd_speedup
+                          << std::setw(12) << std::fixed << std::setprecision(2) << result->parallel_speedup
                           << std::setw(12) << (result->parallel_beneficial ? "YES" : "NO") << "\n";
                 
                 if (result->parallel_beneficial && beneficial_threshold == SIZE_MAX) {
@@ -367,10 +474,10 @@ private:
         }
         
         // Find extreme slowdowns
-        std::cout << "\n=== Extreme Slowdowns (Speedup < 0.5) ===\n";
+        std::cout << "\n=== Extreme Slowdowns (Speedup < " << SPEEDUP_SLOWDOWN_THRESHOLD << ") ===\n";
         bool found_extreme = false;
         for (const auto& result : results_) {
-            if (result.parallel_speedup < 0.5) {
+            if (result.parallel_speedup < SPEEDUP_SLOWDOWN_THRESHOLD) {
                 std::cout << result.distribution_type << " " << result.operation_type 
                           << " at size " << result.data_size 
                           << ": " << result.parallel_speedup << "x speedup ("
@@ -384,8 +491,8 @@ private:
     }
     
     void saveResults() {
-        std::ofstream csv_file("parallel_threshold_benchmark_results.csv");
-        csv_file << "Distribution,Operation,DataSize,SerialTime_us,SIMDTime_us,ParallelTime_us,ParallelSpeedup,SIMDSpeedup,ParallelBeneficial\n";
+        std::ofstream csv_file(RESULTS_CSV_FILENAME);
+        csv_file << "Distribution,Operation,DataSize,SerialTime_us,SIMDTime_us,ParallelTime_us,SIMDSpeedup,ParallelSpeedup,ParallelBeneficial\n";
         
         for (const auto& result : results_) {
             csv_file << result.distribution_type << ","
@@ -394,8 +501,8 @@ private:
                      << result.serial_time_us << ","
                      << result.simd_time_us << ","
                      << result.parallel_time_us << ","
-                     << result.parallel_speedup << ","
                      << result.simd_speedup << ","
+                     << result.parallel_speedup << ","
                      << (result.parallel_beneficial ? "true" : "false") << "\n";
         }
         
@@ -403,9 +510,44 @@ private:
     }
 };
 
-int main() {
+void printUsage(const char* program_name) {
+    std::cout << "Usage: " << program_name << " [OPTIONS]\n";
+    std::cout << "\nOptions:\n";
+    std::cout << "  -l, --large    Include large dataset tests (1M and 2M elements)\n";
+    std::cout << "  -h, --help     Show this help message\n";
+    std::cout << "\nDefault: Tests up to 524K elements only (faster execution)\n";
+    std::cout << "With --large: Tests up to 2M elements (slower but more comprehensive)\n";
+}
+
+int main(int argc, char* argv[]) {
+    bool include_large = false;
+    
+    // Parse command line arguments
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-l" || arg == "--large") {
+            include_large = true;
+        } else if (arg == "-h" || arg == "--help") {
+            printUsage(argv[0]);
+            return 0;
+        } else {
+            std::cerr << "Unknown option: " << arg << "\n";
+            printUsage(argv[0]);
+            return 1;
+        }
+    }
+    
     try {
-        ParallelThresholdBenchmark benchmark;
+        ParallelThresholdBenchmark benchmark(include_large);
+        
+        // Display test configuration
+        std::cout << "\n=== Test Configuration ===\n";
+        std::cout << "Large dataset tests (1M-2M elements): " << (include_large ? "ENABLED" : "DISABLED") << "\n";
+        if (!include_large) {
+            std::cout << "To enable large tests, use: " << argv[0] << " --large\n";
+        }
+        std::cout << "\n";
+        
         benchmark.runAllBenchmarks();
         return 0;
     } catch (const std::exception& e) {

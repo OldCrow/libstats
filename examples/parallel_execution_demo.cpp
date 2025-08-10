@@ -1,6 +1,6 @@
 /**
  * @file parallel_execution_demo.cpp
- * @brief Comprehensive demonstration of platform-aware parallel execution in libstats v0.7.0
+ * @brief Comprehensive demonstration of platform-aware parallel execution
  * 
  * This example showcases the advanced parallel execution capabilities including:
  * - Automatic platform detection and CPU capability analysis
@@ -19,7 +19,7 @@
 #include <iomanip>
 #include <random>
 
-#include "../include/libstats.h"
+#include "libstats.h"
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;

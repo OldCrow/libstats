@@ -12,15 +12,10 @@
  * - Parameter fitting with parallel algorithms
  * - Box-Muller sampling optimization
  * - Advanced statistical methods (confidence intervals, hypothesis tests, etc.)
- * 
- * @author libstats Development Team
- * @version 1.0.0
  */
 
-#include "../include/distributions/gaussian.h"
-#include "../include/platform/benchmark.h"
-#include "../include/platform/adaptive_cache.h"
-#include "../include/platform/work_stealing_pool.h"
+#include "libstats.h"
+#include "platform/benchmark.h"  // For libstats::Benchmark
 #include <iostream>
 #include <vector>
 #include <random>
@@ -46,11 +41,11 @@ int main() {
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
     
     // Create Gaussian distributions for testing
-    GaussianDistribution stdNormal(0.0, 1.0);  // Standard normal
-    GaussianDistribution customGaussian(10.0, 2.5);  // Custom distribution
+    libstats::Gaussian stdNormal(0.0, 1.0);  // Standard normal
+    libstats::Gaussian customGaussian(10.0, 2.5);  // Custom distribution
     
     // Benchmark setup
-    Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
+    libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
     
     //==========================================================================
     // 1. BASIC OPERATIONS BENCHMARK
@@ -99,36 +94,45 @@ int main() {
             test_values[i] = dist(rng);
         }
         
-        // Scalar batch operations
-        bench.addTest("Batch PDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
-            stdNormal.getProbabilityBatch(test_values.data(), results.data(), size);
+        // Scalar batch operations - using modern span-based API
+        bench.addTest("Batch PDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            stdNormal.getProbability(values_span, results_span);
         }, 0, static_cast<double>(size));
         
-        bench.addTest("Batch Log PDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
-            stdNormal.getLogProbabilityBatch(test_values.data(), results.data(), size);
+        bench.addTest("Batch Log PDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            stdNormal.getLogProbability(values_span, results_span);
         }, 0, static_cast<double>(size));
         
-        bench.addTest("Batch CDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
-            stdNormal.getCumulativeProbabilityBatch(test_values.data(), results.data(), size);
+        bench.addTest("Batch CDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            stdNormal.getCumulativeProbability(values_span, results_span);
         }, 0, static_cast<double>(size));
         
-        // Parallel batch operations
+        // Parallel batch operations - using performance hints
         bench.addTest("Batch PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
             std::span<const double> values_span(test_values);
             std::span<double> results_span(results);
-            stdNormal.getProbabilityBatchParallel(values_span, results_span);
+            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+            stdNormal.getProbability(values_span, results_span, hint);
         }, 0, static_cast<double>(size));
         
         bench.addTest("Batch Log PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
             std::span<const double> values_span(test_values);
             std::span<double> results_span(results);
-            stdNormal.getLogProbabilityBatchParallel(values_span, results_span);
+            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+            stdNormal.getLogProbability(values_span, results_span, hint);
         }, 0, static_cast<double>(size));
         
         bench.addTest("Batch CDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
             std::span<const double> values_span(test_values);
             std::span<double> results_span(results);
-            stdNormal.getCumulativeProbabilityBatchParallel(values_span, results_span);
+            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+            stdNormal.getCumulativeProbability(values_span, results_span, hint);
         }, 0, static_cast<double>(size));
     }
     
@@ -138,48 +142,51 @@ int main() {
     std::cout << "\n💻 Phase 3: Setting up advanced features benchmarks..." << std::endl;
     std::cout << "   Testing cache-aware processing and work-stealing parallelism.\n" << std::endl;
     
-    // Cache-aware operations
-    cache::AdaptiveCache<std::string, double> cache_manager;
+    // Cache-aware operations - using performance hints
     const std::vector<double> large_test(10000, 1.0);
     std::vector<double> large_results(10000);
     
     bench.addTest("Cache-Aware Batch PDF", [&]() mutable {
         std::span<const double> values_span(large_test);
         std::span<double> results_span(large_results);
-        stdNormal.getProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto hint = libstats::performance::PerformanceHint::minimal_latency();
+        stdNormal.getProbability(values_span, results_span, hint);
     }, 0, static_cast<double>(large_test.size()));
     
     bench.addTest("Cache-Aware Batch Log PDF", [&]() mutable {
         std::span<const double> values_span(large_test);
         std::span<double> results_span(large_results);
-        stdNormal.getLogProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto hint = libstats::performance::PerformanceHint::minimal_latency();
+        stdNormal.getLogProbability(values_span, results_span, hint);
     }, 0, static_cast<double>(large_test.size()));
     
     bench.addTest("Cache-Aware Batch CDF", [&]() mutable {
         std::span<const double> values_span(large_test);
         std::span<double> results_span(large_results);
-        stdNormal.getCumulativeProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto hint = libstats::performance::PerformanceHint::minimal_latency();
+        stdNormal.getCumulativeProbability(values_span, results_span, hint);
     }, 0, static_cast<double>(large_test.size()));
     
-    // Work-stealing parallel operations
-    WorkStealingPool work_pool(std::thread::hardware_concurrency());
-    
+    // Work-stealing parallel operations - using expert strategy selection
     bench.addTest("Work-Stealing Batch PDF", [&]() mutable {
         std::span<const double> values_span(large_test);
         std::span<double> results_span(large_results);
-        stdNormal.getProbabilityBatchWorkStealing(values_span, results_span, work_pool);
+        stdNormal.getProbabilityWithStrategy(values_span, results_span, 
+                                             libstats::performance::Strategy::WORK_STEALING);
     }, 0, static_cast<double>(large_test.size()));
     
     bench.addTest("Work-Stealing Batch Log PDF", [&]() mutable {
         std::span<const double> values_span(large_test);
         std::span<double> results_span(large_results);
-        stdNormal.getLogProbabilityBatchWorkStealing(values_span, results_span, work_pool);
+        stdNormal.getLogProbabilityWithStrategy(values_span, results_span,
+                                               libstats::performance::Strategy::WORK_STEALING);
     }, 0, static_cast<double>(large_test.size()));
     
     bench.addTest("Work-Stealing Batch CDF", [&]() mutable {
         std::span<const double> values_span(large_test);
         std::span<double> results_span(large_results);
-        stdNormal.getCumulativeProbabilityBatchWorkStealing(values_span, results_span, work_pool);
+        stdNormal.getCumulativeProbabilityWithStrategy(values_span, results_span,
+                                                      libstats::performance::Strategy::WORK_STEALING);
     }, 0, static_cast<double>(large_test.size()));
     
     //==========================================================================
@@ -214,12 +221,12 @@ int main() {
     }
     
     bench.addTest("Parameter Fitting Small Dataset", [&]() {
-        GaussianDistribution temp_dist;
+        libstats::Gaussian temp_dist;
         temp_dist.fit(fit_data_small);
     }, 0, static_cast<double>(fit_data_small.size()));
     
     bench.addTest("Parameter Fitting Large Dataset", [&]() {
-        GaussianDistribution temp_dist;
+        libstats::Gaussian temp_dist;
         temp_dist.fit(fit_data_large);
     }, 0, static_cast<double>(fit_data_large.size()));
     
@@ -236,32 +243,32 @@ int main() {
     }
     
     bench.addTest("Confidence Interval Mean", [&]() {
-        volatile auto result = GaussianDistribution::confidenceIntervalMean(stats_data, 0.95);
+        volatile auto result = libstats::Gaussian::confidenceIntervalMean(stats_data, 0.95);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Confidence Interval Variance", [&]() {
-        volatile auto result = GaussianDistribution::confidenceIntervalVariance(stats_data, 0.95);
+        volatile auto result = libstats::Gaussian::confidenceIntervalVariance(stats_data, 0.95);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("One Sample T-Test", [&]() {
-        volatile auto result = GaussianDistribution::oneSampleTTest(stats_data, 5.0, 0.05);
+        volatile auto result = libstats::Gaussian::oneSampleTTest(stats_data, 5.0, 0.05);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Method of Moments Estimation", [&]() {
-        volatile auto result = GaussianDistribution::methodOfMomentsEstimation(stats_data);
+        volatile auto result = libstats::Gaussian::methodOfMomentsEstimation(stats_data);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Bayesian Parameter Estimation", [&]() {
-        volatile auto result = GaussianDistribution::bayesianEstimation(stats_data, 0.0, 0.001, 1.0, 1.0);
+        volatile auto result = libstats::Gaussian::bayesianEstimation(stats_data, 0.0, 0.001, 1.0, 1.0);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Robust Parameter Estimation", [&]() {
-        volatile auto result = GaussianDistribution::robustEstimation(stats_data, "huber", 1.345);
+        volatile auto result = libstats::Gaussian::robustEstimation(stats_data, "huber", 1.345);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     

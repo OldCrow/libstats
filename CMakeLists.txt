@@ -112,7 +112,7 @@ if(APPLE OR (UNIX AND NOT WIN32))
     endif()
 endif()
 
-project(libstats VERSION 0.8.2 LANGUAGES CXX)
+project(libstats VERSION 0.8.3 LANGUAGES CXX)
 
 # Set default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -1249,8 +1249,7 @@ if(LIBSTATS_BUILD_TESTS)
     # =======================================================================
     # These test headers with no internal dependencies - only standard library
     
-    # C++20 features and basic constants (no internal dependencies)
-    create_libstats_test(test_cpp20_features tests/test_cpp20_features.cpp)
+    # Basic constants (no internal dependencies)
     create_libstats_test(test_constants tests/test_constants.cpp)
     
     # =======================================================================
@@ -1409,7 +1408,6 @@ if(LIBSTATS_BUILD_TESTS)
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
         DEPENDS
             # Level 0: Foundational tests (most critical)
-            test_cpp20_features
             test_constants
             test_cpu_detection
             test_adaptive_cache
@@ -1503,29 +1501,48 @@ if(LIBSTATS_BUILD_TOOLS)
         )
     endfunction()
     
+    # Helper function for standalone tools that don't need libstats
+    function(add_standalone_tool tool_name source_file)
+        add_executable(${tool_name} tools/${source_file})
+        # No libstats linking - pure standard library tools
+        
+        # Apply same compiler flags as main library
+        if(APPLE)
+            target_compile_options(${tool_name} PRIVATE -stdlib=libc++)
+            if(USING_HOMEBREW_LLVM)
+                target_link_options(${tool_name} PRIVATE
+                    -L${LLVM_ROOT}/lib/c++
+                    -Wl,-rpath,${LLVM_ROOT}/lib/c++
+                )
+            endif()
+        endif()
+        
+        set_target_properties(${tool_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tools
+        )
+    endfunction()
+    
     # System Information & Diagnostics Tools
-    add_libstats_tool(cpu_info cpu_info.cpp)
-    add_libstats_tool(constants_inspector constants_inspector.cpp)
+    add_libstats_tool(system_inspector system_inspector.cpp)
+    add_standalone_tool(cpp20_features_inspector cpp20_features_inspector.cpp)
     
     # Performance & Benchmarking Tools
-    add_libstats_tool(performance_benchmark performance_benchmark.cpp)
     add_libstats_tool(parallel_threshold_benchmark parallel_threshold_benchmark.cpp)
-    add_libstats_tool(grain_size_optimizer grain_size_optimizer.cpp)
     add_libstats_tool(performance_dispatcher_tool performance_dispatcher_tool.cpp)
-    add_libstats_tool(system_capabilities_inspector system_capabilities_inspector.cpp)
-    add_libstats_tool(threshold_learning_demo threshold_learning_demo.cpp)
-    add_libstats_tool(adaptive_learning_analyzer adaptive_learning_analyzer.cpp)
+    add_libstats_tool(learning_analyzer learning_analyzer.cpp)
+    add_libstats_tool(empirical_characteristics_demo empirical_characteristics_demo.cpp)
+    add_libstats_tool(simd_verification simd_verification.cpp)
+    add_libstats_tool(parallel_correctness_verification parallel_correctness_verification.cpp)
     
     message(STATUS "Tools enabled:")
-    message(STATUS "  - cpu_info: System CPU capability detection")
-    message(STATUS "  - constants_inspector: Platform-specific constants analysis with Phase 3 integration")
-    message(STATUS "  - performance_benchmark: Enhanced parallel operation benchmarks with PerformanceHistory integration")
+    message(STATUS "  - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)")
+    message(STATUS "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests")
     message(STATUS "  - parallel_threshold_benchmark: Enhanced distribution-specific threshold optimization with adaptive learning")
-    message(STATUS "  - grain_size_optimizer: Comprehensive grain size optimization")
     message(STATUS "  - performance_dispatcher_tool: Interactive Phase 3 performance framework demonstration")
-    message(STATUS "  - system_capabilities_inspector: Detailed system capability inspection and performance analysis")
-    message(STATUS "  - threshold_learning_demo: Adaptive threshold learning demonstration and performance optimization showcase")
-    message(STATUS "  - adaptive_learning_analyzer: Comprehensive adaptive learning system exerciser and performance data analyzer")
+    message(STATUS "  - learning_analyzer: Unified adaptive learning analysis with both educational simulation and real execution data (consolidates threshold_learning_demo and adaptive_learning_analyzer)")
+    message(STATUS "  - empirical_characteristics_demo: Demonstration of empirical distribution characteristics system replacing assumption-based performance models")
+    message(STATUS "  - simd_verification: Architecture-agnostic SIMD operations correctness verification across all distributions and edge cases")
+    message(STATUS "  - parallel_correctness_verification: Platform-aware parallel execution correctness validation across different threading systems (GCD, OpenMP, ThreadPool)")
 endif()
 
 # Examples

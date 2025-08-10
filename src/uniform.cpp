@@ -651,22 +651,12 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
         // Note: For uniform distribution, computation is extremely simple (just bounds checking)
         // so SIMD rarely provides benefits, but we use centralized policy for consistency
-        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        if (is_unit_interval) {
-            // Unit interval case: result is 1 for x in [0,1], 0 otherwise
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
-                            constants::math::ONE : constants::math::ZERO_DOUBLE;
-            }
-        } else {
-            // General case: result is inv_width for x in [a,b], 0 otherwise
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                results[i] = (x >= a && x <= b) ? inv_width : constants::math::ZERO_DOUBLE;
-            }
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            // Use exclusion check (x < a || x > b) for CPU efficiency:
+            // - Short-circuits on first true condition (common for out-of-support values)
+            // - Matches scalar implementation exactly for consistency
+            results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
         }
         return;
     }
@@ -676,24 +666,14 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
     // due to the simple nature of bounds checking, but we implement for consistency
     // In practice, this will mostly fall back to scalar due to the nature of the operation
     
-    const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                 (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
     // Use scalar implementation even when SIMD is available because uniform distribution
     // operations are not amenable to vectorization (primarily branching logic)
-    if (is_unit_interval) {
-        // Unit interval case: result is 1 for x in [0,1], 0 otherwise
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
-                        constants::math::ONE : constants::math::ZERO_DOUBLE;
-        }
-    } else {
-        // General case: result is inv_width for x in [a,b], 0 otherwise
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            results[i] = (x >= a && x <= b) ? inv_width : constants::math::ZERO_DOUBLE;
-        }
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        // Use exclusion check (x < a || x > b) for CPU efficiency:
+        // - Short-circuits on first true condition (common for out-of-support values)
+        // - Matches scalar implementation exactly for consistency
+        results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
     }
 }
 
@@ -706,22 +686,12 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
         // Note: For uniform distribution, computation is extremely simple (just bounds checking)
         // so SIMD rarely provides benefits, but we use centralized policy for consistency
-        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        if (is_unit_interval) {
-            // Unit interval case: result is 0 for x in [0,1], -∞ otherwise
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
-                            constants::math::ZERO_DOUBLE : constants::probability::NEGATIVE_INFINITY;
-            }
-        } else {
-            // General case: result is log_inv_width for x in [a,b], -∞ otherwise
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                results[i] = (x >= a && x <= b) ? log_inv_width : constants::probability::NEGATIVE_INFINITY;
-            }
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
+            // - Matches boundary conditions exactly
+            // - Short-circuits efficiently for out-of-support values
+            results[i] = (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
         }
         return;
     }
@@ -731,24 +701,14 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
     // due to the simple nature of bounds checking, but we implement for consistency
     // In practice, this will mostly fall back to scalar due to the nature of the operation
     
-    const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                 (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
     // Use scalar implementation even when SIMD is available because uniform distribution
     // operations are not amenable to vectorization (primarily branching logic)
-    if (is_unit_interval) {
-        // Unit interval case: result is 0 for x in [0,1], -∞ otherwise
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            results[i] = (x >= constants::math::ZERO_DOUBLE && x <= constants::math::ONE) ? 
-                        constants::math::ZERO_DOUBLE : constants::probability::NEGATIVE_INFINITY;
-        }
-    } else {
-        // General case: result is log_inv_width for x in [a,b], -∞ otherwise
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            results[i] = (x >= a && x <= b) ? log_inv_width : constants::probability::NEGATIVE_INFINITY;
-        }
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
+        // - Matches boundary conditions exactly
+        // - Short-circuits efficiently for out-of-support values
+        results[i] = (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
     }
 }
 

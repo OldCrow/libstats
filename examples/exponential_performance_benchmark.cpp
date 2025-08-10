@@ -12,15 +12,10 @@
  * - Parameter fitting with parallel algorithms
  * - Inverse transform sampling optimization
  * - Advanced statistical methods (confidence intervals, Bayesian estimation, etc.)
- * 
- * @author libstats Development Team
- * @version 1.0.0
  */
 
-#include "../include/distributions/exponential.h"
-#include "../include/platform/benchmark.h"
-#include "../include/platform/adaptive_cache.h"
-#include "../include/platform/work_stealing_pool.h"
+#include "libstats.h"
+#include "platform/benchmark.h"  // For libstats::Benchmark
 #include <iostream>
 #include <vector>
 #include <random>
@@ -46,11 +41,11 @@ int main() {
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
     
     // Create Exponential distributions for testing
-    ExponentialDistribution unitExponential(1.0);  // Unit exponential (λ = 1)
-    ExponentialDistribution customExponential(2.5);  // Custom distribution (λ = 2.5)
+    libstats::Exponential unitExponential(1.0);  // Unit exponential (λ = 1)
+    libstats::Exponential customExponential(2.5);  // Custom distribution (λ = 2.5)
     
     // Benchmark setup
-    Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
+    libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
     
     //==========================================================================
     // 1. BASIC OPERATIONS BENCHMARK
@@ -99,36 +94,45 @@ int main() {
             test_values[i] = exp_dist(rng);
         }
         
-        // Scalar batch operations
-        bench.addTest("Batch PDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
-            unitExponential.getProbabilityBatch(test_values.data(), results.data(), size);
+        // Scalar batch operations - using modern span-based API
+        bench.addTest("Batch PDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            unitExponential.getProbability(values_span, results_span);
         }, 0, static_cast<double>(size));
         
-        bench.addTest("Batch Log PDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
-            unitExponential.getLogProbabilityBatch(test_values.data(), results.data(), size);
+        bench.addTest("Batch Log PDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            unitExponential.getLogProbability(values_span, results_span);
         }, 0, static_cast<double>(size));
         
-        bench.addTest("Batch CDF Scalar " + std::to_string(size), [&, test_values, results, size]() mutable {
-            unitExponential.getCumulativeProbabilityBatch(test_values.data(), results.data(), size);
+        bench.addTest("Batch CDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
+            std::span<const double> values_span(test_values);
+            std::span<double> results_span(results);
+            unitExponential.getCumulativeProbability(values_span, results_span);
         }, 0, static_cast<double>(size));
         
-        // Parallel batch operations
+        // Parallel batch operations - using performance hints
         bench.addTest("Batch PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
             std::span<const double> values_span(test_values);
             std::span<double> results_span(results);
-            unitExponential.getProbabilityBatchParallel(values_span, results_span);
+            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+            unitExponential.getProbability(values_span, results_span, hint);
         }, 0, static_cast<double>(size));
         
         bench.addTest("Batch Log PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
             std::span<const double> values_span(test_values);
             std::span<double> results_span(results);
-            unitExponential.getLogProbabilityBatchParallel(values_span, results_span);
+            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+            unitExponential.getLogProbability(values_span, results_span, hint);
         }, 0, static_cast<double>(size));
         
         bench.addTest("Batch CDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
             std::span<const double> values_span(test_values);
             std::span<double> results_span(results);
-            unitExponential.getCumulativeProbabilityBatchParallel(values_span, results_span);
+            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+            unitExponential.getCumulativeProbability(values_span, results_span, hint);
         }, 0, static_cast<double>(size));
     }
     
@@ -154,7 +158,8 @@ int main() {
     bench.addTest("Cache-Aware Batch PDF", [&, large_test_mutable]() mutable {
         std::span<const double> values_span(large_test_mutable);
         std::span<double> results_span(large_results);
-        unitExponential.getProbabilityBatchCacheAware(values_span, results_span, cache_manager);
+        auto hint = libstats::performance::PerformanceHint::minimal_latency();
+        unitExponential.getProbability(values_span, results_span, hint);
     }, 0, static_cast<double>(large_test.size()));
     
     // Work-stealing parallel operations
@@ -163,7 +168,8 @@ int main() {
     bench.addTest("Work-Stealing Batch PDF", [&, large_test_mutable]() mutable {
         std::span<const double> values_span(large_test_mutable);
         std::span<double> results_span(large_results);
-        unitExponential.getProbabilityBatchWorkStealing(values_span, results_span, work_pool);
+        unitExponential.getProbabilityWithStrategy(values_span, results_span,
+                                                   libstats::performance::Strategy::WORK_STEALING);
     }, 0, static_cast<double>(large_test.size()));
     
     //==========================================================================
@@ -203,12 +209,12 @@ int main() {
     }
     
     bench.addTest("Parameter Fitting Small Dataset", [&]() {
-        ExponentialDistribution temp_dist(1.0);
+        libstats::Exponential temp_dist(1.0);
         temp_dist.fit(fit_data_small);
     }, 0, static_cast<double>(fit_data_small.size()));
     
     bench.addTest("Parameter Fitting Large Dataset", [&]() {
-        ExponentialDistribution temp_dist(1.0);
+        libstats::Exponential temp_dist(1.0);
         temp_dist.fit(fit_data_large);
     }, 0, static_cast<double>(fit_data_large.size()));
     
@@ -225,27 +231,27 @@ int main() {
     }
     
     bench.addTest("Confidence Interval Rate", [&]() {
-        volatile auto result = ExponentialDistribution::confidenceIntervalRate(stats_data, 0.95);
+        volatile auto result = libstats::Exponential::confidenceIntervalRate(stats_data, 0.95);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Likelihood Ratio Test", [&]() {
-        volatile auto result = ExponentialDistribution::likelihoodRatioTest(stats_data, 1.5, 0.05);
+        volatile auto result = libstats::Exponential::likelihoodRatioTest(stats_data, 1.5, 0.05);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Bayesian Estimation", [&]() {
-        volatile auto result = ExponentialDistribution::bayesianEstimation(stats_data, 1.0, 1.0);
+        volatile auto result = libstats::Exponential::bayesianEstimation(stats_data, 1.0, 1.0);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Method of Moments Estimation", [&]() {
-        volatile double result = ExponentialDistribution::methodOfMomentsEstimation(stats_data);
+        volatile double result = libstats::Exponential::methodOfMomentsEstimation(stats_data);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     
     bench.addTest("Robust Estimation (Winsorized)", [&]() {
-        volatile double result = ExponentialDistribution::robustEstimation(stats_data, "winsorized", 0.1);
+        volatile double result = libstats::Exponential::robustEstimation(stats_data, "winsorized", 0.1);
         (void)result;
     }, 0, static_cast<double>(stats_data.size()));
     

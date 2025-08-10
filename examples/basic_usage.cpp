@@ -1,6 +1,6 @@
 /**
  * @file basic_usage.cpp
- * @brief Comprehensive basic usage example for libstats v0.7.0
+ * @brief Comprehensive basic usage example for libstats
  * 
  * This example demonstrates the core functionality of libstats including:
  * - Distribution creation and parameter access
@@ -9,10 +9,10 @@
  * - Quantile calculations (inverse CDF)
  * - Random sampling (single and bulk)
  * - Parameter estimation from data
- * - NEW: Smart auto-dispatch with performance hints
+ * - Smart auto-dispatch with performance hints
  */
 
-#include "../include/libstats.h"
+#include "libstats.h"
 #include <iostream>
 #include <random>
 #include <iomanip>
@@ -26,7 +26,10 @@ void print_separator(const std::string& title) {
 }
 
 int main() {
-    std::cout << "=== libstats v" << libstats::VERSION_STRING << " Basic Usage Guide ===" << std::endl;
+    // Initialize performance systems for optimal batch operation performance
+    libstats::initialize_performance_systems();
+    
+    std::cout << "=== libstats Basic Usage Guide ===" << std::endl;
     std::cout << "Comprehensive demonstration of statistical distribution operations\n" << std::endl;
     
     // Create a random number generator
@@ -129,7 +132,7 @@ int main() {
     std::cout << "     Estimated σ: " << fitted_normal.getStandardDeviation() 
               << " [Should be close to 1.0000]" << std::endl;
     
-    print_separator("8. Smart Auto-Dispatch (NEW in v0.7.0!)");
+    print_separator("8. Smart Auto-Dispatch");
     std::cout << "\nDemonstrating adaptive performance optimization:\n"
               << "(libstats automatically chooses optimal execution strategy)\n" << std::endl;
     

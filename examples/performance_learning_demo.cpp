@@ -1,8 +1,8 @@
 /**
  * @file performance_learning_demo.cpp
- * @brief Demonstration of the v0.7.0 Performance Learning Framework
+ * @brief Demonstration of the Performance Learning Framework
  * 
- * This example showcases the new intelligent auto-dispatch system that learns
+ * This example showcases the intelligent auto-dispatch system that learns
  * from actual performance measurements to automatically select optimal execution
  * strategies based on problem characteristics and hardware capabilities.
  * 
@@ -14,9 +14,8 @@
  * - Cross-distribution performance comparison
  */
 
-#include "../include/libstats.h"
-#include "../include/core/performance_dispatcher.h"
-#include "../include/core/performance_history.h"
+#include "libstats.h"
+#include "core/performance_history.h"
 #include <iostream>
 #include <vector>
 #include <random>
@@ -62,9 +61,9 @@ void demonstrate_smart_dispatch() {
     
     std::cout << std::left << std::setw(12) << "Data Size" 
               << std::setw(18) << "Normal (No Hint)" 
-              << std::setw(20) << "Normal (Min Latency)" 
-              << std::setw(22) << "Normal (Max Throughput)" << std::endl;
-    std::cout << std::string(72, '-') << std::endl;
+              << std::setw(21) << "Normal (Min Latency)" 
+              << std::setw(23) << "Normal (Max Throughput)" << std::endl;
+    std::cout << std::string(74, '-') << std::endl;
     
     // Store timing data for potential note after table
     std::vector<std::tuple<size_t, long, long, long>> timing_results;
@@ -104,10 +103,10 @@ void demonstrate_smart_dispatch() {
         // Store timing data
         timing_results.emplace_back(size, time_no_hint, time_accuracy, time_speed);
         
-        std::cout << std::setw(12) << size
+        std::cout << std::left << std::setw(12) << size
                   << std::setw(18) << (std::to_string(time_no_hint) + " μs")
-                  << std::setw(20) << (std::to_string(time_accuracy) + " μs")
-                  << std::setw(22) << (std::to_string(time_speed) + " μs") << std::endl;
+                  << std::setw(21) << (std::to_string(time_accuracy) + " μs")
+                  << std::setw(23) << (std::to_string(time_speed) + " μs") << std::endl;
     }
     
     // Check for timing reversals and add note if found
@@ -254,9 +253,9 @@ void demonstrate_adaptive_learning() {
     std::cout << "\nLearning complete! Updated recommendations:" << std::endl;
     std::cout << std::left << std::setw(15) << "Problem Size" 
               << std::setw(20) << "Strategy" 
-              << std::setw(12) << "Confidence" 
+              << std::setw(15) << "Confidence" 
               << std::setw(15) << "Avg Time (μs)" << std::endl;
-    std::cout << std::string(62, '-') << std::endl;
+    std::cout << std::string(65, '-') << std::endl;
     
     for (auto size : training_sizes) {
         auto recommendation = history.getBestStrategy(libstats::performance::DistributionType::GAUSSIAN, size);
@@ -265,8 +264,8 @@ void demonstrate_adaptive_learning() {
         
         std::cout << std::setw(15) << size
                   << std::setw(20) << strategyToString(recommendation.recommended_strategy)
-                  << std::setw(12) << std::fixed << std::setprecision(1)
-                  << (recommendation.confidence_score * 100) << "%"
+                  << std::fixed << std::setprecision(1)
+                  << (recommendation.confidence_score * 100) << "%" << std::setw(10) << ""
                   << std::setw(15) << std::fixed << std::setprecision(1) << avg_time_us << std::endl;
     }
     
@@ -327,7 +326,7 @@ void demonstrate_cross_distribution_comparison() {
     auto& history = libstats::performance::PerformanceDispatcher::getPerformanceHistory();
     auto normal_recommendation = history.getBestStrategy(libstats::performance::DistributionType::GAUSSIAN, test_size);
     
-    std::cout << std::setw(20) << "Gaussian N(0,1)"
+    std::cout << std::left << std::setw(20) << "Gaussian N(0,1)"
               << std::setw(15) << normal_pdf_time
               << std::setw(15) << normal_cdf_time
               << std::setw(15) << strategyToString(normal_recommendation.recommended_strategy) << std::endl;
@@ -347,14 +346,14 @@ void demonstrate_cross_distribution_comparison() {
     
     auto exp_recommendation = history.getBestStrategy(libstats::performance::DistributionType::EXPONENTIAL, test_size);
     
-    std::cout << std::setw(20) << "Exponential(λ=1)"
+    std::cout << std::left << std::setw(20) << "Exponential(λ=1)"
               << std::setw(15) << exp_pdf_time
               << std::setw(15) << exp_cdf_time
               << std::setw(15) << strategyToString(exp_recommendation.recommended_strategy) << std::endl;
 }
 
 int main() {
-    std::cout << "=== libstats v0.7.0 Performance Learning Framework Demo ===" << std::endl;
+    std::cout << "=== libstats Performance Learning Framework Demo ===" << std::endl;
     std::cout << "Demonstrating intelligent auto-dispatch and adaptive learning capabilities\n" << std::endl;
     
     try {

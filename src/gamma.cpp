@@ -2223,36 +2223,141 @@ double GammaDistribution::computeTrigamma(double x) noexcept {
 }
 
 void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                      [[maybe_unused]] double alpha, double beta, double log_gamma_alpha, 
+                                                      double alpha, double beta, double log_gamma_alpha, 
                                                       double alpha_log_beta, double alpha_minus_one) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = std::exp(alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i]);
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> log_values(count);
+    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
+    
+    // Step 1: Handle negative values and compute log(values)
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < 0.0) {
-            results[i] = 0.0;
+        if (values[i] <= 0.0) {
+            log_values[i] = constants::probability::MIN_LOG_PROBABILITY;  // Will be set to 0 later
         } else {
-            results[i] = std::exp(alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i]);
+            log_values[i] = std::log(values[i]);
+        }
+    }
+    
+    // Step 2: Compute alpha_minus_one * log(values) using SIMD
+    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, exp_inputs.data(), count);
+    
+    // Step 3: Add alpha_log_beta - log_gamma_alpha
+    const double log_constant = alpha_log_beta - log_gamma_alpha;
+    simd::VectorOps::scalar_add(exp_inputs.data(), log_constant, exp_inputs.data(), count);
+    
+    // Step 4: Subtract beta * values
+    simd::VectorOps::scalar_multiply(values, -beta, log_values.data(), count);
+    simd::VectorOps::vector_add(exp_inputs.data(), log_values.data(), exp_inputs.data(), count);
+    
+    // Step 5: Apply vectorized exponential
+    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
+    
+    // Step 6: Handle negative input values (set to zero) - must be done after exp
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] <= 0.0) {
+            results[i] = 0.0;
         }
     }
 }
 
 void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                         [[maybe_unused]] double alpha, double beta, double log_gamma_alpha, 
+                                                         double alpha, double beta, double log_gamma_alpha, 
                                                          double alpha_log_beta, double alpha_minus_one) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] <= 0.0) {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            } else {
+                results[i] = alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i];
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> log_values(count);
+    std::vector<double, simd::aligned_allocator<double>> beta_scaled_values(count);
+    
+    // Step 1: Handle negative values and compute log(values)
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < 0.0) {
-            results[i] = constants::probability::NEGATIVE_INFINITY;
+        if (values[i] <= 0.0) {
+            log_values[i] = 0.0;  // Use 0 for now, will handle negative values at the end
         } else {
-            results[i] = alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i];
+            log_values[i] = std::log(values[i]);
+        }
+    }
+    
+    // Step 2: Compute alpha_minus_one * log(values) using SIMD
+    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, results, count);
+    
+    // Step 3: Add alpha_log_beta - log_gamma_alpha
+    const double log_constant = alpha_log_beta - log_gamma_alpha;
+    simd::VectorOps::scalar_add(results, log_constant, results, count);
+    
+    // Step 4: Subtract beta * values using SIMD
+    simd::VectorOps::scalar_multiply(values, -beta, beta_scaled_values.data(), count);
+    simd::VectorOps::vector_add(results, beta_scaled_values.data(), results, count);
+    
+    // Step 5: Handle negative input values (set to MIN_LOG_PROBABILITY) - must be done after all SIMD ops
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] <= 0.0) {
+            results[i] = constants::probability::MIN_LOG_PROBABILITY;
         }
     }
 }
 
 void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                                 double alpha, double beta) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = regularizedIncompleteGamma(alpha, beta * values[i]);
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // Create aligned temporary array for beta * values
+    std::vector<double, simd::aligned_allocator<double>> scaled_values(count);
+    
+    // Step 1: Compute beta * values using SIMD
+    simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
+    
+    // Step 2: Apply regularized incomplete gamma function to each scaled value
+    // Note: This function is not easily vectorizable, so we still use scalar loop
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= 0.0) {
             results[i] = 0.0;
         } else {
-            results[i] = regularizedIncompleteGamma(alpha, beta * values[i]);
+            results[i] = math::gamma_p(alpha, scaled_values[i]);
         }
     }
 }

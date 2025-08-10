@@ -2,6 +2,7 @@
 #include "../include/platform/simd_policy.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/core/performance_history.h"
+#include "../include/core/distribution_characteristics.h"
 
 namespace libstats {
 namespace performance {
@@ -112,59 +113,96 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     DistributionType dist_type,
     const SystemCapabilities& system
 ) const {
+    // Get empirical characteristics for this distribution
+    using namespace characteristics;
+    const auto& dist_chars = getCharacteristics(dist_type);
+    
     // Extract system capabilities
     auto simd_efficiency = system.simd_efficiency();
     auto threading_overhead = system.threading_overhead_ns();
     auto memory_bandwidth = system.memory_bandwidth_gb_s();
     
+    // Adjust system SIMD efficiency based on distribution characteristics
+    double effective_simd_efficiency = simd_efficiency * dist_chars.vectorization_efficiency;
+    
     // Get distribution-specific threshold
     auto parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
+    auto simd_threshold = std::max(dist_chars.min_simd_threshold, thresholds_.simd_min);
     
-    // Decision logic based on actual system performance characteristics
+    // Decision logic based on empirical characteristics and system capabilities
     
-    // If SIMD is inefficient on this system, avoid SIMD strategies
-    if (simd_efficiency < 0.5) {
-        // SIMD performs poorly, use scalar or basic parallel
-        if (batch_size >= parallel_threshold && threading_overhead < 1000000.0) {
-            return Strategy::PARALLEL_SIMD; // Use parallel without heavy SIMD reliance
+    // For very small batches, use scalar regardless of distribution
+    if (batch_size <= simd_threshold) {
+        return Strategy::SCALAR;
+    }
+    
+    // Use empirical characteristics to guide strategy selection
+    
+    // If effective SIMD efficiency is poor for this distribution, avoid SIMD strategies
+    if (effective_simd_efficiency < 0.3) {
+        // SIMD performs poorly for this distribution, prefer parallel or scalar
+        if (batch_size >= parallel_threshold && 
+            threading_overhead < (1000000.0 * dist_chars.base_complexity)) {
+            // Complex distributions justify higher threading overhead
+            return (dist_chars.parallelization_efficiency > 0.6) ? 
+                   Strategy::PARALLEL_SIMD : Strategy::SCALAR;
         }
         return Strategy::SCALAR;
     }
     
-    // For very small batches, always use scalar
-    if (batch_size <= thresholds_.simd_min) {
+    // For medium batches, consider SIMD based on distribution characteristics
+    if (batch_size < parallel_threshold) {
+        // Use SIMD if the distribution vectorizes well and system supports it
+        if (effective_simd_efficiency > 0.5 && dist_chars.vectorization_efficiency > 0.6) {
+            return Strategy::SIMD_BATCH;
+        }
+        // For distributions with poor vectorization, stick with scalar until parallel threshold
         return Strategy::SCALAR;
     }
     
-    // For medium batches, consider SIMD if it's efficient
-    if (batch_size < parallel_threshold) {
-        if (simd_efficiency > 0.7) {
+    // For large batches, select parallel strategy based on distribution complexity
+    
+    // High threading overhead limits parallel strategies for simple distributions
+    double acceptable_overhead = 200000.0 * dist_chars.base_complexity; // Scale by complexity
+    if (threading_overhead > acceptable_overhead && dist_chars.base_complexity < 2.0) {
+        // Simple distributions with high threading overhead: prefer SIMD
+        if (effective_simd_efficiency > 0.4) {
             return Strategy::SIMD_BATCH;
         }
         return Strategy::SCALAR;
     }
     
-    // For large batches, consider parallel strategies
-    // But only if threading overhead is reasonable
-    if (threading_overhead > 1000000.0) {
-        // Threading overhead is too high, stick with SIMD
-        return Strategy::SIMD_BATCH;
-    }
+    // Memory-intensive operations benefit from cache-aware strategies
+    bool use_cache_aware = (batch_size >= thresholds_.cache_aware_min) &&
+                          (memory_bandwidth >= 50.0) &&
+                          (dist_chars.memory_access_pattern > 0.8);
     
-    // Choose between different parallel strategies based on size and capabilities
-    if (batch_size >= thresholds_.cache_aware_min && memory_bandwidth >= 50.0) {
+    if (use_cache_aware) {
         return Strategy::CACHE_AWARE;
     }
     
-    if (batch_size >= thresholds_.work_stealing_min) {
-        // Only use work stealing if we have multiple cores and reasonable overhead
-        if (system.logical_cores() > 2 && threading_overhead < 500000.0) {
-            return Strategy::WORK_STEALING;
-        }
+    // Work stealing benefits distributions with variable execution time
+    bool use_work_stealing = (batch_size >= thresholds_.work_stealing_min) &&
+                           (system.logical_cores() > 2) &&
+                           (threading_overhead < acceptable_overhead) &&
+                           (dist_chars.branch_prediction_cost > 1.2); // High branching variability
+    
+    if (use_work_stealing) {
+        return Strategy::WORK_STEALING;
     }
     
-    // Default to parallel SIMD for large batches
-    return Strategy::PARALLEL_SIMD;
+    // Default to parallel SIMD for large batches with good parallel efficiency
+    if (dist_chars.parallelization_efficiency > 0.6) {
+        return Strategy::PARALLEL_SIMD;
+    }
+    
+    // Fall back to SIMD for distributions with poor parallelization but good vectorization
+    if (effective_simd_efficiency > 0.4) {
+        return Strategy::SIMD_BATCH;
+    }
+    
+    // Last resort: scalar
+    return Strategy::SCALAR;
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSIMDLevel(
@@ -211,15 +249,44 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
             break;
     }
     
-    // Set distribution-specific thresholds based on computational complexity
-    // These are relative to the base parallel threshold
-    auto base = thresholds.parallel_min;
-    thresholds.uniform_parallel_min = base * 8;         // Simple operations need higher threshold
-    thresholds.gaussian_parallel_min = base / 4;        // Complex operations benefit earlier
-    thresholds.exponential_parallel_min = base / 2;     // Moderate complexity
-    thresholds.discrete_parallel_min = base * 2;        // Integer operations
-    thresholds.poisson_parallel_min = base / 2;         // Complex discrete distribution
-    thresholds.gamma_parallel_min = base / 4;           // Most complex distribution
+    // Set distribution-specific thresholds based on empirical characteristics
+    using namespace characteristics;
+    
+    // Calculate SIMD and parallel thresholds using empirical data
+    for (size_t i = 0; i < 6; ++i) {
+        const auto& chars = DISTRIBUTION_CHARACTERISTICS[i];
+        
+        // Scale base thresholds by complexity - more complex operations need lower thresholds
+        // to benefit from parallelization due to higher computation-to-overhead ratios
+        double complexity_scaling = 1.0 / std::max(1.0, chars.base_complexity / 2.0);
+        
+        // Use empirical minimum thresholds, scaled by system characteristics
+        size_t empirical_parallel_threshold = static_cast<size_t>(
+            chars.min_parallel_threshold * complexity_scaling
+        );
+        
+        // Assign to distribution-specific thresholds
+        switch (i) {
+            case 0: // UNIFORM
+                thresholds.uniform_parallel_min = std::max(empirical_parallel_threshold, thresholds.parallel_min);
+                break;
+            case 1: // GAUSSIAN
+                thresholds.gaussian_parallel_min = std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
+                break;
+            case 2: // EXPONENTIAL
+                thresholds.exponential_parallel_min = std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
+                break;
+            case 3: // DISCRETE
+                thresholds.discrete_parallel_min = std::max(empirical_parallel_threshold, thresholds.parallel_min);
+                break;
+            case 4: // POISSON
+                thresholds.poisson_parallel_min = std::max(empirical_parallel_threshold, thresholds.parallel_min / 4);
+                break;
+            case 5: // GAMMA
+                thresholds.gamma_parallel_min = std::max(empirical_parallel_threshold, thresholds.parallel_min / 4);
+                break;
+        }
+    }
     
     // Refine with measured system capabilities
     thresholds.refineWithCapabilities(system);

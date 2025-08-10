@@ -207,6 +207,20 @@ private:
      */
     [[nodiscard]] static const char* distributionTypeToString(DistributionType dist_type) noexcept;
     
+    /**
+     * @brief Find optimal threshold between two strategies using advanced analysis
+     * 
+     * @param batch_performance Performance data across batch sizes
+     * @param baseline_strategy The baseline strategy (e.g., SCALAR)
+     * @param target_strategy The target strategy (e.g., SIMD_BATCH)
+     * @return Optimal threshold size, or fallback value if no clear crossover
+     */
+    [[nodiscard]] static std::size_t findOptimalThreshold(
+        const std::map<std::size_t, std::map<Strategy, std::uint64_t>>& batch_performance,
+        Strategy baseline_strategy,
+        Strategy target_strategy
+    ) noexcept;
+    
     /// Performance data storage - thread-safe map with atomic statistics
     mutable std::unordered_map<std::string, PerformanceStats> performance_data_;
     
