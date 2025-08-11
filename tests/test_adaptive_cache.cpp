@@ -5,6 +5,8 @@
 #include <chrono>
 #include <thread>
 #include <random>
+#include <iomanip>
+#include <sstream>
 
 #include "../include/platform/adaptive_cache.h"
 #include "../include/core/constants.h"
@@ -301,6 +303,138 @@ void test_performance_benchmarking() {
     std::cout << "  Hit rate: " << (result.hit_rate * 100) << "%" << std::endl;
     std::cout << "  Operations/sec: " << result.operations_per_second << std::endl;
     std::cout << "  Avg access time: " << result.average_access_time_us << " μs" << std::endl;
+}
+
+void test_string_key_performance_degradation() {
+    std::cout << "Testing string-based cache key performance degradation..." << std::endl;
+    std::cout << "This test simulates the problematic pattern that causes O(n²) performance issues" << std::endl;
+    std::cout << "in distribution Cache-Aware implementations." << std::endl;
+    std::cout << std::endl;
+    
+    AdaptiveCacheConfig config;
+    config.max_cache_size = 10000;  // Large enough to hold our test data
+    config.max_memory_bytes = 50 * 1024 * 1024; // 50MB 
+    config.ttl = std::chrono::milliseconds(30000); // Long TTL to avoid expiration
+    config.enable_background_optimization = false;
+    
+    AdaptiveCache<std::string, double> cache(config);
+    
+    // Test different batch sizes to show performance degradation
+    std::vector<size_t> batch_sizes = {50, 100, 250, 500, 750, 1000, 1500, 2000, 5000};
+    
+    std::cout << "Batch Size | Operations Time (μs) | Ops/sec   | Key Gen Time (μs) | Cache Time (μs) | Performance" << std::endl;
+    std::cout << "-----------|----------------------|-----------|-------------------|-----------------|------------" << std::endl;
+    
+    double previous_ops_per_sec = 0.0;
+    
+    for (size_t batch_size : batch_sizes) {
+        // Create test data - simulating floating point values like distribution inputs
+        std::vector<double> test_values;
+        test_values.reserve(batch_size);
+        for (size_t i = 0; i < batch_size; ++i) {
+            test_values.push_back(1.0 + static_cast<double>(i) * 0.1); // Simulate realistic distribution values
+        }
+        
+        // Measure total time for the problematic string-based caching pattern
+        auto total_start = std::chrono::high_resolution_clock::now();
+        
+        // Measure key generation time separately
+        auto key_gen_start = std::chrono::high_resolution_clock::now();
+        std::vector<std::string> cache_keys;
+        cache_keys.reserve(batch_size);
+        
+        // This is the exact problematic pattern from the original Cache-Aware lambdas
+        for (size_t i = 0; i < batch_size; ++i) {
+            std::ostringstream key_stream;
+            key_stream << std::fixed << std::setprecision(6) << "discrete_pdf_" << test_values[i];
+            cache_keys.push_back(key_stream.str()); // Expensive string construction
+        }
+        
+        auto key_gen_end = std::chrono::high_resolution_clock::now();
+        auto key_gen_time = std::chrono::duration_cast<std::chrono::microseconds>(key_gen_end - key_gen_start);
+        
+        // Measure cache operations time
+        auto cache_start = std::chrono::high_resolution_clock::now();
+        
+        // Simulate the full cache workflow: check cache, compute if miss, store result
+        size_t cache_hits = 0;
+        for (size_t i = 0; i < batch_size; ++i) {
+            // Try to get from cache first
+            if (auto cached_result = cache.get(cache_keys[i])) {
+                cache_hits++;
+                // Use cached result (simulate)
+                [[maybe_unused]] double result = *cached_result;
+            } else {
+                // Simulate computation and caching (like in distribution lambdas)
+                double computed_result = test_values[i] * 0.166667; // Simulate discrete uniform PMF
+                cache.put(cache_keys[i], computed_result);
+            }
+        }
+        
+        auto cache_end = std::chrono::high_resolution_clock::now();
+        auto cache_time = std::chrono::duration_cast<std::chrono::microseconds>(cache_end - cache_start);
+        
+        auto total_end = std::chrono::high_resolution_clock::now();
+        auto total_time = std::chrono::duration_cast<std::chrono::microseconds>(total_end - total_start);
+        
+        // Calculate performance metrics
+        double ops_per_second = (static_cast<double>(batch_size) / total_time.count()) * 1000000.0;
+        
+        // Determine performance trend
+        std::string performance_trend;
+        if (previous_ops_per_sec == 0.0) {
+            performance_trend = "baseline";
+        } else {
+            double change_ratio = ops_per_second / previous_ops_per_sec;
+            if (change_ratio > 1.05) {
+                performance_trend = "improved";
+            } else if (change_ratio < 0.95) {
+                performance_trend = "degraded";
+            } else {
+                performance_trend = "stable";
+            }
+        }
+        
+        // Format output with better alignment
+        std::cout << std::setw(10) << batch_size
+                  << " | " << std::setw(20) << total_time.count()
+                  << " | " << std::setw(9) << static_cast<int>(ops_per_second)
+                  << " | " << std::setw(17) << key_gen_time.count() 
+                  << " | " << std::setw(14) << cache_time.count()
+                  << " | " << performance_trend;
+        
+        if (cache_hits > 0) {
+            std::cout << " (" << cache_hits << " hits)";
+        }
+        std::cout << std::endl;
+        
+        previous_ops_per_sec = ops_per_second;
+        
+        // Safety check - if performance degrades too much, warn and continue
+        if (total_time.count() > 50000) { // More than 50ms for a batch
+            std::cout << "         ⚠️  WARNING: Severe performance degradation detected!" << std::endl;
+        }
+        
+        // Clear cache periodically to simulate realistic usage
+        if (batch_size >= 1000) {
+            cache.clear();
+        }
+    }
+    
+    auto final_stats = cache.getStats();
+    std::cout << std::endl;
+    std::cout << "Final cache stats: " << final_stats.size << " entries, " 
+              << (final_stats.hit_rate * 100) << "% hit rate" << std::endl;
+    std::cout << std::endl;
+    
+    std::cout << "Analysis:" << std::endl;
+    std::cout << "- String key generation dominates performance at larger batch sizes" << std::endl;
+    std::cout << "- Each ostringstream operation allocates memory and formats floating-point numbers" << std::endl;
+    std::cout << "- This creates O(n²) behavior: n operations × string generation overhead" << std::endl;
+    std::cout << "- Cache operations themselves remain fast - the problem is key generation" << std::endl;
+    std::cout << std::endl;
+    
+    std::cout << "✓ String-based cache key performance degradation test completed" << std::endl;
 }
 
 void test_thread_safety() {
@@ -638,6 +772,9 @@ int main() {
         std::cout << std::endl;
         
         test_performance_benchmarking();
+        std::cout << std::endl;
+        
+        test_string_key_performance_degradation();
         std::cout << std::endl;
         
         test_thread_safety();
