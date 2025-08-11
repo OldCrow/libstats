@@ -193,9 +193,9 @@ In each `executeWithStrategy` call, find and update the **second lambda** using 
 
 **⚠️ LEAVE UNTOUCHED**: The **3rd lambda** in `autoDispatch()` calls should KEEP the threshold checks - only fix `executeWithStrategy()` calls.
 
-#### 2E: Fix Cache-Aware Auto-Dispatch Lambdas (Continuous Distributions)
+#### 2E: Fix Cache-Aware Auto-Dispatch Lambdas (ALL Distributions)
 
-**🚨 CRITICAL STEP**: For continuous distributions (Exponential, Gaussian, Uniform, Gamma), you must also fix the **5th lambda** (Cache-Aware lambda) in `autoDispatch` calls to use parallel fallback instead of string-based caching.
+**🚨 CRITICAL STEP**: For ALL distributions (Discrete, Exponential, Gaussian, Uniform, Gamma, Poisson), you must also fix the **5th lambda** (Cache-Aware lambda) in `autoDispatch` calls to use parallel fallback instead of string-based caching.
 
 **Target**: Find the **5th lambda** in each `autoDispatch()` call in these 3 methods:
 - `getProbability(span, span, hint)` 
@@ -207,15 +207,15 @@ In each `executeWithStrategy` call, find and update the **second lambda** using 
 [](const DistType& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
     // ... cache validation ...
     
-    // ❌ CATASTROPHIC: O(n²) string creation + 0% hit rate
+    // ❌ CATASTROPHIC: O(n²) string creation + 0% hit rate for ALL distribution types
     for (std::size_t i = 0; i < count; ++i) {
         const double x = vals[i];
         
         std::ostringstream key_stream;  // ❌ String allocation disaster
-        key_stream << std::fixed << std::setprecision(6) << "exp_pdf_" << x;
+        key_stream << std::fixed << std::setprecision(6) << "dist_pdf_" << x;
         const std::string cache_key = key_stream.str();
         
-        if (auto cached_result = cache.get(cache_key)) {  // ❌ Always misses
+        if (auto cached_result = cache.get(cache_key)) {  // ❌ Always misses even for discrete values
             res[i] = *cached_result;
         } else {
             // ❌ Always executes + cache pollution
@@ -229,14 +229,14 @@ In each `executeWithStrategy` call, find and update the **second lambda** using 
 
 **✅ FIXED (Parallel fallback)**:
 ```cpp
-[](const DistType& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-    // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-    // Fallback to parallel execution which is faster and more predictable
+[](const DistType& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+    // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
+    // String-based cache key generation creates O(n²) performance disasters for ALL distribution types
     
     // ... same cache validation and parameter extraction ...
     
-    // Use parallel processing instead of caching for continuous distributions
-    // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+    // Use parallel processing instead of broken string-based caching
+    // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
     ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
         const double x = vals[i];
         // ... direct computation without caching ...
@@ -311,10 +311,11 @@ In each `executeWithStrategy` call, find and update the **second lambda** using 
 - `autoDispatch` calls: 3 methods × 4 lambdas each = **12 lambda updates**
 - `executeWithStrategy` calls: 3 methods × 4 lambdas each = **12 lambda updates**
 - **Explicit Strategy Threshold Fixes**: 3 methods × 1 lambda each = **3 threshold fixes**
-- **Cache-Aware Safety Override**: 3 WithStrategy methods = **3 safety overrides** (continuous distributions only)
-- **Cache-Aware Auto-Dispatch Fixes**: 3 methods × 1 lambda each = **3 auto-dispatch cache fixes** (continuous distributions only)
-- **Total for continuous distributions**: 33 updates (24 lambda updates + 9 safety/cache fixes)
-- **Total for discrete distributions**: 27 updates (24 lambda updates + 3 threshold fixes)
+- **Cache-Aware Safety Override**: 3 WithStrategy methods = **3 safety overrides** (ALL distributions)
+- **Cache-Aware Auto-Dispatch Fixes**: 3 methods × 1 lambda each = **3 auto-dispatch cache fixes** (ALL distributions)
+- **Total for ALL distributions**: 33 updates (24 lambda updates + 9 safety/cache fixes)
+
+**🚨 IMPORTANT**: All distributions now require 33 changes because the Cache-Aware infrastructure is fundamentally broken across the entire system, affecting both discrete and continuous distributions equally.
 
 ## Explicit Strategy Threshold Fix Examples
 
@@ -437,26 +438,28 @@ const double cached_log_gamma_alpha = dist.logGammaAlpha_;  // if available
 
 **For discrete distributions** (DiscreteDistribution, PoissonDistribution), follow this sequence:
 
-1. ✅ **Remove header declarations** first (`include/distributions/*.h`)
-2. ✅ **Remove deprecated implementations** (`src/*.cpp`)
-3. ✅ **Update autoDispatch lambdas - second lambda** (3 methods × 1 lambda each = 3 fixes)
-4. ✅ **Update executeWithStrategy lambdas - second lambda** (3 methods × 1 lambda each = 3 fixes)
-5. 🚨 **Fix explicit strategy threshold behavior** (3 methods × 1 lambda each = 3 threshold fixes)
-6. ✅ **Update autoDispatch lambdas - parallel/work-stealing/cache-aware** (3 methods × 3 lambdas each = 9 fixes)
-7. ✅ **Update executeWithStrategy lambdas - parallel/work-stealing/cache-aware** (3 methods × 3 lambdas each = 9 fixes)
-8. ✅ **Compile and test** - catch any missed references immediately
+1. 🚨 **Cache-aware safety override** (3 WithStrategy methods = 3 safety overrides)
+2. ✅ **Remove header declarations** first (`include/distributions/*.h`)
+3. ✅ **Remove deprecated implementations** (`src/*.cpp`)
+4. ✅ **Update autoDispatch lambdas - second lambda** (3 methods × 1 lambda each = 3 fixes)
+5. ✅ **Update executeWithStrategy lambdas - second lambda** (3 methods × 1 lambda each = 3 fixes)
+6. 🚨 **Fix explicit strategy threshold behavior** (3 methods × 1 lambda each = 3 threshold fixes)
+7. 🚨 **Fix cache-aware auto-dispatch lambdas** (3 methods × 1 lambda each = 3 cache fixes)
+8. ✅ **Update autoDispatch lambdas - parallel/work-stealing** (3 methods × 2 lambdas each = 6 fixes)
+9. ✅ **Update executeWithStrategy lambdas - parallel/work-stealing** (3 methods × 2 lambdas each = 6 fixes)
+10. ✅ **Compile and test** - catch any missed references immediately
 
-**🚨 Step 1 Details (Cache-Aware Safety Override - CONTINUOUS ONLY)**:
+**🚨 Step 1 Details (Cache-Aware Safety Override - ALL DISTRIBUTIONS)**:
 - **Target Methods**: `getProbabilityWithStrategy()`, `getLogProbabilityWithStrategy()`, `getCumulativeProbabilityWithStrategy()`
 - **Action**: Add safety override at method beginning
 - **Code**: `if (strategy == performance::Strategy::CACHE_AWARE) { strategy = performance::Strategy::PARALLEL_SIMD; }`
-- **Reason**: Prevents catastrophic O(n²) performance collapse from string-based caching
+- **Reason**: Prevents catastrophic O(n²) performance collapse from string-based caching across ALL distribution types
 
-**🚨 Step 6/7 Details (Cache-Aware Auto-Dispatch Fix - CONTINUOUS ONLY)**:
+**🚨 Step 7 Details (Cache-Aware Auto-Dispatch Fix - ALL DISTRIBUTIONS)**:
 - **Target Methods**: `getProbability()`, `getLogProbability()`, `getCumulativeProbability()` auto-dispatch methods
 - **Target Lambda**: 5th lambda (Cache-Aware) in each `autoDispatch()` call
 - **Action**: Replace string-based caching loop with `ParallelUtils::parallelFor()` direct computation
-- **Result**: Fast parallel execution instead of O(n²) cache disaster
+- **Result**: Fast parallel execution instead of O(n²) cache disaster for ALL distribution types
 
 **⚠️ Critical**: Do not skip the compilation step between distributions!
 
@@ -531,7 +534,7 @@ dist.getXxxBatchUnsafeImpl(vals, res, count, cached_param1, cached_param2, cache
 - **DESIGN INCONSISTENCY**: UniformDistribution and DiscreteDistribution explicit strategy methods had threshold checks, but ExponentialDistribution didn't
 - **PERFORMANCE DISASTER**: Cache-aware methods in continuous distributions created O(n²) string allocation storms with 0% hit rates
 - **REAL-WORLD IMPACT**: ExponentialDistribution enhanced test ran for 52+ minutes consuming 350% CPU before we killed it
-- **Total updates required**: 33 for continuous distributions, 27 for discrete distributions
+- **CORRECTED**: All distributions now require 33 updates due to Cache-Aware infrastructure being broken system-wide
 
 ### ✅ What Worked Well  
 - Systematic header cleanup first

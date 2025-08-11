@@ -1536,7 +1536,7 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                 res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
             // Cache-Aware lambda: For continuous distributions, caching is counterproductive
             // Fallback to parallel execution which is faster and more predictable
             if (vals.size() != res.size()) {
@@ -1696,7 +1696,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values, std:
                 }
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
             // Cache-Aware lambda: For continuous distributions, caching is counterproductive
             // Fallback to parallel execution which is faster and more predictable
             if (vals.size() != res.size()) {
@@ -1869,7 +1869,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 }
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
             // Cache-Aware lambda: For continuous distributions, caching is counterproductive
             // Fallback to parallel execution which is faster and more predictable
             if (vals.size() != res.size()) {

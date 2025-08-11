@@ -1274,509 +1274,6 @@ Result<GammaDistribution> GammaDistribution::createFromMoments(double mean, doub
     return create(alpha, beta);
 }
 
-//==============================================================================
-// SIMD BATCH OPERATIONS IMPLEMENTATION
-//==============================================================================
-
-void GammaDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Delegate to unsafe implementation with cached values
-    getProbabilityBatchUnsafeImpl(values, results, count, alpha_, beta_, 
-                                  logGammaAlpha_, alphaLogBeta_, alphaMinusOne_);
-}
-
-void GammaDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Delegate to unsafe implementation with cached values
-    getLogProbabilityBatchUnsafeImpl(values, results, count, alpha_, beta_, 
-                                     logGammaAlpha_, alphaLogBeta_, alphaMinusOne_);
-}
-
-void GammaDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Delegate to unsafe implementation with cached values
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, alpha_, beta_);
-}
-
-void GammaDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) {
-        return;
-    }
-    
-    // Use atomic parameters for lock-free access
-    double alpha = atomicAlpha_.load(std::memory_order_acquire);
-    double beta = atomicBeta_.load(std::memory_order_acquire);
-    double log_gamma_alpha = std::lgamma(alpha);
-    double alpha_log_beta = alpha * std::log(beta);
-    double alpha_minus_one = alpha - 1.0;
-    
-    getProbabilityBatchUnsafeImpl(values, results, count, alpha, beta, 
-                                  log_gamma_alpha, alpha_log_beta, alpha_minus_one);
-}
-
-void GammaDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) {
-        return;
-    }
-    
-    // Use atomic parameters for lock-free access
-    double alpha = atomicAlpha_.load(std::memory_order_acquire);
-    double beta = atomicBeta_.load(std::memory_order_acquire);
-    double log_gamma_alpha = std::lgamma(alpha);
-    double alpha_log_beta = alpha * std::log(beta);
-    double alpha_minus_one = alpha - 1.0;
-    
-    getLogProbabilityBatchUnsafeImpl(values, results, count, alpha, beta, 
-                                     log_gamma_alpha, alpha_log_beta, alpha_minus_one);
-}
-
-void GammaDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) {
-        return;
-    }
-    
-    // Use atomic parameters for lock-free access
-    double alpha = atomicAlpha_.load(std::memory_order_acquire);
-    double beta = atomicBeta_.load(std::memory_order_acquire);
-    
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, alpha, beta);
-}
-
-//==============================================================================
-// THREAD POOL PARALLEL BATCH OPERATIONS IMPLEMENTATION
-//==============================================================================
-
-void GammaDistribution::getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_beta = beta_;
-    const double cached_log_gamma_alpha = logGammaAlpha_;
-    const double cached_alpha_log_beta = alphaLogBeta_;
-    const double cached_alpha_minus_one = alphaMinusOne_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for optimal work distribution
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Inlined computation using cached parameters
-            const double x = values[i];
-            if (x <= 0.0) {
-                results[i] = 0.0;
-            } else {
-                results[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x <= 0.0) {
-                results[i] = 0.0;
-            } else {
-                results[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
-            }
-        }
-    }
-}
-
-void GammaDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size()) {
-        // In noexcept context, we can't throw, so return early on size mismatch
-        return;
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_beta = beta_;
-    const double cached_log_gamma_alpha = logGammaAlpha_;
-    const double cached_alpha_log_beta = alphaLogBeta_;
-    const double cached_alpha_minus_one = alphaMinusOne_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for optimal work distribution
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Inlined computation using cached parameters
-            const double x = values[i];
-            if (x <= 0.0) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            } else {
-                results[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x <= 0.0) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            } else {
-                results[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
-            }
-        }
-    }
-}
-
-void GammaDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_alpha = alpha_;
-    const double cached_beta = beta_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for optimal work distribution
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Inlined computation using cached parameters
-            const double x = values[i];
-            if (x <= 0.0) {
-                results[i] = 0.0;
-            } else {
-                results[i] = math::gamma_p(cached_alpha, cached_beta * x);
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x <= 0.0) {
-                results[i] = 0.0;
-            } else {
-                results[i] = math::gamma_p(cached_alpha, cached_beta * x);
-            }
-        }
-    }
-}
-
-void GammaDistribution::getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                        WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    if (values.empty()) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_beta = beta_;
-    const double cached_log_gamma_alpha = logGammaAlpha_;
-    const double cached_alpha_log_beta = alphaLogBeta_;
-    const double cached_alpha_minus_one = alphaMinusOne_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Submit work to work-stealing pool for dynamic load balancing
-    size_t chunk_size = std::max(static_cast<size_t>(1), values.size() / pool.getThreadCount());
-    
-    for (size_t start = 0; start < values.size(); start += chunk_size) {
-        size_t end = std::min(start + chunk_size, values.size());
-        pool.submit([&values, &results, start, end, cached_alpha_log_beta, cached_alpha_minus_one, cached_beta, cached_log_gamma_alpha]() {
-            for (size_t i = start; i < end; ++i) {
-                // Inlined computation using cached parameters
-                const double x = values[i];
-                if (x <= 0.0) {
-                    results[i] = 0.0;
-                } else {
-                    results[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
-                }
-            }
-        });
-    }
-    
-    // Wait for all tasks to complete
-    pool.waitForAll();
-}
-
-void GammaDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                      [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    if (values.empty()) {
-        return;
-    }
-    
-    // For cache-aware processing, use smaller chunks to better utilize cache
-    // Use a reasonable default chunk size when cache manager doesn't provide one
-    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
-    
-    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
-        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
-        const std::size_t chunk_count = end - i;
-        
-        // Process chunk using SIMD batch operation
-        getProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
-    }
-    
-    // Cache access recorded implicitly through batch operations
-}
-
-void GammaDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                           WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    if (values.empty()) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_beta = beta_;
-    const double cached_log_gamma_alpha = logGammaAlpha_;
-    const double cached_alpha_log_beta = alphaLogBeta_;
-    const double cached_alpha_minus_one = alphaMinusOne_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Submit work to work-stealing pool for dynamic load balancing
-    size_t chunk_size = std::max(static_cast<size_t>(1), values.size() / pool.getThreadCount());
-    
-    for (size_t start = 0; start < values.size(); start += chunk_size) {
-        size_t end = std::min(start + chunk_size, values.size());
-        pool.submit([&values, &results, start, end, cached_alpha_log_beta, cached_alpha_minus_one, cached_beta, cached_log_gamma_alpha]() {
-            for (size_t i = start; i < end; ++i) {
-                // Inlined computation using cached parameters
-                const double x = values[i];
-                if (x <= 0.0) {
-                    results[i] = constants::probability::NEGATIVE_INFINITY;
-                } else {
-                    results[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
-                }
-            }
-        });
-    }
-    
-    // Wait for all tasks to complete
-    pool.waitForAll();
-}
-
-void GammaDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                         [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    if (values.empty()) {
-        return;
-    }
-    
-    // For cache-aware processing, use smaller chunks to better utilize cache
-    // Use a reasonable default chunk size when cache manager doesn't provide one
-    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
-    
-    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
-        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
-        const std::size_t chunk_count = end - i;
-        
-        // Process chunk using SIMD batch operation
-        getLogProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
-    }
-    
-    // Cache access recorded implicitly through batch operations
-}
-
-void GammaDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                                  WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    if (values.empty()) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_alpha = alpha_;
-    const double cached_beta = beta_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Submit work to work-stealing pool for dynamic load balancing
-    size_t chunk_size = std::max(static_cast<size_t>(1), values.size() / pool.getThreadCount());
-    
-    for (size_t start = 0; start < values.size(); start += chunk_size) {
-        size_t end = std::min(start + chunk_size, values.size());
-        pool.submit([&values, &results, start, end, cached_alpha, cached_beta]() {
-            for (size_t i = start; i < end; ++i) {
-                // Inlined computation using cached parameters
-                const double x = values[i];
-                if (x <= 0.0) {
-                    results[i] = 0.0;
-                } else {
-                    results[i] = math::gamma_p(cached_alpha, cached_beta * x);
-                }
-            }
-        });
-    }
-    
-    // Wait for all tasks to complete
-    pool.waitForAll();
-}
-
-void GammaDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                                [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    if (values.empty()) {
-        return;
-    }
-    
-    // For cache-aware processing, use smaller chunks to better utilize cache
-    // Use a reasonable default chunk size when cache manager doesn't provide one
-    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
-    
-    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
-        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
-        const std::size_t chunk_count = end - i;
-        
-        // Process chunk using SIMD batch operation
-        getCumulativeProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
-    }
-    
-    // Cache access recorded implicitly through batch operations
-}
 
 //==============================================================================
 // SMART AUTO-DISPATCH BATCH OPERATIONS IMPLEMENTATION
@@ -1793,16 +1290,160 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
         performance::DistributionTraits<GammaDistribution>::complexity(),
         [](const GammaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_alpha, cached_beta, 
+                                              cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
+                    } else {
+                        res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
+                    } else {
+                        res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                    }
+                }
+            }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                }
+            });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
+            // Fallback to parallel execution which is faster and more predictable
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching for continuous distributions
+            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                }
+            });
         }
     );
 }
@@ -1818,16 +1459,156 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
         performance::DistributionTraits<GammaDistribution>::complexity(),
         [](const GammaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, dist.alpha_, cached_beta, 
+                                                cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x <= 0.0) {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    } else {
+                        res[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x <= 0.0) {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    } else {
+                        res[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                    }
+                }
+            }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else {
+                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                }
+            });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
+            // Fallback to parallel execution which is faster and more predictable
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching for continuous distributions
+            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else {
+                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                }
+            });
         }
     );
 }
@@ -1843,16 +1624,147 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
         performance::DistributionTraits<GammaDistribution>::complexity(),
         [](const GammaDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_alpha, cached_beta);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
+                    } else {
+                        res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
+                    } else {
+                        res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                    }
+                }
+            }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                }
+            });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
+            // Fallback to parallel execution which is faster and more predictable
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching for continuous distributions
+            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                }
+            });
         }
     );
 }
@@ -1863,6 +1775,11 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
 
 void GammaDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                    performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1870,22 +1787,172 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
         strategy,
         [](const GammaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_alpha, cached_beta, 
+                                              cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                }
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing processing
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                }
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Cache-aware processing: for gamma distribution, caching can be beneficial for complex computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "gamma_pdf_" << x << "_" << cached_alpha << "_" << cached_beta;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x <= 0.0) {
+                        result = 0.0;
+                    } else {
+                        result = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                       performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1893,22 +1960,172 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
         strategy,
         [](const GammaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_alpha, cached_beta, 
+                                                 cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else {
+                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                }
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing processing
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else {
+                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                }
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
+            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            lock.unlock();
+            
+            // Cache-aware processing: for log probability, caching can be beneficial for repeated computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "gamma_logpdf_" << x << "_" << cached_alpha << "_" << cached_beta;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x <= 0.0) {
+                        result = constants::probability::NEGATIVE_INFINITY;
+                    } else {
+                        result = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                              performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1916,16 +2133,148 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
         strategy,
         [](const GammaDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_alpha, cached_beta);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                }
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x <= 0.0) {
+                    res[i] = 0.0;
+                } else {
+                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                }
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware processing
+            const double cached_alpha = dist.alpha_;
+            const double cached_beta = dist.beta_;
+            lock.unlock();
+            
+            // Cache-aware processing: for CDF, caching can be beneficial for expensive computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "gamma_cdf_" << x << "_" << cached_alpha << "_" << cached_beta;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x <= 0.0) {
+                        result = 0.0;
+                    } else {
+                        result = math::gamma_p(cached_alpha, cached_beta * x);
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }

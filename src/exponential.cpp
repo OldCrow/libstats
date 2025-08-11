@@ -1397,7 +1397,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values, std
                 }
             });
         },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
             // Cache-Aware lambda: For continuous distributions, caching is counterproductive
             // Fallback to parallel execution which is faster and more predictable
             if (vals.size() != res.size()) {

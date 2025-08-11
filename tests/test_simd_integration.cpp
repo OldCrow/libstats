@@ -25,28 +25,38 @@ void demonstrate_simd_integration() {
     // 1. Query compile-time capabilities
     std::cout << "\n1. COMPILE-TIME SIMD DETECTION:" << std::endl;
     
+    // Check x86 SIMD support
+    std::cout << "   x86 SIMD Support:" << std::endl;
 #ifdef LIBSTATS_HAS_AVX2
-    std::cout << "   ✓ Compiler supports AVX2" << std::endl;
+    std::cout << "     ✓ Compiler supports AVX2" << std::endl;
 #else
-    std::cout << "   ✗ Compiler does not support AVX2" << std::endl;
+    std::cout << "     ✗ Compiler does not support AVX2" << std::endl;
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    std::cout << "   ✓ Compiler supports AVX" << std::endl;
+    std::cout << "     ✓ Compiler supports AVX" << std::endl;
 #else
-    std::cout << "   ✗ Compiler does not support AVX" << std::endl;
+    std::cout << "     ✗ Compiler does not support AVX" << std::endl;
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    std::cout << "   ✓ Compiler supports SSE2" << std::endl;
+    std::cout << "     ✓ Compiler supports SSE2" << std::endl;
 #else
-    std::cout << "   ✗ Compiler does not support SSE2" << std::endl;
+    std::cout << "     ✗ Compiler does not support SSE2" << std::endl;
 #endif
 
 #ifdef LIBSTATS_HAS_AVX512
-    std::cout << "   ✓ Compiler supports AVX512" << std::endl;
+    std::cout << "     ✓ Compiler supports AVX512" << std::endl;
 #else
-    std::cout << "   ✗ Compiler does not support AVX512" << std::endl;
+    std::cout << "     ✗ Compiler does not support AVX512" << std::endl;
+#endif
+
+    // Check ARM NEON support
+    std::cout << "   ARM SIMD Support:" << std::endl;
+#ifdef LIBSTATS_HAS_NEON
+    std::cout << "     ✓ Compiler supports ARM NEON" << std::endl;
+#else
+    std::cout << "     ✗ Compiler does not support ARM NEON" << std::endl;
 #endif
 
     // 2. Query runtime capabilities using cpu_detection.h
@@ -57,13 +67,16 @@ void demonstrate_simd_integration() {
     std::cout << "   CPU Brand: " << features.brand << std::endl;
     std::cout << "   CPU Family: " << features.family << ", Model: " << features.model << ", Stepping: " << features.stepping << std::endl;
     
-    std::cout << "\n   SIMD Support:" << std::endl;
+    std::cout << "\n   x86 SIMD Support:" << std::endl;
     std::cout << "   - SSE2: " << (libstats::cpu::supports_sse2() ? "✓" : "✗") << std::endl;
     std::cout << "   - SSE4.1: " << (libstats::cpu::supports_sse4_1() ? "✓" : "✗") << std::endl;
     std::cout << "   - AVX: " << (libstats::cpu::supports_avx() ? "✓" : "✗") << std::endl;
     std::cout << "   - AVX2: " << (libstats::cpu::supports_avx2() ? "✓" : "✗") << std::endl;
     std::cout << "   - FMA: " << (libstats::cpu::supports_fma() ? "✓" : "✗") << std::endl;
     std::cout << "   - AVX512: " << (libstats::cpu::supports_avx512() ? "✓" : "✗") << std::endl;
+    
+    std::cout << "   ARM SIMD Support:" << std::endl;
+    std::cout << "   - NEON: " << (libstats::cpu::supports_neon() ? "✓" : "✗") << std::endl;
     
     // 3. Show optimal settings
     std::cout << "\n3. OPTIMAL SIMD CONFIGURATION:" << std::endl;
@@ -83,36 +96,70 @@ void demonstrate_simd_integration() {
     // 5. Show combined usage pattern
     std::cout << "\n5. SAFE SIMD USAGE PATTERN:" << std::endl;
     
+    // Check what SIMD is actually being used
+    bool has_simd = false;
+    
     // This is the recommended pattern for safe SIMD usage
 #ifdef LIBSTATS_HAS_AVX2
     if (libstats::cpu::supports_avx2()) {
         std::cout << "   ✓ Using AVX2 code path (compiler can generate + CPU supports)" << std::endl;
+        has_simd = true;
     } else {
         std::cout << "   ⚠ Compiler supports AVX2 but CPU does not - using fallback" << std::endl;
     }
-#else
-    std::cout << "   ⚠ Compiler does not support AVX2 - using fallback" << std::endl;
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
     if (libstats::cpu::supports_avx()) {
         std::cout << "   ✓ Using AVX code path (compiler can generate + CPU supports)" << std::endl;
+        has_simd = true;
     } else {
-        std::cout << "   ⚠ Compiler supports AVX but CPU does not - using fallback" << std::endl;
+#ifdef LIBSTATS_HAS_AVX2
+        // Only show this warning if AVX2 is not available
+        if (!libstats::cpu::supports_avx2()) {
+#endif
+            std::cout << "   ⚠ Compiler supports AVX but CPU does not - using fallback" << std::endl;
+#ifdef LIBSTATS_HAS_AVX2
+        }
+#endif
     }
-#else
-    std::cout << "   ⚠ Compiler does not support AVX - using fallback" << std::endl;
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
     if (libstats::cpu::supports_sse2()) {
         std::cout << "   ✓ Using SSE2 code path (compiler can generate + CPU supports)" << std::endl;
+        has_simd = true;
     } else {
+        // Only show warning if no higher-level SIMD is available
+#if !defined(LIBSTATS_HAS_AVX) && !defined(LIBSTATS_HAS_AVX2)
         std::cout << "   ⚠ Compiler supports SSE2 but CPU does not - using fallback" << std::endl;
-    }
-#else
-    std::cout << "   ⚠ Compiler does not support SSE2 - using fallback" << std::endl;
 #endif
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_NEON
+    if (libstats::cpu::supports_neon()) {
+        std::cout << "   ✓ Using ARM NEON code path (compiler can generate + CPU supports)" << std::endl;
+        has_simd = true;
+    } else {
+        std::cout << "   ⚠ Compiler supports NEON but CPU does not - using fallback" << std::endl;
+    }
+#endif
+
+    // Show overall status
+    if (!has_simd) {
+        // Check if we're just missing x86 SIMD on ARM (which is normal)
+        if (features.vendor == "Apple" || features.brand.find("Apple") != std::string::npos) {
+            std::cout << "   ℹ️ x86 SIMD not available on Apple Silicon - this is expected and normal" << std::endl;
+#ifdef LIBSTATS_HAS_NEON
+            std::cout << "   ✓ ARM NEON SIMD is the optimal choice for this platform" << std::endl;
+#else
+            std::cout << "   ⚠ ARM NEON support not compiled in - using scalar fallback" << std::endl;
+#endif
+        } else {
+            std::cout << "   ⚠ No SIMD support available - using scalar fallback" << std::endl;
+        }
+    }
 }
 
 // Example of a function that safely uses SIMD with both detections

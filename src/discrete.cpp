@@ -996,8 +996,9 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
+            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1017,37 +1018,23 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const double cached_prob = dist.probability_;
             lock.unlock();
             
-            // Cache-aware processing: for discrete uniform distribution, caching can be beneficial for integer validation
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use parallel processing instead of broken string-based caching
+            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "discrete_pdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
+                    const int k = static_cast<int>(x);
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
-                        const int k = static_cast<int>(x);
-                        result = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
-                    } else {
-                        result = constants::math::ZERO_DOUBLE;
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = constants::math::ZERO_DOUBLE;
                 }
-            }
+            });
         }
     );
 }
@@ -1170,8 +1157,9 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
+            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1191,42 +1179,28 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const double cached_log_prob = dist.logProbability_;
             const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
             
-            // Cache-aware processing: for discrete uniform distribution, caching can be beneficial for log computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use parallel processing instead of broken string-based caching
+            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "discrete_logpdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
-                } else {
-                    // Compute and cache
-                    double result;
-                    if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
-                        const int k = static_cast<int>(x);
-                        if (k >= cached_a && k <= cached_b) {
-                            result = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                        } else {
-                            result = constants::probability::NEGATIVE_INFINITY;
-                        }
+                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
+                    const int k = static_cast<int>(x);
+                    if (k >= cached_a && k <= cached_b) {
+                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
                     } else {
-                        result = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
                     }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                } else {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
                 }
-            }
+            });
         }
     );
 }
@@ -1355,8 +1329,9 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
+            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1376,45 +1351,31 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const int cached_range = dist.range_;
             const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
             
-            // Cache-aware processing: for discrete uniform distribution, caching can be beneficial for CDF computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use parallel processing instead of broken string-based caching
+            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "discrete_cdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x < static_cast<double>(cached_a)) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (x >= static_cast<double>(cached_b)) {
+                    res[i] = constants::math::ONE;
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < static_cast<double>(cached_a)) {
-                        result = constants::math::ZERO_DOUBLE;
-                    } else if (x >= static_cast<double>(cached_b)) {
-                        result = constants::math::ONE;
+                    const int k = static_cast<int>(std::floor(x));
+                    if (cached_is_binary) {
+                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
                     } else {
-                        const int k = static_cast<int>(std::floor(x));
-                        if (cached_is_binary) {
-                            result = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                        } else {
-                            const int numerator = k - cached_a + 1;
-                            result = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                        }
+                        const int numerator = k - cached_a + 1;
+                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
-                    res[i] = result;
-                    cache.put(cache_key, result);
                 }
-            }
+            });
         }
     );
 }

@@ -361,16 +361,205 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
         performance::DistributionTraits<PoissonDistribution>::complexity(),
         [](const PoissonDistribution& dist, double value) { return dist.getProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_log_lambda, cached_exp_neg_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
+                        return;
+                    }
+                    
+                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                    if (!PoissonDistribution::isValidCount(vals[i])) {
+                        res[i] = 0.0;
+                        return;
+                    }
+                    
+                    // Compute PMF using cached parameters
+                    if (k == 0) {
+                        res[i] = cached_exp_neg_lambda;
+                    } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
+                        res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+                    } else {
+                        double log_result = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                        res[i] = std::exp(log_result);
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
+                        continue;
+                    }
+                    
+                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                    if (!PoissonDistribution::isValidCount(vals[i])) {
+                        res[i] = 0.0;
+                        continue;
+                    }
+                    
+                    if (k == 0) {
+                        res[i] = cached_exp_neg_lambda;
+                    } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
+                        res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+                    } else {
+                        double log_result = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                        res[i] = std::exp(log_result);
+                    }
+                }
+            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                if (k == 0) {
+                    res[i] = cached_exp_neg_lambda;
+                } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
+                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+                } else {
+                    double log_result = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                    res[i] = std::exp(log_result);
+                }
+            });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching (caching system is broken)
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                if (k == 0) {
+                    res[i] = cached_exp_neg_lambda;
+                } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
+                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+                } else {
+                    double log_result = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                    res[i] = std::exp(log_result);
+                }
+            });
         }
     );
 }
@@ -385,16 +574,173 @@ void PoissonDistribution::getLogProbability(std::span<const double> values, std:
         performance::DistributionTraits<PoissonDistribution>::complexity(),
         [](const PoissonDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_log_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (vals[i] < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                        return;
+                    }
+                    
+                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                    if (!PoissonDistribution::isValidCount(vals[i])) {
+                        res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                        return;
+                    }
+                    
+                    // log P(X = k) = k * log(λ) - λ - log(k!)
+                    res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    if (vals[i] < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                        continue;
+                    }
+                    
+                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                    if (!PoissonDistribution::isValidCount(vals[i])) {
+                        res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                        continue;
+                    }
+                    
+                    // log P(X = k) = k * log(λ) - λ - log(k!)
+                    res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                }
+            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                // log P(X = k) = k * log(λ) - λ - log(k!)
+                res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+            });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching (caching system is broken)
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                // log P(X = k) = k * log(λ) - λ - log(k!)
+                res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+            });
         }
     );
 }
@@ -409,16 +755,168 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
         performance::DistributionTraits<PoissonDistribution>::complexity(),
         [](const PoissonDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
+                        return;
+                    }
+                    
+                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                    if (!PoissonDistribution::isValidCount(vals[i])) {
+                        res[i] = 1.0;
+                        return;
+                    }
+                    
+                    // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
+                    res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
+                        continue;
+                    }
+                    
+                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                    if (!PoissonDistribution::isValidCount(vals[i])) {
+                        res[i] = 1.0;
+                        continue;
+                    }
+                    
+                    // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
+                    res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                }
+            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 1.0;
+                    return;
+                }
+                
+                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
+                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+            });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching (caching system is broken)
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 1.0;
+                    return;
+                }
+                
+                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
+                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+            });
         }
     );
 }
@@ -436,16 +934,180 @@ void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> val
         strategy,
         [](const PoissonDistribution& dist, double value) { return dist.getProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_log_lambda, cached_exp_neg_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            // Direct parallel execution - no checks for WithStrategy
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
+            lock.unlock();
+            
+            // Direct parallel execution
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                // Compute PMF using cached parameters
+                if (k == 0) {
+                    res[i] = cached_exp_neg_lambda;
+                } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
+                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+                } else {
+                    double log_result = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                    res[i] = std::exp(log_result);
+                }
+            });
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            // Direct work-stealing execution - no checks for WithStrategy
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
+            lock.unlock();
+            
+            // Direct work-stealing execution
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                if (k == 0) {
+                    res[i] = cached_exp_neg_lambda;
+                } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
+                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+                } else {
+                    double log_result = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                    res[i] = std::exp(log_result);
+                }
+            });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_exp_neg_lambda = dist.expNegLambda_;
+            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching (caching system is broken)
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                if (k == 0) {
+                    res[i] = cached_exp_neg_lambda;
+                } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
+                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+                } else {
+                    double log_result = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                    res[i] = std::exp(log_result);
+                }
+            });
         }
     );
 }
@@ -459,16 +1121,154 @@ void PoissonDistribution::getLogProbabilityWithStrategy(std::span<const double> 
         strategy,
         [](const PoissonDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_log_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            // Direct parallel execution - no checks for WithStrategy
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Direct parallel execution
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                // log P(X = k) = k * log(λ) - λ - log(k!)
+                res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+            });
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            // Direct work-stealing execution - no checks for WithStrategy
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Direct work-stealing execution
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                // log P(X = k) = k * log(λ) - λ - log(k!)
+                res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+            });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_log_lambda = dist.logLambda_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching (caching system is broken)
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = constants::probability::MIN_LOG_PROBABILITY;
+                    return;
+                }
+                
+                // log P(X = k) = k * log(λ) - λ - log(k!)
+                res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+            });
         }
     );
 }
@@ -482,16 +1282,149 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
         strategy,
         [](const PoissonDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            // Direct parallel execution - no checks for WithStrategy
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Direct parallel execution
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 1.0;
+                    return;
+                }
+                
+                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
+                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+            });
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            // Direct work-stealing execution - no checks for WithStrategy
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Direct work-stealing execution
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 1.0;
+                    return;
+                }
+                
+                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
+                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+            });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching (caching system is broken)
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
+                    return;
+                }
+                
+                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
+                if (!PoissonDistribution::isValidCount(vals[i])) {
+                    res[i] = 1.0;
+                    return;
+                }
+                
+                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
+                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+            });
         }
     );
 }
@@ -629,96 +1562,6 @@ double PoissonDistribution::logFactorial(int n) noexcept {
     return std::lgamma(n + constants::math::ONE);
 }
 
-//==============================================================================
-// BATCH OPERATIONS USING SIMD
-//==============================================================================
-
-void PoissonDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    const double cached_exp_neg_lambda = expNegLambda_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getProbabilityBatchUnsafeImpl(values, results, count, cached_lambda, 
-                                  cached_log_lambda, cached_exp_neg_lambda);
-}
-
-void PoissonDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_lambda, cached_log_lambda);
-}
-
-void PoissonDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    const double cached_lambda = lambda_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, cached_lambda);
-}
-
-void PoissonDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getProbabilityBatchUnsafeImpl(values, results, count, lambda_, logLambda_, expNegLambda_);
-}
-
-void PoissonDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getLogProbabilityBatchUnsafeImpl(values, results, count, lambda_, logLambda_);
-}
-
-void PoissonDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, lambda_);
-}
 
 //==============================================================================
 // PRIVATE BATCH IMPLEMENTATION METHODS
@@ -977,639 +1820,6 @@ std::istream& operator>>(std::istream& is, PoissonDistribution& distribution) {
     return is;
 }
 
-//==============================================================================
-// PARALLEL BATCH OPERATIONS
-//==============================================================================
-
-void PoissonDistribution::getProbabilityBatchParallel(std::span<const double> input_values,
-                                                    std::span<double> output_results) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    const double cached_exp_neg_lambda = expNegLambda_;
-    [[maybe_unused]] const bool cached_is_small_lambda = isSmallLambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use higher threshold for simple distribution operations to avoid thread pool overhead
-    // Poisson PDF operations have minimal computation per element, especially for small k values
-    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            if (input_values[i] < constants::math::ZERO_DOUBLE) {
-                output_results[i] = constants::math::ZERO_DOUBLE;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = constants::math::ZERO_DOUBLE;
-                return;
-            }
-            
-            // Compute PMF using cached parameters (exactly like SIMD version)
-            if (k == 0) {
-                output_results[i] = cached_exp_neg_lambda;
-            } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
-                // Direct computation for small lambda and k
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-            } else {
-                // Log-space computation
-                const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
-                output_results[i] = std::exp(log_pmf);
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (input_values[i] < constants::math::ZERO_DOUBLE) {
-                output_results[i] = constants::math::ZERO_DOUBLE;
-                continue;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = constants::math::ZERO_DOUBLE;
-                continue;
-            }
-            
-            // Compute PMF using cached parameters (optimized like SIMD version)
-            if (k == 0) {
-                // Special case optimization: P(X = 0) = e^(-λ)
-                output_results[i] = cached_exp_neg_lambda;
-            } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
-                // Direct computation for small lambda and k using cached factorial
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-            } else {
-                // Use log-space computation for numerical stability
-                const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
-                output_results[i] = std::exp(log_pmf);
-            }
-        }
-    }
-}
-
-void PoissonDistribution::getLogProbabilityBatchParallel(std::span<const double> input_values, 
-                                                       std::span<double> output_results) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            if (input_values[i] < constants::math::ZERO_DOUBLE) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                return;
-            }
-            
-            // log P(X = k) = k * log(λ) - λ - log(k!)
-            output_results[i] = k * cached_log_lambda - cached_lambda - logFactorial(k);
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (input_values[i] < constants::math::ZERO_DOUBLE) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                continue;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                continue;
-            }
-            
-            output_results[i] = k * cached_log_lambda - cached_lambda - logFactorial(k);
-        }
-    }
-}
-
-void PoissonDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> input_values, 
-                                                              std::span<double> output_results) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 1.0;
-                return;
-            }
-            
-            // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-            output_results[i] = libstats::math::gamma_q(k + 1, cached_lambda);
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                continue;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 1.0;
-                continue;
-            }
-            
-            output_results[i] = libstats::math::gamma_q(k + 1, cached_lambda);
-        }
-    }
-}
-
-//==============================================================================
-// WORK-STEALING PARALLEL BATCH OPERATIONS
-//==============================================================================
-
-void PoissonDistribution::getProbabilityBatchWorkStealing(std::span<const double> input_values,
-                                                         std::span<double> output_results,
-                                                         WorkStealingPool& pool) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    const double cached_exp_neg_lambda = expNegLambda_;
-    [[maybe_unused]] const bool cached_is_small_lambda = isSmallLambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use work-stealing pool for dynamic load balancing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 0.0;
-                return;
-            }
-            
-            // Compute PMF using cached parameters (exactly like SIMD version)
-            if (k == 0) {
-                output_results[i] = cached_exp_neg_lambda;
-            } else if (cached_lambda < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD && k < static_cast<int>(FACTORIAL_CACHE.size())) {
-                // Direct computation for small lambda and k
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-            } else {
-                // Log-space computation
-                const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
-                output_results[i] = std::exp(log_pmf);
-            }
-        });
-    } else {
-        // Fall back to regular parallel processing for small datasets
-        std::span<const double> input_span(input_values);
-        std::span<double> output_span(output_results);
-        getProbabilityBatchParallel(input_span, output_span);
-    }
-}
-
-void PoissonDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> input_values,
-                                                           std::span<double> output_results,
-                                                           WorkStealingPool& pool) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use work-stealing pool for dynamic load balancing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                return;
-            }
-            
-            // log P(X = k) = k * log(λ) - λ - log(k!)
-            output_results[i] = k * cached_log_lambda - cached_lambda - logFactorial(k);
-        });
-    } else {
-        // Fall back to regular parallel processing for small datasets
-        std::span<const double> input_span(input_values);
-        std::span<double> output_span(output_results);
-        getLogProbabilityBatchParallel(input_span, output_span);
-    }
-}
-
-void PoissonDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> input_values,
-                                                                   std::span<double> output_results,
-                                                                   WorkStealingPool& pool) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use work-stealing pool for dynamic load balancing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 1.0;
-                return;
-            }
-            
-            // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-            output_results[i] = libstats::math::gamma_q(k + 1, cached_lambda);
-        });
-    } else {
-        // Fall back to regular parallel processing for small datasets
-        std::span<const double> input_span(input_values);
-        std::span<double> output_span(output_results);
-        getCumulativeProbabilityBatchParallel(input_span, output_span);
-    }
-}
-
-//==============================================================================
-// CACHE-AWARE PARALLEL BATCH OPERATIONS
-//==============================================================================
-
-void PoissonDistribution::getProbabilityBatchCacheAware(std::span<const double> input_values,
-                                                       std::span<double> output_results,
-                                                       cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "poisson_pdf_batch_" + std::to_string(count);
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    const double cached_exp_neg_lambda = expNegLambda_;
-    const bool cached_is_small_lambda = isSmallLambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "poisson_pdf");
-    
-    // Use cache-aware parallel processing with adaptive grain sizing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PMF for each element with cache-aware access patterns
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 0.0;
-                return;
-            }
-            
-            // Compute PMF using cached parameters
-            if (cached_is_small_lambda && k <= constants::thresholds::poisson::SMALL_K_CACHE_THRESHOLD) {
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-            } else {
-                const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
-                output_results[i] = std::exp(log_pmf);
-            }
-        }, optimal_grain_size);  // Use adaptive grain size from cache manager
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                continue;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 0.0;
-                continue;
-            }
-            
-            // Compute PMF using cached parameters
-            if (cached_is_small_lambda && k <= constants::thresholds::poisson::SMALL_K_CACHE_THRESHOLD) {
-                output_results[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-            } else {
-                const double log_pmf = k * cached_log_lambda - cached_lambda - logFactorial(k);
-                output_results[i] = std::exp(log_pmf);
-            }
-        }
-    }
-    
-    // Update cache manager with performance metrics for future optimizations
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
-
-void PoissonDistribution::getLogProbabilityBatchCacheAware(std::span<const double> input_values,
-                                                          std::span<double> output_results,
-                                                          cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "poisson_logpdf_batch_" + std::to_string(count);
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_log_lambda = logLambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "poisson_logpdf");
-    
-    // Use cache-aware parallel processing with adaptive grain sizing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PMF for each element with cache-aware access patterns
-            if (input_values[i] < 0.0) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                return;
-            }
-            
-            // log P(X = k) = k * log(λ) - λ - log(k!)
-            output_results[i] = k * cached_log_lambda - cached_lambda - logFactorial(k);
-        }, optimal_grain_size);  // Use adaptive grain size from cache manager
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                continue;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = constants::probability::MIN_LOG_PROBABILITY;
-                continue;
-            }
-            
-            // log P(X = k) = k * log(λ) - λ - log(k!)
-            output_results[i] = k * cached_log_lambda - cached_lambda - logFactorial(k);
-        }
-    }
-    
-    // Update cache manager with performance metrics for future optimizations
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
-
-void PoissonDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> input_values,
-                                                                 std::span<double> output_results,
-                                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (input_values.size() != output_results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = input_values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "poisson_cdf_batch_" + std::to_string(count);
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Determine optimal batch size based on cache behavior
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "poisson_cdf");
-    
-    // Use cache-aware parallel processing with adaptive grain sizing
-    // Use same threshold as regular parallel operations to avoid inconsistency
-    if (count >= constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element with cache-aware access patterns
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                return;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 1.0;
-                return;
-            }
-            
-            // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-            output_results[i] = libstats::math::gamma_q(k + 1, cached_lambda);
-        }, optimal_grain_size);  // Use adaptive grain size from cache manager
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (input_values[i] < 0.0) {
-                output_results[i] = 0.0;
-                continue;
-            }
-            
-            int k = roundToNonNegativeInt(input_values[i]);
-            if (!isValidCount(input_values[i])) {
-                output_results[i] = 1.0;
-                continue;
-            }
-            
-            // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-            output_results[i] = libstats::math::gamma_q(k + 1, cached_lambda);
-        }
-    }
-    
-    // Update cache manager with performance metrics for future optimizations
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
 
 // Explicit template instantiations for common types
 // Note: Template instantiations handled internally
