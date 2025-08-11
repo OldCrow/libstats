@@ -2223,7 +2223,7 @@ double GammaDistribution::computeTrigamma(double x) noexcept {
 }
 
 void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                      double alpha, double beta, double log_gamma_alpha, 
+                                                      [[maybe_unused]] double alpha, double beta, double log_gamma_alpha, 
                                                       double alpha_log_beta, double alpha_minus_one) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
     const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
@@ -2277,7 +2277,7 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
 }
 
 void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                         double alpha, double beta, double log_gamma_alpha, 
+                                                         [[maybe_unused]] double alpha, double beta, double log_gamma_alpha, 
                                                          double alpha_log_beta, double alpha_minus_one) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
     const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);

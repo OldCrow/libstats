@@ -40,7 +40,7 @@ using namespace libstats::tools;
 namespace {
     constexpr int VERIFICATION_SEED = 12345;
     constexpr size_t TEST_SIZE = 1024;        // Size for correctness tests
-    constexpr size_t LARGE_TEST_SIZE = 65536; // Size for performance tests
+    [[maybe_unused]] constexpr size_t LARGE_TEST_SIZE = 65536; // Size for performance tests - reserved for future benchmarking features
     constexpr int TEST_ITERATIONS = 5;
     constexpr double TOLERANCE_NORMAL = 1e-14;   // Normal numerical precision
     constexpr double TOLERANCE_RELAXED = 1e-12; // Relaxed for complex operations

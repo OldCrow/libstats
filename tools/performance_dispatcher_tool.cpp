@@ -48,16 +48,18 @@ namespace {
     }
     
     namespace batch_sizes {
-        constexpr size_t SMALL_BATCH = 50;
-        constexpr size_t MEDIUM_BATCH = 1000;
-        constexpr size_t LARGE_BATCH = 10000;
-        constexpr size_t OTHER_DIST_BATCH = 100;
-        constexpr size_t OTHER_DIST_MEDIUM_BATCH = 1000;
-        constexpr size_t OTHER_DIST_LARGE_BATCH = 10000;
+        // Batch sizes reserved for future interactive testing features
+        [[maybe_unused]] constexpr size_t SMALL_BATCH = 50;
+        [[maybe_unused]] constexpr size_t MEDIUM_BATCH = 1000;
+        [[maybe_unused]] constexpr size_t LARGE_BATCH = 10000;
+        [[maybe_unused]] constexpr size_t OTHER_DIST_BATCH = 100;
+        [[maybe_unused]] constexpr size_t OTHER_DIST_MEDIUM_BATCH = 1000;
+        [[maybe_unused]] constexpr size_t OTHER_DIST_LARGE_BATCH = 10000;
     }
     
-    constexpr int SAMPLES_PER_STRATEGY = 20;
-    constexpr int OTHER_DIST_SAMPLES = 10;
+    // Sample counts for simulation - reserved for future use
+    [[maybe_unused]] constexpr int SAMPLES_PER_STRATEGY = 20;
+    [[maybe_unused]] constexpr int OTHER_DIST_SAMPLES = 10;
 }
 
 class PerformanceDispatcherTool {

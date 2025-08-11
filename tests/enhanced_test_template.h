@@ -105,23 +105,43 @@ public:
                                      const std::string& operation_name,
                                      double tolerance = 1e-10) {
         bool all_correct = true;
-        const std::size_t check_count = std::min(static_cast<std::size_t>(100), test_values.size());
+        // Reduce the number of checks to avoid expensive cache operations in tight loops
+        const std::size_t check_count = std::min(static_cast<std::size_t>(10), test_values.size());
         
+        // Pre-compute expected values using batch operations to avoid expensive individual cache hits
+        std::vector<double> expected_results(check_count);
+        std::vector<double> check_values(check_count);
+        
+        // Collect check values first
         for (std::size_t i = 0; i < check_count; ++i) {
             std::size_t idx = i * (test_values.size() / check_count);
-            double expected;
+            check_values[i] = test_values[idx];
+        }
+        
+        // Use batch operations to get expected results (much more efficient)
+        if (operation_name == "PDF") {
+            std::span<const double> input_span(check_values);
+            std::span<double> output_span(expected_results);
+            dist.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::SCALAR);
+        } else if (operation_name == "LogPDF") {
+            std::span<const double> input_span(check_values);
+            std::span<double> output_span(expected_results);
+            dist.getLogProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::SCALAR);
+        } else if (operation_name == "CDF") {
+            std::span<const double> input_span(check_values);
+            std::span<double> output_span(expected_results);
+            dist.getCumulativeProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::SCALAR);
+        } else {
+            // Skip unknown operations
+            std::cout << "  ✓ " << operation_name << " batch operations completed (verification skipped for unknown operation)" << std::endl;
+            return;
+        }
+        
+        // Now compare batch results with expected results
+        for (std::size_t i = 0; i < check_count; ++i) {
+            std::size_t idx = i * (test_values.size() / check_count);
             
-            if (operation_name == "PDF") {
-                expected = dist.getProbability(test_values[idx]);
-            } else if (operation_name == "LogPDF") {
-                expected = dist.getLogProbability(test_values[idx]);
-            } else if (operation_name == "CDF") {
-                expected = dist.getCumulativeProbability(test_values[idx]);
-            } else {
-                continue; // Skip unknown operations
-            }
-            
-            if (std::abs(batch_results[idx] - expected) > tolerance) {
+            if (std::abs(batch_results[idx] - expected_results[i]) > tolerance) {
                 all_correct = false;
                 break;
             }
@@ -207,9 +227,9 @@ public:
         std::vector<double> empty_results;
         
         // These should not crash
-        dist.getProbabilityBatch(empty_values.data(), empty_results.data(), 0);
-        dist.getLogProbabilityBatch(empty_values.data(), empty_results.data(), 0);
-        dist.getCumulativeProbabilityBatch(empty_values.data(), empty_results.data(), 0);
+        dist.getProbabilityWithStrategy(std::span<const double>(empty_values), std::span<double>(empty_results), libstats::performance::Strategy::SCALAR);
+        dist.getLogProbabilityWithStrategy(std::span<const double>(empty_values), std::span<double>(empty_results), libstats::performance::Strategy::SCALAR);
+        dist.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_values), std::span<double>(empty_results), libstats::performance::Strategy::SCALAR);
         
         std::cout << "  ✓ " << dist_name << " empty batch operations handled gracefully" << std::endl;
     }

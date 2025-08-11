@@ -7,7 +7,9 @@
 #include "../include/platform/work_stealing_pool.h"
 #include "../include/platform/adaptive_cache.h"
 #include "../include/core/dispatch_utils.h"
+#include "../include/platform/parallel_execution.h"
 #include <sstream>
+#include <iomanip>
 #include <cmath>
 #include <vector>
 #include <algorithm>
@@ -543,100 +545,6 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
     return is;
 }
 
-//==============================================================================
-// SIMD BATCH OPERATIONS
-//==============================================================================
-
-void UniformDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_inv_width);
-}
-
-void UniformDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_log_inv_width = -std::log(width_);
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_log_inv_width);
-}
-
-void UniformDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, cached_a, cached_b, cached_inv_width);
-}
-
-void UniformDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getProbabilityBatchUnsafeImpl(values, results, count, a_, b_, invWidth_);
-}
-
-void UniformDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    const double log_inv_width = -std::log(width_);
-    getLogProbabilityBatchUnsafeImpl(values, results, count, a_, b_, log_inv_width);
-}
-
-void UniformDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, a_, b_, invWidth_);
-}
 
 //==============================================================================
 // PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
@@ -789,362 +697,6 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
     }
 }
 
-//==============================================================================
-// PARALLEL BATCH OPERATIONS  
-//==============================================================================
-
-void UniformDistribution::getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform PDF: extremely lightweight operation (2 comparisons + 1 assignment)
-    // Thread pool overhead will always dominate computation time regardless of size
-    // Use optimized SIMD batch implementation instead of parallel threads
-    // Call unsafe implementation directly since we already did cache management
-    getProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_inv_width);
-}
-
-void UniformDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size()) return; // Can't throw in noexcept context
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_log_inv_width = -std::log(width_);
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform LogPDF: extremely lightweight operation (2 comparisons + 1 assignment)
-    // Thread pool overhead will always dominate computation time regardless of size
-    // Use optimized SIMD batch implementation instead of parallel threads
-    // Call unsafe implementation directly since we already did cache management
-    getLogProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_log_inv_width);
-}
-
-void UniformDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform CDF: lightweight operation (2-3 comparisons + 1 arithmetic)
-    // Data shows regular parallel threading has excessive overhead (13120μs vs 245μs SIMD)
-    // Thread pool overhead dominates computation time regardless of size
-    // Use optimized SIMD batch implementation instead of parallel threads
-    // Call unsafe implementation directly since we already did cache management
-    getCumulativeProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_inv_width);
-}
-
-void UniformDistribution::getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                         [[maybe_unused]] WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform PDF: extremely lightweight operation
-    // Work-stealing thread overhead will always dominate computation time
-    // Use optimized SIMD batch implementation instead of work-stealing threads
-    // Call unsafe implementation directly since we already did cache management
-    getProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_inv_width);
-}
-
-void UniformDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                       cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "uniform_pdf_batch_" + std::to_string(count);
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform PDF: extremely lightweight operation
-    // Cache-aware parallel overhead will always dominate computation time
-    // Use optimized SIMD batch implementation instead of cache-aware parallel threads
-    // Call unsafe implementation directly since we already did cache management
-    getProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_inv_width);
-    
-    // Still update cache performance metrics for monitoring
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "uniform_pdf");
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
-
-void UniformDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                            [[maybe_unused]] WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_log_inv_width = -std::log(width_);
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform LogPDF: extremely lightweight operation
-    // Work-stealing thread overhead will always dominate computation time
-    // Use optimized SIMD batch implementation instead of work-stealing threads
-    // Call unsafe implementation directly since we already did cache management
-    getLogProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_log_inv_width);
-}
-
-void UniformDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                          cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "uniform_log_pdf_batch_" + std::to_string(count);
-    
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached performance metrics for optimization
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_log_inv_width = -std::log(width_);
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform LogPDF: extremely lightweight operation
-    // Cache-aware parallel overhead will always dominate computation time
-    // Use optimized SIMD batch implementation instead of cache-aware parallel threads
-    // Call unsafe implementation directly since we already did cache management
-    getLogProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_log_inv_width);
-    
-    // Still update cache performance metrics for monitoring
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "uniform_log_pdf");
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
-
-void UniformDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                                   [[maybe_unused]] WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform CDF: lightweight operation (2-3 comparisons + 1 arithmetic)
-    // Data shows work-stealing parallelism has excessive overhead (10409μs vs 238μs SIMD)
-    // Work-stealing thread overhead dominates computation time regardless of size
-    // Use optimized SIMD batch implementation instead of work-stealing threads
-    // Call unsafe implementation directly since we already did cache management
-    getCumulativeProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_inv_width);
-}
-
-void UniformDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Integrate with Level 0-3 adaptive cache system
-    const std::string cache_key = "uniform_cdf_batch_" + std::to_string(count);
-    
-    auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-    if (cached_params.has_value()) {
-        // Future: Use cached performance metrics for optimization
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_a = a_;
-    const double cached_b = b_;
-    const double cached_inv_width = invWidth_;
-    [[maybe_unused]] const bool cached_is_unit_interval = isUnitInterval_;
-    
-    lock.unlock();
-    
-    // For uniform CDF: lightweight operation (2-3 comparisons + 1 arithmetic)
-    // Data shows cache-aware parallelism has excessive overhead vs SIMD performance
-    // Cache-aware parallel overhead dominates computation time regardless of size
-    // Use optimized SIMD batch implementation instead of cache-aware parallel threads
-    // Call unsafe implementation directly since we already did cache management
-    getCumulativeProbabilityBatchUnsafeImpl(values.data(), results.data(), count, cached_a, cached_b, cached_inv_width);
-    
-    // Still update cache performance metrics for monitoring
-    const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, "uniform_cdf");
-    cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
-}
 
 //==============================================================================
 // ADVANCED STATISTICAL METHODS
@@ -1893,16 +1445,131 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
         performance::DistributionTraits<UniformDistribution>::complexity(),
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Use the unsafe implementation directly since batch methods were removed
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    dist.updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+                }
+            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
+            // Fallback to parallel execution which is faster and more predictable
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching for continuous distributions
+            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+            });
         }
     );
 }
@@ -1918,16 +1585,158 @@ void UniformDistribution::getLogProbability(std::span<const double> values, std:
         performance::DistributionTraits<UniformDistribution>::complexity(),
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Use the unsafe implementation directly since batch methods were removed
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    dist.updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            lock.unlock();
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_log_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x < cached_a || x > cached_b) {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    } else if (cached_is_unit_interval) {
+                        res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    } else {
+                        res[i] = cached_log_inv_width;
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x < cached_a || x > cached_b) {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    } else if (cached_is_unit_interval) {
+                        res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    } else {
+                        res[i] = cached_log_inv_width;
+                    }
+                }
+            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < cached_a || x > cached_b) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_interval) {
+                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                } else {
+                    res[i] = cached_log_inv_width;
+                }
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
+            // Fallback to parallel execution which is faster and more predictable
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching for continuous distributions
+            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < cached_a || x > cached_b) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_interval) {
+                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                } else {
+                    res[i] = cached_log_inv_width;
+                }
+            });
         }
     );
 }
@@ -1943,16 +1752,166 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
         performance::DistributionTraits<UniformDistribution>::complexity(),
         [](const UniformDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Use the unsafe implementation directly since batch methods were removed
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    dist.updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x < cached_a) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (x > cached_b) {
+                        res[i] = constants::math::ONE;
+                    } else if (cached_is_unit_interval) {
+                        res[i] = x;  // CDF(x) = x for U(0,1)
+                    } else {
+                        res[i] = (x - cached_a) * cached_inv_width;
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x < cached_a) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (x > cached_b) {
+                        res[i] = constants::math::ONE;
+                    } else if (cached_is_unit_interval) {
+                        res[i] = x;  // CDF(x) = x for U(0,1)
+                    } else {
+                        res[i] = (x - cached_a) * cached_inv_width;
+                    }
+                }
+            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < cached_a) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (x > cached_b) {
+                    res[i] = constants::math::ONE;
+                } else if (cached_is_unit_interval) {
+                    res[i] = x;  // CDF(x) = x for U(0,1)
+                } else {
+                    res[i] = (x - cached_a) * cached_inv_width;
+                }
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
+            // Fallback to parallel execution which is faster and more predictable
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching for continuous distributions
+            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < cached_a) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (x > cached_b) {
+                    res[i] = constants::math::ONE;
+                } else if (cached_is_unit_interval) {
+                    res[i] = x;  // CDF(x) = x for U(0,1)
+                } else {
+                    res[i] = (x - cached_a) * cached_inv_width;
+                }
+            });
         }
     );
 }
@@ -1963,6 +1922,11 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
 
 void UniformDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                     performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1970,22 +1934,142 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
         strategy,
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Use the unsafe implementation directly since batch methods were removed
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    dist.updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            
+            // Cache-aware processing: for uniform distribution, caching isn't very beneficial but we demonstrate the pattern
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "uniform_pdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    const double result = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                        performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1993,22 +2077,164 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
         strategy,
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Use the unsafe implementation directly since batch methods were removed
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    dist.updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            lock.unlock();
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_log_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < cached_a || vals[i] > cached_b) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_interval) {
+                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                } else {
+                    res[i] = cached_log_inv_width;
+                }
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < cached_a || vals[i] > cached_b) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_interval) {
+                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                } else {
+                    res[i] = cached_log_inv_width;
+                }
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_log_inv_width = -std::log(dist.width_);
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Cache-aware processing: for uniform distribution, caching can be beneficial for logarithmic computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "uniform_logpdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < cached_a || x > cached_b) {
+                        result = constants::probability::NEGATIVE_INFINITY;
+                    } else if (cached_is_unit_interval) {
+                        result = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    } else {
+                        result = cached_log_inv_width;
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                               performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -2016,16 +2242,159 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
         strategy,
         [](const UniformDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Use the unsafe implementation directly since batch methods were removed
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    dist.updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            lock.unlock();
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < cached_a) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (vals[i] > cached_b) {
+                    res[i] = constants::math::ONE;
+                } else if (cached_is_unit_interval) {
+                    res[i] = vals[i];  // CDF(x) = x for U(0,1)
+                } else {
+                    res[i] = (vals[i] - cached_a) * cached_inv_width;
+                }
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < cached_a) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (vals[i] > cached_b) {
+                    res[i] = constants::math::ONE;
+                } else if (cached_is_unit_interval) {
+                    res[i] = vals[i];  // CDF(x) = x for U(0,1)
+                } else {
+                    res[i] = (vals[i] - cached_a) * cached_inv_width;
+                }
+            });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const double cached_a = dist.a_;
+            const double cached_b = dist.b_;
+            const double cached_inv_width = dist.invWidth_;
+            const bool cached_is_unit_interval = dist.isUnitInterval_;
+            lock.unlock();
+            
+            // Cache-aware processing: for uniform distribution, caching can be beneficial for CDF computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "uniform_cdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < cached_a) {
+                        result = constants::math::ZERO_DOUBLE;
+                    } else if (x > cached_b) {
+                        result = constants::math::ONE;
+                    } else if (cached_is_unit_interval) {
+                        result = x;  // CDF(x) = x for U(0,1)
+                    } else {
+                        result = (x - cached_a) * cached_inv_width;
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }

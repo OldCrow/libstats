@@ -518,7 +518,7 @@ void demonstrate_recovery_strategies() {
     };
     
     try {
-        auto [robust_mean, robust_std] = compute_robust_stats(contaminated_data);
+        [[maybe_unused]] auto [robust_mean, robust_std] = compute_robust_stats(contaminated_data);
         std::cout << "✅ Successfully computed robust statistics" << std::endl;
     } catch (const std::exception& e) {
         std::cout << "❌ Failed to compute statistics: " << e.what() << std::endl;

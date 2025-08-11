@@ -153,7 +153,7 @@ void benchmark_gaussian_simd() {
     auto start_pdf = std::chrono::high_resolution_clock::now();
     
     for (int i = 0; i < 100; ++i) {
-        gauss.getProbabilityBatch(values.data(), pdf_results.data(), size);
+        gauss.getProbabilityWithStrategy(std::span<const double>(values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
     }
     
     auto end_pdf = std::chrono::high_resolution_clock::now();
@@ -165,7 +165,7 @@ void benchmark_gaussian_simd() {
     auto start_log = std::chrono::high_resolution_clock::now();
     
     for (int i = 0; i < 100; ++i) {
-        gauss.getLogProbabilityBatch(values.data(), log_pdf_results.data(), size);
+        gauss.getLogProbabilityWithStrategy(std::span<const double>(values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
     }
     
     auto end_log = std::chrono::high_resolution_clock::now();

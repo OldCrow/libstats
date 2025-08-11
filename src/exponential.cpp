@@ -6,10 +6,13 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h" // For parallel execution policies
 #include "../include/platform/work_stealing_pool.h" // For WorkStealingPool
+#include "../include/platform/adaptive_cache.h" // For AdaptiveCache
+// ParallelUtils functionality is provided by parallel_execution.h
 #include "../include/core/dispatch_utils.h" // For DispatchUtils::autoDispatch
 #include <iostream>
 #include "../include/platform/thread_pool.h" // For ThreadPool
 #include <sstream>
+#include <iomanip>
 #include <cmath>
 #include <vector>
 #include <algorithm>
@@ -1088,101 +1091,6 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
 }
 
 
-//==============================================================================
-// SIMD BATCH OPERATIONS
-//==============================================================================
-
-void ExponentialDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_lambda = lambda_;
-    const double cached_neg_lambda = negLambda_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getProbabilityBatchUnsafeImpl(values, results, count, cached_lambda, cached_neg_lambda);
-}
-
-void ExponentialDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_log_lambda = logLambda_;
-    const double cached_neg_lambda = negLambda_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_log_lambda, cached_neg_lambda);
-}
-
-void ExponentialDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Use cached values (protected by lock)
-    const double cached_neg_lambda = negLambda_;
-    
-    lock.unlock(); // Release lock before heavy computation
-    
-    // Call unsafe implementation with cached values
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, cached_neg_lambda);
-}
-
-void ExponentialDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getProbabilityBatchUnsafeImpl(values, results, count, lambda_, negLambda_);
-}
-
-void ExponentialDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getLogProbabilityBatchUnsafeImpl(values, results, count, logLambda_, negLambda_);
-}
-
-void ExponentialDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, negLambda_);
-}
 
 //==============================================================================
 // PRIVATE BATCH IMPLEMENTATION METHODS
@@ -1348,442 +1256,6 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const doub
 // internally within the *BatchUnsafeImpl methods above, following the
 // standardized pattern established in gaussian.cpp
 
-//==============================================================================
-// PARALLEL BATCH OPERATIONS
-//==============================================================================
-
-void ExponentialDistribution::getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_neg_lambda = negLambda_;
-    const bool cached_is_unit_rate = isUnitRate_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PDF for each element in parallel using cached parameters
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = std::exp(-x);
-            } else {
-                results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = std::exp(-x);
-            } else {
-                results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-            }
-        }
-    }
-}
-
-void ExponentialDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size() || values.empty()) {
-        return;
-    }
-    
-    const std::size_t count = values.size();
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_log_lambda = logLambda_;
-    const double cached_neg_lambda = negLambda_;
-    const bool cached_is_unit_rate = isUnitRate_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PDF for each element in parallel using cached parameters
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            } else if (cached_is_unit_rate) {
-                results[i] = -x;
-            } else {
-                results[i] = cached_log_lambda + cached_neg_lambda * x;
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            } else if (cached_is_unit_rate) {
-                results[i] = -x;
-            } else {
-                results[i] = cached_log_lambda + cached_neg_lambda * x;
-            }
-        }
-    }
-}
-
-void ExponentialDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_neg_lambda = negLambda_;
-    const bool cached_is_unit_rate = isUnitRate_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use ParallelUtils::parallelFor for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element in parallel using cached parameters
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = constants::math::ONE - std::exp(-x);
-            } else {
-                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
-            }
-        });
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = constants::math::ONE - std::exp(-x);
-            } else {
-                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
-            }
-        }
-    }
-}
-
-void ExponentialDistribution::getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                             WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_lambda = lambda_;
-    const double cached_neg_lambda = negLambda_;
-    const bool cached_is_unit_rate = isUnitRate_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
-    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute PDF for each element with work stealing load balancing using cached parameters
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = std::exp(-x);
-            } else {
-                results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-            }
-        });
-        
-        // Wait for all work stealing tasks to complete
-        pool.waitForAll();
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = std::exp(-x);
-            } else {
-                results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-            }
-        }
-    }
-}
-
-void ExponentialDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                           [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    if (values.empty()) {
-        return;
-    }
-    
-    // Check cache for batch results
-    const std::string cache_key = "exp_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());
-    
-    // For cache-aware processing, use smaller chunks to better utilize cache
-    // Use a reasonable default chunk size when cache manager doesn't provide one
-    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
-    
-    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
-        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
-        const std::size_t chunk_count = end - i;
-        
-        // Process chunk using SIMD batch operation
-        getProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
-    }
-    
-    // Cache access recorded implicitly through batch operations
-}
-
-void ExponentialDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                               WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_log_lambda = logLambda_;
-    const double cached_neg_lambda = negLambda_;
-    const bool cached_is_unit_rate = isUnitRate_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
-    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute log PDF for each element with work stealing load balancing using cached parameters
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = -std::numeric_limits<double>::infinity();
-            } else if (cached_is_unit_rate) {
-                results[i] = -x;
-            } else {
-                results[i] = cached_log_lambda + cached_neg_lambda * x;
-            }
-        });
-        
-        // Wait for all work stealing tasks to complete
-        pool.waitForAll();
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = -std::numeric_limits<double>::infinity();
-            } else if (cached_is_unit_rate) {
-                results[i] = -x;
-            } else {
-                results[i] = cached_log_lambda + cached_neg_lambda * x;
-            }
-        }
-    }
-}
-
-void ExponentialDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                              [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    if (values.empty()) {
-        return;
-    }
-    
-    // Check cache for batch results
-    const std::string cache_key = "exp_log_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());
-    
-    // For cache-aware processing, use smaller chunks to better utilize cache
-    // Use a reasonable default chunk size when cache manager doesn't provide one
-    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
-    
-    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
-        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
-        const std::size_t chunk_count = end - i;
-        
-        // Process chunk using SIMD batch operation
-        getLogProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
-    }
-    
-    // Cache access recorded implicitly through batch operations
-}
-
-void ExponentialDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                                       WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) {
-        return;
-    }
-    
-    // Ensure cache is valid once before parallel processing
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const double cached_neg_lambda = negLambda_;
-    const bool cached_is_unit_rate = isUnitRate_;
-    
-    lock.unlock(); // Release lock before parallel processing
-    
-    // Use WorkStealingPool for dynamic load balancing - optimal for heavy computational loads
-    if (WorkStealingUtils::shouldUseWorkStealing(count)) {
-        pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-            // Compute CDF for each element with work stealing load balancing using cached parameters
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = constants::math::ONE - std::exp(-x);
-            } else {
-                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
-            }
-        });
-        
-        // Wait for all work stealing tasks to complete
-        pool.waitForAll();
-    } else {
-        // Fall back to serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (cached_is_unit_rate) {
-                results[i] = constants::math::ONE - std::exp(-x);
-            } else {
-                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
-            }
-        }
-    }
-}
-
-void ExponentialDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                                     [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output span sizes must match");
-    }
-    
-    if (values.empty()) {
-        return;
-    }
-    
-    // Check cache for batch results
-    const std::string cache_key = "exp_cdf_batch_" + std::to_string(lambda_) + "_" + std::to_string(values.size());
-    
-    // For cache-aware processing, use smaller chunks to better utilize cache
-    // Use a reasonable default chunk size when cache manager doesn't provide one
-    const std::size_t optimal_chunk_size = 1024;  // Default cache-friendly chunk size
-    
-    for (std::size_t i = 0; i < values.size(); i += optimal_chunk_size) {
-        const std::size_t end = std::min(i + optimal_chunk_size, values.size());
-        const std::size_t chunk_count = end - i;
-        
-        // Process chunk using SIMD batch operation
-        getCumulativeProbabilityBatch(values.data() + i, results.data() + i, chunk_count);
-    }
-    
-    // Cache access recorded implicitly through batch operations
-}
 
 
 //==============================================================================
@@ -1813,16 +1285,158 @@ void ExponentialDistribution::getProbability(std::span<const double> values, std
         performance::DistributionTraits<ExponentialDistribution>::complexity(),
         [](const ExponentialDistribution& dist, double value) { return dist.getProbability(value); },
         [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_neg_lambda);
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (cached_is_unit_rate) {
+                        res[i] = std::exp(-x);
+                    } else {
+                        res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (cached_is_unit_rate) {
+                        res[i] = std::exp(-x);
+                    } else {
+                        res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
+                    }
+                }
+            }
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = std::exp(-x);
+                } else {
+                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
+            // Fallback to parallel execution which is faster and more predictable
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use parallel processing instead of caching for continuous distributions
+            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = std::exp(-x);
+                } else {
+                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
+                }
+            });
         }
     );
 }
@@ -1838,16 +1452,171 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values, 
         performance::DistributionTraits<ExponentialDistribution>::complexity(),
         [](const ExponentialDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_log_lambda, cached_neg_lambda);
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    } else if (cached_is_unit_rate) {
+                        res[i] = -x;
+                    } else {
+                        res[i] = cached_log_lambda + cached_neg_lambda * x;
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    } else if (cached_is_unit_rate) {
+                        res[i] = -x;
+                    } else {
+                        res[i] = cached_log_lambda + cached_neg_lambda * x;
+                    }
+                }
+            }
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_rate) {
+                    res[i] = -x;
+                } else {
+                    res[i] = cached_log_lambda + cached_neg_lambda * x;
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Cache-aware processing: for exponential distribution, caching can be beneficial for logarithmic computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "exp_logpdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        result = constants::probability::NEGATIVE_INFINITY;
+                    } else if (cached_is_unit_rate) {
+                        result = -x;
+                    } else {
+                        result = cached_log_lambda + cached_neg_lambda * x;
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
@@ -1863,16 +1632,167 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
         performance::DistributionTraits<ExponentialDistribution>::complexity(),
         [](const ExponentialDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_neg_lambda = dist.negLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_neg_lambda);
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (cached_is_unit_rate) {
+                        res[i] = constants::math::ONE - std::exp(-x);
+                    } else {
+                        res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    const double x = vals[i];
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (cached_is_unit_rate) {
+                        res[i] = constants::math::ONE - std::exp(-x);
+                    } else {
+                        res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    }
+                }
+            }
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = constants::math::ONE - std::exp(-x);
+                } else {
+                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Cache-aware processing: for exponential distribution, caching can be beneficial for expensive exp() calls
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "exp_cdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        result = constants::math::ZERO_DOUBLE;
+                    } else if (cached_is_unit_rate) {
+                        result = constants::math::ONE - std::exp(-x);
+                    } else {
+                        result = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
@@ -1883,6 +1803,11 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
 
 void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                         performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1890,22 +1815,168 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
         strategy,
         [](const ExponentialDistribution& dist, double value) { return dist.getProbability(value); },
         [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_neg_lambda);
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: WithStrategy power user method - execute parallel directly
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = std::exp(-x);
+                } else {
+                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = std::exp(-x);
+                } else {
+                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const double cached_lambda = dist.lambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Cache-aware processing: for exponential distribution, caching can be beneficial for expensive exp() calls
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "exp_pdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        result = constants::math::ZERO_DOUBLE;
+                    } else if (cached_is_unit_rate) {
+                        result = std::exp(-x);
+                    } else {
+                        result = cached_lambda * std::exp(cached_neg_lambda * x);
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                            performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1913,22 +1984,168 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
         strategy,
         [](const ExponentialDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_log_lambda, cached_neg_lambda);
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_rate) {
+                    res[i] = -x;
+                } else {
+                    res[i] = cached_log_lambda + cached_neg_lambda * x;
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing processing
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_rate) {
+                    res[i] = -x;
+                } else {
+                    res[i] = cached_log_lambda + cached_neg_lambda * x;
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware processing
+            const double cached_log_lambda = dist.logLambda_;
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Cache-aware processing: for exponential distribution, caching can be beneficial for logarithmic computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "exp_logpdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        result = constants::probability::NEGATIVE_INFINITY;
+                    } else if (cached_is_unit_rate) {
+                        result = -x;
+                    } else {
+                        result = cached_log_lambda + cached_neg_lambda * x;
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                                   performance::Strategy strategy) const {
+    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -1936,16 +2153,153 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<con
         strategy,
         [](const ExponentialDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const double cached_neg_lambda = dist.negLambda_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_neg_lambda);
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = constants::math::ONE - std::exp(-x);
+                } else {
+                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            // Work-Stealing lambda: should use pool.parallelFor
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing processing
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = constants::math::ONE - std::exp(-x);
+                } else {
+                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                }
+            });
         },
         [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware processing
+            const double cached_neg_lambda = dist.negLambda_;
+            const bool cached_is_unit_rate = dist.isUnitRate_;
+            lock.unlock();
+            
+            // Cache-aware processing: for exponential distribution, caching can be beneficial for expensive exp() calls
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "exp_cdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < constants::math::ZERO_DOUBLE) {
+                        result = constants::math::ZERO_DOUBLE;
+                    } else if (cached_is_unit_rate) {
+                        result = constants::math::ONE - std::exp(-x);
+                    } else {
+                        result = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }

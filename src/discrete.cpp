@@ -370,16 +370,150 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
         performance::DistributionTraits<DiscreteDistribution>::complexity(),
         [](const DiscreteDistribution& dist, double value) { return dist.getProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                        const int k = static_cast<int>(vals[i]);
+                        res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
+                    } else {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                        const int k = static_cast<int>(vals[i]);
+                        res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
+                    } else {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    }
+                }
+            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                    const int k = static_cast<int>(vals[i]);
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
+                } else {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                }
+            });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
+            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Use parallel processing instead of broken string-based caching
+            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
+                    const int k = static_cast<int>(x);
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
+                } else {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                }
+            });
         }
     );
 }
@@ -394,16 +528,169 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values, std
         performance::DistributionTraits<DiscreteDistribution>::complexity(),
         [](const DiscreteDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_log_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                        const int k = static_cast<int>(vals[i]);
+                        if (k >= cached_a && k <= cached_b) {
+                            res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        } else {
+                            res[i] = constants::probability::NEGATIVE_INFINITY;
+                        }
+                    } else {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                        const int k = static_cast<int>(vals[i]);
+                        if (k >= cached_a && k <= cached_b) {
+                            res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        } else {
+                            res[i] = constants::probability::NEGATIVE_INFINITY;
+                        }
+                    } else {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
+                }
+            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                    const int k = static_cast<int>(vals[i]);
+                    if (k >= cached_a && k <= cached_b) {
+                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                    } else {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
+                } else {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                }
+            });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
+            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use parallel processing instead of broken string-based caching
+            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
+                    const int k = static_cast<int>(x);
+                    if (k >= cached_a && k <= cached_b) {
+                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                    } else {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
+                } else {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                }
+            });
         }
     );
 }
@@ -418,16 +705,181 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
         performance::DistributionTraits<DiscreteDistribution>::complexity(),
         [](const DiscreteDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_inv_range = 1.0 / static_cast<double>(dist.range_);
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_inv_range);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const int cached_range = dist.range_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            if (parallel::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (vals[i] < static_cast<double>(cached_a)) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (vals[i] >= static_cast<double>(cached_b)) {
+                        res[i] = constants::math::ONE;
+                    } else {
+                        const int k = static_cast<int>(std::floor(vals[i]));
+                        if (cached_is_binary) {
+                            res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        } else {
+                            const int numerator = k - cached_a + 1;
+                            res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                        }
+                    }
+                });
+            } else {
+                // Serial processing for small datasets
+                for (std::size_t i = 0; i < count; ++i) {
+                    if (vals[i] < static_cast<double>(cached_a)) {
+                        res[i] = constants::math::ZERO_DOUBLE;
+                    } else if (vals[i] >= static_cast<double>(cached_b)) {
+                        res[i] = constants::math::ONE;
+                    } else {
+                        const int k = static_cast<int>(std::floor(vals[i]));
+                        if (cached_is_binary) {
+                            res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        } else {
+                            const int numerator = k - cached_a + 1;
+                            res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                        }
+                    }
+                }
+            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const int cached_range = dist.range_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < static_cast<double>(cached_a)) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (vals[i] >= static_cast<double>(cached_b)) {
+                    res[i] = constants::math::ONE;
+                } else {
+                    const int k = static_cast<int>(std::floor(vals[i]));
+                    if (cached_is_binary) {
+                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                    } else {
+                        const int numerator = k - cached_a + 1;
+                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                    }
+                }
+            });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
+            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const int cached_range = dist.range_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use parallel processing instead of broken string-based caching
+            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                const double x = vals[i];
+                if (x < static_cast<double>(cached_a)) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (x >= static_cast<double>(cached_b)) {
+                    res[i] = constants::math::ONE;
+                } else {
+                    const int k = static_cast<int>(std::floor(x));
+                    if (cached_is_binary) {
+                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                    } else {
+                        const int numerator = k - cached_a + 1;
+                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                    }
+                }
+            });
         }
     );
 }
@@ -438,6 +890,12 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
 
 void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                      performance::Strategy strategy) const {
+    // Safety override for v1.0.0 - Cache-Aware has fundamental design flaws causing O(n²) performance
+    // String-based cache key generation creates catastrophic overhead even for discrete distributions
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -445,22 +903,163 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
         strategy,
         [](const DiscreteDistribution& dist, double value) { return dist.getProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                    const int k = static_cast<int>(vals[i]);
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
+                } else {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                }
+            });
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                    const int k = static_cast<int>(vals[i]);
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
+                } else {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                }
+            });
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_prob = dist.probability_;
+            lock.unlock();
+            
+            // Cache-aware processing: for discrete uniform distribution, caching can be beneficial for integer validation
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "discrete_pdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
+                        const int k = static_cast<int>(x);
+                        result = (k >= cached_a && k <= cached_b) ? cached_prob : constants::math::ZERO_DOUBLE;
+                    } else {
+                        result = constants::math::ZERO_DOUBLE;
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                         performance::Strategy strategy) const {
+    // Safety override for v1.0.0 - Cache-Aware has fundamental design flaws causing O(n²) performance
+    // String-based cache key generation creates catastrophic overhead even for discrete distributions
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -468,22 +1067,178 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
         strategy,
         [](const DiscreteDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getLogProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_log_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getLogProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                    const int k = static_cast<int>(vals[i]);
+                    if (k >= cached_a && k <= cached_b) {
+                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                    } else {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
+                } else {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                }
+            });
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getLogProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::floor(vals[i]) == vals[i] && DiscreteDistribution::isValidIntegerValue(vals[i])) {
+                    const int k = static_cast<int>(vals[i]);
+                    if (k >= cached_a && k <= cached_b) {
+                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                    } else {
+                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    }
+                } else {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                }
+            });
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getLogProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_log_prob = dist.logProbability_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Cache-aware processing: for discrete uniform distribution, caching can be beneficial for log computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "discrete_logpdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
+                        const int k = static_cast<int>(x);
+                        if (k >= cached_a && k <= cached_b) {
+                            result = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        } else {
+                            result = constants::probability::NEGATIVE_INFINITY;
+                        }
+                    } else {
+                        result = constants::probability::NEGATIVE_INFINITY;
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
 
 void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                                performance::Strategy strategy) const {
+    // Safety override for v1.0.0 - Cache-Aware has fundamental design flaws causing O(n²) performance
+    // String-based cache key generation creates catastrophic overhead even for discrete distributions
+    if (strategy == performance::Strategy::CACHE_AWARE) {
+        strategy = performance::Strategy::PARALLEL_SIMD;
+    }
+    
     performance::DispatchUtils::executeWithStrategy(
         *this,
         values,
@@ -491,16 +1246,175 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
         strategy,
         [](const DiscreteDistribution& dist, double value) { return dist.getCumulativeProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
-            dist.getCumulativeProbabilityBatch(vals, res, count);
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for batch processing
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const double cached_inv_range = 1.0 / static_cast<double>(dist.range_);
+            lock.unlock();
+            
+            // Call private implementation directly
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_inv_range);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            dist.getCumulativeProbabilityBatchParallel(vals, res);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe parallel access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const int cached_range = dist.range_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
+            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < static_cast<double>(cached_a)) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (vals[i] >= static_cast<double>(cached_b)) {
+                    res[i] = constants::math::ONE;
+                } else {
+                    const int k = static_cast<int>(std::floor(vals[i]));
+                    if (cached_is_binary) {
+                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                    } else {
+                        const int numerator = k - cached_a + 1;
+                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                    }
+                }
+            });
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
-            dist.getCumulativeProbabilityBatchWorkStealing(vals, res, pool);
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe work-stealing access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const int cached_range = dist.range_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Use work-stealing pool for dynamic load balancing
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < static_cast<double>(cached_a)) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (vals[i] >= static_cast<double>(cached_b)) {
+                    res[i] = constants::math::ONE;
+                } else {
+                    const int k = static_cast<int>(std::floor(vals[i]));
+                    if (cached_is_binary) {
+                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                    } else {
+                        const int numerator = k - cached_a + 1;
+                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                    }
+                }
+            });
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            dist.getCumulativeProbabilityBatchCacheAware(vals, res, cache);
+            // Cache-Aware lambda: should use cache.get and cache.put
+            if (vals.size() != res.size()) {
+                throw std::invalid_argument("Input and output spans must have the same size");
+            }
+            
+            const std::size_t count = vals.size();
+            if (count == 0) return;
+            
+            // Ensure cache is valid
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                }
+                ulock.unlock();
+                lock.lock();
+            }
+            
+            // Cache parameters for thread-safe cache-aware access
+            const int cached_a = dist.a_;
+            const int cached_b = dist.b_;
+            const int cached_range = dist.range_;
+            const bool cached_is_binary = dist.isBinary_;
+            lock.unlock();
+            
+            // Cache-aware processing: for discrete uniform distribution, caching can be beneficial for CDF computations
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = vals[i];
+                
+                // Generate cache key (simplified - in practice, might include distribution params)
+                std::ostringstream key_stream;
+                key_stream << std::fixed << std::setprecision(6) << "discrete_cdf_" << x;
+                const std::string cache_key = key_stream.str();
+                
+                // Try to get from cache first
+                if (auto cached_result = cache.get(cache_key)) {
+                    res[i] = *cached_result;
+                } else {
+                    // Compute and cache
+                    double result;
+                    if (x < static_cast<double>(cached_a)) {
+                        result = constants::math::ZERO_DOUBLE;
+                    } else if (x >= static_cast<double>(cached_b)) {
+                        result = constants::math::ONE;
+                    } else {
+                        const int k = static_cast<int>(std::floor(x));
+                        if (cached_is_binary) {
+                            result = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        } else {
+                            const int numerator = k - cached_a + 1;
+                            result = static_cast<double>(numerator) / static_cast<double>(cached_range);
+                        }
+                    }
+                    res[i] = result;
+                    cache.put(cache_key, result);
+                }
+            }
         }
     );
 }
@@ -666,725 +1580,7 @@ bool DiscreteDistribution::operator==(const DiscreteDistribution& other) const {
     return (a_ == other.a_) && (b_ == other.b_);
 }
 
-//==============================================================================
-// BATCH OPERATIONS WITH SIMD ACCELERATION
-//==============================================================================
 
-void DiscreteDistribution::getProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    performance::DispatchUtils::executeBatchSIMD(
-        *this,
-        values,
-        results,
-        count,
-        [](const DiscreteDistribution& dist, const double* vals, double* res, std::size_t cnt) {
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-            
-            // Cache parameters for batch processing
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const double cached_prob = dist.probability_;
-            lock.unlock();
-            
-            // Call unsafe implementation with cached values
-            dist.getProbabilityBatchUnsafeImpl(vals, res, cnt, cached_a, cached_b, cached_prob);
-        }
-    );
-}
-
-void DiscreteDistribution::getLogProbabilityBatch(const double* values, double* results, std::size_t count) const noexcept {
-    performance::DispatchUtils::executeBatchSIMD(
-        *this,
-        values,
-        results,
-        count,
-        [](const DiscreteDistribution& dist, const double* vals, double* res, std::size_t cnt) {
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-            
-            // Cache parameters for batch processing
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const double cached_log_prob = dist.logProbability_;
-            lock.unlock();
-            
-            // Call unsafe implementation with cached values
-            dist.getLogProbabilityBatchUnsafeImpl(vals, res, cnt, cached_a, cached_b, cached_log_prob);
-        }
-    );
-}
-
-void DiscreteDistribution::getCumulativeProbabilityBatch(const double* values, double* results, std::size_t count) const {
-    performance::DispatchUtils::executeBatchSIMD(
-        *this,
-        values,
-        results,
-        count,
-        [](const DiscreteDistribution& dist, const double* vals, double* res, std::size_t cnt) {
-            if (!vals || !res) {
-                throw std::invalid_argument("Invalid pointers for batch CDF calculation");
-            }
-            
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-            
-            // Cache parameters for batch processing
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const int cached_range = dist.range_;
-            lock.unlock();
-            
-            // Call unsafe implementation with cached values
-            const double cached_inv_range = 1.0 / static_cast<double>(cached_range);
-            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, cnt, cached_a, cached_b, cached_inv_range);
-        }
-    );
-}
-
-//==============================================================================
-// PARALLEL BATCH OPERATIONS  
-//==============================================================================
-
-void DiscreteDistribution::getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_prob = probability_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use ParallelUtils for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [values, results, cached_a, cached_b, cached_prob, cached_is_binary](std::size_t i) {
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                } else {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                }
-            } else {
-                results[i] = constants::math::ZERO_DOUBLE;
-            }
-        });
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                } else {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                }
-            } else {
-                results[i] = constants::math::ZERO_DOUBLE;
-            }
-        }
-    }
-}
-
-void DiscreteDistribution::getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept {
-    if (values.size() != results.size()) {
-        return; // Return early for noexcept safety
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_log_prob = logProbability_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use ParallelUtils for Level 0-3 integration
-    try {
-        if (parallel::should_use_parallel(count)) {
-            ParallelUtils::parallelFor(std::size_t{0}, count, [values, results, cached_a, cached_b, cached_log_prob, cached_is_binary](std::size_t i) {
-                if (std::floor(values[i]) == values[i]) {
-                    const int k = static_cast<int>(values[i]);
-                    if (k >= cached_a && k <= cached_b) {
-                        results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                    } else {
-                        results[i] = constants::probability::NEGATIVE_INFINITY;
-                    }
-                } else {
-                    results[i] = constants::probability::NEGATIVE_INFINITY;
-                }
-            });
-        } else {
-            // Serial processing for small datasets
-            for (std::size_t i = 0; i < count; ++i) {
-                if (std::floor(values[i]) == values[i]) {
-                    const int k = static_cast<int>(values[i]);
-                    if (k >= cached_a && k <= cached_b) {
-                        results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                    } else {
-                        results[i] = constants::probability::NEGATIVE_INFINITY;
-                    }
-                } else {
-                    results[i] = constants::probability::NEGATIVE_INFINITY;
-                }
-            }
-        }
-    } catch (...) {
-        // noexcept guarantee - silently handle errors
-        return;
-    }
-}
-
-void DiscreteDistribution::getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe parallel access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const int cached_range = range_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use ParallelUtils for Level 0-3 integration
-    if (parallel::should_use_parallel(count)) {
-        ParallelUtils::parallelFor(std::size_t{0}, count, [values, results, cached_a, cached_b, cached_range, cached_is_binary](std::size_t i) {
-            if (values[i] < static_cast<double>(cached_a)) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (values[i] >= static_cast<double>(cached_b)) {
-                results[i] = constants::math::ONE;
-            } else {
-                const int k = static_cast<int>(std::floor(values[i]));
-                if (cached_is_binary) {
-                    results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                } else {
-                    const int numerator = k - cached_a + 1;
-                    results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                }
-            }
-        });
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < static_cast<double>(cached_a)) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (values[i] >= static_cast<double>(cached_b)) {
-                results[i] = constants::math::ONE;
-            } else {
-                const int k = static_cast<int>(std::floor(values[i]));
-                if (cached_is_binary) {
-                    results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                } else {
-                    const int numerator = k - cached_a + 1;
-                    results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                }
-            }
-        }
-    }
-}
-
-void DiscreteDistribution::getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                          WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid and get parameters
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_prob = probability_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use work-stealing thread pool directly  
-    pool.parallelFor(0, count, [values, results, cached_a, cached_b, cached_prob, cached_is_binary](std::size_t i) {
-        if (std::floor(values[i]) == values[i]) {
-            const int k = static_cast<int>(values[i]);
-            if (k >= cached_a && k <= cached_b) {
-                results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-            } else {
-                results[i] = constants::math::ZERO_DOUBLE;
-            }
-        } else {
-            results[i] = constants::math::ZERO_DOUBLE;
-        }
-    });
-}
-
-void DiscreteDistribution::getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                        cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid and get parameters
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_prob = probability_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use cache manager's optimal grain size for parallelization
-    const std::size_t grain_size = cache_manager.getOptimalGrainSize(count, "discrete_pmf");
-    
-    if (count >= grain_size) {
-        // Parallel processing with cache-aware batching
-        const std::size_t num_threads = std::min(count / grain_size, static_cast<std::size_t>(std::thread::hardware_concurrency()));
-        
-        if (num_threads > 1) {
-            std::vector<std::thread> threads;
-            threads.reserve(num_threads);
-            
-            const std::size_t chunk_size = count / num_threads;
-            
-            for (std::size_t t = 0; t < num_threads; ++t) {
-                const std::size_t start = t * chunk_size;
-                const std::size_t end = (t == num_threads - 1) ? count : start + chunk_size;
-                
-                threads.emplace_back([values, results, cached_a, cached_b, cached_prob, cached_is_binary, start, end]() {
-                    for (std::size_t i = start; i < end; ++i) {
-                        if (std::floor(values[i]) == values[i]) {
-                            const int k = static_cast<int>(values[i]);
-                            if (k >= cached_a && k <= cached_b) {
-                                results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                            } else {
-                                results[i] = constants::math::ZERO_DOUBLE;
-                            }
-                        } else {
-                            results[i] = constants::math::ZERO_DOUBLE;
-                        }
-                    }
-                });
-            }
-            
-            for (auto& thread : threads) {
-                thread.join();
-            }
-        } else {
-            // Serial processing
-            for (std::size_t i = 0; i < count; ++i) {
-                if (std::floor(values[i]) == values[i]) {
-                    const int k = static_cast<int>(values[i]);
-                    if (k >= cached_a && k <= cached_b) {
-                        results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                    } else {
-                        results[i] = constants::math::ZERO_DOUBLE;
-                    }
-                } else {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                }
-            }
-        }
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? constants::math::HALF : cached_prob;
-                } else {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                }
-            } else {
-                results[i] = constants::math::ZERO_DOUBLE;
-            }
-        }
-    }
-}
-
-void DiscreteDistribution::getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                             WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid and get parameters
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_log_prob = logProbability_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use work-stealing thread pool directly
-    pool.parallelFor(0, count, [values, results, cached_a, cached_b, cached_log_prob, cached_is_binary](std::size_t i) {
-        if (std::floor(values[i]) == values[i]) {
-            const int k = static_cast<int>(values[i]);
-            if (k >= cached_a && k <= cached_b) {
-                results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-            } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            }
-        } else {
-            results[i] = constants::probability::NEGATIVE_INFINITY;
-        }
-    });
-}
-
-void DiscreteDistribution::getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                           cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid and get parameters
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const double cached_log_prob = logProbability_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use cache manager's optimal grain size for parallelization
-    const std::size_t grain_size = cache_manager.getOptimalGrainSize(count, "discrete_log_pmf");
-    
-    if (count >= grain_size) {
-        // Parallel processing with cache-aware batching
-        const std::size_t num_threads = std::min(count / grain_size, static_cast<std::size_t>(std::thread::hardware_concurrency()));
-        
-        if (num_threads > 1) {
-            std::vector<std::thread> threads;
-            threads.reserve(num_threads);
-            
-            const std::size_t chunk_size = count / num_threads;
-            
-            for (std::size_t t = 0; t < num_threads; ++t) {
-                const std::size_t start = t * chunk_size;
-                const std::size_t end = (t == num_threads - 1) ? count : start + chunk_size;
-                
-                threads.emplace_back([values, results, cached_a, cached_b, cached_log_prob, cached_is_binary, start, end]() {
-                    for (std::size_t i = start; i < end; ++i) {
-                        if (std::floor(values[i]) == values[i]) {
-                            const int k = static_cast<int>(values[i]);
-                            if (k >= cached_a && k <= cached_b) {
-                                results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                            } else {
-                                results[i] = constants::probability::NEGATIVE_INFINITY;
-                            }
-                        } else {
-                            results[i] = constants::probability::NEGATIVE_INFINITY;
-                        }
-                    }
-                });
-            }
-            
-            for (auto& thread : threads) {
-                thread.join();
-            }
-        } else {
-            // Serial processing
-            for (std::size_t i = 0; i < count; ++i) {
-                if (std::floor(values[i]) == values[i]) {
-                    const int k = static_cast<int>(values[i]);
-                    if (k >= cached_a && k <= cached_b) {
-                        results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                    } else {
-                        results[i] = constants::probability::NEGATIVE_INFINITY;
-                    }
-                } else {
-                    results[i] = constants::probability::NEGATIVE_INFINITY;
-                }
-            }
-        }
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i]) {
-                const int k = static_cast<int>(values[i]);
-                if (k >= cached_a && k <= cached_b) {
-                    results[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
-                } else {
-                    results[i] = constants::probability::NEGATIVE_INFINITY;
-                }
-            } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            }
-        }
-    }
-}
-
-void DiscreteDistribution::getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                                    WorkStealingPool& pool) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid and get parameters
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const int cached_range = range_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use work-stealing thread pool directly
-    pool.parallelFor(0, count, [values, results, cached_a, cached_b, cached_range, cached_is_binary](std::size_t i) {
-        if (values[i] < static_cast<double>(cached_a)) {
-            results[i] = constants::math::ZERO_DOUBLE;
-        } else if (values[i] >= static_cast<double>(cached_b)) {
-            results[i] = constants::math::ONE;
-        } else {
-            const int k = static_cast<int>(std::floor(values[i]));
-            if (cached_is_binary) {
-                results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-            } else {
-                const int numerator = k - cached_a + 1;
-                results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-            }
-        }
-    });
-}
-
-void DiscreteDistribution::getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                                  cache::AdaptiveCache<std::string, double>& cache_manager) const {
-    if (values.size() != results.size()) {
-        throw std::invalid_argument("Input and output spans must have the same size");
-    }
-    
-    const std::size_t count = values.size();
-    if (count == 0) return;
-    
-    // Ensure cache is valid and get parameters
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            const_cast<DiscreteDistribution*>(this)->updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    // Cache parameters for thread-safe access
-    const int cached_a = a_;
-    const int cached_b = b_;
-    const int cached_range = range_;
-    const bool cached_is_binary = isBinary_;
-    lock.unlock();
-    
-    // Use cache manager's optimal grain size for parallelization
-    const std::size_t grain_size = cache_manager.getOptimalGrainSize(count, "discrete_cdf");
-    
-    if (count >= grain_size) {
-        // Parallel processing with cache-aware batching
-        const std::size_t num_threads = std::min(count / grain_size, static_cast<std::size_t>(std::thread::hardware_concurrency()));
-        
-        if (num_threads > 1) {
-            std::vector<std::thread> threads;
-            threads.reserve(num_threads);
-            
-            const std::size_t chunk_size = count / num_threads;
-            
-            for (std::size_t t = 0; t < num_threads; ++t) {
-                const std::size_t start = t * chunk_size;
-                const std::size_t end = (t == num_threads - 1) ? count : start + chunk_size;
-                
-                threads.emplace_back([values, results, cached_a, cached_b, cached_range, cached_is_binary, start, end]() {
-                    for (std::size_t i = start; i < end; ++i) {
-                        if (values[i] < static_cast<double>(cached_a)) {
-                            results[i] = constants::math::ZERO_DOUBLE;
-                        } else if (values[i] >= static_cast<double>(cached_b)) {
-                            results[i] = constants::math::ONE;
-                        } else {
-                            const int k = static_cast<int>(std::floor(values[i]));
-                            if (cached_is_binary) {
-                                results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                            } else {
-                                const int numerator = k - cached_a + 1;
-                                results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                            }
-                        }
-                    }
-                });
-            }
-            
-            for (auto& thread : threads) {
-                thread.join();
-            }
-        } else {
-            // Serial processing
-            for (std::size_t i = 0; i < count; ++i) {
-                if (values[i] < static_cast<double>(cached_a)) {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                } else if (values[i] >= static_cast<double>(cached_b)) {
-                    results[i] = constants::math::ONE;
-                } else {
-                    const int k = static_cast<int>(std::floor(values[i]));
-                    if (cached_is_binary) {
-                        results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                    } else {
-                        const int numerator = k - cached_a + 1;
-                        results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
-                }
-            }
-        }
-    } else {
-        // Serial processing for small datasets
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < static_cast<double>(cached_a)) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (values[i] >= static_cast<double>(cached_b)) {
-                results[i] = constants::math::ONE;
-            } else {
-                const int k = static_cast<int>(std::floor(values[i]));
-                if (cached_is_binary) {
-                    results[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
-                } else {
-                    const int numerator = k - cached_a + 1;
-                    results[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                }
-            }
-        }
-    }
-}
 
 //==============================================================================
 // DISCRETE-SPECIFIC UTILITY METHODS
@@ -1585,18 +1781,6 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double*
     }
 }
 
-void DiscreteDistribution::getProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getProbabilityBatchUnsafeImpl(values, results, count, a_, b_, probability_);
-}
-
-void DiscreteDistribution::getLogProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    getLogProbabilityBatchUnsafeImpl(values, results, count, a_, b_, logProbability_);
-}
-
-void DiscreteDistribution::getCumulativeProbabilityBatchUnsafe(const double* values, double* results, std::size_t count) const noexcept {
-    const double inv_range = 1.0 / static_cast<double>(range_);
-    getCumulativeProbabilityBatchUnsafeImpl(values, results, count, a_, b_, inv_range);
-}
 
 //==============================================================================
 // ADVANCED STATISTICAL METHODS

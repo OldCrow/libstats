@@ -249,7 +249,7 @@ void compare_performance() {
         rng.seed(42);  // Reset for fair comparison
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < n_operations; ++i) {
-            volatile auto sample = dist.sample(rng);  // volatile prevents optimization
+            [[maybe_unused]] volatile auto sample = dist.sample(rng);  // volatile prevents optimization
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);

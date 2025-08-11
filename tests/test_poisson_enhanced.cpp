@@ -248,7 +248,7 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
         start = std::chrono::high_resolution_clock::now();
-        stdPoisson.getProbabilityBatch(test_values.data(), simd_results.data(), batch_size);
+        stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(simd_results), libstats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
@@ -258,7 +258,7 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
         std::span<double> output_span(parallel_results);
         
         start = std::chrono::high_resolution_clock::now();
-        stdPoisson.getProbabilityBatchParallel(input_span, output_span);
+        stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::PARALLEL_SIMD);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
@@ -267,7 +267,7 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
         std::span<double> ws_output_span(work_stealing_results);
         
         start = std::chrono::high_resolution_clock::now();
-        stdPoisson.getProbabilityBatchWorkStealing(input_span, ws_output_span, work_stealing_pool);
+        stdPoisson.getProbabilityWithStrategy(input_span, ws_output_span, libstats::performance::Strategy::WORK_STEALING);
         end = std::chrono::high_resolution_clock::now();
         auto work_stealing_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
@@ -439,7 +439,7 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
         if constexpr (requires { poisson_dist.getProbability(std::span<const double>(test_values), std::span<double>(auto_pmf_results)); }) {
             poisson_dist.getProbability(std::span<const double>(test_values), std::span<double>(auto_pmf_results));
         } else {
-            poisson_dist.getProbabilityBatch(test_values.data(), auto_pmf_results.data(), batch_size);
+            poisson_dist.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(auto_pmf_results), libstats::performance::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_pmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -448,7 +448,7 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
         if constexpr (requires { poisson_dist.getLogProbability(std::span<const double>(test_values), std::span<double>(auto_logpmf_results)); }) {
             poisson_dist.getLogProbability(std::span<const double>(test_values), std::span<double>(auto_logpmf_results));
         } else {
-            poisson_dist.getLogProbabilityBatch(test_values.data(), auto_logpmf_results.data(), batch_size);
+            poisson_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(auto_logpmf_results), libstats::performance::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_logpmf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -457,7 +457,7 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
         if constexpr (requires { poisson_dist.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(auto_cdf_results)); }) {
             poisson_dist.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(auto_cdf_results));
         } else {
-            poisson_dist.getCumulativeProbabilityBatch(test_values.data(), auto_cdf_results.data(), batch_size);
+            poisson_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(auto_cdf_results), libstats::performance::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_cdf_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -467,9 +467,9 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
         std::vector<double> trad_logpmf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
         
-        poisson_dist.getProbabilityBatch(test_values.data(), trad_pmf_results.data(), batch_size);
-        poisson_dist.getLogProbabilityBatch(test_values.data(), trad_logpmf_results.data(), batch_size);
-        poisson_dist.getCumulativeProbabilityBatch(test_values.data(), trad_cdf_results.data(), batch_size);
+        poisson_dist.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(trad_pmf_results), libstats::performance::Strategy::SCALAR);
+        poisson_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(trad_logpmf_results), libstats::performance::Strategy::SCALAR);
+        poisson_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(trad_cdf_results), libstats::performance::Strategy::SCALAR);
         
         // Verify correctness
         bool pmf_correct = true, logpmf_correct = true, cdf_correct = true;
@@ -537,11 +537,11 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. SIMD Batch (baseline)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PMF") {
-            stdPoisson.getProbabilityBatch(test_values.data(), pdf_results.data(), BENCHMARK_SIZE);
+            stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
         } else if (op == "LogPMF") {
-            stdPoisson.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), BENCHMARK_SIZE);
+            stdPoisson.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
         } else if (op == "CDF") {
-            stdPoisson.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+            stdPoisson.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -552,28 +552,28 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { stdPoisson.getProbabilityBatchParallel(input_span, output_span); }) {
-                stdPoisson.getProbabilityBatchParallel(input_span, output_span);
+            if constexpr (requires { stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::PARALLEL_SIMD); }) {
+                stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::PARALLEL_SIMD);
             } else {
-                stdPoisson.getProbabilityBatch(test_values.data(), pdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPMF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { stdPoisson.getLogProbabilityBatchParallel(input_span, log_output_span); }) {
-                stdPoisson.getLogProbabilityBatchParallel(input_span, log_output_span);
+            if constexpr (requires { stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::PARALLEL_SIMD); }) {
+                stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
             } else {
-                stdPoisson.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { stdPoisson.getCumulativeProbabilityBatchParallel(input_span, cdf_output_span); }) {
-                stdPoisson.getCumulativeProbabilityBatchParallel(input_span, cdf_output_span);
+            if constexpr (requires { stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD); }) {
+                stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
             } else {
-                stdPoisson.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -583,28 +583,28 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { stdPoisson.getProbabilityBatchWorkStealing(input_span, output_span, work_stealing_pool); }) {
-                stdPoisson.getProbabilityBatchWorkStealing(input_span, output_span, work_stealing_pool);
+            if constexpr (requires { stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::WORK_STEALING); }) {
+                stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::WORK_STEALING);
             } else {
-                stdPoisson.getProbabilityBatch(test_values.data(), pdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPMF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { stdPoisson.getLogProbabilityBatchWorkStealing(input_span, log_output_span, work_stealing_pool); }) {
-                stdPoisson.getLogProbabilityBatchWorkStealing(input_span, log_output_span, work_stealing_pool);
+            if constexpr (requires { stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::WORK_STEALING); }) {
+                stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::WORK_STEALING);
             } else {
-                stdPoisson.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { stdPoisson.getCumulativeProbabilityBatchWorkStealing(input_span, cdf_output_span, work_stealing_pool); }) {
-                stdPoisson.getCumulativeProbabilityBatchWorkStealing(input_span, cdf_output_span, work_stealing_pool);
+            if constexpr (requires { stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::WORK_STEALING); }) {
+                stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::WORK_STEALING);
             } else {
-                stdPoisson.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -614,28 +614,28 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getProbabilityBatchCacheAware(input_span, output_span, std::declval<cache::AdaptiveCache<std::string, double>&>()); }) {
-                stdPoisson.getProbabilityBatchCacheAware(input_span, output_span, cache_manager);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
+                stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::CACHE_AWARE);
             } else {
-                stdPoisson.getProbabilityBatch(test_values.data(), pdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPMF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getLogProbabilityBatchCacheAware(input_span, log_output_span, std::declval<cache::AdaptiveCache<std::string, double>&>()); }) {
-                stdPoisson.getLogProbabilityBatchCacheAware(input_span, log_output_span, cache_manager);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
+                stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::CACHE_AWARE);
             } else {
-                stdPoisson.getLogProbabilityBatch(test_values.data(), log_pdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getCumulativeProbabilityBatchCacheAware(input_span, cdf_output_span, std::declval<cache::AdaptiveCache<std::string, double>&>()); }) {
-                stdPoisson.getCumulativeProbabilityBatchCacheAware(input_span, cdf_output_span, cache_manager);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
+                stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::CACHE_AWARE);
             } else {
-                stdPoisson.getCumulativeProbabilityBatch(test_values.data(), cdf_results.data(), BENCHMARK_SIZE);
+                stdPoisson.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }

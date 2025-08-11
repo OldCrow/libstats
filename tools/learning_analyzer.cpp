@@ -28,10 +28,10 @@ using namespace libstats::tools;
 
 // Consolidated learning analysis constants
 namespace {
-    // Time conversion constants
-    constexpr long NANOSECONDS_TO_MICROSECONDS = 1000;
-    constexpr long NANOSECONDS_TO_MILLISECONDS = 1000000;
-    constexpr long NANOSECONDS_TO_SECONDS = 1000000000;
+    // Time conversion constants - reserved for future use
+    [[maybe_unused]] constexpr long NANOSECONDS_TO_MICROSECONDS = 1000;
+    [[maybe_unused]] constexpr long NANOSECONDS_TO_MILLISECONDS = 1000000;
+    [[maybe_unused]] constexpr long NANOSECONDS_TO_SECONDS = 1000000000;
     
     // Test data generation
     constexpr double TEST_VALUE_MIN = 0.1;
@@ -44,11 +44,11 @@ namespace {
     constexpr double SIMD_PERFORMANCE_FACTOR = 3.0;
     constexpr double PARALLEL_PERFORMANCE_FACTOR = 2.0;
     
-    // Strategy overhead constants  
-    constexpr uint64_t SIMD_SMALL_OVERHEAD = 500;     
-    constexpr uint64_t PARALLEL_SMALL_OVERHEAD = 5000; 
+    // Strategy overhead constants - reserved for future simulation modes  
+    [[maybe_unused]] constexpr uint64_t SIMD_SMALL_OVERHEAD = 500;     
+    [[maybe_unused]] constexpr uint64_t PARALLEL_SMALL_OVERHEAD = 5000; 
     constexpr size_t SIMD_OVERHEAD_THRESHOLD = 10000;
-    constexpr size_t PARALLEL_OVERHEAD_THRESHOLD = 1000;
+    [[maybe_unused]] constexpr size_t PARALLEL_OVERHEAD_THRESHOLD = 1000;
     
     // Learning simulation parameters
     constexpr int SAMPLES_PER_STRATEGY = 6;
@@ -79,9 +79,9 @@ namespace {
         constexpr double GAMMA_BETA = 1.0;
     }
     
-    // Output formatting
-    constexpr int CONFIDENCE_PRECISION = 3;
-    constexpr int TIME_PRECISION = 0;
+    // Output formatting - reserved for future formatting improvements
+    [[maybe_unused]] constexpr int CONFIDENCE_PRECISION = 3;
+    [[maybe_unused]] constexpr int TIME_PRECISION = 0;
 }
 
 class LearningAnalyzer {
