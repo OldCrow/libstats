@@ -1,23 +1,13 @@
 #pragma once
 
-#include "../core/distribution_base.h"
-#include "../core/constants.h"
-#include "../platform/simd.h" // Ensure SIMD operations are available
-#include "../platform/simd_policy.h" // For centralized SIMD policy decisions
-#include "../core/error_handling.h" // Safe error handling without exceptions
-#include "../core/performance_dispatcher.h" // For smart auto-dispatch
-#include "../platform/parallel_execution.h" // Level 0-3 parallel execution support
-#include "../platform/thread_pool.h" // Level 0-3 ParallelUtils integration
-#include "../platform/work_stealing_pool.h" // Level 0-3 WorkStealingPool for heavy computations
-#include "../platform/adaptive_cache.h" // Level 0-3 adaptive cache management
-#include <mutex>       // For thread-safe cache updates
-#include <shared_mutex> // For shared_mutex and shared_lock
-#include <atomic>      // For atomic cache validation
-#include <span>        // C++20 span for modern array interfaces
-#include <ranges>      // C++20 ranges for modern iteration
+// Common distribution includes (consolidates std library and core headers)
+#include "../core/distribution_common.h"
+
+// Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive caching, etc.)
+#include "distribution_platform_common.h"
+
+// Additional standard headers specific to Gaussian (C++20 showcase)
 #include <algorithm>   // C++20 ranges algorithms
-#include <concepts>    // C++20 concepts for type safety
-#include <version>     // C++20 feature detection
 
 namespace libstats {
 

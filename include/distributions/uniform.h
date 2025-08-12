@@ -1,17 +1,10 @@
 #pragma once
 
-#include "../core/distribution_base.h"
-#include "../core/constants.h"
-#include "../core/error_handling.h" // Safe error handling without exceptions
-#include "../core/performance_dispatcher.h" // For smart auto-dispatch
-#include "../platform/parallel_execution.h" // For parallel batch operations
-#include "../platform/thread_pool.h"        // For thread pool integration
-#include "../platform/work_stealing_pool.h" // For work-stealing parallel execution
-#include "../platform/adaptive_cache.h"     // For cache-aware batch operations
-#include <mutex>       // For thread-safe cache updates
-#include <shared_mutex> // For shared_mutex and shared_lock
-#include <atomic>      // For atomic cache validation
-#include <span>        // For C++20 type-safe array access
+// Common distribution includes (consolidates std library and core headers)
+#include "../core/distribution_common.h"
+
+// Common platform headers for distributions (consolidates shared platform dependencies)
+#include "distribution_platform_common.h"
 
 namespace libstats {
 

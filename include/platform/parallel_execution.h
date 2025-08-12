@@ -10,17 +10,15 @@
  * 
  */
 
-#include <cstddef>
-#include <algorithm>
-#include <numeric>
-#include <iterator>
-#include <vector>
+// Platform-specific includes and utilities
+#include "platform_common.h"
 
-// Level 0-2 Infrastructure Integration
-#include "../core/constants.h"
-#include "cpu_detection.h"
-#include "../core/error_handling.h"
-#include "../core/safety.h"
+// Additional includes specific to parallel execution
+#include <algorithm>
+#include <iterator>
+#include <numeric>
+
+// Platform-specific headers for parallel execution
 #include "parallel_thresholds.h"
 
 // PARALLEL EXECUTION POLICY DETECTION

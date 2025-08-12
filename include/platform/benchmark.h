@@ -1,18 +1,8 @@
 #pragma once
 
-#include <chrono>
-#include <vector>
-#include <string>
-#include <functional>
-#include <memory>
-#include <map>
+#include "platform_common.h"
 #include <iostream>
-
-// Level 0 infrastructure
-#include "../core/constants.h"
-#include "cpu_detection.h"
-#include "../core/error_handling.h"
-#include "../core/safety.h"
+#include <map>
 
 // Level 1 infrastructure
 #include "../core/math_utils.h"

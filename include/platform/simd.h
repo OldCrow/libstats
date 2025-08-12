@@ -1,32 +1,11 @@
 #pragma once
 
-#include <cstddef>
-#include <memory>
-#include <type_traits>
-#include <limits>
-#include <new>
-#include <cassert>
-#include <cstring>
-#include "simd_policy.h"
+// Common platform includes and utilities
+#include "platform_common.h"
 
-// Platform-specific includes for aligned allocation
-#if defined(_WIN32)
-    #include <malloc.h>
-    #include <windows.h>  // For GetSystemInfo
-#elif defined(__APPLE__)
-    #include <cstdlib>
-    #include <cerrno>
-    #include <sys/sysctl.h>
-    #include <mach/mach.h>
-#elif defined(__linux__)
-    #include <cstdlib>
-    #include <cerrno>
-    #include <unistd.h>
-    #include <sys/sysinfo.h>
-#else
-    #include <cstdlib>
-    #include <cerrno>
-#endif
+// Additional includes specific to SIMD operations
+#include <new>
+#include "simd_policy.h"
 
 /**
  * @file simd.h

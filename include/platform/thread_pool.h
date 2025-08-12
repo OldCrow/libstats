@@ -1,26 +1,15 @@
 #pragma once
 
-#include <thread>
-#include <vector>
+#include "platform_common.h"
 #include <queue>
-#include <mutex>
-#include <condition_variable>
 #include <future>
-#include <functional>
-#include <atomic>
-#include <memory>
-#include <type_traits>
 #include <span>
-#include <chrono>
 #include <optional>
 
-// Level 0-2 Infrastructure Integration
-#include "../core/constants.h"
-#include "platform_constants.h"
-#include "cpu_detection.h"
-#include "../core/error_handling.h"
-#include "../core/safety.h"
+// Platform headers needed for template implementations
 #include "simd.h"
+
+// Level 1 infrastructure
 #include "../core/math_utils.h"
 
 namespace libstats {

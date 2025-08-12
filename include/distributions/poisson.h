@@ -1,17 +1,12 @@
 #pragma once
 
-#include "../core/distribution_base.h"
-#include "../core/constants.h"
-#include "../core/error_handling.h" // Safe error handling without exceptions
-#include "../core/performance_dispatcher.h" // For smart auto-dispatch
-#include "../platform/work_stealing_pool.h" // For parallel work-stealing operations
-#include "../platform/adaptive_cache.h" // For cache-aware operations
-#include <mutex>       // For thread-safe cache updates
-#include <shared_mutex> // For shared_mutex and shared_lock
-#include <atomic>      // For atomic cache validation
-#include <span>        // For std::span interface in parallel operations
-#include <tuple>       // For statistical test results
-#include <vector>      // For batch operations and data handling
+// Common distribution includes (consolidates std library and core headers)
+#include "../core/distribution_common.h"
+
+// Common platform headers for distributions (consolidates shared platform dependencies)
+#include "distribution_platform_common.h"
+
+// Additional standard headers specific to Poisson
 #include <array>	   // For precomputed factorials
 
 namespace libstats {
