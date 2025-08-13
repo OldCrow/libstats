@@ -579,7 +579,7 @@ Use this checklist to track overall progress:
 - [ ] Uniform header standardized
 - [ ] Poisson header standardized
 - [ ] Discrete header standardized
-- [ ] Gamma header standardized
+- [x] Gamma header standardized
 
 **Implementation Alignment Progress:**
 - [ ] Gaussian implementation aligned

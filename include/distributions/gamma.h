@@ -455,10 +455,6 @@ public:
     }
     
     
-    //==========================================================================
-    // PARAMETER SETTERS
-    //==========================================================================
-    
     /**
      * @brief Set the shape parameter α
      * 
@@ -870,7 +866,7 @@ public:
     
     
     //==========================================================================
-    // GAMMA-SPECIFIC UTILITY METHODS
+    // DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -927,7 +923,7 @@ public:
     
     
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS (C++20 Simplified API)
+    // SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
     
     /**
@@ -978,7 +974,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -1141,6 +1137,22 @@ private:
                                                  double alpha, double beta) const noexcept;
     
     //==========================================================================
+    // PRIVATE UTILITY METHODS
+    //==========================================================================
+    
+    /**
+     * Computes the digamma function ψ(x) = d/dx log(Γ(x))
+     * Uses series expansion and asymptotic approximation
+     */
+    static double computeDigamma(double x) noexcept;
+    
+    /**
+     * Computes the trigamma function ψ'(x) = d²/dx² log(Γ(x))
+     * Uses series expansion and asymptotic approximation
+     */
+    static double computeTrigamma(double x) noexcept;
+    
+    //==========================================================================
     // DISTRIBUTION PARAMETERS
     //==========================================================================
     
@@ -1262,17 +1274,12 @@ private:
         }
     }
     
-    /**
-     * Computes the digamma function ψ(x) = d/dx log(Γ(x))
-     * Uses series expansion and asymptotic approximation
-     */
-    static double computeDigamma(double x) noexcept;
+    //==========================================================================
+    // SPECIALIZED CACHES
+    //==========================================================================
     
-    /**
-     * Computes the trigamma function ψ'(x) = d²/dx² log(Γ(x))
-     * Uses series expansion and asymptotic approximation
-     */
-    static double computeTrigamma(double x) noexcept;
+    // Note: Gamma distribution uses standard caching only
+    // This section maintained for template compliance
 };
 
 } // namespace libstats
