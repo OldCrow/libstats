@@ -105,7 +105,8 @@
  * 
  * 2. RECOMMENDED USAGE PATTERN:
  * 
- *   #include "libstats.h"  // Includes adaptive_cache.h
+ *   #define LIBSTATS_FULL_INTERFACE  // Enable full functionality
+ *   #include "libstats.h"             // Includes adaptive_cache.h
  * 
  *   // Example: Create cache for expensive quantile computations
  *   libstats::cache::AdaptiveCacheConfig config;
@@ -125,29 +126,69 @@
  * - Complex special function computations (gamma, beta, etc.)
  * - Parameter estimation intermediate results
  * - Batch operation optimizations
+ *
+ * HEADER OPTIMIZATION GUIDE:
+ *
+ * This library uses conditional compilation to minimize header inclusion overhead:
+ *
+ * 1. DEFAULT MODE (forward declarations only):
+ *    - By default, libstats.h includes only forward declarations and essential constants
+ *    - Provides type information and compile-time features without implementation overhead
+ *    - Ideal for header files that only need type information
+ *    - Significantly reduces compilation time and preprocessor overhead
+ *
+ * 2. FULL INTERFACE MODE:
+ *    - Define LIBSTATS_FULL_INTERFACE before including libstats.h to get full functionality
+ *    - Includes all distribution implementations and platform optimizations
+ *    - Required for using distribution objects and calling member functions
+ *
+ * RECOMMENDED USAGE PATTERNS:
+ *
+ * Header files (.h):
+ *   #include "libstats.h"  // Just forward declarations, minimal overhead
+ *   
+ *   class MyClass {
+ *       libstats::Gaussian* gaussian_;  // Pointer/reference works with forward declaration
+ *   };
+ *
+ * Implementation files (.cpp):
+ *   #define LIBSTATS_FULL_INTERFACE  // Enable full functionality
+ *   #include "libstats.h"             // Get complete implementation
+ *   
+ *   void MyClass::compute() {
+ *       auto dist = libstats::Gaussian::create(0.0, 1.0);  // Full implementation available
+ *   }
  */
 
-// Core framework
-#include "core/distribution_base.h"
-#include "core/constants.h"
+// Forward declarations for lightweight header inclusion
+#include "core/forward_declarations.h"
 
-// Performance and SIMD support
+// Essential constants that don't pull in heavy dependencies
+#include "core/essential_constants.h"
+
+// Light platform detection (compile-time only, no runtime detection yet)
 #include "platform/simd.h"
-#include "platform/cpu_detection.h"
 
-// Parallel execution support
-#include "platform/parallel_execution.h"
-
-// Advanced caching infrastructure
-#include "platform/adaptive_cache.h"
-
-// Distributions
-#include "distributions/gaussian.h"
-#include "distributions/exponential.h"
-#include "distributions/uniform.h"
-#include "distributions/poisson.h"
-#include "distributions/gamma.h"
-#include "distributions/discrete.h"
+// Conditional includes for full functionality
+// These are only included when LIBSTATS_FULL_INTERFACE is defined
+#ifdef LIBSTATS_FULL_INTERFACE
+    // Core framework - full implementation
+    #include "core/distribution_base.h"
+    #include "core/constants.h"
+    
+    // Performance and platform detection
+    #include "platform/cpu_detection.h"
+    #include "platform/parallel_execution.h"
+    #include "platform/adaptive_cache.h"
+    
+    // Distribution implementations
+    #include "distributions/gaussian.h"
+    #include "distributions/exponential.h"
+    #include "distributions/uniform.h"
+    #include "distributions/poisson.h"
+    #include "distributions/gamma.h"
+    #include "distributions/discrete.h"
+#endif // LIBSTATS_FULL_INTERFACE
 
 // Convenience namespace
 namespace libstats {

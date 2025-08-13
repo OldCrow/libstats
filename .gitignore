@@ -331,3 +331,6 @@ lib/
 libs/
 /grain_size_optimization_results.csv
 /libstats.wsp
+
+# Header optimization analysis reports
+tools/*.json
