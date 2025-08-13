@@ -577,7 +577,7 @@ Use this checklist to track overall progress:
 - [x] Gaussian header standardized
 - [x] Exponential header standardized
 - [x] Uniform header standardized
-- [ ] Poisson header standardized
+- [x] Poisson header standardized
 - [x] Discrete header standardized
 - [x] Gamma header standardized
 

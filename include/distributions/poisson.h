@@ -795,7 +795,7 @@ public:
         int num_bootstrap_samples = 1000, unsigned int random_seed = 42);
     
     //==========================================================================
-    // POISSON-SPECIFIC UTILITY METHODS
+    // DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -1115,7 +1115,7 @@ private:
     mutable bool isTinyLambda_{false};
 
     //==========================================================================
-    // COMPUTATIONAL CACHE FOR SMALL LAMBDA
+    // SPECIALIZED CACHES (if needed)
     //==========================================================================
     
     /** @brief Pre-computed factorials for small integers (0! to 20!) */
