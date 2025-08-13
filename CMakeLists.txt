@@ -905,6 +905,7 @@ endif()
 set(LIBSTATS_FOUNDATION_SOURCES
     src/cpu_detection.cpp              # Runtime CPU feature detection
     src/simd_policy.cpp               # SIMD policy and feature detection
+    src/platform_constants_impl.cpp   # Platform constants PIMPL implementation (Phase 2)
 )
 
 # Level 2: Core Utilities (Depends on Level 0-1)

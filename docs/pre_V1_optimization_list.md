@@ -59,6 +59,41 @@ This document tracks all optimization, refactoring, and polish tasks that should
   - [ ] Ensure all statistical constants are in `constants::math::` or `constants::probability::`
 
 ### 📦 **Header Management**
+- [ ] **Convert remaining files to use Phase 2 PIMPL optimization headers**
+  - **Files using `platform/platform_constants.h` (should use `platform/platform_constants_fwd.h` instead):**
+    - [ ] `src/simd_fallback.cpp`
+    - [ ] `include/platform/platform_common.h` 
+    - [ ] `src/simd_avx2.cpp`
+    - [ ] `include/core/distribution_base.h`
+    - [ ] `src/adaptive_cache.cpp`
+    - [ ] `tests/test_constants.cpp` (test file - may need full header)
+    - [ ] `src/thread_pool.cpp`
+    - [ ] `src/simd_sse2.cpp`
+    - [ ] `src/simd_avx.cpp`
+    - [ ] `src/simd_avx512.cpp`
+    - [ ] `src/cpu_detection.cpp`
+    - [ ] `src/work_stealing_pool.cpp`
+    - [ ] `include/core/constants.h`
+    - [ ] `src/simd_neon.cpp`
+    - [ ] `src/simd_dispatch.cpp`
+  - **Files using `platform/parallel_execution.h` (should use `platform/parallel_execution_fwd.h` instead):**
+    - [ ] `tools/parallel_correctness_verification.cpp`
+    - [ ] `src/distribution_base.cpp`
+    - [ ] `src/exponential.cpp`
+    - [ ] `src/uniform.cpp`
+    - [ ] `src/discrete.cpp`
+    - [ ] `src/poisson.cpp`
+    - [ ] `src/gamma.cpp`
+    - [ ] `include/distributions/distribution_platform_common.h`
+    - [ ] `tests/test_parallel_compilation.cpp` (test file - may need full header)
+    - [ ] `include/libstats.h` (main header - may need full header)
+  - **Files that could benefit from STL consolidation headers:**
+    - [ ] Replace standalone `#include <vector>` with `#include "common/libstats_vector_common.h"` (47+ files)
+    - [ ] Replace standalone `#include <string>` with `#include "common/libstats_string_common.h"` (32+ files)
+    - [ ] Replace standalone `#include <algorithm>` with `#include "common/libstats_algorithm_common.h"` (18+ files)
+  - **Benefits:** Reduces compilation overhead by ~85% for platform constants, ~40% for parallel execution headers
+  - **Estimated Impact:** 15-25% reduction in incremental build times, significant compile-time template instantiation reduction
+
 - [ ] **Streamline header includes**
   - [ ] Remove unnecessary includes from headers
   - [ ] Forward declare when possible instead of including
@@ -132,6 +167,6 @@ This document tracks all optimization, refactoring, and polish tasks that should
 
 ---
 
-**Last Updated:** 2024-08-06
+**Last Updated:** 2025-08-13
 **Target Completion:** Before v1.0.0 release
 **Priority Order:** Critical performance issues → Architecture → Code quality → Build system → Documentation
