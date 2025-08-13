@@ -908,37 +908,8 @@ public:
     
 
     //==========================================================================
-    // SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
-    // 
-    // 🛡️  DEVELOPER SAFETY GUIDE FOR BATCH OPERATIONS 🛡️
-    // 
-    // These methods provide high-performance batch probability calculations with
-    // comprehensive safety guarantees. While they internally use optimized SIMD
-    // operations with raw pointers, all unsafe operations are encapsulated behind
-    // thoroughly validated public interfaces.
-    // 
-    // SAFETY FEATURES PROVIDED:
-    // ✅ Automatic input validation and bounds checking
-    // ✅ Thread-safe parameter caching with proper locking
-    // ✅ Runtime CPU feature detection for SIMD compatibility
-    // ✅ Graceful fallback to scalar operations when SIMD unavailable
-    // ✅ Memory alignment handled automatically
-    // 
-    // RECOMMENDED USAGE PATTERNS:
-    // 1. For basic users: Use these raw pointer interfaces with pre-allocated arrays
-    // 2. For C++20 users: Prefer the std::span interfaces below for type safety
-    // 3. For parallel processing: Use the ParallelUtils-integrated methods
-    // 4. For maximum safety: Use the cache-aware methods with additional validation
-    // 
-    // PERFORMANCE CHARACTERISTICS:
-    // - Small arrays (< ~64 elements): Uses scalar loops, no SIMD overhead
-    // - Large arrays (≥ ~64 elements): Uses SIMD vectorization (2-8x speedup)
-    // - Thread-safe caching minimizes parameter validation overhead
-    // - Zero-copy operation on properly sized input arrays
+    // SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
-
-
-    // THREAD POOL PARALLEL BATCH OPERATIONS
 
     /**
      * Advanced parallel batch probability calculation using ParallelUtils::parallelFor
@@ -1058,9 +1029,19 @@ public:
     void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
                                                 cache::AdaptiveCache<std::string, double>& cache_manager) const;
 
-    //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
-    //==========================================================================
+    /**
+     * @brief Smart auto-dispatch batch probability calculation with performance hints
+     * 
+     * Automatically selects the optimal execution strategy (SCALAR, SIMD, PARALLEL, etc.)
+     * based on batch size, system capabilities, and user hints. Provides a unified
+     * interface that adapts to different hardware and workload characteristics.
+     * 
+     * @param values Input values as C++20 span for type safety
+     * @param results Output results as C++20 span (must be same size as values)
+     * @param hint Performance optimization hints (default: AUTO selection)
+     * 
+     * @throws std::invalid_argument if spans have different sizes
+     */
 
     /**
      * @brief Smart auto-dispatch batch probability calculation
@@ -1104,7 +1085,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -1198,105 +1179,6 @@ public:
 
 private:
     //==========================================================================
-    // CORE DISTRIBUTION PARAMETERS
-    //==========================================================================
-
-    /** @brief Mean parameter μ - can be any finite real number */
-    double mean_{constants::math::ZERO_DOUBLE};
-
-    /** @brief Standard deviation parameter σ - must be positive */
-    double standardDeviation_{constants::math::ONE};
-
-    /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<double> atomicMean_{constants::math::ZERO_DOUBLE};
-    mutable std::atomic<double> atomicStandardDeviation_{constants::math::ONE};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PRIMARY CACHE VALUES (Core mathematical functions)
-    //==========================================================================
-
-    /** @brief Cached normalization constant 1/(σ√(2π)) for PDF calculations */
-    mutable double normalizationConstant_{constants::math::ZERO_DOUBLE};
-
-    /** @brief Cached value -1/(2σ²) for efficient exponent calculation */
-    mutable double negHalfSigmaSquaredInv_{constants::math::ZERO_DOUBLE};
-
-    /** @brief Cached log(σ) for log-probability calculations */
-    mutable double logStandardDeviation_{constants::math::ZERO_DOUBLE};
-
-    /** @brief Cached σ√2 for CDF calculations using error function */
-    mutable double sigmaSqrt2_{constants::math::ZERO_DOUBLE};
-
-    /** @brief Cached 1/σ for efficient reciprocal operations */
-    mutable double invStandardDeviation_{constants::math::ZERO_DOUBLE};
-
-    //==========================================================================
-    // SECONDARY CACHE VALUES (Performance optimizations)
-    //==========================================================================
-
-    /** @brief Cached σ² to avoid repeated multiplication */
-    mutable double cachedSigmaSquared_{constants::math::ONE};
-
-    /** @brief Cached 2σ² for CDF optimizations */
-    mutable double cachedTwoSigmaSquared_{constants::math::TWO};
-
-    /** @brief Cached log(2σ²) for log-space operations */
-    mutable double cachedLogTwoSigmaSquared_{constants::math::ZERO_DOUBLE};
-
-    /** @brief Cached 1/σ² for direct exponent calculation */
-    mutable double cachedInvSigmaSquared_{constants::math::ONE};
-
-    /** @brief Cached √(2π) constant for direct normalization */
-    mutable double cachedSqrtTwoPi_{constants::math::SQRT_2PI};
-
-    //==========================================================================
-    // OPTIMIZATION FLAGS (Fast path detection)
-    //==========================================================================
-
-    /** @brief True if this is standard normal (μ=0, σ=1) for ultra-fast path */
-    mutable bool isStandardNormal_{false};
-
-    /** @brief True if σ² = 1 for additional fast path optimizations */
-    mutable bool isUnitVariance_{true};
-
-    /** @brief True if μ = 0 for additional fast path optimizations */
-    mutable bool isZeroMean_{true};
-
-    /** @brief True if parameters require high precision arithmetic */
-    mutable bool isHighPrecision_{false};
-
-    /** @brief True if σ² < 0.0625 for numerical stability path */
-    mutable bool isLowVariance_{false};
-    
-    //==========================================================================
-    // THREAD SAFETY
-    //==========================================================================
-
-    // Note: Using base class cache_mutex_ instead of separate rw_mutex_
-
-    /** @brief Atomic cache validity flag for lock-free fast path */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
-    /**
-     * Updates cached values when parameters change - assumes mutex is already held
-     * Marked inline for performance optimization
-     */
-    inline void updateCacheUnsafe() const noexcept override;
-
-    /**
-     * Validates parameters for the Gaussian distribution
-     * @param mean Mean parameter (any finite value)
-     * @param stdDev Standard deviation parameter (must be positive and finite)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    static void validateParameters(double mean, double stdDev);
-
-    //==========================================================================
-    // PRIVATE CONSTRUCTORS
-    //==========================================================================
-
-    //==========================================================================
     // PRIVATE FACTORY METHODS
     //==========================================================================
 
@@ -1342,6 +1224,109 @@ private:
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                  double mean, double sigma_sqrt2, 
                                                  bool is_standard_normal) const noexcept;
+
+    //==========================================================================
+    // PRIVATE COMPUTATIONAL METHODS
+    //==========================================================================
+    
+    /**
+     * Updates cached values when parameters change - assumes mutex is already held
+     * Marked inline for performance optimization
+     */
+    inline void updateCacheUnsafe() const noexcept override;
+
+    /**
+     * Validates parameters for the Gaussian distribution
+     * @param mean Mean parameter (any finite value)
+     * @param stdDev Standard deviation parameter (must be positive and finite)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    static void validateParameters(double mean, double stdDev);
+
+    //==========================================================================
+    // PRIVATE UTILITY METHODS
+    //==========================================================================
+    
+    // Note: Currently no private utility methods needed for Gaussian distribution
+    // This section maintained for template compliance
+
+    //==========================================================================
+    // DISTRIBUTION PARAMETERS
+    //==========================================================================
+
+    /** @brief Mean parameter μ - can be any finite real number */
+    double mean_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Standard deviation parameter σ - must be positive */
+    double standardDeviation_{constants::math::ONE};
+
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<double> atomicMean_{constants::math::ZERO_DOUBLE};
+    mutable std::atomic<double> atomicStandardDeviation_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
+
+    //==========================================================================
+    // PERFORMANCE CACHE
+    //==========================================================================
+
+    /** @brief Cached normalization constant 1/(σ√(2π)) for PDF calculations */
+    mutable double normalizationConstant_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached value -1/(2σ²) for efficient exponent calculation */
+    mutable double negHalfSigmaSquaredInv_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached log(σ) for log-probability calculations */
+    mutable double logStandardDeviation_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached σ√2 for CDF calculations using error function */
+    mutable double sigmaSqrt2_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached 1/σ for efficient reciprocal operations */
+    mutable double invStandardDeviation_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached σ² to avoid repeated multiplication */
+    mutable double cachedSigmaSquared_{constants::math::ONE};
+
+    /** @brief Cached 2σ² for CDF optimizations */
+    mutable double cachedTwoSigmaSquared_{constants::math::TWO};
+
+    /** @brief Cached log(2σ²) for log-space operations */
+    mutable double cachedLogTwoSigmaSquared_{constants::math::ZERO_DOUBLE};
+
+    /** @brief Cached 1/σ² for direct exponent calculation */
+    mutable double cachedInvSigmaSquared_{constants::math::ONE};
+
+    /** @brief Cached √(2π) constant for direct normalization */
+    mutable double cachedSqrtTwoPi_{constants::math::SQRT_2PI};
+
+    //==========================================================================
+    // OPTIMIZATION FLAGS
+    //==========================================================================
+
+    /** @brief True if this is standard normal (μ=0, σ=1) for ultra-fast path */
+    mutable bool isStandardNormal_{false};
+
+    /** @brief True if σ² = 1 for additional fast path optimizations */
+    mutable bool isUnitVariance_{true};
+
+    /** @brief True if μ = 0 for additional fast path optimizations */
+    mutable bool isZeroMean_{true};
+
+    /** @brief True if parameters require high precision arithmetic */
+    mutable bool isHighPrecision_{false};
+
+    /** @brief True if σ² < 0.0625 for numerical stability path */
+    mutable bool isLowVariance_{false};
+    
+    /** @brief Atomic cache validity flag for lock-free fast path */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+
+    //==========================================================================
+    // SPECIALIZED CACHES
+    //==========================================================================
+    
+    // Note: Gaussian distribution uses standard caching only
+    // This section maintained for template compliance
 };
 
 } // namespace libstats
