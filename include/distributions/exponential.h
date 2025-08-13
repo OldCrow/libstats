@@ -642,7 +642,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // CROSS-VALIDATION AND MODEL SELECTION
+    // CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -716,7 +716,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // EXPONENTIAL-SPECIFIC UTILITY METHODS
+    // DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -795,7 +795,7 @@ public:
  
     
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS (C++20 Simplified API)
+    // SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
     
     /**
@@ -878,7 +878,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -1018,6 +1018,53 @@ private:
     // internally within the *UnsafeImpl methods above
     
     //==========================================================================
+    // PRIVATE COMPUTATIONAL METHODS
+    //==========================================================================
+    
+    /**
+     * Updates cached values when parameters change - assumes mutex is already held
+     */
+    void updateCacheUnsafe() const noexcept override {
+        // Primary calculations - compute once, reuse multiple times
+        invLambda_ = constants::math::ONE / lambda_;
+        invLambdaSquared_ = invLambda_ * invLambda_;
+        
+        // Core cached values
+        logLambda_ = std::log(lambda_);
+        negLambda_ = -lambda_;
+        
+        // Optimization flags
+        isUnitRate_ = (std::abs(lambda_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        isHighRate_ = (lambda_ > constants::math::THOUSAND);
+        isLowRate_ = (lambda_ < constants::math::THOUSANDTH);
+        
+        cache_valid_ = true;
+        cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicLambda_.store(lambda_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
+    }
+    
+    /**
+     * Validates parameters for the Exponential distribution
+     * @param lambda Rate parameter (must be positive and finite)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    static void validateParameters(double lambda) {
+        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= constants::math::ZERO_DOUBLE) {
+            throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
+        }
+    }
+    
+    //==========================================================================
+    // PRIVATE UTILITY METHODS
+    //==========================================================================
+    
+    // Note: Currently no private utility methods needed for Exponential distribution
+    // This section maintained for template compliance
+    
+    //==========================================================================
     // DISTRIBUTION PARAMETERS
     //==========================================================================
     
@@ -1059,42 +1106,13 @@ private:
     
     /** @brief True if λ is very small (< 0.001) for numerical stability */
     mutable bool isLowRate_{false};
-
-    /**
-     * Updates cached values when parameters change - assumes mutex is already held
-     */
-    void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        invLambda_ = constants::math::ONE / lambda_;
-        invLambdaSquared_ = invLambda_ * invLambda_;
-        
-        // Core cached values
-        logLambda_ = std::log(lambda_);
-        negLambda_ = -lambda_;
-        
-        // Optimization flags
-        isUnitRate_ = (std::abs(lambda_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        isHighRate_ = (lambda_ > constants::math::THOUSAND);
-        isLowRate_ = (lambda_ < constants::math::THOUSANDTH);
-        
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-        
-        // Update atomic parameters for lock-free access
-        atomicLambda_.store(lambda_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
     
-    /**
-     * Validates parameters for the Exponential distribution
-     * @param lambda Rate parameter (must be positive and finite)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    static void validateParameters(double lambda) {
-        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= constants::math::ZERO_DOUBLE) {
-            throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
-        }
-    }
+    //==========================================================================
+    // SPECIALIZED CACHES
+    //==========================================================================
+    
+    // Note: Exponential distribution uses standard caching only
+    // This section maintained for template compliance
 
     friend std::istream& operator>>(std::istream& is,
             libstats::ExponentialDistribution& distribution);
