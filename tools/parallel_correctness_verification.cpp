@@ -7,12 +7,12 @@
  * and tests determinism with libstats' actual parallel execution infrastructure.
  */
 
-#include <iostream>
-#include <vector>
+// Use consolidated tool utilities header which includes libstats.h
+#include "tool_utils.h"
+
+// Additional standard library includes for verification functionality
 #include <random>
-#include <chrono>
 #include <cmath>
-#include <algorithm>
 #include <iomanip>
 #include <map>
 #include <future>

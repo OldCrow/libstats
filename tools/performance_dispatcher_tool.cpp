@@ -9,14 +9,11 @@
  * - Real-time threshold optimization
  */
 
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <chrono>
-#include <random>
+// Use consolidated tool utilities header which includes libstats.h
+#include "tool_utils.h"
+
+// Additional standard library includes for performance analysis
 #include <map>
-#include <algorithm>
-#include <thread>
 #include <sstream>
 #include "../include/core/performance_dispatcher.h"
 #include "../include/core/performance_history.h"

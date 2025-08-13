@@ -1,14 +1,6 @@
 #include <gtest/gtest.h>
 #include "../include/distributions/exponential.h"
 #include "enhanced_test_template.h"
-#include <vector>
-#include <random>
-#include <numeric>
-#include <algorithm>
-#include <cmath>
-#include <chrono>
-#include <thread>
-#include <span>
 
 using namespace std;
 using namespace libstats;

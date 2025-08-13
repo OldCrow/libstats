@@ -137,9 +137,15 @@
 
 // Parallel execution support
 #include "platform/parallel_execution.h"
+#include "platform/work_stealing_pool.h"
 
 // Advanced caching infrastructure
 #include "platform/adaptive_cache.h"
+
+// Performance infrastructure
+#include "platform/benchmark.h"
+#include "core/performance_history.h"
+#include "core/performance_dispatcher.h"
 
 // Distributions
 #include "distributions/gaussian.h"
@@ -162,9 +168,9 @@ namespace libstats {
     
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;
-constexpr int LIBSTATS_VERSION_MINOR = 8;
-constexpr int LIBSTATS_VERSION_PATCH = 3;
-    constexpr const char* VERSION_STRING = "0.8.3";
+constexpr int LIBSTATS_VERSION_MINOR = 9;
+constexpr int LIBSTATS_VERSION_PATCH = 0;
+    constexpr const char* VERSION_STRING = "0.9.0";
     
     /**
      * @brief Initialize performance systems to eliminate cold-start delays

@@ -15,12 +15,6 @@
  */
 
 #include "libstats.h"
-#include "core/performance_history.h"
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
-#include <chrono>
 
 std::string strategyToString(libstats::performance::Strategy strategy) {
     switch (strategy) {

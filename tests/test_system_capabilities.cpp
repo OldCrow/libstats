@@ -1,7 +1,8 @@
-#include "core/performance_dispatcher.h"
-#include <gtest/gtest.h>
+// Use focused header for system capabilities testing
+#include "../include/core/performance_dispatcher.h"
 #include <thread>
 #include <chrono>
+#include <gtest/gtest.h>
 
 using namespace libstats::performance;
 

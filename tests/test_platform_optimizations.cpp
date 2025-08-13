@@ -1,7 +1,8 @@
+// Use focused header for platform optimization testing
 #include "../include/platform/simd.h"
 #include <iostream>
-#include <vector>
 #include <cassert>
+#include <vector>
 
 int main() {
     using namespace libstats::simd;

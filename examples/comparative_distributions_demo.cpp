@@ -14,14 +14,6 @@
  */
 
 #include "libstats.h"
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <random>
-#include <map>
-#include <algorithm>
-#include <numeric>
-#include <chrono>
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(70, '=') << std::endl;

@@ -22,13 +22,6 @@
  */
 
 #include "libstats.h"
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
-#include <numeric>
-#include <algorithm>
-#include <map>
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(60, '=') << std::endl;

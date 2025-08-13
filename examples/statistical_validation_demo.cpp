@@ -11,10 +11,6 @@
  */
 
 #include "libstats.h"
-#include <iostream>
-#include <vector>
-#include <tuple>
-#include <random>
 
 int main() {
     try {

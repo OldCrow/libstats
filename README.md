@@ -1,12 +1,14 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
-[![CMake](https://img.shields.io/badge/CMake-3.15%2B-blue.svg)](https://cmake.org/)
+[![CMake](https://img.shields.io/badge/CMake-3.20%2B-blue.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#safety-features)
 [![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#performance-features)
 
 A modern, high-performance C++20 statistical distributions library providing comprehensive statistical functionality with enterprise-grade safety features and zero external dependencies.
+
+**📖 Complete Documentation:** For detailed information about building, architecture, parallel processing, and platform support, see the [comprehensive guides](#documentation) below.
 
 ## Features
 
@@ -53,128 +55,101 @@ A modern, high-performance C++20 statistical distributions library providing com
 - **C++20 Parallel Algorithms**: Safe wrappers for `std::execution` policies
 - **Cache Optimization**: Thread-safe caching with lock-free fast paths
 
-> **📖 SIMD Support**: For detailed information about cross-platform SIMD detection, architecture-specific behavior (x86_64 vs ARM64), and build configuration options, see [SIMD Build System Documentation](docs/simd_build_system.md).
+**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/NEON instruction sets with runtime safety verification.
 
 ## Quick Start
 
-### Installation
+### Quick Build
 
 ```bash
 git clone https://github.com/yourusername/libstats.git
 cd libstats
 mkdir build && cd build
-cmake ..
-make -j$(nproc)
+cmake ..                    # Auto-detects optimal configuration
+make -j$(nproc)            # Parallel build with auto-detected core count
+ctest --output-on-failure  # Run tests
 ```
+
+**📖 For complete build information**, including cross-platform support, SIMD optimization, and advanced configuration options, see [docs/BUILD_SYSTEM_GUIDE.md](docs/BUILD_SYSTEM_GUIDE.md).
 
 ### Basic Usage
 
 ```cpp
 #include "libstats.h"
 #include <iostream>
-#include <random>
+#include <vector>
 
 int main() {
-    // Create distributions
-    libstats::Gaussian normal(0.0, 1.0);
-    libstats::Exponential exponential(2.0);
+    // Initialize performance systems (recommended)
+    libstats::initialize_performance_systems();
     
-    // Statistical properties
-    std::cout << "Normal mean: " << normal.getMean() << std::endl;
-    std::cout << "Normal variance: " << normal.getVariance() << std::endl;
-    
-    // PDF evaluation
-    std::cout << "P(X=1.0) for N(0,1): " << normal.getProbability(1.0) << std::endl;
-    
-    // CDF evaluation
-    std::cout << "P(X<=1.0) for N(0,1): " << normal.getCumulativeProbability(1.0) << std::endl;
-    
-    // Quantiles
-    std::cout << "95th percentile: " << normal.getQuantile(0.95) << std::endl;
-    
-    // Random sampling
-    std::mt19937 rng(42);
-    auto samples = normal.sample(rng, 1000);
-    
-    // Parameter fitting
-    libstats::Gaussian fitted;
-    fitted.fit(samples);
-    std::cout << "Fitted mean: " << fitted.getMean() << std::endl;
-    
+    // Create distributions with safe factory methods
+    auto gaussian_result = libstats::GaussianDistribution::create(0.0, 1.0);
+    if (gaussian_result.isOk()) {
+        auto& gaussian = gaussian_result.value;
+        
+        // Single-value operations
+        std::cout << "PDF at 1.0: " << gaussian.getProbability(1.0) << std::endl;
+        std::cout << "CDF at 1.0: " << gaussian.getCumulativeProbability(1.0) << std::endl;
+        
+        // High-performance batch operations (auto-optimized)
+        std::vector<double> values(10000);
+        std::vector<double> results(10000);
+        std::iota(values.begin(), values.end(), -5.0);
+        
+        gaussian.getProbability(std::span<const double>(values), 
+                               std::span<double>(results));
+        
+        std::cout << "Processed " << values.size() << " values with auto-optimization" << std::endl;
+    }
     return 0;
 }
 ```
+
+**📖 For comprehensive parallel processing and batch operation guides**, see [docs/PARALLEL_BATCH_PROCESSING_GUIDE.md](docs/PARALLEL_BATCH_PROCESSING_GUIDE.md).
 
 ## Project Structure
 
 ```
 libstats/
-├── include/           # Header files
-│   ├── libstats.h    # Main umbrella header
-│   ├── core/         # Core platform-independent library components
-│   │   ├── distribution_base.h    # Enhanced base class
-│   │   ├── constants.h            # Mathematical constants and tolerances
-│   │   ├── math_utils.h           # Mathematical utilities with C++20 concepts
-│   │   ├── safety.h               # Memory safety and numerical stability
-│   │   ├── error_handling.h       # Exception-safe error handling
-│   │   ├── log_space_ops.h        # Log-space mathematical operations
-│   │   ├── statistical_utilities.h # Statistical helper functions
-│   │   └── validation.h           # Statistical tests and validation
-│   ├── distributions/ # Statistical distributions
-│   │   ├── gaussian.h    # Gaussian (Normal) distribution
-│   │   ├── exponential.h # Exponential distribution
-│   │   ├── uniform.h     # Uniform distribution
-│   │   ├── poisson.h     # Poisson distribution
-│   │   ├── discrete.h    # Custom discrete distributions
-│   │   └── gamma.h       # Gamma distribution
-│   ├── platform/      # Platform-specific optimizations
-│   │   ├── simd.h                 # SIMD optimizations
-│   │   ├── cpu_detection.h        # CPU feature detection
-│   │   ├── parallel_execution.h   # C++20 parallel execution policies
-│   │   ├── thread_pool.h          # Traditional thread pool
-│   │   ├── work_stealing_pool.h   # Work-stealing thread pool
-│   │   ├── adaptive_cache.h       # Cache-aware algorithms
-│   │   ├── benchmark.h            # Performance benchmarking utilities
-│   │   ├── parallel_thresholds.h  # Parallel threshold management
-│   │   └── platform_constants.h   # Platform-specific constants
-│   └── [compatibility headers]    # Root-level headers for backward compatibility
+├── include/           # Modular header architecture
+│   ├── libstats.h        # Complete library (single include)
+│   ├── core/             # Core mathematical and statistical components
+│   ├── distributions/    # Statistical distributions (Gaussian, Exponential, etc.)
+│   └── platform/         # SIMD, threading, and platform optimizations
 ├── src/              # Implementation files
-├── tests/            # Unit tests
-├── examples/         # Usage examples
-├── tools/            # Performance analysis and optimization tools
-│   ├── cpu_info.cpp           # CPU feature detection and system info
-│   ├── constants_inspector.cpp # Mathematical constants verification
-│   ├── performance_benchmark.cpp # Comprehensive performance testing
-│   ├── grain_size_optimizer.cpp # Parallel grain size optimization
-│   └── parallel_threshold_benchmark.cpp # Parallel threshold analysis
-├── benchmarks/       # Performance benchmarks
-└── docs/             # Documentation
+├── tests/            # Comprehensive unit and integration tests
+├── examples/         # Usage demonstrations
+├── tools/            # Performance analysis and optimization utilities
+├── docs/             # Complete documentation guides
+└── scripts/          # Build and development scripts
 ```
 
-## Design Philosophy
+**📖 For detailed header organization and dependency management**, see [docs/HEADER_ARCHITECTURE_GUIDE.md](docs/HEADER_ARCHITECTURE_GUIDE.md).
 
-### Modern C++20 Standards
-- Complete Rule of Five implementation
-- Thread-safe concurrent access
-- Memory-safe resource management
-- Exception-safe operations
-- C++20 concepts for type safety
-- `std::span` for safe array access
-- `[[likely]]` and `[[unlikely]]` attributes for optimization
+## Key Features Summary
 
-### Performance Focus
-- Thread-safe cached statistical properties
-- SIMD-optimized bulk operations
-- Efficient random number generation
-- Minimal memory allocations
-- Work-stealing thread pools for better load balancing
-- C++20 parallel algorithms with automatic fallback
-- Lock-free fast paths for hot operations
+### 🎯 **Statistical Completeness**
+- PDF, CDF, quantiles, parameter estimation, and validation
+- 6 distributions: Gaussian, Exponential, Uniform, Poisson, Discrete, Gamma
+- Beyond `std::` distributions with full statistical interfaces
 
-### Statistical Completeness
-- **Beyond std::distributions**: While C++ std:: provides excellent random sampling, libstats adds the missing statistical functionality (PDF, CDF, quantiles, fitting, validation)
-- **Hybrid Approach**: Uses std:: distributions for sampling while implementing comprehensive statistical interfaces
-- **Validation Framework**: Built-in goodness-of-fit testing and model diagnostics
+### ⚡ **High Performance**
+- Automatic SIMD optimization (SSE2, AVX, AVX2, NEON)
+- Intelligent parallel processing with auto-dispatch
+- Thread-safe batch operations with work-stealing pools
+- Smart caching and adaptive algorithm selection
+
+### 🛡️ **Enterprise Safety**
+- Memory-safe operations with comprehensive bounds checking
+- Exception-safe error handling with safe factory methods
+- Thread-safe concurrent access with reader-writer locks
+- Numerical stability with log-space arithmetic
+
+### 🔧 **Modern C++20 Design**
+- Zero external dependencies (standard library only)
+- C++20 concepts, `std::span`, and execution policies
+- Cross-platform: Windows, macOS, Linux with automatic optimization
 
 ## Comparison with std:: Library
 
@@ -188,125 +163,80 @@ libstats/
 | **Statistical Tests** | ❌ Not available | ✅ Comprehensive validation |
 | **Thread Safety** | ⚠️ Limited | ✅ Full concurrent access |
 
-## Examples
+## Examples and Tools
 
-See the `examples/` directory for:
+### 📚 **Examples** (`examples/` directory)
+- `basic_usage.cpp` - Core functionality demonstration
+- `statistical_validation_demo.cpp` - Advanced validation and testing
+- `parallel_execution_demo.cpp` - High-performance batch processing
+- Performance benchmarks for each distribution type
 
-### Core Usage Examples
-- **basic_usage.cpp**: Introduction to core functionality with PDF/CDF evaluation, sampling, and parameter fitting
-- **statistical_validation_demo.cpp**: Advanced statistical validation including goodness-of-fit tests, cross-validation, bootstrap confidence intervals, and information criteria
-- **parallel_execution_demo.cpp**: Platform-aware parallel execution with adaptive grain sizing, thread optimization, and cache-aware algorithms
+### 🔧 **Analysis Tools** (`tools/` directory)
+- `system_inspector` - CPU capabilities and system information
+- `parallel_threshold_benchmark` - Optimal parallel threshold analysis
+- `performance_dispatcher_tool` - Algorithm performance comparison
+- `simd_verification` - SIMD correctness and performance testing
 
-### Performance Benchmarks
-- **gaussian_performance_benchmark.cpp**: Comprehensive performance testing for Gaussian distribution with SIMD optimizations
-- **exponential_performance_benchmark.cpp**: Performance benchmarks for exponential distribution demonstrating parallel and SIMD capabilities
 
-### Future Examples (Planned)
-- **parameter_fitting.cpp**: Advanced data fitting scenarios across multiple distributions
-- **cross_distribution_demo.cpp**: Comparative analysis across different distribution types
-- **simd_performance_showcase.cpp**: Cross-platform SIMD optimization demonstration
-
-## Performance Analysis Tools
-
-The `tools/` directory contains specialized utilities for performance analysis and optimization:
-
-### 🔧 **System Analysis Tools**
-- **cpu_info**: Comprehensive CPU feature detection and system information reporting
-- **constants_inspector**: Mathematical constants verification and precision analysis
-
-### ⚡ **Performance Optimization Tools**
-- **performance_benchmark**: Multi-threaded performance testing with SIMD optimization analysis
-- **grain_size_optimizer**: Automated parallel grain size optimization with efficiency analysis
-- **parallel_threshold_benchmark**: Parallel vs serial threshold determination
-
-```bash
-# Run system analysis
-./build/tools/cpu_info
-./build/tools/constants_inspector
-
-# Run performance optimization
-./build/tools/performance_benchmark
-./build/tools/grain_size_optimizer
-./build/tools/parallel_threshold_benchmark
-```
-
-These tools generate CSV reports and provide detailed analysis for optimizing libstats performance on your specific hardware configuration.
-
-## Building and Testing
-
-### Requirements
-- **C++20 compatible compiler**: GCC 10+, Clang 10+, MSVC 2019 16.11+, LLVM 20+ (recommended)
-- **CMake**: 3.15 or later
-- **GTest** (optional): For unit testing
-- **Intel TBB** (optional): For enhanced parallel algorithm support
-
-### Build System Overview
-
-libstats provides a comprehensive build system designed for cross-platform development and compiler testing. The system automatically detects your compiler and applies appropriate optimization flags.
-
-**📖 Complete Build Documentation**: See [docs/BUILD_TYPES.md](docs/BUILD_TYPES.md) for detailed build type reference and cross-compiler compatibility testing.
-
-#### Quick Build Types Reference
-
-| Build Type | Purpose | Usage | Optimization |
-|------------|---------|-------|-------------|
-| **Dev** | Daily development (default) | `cmake ..` | Light (-O1) + debug |
-| **Release** | Production builds | `cmake -DCMAKE_BUILD_TYPE=Release ..` | Maximum (-O2/-O3) |
-| **Debug** | Full debugging | `cmake -DCMAKE_BUILD_TYPE=Debug ..` | None (-O0) + checks |
-| **ClangStrict** | Clang error checking | `cmake -DCMAKE_BUILD_TYPE=ClangStrict ..` | Warnings as errors |
-| **GCCStrict** | GCC error checking | `cmake -DCMAKE_BUILD_TYPE=GCCStrict ..` | Warnings as errors |
-| **MSVCStrict** | MSVC error checking | `cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..` | Warnings as errors |
-
-### Basic Build Commands
-
-```bash
-# Quick start (uses Dev build type by default)
-mkdir build && cd build
-cmake ..              # Automatically selects Dev build
-make -j$(nproc)
-
-# Production build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc)
-
-# Full debugging
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make -j$(nproc)
-```
-
-### Cross-Compiler Testing
-
-```bash
-# Test with strict Clang warnings
-mkdir build_clang_strict && cd build_clang_strict
-cmake -DCMAKE_BUILD_TYPE=ClangStrict ..
-make -j$(nproc)
-
-# Test MSVC compatibility (even when using Clang)
-mkdir build_msvc_compat && cd build_msvc_compat  
-cmake -DCMAKE_BUILD_TYPE=MSVCWarn ..
-make -j$(nproc)
-
-# Test with GCC strict warnings
-cmake -DCMAKE_BUILD_TYPE=GCCStrict ..
-make -j$(nproc)
-```
-
-### Testing
+## Testing
 
 ```bash
 # Run all tests
-ctest --verbose
+ctest --output-on-failure
 
 # Run specific test categories
-ctest --verbose -R "test_gaussian"
-ctest --verbose -R "test_performance"
+ctest -R "test_gaussian"
+ctest -R "test_performance"
 
 # Run examples
 ./examples/basic_usage
-./examples/statistical_validation_demo
 ./examples/parallel_execution_demo
 ```
+
+### System Requirements
+- **C++20 compatible compiler**: GCC 10+, Clang 14+, MSVC 2019+
+- **CMake**: 3.20 or later
+- **Platform**: Windows, macOS, Linux (automatic detection and optimization)
+
+#### Common Build Configurations
+
+| Configuration | Command | Use Case |
+|---------------|---------|----------|
+| **Development** (default) | `cmake ..` | Daily development with light optimization |
+| **Release** | `cmake -DCMAKE_BUILD_TYPE=Release ..` | Production builds with maximum optimization |
+| **Debug** | `cmake -DCMAKE_BUILD_TYPE=Debug ..` | Full debugging support |
+
+## Documentation
+
+For complete information about libstats, refer to these comprehensive guides:
+
+### 📖 **[BUILD_SYSTEM_GUIDE.md](docs/BUILD_SYSTEM_GUIDE.md)**
+Complete build system documentation covering:
+- Cross-platform build instructions (Windows, macOS, Linux)
+- SIMD detection and optimization
+- Parallel build configuration  
+- Advanced CMake options
+- Troubleshooting and manual builds
+
+### 🏗️ **[HEADER_ARCHITECTURE_GUIDE.md](docs/HEADER_ARCHITECTURE_GUIDE.md)**
+Header organization and dependency management:
+- Modular header architecture
+- Consolidated vs individual includes
+- Development patterns for distributions, tools, and tests
+- Performance optimization through header design
+
+### ⚡ **[PARALLEL_BATCH_PROCESSING_GUIDE.md](docs/PARALLEL_BATCH_PROCESSING_GUIDE.md)**
+High-performance parallel and batch processing:
+- Auto-dispatch vs explicit strategy control
+- SIMD and parallel processing APIs
+- Performance optimization guidelines
+- Thread safety and memory management
+
+### 🪟 **[WINDOWS_SUPPORT_GUIDE.md](docs/WINDOWS_SUPPORT_GUIDE.md)**
+Windows development environment support:
+- Visual Studio and MSVC configuration
+- Windows-specific SIMD optimization
+- Build instructions for Windows platforms
 
 ## Roadmap
 

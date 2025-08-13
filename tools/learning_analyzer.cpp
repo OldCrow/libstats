@@ -7,16 +7,14 @@
  * demonstrating adaptive threshold learning.
  */
 
-#include "../include/libstats.h"
-#include "../include/core/performance_dispatcher.h"
-#include "../include/core/performance_history.h"
-#include "../include/core/constants.h"
+// Use consolidated tool utilities header which includes libstats.h
 #include "tool_utils.h"
-#include <iostream>
-#include <vector>
-#include <random>
-#include <chrono>
-#include <iomanip>
+
+// Additional includes for performance analysis functionality
+#include "../include/core/performance_history.h"
+
+// Additional standard library includes for tool-specific functionality
+#include <memory>
 #include <map>
 #include <sstream>
 #include <thread>

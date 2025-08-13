@@ -1,17 +1,14 @@
+// Use focused header for adaptive cache testing
+#include "../include/platform/adaptive_cache.h"
+// Implementation is already included via the header
 #include <iostream>
 #include <cassert>
-#include <vector>
-#include <string>
-#include <chrono>
 #include <thread>
+#include <chrono>
 #include <random>
+#include <vector>
 #include <iomanip>
 #include <sstream>
-
-#include "../include/platform/adaptive_cache.h"
-#include "../include/core/constants.h"
-#include "../include/platform/platform_constants.h"
-// Implementation is already included via the header
 
 using namespace libstats::cache;
 using namespace libstats::constants;
