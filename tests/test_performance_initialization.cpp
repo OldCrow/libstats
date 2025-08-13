@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#define LIBSTATS_FULL_INTERFACE
 #include "../include/libstats.h"
 #include <chrono>
 #include <vector>

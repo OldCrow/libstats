@@ -14,7 +14,12 @@
  * - Advanced statistical methods (confidence intervals, hypothesis tests, etc.)
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+#include <iostream>
+#include <random>
+#include <iomanip>
+#include <vector>
 
 using namespace libstats;
 

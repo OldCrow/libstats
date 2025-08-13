@@ -11,7 +11,11 @@
  * - Parameter estimation from data
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+#include <iostream>
+#include <random>
+#include <iomanip>
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;

@@ -16,7 +16,12 @@
  * - Memory management and resource safety
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+#include <iostream>
+#include <random>
+#include <iomanip>
+#include <vector>
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(70, '=') << std::endl;

@@ -14,7 +14,12 @@
  * - Cross-distribution performance comparison
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+#include <iostream>
+#include <random>
+#include <iomanip>
+#include <vector>
 
 std::string strategyToString(libstats::performance::Strategy strategy) {
     switch (strategy) {

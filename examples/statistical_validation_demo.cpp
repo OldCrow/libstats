@@ -10,7 +10,11 @@
  * - Performance testing with non-normal data using advanced tests
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+#include <iostream>
+#include <random>
+#include <vector>
 
 int main() {
     try {

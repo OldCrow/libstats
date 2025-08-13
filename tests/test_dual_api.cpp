@@ -1,5 +1,9 @@
 // Use comprehensive library header for testing multiple distributions
+#define LIBSTATS_FULL_INTERFACE
 #include "../include/libstats.h"
+#include <iostream>
+#include <cassert>
+#include <limits>
 
 using namespace libstats;
 
