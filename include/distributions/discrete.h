@@ -814,7 +814,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // CROSS-VALIDATION AND MODEL SELECTION
+    // CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -886,7 +886,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // DISCRETE-SPECIFIC UTILITY METHODS
+    // DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -961,7 +961,7 @@ public:
     void getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -1052,6 +1052,119 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const libstats::DiscreteDistribution& dist);
 
 private:
+    //==========================================================================
+    // PRIVATE FACTORY METHODS
+    //==========================================================================
+    
+    /**
+     * @brief Create a distribution without parameter validation (for internal use)
+     * @param a Lower bound parameter (assumed valid)
+     * @param b Upper bound parameter (assumed valid)
+     * @return DiscreteDistribution with the given parameters
+     */
+    static DiscreteDistribution createUnchecked(int a, int b) noexcept {
+        DiscreteDistribution dist(a, b, true); // bypass validation
+        return dist;
+    }
+    
+    /**
+     * @brief Private constructor that bypasses validation (for internal use)
+     * @param a Lower bound parameter (assumed valid)
+     * @param b Upper bound parameter (assumed valid)
+     * @param bypassValidation Internal flag to skip validation
+     */
+    DiscreteDistribution(int a, int b, bool /*bypassValidation*/) noexcept
+        : DistributionBase(), a_(a), b_(b) {
+        // Cache will be updated on first use
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+    }
+    
+    //==========================================================================
+    // PRIVATE BATCH IMPLEMENTATION METHODS
+    //==========================================================================
+    
+    /** @brief Internal implementation for batch PMF calculation */
+    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                       int a, int b, double probability) const noexcept;
+    
+    /** @brief Internal implementation for batch log PMF calculation */
+    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                          int a, int b, double log_probability) const noexcept;
+    
+    /** @brief Internal implementation for batch CDF calculation */
+    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                 int a, int b, double inv_range) const noexcept;
+    
+    //==========================================================================
+    // PRIVATE COMPUTATIONAL METHODS
+    //==========================================================================
+    
+    /**
+     * Updates cached values when parameters change - assumes mutex is already held
+     */
+    void updateCacheUnsafe() const noexcept override {
+        // Primary calculations - compute once, reuse multiple times
+        range_ = b_ - a_ + 1;
+        probability_ = 1.0 / static_cast<double>(range_);
+        mean_ = (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
+        
+        // Variance for discrete uniform: ((b-a)(b-a+2))/12
+        const double width = static_cast<double>(b_ - a_);
+        variance_ = (width * (width + 2.0)) / 12.0;
+        
+        logProbability_ = -std::log(static_cast<double>(range_));
+        
+        // Optimization flags
+        isBinary_ = (a_ == 0 && b_ == 1);
+        isStandardDie_ = (a_ == 1 && b_ == 6);
+        isSymmetric_ = (a_ == -b_);
+        isSmallRange_ = (range_ <= 10);
+        isLargeRange_ = (range_ > 1000);
+        
+        cache_valid_ = true;
+        cacheValidAtomic_.store(true, std::memory_order_release);
+        
+        // Update atomic parameters for lock-free access
+        atomicA_.store(a_, std::memory_order_release);
+        atomicB_.store(b_, std::memory_order_release);
+        atomicParamsValid_.store(true, std::memory_order_release);
+    }
+    
+    /**
+     * Validates parameters for the Discrete Uniform distribution
+     * @param a Lower bound parameter (integer)
+     * @param b Upper bound parameter (integer, must be >= a)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    static void validateParameters(int a, int b) {
+        if (a > b) {
+            throw std::invalid_argument("Upper bound (b) must be greater than or equal to lower bound (a)");
+        }
+        // Check for integer overflow in range calculation
+        if (b > INT_MAX - 1 || a < INT_MIN + 1) {
+            throw std::invalid_argument("Parameter range too large - risk of integer overflow");
+        }
+        // Additional safety check for very large ranges
+        const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
+        if (range_check > INT_MAX) {
+            throw std::invalid_argument("Parameter range exceeds maximum supported size");
+        }
+    }
+    
+    //==========================================================================
+    // PRIVATE UTILITY METHODS
+    //==========================================================================
+    
+    /** @brief Round double to nearest integer with proper handling of edge cases */
+    static int roundToInt(double x) noexcept {
+        return static_cast<int>(std::round(x));
+    }
+    
+    /** @brief Check if rounded value is within integer bounds */
+    static bool isValidIntegerValue(double x) noexcept {
+        return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
+    }
     
     //==========================================================================
     // DISTRIBUTION PARAMETERS
@@ -1108,116 +1221,13 @@ private:
     
     /** @brief True if the range is large (> 1000) for approximation algorithms */
     mutable bool isLargeRange_{false};
-
-    /**
-     * Updates cached values when parameters change - assumes mutex is already held
-     */
-    void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        range_ = b_ - a_ + 1;
-        probability_ = 1.0 / static_cast<double>(range_);
-        mean_ = (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
-        
-        // Variance for discrete uniform: ((b-a)(b-a+2))/12
-        const double width = static_cast<double>(b_ - a_);
-        variance_ = (width * (width + 2.0)) / 12.0;
-        
-        logProbability_ = -std::log(static_cast<double>(range_));
-        
-        // Optimization flags
-        isBinary_ = (a_ == 0 && b_ == 1);
-        isStandardDie_ = (a_ == 1 && b_ == 6);
-        isSymmetric_ = (a_ == -b_);
-        isSmallRange_ = (range_ <= 10);
-        isLargeRange_ = (range_ > 1000);
-        
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-        
-        // Update atomic parameters for lock-free access
-        atomicA_.store(a_, std::memory_order_release);
-        atomicB_.store(b_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
-    
-    /**
-     * Validates parameters for the Discrete Uniform distribution
-     * @param a Lower bound parameter (integer)
-     * @param b Upper bound parameter (integer, must be >= a)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    static void validateParameters(int a, int b) {
-        if (a > b) {
-            throw std::invalid_argument("Upper bound (b) must be greater than or equal to lower bound (a)");
-        }
-        // Check for integer overflow in range calculation
-        if (b > INT_MAX - 1 || a < INT_MIN + 1) {
-            throw std::invalid_argument("Parameter range too large - risk of integer overflow");
-        }
-        // Additional safety check for very large ranges
-        const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
-        if (range_check > INT_MAX) {
-            throw std::invalid_argument("Parameter range exceeds maximum supported size");
-        }
-    }
     
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // SPECIALIZED CACHES
     //==========================================================================
     
-    /**
-     * @brief Create a distribution without parameter validation (for internal use)
-     * @param a Lower bound parameter (assumed valid)
-     * @param b Upper bound parameter (assumed valid)
-     * @return DiscreteDistribution with the given parameters
-     */
-    static DiscreteDistribution createUnchecked(int a, int b) noexcept {
-        DiscreteDistribution dist(a, b, true); // bypass validation
-        return dist;
-    }
-    
-    /**
-     * @brief Private constructor that bypasses validation (for internal use)
-     * @param a Lower bound parameter (assumed valid)
-     * @param b Upper bound parameter (assumed valid)
-     * @param bypassValidation Internal flag to skip validation
-     */
-    DiscreteDistribution(int a, int b, bool /*bypassValidation*/) noexcept
-        : DistributionBase(), a_(a), b_(b) {
-        // Cache will be updated on first use
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-    }
-    
-    //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
-    //==========================================================================
-    
-    /** @brief Internal implementation for batch PMF calculation */
-    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                       int a, int b, double probability) const noexcept;
-    
-    /** @brief Internal implementation for batch log PMF calculation */
-    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                          int a, int b, double log_probability) const noexcept;
-    
-    /** @brief Internal implementation for batch CDF calculation */
-    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                 int a, int b, double inv_range) const noexcept;
-    
-    //==========================================================================
-    // PRIVATE UTILITY METHODS
-    //==========================================================================
-    
-    /** @brief Round double to nearest integer with proper handling of edge cases */
-    static int roundToInt(double x) noexcept {
-        return static_cast<int>(std::round(x));
-    }
-    
-    /** @brief Check if rounded value is within integer bounds */
-    static bool isValidIntegerValue(double x) noexcept {
-        return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
-    }
+    // Note: Discrete distribution uses standard caching only
+    // This section maintained for template compliance
 };
 
 } // namespace libstats
