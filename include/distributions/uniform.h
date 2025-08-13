@@ -814,7 +814,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // UNIFORM-SPECIFIC UTILITY METHODS
+    // DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -1003,7 +1003,7 @@ public:
     bool operator!=(const UniformDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
-    // FRIEND FUNCTIONS
+    // FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
     friend std::istream& operator>>(std::istream& is, libstats::UniformDistribution& distribution);
@@ -1053,6 +1053,22 @@ private:
     /** @brief Internal implementation for batch CDF calculation */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                                  double a, double b, double inv_width) const noexcept;
+    
+    //==========================================================================
+    // PRIVATE COMPUTATIONAL METHODS (if needed)
+    //==========================================================================
+    
+    // For Uniform distribution, all computational methods are simple enough
+    // to be handled inline or in the main probability calculation methods.
+    // Complex mathematical computation helpers would be placed here if needed.
+    
+    //==========================================================================
+    // PRIVATE UTILITY METHODS (if needed)
+    //==========================================================================
+    
+    // For Uniform distribution, internal helper methods are minimal.
+    // Additional data processing utilities, validation helpers, or
+    // formatting utilities would be placed here if needed in future versions.
     
     //==========================================================================
     // DISTRIBUTION PARAMETERS
@@ -1109,6 +1125,15 @@ private:
     
     /** @brief True if the interval width is very large for numerical stability */
     mutable bool isWideInterval_{false};
+    
+    //==========================================================================
+    // SPECIALIZED CACHES (if needed)
+    //==========================================================================
+    
+    // For Uniform distribution, the performance cache above handles all
+    // necessary caching. Specialized caching structures like lookup tables
+    // or distribution-specific computational caches would be placed here
+    // if needed for future optimizations.
 
     /**
      * Updates cached values when parameters change - assumes mutex is already held
