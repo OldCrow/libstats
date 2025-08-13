@@ -41,8 +41,8 @@ int main() {
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
     
     // Create Exponential distributions for testing
-    libstats::Exponential unitExponential(1.0);  // Unit exponential (λ = 1)
-    libstats::Exponential customExponential(2.5);  // Custom distribution (λ = 2.5)
+    auto unitExponential = libstats::ExponentialDistribution::create(1.0).value;  // Unit exponential (λ = 1)
+    auto customExponential = libstats::ExponentialDistribution::create(2.5).value;  // Custom distribution (λ = 2.5)
     
     // Benchmark setup
     libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
@@ -206,12 +206,12 @@ int main() {
     }
     
     bench.addTest("Parameter Fitting Small Dataset", [&]() {
-        libstats::Exponential temp_dist(1.0);
+        auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
         temp_dist.fit(fit_data_small);
     }, 0, static_cast<double>(fit_data_small.size()));
     
     bench.addTest("Parameter Fitting Large Dataset", [&]() {
-        libstats::Exponential temp_dist(1.0);
+        auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
         temp_dist.fit(fit_data_large);
     }, 0, static_cast<double>(fit_data_large.size()));
     

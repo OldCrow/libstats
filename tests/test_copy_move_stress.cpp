@@ -67,8 +67,8 @@ void stressTestGaussianCopyMove(int thread_id) {
     while (!stop_test.load()) {
         try {
             // Create distributions
-            GaussianDistribution gauss1(thread_id, 1.0);
-            GaussianDistribution gauss2(thread_id + 10, 2.0);
+            auto gauss1 = libstats::GaussianDistribution::create(thread_id, 1.0).value;
+            auto gauss2 = libstats::GaussianDistribution::create(thread_id + 10, 2.0).value;
             
             // Perform multiple copy assignments
             for (int i = 0; i < 10; ++i) {

@@ -16,23 +16,23 @@ int main() {
         cout << "copy (parameterized), move (temporary (10,3)) constructors, and the safe factory method that avoids exceptions." << endl;
         
         // Default constructor test
-        GaussianDistribution default_gauss;
+        auto default_gauss = libstats::GaussianDistribution::create().value;
         StandardizedBasicTest::printProperty("Default Mean", default_gauss.getMean());
         StandardizedBasicTest::printProperty("Default Std Dev", default_gauss.getStandardDeviation());
         
         // Parameterized constructor test
-        GaussianDistribution param_gauss(5.0, 2.0);
+        auto param_gauss = libstats::GaussianDistribution::create(5.0, 2.0).value;
         StandardizedBasicTest::printProperty("Param Mean", param_gauss.getMean());
         StandardizedBasicTest::printProperty("Param Std Dev", param_gauss.getStandardDeviation());
         
         // Copy constructor test
-        GaussianDistribution copy_gauss(param_gauss);
+        auto copy_gauss = param_gauss;
         StandardizedBasicTest::printProperty("Copy Mean", copy_gauss.getMean());
         StandardizedBasicTest::printProperty("Copy Std Dev", copy_gauss.getStandardDeviation());
         
         // Move constructor test
-        GaussianDistribution temp_gauss(10.0, 3.0);
-        GaussianDistribution move_gauss(std::move(temp_gauss));
+        auto temp_gauss = libstats::GaussianDistribution::create(10.0, 3.0).value;
+        auto move_gauss = std::move(temp_gauss);
         StandardizedBasicTest::printProperty("Move Mean", move_gauss.getMean());
         StandardizedBasicTest::printProperty("Move Std Dev", move_gauss.getStandardDeviation());
         
@@ -53,7 +53,7 @@ int main() {
         cout << "exception-based setters, and safe setters that return Result types instead of throwing." << endl;
         cout << "Using a Standard Normal (0.0, 1.0) distribution as the results are well known." << endl;
         
-        GaussianDistribution gauss_dist(0.0, 1.0);
+        auto gauss_dist = libstats::GaussianDistribution::create(0.0, 1.0).value;
         
         // Test getters
         StandardizedBasicTest::printProperty("Initial Mean", gauss_dist.getMean());
@@ -98,7 +98,7 @@ int main() {
         cout << "and Gaussian-specific utilities like z-scores, entropy, median/mode (all equal for Gaussian)." << endl;
         cout << "Expected: PDF(0)≈0.399, CDF(0)=0.5, CDF(1)≈0.841, quantile(0.5)=0 for Standard Normal (0, 1)." << endl;
         
-        GaussianDistribution std_normal(0.0, 1.0);
+        auto std_normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
         double x = 1.0;
         
         StandardizedBasicTest::printProperty("PDF(1.0)", std_normal.getProbability(x));
@@ -157,7 +157,7 @@ int main() {
         
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generateGaussianTestData();
-        GaussianDistribution fitted_dist;
+        auto fitted_dist = libstats::GaussianDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printProperty("Fitted Mean", fitted_dist.getMean());
         StandardizedBasicTest::printProperty("Fitted Std Dev", fitted_dist.getStandardDeviation());
@@ -180,7 +180,7 @@ int main() {
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large." << endl;
         cout << "Compares performance and verifies correctness against traditional batch methods." << endl;
         
-        GaussianDistribution test_dist(0.0, 1.0);
+        auto test_dist = libstats::GaussianDistribution::create(0.0, 1.0).value;
         
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {-2.5, -1.2, 0.3, 1.8, 2.1};
@@ -315,9 +315,9 @@ int main() {
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions." << endl;
         
-        GaussianDistribution dist1(0.0, 1.0);
-        GaussianDistribution dist2(0.0, 1.0);
-        GaussianDistribution dist3(1.0, 2.0);
+        auto dist1 = libstats::GaussianDistribution::create(0.0, 1.0).value;
+        auto dist2 = libstats::GaussianDistribution::create(0.0, 1.0).value;
+        auto dist3 = libstats::GaussianDistribution::create(1.0, 2.0).value;
         
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -330,7 +330,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         
         // Test stream input (using proper format from output)
-        GaussianDistribution input_dist;
+        auto input_dist = libstats::GaussianDistribution::create().value;
         ss.seekg(0); // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -345,6 +345,8 @@ int main() {
         
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
+        // NOTE: Using ::create() here (not libstats::Gaussian) to test exception-free error handling
+        // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = GaussianDistribution::create(0.0, -1.0);
         if (error_result.isError()) {
             StandardizedBasicTest::printTestSuccess("Error handling works: " + error_result.message);

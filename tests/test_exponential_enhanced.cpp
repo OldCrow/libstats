@@ -34,7 +34,10 @@ protected:
             if (val > 0) non_exponential_data_.push_back(val); // Keep only positive values
         }
         
-        test_distribution_ = ExponentialDistribution(test_lambda_);
+        auto result = libstats::ExponentialDistribution::create(test_lambda_);
+        if (result.isOk()) {
+            test_distribution_ = std::move(result.value);
+        };
     }
     
     const double test_lambda_ = 2.0;
@@ -49,7 +52,7 @@ protected:
 
 TEST_F(ExponentialEnhancedTest, BasicEnhancedFunctionality) {
     // Test unit exponential distribution properties
-    ExponentialDistribution unitExp(1.0);
+    auto unitExp = libstats::ExponentialDistribution::create(1.0).value;
     
     EXPECT_DOUBLE_EQ(unitExp.getLambda(), 1.0);
     EXPECT_DOUBLE_EQ(unitExp.getMean(), 1.0);
@@ -65,7 +68,7 @@ TEST_F(ExponentialEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_1, 1.0 - std::exp(-1.0), 1e-10);
     
     // Test custom distribution
-    ExponentialDistribution custom(2.0);
+    auto custom = libstats::ExponentialDistribution::create(2.0).value;
     EXPECT_DOUBLE_EQ(custom.getLambda(), 2.0);
     EXPECT_DOUBLE_EQ(custom.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(custom.getVariance(), 0.25);
@@ -214,7 +217,7 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
-    ExponentialDistribution stdExp(1.0);
+    auto stdExp = libstats::ExponentialDistribution::create(1.0).value;
     
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
     
@@ -360,7 +363,7 @@ TEST_F(ExponentialEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
     
-    ExponentialDistribution exp_dist(1.0);
+    auto exp_dist = libstats::ExponentialDistribution::create(1.0).value;
     
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -396,7 +399,7 @@ TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
     
     // Test cache invalidation - create a new distribution with different parameters
-    ExponentialDistribution new_dist(2.0);
+    auto new_dist = libstats::ExponentialDistribution::create(2.0).value;
     
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = new_dist.getMean();
@@ -415,7 +418,7 @@ TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
-    ExponentialDistribution exp_dist(1.0);
+    auto exp_dist = libstats::ExponentialDistribution::create(1.0).value;
     
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -509,7 +512,7 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    ExponentialDistribution unitExp(1.0);
+    auto unitExp = libstats::ExponentialDistribution::create(1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
     
     // Generate test data
@@ -673,7 +676,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, NumericalStabilityAndEdgeCases) {
-    ExponentialDistribution unitExp(1.0);
+    auto unitExp = libstats::ExponentialDistribution::create(1.0).value;
     
     EdgeCaseTester<ExponentialDistribution>::testExtremeValues(unitExp, "Exponential");
     EdgeCaseTester<ExponentialDistribution>::testEmptyBatchOperations(unitExp, "Exponential");

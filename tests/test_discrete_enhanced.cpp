@@ -32,7 +32,10 @@ protected:
             non_uniform_data_.push_back(static_cast<double>(i % 3 + 1)); // Pattern: 1,2,3,1,2,3...
         }
 
-        test_distribution_ = DiscreteDistribution(test_lower_, test_upper_);
+        auto result = libstats::DiscreteDistribution::create(test_lower_, test_upper_);
+        if (result.isOk()) {
+            test_distribution_ = std::move(result.value);
+        };
     }
 
     const int test_lower_ = 1;
@@ -48,7 +51,7 @@ protected:
 
 TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard six-sided die
-    DiscreteDistribution dice(1, 6);
+    auto dice = libstats::DiscreteDistribution::create(1, 6).value;
     
     EXPECT_EQ(dice.getLowerBound(), 1);
     EXPECT_EQ(dice.getUpperBound(), 6);
@@ -66,7 +69,7 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_3, 3.0/6.0, 1e-10);
     
     // Test binary distribution
-    DiscreteDistribution binary(0, 1);
+    auto binary = libstats::DiscreteDistribution::create(0, 1).value;
     EXPECT_DOUBLE_EQ(binary.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(binary.getVariance(), 0.25);  // (1-0)(1-0+2)/12 = 1*3/12 = 0.25
     EXPECT_NEAR(binary.getCumulativeProbability(0.5), 1.0, 1e-10);
@@ -224,7 +227,7 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
-    DiscreteDistribution stdDiscrete(1, 6);
+    auto stdDiscrete = libstats::DiscreteDistribution::create(1, 6).value;
     
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
     
@@ -357,7 +360,7 @@ TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
     
-    DiscreteDistribution discrete_dist(1, 6);
+    auto discrete_dist = libstats::DiscreteDistribution::create(1, 6).value;
     
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -398,7 +401,7 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     EXPECT_LT(second_time, 100000) << "Second access should complete in under 100μs";
     
     // Test cache invalidation - create a new distribution with different parameters
-    DiscreteDistribution new_dist(2, 8);
+    auto new_dist = libstats::DiscreteDistribution::create(2, 8).value;
     
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = new_dist.getMean();
@@ -417,7 +420,7 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
-    DiscreteDistribution discrete_dist(1, 6);
+    auto discrete_dist = libstats::DiscreteDistribution::create(1, 6).value;
     
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -511,7 +514,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    DiscreteDistribution dice(1, 6);
+    auto dice = libstats::DiscreteDistribution::create(1, 6).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
     
     // Generate test data
@@ -675,7 +678,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
-    DiscreteDistribution dice(1, 6);
+    auto dice = libstats::DiscreteDistribution::create(1, 6).value;
     
     EdgeCaseTester<DiscreteDistribution>::testExtremeValues(dice, "Discrete");
     EdgeCaseTester<DiscreteDistribution>::testEmptyBatchOperations(dice, "Discrete");

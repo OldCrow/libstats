@@ -16,23 +16,23 @@ int main() {
         cout << "copy (parameterized), move (temporary (-1,3)) constructors, and the safe factory method that avoids exceptions." << endl;
         
         // Default constructor test
-        UniformDistribution default_uniform;
+        auto default_uniform = libstats::UniformDistribution::create().value;
         StandardizedBasicTest::printProperty("Default Lower Bound", default_uniform.getLowerBound());
         StandardizedBasicTest::printProperty("Default Upper Bound", default_uniform.getUpperBound());
         
         // Parameterized constructor test
-        UniformDistribution param_uniform(2.0, 5.0);
+        auto param_uniform = libstats::UniformDistribution::create(2.0, 5.0).value;
         StandardizedBasicTest::printProperty("Param Lower Bound", param_uniform.getLowerBound());
         StandardizedBasicTest::printProperty("Param Upper Bound", param_uniform.getUpperBound());
         
         // Copy constructor test
-        UniformDistribution copy_uniform(param_uniform);
+        auto copy_uniform = param_uniform;
         StandardizedBasicTest::printProperty("Copy Lower Bound", copy_uniform.getLowerBound());
         StandardizedBasicTest::printProperty("Copy Upper Bound", copy_uniform.getUpperBound());
         
         // Move constructor test
-        UniformDistribution temp_uniform(-1.0, 3.0);
-        UniformDistribution move_uniform(std::move(temp_uniform));
+        auto temp_uniform = libstats::UniformDistribution::create(-1.0, 3.0).value;
+        auto move_uniform = std::move(temp_uniform);
         StandardizedBasicTest::printProperty("Move Lower Bound", move_uniform.getLowerBound());
         StandardizedBasicTest::printProperty("Move Upper Bound", move_uniform.getUpperBound());
         
@@ -53,7 +53,7 @@ int main() {
         cout << "exception-based setters, and safe setters that return Result types instead of throwing." << endl;
         cout << "Using a Uniform(0, 1) distribution as the results are well known (mean=0.5, variance=1/12)." << endl;
         
-        UniformDistribution uniform_dist(0.0, 1.0);
+        auto uniform_dist = libstats::UniformDistribution::create(0.0, 1.0).value;
         
         // Test getters
         StandardizedBasicTest::printProperty("Initial Lower Bound", uniform_dist.getLowerBound());
@@ -99,7 +99,7 @@ int main() {
         cout << "and Uniform-specific utilities like support bounds and constant probability density." << endl;
         cout << "Expected: For Uniform(0,1): PDF=1 inside [0,1], CDF(0.5)=0.5, quantile(0.5)=0.5." << endl;
         
-        UniformDistribution test_uniform(0.0, 1.0);
+        auto test_uniform = libstats::UniformDistribution::create(0.0, 1.0).value;
         double x = 0.5;
         
         StandardizedBasicTest::printProperty("PDF(0.5)", test_uniform.getProbability(x));
@@ -161,7 +161,7 @@ int main() {
         
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generateUniformTestData();
-        UniformDistribution fitted_dist;
+        auto fitted_dist = libstats::UniformDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printProperty("Fitted Lower Bound", fitted_dist.getLowerBound());
         StandardizedBasicTest::printProperty("Fitted Upper Bound", fitted_dist.getUpperBound());
@@ -184,7 +184,7 @@ int main() {
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large." << endl;
         cout << "Compares performance and verifies correctness against traditional batch methods." << endl;
         
-        UniformDistribution test_dist(0.0, 1.0);
+        auto test_dist = libstats::UniformDistribution::create(0.0, 1.0).value;
         
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {-0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5};
@@ -319,9 +319,9 @@ int main() {
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions." << endl;
         
-        UniformDistribution dist1(0.0, 1.0);
-        UniformDistribution dist2(0.0, 1.0);
-        UniformDistribution dist3(2.0, 5.0);
+        auto dist1 = libstats::UniformDistribution::create(0.0, 1.0).value;
+        auto dist2 = libstats::UniformDistribution::create(0.0, 1.0).value;
+        auto dist3 = libstats::UniformDistribution::create(2.0, 5.0).value;
         
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -334,7 +334,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         
         // Test stream input (using proper format from output)
-        UniformDistribution input_dist;
+        auto input_dist = libstats::UniformDistribution::create().value;
         ss.seekg(0); // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -349,6 +349,8 @@ int main() {
         
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
+        // NOTE: Using ::create() here (not libstats::Uniform) to test exception-free error handling
+        // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = UniformDistribution::create(5.0, 2.0);  // Invalid: upper < lower
         if (error_result.isError()) {
             StandardizedBasicTest::printTestSuccess("Error handling works: " + error_result.message);

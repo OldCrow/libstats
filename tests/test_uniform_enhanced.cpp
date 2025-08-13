@@ -41,7 +41,10 @@ protected:
             non_uniform_data_.push_back(normal_gen(rng));
         }
         
-        test_distribution_ = UniformDistribution(test_a_, test_b_);
+        auto result = libstats::UniformDistribution::create(test_a_, test_b_);
+        if (result.isOk()) {
+            test_distribution_ = std::move(result.value);
+        };
     }
     
     const double test_a_ = 2.0;
@@ -57,7 +60,7 @@ protected:
 
 TEST_F(UniformEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard uniform distribution properties
-    UniformDistribution stdUniform(0.0, 1.0);
+    auto stdUniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     EXPECT_DOUBLE_EQ(stdUniform.getLowerBound(), 0.0);
     EXPECT_DOUBLE_EQ(stdUniform.getUpperBound(), 1.0);
@@ -74,7 +77,7 @@ TEST_F(UniformEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(cdf_at_mid, 0.5);  // CDF at midpoint
     
     // Test custom distribution
-    UniformDistribution custom(-2.0, 4.0);
+    auto custom = libstats::UniformDistribution::create(-2.0, 4.0).value;
     EXPECT_DOUBLE_EQ(custom.getLowerBound(), -2.0);
     EXPECT_DOUBLE_EQ(custom.getUpperBound(), 4.0);
     EXPECT_DOUBLE_EQ(custom.getMean(), 1.0);
@@ -133,7 +136,7 @@ TEST_F(UniformEnhancedTest, InformationCriteriaTests) {
     std::cout << "\n=== Information Criteria Tests ===\n";
     
     // Fit distribution to data
-    UniformDistribution fitted_dist;
+    auto fitted_dist = libstats::UniformDistribution::create().value;
     fitted_dist.fit(uniform_data_);
     
     auto [aic, bic, aicc, log_likelihood] = UniformDistribution::computeInformationCriteria(
@@ -225,7 +228,7 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
-    UniformDistribution stdUniform(0.0, 1.0);
+    auto stdUniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
     
@@ -368,7 +371,7 @@ TEST_F(UniformEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
     
-    UniformDistribution uniform_dist(0.0, 1.0);
+    auto uniform_dist = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -404,7 +407,7 @@ TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
     
     // Test cache invalidation - create a new distribution with different parameters
-    UniformDistribution new_dist(0.5, 1.5);
+    auto new_dist = libstats::UniformDistribution::create(0.5, 1.5).value;
     
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = new_dist.getMean();
@@ -423,7 +426,7 @@ TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
-    UniformDistribution uniform_dist(0.0, 1.0);
+    auto uniform_dist = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -522,7 +525,7 @@ TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    UniformDistribution stdUniform(0.0, 1.0);
+    auto stdUniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
     
     // Generate test data
@@ -687,7 +690,7 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
-    UniformDistribution uniform(0.0, 1.0);
+    auto uniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     EdgeCaseTester<UniformDistribution>::testExtremeValues(uniform, "Uniform");
     EdgeCaseTester<UniformDistribution>::testEmptyBatchOperations(uniform, "Uniform");

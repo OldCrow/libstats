@@ -41,8 +41,8 @@ int main() {
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
     
     // Create Gaussian distributions for testing
-    libstats::Gaussian stdNormal(0.0, 1.0);  // Standard normal
-    libstats::Gaussian customGaussian(10.0, 2.5);  // Custom distribution
+    auto stdNormal = libstats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
+    auto customGaussian = libstats::GaussianDistribution::create(10.0, 2.5).value;  // Custom distribution
     
     // Benchmark setup
     libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs

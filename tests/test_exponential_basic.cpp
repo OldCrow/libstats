@@ -16,20 +16,20 @@ int main() {
         cout << "copy (parameterized), move (temporary (0.5)) constructors, and the safe factory method that avoids exceptions." << endl;
         
         // Default constructor test
-        ExponentialDistribution default_exp;
+        auto default_exp = libstats::ExponentialDistribution::create().value;
         StandardizedBasicTest::printProperty("Default Lambda", default_exp.getLambda());
         
         // Parameterized constructor test
-        ExponentialDistribution param_exp(2.0);
+        auto param_exp = libstats::ExponentialDistribution::create(2.0).value;
         StandardizedBasicTest::printProperty("Param Lambda", param_exp.getLambda());
         
         // Copy constructor test
-        ExponentialDistribution copy_exp(param_exp);
+        auto copy_exp = param_exp;
         StandardizedBasicTest::printProperty("Copy Lambda", copy_exp.getLambda());
         
         // Move constructor test
-        ExponentialDistribution temp_exp(0.5);
-        ExponentialDistribution move_exp(std::move(temp_exp));
+        auto temp_exp = libstats::ExponentialDistribution::create(0.5).value;
+        auto move_exp = std::move(temp_exp);
         StandardizedBasicTest::printProperty("Move Lambda", move_exp.getLambda());
         
         // Safe factory method test
@@ -48,7 +48,7 @@ int main() {
         cout << "exception-based setters, and safe setters that return Result types instead of throwing." << endl;
         cout << "Using an Exponential(1.0) distribution as the results are well known (mean=1, variance=1)." << endl;
         
-        ExponentialDistribution exp_dist(1.0);
+        auto exp_dist = libstats::ExponentialDistribution::create(1.0).value;
         
         // Test getters
         StandardizedBasicTest::printProperty("Initial Lambda", exp_dist.getLambda());
@@ -80,7 +80,7 @@ int main() {
         cout << "and Exponential-specific utilities like mode and entropy for different parameter values." << endl;
         cout << "Expected: For Exponential(1.0): PDF(1)≈0.368, CDF(1)≈0.632, quantile(0.5)≈0.693." << endl;
         
-        ExponentialDistribution test_exp(1.0);
+        auto test_exp = libstats::ExponentialDistribution::create(1.0).value;
         double x = 1.0;
         
         StandardizedBasicTest::printProperty("PDF(1.0)", test_exp.getProbability(x));
@@ -140,7 +140,7 @@ int main() {
         
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generateExponentialTestData();
-        ExponentialDistribution fitted_dist;
+        auto fitted_dist = libstats::ExponentialDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printProperty("Fitted Lambda", fitted_dist.getLambda());
         
@@ -161,7 +161,7 @@ int main() {
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large." << endl;
         cout << "Compares performance and verifies correctness against traditional batch methods." << endl;
         
-        ExponentialDistribution test_dist(1.0);
+        auto test_dist = libstats::ExponentialDistribution::create(1.0).value;
         
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {0.1, 0.5, 1.0, 2.0, 5.0};
@@ -296,9 +296,9 @@ int main() {
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions." << endl;
         
-        ExponentialDistribution dist1(1.0);
-        ExponentialDistribution dist2(1.0);
-        ExponentialDistribution dist3(2.0);
+        auto dist1 = libstats::ExponentialDistribution::create(1.0).value;
+        auto dist2 = libstats::ExponentialDistribution::create(1.0).value;
+        auto dist3 = libstats::ExponentialDistribution::create(2.0).value;
         
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -311,7 +311,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         
         // Test stream input (using proper format from output)
-        ExponentialDistribution input_dist;
+        auto input_dist = libstats::ExponentialDistribution::create().value;
         ss.seekg(0); // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -325,6 +325,8 @@ int main() {
         
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
+        // NOTE: Using ::create() here (not libstats::Exponential) to test exception-free error handling
+        // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = ExponentialDistribution::create(-1.0);
         if (error_result.isError()) {
             StandardizedBasicTest::printTestSuccess("Error handling works: " + error_result.message);

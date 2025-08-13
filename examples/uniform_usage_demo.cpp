@@ -35,8 +35,8 @@ int main() {
               << "  - U(0, 1): Standard uniform distribution on [0, 1]\n"
               << "  - U(-5, 10): Custom uniform distribution on [-5, 10]\n" << std::endl;
     
-    libstats::Uniform standard(0.0, 1.0);     // Standard uniform [0, 1]
-    libstats::Uniform custom(-5.0, 10.0);     // Custom uniform [-5, 10]
+    auto standard = libstats::UniformDistribution::create(0.0, 1.0).value;     // Standard uniform [0, 1]
+    auto custom = libstats::UniformDistribution::create(-5.0, 10.0).value;     // Custom uniform [-5, 10]
     
     std::cout << "✓ Standard uniform U(0,1) created" << std::endl;
     std::cout << "✓ Custom uniform U(-5,10) created" << std::endl;

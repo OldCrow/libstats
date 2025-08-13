@@ -16,20 +16,20 @@ int main() {
         cout << "copy (parameterized), move (temporary (5.0)) constructors, and the safe factory method that avoids exceptions." << endl;
         
         // Default constructor test
-        PoissonDistribution default_poisson;
+        auto default_poisson = libstats::PoissonDistribution::create().value;
         StandardizedBasicTest::printProperty("Default Lambda", default_poisson.getLambda());
         
         // Parameterized constructor test
-        PoissonDistribution param_poisson(3.0);
+        auto param_poisson = libstats::PoissonDistribution::create(3.0).value;
         StandardizedBasicTest::printProperty("Param Lambda", param_poisson.getLambda());
         
         // Copy constructor test
-        PoissonDistribution copy_poisson(param_poisson);
+        auto copy_poisson = param_poisson;
         StandardizedBasicTest::printProperty("Copy Lambda", copy_poisson.getLambda());
         
         // Move constructor test
-        PoissonDistribution temp_poisson(5.0);
-        PoissonDistribution move_poisson(std::move(temp_poisson));
+        auto temp_poisson = libstats::PoissonDistribution::create(5.0).value;
+        auto move_poisson = std::move(temp_poisson);
         StandardizedBasicTest::printProperty("Move Lambda", move_poisson.getLambda());
         
         // Safe factory method test
@@ -48,7 +48,7 @@ int main() {
         cout << "exception-based setters, and safe setters that return Result types instead of throwing." << endl;
         cout << "Using a Poisson(3.0) distribution as the results are well known (mean=3, variance=3)." << endl;
         
-        PoissonDistribution poisson_dist(3.0);
+        auto poisson_dist = libstats::PoissonDistribution::create(3.0).value;
         
         // Test getters
         StandardizedBasicTest::printProperty("Initial Lambda", poisson_dist.getLambda());
@@ -81,7 +81,7 @@ int main() {
         cout << "and Poisson-specific utilities like mode calculation and normal approximation capability." << endl;
         cout << "Expected: For Poisson(3.0): PMF(3)≈0.224, CDF(3)≈0.647, mode=3 for symmetric case." << endl;
         
-        PoissonDistribution test_poisson(3.0);
+        auto test_poisson = libstats::PoissonDistribution::create(3.0).value;
         int k = 3;
         
         StandardizedBasicTest::printProperty("PMF(3)", test_poisson.getProbability(k));
@@ -148,7 +148,7 @@ int main() {
         
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generatePoissonTestData();
-        PoissonDistribution fitted_dist;
+        auto fitted_dist = libstats::PoissonDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printProperty("Fitted Lambda", fitted_dist.getLambda());
         
@@ -169,7 +169,7 @@ int main() {
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large." << endl;
         cout << "Compares performance and verifies correctness against traditional batch methods." << endl;
         
-        PoissonDistribution test_dist(3.0);
+        auto test_dist = libstats::PoissonDistribution::create(3.0).value;
         
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {0, 1, 2, 3, 4, 5};
@@ -304,9 +304,9 @@ int main() {
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions." << endl;
         
-        PoissonDistribution dist1(3.0);
-        PoissonDistribution dist2(3.0);
-        PoissonDistribution dist3(5.0);
+        auto dist1 = libstats::PoissonDistribution::create(3.0).value;
+        auto dist2 = libstats::PoissonDistribution::create(3.0).value;
+        auto dist3 = libstats::PoissonDistribution::create(5.0).value;
         
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -319,7 +319,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         
         // Test stream input (using proper format from output)
-        PoissonDistribution input_dist;
+        auto input_dist = libstats::PoissonDistribution::create().value;
         ss.seekg(0); // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -333,6 +333,8 @@ int main() {
         
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
+        // NOTE: Using ::create() here (not libstats::Poisson) to test exception-free error handling
+        // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = PoissonDistribution::create(-1.0);  // Invalid: negative lambda
         if (error_result.isError()) {
             StandardizedBasicTest::printTestSuccess("Negative lambda error handling works: " + error_result.message);

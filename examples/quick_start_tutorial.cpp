@@ -22,9 +22,9 @@ int main() {
     
     // Step 1: Create distributions
     std::cout << "📝 Step 1: Creating Distributions" << std::endl;
-    libstats::Gaussian normal(0.0, 1.0);      // Standard normal N(0,1)
-    libstats::Exponential exponential(1.5);   // Exponential with rate 1.5
-    libstats::Uniform uniform(0.0, 10.0);     // Uniform on [0, 10]
+    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;      // Standard normal N(0,1)
+    auto exponential = libstats::ExponentialDistribution::create(1.5).value;   // Exponential with rate 1.5
+    auto uniform = libstats::UniformDistribution::create(0.0, 10.0).value;     // Uniform on [0, 10]
     std::cout << "   ✓ Created Gaussian N(0,1), Exponential(1.5), and Uniform(0,10)\n" << std::endl;
     
     // Step 2: Basic properties
@@ -74,7 +74,7 @@ int main() {
     // Step 6: Parameter fitting
     std::cout << "🔧 Step 6: Parameter Fitting" << std::endl;
     // Create some sample data from a known distribution
-    libstats::Gaussian true_dist(5.0, 2.0);  // Mean=5, StdDev=2
+    auto true_dist = libstats::GaussianDistribution::create(5.0, 2.0).value;  // Mean=5, StdDev=2
     auto sample_data = true_dist.sample(rng, 500);
     
     // Fit a new distribution to this data

@@ -40,8 +40,8 @@ int main() {
               << "  - Gaussian N(μ=0, σ=1): Standard normal distribution\n"
               << "  - Exponential(λ=2.0): Rate parameter controls decay speed\n" << std::endl;
     
-    libstats::Gaussian normal(0.0, 1.0);        // Standard normal
-    libstats::Exponential exponential(2.0);     // Rate parameter = 2.0
+    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;        // Standard normal
+    auto exponential = libstats::ExponentialDistribution::create(2.0).value;     // Rate parameter = 2.0
     
     std::cout << "✓ Gaussian N(0,1) created" << std::endl;
     std::cout << "✓ Exponential(λ=2.0) created" << std::endl;

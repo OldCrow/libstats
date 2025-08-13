@@ -140,7 +140,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Uniform Distribution Benchmark");
-        auto uniform = libstats::Uniform(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX);
+        auto uniform = libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -172,7 +172,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Poisson Distribution Benchmark");
-        auto poisson = libstats::Poisson(distribution_params::DEFAULT_POISSON_LAMBDA);
+        auto poisson = libstats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -204,7 +204,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Discrete Distribution Benchmark");
-        auto discrete = libstats::Discrete(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX);
+        auto discrete = libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -236,7 +236,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Gaussian Distribution Benchmark");
-        auto gaussian = libstats::Gaussian(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV);
+        auto gaussian = libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -268,7 +268,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Exponential Distribution Benchmark");
-        auto exponential = libstats::Exponential(distribution_params::EXPONENTIAL_LAMBDA);
+        auto exponential = libstats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -300,7 +300,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Gamma Distribution Benchmark");
-        auto gamma = libstats::Gamma(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA);
+        auto gamma = libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;

@@ -140,7 +140,7 @@ private:
     
     void testUniformDistribution() {
         display::subsectionHeader("Uniform Distribution SIMD Verification");
-        auto dist = libstats::Uniform(0.0, 1.0);
+        auto dist = libstats::UniformDistribution::create(0.0, 1.0).value;
         
         // Test data around the distribution range
         auto test_data = generateTestData(-0.5, 1.5, TEST_SIZE);
@@ -150,7 +150,7 @@ private:
     
     void testGaussianDistribution() {
         display::subsectionHeader("Gaussian Distribution SIMD Verification");
-        auto dist = libstats::Gaussian(0.0, 1.0);
+        auto dist = libstats::GaussianDistribution::create(0.0, 1.0).value;
         
         // Test data with wider range for Gaussian
         auto test_data = generateTestData(-5.0, 5.0, TEST_SIZE);
@@ -160,7 +160,7 @@ private:
     
     void testExponentialDistribution() {
         display::subsectionHeader("Exponential Distribution SIMD Verification");
-        auto dist = libstats::Exponential(1.0);
+        auto dist = libstats::ExponentialDistribution::create(1.0).value;
         
         // Test data for exponential (positive values)
         auto test_data = generateTestData(0.0, 10.0, TEST_SIZE);
@@ -170,7 +170,7 @@ private:
     
     void testDiscreteDistribution() {
         display::subsectionHeader("Discrete Distribution SIMD Verification");
-        auto dist = libstats::Discrete(0, 10);
+        auto dist = libstats::DiscreteDistribution::create(0, 10).value;
         
         // Test data with integer and near-integer values
         auto test_data = generateIntegerTestData(-2, 12, TEST_SIZE);
@@ -180,7 +180,7 @@ private:
     
     void testPoissonDistribution() {
         display::subsectionHeader("Poisson Distribution SIMD Verification");
-        auto dist = libstats::Poisson(3.0);
+        auto dist = libstats::PoissonDistribution::create(3.0).value;
         
         // Test data with non-negative integer and near-integer values
         auto test_data = generateIntegerTestData(0, 15, TEST_SIZE);
@@ -190,7 +190,7 @@ private:
     
     void testGammaDistribution() {
         display::subsectionHeader("Gamma Distribution SIMD Verification");
-        auto dist = libstats::Gamma(2.0, 1.0);
+        auto dist = libstats::GammaDistribution::create(2.0, 1.0).value;
         
         // Test data for gamma (positive values)
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);

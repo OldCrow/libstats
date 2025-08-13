@@ -170,7 +170,7 @@ void demonstrate_safe_creation_patterns() {
     try {
         double rate = 2.5;
         validate_positive(rate, "Exponential rate");
-        libstats::Exponential exp_dist(rate);
+        auto exp_dist = libstats::ExponentialDistribution::create(rate).value;
         std::cout << "✅ Exponential distribution created with validated rate: " << rate << std::endl;
     } catch (const std::exception& e) {
         std::cout << "❌ Validation failed: " << e.what() << std::endl;
@@ -179,7 +179,7 @@ void demonstrate_safe_creation_patterns() {
     try {
         double invalid_rate = -1.0;
         validate_positive(invalid_rate, "Exponential rate");
-        libstats::Exponential exp_dist(invalid_rate);
+        auto exp_dist = libstats::ExponentialDistribution::create(invalid_rate).value;
         std::cout << "❌ ERROR: Should not reach here" << std::endl;
     } catch (const std::exception& e) {
         std::cout << "✅ Properly caught invalid rate: " << e.what() << std::endl;
@@ -196,7 +196,7 @@ void demonstrate_numerical_edge_cases() {
     // Very small standard deviation
     std::cout << "🔬 Testing very small standard deviation:" << std::endl;
     try {
-        libstats::Gaussian tiny_std(0.0, 1e-10);
+        auto tiny_std = libstats::GaussianDistribution::create(0.0, 1e-10).value;
         std::cout << "✅ Created Gaussian with σ = 1e-10" << std::endl;
         std::cout << "   PDF at mean: " << std::scientific << std::setprecision(3) 
                   << tiny_std.getProbability(0.0) << std::endl;
@@ -209,7 +209,7 @@ void demonstrate_numerical_edge_cases() {
     // Very large standard deviation
     std::cout << "\n🌊 Testing very large standard deviation:" << std::endl;
     try {
-        libstats::Gaussian large_std(0.0, 1e6);
+        auto large_std = libstats::GaussianDistribution::create(0.0, 1e6).value;
         std::cout << "✅ Created Gaussian with σ = 1e6" << std::endl;
         std::cout << "   PDF at mean: " << std::scientific << std::setprecision(3) 
                   << large_std.getProbability(0.0) << std::endl;
@@ -222,7 +222,7 @@ void demonstrate_numerical_edge_cases() {
     // Very high Poisson rate
     std::cout << "\n🚀 Testing high Poisson rate (λ = 1000):" << std::endl;
     try {
-        libstats::Poisson high_rate(1000.0);
+        auto high_rate = libstats::PoissonDistribution::create(1000.0).value;
         std::cout << "✅ Created Poisson with λ = 1000" << std::endl;
         std::cout << "   Mean: " << high_rate.getMean() << std::endl;
         std::cout << "   P(X = 1000): " << std::scientific << std::setprecision(3) 
@@ -235,7 +235,7 @@ void demonstrate_numerical_edge_cases() {
     
     print_subsection("Boundary Value Testing");
     
-    libstats::Uniform unit_uniform(0.0, 1.0);
+    auto unit_uniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     std::cout << "🎯 Testing uniform distribution boundary values:" << std::endl;
     std::cout << "   PDF at x = 0.0 (lower bound): " << unit_uniform.getProbability(0.0) << std::endl;
@@ -258,7 +258,7 @@ void demonstrate_sampling_safety() {
     std::cout << "🎲 Random number generator state management:" << std::endl;
     
     std::mt19937 rng(42);  // Seeded for reproducibility
-    libstats::Gaussian gaussian(0.0, 1.0);
+    auto gaussian = libstats::GaussianDistribution::create(0.0, 1.0).value;
     
     // Safe sampling with error handling
     auto safe_sample = [](auto& dist, std::mt19937& rng, int n_samples) -> std::vector<double> {
@@ -345,8 +345,8 @@ void demonstrate_input_validation() {
     
     std::cout << "Demonstrating input validation for distribution operations:\n" << std::endl;
     
-    libstats::Gaussian gaussian(0.0, 1.0);
-    libstats::Poisson poisson(5.0);
+    auto gaussian = libstats::GaussianDistribution::create(0.0, 1.0).value;
+    auto poisson = libstats::PoissonDistribution::create(5.0).value;
     
     // Input validation helper
     auto validate_input = [](double x, const std::string& context) -> bool {

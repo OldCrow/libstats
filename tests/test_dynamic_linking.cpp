@@ -8,7 +8,7 @@ int main() {
     cout << "=== Dynamic Library Linking Test ===" << endl;
     
     // Test basic functionality to ensure dynamic linking works
-    GaussianDistribution normal(0.0, 1.0);
+    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
     
     cout << "Mean: " << normal.getMean() << endl;
     cout << "Variance: " << normal.getVariance() << endl;

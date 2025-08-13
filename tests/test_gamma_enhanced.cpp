@@ -24,7 +24,10 @@ protected:
             gamma_data_.push_back(gamma_gen(rng));
         }
 
-        test_distribution_ = GammaDistribution(test_alpha_, test_beta_);
+        auto result = libstats::GammaDistribution::create(test_alpha_, test_beta_);
+        if (result.isOk()) {
+            test_distribution_ = std::move(result.value);
+        };
     }
 
     const double test_alpha_ = 2.0;
@@ -39,7 +42,7 @@ protected:
 
 TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard gamma distribution properties
-    GammaDistribution gamma1(2.0, 1.0);  // shape=2, rate=1 -> mean=2, var=2
+    auto gamma1 = libstats::GammaDistribution::create(2.0, 1.0).value;  // shape=2, rate=1 -> mean=2, var=2
     
     EXPECT_DOUBLE_EQ(gamma1.getAlpha(), 2.0);
     EXPECT_DOUBLE_EQ(gamma1.getBeta(), 1.0);
@@ -49,7 +52,7 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(gamma1.getKurtosis(), 6.0 / 2.0);  // Excess kurtosis for gamma distribution
     
     // Test another gamma distribution
-    GammaDistribution gamma2(1.0, 0.5);  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
+    auto gamma2 = libstats::GammaDistribution::create(1.0, 0.5).value;  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
     EXPECT_DOUBLE_EQ(gamma2.getAlpha(), 1.0);
     EXPECT_DOUBLE_EQ(gamma2.getBeta(), 0.5);
     EXPECT_DOUBLE_EQ(gamma2.getMean(), 2.0);
@@ -322,7 +325,7 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
-    GammaDistribution stdGamma(2.0, 1.0);
+    auto stdGamma = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
     
@@ -437,7 +440,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     std::cout << "\n=== Auto-Dispatch Strategy Assessment ===\n";
     
@@ -508,7 +511,7 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
 TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
     
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -563,7 +566,7 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
     
     // Generate test data (positive values for Gamma distribution)
@@ -730,7 +733,7 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
 TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "\n=== Numerical Stability and Edge Cases ===\n";
     
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     // Test extreme values (Gamma distribution support is [0, ∞))
     std::vector<double> extreme_values = {1e-10, 0.001, 0.1, 10.0, 100.0, 1000.0};

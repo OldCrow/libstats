@@ -38,10 +38,10 @@ void compare_statistical_properties() {
     std::cout << "\nComparing fundamental statistical properties across distributions:\n" << std::endl;
     
     // Create comparable distributions (similar means where possible)
-    libstats::Uniform uniform(0.0, 10.0);              // Mean ≈ 5.0
-    libstats::Poisson poisson(5.0);                    // Mean = 5.0
-    libstats::Exponential exponential(0.2);            // Mean = 5.0 (rate = 1/mean)
-    libstats::Gaussian gaussian(5.0, 2.0);             // Mean = 5.0, σ = 2.0
+    auto uniform = libstats::UniformDistribution::create(0.0, 10.0).value;              // Mean ≈ 5.0
+    auto poisson = libstats::PoissonDistribution::create(5.0).value;                    // Mean = 5.0
+    auto exponential = libstats::ExponentialDistribution::create(0.2).value;            // Mean = 5.0 (rate = 1/mean)
+    auto gaussian = libstats::GaussianDistribution::create(5.0, 2.0).value;             // Mean = 5.0, σ = 2.0
     
     std::cout << std::fixed << std::setprecision(4);
     std::cout << "Distribution    | Mean    | Variance | Std Dev  | Skewness | Kurtosis | Support" << std::endl;
@@ -92,9 +92,9 @@ void compare_probability_functions() {
     // Continuous distributions
     print_subsection("Continuous Distributions - PDF at x = 3.0");
     
-    libstats::Uniform uniform(0.0, 10.0);
-    libstats::Exponential exponential(0.2);
-    libstats::Gaussian gaussian(5.0, 2.0);
+    auto uniform = libstats::UniformDistribution::create(0.0, 10.0).value;
+    auto exponential = libstats::ExponentialDistribution::create(0.2).value;
+    auto gaussian = libstats::GaussianDistribution::create(5.0, 2.0).value;
     
     double x = 3.0;
     std::cout << std::fixed << std::setprecision(6);
@@ -106,7 +106,7 @@ void compare_probability_functions() {
     // Discrete distribution
     print_subsection("Discrete Distribution - PMF at k = 3");
     
-    libstats::Poisson poisson(5.0);
+    auto poisson = libstats::PoissonDistribution::create(5.0).value;
     int k = 3;
     std::cout << "\nEvaluating PMF at k = " << k << ":" << std::endl;
     std::cout << "  Poisson(λ=5):       P(X=" << k << ") = " << poisson.getProbability(k) << std::endl;
@@ -130,10 +130,10 @@ void compare_sampling_behavior() {
     std::mt19937 rng(12345);  // Fixed seed for reproducibility
     
     // Create distributions
-    libstats::Uniform uniform(0.0, 10.0);
-    libstats::Exponential exponential(0.2);
-    libstats::Gaussian gaussian(5.0, 2.0);
-    libstats::Poisson poisson(5.0);
+    auto uniform = libstats::UniformDistribution::create(0.0, 10.0).value;
+    auto exponential = libstats::ExponentialDistribution::create(0.2).value;
+    auto gaussian = libstats::GaussianDistribution::create(5.0, 2.0).value;
+    auto poisson = libstats::PoissonDistribution::create(5.0).value;
     
     const int n_samples = 1000;
     
@@ -186,14 +186,14 @@ void demonstrate_real_world_scenarios() {
     std::cout << "\nModeling response times with different assumptions:" << std::endl;
     
     // Exponential: memoryless service times
-    libstats::Exponential service_exp(0.1);  // Mean = 10 minutes
+    auto service_exp = libstats::ExponentialDistribution::create(0.1).value;  // Mean = 10 minutes
     std::cout << "📞 Exponential model (memoryless service):" << std::endl;
     std::cout << "   Mean response time: " << std::fixed << std::setprecision(1) << service_exp.getMean() << " minutes" << std::endl;
     std::cout << "   P(response ≤ 5 min): " << std::setprecision(3) << service_exp.getCumulativeProbability(5.0) << std::endl;
     std::cout << "   P(response > 20 min): " << (1.0 - service_exp.getCumulativeProbability(20.0)) << std::endl;
     
     // Gaussian: normally distributed service times
-    libstats::Gaussian service_normal(10.0, 3.0);  // Mean = 10, σ = 3 minutes
+    auto service_normal = libstats::GaussianDistribution::create(10.0, 3.0).value;  // Mean = 10, σ = 3 minutes
     std::cout << "\n📊 Gaussian model (normally distributed service):" << std::endl;
     std::cout << "   Mean response time: " << std::setprecision(1) << service_normal.getMean() << " minutes" << std::endl;
     std::cout << "   P(response ≤ 5 min): " << std::setprecision(3) << service_normal.getCumulativeProbability(5.0) << std::endl;
@@ -203,7 +203,7 @@ void demonstrate_real_world_scenarios() {
     std::cout << "\nComparing discrete models for daily event counts:" << std::endl;
     
     // Poisson: independent events at constant rate
-    libstats::Poisson daily_events(8.0);  // Average 8 events/day
+    auto daily_events = libstats::PoissonDistribution::create(8.0).value;  // Average 8 events/day
     std::cout << "🎯 Poisson model (constant rate, independent events):" << std::endl;
     std::cout << "   Average events/day: " << std::setprecision(1) << daily_events.getMean() << std::endl;
     std::cout << "   P(no events): " << std::setprecision(4) << daily_events.getProbability(0) << std::endl;
@@ -213,14 +213,14 @@ void demonstrate_real_world_scenarios() {
     std::cout << "\nModeling measurement variations in manufacturing:" << std::endl;
     
     // Uniform: measurements within tolerance bounds
-    libstats::Uniform tolerance(49.8, 50.2);  // Target: 50.0 ± 0.2
+    auto tolerance = libstats::UniformDistribution::create(49.8, 50.2).value;  // Target: 50.0 ± 0.2
     std::cout << "📏 Uniform model (within tolerance bounds):" << std::endl;
     std::cout << "   Target specification: 50.0 ± 0.2 units" << std::endl;
     std::cout << "   P(within spec): " << std::setprecision(4) << 1.0 << " (by design)" << std::endl;
     std::cout << "   Standard deviation: " << tolerance.getVariance() << std::endl;
     
     // Gaussian: process with natural variation
-    libstats::Gaussian process_normal(50.0, 0.1);  // Mean = 50.0, σ = 0.1
+    auto process_normal = libstats::GaussianDistribution::create(50.0, 0.1).value;  // Mean = 50.0, σ = 0.1
     std::cout << "\n🎯 Gaussian model (natural process variation):" << std::endl;
     std::cout << "   Process mean: " << process_normal.getMean() << std::endl;
     std::cout << "   P(within spec): " << std::setprecision(4) 
@@ -237,10 +237,10 @@ void compare_performance() {
     std::mt19937 rng(42);
     
     // Create distributions
-    libstats::Uniform uniform(0.0, 10.0);
-    libstats::Exponential exponential(0.2);
-    libstats::Gaussian gaussian(5.0, 2.0);
-    libstats::Poisson poisson(5.0);
+    auto uniform = libstats::UniformDistribution::create(0.0, 10.0).value;
+    auto exponential = libstats::ExponentialDistribution::create(0.2).value;
+    auto gaussian = libstats::GaussianDistribution::create(5.0, 2.0).value;
+    auto poisson = libstats::PoissonDistribution::create(5.0).value;
     
     auto benchmark_sampling = [&](auto& dist, const std::string& name) {
         rng.seed(42);  // Reset for fair comparison
