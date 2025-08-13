@@ -11,7 +11,10 @@
  * Perfect for new users who want to get up and running quickly!
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+#include <iostream>
+#include <random>
 
 int main() {
     std::cout << "=== libstats Quick Start Tutorial ===" << std::endl;
