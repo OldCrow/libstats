@@ -432,34 +432,34 @@ private:
     }
     
     void exerciseAllDistributions(const std::vector<size_t>& batch_sizes) {
-        // Exercise different distributions
+        // Exercise different distributions using safe factory methods
         {
-            UniformDistribution uniform_dist(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX);
+            auto uniform_dist = libstats::Uniform(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX);
             exerciseDistribution("Uniform", DistributionType::UNIFORM, uniform_dist, batch_sizes);
         }
         
         {
-            GaussianDistribution gaussian_dist(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV);
+            auto gaussian_dist = libstats::Gaussian(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV);
             exerciseDistribution("Gaussian", DistributionType::GAUSSIAN, gaussian_dist, batch_sizes);
         }
         
         {
-            ExponentialDistribution exp_dist(distribution_params::EXPONENTIAL_LAMBDA);
+            auto exp_dist = libstats::Exponential(distribution_params::EXPONENTIAL_LAMBDA);
             exerciseDistribution("Exponential", DistributionType::EXPONENTIAL, exp_dist, batch_sizes);
         }
         
         {
-            DiscreteDistribution disc_dist(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX);
+            auto disc_dist = libstats::Discrete(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX);
             exerciseDistribution("Discrete", DistributionType::DISCRETE, disc_dist, batch_sizes);
         }
         
         {
-            PoissonDistribution poisson_dist(distribution_params::POISSON_LAMBDA);
+            auto poisson_dist = libstats::Poisson(distribution_params::POISSON_LAMBDA);
             exerciseDistribution("Poisson", DistributionType::POISSON, poisson_dist, batch_sizes);
         }
         
         {
-            GammaDistribution gamma_dist(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA);
+            auto gamma_dist = libstats::Gamma(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA);
             exerciseDistribution("Gamma", DistributionType::GAMMA, gamma_dist, batch_sizes);
         }
     }
@@ -559,10 +559,10 @@ private:
         for (int run = 0; run < RUNS_PER_BATCH_SIZE; ++run) {
             std::cout << "\n=== Run " << (run + 1) << " of " << RUNS_PER_BATCH_SIZE << " ===\n";
             
-            // Test all distributions
+            // Test all distributions using safe factory methods
             {
                 std::cout << "Testing Uniform Distribution..." << std::flush;
-                UniformDistribution uniform_dist(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX);
+                auto uniform_dist = libstats::Uniform(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX);
                 exerciseDistributionEnhanced("Uniform", DistributionType::UNIFORM, uniform_dist, batch_sizes);
                 std::cout << " ✓\n";
                 completed += batch_sizes.size();
@@ -570,7 +570,7 @@ private:
             
             {
                 std::cout << "Testing Gaussian Distribution..." << std::flush;
-                GaussianDistribution gaussian_dist(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV);
+                auto gaussian_dist = libstats::Gaussian(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV);
                 exerciseDistributionEnhanced("Gaussian", DistributionType::GAUSSIAN, gaussian_dist, batch_sizes);
                 std::cout << " ✓\n";
                 completed += batch_sizes.size();
@@ -578,7 +578,7 @@ private:
             
             {
                 std::cout << "Testing Exponential Distribution..." << std::flush;
-                ExponentialDistribution exp_dist(distribution_params::EXPONENTIAL_LAMBDA);
+                auto exp_dist = libstats::Exponential(distribution_params::EXPONENTIAL_LAMBDA);
                 exerciseDistributionEnhanced("Exponential", DistributionType::EXPONENTIAL, exp_dist, batch_sizes);
                 std::cout << " ✓\n";
                 completed += batch_sizes.size();
@@ -586,7 +586,7 @@ private:
             
             {
                 std::cout << "Testing Discrete Distribution..." << std::flush;
-                DiscreteDistribution disc_dist(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX);
+                auto disc_dist = libstats::Discrete(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX);
                 exerciseDistributionEnhanced("Discrete", DistributionType::DISCRETE, disc_dist, batch_sizes);
                 std::cout << " ✓\n";
                 completed += batch_sizes.size();
@@ -594,7 +594,7 @@ private:
             
             {
                 std::cout << "Testing Poisson Distribution..." << std::flush;
-                PoissonDistribution poisson_dist(distribution_params::POISSON_LAMBDA);
+                auto poisson_dist = libstats::Poisson(distribution_params::POISSON_LAMBDA);
                 exerciseDistributionEnhanced("Poisson", DistributionType::POISSON, poisson_dist, batch_sizes);
                 std::cout << " ✓\n";
                 completed += batch_sizes.size();
@@ -602,7 +602,7 @@ private:
             
             {
                 std::cout << "Testing Gamma Distribution..." << std::flush;
-                GammaDistribution gamma_dist(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA);
+                auto gamma_dist = libstats::Gamma(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA);
                 exerciseDistributionEnhanced("Gamma", DistributionType::GAMMA, gamma_dist, batch_sizes);
                 std::cout << " ✓\n";
                 completed += batch_sizes.size();

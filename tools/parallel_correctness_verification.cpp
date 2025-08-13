@@ -86,7 +86,11 @@ private:
     template<typename Dist>
     std::vector<double> compute_sequential(const std::vector<double>& inputs, 
                                          const std::string& operation) {
-        Dist dist;
+        auto dist_result = Dist::create();
+        if (dist_result.isError()) {
+            throw std::runtime_error("Failed to create distribution instance: " + dist_result.message);
+        }
+        auto dist = dist_result.value;
         std::vector<double> results(inputs.size());
         
         for (size_t i = 0; i < inputs.size(); ++i) {
@@ -106,7 +110,11 @@ private:
     std::vector<double> compute_with_threadpool(const std::vector<double>& inputs, 
                                               const std::string& operation, 
                                               int num_threads) {
-        Dist dist;
+        auto dist_result = Dist::create();
+        if (dist_result.isError()) {
+            throw std::runtime_error("Failed to create distribution instance: " + dist_result.message);
+        }
+        auto dist = dist_result.value;
         std::vector<double> results(inputs.size());
         
         libstats::ThreadPool pool(num_threads);
@@ -143,7 +151,11 @@ private:
     template<typename Dist>
     std::vector<double> compute_with_gcd(const std::vector<double>& inputs, 
                                        const std::string& operation) {
-        Dist dist;
+        auto dist_result = Dist::create();
+        if (dist_result.isError()) {
+            throw std::runtime_error("Failed to create distribution instance: " + dist_result.message);
+        }
+        auto dist = dist_result.value;
         std::vector<double> results(inputs.size());
         
         dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
@@ -161,7 +173,11 @@ private:
                 size_t start = chunk * chunk_size;
                 size_t end = (chunk == num_chunks - 1) ? inputs.size() : (chunk + 1) * chunk_size;
                 
-                Dist local_dist; // Create local instance for thread safety
+                auto local_dist_result = Dist::create(); // Create local instance for thread safety
+                if (local_dist_result.isError()) {
+                    return; // Skip this chunk if distribution creation fails
+                }
+                auto local_dist = local_dist_result.value;
                 for (size_t i = start; i < end; ++i) {
                     if (operation == "PDF") {
                         results_ptr[i] = local_dist.getProbability(inputs_ptr[i]);
@@ -186,7 +202,11 @@ private:
     std::vector<double> compute_with_openmp(const std::vector<double>& inputs, 
                                           const std::string& operation, 
                                           int num_threads) {
-        Dist dist;
+        auto dist_result = Dist::create();
+        if (dist_result.isError()) {
+            throw std::runtime_error("Failed to create distribution instance: " + dist_result.message);
+        }
+        auto dist = dist_result.value;
         std::vector<double> results(inputs.size());
         
         omp_set_num_threads(num_threads);
@@ -431,7 +451,7 @@ public:
         std::cout << "  - POSIX threads\n";
 #endif
         
-        // Test all distributions
+        // Test all distributions using safe factory methods
         test_distribution<UniformDistribution>("Uniform");
         test_distribution<GaussianDistribution>("Gaussian");
         test_distribution<ExponentialDistribution>("Exponential");
