@@ -17,16 +17,6 @@
  */
 
 #include "libstats.h"
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <random>
-#include <limits>
-#include <cmath>
-#include <stdexcept>
-#include <cassert>
-#include <chrono>
-#include <numeric>
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(70, '=') << std::endl;

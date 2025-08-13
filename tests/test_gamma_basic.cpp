@@ -1,14 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
-#include <cassert>
-#include <cmath>
-#include <chrono>
-#include <span>
-#include <sstream>
-
-// Include the Gamma distribution
+// Focused unit test for gamma distribution
 #include "../include/distributions/gamma.h"
 #include "basic_test_template.h"
 

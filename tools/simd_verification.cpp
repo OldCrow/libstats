@@ -14,13 +14,11 @@
  * - Uses libstats' built-in SIMD detection and capabilities
  */
 
-#include <iostream>
-#include <vector>
-#include <random>
+// Use consolidated tool utilities header which includes libstats.h
+#include "tool_utils.h"
+
+// Additional standard library includes for SIMD verification
 #include <cmath>
-#include <iomanip>
-#include <sstream>
-#include <map>
 #include <algorithm>
 #include <limits>
 

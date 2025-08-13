@@ -11,14 +11,6 @@
  * - Real-world optimization strategies for statistical computing
  */
 
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <numeric>
-#include <chrono>
-#include <iomanip>
-#include <random>
-
 #include "libstats.h"
 
 void print_separator(const std::string& title) {

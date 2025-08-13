@@ -6,12 +6,8 @@
  * for parallel execution, utilizing adaptive learning from PerformanceHistory.
  */
 
-#include <iostream>
-#include <vector>
-#include <chrono>
-#include <random>
-#include <algorithm>
-#include <iomanip>
+// Use consolidated tool utilities header which includes libstats.h
+#include "tool_utils.h"
 #include <fstream>
 #include <span>
 #include <map>
@@ -77,7 +73,7 @@ namespace {
     constexpr const char* RESULTS_CSV_FILENAME = "parallel_threshold_benchmark_results.csv";
 }
 
-struct BenchmarkResult {
+struct ToolBenchmarkResult {
     std::size_t data_size;
     std::string distribution_type;
     std::string operation_type;
@@ -92,7 +88,7 @@ struct BenchmarkResult {
 class ParallelThresholdBenchmark {
 private:
     std::mt19937 gen_;
-    std::vector<BenchmarkResult> results_;
+    std::vector<ToolBenchmarkResult> results_;
     std::vector<std::size_t> test_sizes_;
     
     void initializeTestSizes(bool include_large) {
@@ -333,11 +329,11 @@ private:
     }
     
     template<typename Distribution>
-    BenchmarkResult benchmarkOperation(const Distribution& dist, 
+    ToolBenchmarkResult benchmarkOperation(const Distribution& dist, 
                                      const std::vector<double>& test_data,
                                      const std::string& operation,
                                      const std::string& dist_type) {
-        BenchmarkResult result;
+        ToolBenchmarkResult result;
         result.data_size = test_data.size();
         result.distribution_type = dist_type;
         result.operation_type = operation;
@@ -430,7 +426,7 @@ private:
         std::cout << "\n=== Analysis Results ===\n";
         
         // Group results by distribution and operation
-        std::map<std::string, std::vector<BenchmarkResult*>> grouped_results;
+        std::map<std::string, std::vector<ToolBenchmarkResult*>> grouped_results;
         for (auto& result : results_) {
             std::string key = result.distribution_type + "_" + result.operation_type;
             grouped_results[key].push_back(&result);

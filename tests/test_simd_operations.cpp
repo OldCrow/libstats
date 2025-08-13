@@ -1,13 +1,6 @@
-#include <iostream>
-#include <vector>
-#include <chrono>
-#include <iomanip>
-#include <cmath>
-#include <random>
-#include <algorithm>
-
+// Use focused header for SIMD testing
 #include "../include/platform/simd.h"
-#include "../include/platform/cpu_detection.h"
+#include <iostream>
 
 using namespace std;
 using namespace libstats;

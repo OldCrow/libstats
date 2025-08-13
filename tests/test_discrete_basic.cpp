@@ -1,14 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
-#include <cassert>
-#include <cmath>
-#include <chrono>
-#include <span>
-#include <sstream>
-
-// Include the Discrete distribution
+// Focused unit test for discrete distribution
 #include "../include/distributions/discrete.h"
 #include "basic_test_template.h"
 

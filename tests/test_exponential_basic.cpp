@@ -1,14 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
-#include <cassert>
-#include <cmath>
-#include <chrono>
-#include <span>
-#include <sstream>
-
-// Include the Exponential distribution
+// Focused unit test for exponential distribution
 #include "../include/distributions/exponential.h"
 #include "basic_test_template.h"
 

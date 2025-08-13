@@ -1,14 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
-#include <cassert>
-#include <cmath>
-#include <chrono>
-#include <span>
-#include <sstream>
-
-// Include the Gaussian distribution
+// Focused unit test for gaussian distribution
 #include "../include/distributions/gaussian.h"
 #include "basic_test_template.h"
 

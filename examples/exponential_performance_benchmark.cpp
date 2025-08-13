@@ -15,11 +15,6 @@
  */
 
 #include "libstats.h"
-#include "platform/benchmark.h"  // For libstats::Benchmark
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
 
 using namespace libstats;
 
@@ -142,8 +137,7 @@ int main() {
     std::cout << "\n💻 Phase 3: Setting up advanced features benchmarks..." << std::endl;
     std::cout << "   Testing cache-aware processing and work-stealing parallelism.\n" << std::endl;
     
-    // Cache-aware operations
-    cache::AdaptiveCache<std::string, double> cache_manager;
+    // Cache-aware operations - using performance hints
     const std::vector<double> large_test(10000);
     std::vector<double> large_results(10000);
     
@@ -162,9 +156,7 @@ int main() {
         unitExponential.getProbability(values_span, results_span, hint);
     }, 0, static_cast<double>(large_test.size()));
     
-    // Work-stealing parallel operations
-    WorkStealingPool work_pool(std::thread::hardware_concurrency());
-    
+    // Work-stealing parallel operations - using expert strategy selection
     bench.addTest("Work-Stealing Batch PDF", [&, large_test_mutable]() mutable {
         std::span<const double> values_span(large_test_mutable);
         std::span<double> results_span(large_results);

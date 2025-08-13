@@ -1,8 +1,5 @@
+// Use focused header for math utilities testing
 #include <gtest/gtest.h>
-#include <cmath>
-#include <limits>
-#include <vector>
-#include <algorithm>
 #include "../include/core/math_utils.h"
 
 // Use libstats::math namespace but avoid conflicting standard library functions

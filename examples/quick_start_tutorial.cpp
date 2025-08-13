@@ -12,9 +12,6 @@
  */
 
 #include "libstats.h"
-#include <iostream>
-#include <random>
-#include <vector>
 
 int main() {
     std::cout << "=== libstats Quick Start Tutorial ===" << std::endl;

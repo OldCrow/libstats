@@ -1,11 +1,5 @@
-#include "../include/distributions/gaussian.h"
-#include "../include/distributions/uniform.h"
-#include "../include/distributions/exponential.h"
-#include "../include/distributions/poisson.h"
-#include "../include/distributions/discrete.h"
-// #include "../include/distributions/gamma.h" // Not implemented yet
-#include <iostream>
-#include <cassert>
+// Use comprehensive library header for testing multiple distributions
+#include "../include/libstats.h"
 
 using namespace libstats;
 
