@@ -25,7 +25,7 @@
 namespace libstats {
 
 //==============================================================================
-// CONSTRUCTORS AND DESTRUCTORS
+// 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
 
 ExponentialDistribution::ExponentialDistribution(double lambda) 
@@ -113,7 +113,13 @@ ExponentialDistribution& ExponentialDistribution::operator=(ExponentialDistribut
 }
 
 //==============================================================================
-// PARAMETER GETTERS AND SETTERS
+// 2. SAFE FACTORY METHODS
+//==============================================================================
+
+// Note: Safe factory methods are implemented inline in the header for performance
+
+//==============================================================================
+// 3. PARAMETER GETTERS AND SETTERS
 //==============================================================================
 
 void ExponentialDistribution::setLambda(double lambda) {
@@ -125,15 +131,6 @@ void ExponentialDistribution::setLambda(double lambda) {
     cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-void ExponentialDistribution::setParameters(double lambda) {
-    validateParameters(lambda);
-    
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    lambda_ = lambda;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
 
 double ExponentialDistribution::getMean() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -181,7 +178,7 @@ double ExponentialDistribution::getScale() const noexcept {
 }
 
 //==============================================================================
-// RESULT-BASED SETTERS
+// 4. RESULT-BASED SETTERS
 //==============================================================================
 
 VoidResult ExponentialDistribution::trySetLambda(double lambda) noexcept {
@@ -215,7 +212,7 @@ VoidResult ExponentialDistribution::trySetParameters(double lambda) noexcept {
 }
 
 //==============================================================================
-// CORE PROBABILITY METHODS
+// 5. CORE PROBABILITY METHODS
 //==============================================================================
 
 double ExponentialDistribution::getProbability(double x) const {
@@ -405,7 +402,7 @@ std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n)
 }
 
 //==============================================================================
-// DISTRIBUTION MANAGEMENT
+// 6. DISTRIBUTION MANAGEMENT
 //==============================================================================
 
 void ExponentialDistribution::fit(const std::vector<double>& values) {
@@ -449,7 +446,7 @@ std::string ExponentialDistribution::toString() const {
 }
 
 //==============================================================================
-// ADVANCED STATISTICAL METHODS
+// 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
 
 std::pair<double, double> ExponentialDistribution::confidenceIntervalRate(
@@ -761,6 +758,10 @@ std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariation
     return {cv_statistic, p_value, reject_null};
 }
 
+//==============================================================================
+// 8. GOODNESS-OF-FIT TESTS
+//==============================================================================
+
 std::tuple<double, double, bool> ExponentialDistribution::kolmogorovSmirnovTest(
     const std::vector<double>& data,
     const ExponentialDistribution& distribution,
@@ -843,6 +844,10 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
     
     return {ad_adjusted, p_value, reject_null};
 }
+
+//==============================================================================
+// 9. CROSS-VALIDATION METHODS
+//==============================================================================
 
 std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCrossValidation(
     const std::vector<double>& data,
@@ -993,6 +998,10 @@ std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossVali
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
 }
 
+//==============================================================================
+// 10. INFORMATION CRITERIA
+//==============================================================================
+
 std::tuple<double, double, double, double> ExponentialDistribution::computeInformationCriteria(
     const std::vector<double>& data,
     const ExponentialDistribution& fitted_distribution) {
@@ -1029,6 +1038,10 @@ std::tuple<double, double, double, double> ExponentialDistribution::computeInfor
     
     return {aic, bic, aicc, log_likelihood};
 }
+
+//==============================================================================
+// 11. BOOTSTRAP METHODS
+//==============================================================================
 
 std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceIntervals(
     const std::vector<double>& data,
@@ -1090,188 +1103,15 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
     return {bootstrap_rates[lower_idx], bootstrap_rates[upper_idx]};
 }
 
-
-
 //==============================================================================
-// PRIVATE BATCH IMPLEMENTATION METHODS
+// 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-void ExponentialDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                           double lambda, double neg_lambda) const noexcept {
-    // Check if vectorization is beneficial (SIMDPolicy handles all CPU detection)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        const bool is_unit_rate = (std::abs(lambda - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (is_unit_rate) {
-                results[i] = std::exp(-x);
-            } else {
-                results[i] = lambda * std::exp(neg_lambda * x);
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    const bool is_unit_rate = (std::abs(lambda - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
-    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
-    
-    // Step 1: Prepare exp() inputs
-    if (is_unit_rate) {
-        // For unit rate: exp(-x)
-        simd::VectorOps::scalar_multiply(values, constants::math::NEG_ONE, exp_inputs.data(), count);
-    } else {
-        // For general case: exp(neg_lambda * x)
-        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
-    }
-    
-    // Step 2: Apply vectorized exponential
-    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
-    
-    // Step 3: Apply lambda scaling if needed
-    if (!is_unit_rate) {
-        simd::VectorOps::scalar_multiply(results, lambda, results, count);
-    }
-    
-    // Step 4: Handle negative input values (set to zero)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::math::ZERO_DOUBLE;
-        }
-    }
-}
-
-void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                              double log_lambda, double neg_lambda) const noexcept {
-    // Check if vectorization is beneficial (SIMDPolicy handles all CPU detection)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        const bool is_unit_rate = (std::abs(log_lambda - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            } else if (is_unit_rate) {
-                results[i] = -x;
-            } else {
-                results[i] = log_lambda + neg_lambda * x;
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    const bool is_unit_rate = (std::abs(log_lambda - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> temp_values(count);
-    
-    // Step 1: Calculate the main term
-    if (is_unit_rate) {
-        // For unit rate: -x
-        simd::VectorOps::scalar_multiply(values, constants::math::NEG_ONE, results, count);
-    } else {
-        // For general case: log_lambda + neg_lambda * x
-        simd::VectorOps::scalar_multiply(values, neg_lambda, temp_values.data(), count);
-        simd::VectorOps::scalar_add(temp_values.data(), log_lambda, results, count);
-    }
-    
-    // Step 2: Handle negative input values (set to -infinity)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::probability::NEGATIVE_INFINITY;
-        }
-    }
-}
-
-void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                                     double neg_lambda) const noexcept {
-    // Check if vectorization is beneficial (SIMDPolicy handles all CPU detection)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        const bool is_unit_rate = (std::abs(neg_lambda + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (is_unit_rate) {
-                results[i] = constants::math::ONE - std::exp(-x);
-            } else {
-                results[i] = constants::math::ONE - std::exp(neg_lambda * x);
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    const bool is_unit_rate = (std::abs(neg_lambda + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
-    std::vector<double, simd::aligned_allocator<double>> exp_results(count);
-    
-    // Step 1: Prepare exp() inputs
-    if (is_unit_rate) {
-        // For unit rate: 1 - exp(-x)
-        simd::VectorOps::scalar_multiply(values, constants::math::NEG_ONE, exp_inputs.data(), count);
-    } else {
-        // For general case: 1 - exp(neg_lambda * x)
-        simd::VectorOps::scalar_multiply(values, neg_lambda, exp_inputs.data(), count);
-    }
-    
-    // Step 2: Apply vectorized exponential
-    simd::VectorOps::vector_exp(exp_inputs.data(), exp_results.data(), count);
-    
-    // Step 3: Calculate 1 - exp(...)
-    simd::VectorOps::scalar_add(exp_results.data(), constants::math::NEG_ONE, results, count);
-    simd::VectorOps::scalar_multiply(results, constants::math::NEG_ONE, results, count);
-    
-    // Step 4: Handle negative input values (set to zero)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::math::ZERO_DOUBLE;
-        }
-    }
-}
-
-// Note: Redundant SIMD methods removed - SIMD optimization is now handled
-// internally within the *BatchUnsafeImpl methods above, following the
-// standardized pattern established in gaussian.cpp
-
-
+// Note: Most distribution-specific utility methods are implemented inline in the header for performance
+// Only complex methods requiring implementation are included here
 
 //==============================================================================
-// COMPARISON OPERATORS
-//==============================================================================
-
-bool ExponentialDistribution::operator==(const ExponentialDistribution& other) const {
-    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-    std::lock(lock1, lock2);
-    
-    return std::abs(lambda_ - other.lambda_) <= constants::precision::DEFAULT_TOLERANCE;
-}
-
-//==============================================================================
-// SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+// 13. SMART AUTO-DISPATCH BATCH OPERATIONS
 //==============================================================================
 
 void ExponentialDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -1798,7 +1638,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
 }
 
 //==============================================================================
-// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+// 13. EXPLICIT STRATEGY BATCH METHODS (POWER USER INTERFACE)
 //==============================================================================
 
 void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
@@ -2305,7 +2145,19 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<con
 }
 
 //==============================================================================
-// STREAM OPERATORS
+// 14. COMPARISON OPERATORS
+//==============================================================================
+
+bool ExponentialDistribution::operator==(const ExponentialDistribution& other) const {
+    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+    std::lock(lock1, lock2);
+    
+    return std::abs(lambda_ - other.lambda_) <= constants::precision::DEFAULT_TOLERANCE;
+}
+
+//==============================================================================
+// 15. STREAM OPERATORS
 //==============================================================================
 
 std::ostream& operator<<(std::ostream& os, const ExponentialDistribution& distribution) {
@@ -2356,4 +2208,116 @@ std::istream& operator>>(std::istream& is, ExponentialDistribution& distribution
     return is;
 }
 
+//==============================================================================
+// 16. FRIEND FUNCTION STREAM OPERATORS
+//==============================================================================
+
+// Note: Friend function stream operators are implemented inline in the header for performance
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 17. PRIVATE FACTORY IMPLEMENTATION METHODS
+//==============================================================================
+
+// Note: Private factory implementation methods are currently inline in the header
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 18. PRIVATE BATCH IMPLEMENTATION METHODS
+//==============================================================================
+
+void ExponentialDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, size_t count,
+                                                           double cached_lambda, double cached_neg_lambda) const noexcept {
+    for (size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        if (x < constants::math::ZERO_DOUBLE) {
+            results[i] = constants::math::ZERO_DOUBLE;
+        } else {
+            // Fast path check for unit rate (λ = 1)
+            if (std::abs(cached_lambda - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE) {
+                results[i] = std::exp(-x);
+            } else {
+                results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
+            }
+        }
+    }
+}
+
+void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, size_t count,
+                                                              double cached_log_lambda, double cached_neg_lambda) const noexcept {
+    for (size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        if (x < constants::math::ZERO_DOUBLE) {
+            results[i] = constants::probability::NEGATIVE_INFINITY;
+        } else {
+            // Fast path check for unit rate (λ = 1)
+            if (std::abs(cached_log_lambda - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) {
+                results[i] = -x;
+            } else {
+                results[i] = cached_log_lambda + cached_neg_lambda * x;
+            }
+        }
+    }
+}
+
+void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, size_t count,
+                                                                     double cached_neg_lambda) const noexcept {
+    for (size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        if (x < constants::math::ZERO_DOUBLE) {
+            results[i] = constants::math::ZERO_DOUBLE;
+        } else {
+            // Fast path check for unit rate (λ = 1)
+            if (std::abs(cached_neg_lambda + constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE) {
+                results[i] = constants::math::ONE - std::exp(-x);
+            } else {
+                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+            }
+        }
+    }
+}
+
+//==============================================================================
+// 19. PRIVATE COMPUTATIONAL METHODS
+//==============================================================================
+
+// Note: Private computational methods are implemented inline in the header for performance
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 20. PRIVATE UTILITY METHODS
+//==============================================================================
+
+// Note: Private utility methods are implemented inline in the header for performance
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 21. DISTRIBUTION PARAMETERS
+//==============================================================================
+
+// Note: Distribution parameters are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 22. PERFORMANCE CACHE
+//==============================================================================
+
+// Note: Performance cache variables are declared in the header as mutable private members
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 23. OPTIMIZATION FLAGS
+//==============================================================================
+
+// Note: Optimization flags are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 24. SPECIALIZED CACHES
+//==============================================================================
+
+// Note: Specialized caches are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
 } // namespace libstats
+
