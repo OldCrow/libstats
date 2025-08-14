@@ -18,7 +18,10 @@
 
 namespace libstats {
 
-// Constructor
+//==========================================================================
+// 1. CONSTRUCTORS AND DESTRUCTOR
+//==========================================================================
+
 GammaDistribution::GammaDistribution(double alpha, double beta) {
     auto validation = validateGammaParameters(alpha, beta);
     if (validation.isError()) {
@@ -29,7 +32,6 @@ GammaDistribution::GammaDistribution(double alpha, double beta) {
     updateCacheUnsafe();
 }
 
-// Copy constructor
 GammaDistribution::GammaDistribution(const GammaDistribution& other) {
     std::unique_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
@@ -39,7 +41,6 @@ GammaDistribution::GammaDistribution(const GammaDistribution& other) {
     atomicBeta_.store(beta_, std::memory_order_release);
 }
 
-// Copy assignment operator
 GammaDistribution& GammaDistribution::operator=(const GammaDistribution& other) {
     if (this != &other) {
         std::scoped_lock lock(cache_mutex_, other.cache_mutex_);
@@ -50,7 +51,6 @@ GammaDistribution& GammaDistribution::operator=(const GammaDistribution& other) 
     return *this;
 }
 
-// Move constructor
 GammaDistribution::GammaDistribution(GammaDistribution&& other) {
     std::scoped_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
@@ -60,7 +60,6 @@ GammaDistribution::GammaDistribution(GammaDistribution&& other) {
     atomicBeta_.store(beta_, std::memory_order_release);
 }
 
-// Move assignment operator
 GammaDistribution& GammaDistribution::operator=(GammaDistribution&& other) {
     if (this != &other) {
         std::scoped_lock lock(cache_mutex_, other.cache_mutex_);
@@ -73,9 +72,16 @@ GammaDistribution& GammaDistribution::operator=(GammaDistribution&& other) {
 
 // Destructor is explicitly defaulted in header - no definition needed here
 
-//==============================================================================
-// PARAMETER GETTERS AND SETTERS
-//==============================================================================
+//==========================================================================
+// 2. SAFE FACTORY METHODS (Exception-free construction)
+//==========================================================================
+
+// Note: Safe factory methods are implemented inline in header for performance
+// All create() and createWithScale() methods are header-only implementations
+
+//==========================================================================
+// 3. PARAMETER GETTERS AND SETTERS
+//==========================================================================
 
 double GammaDistribution::getScale() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -197,9 +203,9 @@ void GammaDistribution::setParameters(double alpha, double beta) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
-//==============================================================================
-// RESULT-BASED SETTERS
-//==============================================================================
+//==========================================================================
+// 4. RESULT-BASED SETTERS
+//==========================================================================
 
 VoidResult GammaDistribution::trySetAlpha(double alpha) noexcept {
     // Copy current beta for validation (thread-safe)
@@ -267,9 +273,9 @@ VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexce
     return VoidResult::ok(true);
 }
 
-//==============================================================================
-// CORE PROBABILITY METHODS
-//==============================================================================
+//==========================================================================
+// 5. CORE PROBABILITY METHODS
+//==========================================================================
 
 double GammaDistribution::getProbability(double x) const {
     if (x < 0.0) {
@@ -400,9 +406,9 @@ std::vector<double> GammaDistribution::sample(std::mt19937& rng, size_t n) const
     return samples;
 }
 
-//==============================================================================
-// DISTRIBUTION MANAGEMENT
-//==============================================================================
+//==========================================================================
+// 6. DISTRIBUTION MANAGEMENT
+//==========================================================================
 
 void GammaDistribution::fit(const std::vector<double>& values) {
     if (values.empty()) {
@@ -441,9 +447,9 @@ std::string GammaDistribution::toString() const {
     return oss.str();
 }
 
-//==============================================================================
-// ADVANCED STATISTICAL METHODS
-//==============================================================================
+//==========================================================================
+// 7. ADVANCED STATISTICAL METHODS
+//==========================================================================
 
 std::pair<double, double> GammaDistribution::confidenceIntervalShape(
     const std::vector<double>& data, double confidence_level) {
@@ -908,9 +914,9 @@ std::tuple<double, double, bool> GammaDistribution::normalApproximationTest(
     return std::make_tuple(lower_bound, upper_bound, reject_null);
 }
 
-//==============================================================================
-// GOODNESS-OF-FIT TESTS IMPLEMENTATION
-//==============================================================================
+//==========================================================================
+// 8. GOODNESS-OF-FIT TESTS
+//==========================================================================
 
 std::tuple<double, double, bool> GammaDistribution::kolmogorovSmirnovTest(
     const std::vector<double>& data, const GammaDistribution& distribution,
@@ -986,6 +992,11 @@ std::tuple<double, double, bool> GammaDistribution::andersonDarlingTest(
 
     return std::make_tuple(ad_statistic, p_value, reject_null);
 }
+
+
+//==========================================================================
+// 9. CROSS-VALIDATION METHODS
+//==========================================================================
 
 std::vector<std::tuple<double, double, double>> GammaDistribution::kFoldCrossValidation(
     const std::vector<double>& data, int k, unsigned int random_seed) {
@@ -1098,9 +1109,9 @@ std::tuple<double, double, double> GammaDistribution::leaveOneOutCrossValidation
     return std::make_tuple(mean_absolute_error, root_mean_squared_error, total_log_likelihood);
 }
 
-//==============================================================================
-// INFORMATION CRITERIA AND BOOTSTRAP METHODS IMPLEMENTATION
-//==============================================================================
+//==========================================================================
+// 10. INFORMATION CRITERIA
+//==========================================================================
 
 std::tuple<double, double, double, double> GammaDistribution::computeInformationCriteria(
     const std::vector<double>& data, const GammaDistribution& fitted_distribution) {
@@ -1128,6 +1139,10 @@ std::tuple<double, double, double, double> GammaDistribution::computeInformation
 
     return std::make_tuple(aic, bic, aicc, log_likelihood);
 }
+
+//==========================================================================
+// 11. BOOTSTRAP METHODS
+//==========================================================================
 
 std::tuple<std::pair<double, double>, std::pair<double, double>> GammaDistribution::bootstrapParameterConfidenceIntervals(
     const std::vector<double>& data, double confidence_level, int n_bootstrap, unsigned int random_seed) {
@@ -1187,9 +1202,9 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> GammaDistributi
                           std::make_pair(beta_lower, beta_upper));
 }
 
-//==============================================================================
-// GAMMA-SPECIFIC UTILITY METHODS IMPLEMENTATION
-//==============================================================================
+//==========================================================================
+// 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
+//==========================================================================
 
 bool GammaDistribution::isExponentialDistribution() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -1275,9 +1290,9 @@ Result<GammaDistribution> GammaDistribution::createFromMoments(double mean, doub
 }
 
 
-//==============================================================================
-// SMART AUTO-DISPATCH BATCH OPERATIONS IMPLEMENTATION
-//==============================================================================
+//==========================================================================
+// 13.A. SMART AUTO-DISPATCH BATCH OPERATIONS IMPLEMENTATION
+//==========================================================================
 
 void GammaDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                        const performance::PerformanceHint& hint) const {
@@ -1769,9 +1784,9 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
     );
 }
 
-//==============================================================================
-// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
-//==============================================================================
+//==========================================================================
+// 13.B. EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+//==========================================================================
 
 void GammaDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                    performance::Strategy strategy) const {
@@ -2279,9 +2294,9 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
     );
 }
 
-//==============================================================================
-// COMPARISON OPERATORS IMPLEMENTATION
-//==============================================================================
+//==========================================================================
+// 14. COMPARISON OPERATORS
+//==========================================================================
 
 bool GammaDistribution::operator==(const GammaDistribution& other) const {
     // Use scoped_lock to prevent deadlock when comparing two distributions
@@ -2294,8 +2309,220 @@ bool GammaDistribution::operator==(const GammaDistribution& other) const {
            (std::abs(beta_ - other.beta_) <= constants::precision::DEFAULT_TOLERANCE);
 }
 
+//==========================================================================
+// 15. STREAM OPERATORS
+//==========================================================================
+
+std::ostream& operator<<(std::ostream& os, const GammaDistribution& dist) {
+    return os << dist.toString();
+}
+
+std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
+    std::string temp;
+    double alpha, beta;
+    
+    // Expected format: "GammaDistribution(alpha=value, beta=value)"
+    // Read "GammaDistribution(alpha="
+    is >> temp; // "GammaDistribution(alpha=value,"
+    
+    if (temp.find("GammaDistribution(alpha=") == 0) {
+        // Extract alpha value
+        size_t equals_pos = temp.find('=');
+        size_t comma_pos = temp.find(',');
+        if (equals_pos != std::string::npos && comma_pos != std::string::npos) {
+            std::string alpha_str = temp.substr(equals_pos + 1, comma_pos - equals_pos - 1);
+            alpha = std::stod(alpha_str);
+            
+            // Read "beta=value)"
+            is >> temp;
+            if (temp.find("beta=") == 0) {
+                size_t beta_equals_pos = temp.find('=');
+                size_t close_paren_pos = temp.find(')');
+                if (beta_equals_pos != std::string::npos && close_paren_pos != std::string::npos) {
+                    std::string beta_str = temp.substr(beta_equals_pos + 1, close_paren_pos - beta_equals_pos - 1);
+                    beta = std::stod(beta_str);
+                    
+                    // Set parameters if valid
+                    auto result = dist.trySetParameters(alpha, beta);
+                    if (result.isError()) {
+                        is.setstate(std::ios::failbit);
+                    }
+                } else {
+                    is.setstate(std::ios::failbit);
+                }
+            } else {
+                is.setstate(std::ios::failbit);
+            }
+        } else {
+            is.setstate(std::ios::failbit);
+        }
+    } else {
+        is.setstate(std::ios::failbit);
+    }
+    
+    return is;
+}
+
 //==============================================================================
-// PRIVATE HELPER METHODS IMPLEMENTATION
+// 16. FRIEND FUNCTION STREAM OPERATORS
+//==============================================================================
+
+// Note: Friend function stream operators are implemented inline in the header for performance
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 17. PRIVATE FACTORY IMPLEMENTATION METHODS
+//==============================================================================
+
+// Note: Private factory implementation methods are currently inline in the header
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 18. PRIVATE BATCH IMPLEMENTATION METHODS
+//==============================================================================
+
+void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                      [[maybe_unused]] double alpha, double beta, double log_gamma_alpha,
+                                                      double alpha_log_beta, double alpha_minus_one) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = std::exp(alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i]);
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> log_values(count);
+    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
+    
+    // Step 1: Handle negative values and compute log(values)
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] <= 0.0) {
+            log_values[i] = constants::probability::MIN_LOG_PROBABILITY;  // Will be set to 0 later
+        } else {
+            log_values[i] = std::log(values[i]);
+        }
+    }
+    
+    // Step 2: Compute alpha_minus_one * log(values) using SIMD
+    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, exp_inputs.data(), count);
+    
+    // Step 3: Add alpha_log_beta - log_gamma_alpha
+    const double log_constant = alpha_log_beta - log_gamma_alpha;
+    simd::VectorOps::scalar_add(exp_inputs.data(), log_constant, exp_inputs.data(), count);
+    
+    // Step 4: Subtract beta * values
+    simd::VectorOps::scalar_multiply(values, -beta, log_values.data(), count);
+    simd::VectorOps::vector_add(exp_inputs.data(), log_values.data(), exp_inputs.data(), count);
+    
+    // Step 5: Apply vectorized exponential
+    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
+    
+    // Step 6: Handle negative input values (set to zero) - must be done after exp
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] <= 0.0) {
+            results[i] = 0.0;
+        }
+    }
+}
+
+void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                         [[maybe_unused]] double alpha, double beta, double log_gamma_alpha,
+                                                         double alpha_log_beta, double alpha_minus_one) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] <= 0.0) {
+                results[i] = constants::probability::NEGATIVE_INFINITY;
+            } else {
+                results[i] = alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i];
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // Create aligned temporary arrays for vectorized operations
+    std::vector<double, simd::aligned_allocator<double>> log_values(count);
+    std::vector<double, simd::aligned_allocator<double>> beta_scaled_values(count);
+    
+    // Step 1: Handle negative values and compute log(values)
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] <= 0.0) {
+            log_values[i] = 0.0;  // Use 0 for now, will handle negative values at the end
+        } else {
+            log_values[i] = std::log(values[i]);
+        }
+    }
+    
+    // Step 2: Compute alpha_minus_one * log(values) using SIMD
+    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, results, count);
+    
+    // Step 3: Add alpha_log_beta - log_gamma_alpha
+    const double log_constant = alpha_log_beta - log_gamma_alpha;
+    simd::VectorOps::scalar_add(results, log_constant, results, count);
+    
+    // Step 4: Subtract beta * values using SIMD
+    simd::VectorOps::scalar_multiply(values, -beta, beta_scaled_values.data(), count);
+    simd::VectorOps::vector_add(results, beta_scaled_values.data(), results, count);
+    
+    // Step 5: Handle negative input values (set to MIN_LOG_PROBABILITY) - must be done after all SIMD ops
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] <= 0.0) {
+            results[i] = constants::probability::MIN_LOG_PROBABILITY;
+        }
+    }
+}
+
+void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                                double alpha, double beta) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or unsupported SIMD
+        for (std::size_t i = 0; i < count; ++i) {
+            if (values[i] <= 0.0) {
+                results[i] = 0.0;
+            } else {
+                results[i] = regularizedIncompleteGamma(alpha, beta * values[i]);
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation
+    // Create aligned temporary array for beta * values
+    std::vector<double, simd::aligned_allocator<double>> scaled_values(count);
+    
+    // Step 1: Compute beta * values using SIMD
+    simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
+    
+    // Step 2: Apply regularized incomplete gamma function to each scaled value
+    // Note: This function is not easily vectorizable, so we still use scalar loop
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] <= 0.0) {
+            results[i] = 0.0;
+        } else {
+            results[i] = math::gamma_p(alpha, scaled_values[i]);
+        }
+    }
+}
+
+//==============================================================================
+// 19. PRIVATE COMPUTATIONAL METHODS
 //==============================================================================
 
 double GammaDistribution::incompleteGamma(double a, double x) noexcept {
@@ -2541,232 +2768,8 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
-double GammaDistribution::computeTrigamma(double x) noexcept {
-    // Trigamma function ψ'(x) = d²/dx² log(Γ(x))
-    // Uses asymptotic series for large x and recurrence relation
-    
-    if (x <= 0.0) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-    
-    double result = 0.0;
-    double z = x;
-    
-    // Use recurrence: ψ'(x+1) = ψ'(x) - 1/x²
-    while (z < 8.0) {
-        result += 1.0 / (z * z);
-        z += 1.0;
-    }
-    
-    // Asymptotic series for large z
-    // ψ'(z) ≈ 1/z + 1/(2z²) + 1/(6z³) - 1/(30z⁵) + 1/(42z⁷) - ...
-    double z_inv = 1.0 / z;
-    double z_inv_sq = z_inv * z_inv;
-    
-    result += z_inv + 0.5 * z_inv_sq;
-    result += z_inv_sq * z_inv / 6.0;           // 1/(6z³)
-    result -= z_inv_sq * z_inv_sq * z_inv / 30.0; // -1/(30z⁵)
-    result += z_inv_sq * z_inv_sq * z_inv_sq * z_inv / 42.0; // 1/(42z⁷)
-    
-    return result;
-}
-
-void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                      [[maybe_unused]] double alpha, double beta, double log_gamma_alpha, 
-                                                      double alpha_log_beta, double alpha_minus_one) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= 0.0) {
-                results[i] = 0.0;
-            } else {
-                results[i] = std::exp(alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i]);
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> log_values(count);
-    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
-    
-    // Step 1: Handle negative values and compute log(values)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= 0.0) {
-            log_values[i] = constants::probability::MIN_LOG_PROBABILITY;  // Will be set to 0 later
-        } else {
-            log_values[i] = std::log(values[i]);
-        }
-    }
-    
-    // Step 2: Compute alpha_minus_one * log(values) using SIMD
-    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, exp_inputs.data(), count);
-    
-    // Step 3: Add alpha_log_beta - log_gamma_alpha
-    const double log_constant = alpha_log_beta - log_gamma_alpha;
-    simd::VectorOps::scalar_add(exp_inputs.data(), log_constant, exp_inputs.data(), count);
-    
-    // Step 4: Subtract beta * values
-    simd::VectorOps::scalar_multiply(values, -beta, log_values.data(), count);
-    simd::VectorOps::vector_add(exp_inputs.data(), log_values.data(), exp_inputs.data(), count);
-    
-    // Step 5: Apply vectorized exponential
-    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
-    
-    // Step 6: Handle negative input values (set to zero) - must be done after exp
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= 0.0) {
-            results[i] = 0.0;
-        }
-    }
-}
-
-void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                         [[maybe_unused]] double alpha, double beta, double log_gamma_alpha, 
-                                                         double alpha_log_beta, double alpha_minus_one) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= 0.0) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
-            } else {
-                results[i] = alpha_log_beta - log_gamma_alpha + alpha_minus_one * std::log(values[i]) - beta * values[i];
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> log_values(count);
-    std::vector<double, simd::aligned_allocator<double>> beta_scaled_values(count);
-    
-    // Step 1: Handle negative values and compute log(values)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= 0.0) {
-            log_values[i] = 0.0;  // Use 0 for now, will handle negative values at the end
-        } else {
-            log_values[i] = std::log(values[i]);
-        }
-    }
-    
-    // Step 2: Compute alpha_minus_one * log(values) using SIMD
-    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, results, count);
-    
-    // Step 3: Add alpha_log_beta - log_gamma_alpha
-    const double log_constant = alpha_log_beta - log_gamma_alpha;
-    simd::VectorOps::scalar_add(results, log_constant, results, count);
-    
-    // Step 4: Subtract beta * values using SIMD
-    simd::VectorOps::scalar_multiply(values, -beta, beta_scaled_values.data(), count);
-    simd::VectorOps::vector_add(results, beta_scaled_values.data(), results, count);
-    
-    // Step 5: Handle negative input values (set to MIN_LOG_PROBABILITY) - must be done after all SIMD ops
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= 0.0) {
-            results[i] = constants::probability::MIN_LOG_PROBABILITY;
-        }
-    }
-}
-
-void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                                double alpha, double beta) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= 0.0) {
-                results[i] = 0.0;
-            } else {
-                results[i] = regularizedIncompleteGamma(alpha, beta * values[i]);
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation
-    // Create aligned temporary array for beta * values
-    std::vector<double, simd::aligned_allocator<double>> scaled_values(count);
-    
-    // Step 1: Compute beta * values using SIMD
-    simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
-    
-    // Step 2: Apply regularized incomplete gamma function to each scaled value
-    // Note: This function is not easily vectorizable, so we still use scalar loop
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= 0.0) {
-            results[i] = 0.0;
-        } else {
-            results[i] = math::gamma_p(alpha, scaled_values[i]);
-        }
-    }
-}
-
 //==============================================================================
-// STREAM OPERATORS IMPLEMENTATION
-//==============================================================================
-
-std::ostream& operator<<(std::ostream& os, const GammaDistribution& dist) {
-    return os << dist.toString();
-}
-
-std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
-    std::string temp;
-    double alpha, beta;
-    
-    // Expected format: "GammaDistribution(alpha=value, beta=value)"
-    // Read "GammaDistribution(alpha="
-    is >> temp; // "GammaDistribution(alpha=value,"
-    
-    if (temp.find("GammaDistribution(alpha=") == 0) {
-        // Extract alpha value
-        size_t equals_pos = temp.find('=');
-        size_t comma_pos = temp.find(',');
-        if (equals_pos != std::string::npos && comma_pos != std::string::npos) {
-            std::string alpha_str = temp.substr(equals_pos + 1, comma_pos - equals_pos - 1);
-            alpha = std::stod(alpha_str);
-            
-            // Read "beta=value)"
-            is >> temp;
-            if (temp.find("beta=") == 0) {
-                size_t beta_equals_pos = temp.find('=');
-                size_t close_paren_pos = temp.find(')');
-                if (beta_equals_pos != std::string::npos && close_paren_pos != std::string::npos) {
-                    std::string beta_str = temp.substr(beta_equals_pos + 1, close_paren_pos - beta_equals_pos - 1);
-                    beta = std::stod(beta_str);
-                    
-                    // Set parameters if valid
-                    auto result = dist.trySetParameters(alpha, beta);
-                    if (result.isError()) {
-                        is.setstate(std::ios::failbit);
-                    }
-                } else {
-                    is.setstate(std::ios::failbit);
-                }
-            } else {
-                is.setstate(std::ios::failbit);
-            }
-        } else {
-            is.setstate(std::ios::failbit);
-        }
-    } else {
-        is.setstate(std::ios::failbit);
-    }
-    
-    return is;
-}
-
-//==============================================================================
-// DIGAMMA FUNCTION IMPLEMENTATION
+// 20. PRIVATE UTILITY METHODS
 //==============================================================================
 
 double GammaDistribution::computeDigamma(double x) noexcept {
@@ -2801,5 +2804,62 @@ double GammaDistribution::computeDigamma(double x) noexcept {
     return result;
 }
 
+double GammaDistribution::computeTrigamma(double x) noexcept {
+    // Trigamma function ψ'(x) = d²/dx² log(Γ(x))
+    // Uses asymptotic series for large x and recurrence relation
+    
+    if (x <= 0.0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    
+    double result = 0.0;
+    double z = x;
+    
+    // Use recurrence: ψ'(x+1) = ψ'(x) - 1/x²
+    while (z < 8.0) {
+        result += 1.0 / (z * z);
+        z += 1.0;
+    }
+    
+    // Asymptotic series for large z
+    // ψ'(z) ≈ 1/z + 1/(2z²) + 1/(6z³) - 1/(30z⁵) + 1/(42z⁷) - ...
+    double z_inv = 1.0 / z;
+    double z_inv_sq = z_inv * z_inv;
+    
+    result += z_inv + 0.5 * z_inv_sq;
+    result += z_inv_sq * z_inv / 6.0;           // 1/(6z³)
+    result -= z_inv_sq * z_inv_sq * z_inv / 30.0; // -1/(30z⁵)
+    result += z_inv_sq * z_inv_sq * z_inv_sq * z_inv / 42.0; // 1/(42z⁷)
+    
+    return result;
+}
+
+//==============================================================================
+// 21. DISTRIBUTION PARAMETERS
+//==============================================================================
+
+// Note: Distribution parameters are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 22. PERFORMANCE CACHE
+//==============================================================================
+
+// Note: Performance cache variables are declared in the header as mutable private members
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 23. OPTIMIZATION FLAGS
+//==============================================================================
+
+// Note: Optimization flags are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 24. SPECIALIZED CACHES
+//==============================================================================
+
+// Note: Specialized caches are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
 
 } // namespace libstats
