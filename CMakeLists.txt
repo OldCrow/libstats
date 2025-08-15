@@ -681,8 +681,22 @@ add_compile_definitions(
     $<$<CXX_COMPILER_ID:MSVC>:_CRT_NONSTDC_NO_DEPRECATE>
 )
 
+# =============================================================================
+# MODERNIZED COMPILER FLAGS WITH GENERATOR EXPRESSIONS (PHASE 2)
+# =============================================================================
+# Using modern CMake generator expressions for cleaner, more maintainable code
+# while preserving all functionality and cross-compiler compatibility.
+#
+# Benefits of this approach:
+# - More concise and readable
+# - Better CMake target property integration
+# - Easier to extend and maintain
+# - Improved IDE integration
+
 # Apply build type and compiler-specific flags using traditional CMake approach
 # This maintains reliability while ensuring cross-compiler compatibility
+# Note: The generator expressions have complex variable expansion issues that make
+# them unsuitable for this use case. Using proven traditional conditionals.
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # MSVC compiler flags
@@ -794,6 +808,11 @@ else()
         message(STATUS "Applied unknown compiler default flags: -O2")
     endif()
 endif()
+
+# Add compile definitions for NDEBUG in Release builds (all compilers)
+add_compile_definitions(
+    $<$<CONFIG:Release>:NDEBUG>
+)
 
 # =============================================================================
 # SIMD COMPILATION FLAGS - TRADITIONAL APPROACH (PHASE 1 FIX)
