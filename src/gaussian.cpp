@@ -29,7 +29,7 @@ namespace libstats {
 
 
 //==============================================================================
-// CONSTRUCTORS AND DESTRUCTORS
+// 1. CONSTRUCTORS AND DESTRUCTORS
 //==============================================================================
 
 GaussianDistribution::GaussianDistribution(double mean, double standardDeviation) 
@@ -122,8 +122,15 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
     return *this;
 }
 
+//==========================================================================
+// 2. SAFE FACTORY METHODS (Exception-free construction)
+//==========================================================================
+
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
+
 //==============================================================================
-// PARAMETER GETTERS AND SETTERS
+// 3. PARAMETER GETTERS AND SETTERS
 //==============================================================================
 
 void GaussianDistribution::setMean(double mean) {
@@ -179,7 +186,7 @@ void GaussianDistribution::setParameters(double mean, double standardDeviation) 
 }
 
 //==============================================================================
-// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+// 4. RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
 //==============================================================================
 
 VoidResult GaussianDistribution::trySetMean(double mean) noexcept {
@@ -249,7 +256,7 @@ VoidResult GaussianDistribution::trySetParameters(double mean, double standardDe
 }
 
 //==============================================================================
-// CORE PROBABILITY METHODS
+// 5. CORE PROBABILITY METHODS
 //
 // SAFETY DOCUMENTATION FOR DEVELOPERS:
 //
@@ -486,7 +493,7 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
 }
 
 //==============================================================================
-// DISTRIBUTION MANAGEMENT
+// 6. DISTRIBUTION MANAGEMENT
 //==============================================================================
 
 void GaussianDistribution::fit(const std::vector<double>& values) {
@@ -641,7 +648,7 @@ std::string GaussianDistribution::toString() const {
 }
 
 //==============================================================================
-// ADVANCED STATISTICAL METHODS
+// 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
 
 std::pair<double, double> GaussianDistribution::confidenceIntervalMean(
@@ -1221,6 +1228,10 @@ std::tuple<double, double, bool> GaussianDistribution::likelihoodRatioTest(
     return {lr_statistic, p_value, reject_null};
 }
 
+//==========================================================================
+// 8. GOODNESS-OF-FIT TESTS
+//==========================================================================
+
 std::tuple<double, double, bool> GaussianDistribution::kolmogorovSmirnovTest(
     const std::vector<double>& data,
     const GaussianDistribution& distribution,
@@ -1289,7 +1300,7 @@ std::tuple<double, double, bool> GaussianDistribution::andersonDarlingTest(
 }
 
 //==============================================================================
-// CROSS-VALIDATION AND MODEL SELECTION
+// 9. CROSS-VALIDATION METHODS
 //==============================================================================
 
 std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCrossValidation(
@@ -1425,6 +1436,46 @@ std::tuple<double, double, double> GaussianDistribution::leaveOneOutCrossValidat
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
 }
 
+//==============================================================================
+// 10. INFORMATION CRITERIA
+//==============================================================================
+
+std::tuple<double, double, double, double> GaussianDistribution::computeInformationCriteria(
+    const std::vector<double>& data,
+    const GaussianDistribution& fitted_distribution) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    const double n = static_cast<double>(data.size());
+    const int k = fitted_distribution.getNumParameters(); // 2 for Gaussian
+    
+    // Calculate log-likelihood
+    double log_likelihood = 0.0;
+    for (double val : data) {
+        log_likelihood += fitted_distribution.getLogProbability(val);
+    }
+    
+    // Compute information criteria
+    const double aic = constants::math::TWO * k - constants::math::TWO * log_likelihood;
+    const double bic = std::log(n) * k - constants::math::TWO * log_likelihood;
+    
+    // AICc (corrected AIC for small sample sizes)
+    double aicc;
+    if (n - k - 1 > 0) {
+        aicc = aic + (constants::math::TWO * k * (k + 1)) / (n - k - 1);
+    } else {
+        aicc = std::numeric_limits<double>::infinity(); // Undefined for small samples
+    }
+    
+    return {aic, bic, aicc, log_likelihood};
+}
+
+//==============================================================================
+// 11. BOOTSTRAP METHODS
+//==============================================================================
+
 std::tuple<std::pair<double, double>, std::pair<double, double>> GaussianDistribution::bootstrapParameterConfidenceIntervals(
     const std::vector<double>& data,
     double confidence_level,
@@ -1486,52 +1537,32 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> GaussianDistrib
     return {mean_ci, std_ci};
 }
 
-std::tuple<double, double, double, double> GaussianDistribution::computeInformationCriteria(
-    const std::vector<double>& data,
-    const GaussianDistribution& fitted_distribution) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
+//==============================================================================
+// 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
+//==============================================================================
+
+#ifdef DEBUG
+
+bool GaussianDistribution::isUsingStandardNormalOptimization() const {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
     }
     
-    const double n = static_cast<double>(data.size());
-    const int k = fitted_distribution.getNumParameters(); // 2 for Gaussian
-    
-    // Calculate log-likelihood
-    double log_likelihood = 0.0;
-    for (double val : data) {
-        log_likelihood += fitted_distribution.getLogProbability(val);
-    }
-    
-    // Compute information criteria
-    const double aic = constants::math::TWO * k - constants::math::TWO * log_likelihood;
-    const double bic = std::log(n) * k - constants::math::TWO * log_likelihood;
-    
-    // AICc (corrected AIC for small sample sizes)
-    double aicc;
-    if (n - k - 1 > 0) {
-        aicc = aic + (constants::math::TWO * k * (k + 1)) / (n - k - 1);
-    } else {
-        aicc = std::numeric_limits<double>::infinity(); // Undefined for small samples
-    }
-    
-    return {aic, bic, aicc, log_likelihood};
+    // Return the current state of the standard normal optimization flag
+    return isStandardNormal_;
 }
 
-//==============================================================================
-// SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
-//==============================================================================
-
+#endif // DEBUG
 
 //==============================================================================
-// THREAD POOL PARALLEL BATCH OPERATIONS
-//==============================================================================
-
-
-
-
-//==============================================================================
-// SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+// 13. SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
 //==============================================================================
 
 void GaussianDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -2042,7 +2073,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
 }
 
 //==============================================================================
-// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+// 14. EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
 //==============================================================================
 
 void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
@@ -2507,7 +2538,7 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
 }
 
 //==============================================================================
-// COMPARISON OPERATORS
+// 15. COMPARISON OPERATORS
 //==============================================================================
 
 bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
@@ -2520,7 +2551,7 @@ bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
 }
 
 //==============================================================================
-// STREAM OPERATORS
+// 16. FRIEND FUNCTION STREAM OPERATORS
 //==============================================================================
 
 std::ostream& operator<<(std::ostream& os, const GaussianDistribution& distribution) {
@@ -2604,59 +2635,17 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
     return is;
 }
 
-//==============================================================================
-// PRIVATE HELPER METHODS
-//==============================================================================
+//==========================================================================
+// 17. PRIVATE FACTORY METHODS
+//==========================================================================
 
-void GaussianDistribution::updateCacheUnsafe() const noexcept {
-    // Core mathematical functions - primary cache
-    normalizationConstant_ = constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
-    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
-    logStandardDeviation_ = std::log(standardDeviation_);
-    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
-    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
-    
-    // Secondary cache values - performance optimizations
-    cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
-    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
-    cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
-    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
-    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
-    
-    // Optimization flags - fast path detection
-    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
-                       (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE;
-    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
-    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE ||
-                      standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
-    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
-    
-    // Update atomic parameters for lock-free access
-    atomicMean_.store(mean_, std::memory_order_release);
-    atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
-    atomicParamsValid_.store(true, std::memory_order_release);
-    
-    // Cache is now valid
-    cache_valid_ = true;
-    cacheValidAtomic_.store(true, std::memory_order_release);
-}
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
 
-void GaussianDistribution::validateParameters(double mean, double stdDev) {
-    if (!std::isfinite(mean)) {
-        throw std::invalid_argument("Mean must be finite");
-    }
-    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
-        throw std::invalid_argument("Standard deviation must be positive and finite");
-    }
-    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
-        throw std::invalid_argument("Standard deviation is too large for numerical stability");
-    }
-}
 
 
 //==============================================================================
-// PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
+// 18. PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
 //
 // CRITICAL SAFETY DOCUMENTATION FOR LOW-LEVEL SIMD OPERATIONS:
 //
@@ -2845,27 +2834,61 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double*
     simd::VectorOps::scalar_multiply(results, constants::math::HALF, results, count);
 }
 
-#ifdef DEBUG
 //==============================================================================
-// DEBUG METHODS
+// 19. PRIVATE COMPUTATIONAL METHODS
 //==============================================================================
 
-bool GaussianDistribution::isUsingStandardNormalOptimization() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
+void GaussianDistribution::updateCacheUnsafe() const noexcept {
+    // Core mathematical functions - primary cache
+    normalizationConstant_ = constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
+    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
+    logStandardDeviation_ = std::log(standardDeviation_);
+    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
+    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
     
-    // Return the current state of the standard normal optimization flag
-    return isStandardNormal_;
+    // Secondary cache values - performance optimizations
+    cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
+    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
+    cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
+    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
+    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
+    
+    // Optimization flags - fast path detection
+    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
+                       (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE;
+    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
+    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE ||
+                      standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
+    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
+    
+    // Update atomic parameters for lock-free access
+    atomicMean_.store(mean_, std::memory_order_release);
+    atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
+    
+    // Cache is now valid
+    cache_valid_ = true;
+    cacheValidAtomic_.store(true, std::memory_order_release);
 }
 
-#endif // DEBUG
+void GaussianDistribution::validateParameters(double mean, double stdDev) {
+    if (!std::isfinite(mean)) {
+        throw std::invalid_argument("Mean must be finite");
+    }
+    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
+        throw std::invalid_argument("Standard deviation must be positive and finite");
+    }
+    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
+        throw std::invalid_argument("Standard deviation is too large for numerical stability");
+    }
+}
+
+//==========================================================================
+// 20. PRIVATE UTILITY METHODS
+//==========================================================================
+
+// Note: Currently no private utility methods needed for Gaussian distribution
+// This section maintained for template compliance
 
 } // namespace libstats

@@ -119,7 +119,7 @@ class DiscreteDistribution : public DistributionBase
 {
 public:
     //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
+    // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
@@ -174,7 +174,7 @@ public:
     ~DiscreteDistribution() override = default;
     
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
     
     /**
@@ -210,7 +210,7 @@ public:
     }
     
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
+    // 3. PARAMETER GETTERS AND SETTERS
     //==========================================================================
 
     /**
@@ -335,6 +335,16 @@ public:
      * @throws std::invalid_argument if parameters are invalid
      */
     void setBounds(int a, int b);
+    
+    /**
+     * @brief Sets both parameters simultaneously (exception-based API).
+     * Thread-safe: acquires unique lock for cache invalidation
+     *
+     * @param a New lower bound parameter (inclusive)
+     * @param b New upper bound parameter (inclusive, must be >= a)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    void setParameters(int a, int b);
     
     /**
      * Gets the mean of the distribution.
@@ -473,7 +483,7 @@ public:
     }
     
     //==============================================================================
-    // RESULT-BASED SETTERS
+    // 4. RESULT-BASED SETTERS
     //==============================================================================
     
     /**
@@ -511,16 +521,6 @@ public:
     [[nodiscard]] VoidResult trySetParameters(int a, int b) noexcept;
     
     /**
-     * @brief Sets both parameters simultaneously (exception-based API).
-     * Thread-safe: acquires unique lock for cache invalidation
-     * 
-     * @param a New lower bound parameter (inclusive)
-     * @param b New upper bound parameter (inclusive, must be >= a)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    void setParameters(int a, int b);
-    
-    /**
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
      */
@@ -530,7 +530,7 @@ public:
     }
 
     //==========================================================================
-    // CORE PROBABILITY METHODS
+    // 5. CORE PROBABILITY METHODS
     //==========================================================================
 
     /**
@@ -596,7 +596,7 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // DISTRIBUTION MANAGEMENT
+    // 6. DISTRIBUTION MANAGEMENT
     //==========================================================================
 
     /**
@@ -622,7 +622,7 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // 7. ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
@@ -761,25 +761,25 @@ public:
     
     
     //==========================================================================
-    // GOODNESS-OF-FIT TESTS
+    // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
     
     /**
-     * @brief Chi-squared goodness-of-fit test for discrete distributions
+     * @brief Kolmogorov-Smirnov goodness-of-fit test
      *
-     * Tests the null hypothesis that observed data follows the specified discrete distribution.
-     * Particularly appropriate for discrete distributions.
+     * Tests the null hypothesis that data follows the specified discrete distribution.
+     * Note: KS test is generally less appropriate for discrete data than chi-squared.
      *
      * @param data Sample data to test
      * @param distribution Theoretical distribution to test against
      * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (chi_squared_statistic, p_value, reject_null)
+     * @return Tuple of (KS_statistic, p_value, reject_null)
      */
-    static std::tuple<double, double, bool> chiSquaredGoodnessOfFitTest(
+    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
         const std::vector<double>& data,
         const DiscreteDistribution& distribution,
         double alpha = 0.05);
-
+    
     /**
      * @brief Anderson-Darling goodness-of-fit test for discrete distributions
      *
@@ -798,23 +798,23 @@ public:
         double alpha = 0.05);
     
     /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
+     * @brief Chi-squared goodness-of-fit test for discrete distributions
      *
-     * Tests the null hypothesis that data follows the specified discrete distribution.
-     * Note: KS test is generally less appropriate for discrete data than chi-squared.
+     * Tests the null hypothesis that observed data follows the specified discrete distribution.
+     * Particularly appropriate for discrete distributions.
      *
      * @param data Sample data to test
      * @param distribution Theoretical distribution to test against
      * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
+     * @return Tuple of (chi_squared_statistic, p_value, reject_null)
      */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
+    static std::tuple<double, double, bool> chiSquaredGoodnessOfFitTest(
         const std::vector<double>& data,
         const DiscreteDistribution& distribution,
         double alpha = 0.05);
     
     //==========================================================================
-    // CROSS-VALIDATION METHODS
+    // 9. CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -846,7 +846,7 @@ public:
         const std::vector<double>& data);
     
     //==========================================================================
-    // INFORMATION CRITERIA
+    // 10. INFORMATION CRITERIA
     //==========================================================================
     
     /**
@@ -864,7 +864,7 @@ public:
         const DiscreteDistribution& fitted_distribution);
     
     //==========================================================================
-    // BOOTSTRAP METHODS
+    // 11. BOOTSTRAP METHODS
     //==========================================================================
     
     /**
@@ -886,7 +886,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // DISTRIBUTION-SPECIFIC UTILITY METHODS
+    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -919,7 +919,7 @@ public:
     
 
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS
+    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -961,7 +961,7 @@ public:
     void getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS
+    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -1014,7 +1014,7 @@ public:
 
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // 15. COMPARISON OPERATORS
     //==========================================================================
     
     /**
@@ -1032,7 +1032,7 @@ public:
     bool operator!=(const DiscreteDistribution& other) const { return !(*this == other); }
 
     //==========================================================================
-    // FRIEND FUNCTION STREAM OPERATORS
+    // 16. FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
     /**
@@ -1053,7 +1053,7 @@ public:
 
 private:
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // 17. PRIVATE FACTORY METHODS
     //==========================================================================
     
     /**
@@ -1081,7 +1081,7 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
+    // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
     
     /** @brief Internal implementation for batch PMF calculation */
@@ -1097,7 +1097,7 @@ private:
                                                  int a, int b, double inv_range) const noexcept;
     
     //==========================================================================
-    // PRIVATE COMPUTATIONAL METHODS
+    // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
     
     /**
@@ -1153,7 +1153,7 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE UTILITY METHODS
+    // 20. PRIVATE UTILITY METHODS
     //==========================================================================
     
     /** @brief Round double to nearest integer with proper handling of edge cases */
@@ -1167,7 +1167,7 @@ private:
     }
     
     //==========================================================================
-    // DISTRIBUTION PARAMETERS
+    // 21. DISTRIBUTION PARAMETERS
     //==========================================================================
     
     /** @brief Lower bound parameter a (inclusive) */
@@ -1182,7 +1182,7 @@ private:
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
-    // PERFORMANCE CACHE
+    // 22. PERFORMANCE CACHE
     //==========================================================================
     
     /** @brief Cached value of (b - a + 1) - the number of possible outcomes */
@@ -1201,7 +1201,7 @@ private:
     mutable double logProbability_{-constants::math::LN2};
     
     //==========================================================================
-    // OPTIMIZATION FLAGS
+    // 23. OPTIMIZATION FLAGS
     //==========================================================================
     
     /** @brief Atomic cache validity flag for lock-free fast path optimization */
@@ -1223,7 +1223,7 @@ private:
     mutable bool isLargeRange_{false};
     
     //==========================================================================
-    // SPECIALIZED CACHES
+    // 24. SPECIALIZED CACHES
     //==========================================================================
     
     // Note: Discrete distribution uses standard caching only

@@ -71,7 +71,7 @@ class GaussianDistribution : public DistributionBase
 {
 public:
     //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
+    // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     /**
      * @brief Constructs a Gaussian distribution with given parameters.
@@ -125,7 +125,7 @@ public:
     ~GaussianDistribution() override = default;
 
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
     
     /**
@@ -161,7 +161,7 @@ public:
     }
 
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
+    // 3. PARAMETER GETTERS AND SETTERS
     //==========================================================================
     
     /**
@@ -339,7 +339,7 @@ public:
     }
 
     //==============================================================================
-    // RESULT-BASED SETTERS
+    // 4. RESULT-BASED SETTERS
     //==============================================================================
     
     /**
@@ -380,7 +380,7 @@ public:
     }
     
     //==========================================================================
-    // CORE PROBABILITY METHODS
+    // 5. CORE PROBABILITY METHODS
     //==========================================================================
     
     /**
@@ -441,7 +441,7 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // DISTRIBUTION MANAGEMENT
+    // 6. DISTRIBUTION MANAGEMENT
     //==========================================================================
 
     /**
@@ -478,7 +478,7 @@ public:
     std::string toString() const override;
 
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // 7. ADVANCED STATISTICAL METHODS
     //==========================================================================
 
     /**
@@ -707,7 +707,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // GOODNESS-OF-FIT TESTS
+    // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
 
     /**
@@ -745,7 +745,7 @@ public:
         double alpha = 0.05);
 
     //==========================================================================
-    // CROSS-VALIDATION METHODS
+    // 9. CROSS-VALIDATION METHODS
     //==========================================================================
 
     /**
@@ -779,7 +779,7 @@ public:
         const std::vector<double>& data);
     
     //==========================================================================
-    // INFORMATION CRITERIA
+    // 10. INFORMATION CRITERIA
     //==========================================================================
 
     /**
@@ -797,7 +797,7 @@ public:
         const GaussianDistribution& fitted_distribution);
     
     //==========================================================================
-    // BOOTSTRAP METHODS
+    // 11. BOOTSTRAP METHODS
     //==========================================================================
     
     /**
@@ -819,7 +819,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // GAUSSIAN-SPECIFIC UTILITY METHODS
+    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -905,148 +905,23 @@ public:
         return mean_;  // For Gaussian, mode = mean
     }
     
-    
+#ifdef DEBUG
+    /**
+     * Debug method to check if standard normal optimization is active
+     * Only available in debug builds
+     * @return true if this distribution is detected as standard normal
+     */
+    bool isUsingStandardNormalOptimization() const;
+#endif
 
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS
+    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
-
-    /**
-     * Advanced parallel batch probability calculation using ParallelUtils::parallelFor
-     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
-     * Combines SIMD vectorization with multi-core parallelism for maximum performance
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
-
-    /**
-     * Advanced parallel batch log probability calculation using ParallelUtils::parallelFor
-     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getLogProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const noexcept;
-
-    /**
-     * Advanced parallel batch CDF calculation using ParallelUtils::parallelFor
-     * Leverages Level 0-3 thread pool infrastructure for optimal work distribution
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getCumulativeProbabilityBatchParallel(std::span<const double> values, std::span<double> results) const;
-
-    /**
-     * Work-stealing parallel batch probability calculation for heavy computational loads
-     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
-     * Optimal for large datasets where work distribution may be irregular
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @param pool Reference to WorkStealingPool for load balancing
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                        WorkStealingPool& pool) const;
-    
-    /**
-     * Work-stealing parallel batch log probability calculation for heavy computational loads
-     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
-     * Optimal for large datasets where work distribution may be irregular
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @param pool Reference to WorkStealingPool for load balancing
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getLogProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                           WorkStealingPool& pool) const;
-
-    /**
-     * Work-stealing parallel batch CDF calculation for heavy computational loads
-     * Uses WorkStealingPool for dynamic load balancing across uneven workloads
-     * Optimal for large datasets where work distribution may be irregular
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @param pool Reference to WorkStealingPool for load balancing
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getCumulativeProbabilityBatchWorkStealing(std::span<const double> values, std::span<double> results,
-                                                  WorkStealingPool& pool) const;
-
-    /**
-     * Cache-aware batch processing using adaptive cache management
-     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
-     * Automatically determines optimal batch sizes based on cache behavior
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @param cache_manager Reference to adaptive cache manager
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                      cache::AdaptiveCache<std::string, double>& cache_manager) const;
-
-    /**
-     * Cache-aware batch log probability processing using adaptive cache management
-     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
-     * Automatically determines optimal batch sizes based on cache behavior
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @param cache_manager Reference to adaptive cache manager
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getLogProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getLogProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                         cache::AdaptiveCache<std::string, double>& cache_manager) const;
-
-    /**
-     * Cache-aware batch CDF processing using adaptive cache management
-     * Integrates with Level 0-3 adaptive cache system for predictive cache warming
-     * Automatically determines optimal batch sizes based on cache behavior
-     * @param values C++20 span of input values for type-safe array access
-     * @param results C++20 span of output results (must be same size as values)
-     * @param cache_manager Reference to adaptive cache manager
-     * @throws std::invalid_argument if span sizes don't match
-     * @deprecated Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead
-     */
-    [[deprecated("Use getCumulativeProbability(std::span, std::span, hint) with auto-dispatch instead")]]
-    void getCumulativeProbabilityBatchCacheAware(std::span<const double> values, std::span<double> results,
-                                                cache::AdaptiveCache<std::string, double>& cache_manager) const;
-
-    /**
-     * @brief Smart auto-dispatch batch probability calculation with performance hints
-     * 
-     * Automatically selects the optimal execution strategy (SCALAR, SIMD, PARALLEL, etc.)
-     * based on batch size, system capabilities, and user hints. Provides a unified
-     * interface that adapts to different hardware and workload characteristics.
-     * 
-     * @param values Input values as C++20 span for type safety
-     * @param results Output results as C++20 span (must be same size as values)
-     * @param hint Performance optimization hints (default: AUTO selection)
-     * 
-     * @throws std::invalid_argument if spans have different sizes
-     */
 
     /**
      * @brief Smart auto-dispatch batch probability calculation
      * 
-     * This method automatically selects the optimal execution strategy based on:
+     * This method automatically selects the optimal execution strategy (SCALAR, SIMD, PARALLEL, etc.) based on:
      * - Batch size and system capabilities
      * - Available CPU features (SIMD support)
      * - Threading overhead characteristics
@@ -1085,7 +960,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS
+    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -1130,17 +1005,8 @@ public:
     void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                              performance::Strategy strategy) const;
 
-#ifdef DEBUG
-    /**
-     * Debug method to check if standard normal optimization is active
-     * Only available in debug builds
-     * @return true if this distribution is detected as standard normal
-     */
-    bool isUsingStandardNormalOptimization() const;
-#endif // LIBSTATS_GAUSSIAN_H_
-
     //==========================================================================
-    // COMPARISON OPERATORS
+    // 15. COMPARISON OPERATORS
     //==========================================================================
 
     /**
@@ -1158,7 +1024,7 @@ public:
     bool operator!=(const GaussianDistribution& other) const { return !(*this == other); }
 
     //==========================================================================
-    // FRIEND FUNCTION STREAM OPERATORS
+    // 16. FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
 
     /**
@@ -1179,7 +1045,7 @@ public:
 
 private:
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // 17. PRIVATE FACTORY METHODS
     //==========================================================================
 
     /**
@@ -1207,7 +1073,7 @@ private:
     }
 
     //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
+    // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
 
     /** @brief Internal implementation for batch PDF calculation */
@@ -1226,7 +1092,7 @@ private:
                                                  bool is_standard_normal) const noexcept;
 
     //==========================================================================
-    // PRIVATE COMPUTATIONAL METHODS
+    // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
     
     /**
@@ -1244,14 +1110,14 @@ private:
     static void validateParameters(double mean, double stdDev);
 
     //==========================================================================
-    // PRIVATE UTILITY METHODS
+    // 20. PRIVATE UTILITY METHODS
     //==========================================================================
     
     // Note: Currently no private utility methods needed for Gaussian distribution
     // This section maintained for template compliance
 
     //==========================================================================
-    // DISTRIBUTION PARAMETERS
+    // 21. DISTRIBUTION PARAMETERS
     //==========================================================================
 
     /** @brief Mean parameter μ - can be any finite real number */
@@ -1266,7 +1132,7 @@ private:
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
-    // PERFORMANCE CACHE
+    // 22. PERFORMANCE CACHE
     //==========================================================================
 
     /** @brief Cached normalization constant 1/(σ√(2π)) for PDF calculations */
@@ -1300,7 +1166,7 @@ private:
     mutable double cachedSqrtTwoPi_{constants::math::SQRT_2PI};
 
     //==========================================================================
-    // OPTIMIZATION FLAGS
+    // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
     /** @brief True if this is standard normal (μ=0, σ=1) for ultra-fast path */
@@ -1322,7 +1188,7 @@ private:
     mutable std::atomic<bool> cacheValidAtomic_{false};
 
     //==========================================================================
-    // SPECIALIZED CACHES
+    // 24. SPECIALIZED CACHES
     //==========================================================================
     
     // Note: Gaussian distribution uses standard caching only

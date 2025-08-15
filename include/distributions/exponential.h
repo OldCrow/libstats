@@ -97,7 +97,7 @@ class ExponentialDistribution : public DistributionBase
 {   
 public:
     //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
+    // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
@@ -151,7 +151,7 @@ public:
     ~ExponentialDistribution() override = default;
     
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
     
     /**
@@ -186,7 +186,7 @@ public:
     }
 
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
+    // 3. PARAMETER GETTERS AND SETTERS
     //==========================================================================
 
     /**
@@ -245,6 +245,24 @@ public:
      * @throws std::invalid_argument if lambda <= 0 or is not finite
      */
     void setLambda(double lambda);
+    
+    /**
+     * @brief Sets the rate parameter (exception-based API).
+     * Thread-safe: acquires unique lock for cache invalidation
+     *
+     * @param lambda New rate parameter λ (must be positive)
+     * @throws std::invalid_argument if lambda is invalid
+     */
+    void setParameters(double lambda);
+    
+    /**
+     * Gets the scale parameter (reciprocal of rate parameter).
+     * This is equivalent to the mean for exponential distributions.
+     * Uses cached value to eliminate division.
+     *
+     * @return Scale parameter (1/λ)
+     */
+    [[nodiscard]] double getScale() const noexcept;
     
     /**
      * Gets the mean of the distribution.
@@ -340,17 +358,8 @@ public:
         return std::numeric_limits<double>::infinity();
     }
     
-    /**
-     * Gets the scale parameter (reciprocal of rate parameter).
-     * This is equivalent to the mean for exponential distributions.
-     * Uses cached value to eliminate division.
-     * 
-     * @return Scale parameter (1/λ)
-     */
-    [[nodiscard]] double getScale() const noexcept;
-    
     //==============================================================================
-    // RESULT-BASED SETTERS
+    // 4. RESULT-BASED SETTERS
     //==============================================================================
     
     /**
@@ -381,7 +390,7 @@ public:
     }
 
     //==========================================================================
-    // CORE PROBABILITY METHODS
+    // 5. CORE PROBABILITY METHODS
     //==========================================================================
 
     /**
@@ -441,7 +450,7 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // DISTRIBUTION MANAGEMENT
+    // 6. DISTRIBUTION MANAGEMENT
     //==========================================================================
 
     /**
@@ -466,7 +475,7 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // 7. ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
@@ -604,7 +613,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // GOODNESS-OF-FIT TESTS
+    // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
     
     /**
@@ -642,7 +651,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // CROSS-VALIDATION METHODS
+    // 9. CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -676,7 +685,7 @@ public:
         const std::vector<double>& data);
     
     //==========================================================================
-    // INFORMATION CRITERIA
+    // 10. INFORMATION CRITERIA
     //==========================================================================
     
     /**
@@ -694,7 +703,7 @@ public:
         const ExponentialDistribution& fitted_distribution);
     
     //==========================================================================
-    // BOOTSTRAP METHODS
+    // 11. BOOTSTRAP METHODS
     //==========================================================================
     
     /**
@@ -716,7 +725,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // DISTRIBUTION-SPECIFIC UTILITY METHODS
+    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -783,19 +792,8 @@ public:
         return constants::math::ZERO_DOUBLE;
     }
     
-    /**
-     * @brief Sets the rate parameter (exception-based API).
-     * Thread-safe: acquires unique lock for cache invalidation
-     * 
-     * @param lambda New rate parameter λ (must be positive)
-     * @throws std::invalid_argument if lambda is invalid
-     */
-    void setParameters(double lambda);
-    
- 
-    
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS
+    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
     
     /**
@@ -878,7 +876,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS
+    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -930,7 +928,7 @@ public:
                                              performance::Strategy strategy) const;
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // 15. COMPARISON OPERATORS
     //==========================================================================
     
     /**
@@ -948,7 +946,7 @@ public:
     bool operator!=(const ExponentialDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
-    // FRIEND FUNCTION STREAM OPERATORS
+    // 16. FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
     /**
@@ -969,7 +967,7 @@ public:
 
 private:
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // 17. PRIVATE FACTORY METHODS
     //==========================================================================
     
     /**
@@ -999,7 +997,7 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
+    // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
     
     /** @brief Internal implementation for batch PDF calculation */
@@ -1018,7 +1016,7 @@ private:
     // internally within the *UnsafeImpl methods above
     
     //==========================================================================
-    // PRIVATE COMPUTATIONAL METHODS
+    // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
     
     /**
@@ -1058,14 +1056,14 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE UTILITY METHODS
+    // 20. PRIVATE UTILITY METHODS
     //==========================================================================
     
     // Note: Currently no private utility methods needed for Exponential distribution
     // This section maintained for template compliance
     
     //==========================================================================
-    // DISTRIBUTION PARAMETERS
+    // 21. DISTRIBUTION PARAMETERS
     //==========================================================================
     
     /** @brief Rate parameter λ - must be positive */
@@ -1076,7 +1074,7 @@ private:
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
-    // PERFORMANCE CACHE
+    // 22. PERFORMANCE CACHE
     //==========================================================================
     
     /** @brief Cached value of ln(λ) for efficiency in log probability calculations */
@@ -1092,7 +1090,7 @@ private:
     mutable double invLambdaSquared_{constants::math::ONE};
     
     //==========================================================================
-    // OPTIMIZATION FLAGS
+    // 23. OPTIMIZATION FLAGS
     //==========================================================================
     
     /** @brief Atomic cache validity flag for lock-free fast path optimization */
@@ -1108,14 +1106,12 @@ private:
     mutable bool isLowRate_{false};
     
     //==========================================================================
-    // SPECIALIZED CACHES
+    // 24. SPECIALIZED CACHES
     //==========================================================================
     
     // Note: Exponential distribution uses standard caching only
     // This section maintained for template compliance
 
-    friend std::istream& operator>>(std::istream& is,
-            libstats::ExponentialDistribution& distribution);
 };
 
 } // namespace libstats

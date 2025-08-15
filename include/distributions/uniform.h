@@ -113,7 +113,7 @@ class UniformDistribution : public DistributionBase
 {   
 public:
     //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
+    // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
@@ -169,7 +169,7 @@ public:
     ~UniformDistribution() override = default;
     
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
     
     /**
@@ -205,7 +205,7 @@ public:
     }
 
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
+    // 3. PARAMETER GETTERS AND SETTERS
     //==========================================================================
 
     /**
@@ -288,10 +288,20 @@ public:
     void setBounds(double a, double b);
     
     /**
+     * @brief Sets both parameters simultaneously (exception-based API).
+     * Thread-safe: acquires unique lock for cache invalidation
+     *
+     * @param a New lower bound parameter
+     * @param b New upper bound parameter (must be > a)
+     * @throws std::invalid_argument if parameters are invalid
+     */
+    void setParameters(double a, double b);
+    
+    /**
      * Gets the mean of the distribution.
      * For Uniform distribution, mean = (a + b)/2
      * Uses cached value to eliminate addition and division.
-     * 
+     *
      * @return Mean value
      */
     [[nodiscard]] double getMean() const noexcept override;
@@ -390,43 +400,8 @@ public:
      */
     [[nodiscard]] double getWidth() const noexcept;
     
-    /**
-     * Gets the mode of the distribution.
-     * For Uniform distribution, mode is not unique - any value in [a, b] is a mode.
-     * This method returns the midpoint (a + b) / 2.0 as a representative mode.
-     *
-     * @return Mode value (midpoint of the range)
-     */
-    [[nodiscard]] double getMode() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (a_ + b_) / 2.0;
-    }
-    
-    /**
-     * Gets the median of the distribution.
-     * For Uniform distribution, median is (a + b) / 2.0.
-     *
-     * @return Median value
-     */
-    [[nodiscard]] double getMedian() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (a_ + b_) / 2.0;
-    }
-    
-    /**
-     * Gets the midpoint of the distribution (a + b)/2.
-     * This is also the mean and median of the distribution.
-     * Uses cached value to eliminate addition and division.
-     * 
-     * @return Midpoint of the distribution
-     */
-    [[nodiscard]] double getMidpoint() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (a_ + b_) * constants::math::HALF;  // Multiplication is faster than division
-    }
-    
     //==========================================================================
-    // RESULT-BASED SETTERS
+    // 4. RESULT-BASED SETTERS
     //==========================================================================
 
     /**
@@ -455,16 +430,6 @@ public:
      * Implementation in .cpp: Complex thread-safe parameter validation and atomic state management
      */
     [[nodiscard]] VoidResult trySetParameters(double a, double b) noexcept;
-
-    /**
-     * @brief Sets both parameters simultaneously (exception-based API).
-     * Thread-safe: acquires unique lock for cache invalidation
-     * 
-     * @param a New lower bound parameter
-     * @param b New upper bound parameter (must be > a)
-     * @throws std::invalid_argument if parameters are invalid
-     */
-    void setParameters(double a, double b);
     
     /**
      * @brief Check if current parameters are valid
@@ -476,7 +441,7 @@ public:
     }
     
     //==========================================================================
-    // CORE PROBABILITY METHODS
+    // 5. CORE PROBABILITY METHODS
     //==========================================================================
 
     /**
@@ -541,7 +506,7 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // DISTRIBUTION MANAGEMENT
+    // 6. DISTRIBUTION MANAGEMENT
     //==========================================================================
 
     /**
@@ -567,7 +532,7 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // 7. ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
@@ -705,7 +670,7 @@ public:
     
     
     //==========================================================================
-    // GOODNESS-OF-FIT TESTS
+    // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
     
     /**
@@ -740,7 +705,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // CROSS-VALIDATION METHODS
+    // 9. CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -774,7 +739,7 @@ public:
         const std::vector<double>& data);
     
     //==========================================================================
-    // INFORMATION CRITERIA
+    // 10. INFORMATION CRITERIA
     //==========================================================================
     
     /**
@@ -792,7 +757,7 @@ public:
         const UniformDistribution& fitted_distribution);
     
     //==========================================================================
-    // BOOTSTRAP METHODS
+    // 11. BOOTSTRAP METHODS
     //==========================================================================
     
     /**
@@ -814,7 +779,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // DISTRIBUTION-SPECIFIC UTILITY METHODS
+    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -883,12 +848,43 @@ public:
         return std::abs(a_ + b_) <= constants::precision::DEFAULT_TOLERANCE;
     }
     
+    /**
+     * Gets the median of the distribution.
+     * For Uniform distribution, median is (a + b) / 2.0.
+     *
+     * @return Median value
+     */
+    [[nodiscard]] double getMedian() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (a_ + b_) / 2.0;
+    }
     
+    /**
+     * Gets the mode of the distribution.
+     * For Uniform distribution, mode is not unique - any value in [a, b] is a mode.
+     * This method returns the midpoint (a + b) / 2.0 as a representative mode.
+     *
+     * @return Mode value (midpoint of the range)
+     */
+    [[nodiscard]] double getMode() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (a_ + b_) / 2.0;
+    }
     
-
+    /**
+     * Gets the midpoint of the distribution (a + b)/2.
+     * This is also the mean and median of the distribution.
+     * Uses cached value to eliminate addition and division.
+     *
+     * @return Midpoint of the distribution
+     */
+    [[nodiscard]] double getMidpoint() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return (a_ + b_) * constants::math::HALF;  // Multiplication is faster than division
+    }
     
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
     //==========================================================================
     
     /**
@@ -933,7 +929,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // 14. EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
     //==========================================================================
 
     /**
@@ -985,7 +981,7 @@ public:
                                              performance::Strategy strategy) const;
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // 15. COMPARISON OPERATORS
     //==========================================================================
     
     /**
@@ -1003,15 +999,28 @@ public:
     bool operator!=(const UniformDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
-    // FRIEND FUNCTION STREAM OPERATORS
+    // 16. FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
+    /**
+     * @brief Stream input operator
+     * @param is Input stream
+     * @param dist Distribution to input
+     * @return Reference to the input stream
+     */
     friend std::istream& operator>>(std::istream& is, libstats::UniformDistribution& distribution);
+    
+    /**
+     * @brief Stream output operator
+     * @param os Output stream
+     * @param dist Distribution to output
+     * @return Reference to the output stream
+     */
     friend std::ostream& operator<<(std::ostream& os, const UniformDistribution& dist);
 
 private:
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // 17. PRIVATE FACTORY METHODS
     //==========================================================================
     
     /**
@@ -1039,7 +1048,7 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
+    // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
     
     /** @brief Internal implementation for batch PDF calculation */
@@ -1055,86 +1064,9 @@ private:
                                                  double a, double b, double inv_width) const noexcept;
     
     //==========================================================================
-    // PRIVATE COMPUTATIONAL METHODS (if needed)
+    // 19. PRIVATE COMPUTATIONAL METHODS (if needed)
     //==========================================================================
     
-    // For Uniform distribution, all computational methods are simple enough
-    // to be handled inline or in the main probability calculation methods.
-    // Complex mathematical computation helpers would be placed here if needed.
-    
-    //==========================================================================
-    // PRIVATE UTILITY METHODS (if needed)
-    //==========================================================================
-    
-    // For Uniform distribution, internal helper methods are minimal.
-    // Additional data processing utilities, validation helpers, or
-    // formatting utilities would be placed here if needed in future versions.
-    
-    //==========================================================================
-    // DISTRIBUTION PARAMETERS
-    //==========================================================================
-    
-    /** @brief Lower bound parameter a */
-    double a_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Upper bound parameter b */
-    double b_{constants::math::ONE};
-    
-    /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<double> atomicA_{constants::math::ZERO_DOUBLE};
-    mutable std::atomic<double> atomicB_{constants::math::ONE};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PERFORMANCE CACHE
-    //==========================================================================
-    
-    /** @brief Cached value of (b - a) for efficiency */
-    mutable double width_{constants::math::ONE};
-    
-    /** @brief Cached value of 1/(b - a) for efficiency in PDF calculations */
-    mutable double invWidth_{constants::math::ONE};
-    
-    /** @brief Cached value of (a + b)/2 for efficiency in mean calculations */
-    mutable double midpoint_{constants::math::HALF};
-    
-    /** @brief Cached value of (b - a)² for efficiency in variance calculations */
-    mutable double widthSquared_{constants::math::ONE};
-    
-    /** @brief Cached value of (b - a)²/12 for efficiency in variance calculations */
-    mutable double variance_{constants::math::ONE / 12.0};
-    
-    /** @brief Cached value of -ln(b - a) for efficiency in log-PDF calculations */
-    mutable double logInvWidth_{constants::math::ZERO_DOUBLE};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS
-    //==========================================================================
-    
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-    
-    /** @brief True if this is the unit interval [0,1] for optimizations */
-    mutable bool isUnitInterval_{true};
-    
-    /** @brief True if this is a symmetric interval [-c,c] for optimizations */
-    mutable bool isSymmetric_{false};
-    
-    /** @brief True if the interval width is very small for numerical stability */
-    mutable bool isNarrowInterval_{false};
-    
-    /** @brief True if the interval width is very large for numerical stability */
-    mutable bool isWideInterval_{false};
-    
-    //==========================================================================
-    // SPECIALIZED CACHES (if needed)
-    //==========================================================================
-    
-    // For Uniform distribution, the performance cache above handles all
-    // necessary caching. Specialized caching structures like lookup tables
-    // or distribution-specific computational caches would be placed here
-    // if needed for future optimizations.
-
     /**
      * Updates cached values when parameters change - assumes mutex is already held
      */
@@ -1180,6 +1112,80 @@ private:
             throw std::invalid_argument("Upper bound (b) must be strictly greater than lower bound (a)");
         }
     }
+    
+    //==========================================================================
+    // 20. PRIVATE UTILITY METHODS (if needed)
+    //==========================================================================
+    
+    // For Uniform distribution, internal helper methods are minimal.
+    // Additional data processing utilities, validation helpers, or
+    // formatting utilities would be placed here if needed in future versions.
+    
+    //==========================================================================
+    // 21. DISTRIBUTION PARAMETERS
+    //==========================================================================
+    
+    /** @brief Lower bound parameter a */
+    double a_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Upper bound parameter b */
+    double b_{constants::math::ONE};
+    
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<double> atomicA_{constants::math::ZERO_DOUBLE};
+    mutable std::atomic<double> atomicB_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
+
+    //==========================================================================
+    // 22. PERFORMANCE CACHE
+    //==========================================================================
+    
+    /** @brief Cached value of (b - a) for efficiency */
+    mutable double width_{constants::math::ONE};
+    
+    /** @brief Cached value of 1/(b - a) for efficiency in PDF calculations */
+    mutable double invWidth_{constants::math::ONE};
+    
+    /** @brief Cached value of (a + b)/2 for efficiency in mean calculations */
+    mutable double midpoint_{constants::math::HALF};
+    
+    /** @brief Cached value of (b - a)² for efficiency in variance calculations */
+    mutable double widthSquared_{constants::math::ONE};
+    
+    /** @brief Cached value of (b - a)²/12 for efficiency in variance calculations */
+    mutable double variance_{constants::math::ONE / 12.0};
+    
+    /** @brief Cached value of -ln(b - a) for efficiency in log-PDF calculations */
+    mutable double logInvWidth_{constants::math::ZERO_DOUBLE};
+    
+    //==========================================================================
+    // 23. OPTIMIZATION FLAGS
+    //==========================================================================
+    
+    /** @brief Atomic cache validity flag for lock-free fast path optimization */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+    
+    /** @brief True if this is the unit interval [0,1] for optimizations */
+    mutable bool isUnitInterval_{true};
+    
+    /** @brief True if this is a symmetric interval [-c,c] for optimizations */
+    mutable bool isSymmetric_{false};
+    
+    /** @brief True if the interval width is very small for numerical stability */
+    mutable bool isNarrowInterval_{false};
+    
+    /** @brief True if the interval width is very large for numerical stability */
+    mutable bool isWideInterval_{false};
+    
+    //==========================================================================
+    // 24. SPECIALIZED CACHES (if needed)
+    //==========================================================================
+    
+    // For Uniform distribution, the performance cache above handles all
+    // necessary caching. Specialized caching structures like lookup tables
+    // or distribution-specific computational caches would be placed here
+    // if needed for future optimizations.
+
 };
 
 } // namespace libstats

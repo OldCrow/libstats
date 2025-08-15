@@ -1111,7 +1111,7 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
 // Only complex methods requiring implementation are included here
 
 //==============================================================================
-// 13. SMART AUTO-DISPATCH BATCH OPERATIONS
+// 13.A. SMART AUTO-DISPATCH BATCH OPERATIONS
 //==============================================================================
 
 void ExponentialDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -1638,7 +1638,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
 }
 
 //==============================================================================
-// 13. EXPLICIT STRATEGY BATCH METHODS (POWER USER INTERFACE)
+// 13.B. EXPLICIT STRATEGY BATCH METHODS (POWER USER INTERFACE)
 //==============================================================================
 
 void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
