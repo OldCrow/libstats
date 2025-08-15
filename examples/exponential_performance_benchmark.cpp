@@ -14,12 +14,12 @@
  * - Advanced statistical methods (confidence intervals, Bayesian estimation, etc.)
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
-#include "platform/benchmark.h"  // For libstats::Benchmark
 #include <iostream>
-#include <vector>
 #include <random>
 #include <iomanip>
+#include <vector>
 
 using namespace libstats;
 
@@ -41,8 +41,8 @@ int main() {
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
     
     // Create Exponential distributions for testing
-    libstats::Exponential unitExponential(1.0);  // Unit exponential (λ = 1)
-    libstats::Exponential customExponential(2.5);  // Custom distribution (λ = 2.5)
+    auto unitExponential = libstats::ExponentialDistribution::create(1.0).value;  // Unit exponential (λ = 1)
+    auto customExponential = libstats::ExponentialDistribution::create(2.5).value;  // Custom distribution (λ = 2.5)
     
     // Benchmark setup
     libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
@@ -142,8 +142,7 @@ int main() {
     std::cout << "\n💻 Phase 3: Setting up advanced features benchmarks..." << std::endl;
     std::cout << "   Testing cache-aware processing and work-stealing parallelism.\n" << std::endl;
     
-    // Cache-aware operations
-    cache::AdaptiveCache<std::string, double> cache_manager;
+    // Cache-aware operations - using performance hints
     const std::vector<double> large_test(10000);
     std::vector<double> large_results(10000);
     
@@ -162,9 +161,7 @@ int main() {
         unitExponential.getProbability(values_span, results_span, hint);
     }, 0, static_cast<double>(large_test.size()));
     
-    // Work-stealing parallel operations
-    WorkStealingPool work_pool(std::thread::hardware_concurrency());
-    
+    // Work-stealing parallel operations - using expert strategy selection
     bench.addTest("Work-Stealing Batch PDF", [&, large_test_mutable]() mutable {
         std::span<const double> values_span(large_test_mutable);
         std::span<double> results_span(large_results);
@@ -209,12 +206,12 @@ int main() {
     }
     
     bench.addTest("Parameter Fitting Small Dataset", [&]() {
-        libstats::Exponential temp_dist(1.0);
+        auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
         temp_dist.fit(fit_data_small);
     }, 0, static_cast<double>(fit_data_small.size()));
     
     bench.addTest("Parameter Fitting Large Dataset", [&]() {
-        libstats::Exponential temp_dist(1.0);
+        auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
         temp_dist.fit(fit_data_large);
     }, 0, static_cast<double>(fit_data_large.size()));
     

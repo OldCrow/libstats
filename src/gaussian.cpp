@@ -29,7 +29,7 @@ namespace libstats {
 
 
 //==============================================================================
-// CONSTRUCTORS AND DESTRUCTORS
+// 1. CONSTRUCTORS AND DESTRUCTORS
 //==============================================================================
 
 GaussianDistribution::GaussianDistribution(double mean, double standardDeviation) 
@@ -122,8 +122,15 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
     return *this;
 }
 
+//==========================================================================
+// 2. SAFE FACTORY METHODS (Exception-free construction)
+//==========================================================================
+
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
+
 //==============================================================================
-// PARAMETER GETTERS AND SETTERS
+// 3. PARAMETER GETTERS AND SETTERS
 //==============================================================================
 
 void GaussianDistribution::setMean(double mean) {
@@ -179,7 +186,7 @@ void GaussianDistribution::setParameters(double mean, double standardDeviation) 
 }
 
 //==============================================================================
-// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
+// 4. RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
 //==============================================================================
 
 VoidResult GaussianDistribution::trySetMean(double mean) noexcept {
@@ -249,7 +256,7 @@ VoidResult GaussianDistribution::trySetParameters(double mean, double standardDe
 }
 
 //==============================================================================
-// CORE PROBABILITY METHODS
+// 5. CORE PROBABILITY METHODS
 //
 // SAFETY DOCUMENTATION FOR DEVELOPERS:
 //
@@ -486,7 +493,7 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
 }
 
 //==============================================================================
-// DISTRIBUTION MANAGEMENT
+// 6. DISTRIBUTION MANAGEMENT
 //==============================================================================
 
 void GaussianDistribution::fit(const std::vector<double>& values) {
@@ -598,7 +605,9 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
 void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
                                            std::vector<GaussianDistribution>& results) {
     if (datasets.empty()) {
-        throw std::invalid_argument("Cannot fit to empty dataset collection");
+        // Handle empty datasets gracefully
+        results.clear();
+        return;
     }
     
     // Ensure results vector has correct size
@@ -608,19 +617,124 @@ void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double
     
     const std::size_t num_datasets = datasets.size();
     
-    // Use Level 0-3 ParallelUtils for optimal work distribution
-    if (parallel::should_use_parallel(num_datasets)) {
-        // Leverage ParallelUtils::parallelFor with optimal grain sizing
-        ParallelUtils::parallelFor(std::size_t{0}, num_datasets,
-                                  [&datasets, &results](std::size_t idx) {
-            // Fit each dataset independently in parallel with Level 0-3 infrastructure
-            results[idx].fit(datasets[idx]);
-        });
+    // Use distribution-specific parallel thresholds for optimal work distribution
+    if (parallel::shouldUseDistributionParallel("gaussian", "batch_fit", num_datasets)) {
+        // Thread-safe parallel execution with proper exception handling
+        // Use a static mutex to synchronize access to the global thread pool from multiple threads
+        static std::mutex pool_access_mutex;
+        
+        try {
+            ThreadPool* pool_ptr = nullptr;
+            {
+                // Brief lock to get thread pool reference - minimize lock contention
+                std::lock_guard<std::mutex> pool_lock(pool_access_mutex);
+                pool_ptr = &ParallelUtils::getGlobalThreadPool();
+            }
+            
+            const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
+            const std::size_t num_chunks = (num_datasets + optimal_grain_size - 1) / optimal_grain_size;
+            
+            // Pre-allocate futures with known size to avoid reallocation during concurrent access
+            std::vector<std::future<void>> futures;
+            futures.reserve(num_chunks);
+            
+            // Atomic counter for tracking completion and error handling
+            std::atomic<std::size_t> completed_chunks{0};
+            std::atomic<bool> has_error{false};
+            std::mutex error_mutex;
+            std::string error_message;
+            
+            // Submit all tasks with exception handling
+            for (std::size_t i = 0; i < num_datasets; i += optimal_grain_size) {
+                const std::size_t chunk_start = i;
+                const std::size_t chunk_end = std::min(i + optimal_grain_size, num_datasets);
+                
+                auto future = pool_ptr->submit([&datasets, &results, chunk_start, chunk_end, 
+                                               &completed_chunks, &has_error, &error_mutex, &error_message]() {
+                    try {
+                        // Process chunk with local error handling
+                        for (std::size_t j = chunk_start; j < chunk_end; ++j) {
+                            results[j].fit(datasets[j]);
+                        }
+                        completed_chunks.fetch_add(1, std::memory_order_relaxed);
+                    } catch (const std::exception& e) {
+                        // Thread-safe error recording
+                        {
+                            std::lock_guard<std::mutex> error_lock(error_mutex);
+                            if (!has_error.load()) {
+                                error_message = "Parallel batch fit error in chunk [" + 
+                                              std::to_string(chunk_start) + ", " + 
+                                              std::to_string(chunk_end) + "): " + e.what();
+                                has_error.store(true, std::memory_order_release);
+                            }
+                        }
+                    } catch (...) {
+                        // Handle non-standard exceptions
+                        {
+                            std::lock_guard<std::mutex> error_lock(error_mutex);
+                            if (!has_error.load()) {
+                                error_message = "Unknown error in parallel batch fit chunk [" + 
+                                              std::to_string(chunk_start) + ", " + 
+                                              std::to_string(chunk_end) + ")";
+                                has_error.store(true, std::memory_order_release);
+                            }
+                        }
+                    }
+                });
+                
+                futures.push_back(std::move(future));
+            }
+            
+            // Wait for all chunks to complete with timeout and error checking
+            bool all_completed = true;
+            for (auto& future : futures) {
+                try {
+                    // Use wait() instead of get() to avoid exception re-throwing from task
+                    future.wait();
+                } catch (const std::exception& e) {
+                    // Handle future-related exceptions
+                    std::lock_guard<std::mutex> error_lock(error_mutex);
+                    if (!has_error.load()) {
+                        error_message = "Future wait error: " + std::string(e.what());
+                        has_error.store(true, std::memory_order_release);
+                    }
+                    all_completed = false;
+                }
+            }
+            
+            // Check for errors after all futures complete
+            if (has_error.load()) {
+                std::lock_guard<std::mutex> error_lock(error_mutex);
+                throw std::runtime_error("Parallel batch fitting failed: " + error_message);
+            }
+            
+            if (!all_completed) {
+                throw std::runtime_error("Some parallel batch fitting tasks failed to complete properly");
+            }
+            
+        } catch (const std::exception& e) {
+            // If parallel execution fails, fall back to serial execution
+            // This ensures robustness in case of thread pool issues
+            for (std::size_t i = 0; i < num_datasets; ++i) {
+                try {
+                    results[i].fit(datasets[i]);
+                } catch (const std::exception& fit_error) {
+                    throw std::runtime_error("Serial fallback failed for dataset " + 
+                                            std::to_string(i) + ": " + fit_error.what() + 
+                                            " (original parallel error: " + e.what() + ")");
+                }
+            }
+        }
         
     } else {
         // Serial processing for small numbers of datasets
         for (std::size_t i = 0; i < num_datasets; ++i) {
-            results[i].fit(datasets[i]);
+            try {
+                results[i].fit(datasets[i]);
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Serial batch fit failed for dataset " + 
+                                        std::to_string(i) + ": " + e.what());
+            }
         }
     }
 }
@@ -641,7 +755,7 @@ std::string GaussianDistribution::toString() const {
 }
 
 //==============================================================================
-// ADVANCED STATISTICAL METHODS
+// 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
 
 std::pair<double, double> GaussianDistribution::confidenceIntervalMean(
@@ -1221,6 +1335,10 @@ std::tuple<double, double, bool> GaussianDistribution::likelihoodRatioTest(
     return {lr_statistic, p_value, reject_null};
 }
 
+//==========================================================================
+// 8. GOODNESS-OF-FIT TESTS
+//==========================================================================
+
 std::tuple<double, double, bool> GaussianDistribution::kolmogorovSmirnovTest(
     const std::vector<double>& data,
     const GaussianDistribution& distribution,
@@ -1289,7 +1407,7 @@ std::tuple<double, double, bool> GaussianDistribution::andersonDarlingTest(
 }
 
 //==============================================================================
-// CROSS-VALIDATION AND MODEL SELECTION
+// 9. CROSS-VALIDATION METHODS
 //==============================================================================
 
 std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCrossValidation(
@@ -1425,6 +1543,46 @@ std::tuple<double, double, double> GaussianDistribution::leaveOneOutCrossValidat
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
 }
 
+//==============================================================================
+// 10. INFORMATION CRITERIA
+//==============================================================================
+
+std::tuple<double, double, double, double> GaussianDistribution::computeInformationCriteria(
+    const std::vector<double>& data,
+    const GaussianDistribution& fitted_distribution) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    const double n = static_cast<double>(data.size());
+    const int k = fitted_distribution.getNumParameters(); // 2 for Gaussian
+    
+    // Calculate log-likelihood
+    double log_likelihood = 0.0;
+    for (double val : data) {
+        log_likelihood += fitted_distribution.getLogProbability(val);
+    }
+    
+    // Compute information criteria
+    const double aic = constants::math::TWO * k - constants::math::TWO * log_likelihood;
+    const double bic = std::log(n) * k - constants::math::TWO * log_likelihood;
+    
+    // AICc (corrected AIC for small sample sizes)
+    double aicc;
+    if (n - k - 1 > 0) {
+        aicc = aic + (constants::math::TWO * k * (k + 1)) / (n - k - 1);
+    } else {
+        aicc = std::numeric_limits<double>::infinity(); // Undefined for small samples
+    }
+    
+    return {aic, bic, aicc, log_likelihood};
+}
+
+//==============================================================================
+// 11. BOOTSTRAP METHODS
+//==============================================================================
+
 std::tuple<std::pair<double, double>, std::pair<double, double>> GaussianDistribution::bootstrapParameterConfidenceIntervals(
     const std::vector<double>& data,
     double confidence_level,
@@ -1486,52 +1644,32 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> GaussianDistrib
     return {mean_ci, std_ci};
 }
 
-std::tuple<double, double, double, double> GaussianDistribution::computeInformationCriteria(
-    const std::vector<double>& data,
-    const GaussianDistribution& fitted_distribution) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
+//==============================================================================
+// 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
+//==============================================================================
+
+#ifdef DEBUG
+
+bool GaussianDistribution::isUsingStandardNormalOptimization() const {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
     }
     
-    const double n = static_cast<double>(data.size());
-    const int k = fitted_distribution.getNumParameters(); // 2 for Gaussian
-    
-    // Calculate log-likelihood
-    double log_likelihood = 0.0;
-    for (double val : data) {
-        log_likelihood += fitted_distribution.getLogProbability(val);
-    }
-    
-    // Compute information criteria
-    const double aic = constants::math::TWO * k - constants::math::TWO * log_likelihood;
-    const double bic = std::log(n) * k - constants::math::TWO * log_likelihood;
-    
-    // AICc (corrected AIC for small sample sizes)
-    double aicc;
-    if (n - k - 1 > 0) {
-        aicc = aic + (constants::math::TWO * k * (k + 1)) / (n - k - 1);
-    } else {
-        aicc = std::numeric_limits<double>::infinity(); // Undefined for small samples
-    }
-    
-    return {aic, bic, aicc, log_likelihood};
+    // Return the current state of the standard normal optimization flag
+    return isStandardNormal_;
 }
 
-//==============================================================================
-// SAFE BATCH OPERATIONS WITH SIMD ACCELERATION
-//==============================================================================
-
+#endif // DEBUG
 
 //==============================================================================
-// THREAD POOL PARALLEL BATCH OPERATIONS
-//==============================================================================
-
-
-
-
-//==============================================================================
-// SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+// 13. SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
 //==============================================================================
 
 void GaussianDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -2042,7 +2180,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
 }
 
 //==============================================================================
-// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+// 14. EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
 //==============================================================================
 
 void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
@@ -2507,7 +2645,7 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
 }
 
 //==============================================================================
-// COMPARISON OPERATORS
+// 15. COMPARISON OPERATORS
 //==============================================================================
 
 bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
@@ -2520,7 +2658,7 @@ bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
 }
 
 //==============================================================================
-// STREAM OPERATORS
+// 16. FRIEND FUNCTION STREAM OPERATORS
 //==============================================================================
 
 std::ostream& operator<<(std::ostream& os, const GaussianDistribution& distribution) {
@@ -2604,59 +2742,17 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
     return is;
 }
 
-//==============================================================================
-// PRIVATE HELPER METHODS
-//==============================================================================
+//==========================================================================
+// 17. PRIVATE FACTORY METHODS
+//==========================================================================
 
-void GaussianDistribution::updateCacheUnsafe() const noexcept {
-    // Core mathematical functions - primary cache
-    normalizationConstant_ = constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
-    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
-    logStandardDeviation_ = std::log(standardDeviation_);
-    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
-    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
-    
-    // Secondary cache values - performance optimizations
-    cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
-    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
-    cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
-    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
-    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
-    
-    // Optimization flags - fast path detection
-    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
-                       (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE;
-    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
-    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE ||
-                      standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
-    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
-    
-    // Update atomic parameters for lock-free access
-    atomicMean_.store(mean_, std::memory_order_release);
-    atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
-    atomicParamsValid_.store(true, std::memory_order_release);
-    
-    // Cache is now valid
-    cache_valid_ = true;
-    cacheValidAtomic_.store(true, std::memory_order_release);
-}
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
 
-void GaussianDistribution::validateParameters(double mean, double stdDev) {
-    if (!std::isfinite(mean)) {
-        throw std::invalid_argument("Mean must be finite");
-    }
-    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
-        throw std::invalid_argument("Standard deviation must be positive and finite");
-    }
-    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
-        throw std::invalid_argument("Standard deviation is too large for numerical stability");
-    }
-}
 
 
 //==============================================================================
-// PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
+// 18. PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
 //
 // CRITICAL SAFETY DOCUMENTATION FOR LOW-LEVEL SIMD OPERATIONS:
 //
@@ -2845,27 +2941,89 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double*
     simd::VectorOps::scalar_multiply(results, constants::math::HALF, results, count);
 }
 
-#ifdef DEBUG
 //==============================================================================
-// DEBUG METHODS
+// 19. PRIVATE COMPUTATIONAL METHODS
 //==============================================================================
 
-bool GaussianDistribution::isUsingStandardNormalOptimization() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
+void GaussianDistribution::updateCacheUnsafe() const noexcept {
+    // Core mathematical functions - primary cache
+    normalizationConstant_ = constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
+    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
+    logStandardDeviation_ = std::log(standardDeviation_);
+    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
+    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
     
-    // Return the current state of the standard normal optimization flag
-    return isStandardNormal_;
+    // Secondary cache values - performance optimizations
+    cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
+    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
+    cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
+    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
+    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
+    
+    // Optimization flags - fast path detection
+    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
+                       (std::abs(standardDeviation_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE;
+    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
+    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE ||
+                      standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
+    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
+    
+    // Update atomic parameters for lock-free access
+    atomicMean_.store(mean_, std::memory_order_release);
+    atomicStandardDeviation_.store(standardDeviation_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
+    
+    // Cache is now valid
+    cache_valid_ = true;
+    cacheValidAtomic_.store(true, std::memory_order_release);
 }
 
-#endif // DEBUG
+void GaussianDistribution::validateParameters(double mean, double stdDev) {
+    if (!std::isfinite(mean)) {
+        throw std::invalid_argument("Mean must be finite");
+    }
+    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
+        throw std::invalid_argument("Standard deviation must be positive and finite");
+    }
+    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
+        throw std::invalid_argument("Standard deviation is too large for numerical stability");
+    }
+}
+
+//==========================================================================
+// 20. PRIVATE UTILITY METHODS
+//==========================================================================
+
+// Note: Currently no private utility methods needed for Gaussian distribution
+// This section maintained for template compliance
+
+//==============================================================================
+// 21. DISTRIBUTION PARAMETERS
+//==============================================================================
+
+// Note: Distribution parameters are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 22. PERFORMANCE CACHE
+//==============================================================================
+
+// Note: Performance cache variables are declared in the header as mutable private members
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 23. OPTIMIZATION FLAGS
+//==============================================================================
+
+// Note: Optimization flags are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 24. SPECIALIZED CACHES
+//==============================================================================
+
+// Note: Specialized caches are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
 
 } // namespace libstats

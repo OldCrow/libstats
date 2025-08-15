@@ -1,15 +1,10 @@
 #pragma once
 
-#include "../core/distribution_base.h"
-#include "../core/constants.h"
-#include "../core/error_handling.h" // Safe error handling without exceptions
-#include <mutex>       // For thread-safe cache updates
-#include <shared_mutex> // For shared_mutex and shared_lock
-#include "../platform/work_stealing_pool.h" // For WorkStealingPool
-#include "../platform/adaptive_cache.h"       // For AdaptiveCache
-#include "../core/performance_dispatcher.h"  // For PerformanceHint
-#include <atomic>      // For atomic cache validation
-#include <span>        // For C++20 std::span
+// Common distribution includes (consolidates std library and core headers)
+#include "../core/distribution_common.h"
+
+// Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive caching, etc.)
+#include "distribution_platform_common.h"
 
 namespace libstats {
 
@@ -135,7 +130,7 @@ class GammaDistribution : public DistributionBase
 
 public:
     //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
+    // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
@@ -191,7 +186,7 @@ public:
     ~GammaDistribution() override = default;
     
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
     
     /**
@@ -242,7 +237,7 @@ public:
     }
     
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
+    // 3. PARAMETER GETTERS AND SETTERS
     //==========================================================================
 
     /**
@@ -295,6 +290,14 @@ public:
     }
     
     /**
+     * @brief Set the shape parameter α
+     *
+     * @param alpha New shape parameter (must be positive)
+     * @throws std::invalid_argument if alpha <= 0
+     */
+    void setAlpha(double alpha);
+    
+    /**
      * Gets the rate parameter β.
      * Thread-safe: acquires shared lock to protect beta_
      *
@@ -342,6 +345,23 @@ public:
         // Fallback: use traditional locked getter if atomic parameters are stale
         return getBeta();
     }
+    
+    /**
+     * @brief Set the rate parameter β
+     *
+     * @param beta New rate parameter (must be positive)
+     * @throws std::invalid_argument if beta <= 0
+     */
+    void setBeta(double beta);
+    
+    /**
+     * @brief Set both parameters simultaneously
+     *
+     * @param alpha New shape parameter (must be positive)
+     * @param beta New rate parameter (must be positive)
+     * @throws std::invalid_argument if either parameter <= 0
+     */
+    void setParameters(double alpha, double beta);
     
     /**
      * Gets the scale parameter θ = 1/β.
@@ -441,56 +461,8 @@ public:
         return std::numeric_limits<double>::infinity();
     }
     
-    /**
-     * Gets the mode of the distribution.
-     * For Gamma distribution, mode = (α-1)/β = (α-1)θ for α ≥ 1, 0 for α < 1
-     *
-     * @return Mode value
-     */
-    [[nodiscard]] double getMode() const noexcept;
-    
-    /**
-     * @brief Get the median of the distribution
-     * For Gamma distribution, median is approximated using the quantile function
-     * 
-     * @return Median value (quantile at p=0.5)
-     */
-    [[nodiscard]] double getMedian() const noexcept {
-        return getQuantile(0.5);
-    }
-    
-    
     //==========================================================================
-    // PARAMETER SETTERS
-    //==========================================================================
-    
-    /**
-     * @brief Set the shape parameter α
-     * 
-     * @param alpha New shape parameter (must be positive)
-     * @throws std::invalid_argument if alpha <= 0
-     */
-    void setAlpha(double alpha);
-    
-    /**
-     * @brief Set the rate parameter β
-     * 
-     * @param beta New rate parameter (must be positive) 
-     * @throws std::invalid_argument if beta <= 0
-     */
-    void setBeta(double beta);
-    
-    /**
-     * @brief Set both parameters simultaneously
-     * 
-     * @param alpha New shape parameter (must be positive)
-     * @param beta New rate parameter (must be positive)
-     * @throws std::invalid_argument if either parameter <= 0
-     */
-    void setParameters(double alpha, double beta);
-    
-    //==========================================================================
-    // RESULT-BASED SETTERS
+    // 4. RESULT-BASED SETTERS
     //==========================================================================
     
     /**
@@ -528,7 +500,7 @@ public:
     }
 
     //==========================================================================
-    // CORE PROBABILITY METHODS
+    // 5. CORE PROBABILITY METHODS
     //==========================================================================
 
     /**
@@ -594,7 +566,7 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // DISTRIBUTION MANAGEMENT
+    // 6. DISTRIBUTION MANAGEMENT
     //==========================================================================
 
     /**
@@ -605,6 +577,17 @@ public:
      * @throws std::invalid_argument if values is empty or contains non-positive values
      */
     void fit(const std::vector<double>& values) override;
+
+    /**
+     * @brief Parallel batch fitting for multiple datasets
+     * Efficiently fits gamma distribution parameters to multiple independent datasets in parallel
+     * 
+     * @param datasets Vector of datasets, each representing independent observations
+     * @param results Vector to store fitted GammaDistribution objects
+     * @throws std::invalid_argument if datasets is empty or results size doesn't match
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                               std::vector<GammaDistribution>& results);
 
     /**
      * Resets the distribution to default parameters (α = 1.0, β = 1.0).
@@ -620,7 +603,7 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // 7. ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
@@ -760,7 +743,7 @@ public:
     
     
     //==========================================================================
-    // GOODNESS-OF-FIT TESTS
+    // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
     
     /**
@@ -798,7 +781,7 @@ public:
     
     
     //==========================================================================
-    // CROSS-VALIDATION METHODS
+    // 9. CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -836,7 +819,7 @@ public:
     
     
     //==========================================================================
-    // INFORMATION CRITERIA
+    // 10. INFORMATION CRITERIA
     //==========================================================================
     
     /**
@@ -853,7 +836,7 @@ public:
         const std::vector<double>& data, const GammaDistribution& fitted_distribution);
     
     //==========================================================================
-    // BOOTSTRAP METHODS
+    // 11. BOOTSTRAP METHODS
     //==========================================================================
     
     /**
@@ -875,7 +858,7 @@ public:
     
     
     //==========================================================================
-    // GAMMA-SPECIFIC UTILITY METHODS
+    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -910,6 +893,24 @@ public:
     [[nodiscard]] double getEntropy() const override;
     
     /**
+     * @brief Get the median of the distribution
+     * For Gamma distribution, median is approximated using the quantile function
+     *
+     * @return Median value (quantile at p=0.5)
+     */
+    [[nodiscard]] double getMedian() const noexcept {
+        return getQuantile(0.5);
+    }
+    
+    /**
+     * Gets the mode of the distribution.
+     * For Gamma distribution, mode = (α-1)/β = (α-1)θ for α ≥ 1, 0 for α < 1
+     *
+     * @return Mode value
+     */
+    [[nodiscard]] double getMode() const noexcept;
+    
+    /**
      * @brief Check if the distribution is suitable for normal approximation
      *
      * Returns true if α is large enough (typically α > 100) for normal approximation
@@ -929,10 +930,8 @@ public:
      */
     [[nodiscard]] static Result<GammaDistribution> createFromMoments(double mean, double variance) noexcept;
     
-    
-    
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS (C++20 Simplified API)
+    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
     
     /**
@@ -983,7 +982,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -1034,9 +1033,8 @@ public:
     void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                              performance::Strategy strategy) const;
     
-
     //==========================================================================
-    // COMPARISON OPERATORS
+    // 15. COMPARISON OPERATORS
     //==========================================================================
     
     /**
@@ -1054,7 +1052,7 @@ public:
     bool operator!=(const GammaDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
-    // FRIEND FUNCTION STREAM OPERATORS
+    // 16. FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
     /**
@@ -1075,7 +1073,7 @@ public:
 
 private:
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // 17. PRIVATE FACTORY METHODS
     //==========================================================================
     
     /**
@@ -1103,7 +1101,26 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE COMPUTATIONAL METHODS
+    // 18. PRIVATE BATCH IMPLEMENTATION METHODS
+    //==========================================================================
+    
+    /** @brief Internal implementation for batch PDF calculation */
+    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                       double alpha, double beta, double log_gamma_alpha,
+                                       double alpha_log_beta, double alpha_minus_one) const noexcept;
+    
+    /** @brief Internal implementation for batch log PDF calculation */
+    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                          double alpha, double beta, double log_gamma_alpha,
+                                          double alpha_log_beta, double alpha_minus_one) const noexcept;
+    
+    /** @brief Internal implementation for batch CDF calculation */
+    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                 double alpha, double beta) const noexcept;
+    
+    
+    //==========================================================================
+    // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
     
     /** @brief Compute incomplete gamma function using continued fractions */
@@ -1127,95 +1144,6 @@ private:
     /** @brief Fit parameters using maximum likelihood estimation */
     void fitMaximumLikelihood(const std::vector<double>& values);
     
-    //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
-    //==========================================================================
-    
-    /** @brief Internal implementation for batch PDF calculation */
-    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                       double alpha, double beta, double log_gamma_alpha, 
-                                       double alpha_log_beta, double alpha_minus_one) const noexcept;
-    
-    /** @brief Internal implementation for batch log PDF calculation */
-    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                          double alpha, double beta, double log_gamma_alpha, 
-                                          double alpha_log_beta, double alpha_minus_one) const noexcept;
-    
-    /** @brief Internal implementation for batch CDF calculation */
-    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                 double alpha, double beta) const noexcept;
-    
-    //==========================================================================
-    // DISTRIBUTION PARAMETERS
-    //==========================================================================
-    
-    /** @brief Shape parameter α - must be positive */
-    double alpha_{constants::math::ONE};
-    
-    /** @brief Rate parameter β - must be positive (β = 1/scale) */
-    double beta_{constants::math::ONE};
-    
-    /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<double> atomicAlpha_{constants::math::ONE};
-    mutable std::atomic<double> atomicBeta_{constants::math::ONE};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PERFORMANCE CACHE
-    //==========================================================================
-    
-    /** @brief Cached value of log(Γ(α)) for efficiency in PDF calculations */
-    mutable double logGammaAlpha_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of log(β) for efficiency in PDF calculations */
-    mutable double logBeta_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of α*log(β) for efficiency in PDF calculations */
-    mutable double alphaLogBeta_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of α-1 for efficiency in PDF calculations */
-    mutable double alphaMinusOne_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of 1/β (scale parameter θ) for efficiency */
-    mutable double scale_{constants::math::ONE};
-    
-    /** @brief Cached value of α/β (mean) for efficiency */
-    mutable double mean_{constants::math::ONE};
-    
-    /** @brief Cached value of α/β² (variance) for efficiency */
-    mutable double variance_{constants::math::ONE};
-    
-    /** @brief Cached value of digamma(α) for efficiency in various calculations */
-    mutable double digammaAlpha_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of √α for efficiency in normal approximation */
-    mutable double sqrtAlpha_{constants::math::ONE};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS
-    //==========================================================================
-    
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-    
-    /** @brief True if α = 1 (exponential distribution) for optimization */
-    mutable bool isExponential_{true};
-    
-    /** @brief True if α is an integer for optimization */
-    mutable bool isIntegerAlpha_{true};
-    
-    /** @brief True if α < 1 for special sampling algorithm */
-    mutable bool isSmallAlpha_{false};
-    
-    /** @brief True if α is large (> 100) for normal approximation */
-    mutable bool isLargeAlpha_{false};
-    
-    /** @brief True if β = 1 (standard gamma) for optimization */
-    mutable bool isStandardGamma_{true};
-    
-    /** @brief True if this is a chi-squared distribution (β = 0.5) */
-    mutable bool isChiSquared_{false};
-
     /**
      * Updates cached values when parameters change - assumes mutex is already held
      */
@@ -1267,6 +1195,10 @@ private:
         }
     }
     
+    //==========================================================================
+    // 20. PRIVATE UTILITY METHODS
+    //==========================================================================
+    
     /**
      * Computes the digamma function ψ(x) = d/dx log(Γ(x))
      * Uses series expansion and asymptotic approximation
@@ -1278,6 +1210,84 @@ private:
      * Uses series expansion and asymptotic approximation
      */
     static double computeTrigamma(double x) noexcept;
+    
+    //==========================================================================
+    // 21. DISTRIBUTION PARAMETERS
+    //==========================================================================
+    
+    /** @brief Shape parameter α - must be positive */
+    double alpha_{constants::math::ONE};
+    
+    /** @brief Rate parameter β - must be positive (β = 1/scale) */
+    double beta_{constants::math::ONE};
+    
+    /** @brief C++20 atomic copies of parameters for lock-free access */
+    mutable std::atomic<double> atomicAlpha_{constants::math::ONE};
+    mutable std::atomic<double> atomicBeta_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
+
+    //==========================================================================
+    // 22. PERFORMANCE CACHE
+    //==========================================================================
+    
+    /** @brief Cached value of log(Γ(α)) for efficiency in PDF calculations */
+    mutable double logGammaAlpha_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of log(β) for efficiency in PDF calculations */
+    mutable double logBeta_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of α*log(β) for efficiency in PDF calculations */
+    mutable double alphaLogBeta_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of α-1 for efficiency in PDF calculations */
+    mutable double alphaMinusOne_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of 1/β (scale parameter θ) for efficiency */
+    mutable double scale_{constants::math::ONE};
+    
+    /** @brief Cached value of α/β (mean) for efficiency */
+    mutable double mean_{constants::math::ONE};
+    
+    /** @brief Cached value of α/β² (variance) for efficiency */
+    mutable double variance_{constants::math::ONE};
+    
+    /** @brief Cached value of digamma(α) for efficiency in various calculations */
+    mutable double digammaAlpha_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of √α for efficiency in normal approximation */
+    mutable double sqrtAlpha_{constants::math::ONE};
+    
+    //==========================================================================
+    // 23. OPTIMIZATION FLAGS
+    //==========================================================================
+    
+    /** @brief True if α = 1 (exponential distribution) for optimization */
+    mutable bool isExponential_{true};
+    
+    /** @brief True if α is an integer for optimization */
+    mutable bool isIntegerAlpha_{true};
+    
+    /** @brief True if α < 1 for special sampling algorithm */
+    mutable bool isSmallAlpha_{false};
+    
+    /** @brief True if α is large (> 100) for normal approximation */
+    mutable bool isLargeAlpha_{false};
+    
+    /** @brief True if β = 1 (standard gamma) for optimization */
+    mutable bool isStandardGamma_{true};
+    
+    /** @brief True if this is a chi-squared distribution (β = 0.5) */
+    mutable bool isChiSquared_{false};
+    
+    /** @brief Atomic cache validity flag for lock-free fast path optimization */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+    
+    //==========================================================================
+    // 24. SPECIALIZED CACHES
+    //==========================================================================
+    
+    // Note: Gamma distribution uses standard caching only
+    // This section maintained for template compliance
 };
 
 } // namespace libstats

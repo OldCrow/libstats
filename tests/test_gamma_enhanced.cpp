@@ -1,14 +1,6 @@
 #include <gtest/gtest.h>
 #include "../include/distributions/gamma.h"
 #include "enhanced_test_template.h"
-#include <vector>
-#include <random>
-#include <numeric>
-#include <algorithm>
-#include <cmath>
-#include <chrono>
-#include <thread>
-#include <span>
 
 using namespace std;
 using namespace libstats;
@@ -32,7 +24,10 @@ protected:
             gamma_data_.push_back(gamma_gen(rng));
         }
 
-        test_distribution_ = GammaDistribution(test_alpha_, test_beta_);
+        auto result = libstats::GammaDistribution::create(test_alpha_, test_beta_);
+        if (result.isOk()) {
+            test_distribution_ = std::move(result.value);
+        };
     }
 
     const double test_alpha_ = 2.0;
@@ -47,7 +42,7 @@ protected:
 
 TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard gamma distribution properties
-    GammaDistribution gamma1(2.0, 1.0);  // shape=2, rate=1 -> mean=2, var=2
+    auto gamma1 = libstats::GammaDistribution::create(2.0, 1.0).value;  // shape=2, rate=1 -> mean=2, var=2
     
     EXPECT_DOUBLE_EQ(gamma1.getAlpha(), 2.0);
     EXPECT_DOUBLE_EQ(gamma1.getBeta(), 1.0);
@@ -57,7 +52,7 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(gamma1.getKurtosis(), 6.0 / 2.0);  // Excess kurtosis for gamma distribution
     
     // Test another gamma distribution
-    GammaDistribution gamma2(1.0, 0.5);  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
+    auto gamma2 = libstats::GammaDistribution::create(1.0, 0.5).value;  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
     EXPECT_DOUBLE_EQ(gamma2.getAlpha(), 1.0);
     EXPECT_DOUBLE_EQ(gamma2.getBeta(), 0.5);
     EXPECT_DOUBLE_EQ(gamma2.getMean(), 2.0);
@@ -330,7 +325,7 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
-    GammaDistribution stdGamma(2.0, 1.0);
+    auto stdGamma = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
     
@@ -445,7 +440,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     std::cout << "\n=== Auto-Dispatch Strategy Assessment ===\n";
     
@@ -516,7 +511,7 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
 TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
     
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -571,7 +566,7 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
     
     // Generate test data (positive values for Gamma distribution)
@@ -732,13 +727,160 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
 }
 
 //==============================================================================
+// PARALLEL BATCH FITTING TESTS
+//==============================================================================
+
+TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
+    std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
+    
+    // Create multiple datasets for batch fitting
+    std::vector<std::vector<double>> datasets;
+    std::vector<GammaDistribution> expected_distributions;
+    
+    std::mt19937 rng(42);
+    
+    // Generate 6 datasets with known parameters
+    std::vector<std::pair<double, double>> true_params = {
+        {1.0, 1.0}, {2.0, 0.5}, {3.0, 2.0}, {0.5, 1.5}, {4.0, 0.25}, {1.5, 3.0}
+    };
+    
+    for (const auto& [alpha, beta] : true_params) {
+        std::vector<double> dataset;
+        dataset.reserve(1000);
+        
+        std::gamma_distribution<double> gen(alpha, 1.0/beta); // std::gamma uses scale parameter (1/beta)
+        for (int i = 0; i < 1000; ++i) {
+            dataset.push_back(gen(rng));
+        }
+        
+        datasets.push_back(std::move(dataset));
+        expected_distributions.push_back(GammaDistribution::create(alpha, beta).value);
+    }
+    
+    std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
+    
+    // Test 1: Basic parallel batch fitting correctness
+    std::vector<GammaDistribution> batch_results(datasets.size());
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    GammaDistribution::parallelBatchFit(datasets, batch_results);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Verify correctness by comparing with individual fits
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        GammaDistribution individual_fit;
+        individual_fit.fit(datasets[i]);
+        
+        // Parameters should match within tolerance
+        EXPECT_NEAR(batch_results[i].getAlpha(), individual_fit.getAlpha(), 1e-10)
+            << "Batch fit alpha mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getBeta(), individual_fit.getBeta(), 1e-10)
+            << "Batch fit beta mismatch for dataset " << i;
+        
+        // Should be reasonably close to true parameters
+        double expected_alpha = true_params[i].first;
+        double expected_beta = true_params[i].second;
+        
+        // For gamma distribution, MLE estimates have known properties
+        // Allow reasonable tolerance for sample variation
+        double alpha_tolerance = expected_alpha * 0.15; // 15% tolerance
+        double beta_tolerance = expected_beta * 0.15;   // 15% tolerance
+        
+        EXPECT_NEAR(batch_results[i].getAlpha(), expected_alpha, alpha_tolerance)
+            << "Fitted alpha too far from true value for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getBeta(), expected_beta, beta_tolerance)
+            << "Fitted beta too far from true value for dataset " << i;
+    }
+    
+    std::cout << "  ✓ Parallel batch fitting correctness verified\n";
+    
+    // Test 2: Performance comparison with sequential batch fitting
+    std::vector<GammaDistribution> sequential_results(datasets.size());
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
+    
+    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+    
+    // Verify sequential and parallel results match
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        EXPECT_NEAR(batch_results[i].getAlpha(), sequential_results[i].getAlpha(), 1e-12)
+            << "Sequential vs parallel alpha mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getBeta(), sequential_results[i].getBeta(), 1e-12)
+            << "Sequential vs parallel beta mismatch for dataset " << i;
+    }
+    
+    // Test 3: Edge cases
+    std::cout << "  Testing edge cases...\n";
+    
+    // Empty datasets vector
+    std::vector<std::vector<double>> empty_datasets;
+    std::vector<GammaDistribution> empty_results;
+    GammaDistribution::parallelBatchFit(empty_datasets, empty_results);
+    EXPECT_TRUE(empty_results.empty());
+    
+    // Single dataset
+    std::vector<std::vector<double>> single_dataset = {datasets[0]};
+    std::vector<GammaDistribution> single_result(1);
+    GammaDistribution::parallelBatchFit(single_dataset, single_result);
+    EXPECT_NEAR(single_result[0].getAlpha(), batch_results[0].getAlpha(), 1e-12);
+    EXPECT_NEAR(single_result[0].getBeta(), batch_results[0].getBeta(), 1e-12);
+    
+    // Results vector auto-sizing
+    std::vector<GammaDistribution> auto_sized_results;
+    GammaDistribution::parallelBatchFit(datasets, auto_sized_results);
+    EXPECT_EQ(auto_sized_results.size(), datasets.size());
+    
+    std::cout << "  ✓ Edge cases handled correctly\n";
+    
+    // Test 4: Thread safety with concurrent calls
+    std::cout << "  Testing thread safety...\n";
+    
+    const int num_threads = 4;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<GammaDistribution>> concurrent_results(num_threads);
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&, t]() {
+            concurrent_results[t].resize(datasets.size());
+            GammaDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    // Verify all concurrent results match
+    for (int t = 0; t < num_threads; ++t) {
+        for (size_t i = 0; i < datasets.size(); ++i) {
+            EXPECT_NEAR(concurrent_results[t][i].getAlpha(), batch_results[i].getAlpha(), 1e-10)
+                << "Thread " << t << " alpha result mismatch for dataset " << i;
+            EXPECT_NEAR(concurrent_results[t][i].getBeta(), batch_results[i].getBeta(), 1e-10)
+                << "Thread " << t << " beta result mismatch for dataset " << i;
+        }
+    }
+    
+    std::cout << "  ✓ Thread safety verified\n";
+}
+
+//==============================================================================
 // NUMERICAL STABILITY AND EDGE CASES
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "\n=== Numerical Stability and Edge Cases ===\n";
     
-    GammaDistribution gamma_dist(2.0, 1.0);
+    auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     
     // Test extreme values (Gamma distribution support is [0, ∞))
     std::vector<double> extreme_values = {1e-10, 0.001, 0.1, 10.0, 100.0, 1000.0};

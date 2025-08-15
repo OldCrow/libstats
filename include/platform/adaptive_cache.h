@@ -1,20 +1,10 @@
 #pragma once
 
+#include "platform_common.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <list>
 #include <deque>
-#include <atomic>
-#include <mutex>
-#include <shared_mutex>
-#include <chrono>
-#include <optional>
-#include <functional>
-#include <vector>
-#include <algorithm>
-#include <memory>
-#include <thread>
-#include "platform_constants.h"
 
 namespace libstats {
 namespace cache {

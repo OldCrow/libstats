@@ -1,8 +1,6 @@
 #pragma once
 
-#include <vector>
-#include <string>
-#include <random>
+#include "distribution_base_common.h"
 
 namespace libstats {
 

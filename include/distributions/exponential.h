@@ -1,17 +1,10 @@
 #pragma once
 
-#include "../core/distribution_base.h"
-#include "../core/constants.h"
-#include "../platform/simd.h" // Ensure SIMD operations are available
-#include "../core/error_handling.h" // Safe error handling without exceptions
-#include "../platform/adaptive_cache.h" // For adaptive cache integration
-#include "../platform/parallel_execution.h" // For parallel execution policies
-#include "../platform/work_stealing_pool.h" // For WorkStealingPool
-#include "../core/performance_dispatcher.h" // For smart auto-dispatch
-#include <mutex>       // For thread-safe cache updates
-#include <shared_mutex> // For shared_mutex and shared_lock
-#include <atomic>      // For atomic cache validation
-#include <span>        // C++20 std::span for type-safe array access
+// Common distribution includes (consolidates std library and core headers)
+#include "../core/distribution_common.h"
+
+// Common platform headers for distributions (consolidates shared platform dependencies)
+#include "distribution_platform_common.h"
 
 namespace libstats {
 
@@ -104,7 +97,7 @@ class ExponentialDistribution : public DistributionBase
 {   
 public:
     //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
+    // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
@@ -158,7 +151,7 @@ public:
     ~ExponentialDistribution() override = default;
     
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
     
     /**
@@ -193,7 +186,7 @@ public:
     }
 
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
+    // 3. PARAMETER GETTERS AND SETTERS
     //==========================================================================
 
     /**
@@ -252,6 +245,24 @@ public:
      * @throws std::invalid_argument if lambda <= 0 or is not finite
      */
     void setLambda(double lambda);
+    
+    /**
+     * @brief Sets the rate parameter (exception-based API).
+     * Thread-safe: acquires unique lock for cache invalidation
+     *
+     * @param lambda New rate parameter λ (must be positive)
+     * @throws std::invalid_argument if lambda is invalid
+     */
+    void setParameters(double lambda);
+    
+    /**
+     * Gets the scale parameter (reciprocal of rate parameter).
+     * This is equivalent to the mean for exponential distributions.
+     * Uses cached value to eliminate division.
+     *
+     * @return Scale parameter (1/λ)
+     */
+    [[nodiscard]] double getScale() const noexcept;
     
     /**
      * Gets the mean of the distribution.
@@ -347,17 +358,8 @@ public:
         return std::numeric_limits<double>::infinity();
     }
     
-    /**
-     * Gets the scale parameter (reciprocal of rate parameter).
-     * This is equivalent to the mean for exponential distributions.
-     * Uses cached value to eliminate division.
-     * 
-     * @return Scale parameter (1/λ)
-     */
-    [[nodiscard]] double getScale() const noexcept;
-    
     //==============================================================================
-    // RESULT-BASED SETTERS
+    // 4. RESULT-BASED SETTERS
     //==============================================================================
     
     /**
@@ -388,7 +390,7 @@ public:
     }
 
     //==========================================================================
-    // CORE PROBABILITY METHODS
+    // 5. CORE PROBABILITY METHODS
     //==========================================================================
 
     /**
@@ -448,7 +450,7 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // DISTRIBUTION MANAGEMENT
+    // 6. DISTRIBUTION MANAGEMENT
     //==========================================================================
 
     /**
@@ -458,6 +460,17 @@ public:
      * @param values Vector of observed data
      */
     void fit(const std::vector<double>& values) override;
+
+    /**
+     * @brief Parallel batch fitting for multiple datasets
+     * Efficiently fits exponential distribution parameters to multiple independent datasets in parallel
+     * 
+     * @param datasets Vector of datasets, each representing independent observations
+     * @param results Vector to store fitted ExponentialDistribution objects
+     * @throws std::invalid_argument if datasets is empty or results size doesn't match
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                               std::vector<ExponentialDistribution>& results);
 
     /**
      * Resets the distribution to default parameters (λ = 1.0).
@@ -473,7 +486,7 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // 7. ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
@@ -611,7 +624,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // GOODNESS-OF-FIT TESTS
+    // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
     
     /**
@@ -649,7 +662,7 @@ public:
         double alpha = 0.05);
     
     //==========================================================================
-    // CROSS-VALIDATION AND MODEL SELECTION
+    // 9. CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -683,7 +696,7 @@ public:
         const std::vector<double>& data);
     
     //==========================================================================
-    // INFORMATION CRITERIA
+    // 10. INFORMATION CRITERIA
     //==========================================================================
     
     /**
@@ -701,7 +714,7 @@ public:
         const ExponentialDistribution& fitted_distribution);
     
     //==========================================================================
-    // BOOTSTRAP METHODS
+    // 11. BOOTSTRAP METHODS
     //==========================================================================
     
     /**
@@ -723,7 +736,7 @@ public:
         unsigned int random_seed = 42);
     
     //==========================================================================
-    // EXPONENTIAL-SPECIFIC UTILITY METHODS
+    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -790,19 +803,8 @@ public:
         return constants::math::ZERO_DOUBLE;
     }
     
-    /**
-     * @brief Sets the rate parameter (exception-based API).
-     * Thread-safe: acquires unique lock for cache invalidation
-     * 
-     * @param lambda New rate parameter λ (must be positive)
-     * @throws std::invalid_argument if lambda is invalid
-     */
-    void setParameters(double lambda);
-    
- 
-    
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS (C++20 Simplified API)
+    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
     
     /**
@@ -885,7 +887,7 @@ public:
                                  const performance::PerformanceHint& hint = {}) const;
 
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -937,7 +939,7 @@ public:
                                              performance::Strategy strategy) const;
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // 15. COMPARISON OPERATORS
     //==========================================================================
     
     /**
@@ -955,7 +957,7 @@ public:
     bool operator!=(const ExponentialDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
-    // FRIEND FUNCTION STREAM OPERATORS
+    // 16. FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
     /**
@@ -976,7 +978,7 @@ public:
 
 private:
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // 17. PRIVATE FACTORY METHODS
     //==========================================================================
     
     /**
@@ -1006,7 +1008,7 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
+    // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
     
     /** @brief Internal implementation for batch PDF calculation */
@@ -1025,48 +1027,9 @@ private:
     // internally within the *UnsafeImpl methods above
     
     //==========================================================================
-    // DISTRIBUTION PARAMETERS
+    // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
     
-    /** @brief Rate parameter λ - must be positive */
-    double lambda_{constants::math::ONE};
-    
-    /** @brief C++20 atomic copy of parameter for lock-free access */
-    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PERFORMANCE CACHE
-    //==========================================================================
-    
-    /** @brief Cached value of ln(λ) for efficiency in log probability calculations */
-    mutable double logLambda_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of 1/λ (mean and scale parameter) for efficiency */
-    mutable double invLambda_{constants::math::ONE};
-    
-    /** @brief Cached value of -λ for efficiency in PDF and log-PDF calculations */
-    mutable double negLambda_{-constants::math::ONE};
-    
-    /** @brief Cached value of 1/λ² for variance calculation efficiency */
-    mutable double invLambdaSquared_{constants::math::ONE};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS
-    //==========================================================================
-    
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-    
-    /** @brief True if λ = 1 for unit exponential optimizations */
-    mutable bool isUnitRate_{true};
-    
-    /** @brief True if λ is very large (> 1000) for numerical stability */
-    mutable bool isHighRate_{false};
-    
-    /** @brief True if λ is very small (< 0.001) for numerical stability */
-    mutable bool isLowRate_{false};
-
     /**
      * Updates cached values when parameters change - assumes mutex is already held
      */
@@ -1102,9 +1065,64 @@ private:
             throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
         }
     }
+    
+    //==========================================================================
+    // 20. PRIVATE UTILITY METHODS
+    //==========================================================================
+    
+    // Note: Currently no private utility methods needed for Exponential distribution
+    // This section maintained for template compliance
+    
+    //==========================================================================
+    // 21. DISTRIBUTION PARAMETERS
+    //==========================================================================
+    
+    /** @brief Rate parameter λ - must be positive */
+    double lambda_{constants::math::ONE};
+    
+    /** @brief C++20 atomic copy of parameter for lock-free access */
+    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
-    friend std::istream& operator>>(std::istream& is,
-            libstats::ExponentialDistribution& distribution);
+    //==========================================================================
+    // 22. PERFORMANCE CACHE
+    //==========================================================================
+    
+    /** @brief Cached value of ln(λ) for efficiency in log probability calculations */
+    mutable double logLambda_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of 1/λ (mean and scale parameter) for efficiency */
+    mutable double invLambda_{constants::math::ONE};
+    
+    /** @brief Cached value of -λ for efficiency in PDF and log-PDF calculations */
+    mutable double negLambda_{-constants::math::ONE};
+    
+    /** @brief Cached value of 1/λ² for variance calculation efficiency */
+    mutable double invLambdaSquared_{constants::math::ONE};
+    
+    //==========================================================================
+    // 23. OPTIMIZATION FLAGS
+    //==========================================================================
+    
+    /** @brief Atomic cache validity flag for lock-free fast path optimization */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+    
+    /** @brief True if λ = 1 for unit exponential optimizations */
+    mutable bool isUnitRate_{true};
+    
+    /** @brief True if λ is very large (> 1000) for numerical stability */
+    mutable bool isHighRate_{false};
+    
+    /** @brief True if λ is very small (< 0.001) for numerical stability */
+    mutable bool isLowRate_{false};
+    
+    //==========================================================================
+    // 24. SPECIALIZED CACHES
+    //==========================================================================
+    
+    // Note: Exponential distribution uses standard caching only
+    // This section maintained for template compliance
+
 };
 
 } // namespace libstats

@@ -41,7 +41,10 @@ protected:
             non_poisson_data_.push_back(uniform_gen(rng));
         }
         
-        test_distribution_ = PoissonDistribution(test_lambda_);
+        auto result = libstats::PoissonDistribution::create(test_lambda_);
+        if (result.isOk()) {
+            test_distribution_ = std::move(result.value);
+        };
     }
     
     const double test_lambda_ = 3.5;
@@ -56,7 +59,7 @@ protected:
 
 TEST_F(PoissonEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard Poisson distribution properties
-    PoissonDistribution stdPoisson(1.0);
+    auto stdPoisson = libstats::PoissonDistribution::create(1.0).value;
     
     EXPECT_DOUBLE_EQ(stdPoisson.getMean(), 1.0);
     EXPECT_DOUBLE_EQ(stdPoisson.getVariance(), 1.0);
@@ -74,7 +77,7 @@ TEST_F(PoissonEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_1, 2.0 * std::exp(-1.0), 1e-9);  // P(X≤1) = P(X=0) + P(X=1)
     
     // Test custom distribution
-    PoissonDistribution custom(5.0);
+    auto custom = libstats::PoissonDistribution::create(5.0).value;
     EXPECT_DOUBLE_EQ(custom.getMean(), 5.0);
     EXPECT_DOUBLE_EQ(custom.getVariance(), 5.0);
     EXPECT_NEAR(custom.getSkewness(), 1.0/std::sqrt(5.0), 1e-10);
@@ -214,7 +217,7 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
-    PoissonDistribution stdPoisson(2.0);
+    auto stdPoisson = libstats::PoissonDistribution::create(2.0).value;
     
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
     
@@ -355,7 +358,7 @@ TEST_F(PoissonEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(PoissonEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
     
-    PoissonDistribution poisson_dist(4.0);
+    auto poisson_dist = libstats::PoissonDistribution::create(4.0).value;
     
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -391,7 +394,7 @@ TEST_F(PoissonEnhancedTest, CachingSpeedupVerification) {
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
     
     // Test cache invalidation - create a new distribution with different parameters
-    PoissonDistribution new_dist(8.0);
+    auto new_dist = libstats::PoissonDistribution::create(8.0).value;
     
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = new_dist.getMean();
@@ -410,7 +413,7 @@ TEST_F(PoissonEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
-    PoissonDistribution poisson_dist(3.0);
+    auto poisson_dist = libstats::PoissonDistribution::create(3.0).value;
     
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -504,7 +507,7 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    PoissonDistribution stdPoisson(3.0);
+    auto stdPoisson = libstats::PoissonDistribution::create(3.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
     
     // Generate test data (discrete values 0-15)
@@ -664,11 +667,146 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
 }
 
 //==============================================================================
+// PARALLEL BATCH FITTING TESTS
+//==============================================================================
+
+TEST_F(PoissonEnhancedTest, ParallelBatchFittingTests) {
+    std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
+    
+    // Create multiple datasets for batch fitting (convert to double for interface)
+    std::vector<std::vector<double>> datasets;
+    std::vector<PoissonDistribution> expected_distributions;
+    
+    std::mt19937 rng(42);
+    
+    // Generate 6 datasets with known lambda parameters
+    std::vector<double> true_lambdas = {1.0, 2.5, 5.0, 0.5, 10.0, 3.7};
+    
+    for (double lambda : true_lambdas) {
+        std::vector<double> dataset;
+        dataset.reserve(1000);
+        
+        std::poisson_distribution<int> gen(lambda);
+        for (int i = 0; i < 1000; ++i) {
+            dataset.push_back(static_cast<double>(gen(rng)));
+        }
+        
+        datasets.push_back(std::move(dataset));
+        expected_distributions.push_back(PoissonDistribution::create(lambda).value);
+    }
+    
+    std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
+    
+    // Test 1: Basic parallel batch fitting correctness
+    std::vector<PoissonDistribution> batch_results(datasets.size());
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    PoissonDistribution::parallelBatchFit(datasets, batch_results);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Verify correctness by comparing with individual fits
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        PoissonDistribution individual_fit;
+        individual_fit.fit(datasets[i]);
+        
+        // Parameters should match within tolerance
+        EXPECT_NEAR(batch_results[i].getLambda(), individual_fit.getLambda(), 1e-10)
+            << "Batch fit lambda mismatch for dataset " << i;
+        
+        // Should be reasonably close to true parameters
+        double expected_lambda = true_lambdas[i];
+        
+        // For Poisson distribution, MLE is just the sample mean
+        // Allow reasonable tolerance for sample variation
+        double lambda_tolerance = std::max(0.2, expected_lambda * 0.1); // At least 0.2 or 10% tolerance
+        
+        EXPECT_NEAR(batch_results[i].getLambda(), expected_lambda, lambda_tolerance)
+            << "Fitted lambda too far from true value for dataset " << i
+            << " (expected: " << expected_lambda << ", got: " << batch_results[i].getLambda() << ")";
+    }
+    
+    std::cout << "  ✓ Parallel batch fitting correctness verified\n";
+    
+    // Test 2: Performance comparison with sequential batch fitting
+    std::vector<PoissonDistribution> sequential_results(datasets.size());
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
+    
+    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+    
+    // Verify sequential and parallel results match
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        EXPECT_NEAR(batch_results[i].getLambda(), sequential_results[i].getLambda(), 1e-12)
+            << "Sequential vs parallel lambda mismatch for dataset " << i;
+    }
+    
+    // Test 3: Edge cases
+    std::cout << "  Testing edge cases...\n";
+    
+    // Empty datasets vector
+    std::vector<std::vector<double>> empty_datasets;
+    std::vector<PoissonDistribution> empty_results;
+    PoissonDistribution::parallelBatchFit(empty_datasets, empty_results);
+    EXPECT_TRUE(empty_results.empty());
+    
+    // Single dataset
+    std::vector<std::vector<double>> single_dataset = {datasets[0]};
+    std::vector<PoissonDistribution> single_result(1);
+    PoissonDistribution::parallelBatchFit(single_dataset, single_result);
+    EXPECT_NEAR(single_result[0].getLambda(), batch_results[0].getLambda(), 1e-12);
+    
+    // Results vector auto-sizing
+    std::vector<PoissonDistribution> auto_sized_results;
+    PoissonDistribution::parallelBatchFit(datasets, auto_sized_results);
+    EXPECT_EQ(auto_sized_results.size(), datasets.size());
+    
+    std::cout << "  ✓ Edge cases handled correctly\n";
+    
+    // Test 4: Thread safety with concurrent calls
+    std::cout << "  Testing thread safety...\n";
+    
+    const int num_threads = 4;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<PoissonDistribution>> concurrent_results(num_threads);
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&, t]() {
+            concurrent_results[t].resize(datasets.size());
+            PoissonDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    // Verify all concurrent results match
+    for (int t = 0; t < num_threads; ++t) {
+        for (size_t i = 0; i < datasets.size(); ++i) {
+            EXPECT_NEAR(concurrent_results[t][i].getLambda(), batch_results[i].getLambda(), 1e-10)
+                << "Thread " << t << " lambda result mismatch for dataset " << i;
+        }
+    }
+    
+    std::cout << "  ✓ Thread safety verified\n";
+}
+
+//==============================================================================
 // NUMERICAL STABILITY AND EDGE CASES
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, NumericalStabilityAndEdgeCases) {
-    PoissonDistribution poisson(5.0);
+    auto poisson = libstats::PoissonDistribution::create(5.0).value;
     
     EdgeCaseTester<PoissonDistribution>::testExtremeValues(poisson, "Poisson");
     EdgeCaseTester<PoissonDistribution>::testEmptyBatchOperations(poisson, "Poisson");

@@ -19,7 +19,7 @@
 namespace libstats {
 
 //==============================================================================
-// CONSTRUCTORS AND DESTRUCTORS
+// 1. CONSTRUCTORS AND DESTRUCTORS
 //==============================================================================
 
 UniformDistribution::UniformDistribution(double a, double b) 
@@ -115,8 +115,194 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
     return *this;
 }
 
+//==========================================================================
+// 2. SAFE FACTORY METHODS (Exception-free construction)
+//==========================================================================
+
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
+
 //==============================================================================
-// CORE PROBABILITY METHODS
+// 3. PARAMETER GETTERS AND SETTERS
+//==============================================================================
+
+void UniformDistribution::setLowerBound(double a) {
+    // Copy current upper bound for validation (thread-safe)
+    double currentB;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentB = b_;
+    }
+    
+    // Validate parameters outside of any lock
+    validateParameters(a, currentB);
+    
+    // Set parameter under lock
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void UniformDistribution::setUpperBound(double b) {
+    // Copy current lower bound for validation (thread-safe)
+    double currentA;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentA = a_;
+    }
+    
+    // Validate parameters outside of any lock
+    validateParameters(currentA, b);
+    
+    // Set parameter under lock
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void UniformDistribution::setBounds(double a, double b) {
+    validateParameters(a, b);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+void UniformDistribution::setParameters(double a, double b) {
+    validateParameters(a, b);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // CRITICAL: Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+double UniformDistribution::getMean() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    return midpoint_;
+}
+
+double UniformDistribution::getVariance() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    return variance_;
+}
+
+double UniformDistribution::getWidth() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
+    
+    return width_;
+}
+
+//==============================================================================
+// 4. RESULT-BASED SETTERS
+//==============================================================================
+
+VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
+    double currentB;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentB = b_;
+    }
+
+    auto validation = validateUniformParameters(a, currentB);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+
+    return VoidResult::ok(true);
+}
+
+VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
+    double currentA;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        currentA = a_;
+    }
+
+    auto validation = validateUniformParameters(currentA, b);
+    if (validation.isError()) {
+        return validation;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+
+    return VoidResult::ok(true);
+}
+
+VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
+    auto validation = validateUniformParameters(a, b);
+    if (validation.isError()) {
+        return validation;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    a_ = a;
+    b_ = b;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    
+    // Invalidate atomic parameters when parameters change
+    atomicParamsValid_.store(false, std::memory_order_release);
+    
+    return VoidResult::ok(true);
+}
+
+//==============================================================================
+// 5. CORE PROBABILITY METHODS
 //==============================================================================
 
 double UniformDistribution::getProbability(double x) const {
@@ -301,123 +487,7 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
 }
 
 //==============================================================================
-// PARAMETER GETTERS AND SETTERS
-//==============================================================================
-
-void UniformDistribution::setLowerBound(double a) {
-    // Copy current upper bound for validation (thread-safe)
-    double currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-    
-    // Validate parameters outside of any lock
-    validateParameters(a, currentB);
-    
-    // Set parameter under lock
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    a_ = a;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // CRITICAL: Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
-
-void UniformDistribution::setUpperBound(double b) {
-    // Copy current lower bound for validation (thread-safe)
-    double currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-    
-    // Validate parameters outside of any lock
-    validateParameters(currentA, b);
-    
-    // Set parameter under lock
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    b_ = b;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // CRITICAL: Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
-
-void UniformDistribution::setBounds(double a, double b) {
-    validateParameters(a, b);
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    a_ = a;
-    b_ = b;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // CRITICAL: Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
-
-void UniformDistribution::setParameters(double a, double b) {
-    validateParameters(a, b);
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    a_ = a;
-    b_ = b;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // CRITICAL: Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-}
-
-double UniformDistribution::getMean() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    return midpoint_;
-}
-
-double UniformDistribution::getVariance() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    return variance_;
-}
-
-double UniformDistribution::getWidth() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
-    }
-    
-    return width_;
-}
-
-
-//==============================================================================
-// DISTRIBUTION MANAGEMENT
+// 6. DISTRIBUTION MANAGEMENT
 //==============================================================================
 
 void UniformDistribution::fit(const std::vector<double>& values) {
@@ -444,6 +514,54 @@ void UniformDistribution::fit(const std::vector<double>& values) {
     setBounds(fitted_a, fitted_b);
 }
 
+void UniformDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                          std::vector<UniformDistribution>& results) {
+    if (datasets.empty()) {
+        // Handle empty datasets gracefully
+        results.clear();
+        return;
+    }
+    
+    // Ensure results vector has correct size
+    if (results.size() != datasets.size()) {
+        results.resize(datasets.size());
+    }
+    
+    const std::size_t num_datasets = datasets.size();
+    
+    // Use distribution-specific parallel thresholds for optimal work distribution
+    if (parallel::shouldUseDistributionParallel("uniform", "batch_fit", num_datasets)) {
+        // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
+        ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
+        const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
+        std::vector<std::future<void>> futures;
+        futures.reserve((num_datasets + optimal_grain_size - 1) / optimal_grain_size);
+        
+        for (std::size_t i = 0; i < num_datasets; i += optimal_grain_size) {
+            const std::size_t chunk_end = std::min(i + optimal_grain_size, num_datasets);
+            
+            auto future = pool.submit([&datasets, &results, i, chunk_end]() {
+                for (std::size_t j = i; j < chunk_end; ++j) {
+                    results[j].fit(datasets[j]);
+                }
+            });
+            
+            futures.push_back(std::move(future));
+        }
+        
+        // Wait for all chunks to complete
+        for (auto& future : futures) {
+            future.wait();
+        }
+        
+    } else {
+        // Serial processing for small numbers of datasets
+        for (std::size_t i = 0; i < num_datasets; ++i) {
+            results[i].fit(datasets[i]);
+        }
+    }
+}
+
 void UniformDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     a_ = constants::math::ZERO_DOUBLE;
@@ -460,246 +578,7 @@ std::string UniformDistribution::toString() const {
 }
 
 //==============================================================================
-// COMPARISON OPERATORS
-//==============================================================================
-
-bool UniformDistribution::operator==(const UniformDistribution& other) const {
-    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-    std::lock(lock1, lock2);
-    
-    return std::abs(a_ - other.a_) <= constants::precision::DEFAULT_TOLERANCE &&
-           std::abs(b_ - other.b_) <= constants::precision::DEFAULT_TOLERANCE;
-}
-
-//==============================================================================
-// STREAM OPERATORS
-//==============================================================================
-
-std::ostream& operator<<(std::ostream& os, const UniformDistribution& distribution) {
-    return os << distribution.toString();
-}
-
-std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
-    std::string token;
-    double a, b;
-    
-    // Expected format: "UniformDistribution(a=<value>, b=<value>)"
-    // We'll parse this step by step
-    
-    // Skip whitespace and read the first part
-    is >> token;
-    if (token.find("UniformDistribution(") != 0) {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    
-    // Extract 'a' value
-    if (token.find("a=") == std::string::npos) {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    
-    size_t a_pos = token.find("a=") + 2;
-    size_t comma_pos = token.find(",", a_pos);
-    if (comma_pos == std::string::npos) {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    
-    try {
-        std::string a_str = token.substr(a_pos, comma_pos - a_pos);
-        a = std::stod(a_str);
-    } catch (...) {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    
-    // Extract 'b' value
-    if (token.find("b=") == std::string::npos) {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    
-    size_t b_pos = token.find("b=") + 2;
-    size_t close_paren = token.find(")", b_pos);
-    if (close_paren == std::string::npos) {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    
-    try {
-        std::string b_str = token.substr(b_pos, close_paren - b_pos);
-        b = std::stod(b_str);
-    } catch (...) {
-        is.setstate(std::ios::failbit);
-        return is;
-    }
-    
-    // Validate and set parameters using the safe API
-    auto result = distribution.trySetParameters(a, b);
-    if (result.isError()) {
-        is.setstate(std::ios::failbit);
-    }
-    
-    return is;
-}
-
-
-//==============================================================================
-// PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
-//==============================================================================
-
-void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                        double a, double b, double inv_width) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
-        // Note: For uniform distribution, computation is extremely simple (just bounds checking)
-        // so SIMD rarely provides benefits, but we use centralized policy for consistency
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            // Use exclusion check (x < a || x > b) for CPU efficiency:
-            // - Short-circuits on first true condition (common for out-of-support values)
-            // - Matches scalar implementation exactly for consistency
-            results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation if possible
-    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
-    // due to the simple nature of bounds checking, but we implement for consistency
-    // In practice, this will mostly fall back to scalar due to the nature of the operation
-    
-    // Use scalar implementation even when SIMD is available because uniform distribution
-    // operations are not amenable to vectorization (primarily branching logic)
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        // Use exclusion check (x < a || x > b) for CPU efficiency:
-        // - Short-circuits on first true condition (common for out-of-support values)
-        // - Matches scalar implementation exactly for consistency
-        results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
-    }
-}
-
-void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                           double a, double b, double log_inv_width) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
-        // Note: For uniform distribution, computation is extremely simple (just bounds checking)
-        // so SIMD rarely provides benefits, but we use centralized policy for consistency
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
-            // - Matches boundary conditions exactly
-            // - Short-circuits efficiently for out-of-support values
-            results[i] = (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation if possible
-    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
-    // due to the simple nature of bounds checking, but we implement for consistency
-    // In practice, this will mostly fall back to scalar due to the nature of the operation
-    
-    // Use scalar implementation even when SIMD is available because uniform distribution
-    // operations are not amenable to vectorization (primarily branching logic)
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
-        // - Matches boundary conditions exactly
-        // - Short-circuits efficiently for out-of-support values
-        results[i] = (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
-    }
-}
-
-void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                                  double a, double b, double inv_width) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
-    
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
-        // Note: For uniform distribution CDF, computation is simple (bounds checking + linear interpolation)
-        // so SIMD rarely provides benefits, but we use centralized policy for consistency
-        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        
-        if (is_unit_interval) {
-            // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                } else if (x > constants::math::ONE) {
-                    results[i] = constants::math::ONE;
-                } else {
-                    results[i] = x;
-                }
-            }
-        } else {
-            // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                if (x < a) {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                } else if (x > b) {
-                    results[i] = constants::math::ONE;
-                } else {
-                    results[i] = (x - a) * inv_width;
-                }
-            }
-        }
-        return;
-    }
-    
-    // Runtime CPU detection passed - use vectorized implementation if possible
-    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
-    // due to the simple nature of bounds checking, but we implement for consistency
-    // In practice, this will mostly fall back to scalar due to the nature of the operation
-    
-    const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-                                 (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-    
-    // Use scalar implementation even when SIMD is available because uniform distribution
-    // operations are not amenable to vectorization (primarily branching logic)
-    if (is_unit_interval) {
-        // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (x > constants::math::ONE) {
-                results[i] = constants::math::ONE;
-            } else {
-                results[i] = x;
-            }
-        }
-    } else {
-        // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < a) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (x > b) {
-                results[i] = constants::math::ONE;
-            } else {
-                results[i] = (x - a) * inv_width;
-            }
-        }
-    }
-}
-
-
-//==============================================================================
-// ADVANCED STATISTICAL METHODS
+// 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
 
 std::pair<double, double> UniformDistribution::confidenceIntervalLowerBound(const std::vector<double>& data, double confidence_level) {
@@ -1009,6 +888,10 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(const std::
     return {test_statistic, p_value, uniformity_is_valid};
 }
 
+//==========================================================================
+// 8. GOODNESS-OF-FIT TESTS
+//==========================================================================
+
 std::tuple<double, double, bool> UniformDistribution::kolmogorovSmirnovTest(
     const std::vector<double>& data,
     const UniformDistribution& distribution,
@@ -1087,51 +970,9 @@ std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
     return std::make_tuple(ad_stat, p_value, reject_null);
 }
 
-//==============================================================================
-// RESULT-BASED SETTERS
-//==============================================================================
-
-VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
-    double currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-
-    auto validation = validateUniformParameters(a, currentB);
-    if (validation.isError()) {
-        return validation;
-    }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    a_ = a;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    atomicParamsValid_.store(false, std::memory_order_release);
-
-    return VoidResult::ok(true);
-}
-
-VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
-    double currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-
-    auto validation = validateUniformParameters(currentA, b);
-    if (validation.isError()) {
-        return validation;
-    }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    b_ = b;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    atomicParamsValid_.store(false, std::memory_order_release);
-
-    return VoidResult::ok(true);
-}
+//==========================================================================
+// 9. CROSS-VALIDATION METHODS
+//==========================================================================
 
 std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossValidation(
     const std::vector<double>& data,
@@ -1184,7 +1025,7 @@ std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossV
         
         // Fit distribution to training data
         if (train_data.size() < 2) {
-            results.emplace_back(std::numeric_limits<double>::infinity(), 
+            results.emplace_back(std::numeric_limits<double>::infinity(),
                                std::numeric_limits<double>::infinity(),
                                -std::numeric_limits<double>::infinity());
             continue;
@@ -1297,6 +1138,51 @@ std::tuple<double, double, double> UniformDistribution::leaveOneOutCrossValidati
     return std::make_tuple(mae, rmse, total_log_likelihood);
 }
 
+//==========================================================================
+// 10. INFORMATION CRITERIA
+//==========================================================================
+
+std::tuple<double, double, double, double> UniformDistribution::computeInformationCriteria(
+    const std::vector<double>& data,
+    const UniformDistribution& fitted_distribution) {
+    
+    if (data.empty()) {
+        throw std::invalid_argument("Data vector cannot be empty");
+    }
+    
+    const size_t n = data.size();
+    const int k = 2; // Number of parameters for uniform distribution (a, b)
+    
+    // Compute log likelihood
+    double log_likelihood = 0.0;
+    for (double x : data) {
+        double log_prob = fitted_distribution.getLogProbability(x);
+        // Handle the case where data points are outside the distribution bounds
+        if (std::isfinite(log_prob)) {
+            log_likelihood += log_prob;
+        } else {
+            // Penalize data points outside bounds with a large negative value
+            log_likelihood += -1000.0;
+        }
+    }
+    
+    // Compute information criteria
+    double aic = -2.0 * log_likelihood + 2.0 * k;
+    double bic = -2.0 * log_likelihood + k * std::log(n);
+    
+    // AICc (corrected AIC for small sample sizes)
+    double aicc = aic;
+    if (n > k + 1) {
+        aicc += (2.0 * k * (k + 1)) / static_cast<double>(n - k - 1);
+    }
+    
+    return std::make_tuple(aic, bic, aicc, log_likelihood);
+}
+
+//==========================================================================
+// 11. BOOTSTRAP METHODS
+//==========================================================================
+
 std::tuple<std::pair<double, double>, std::pair<double, double>> UniformDistribution::bootstrapParameterConfidenceIntervals(
     const std::vector<double>& data,
     double confidence_level,
@@ -1371,67 +1257,15 @@ std::tuple<std::pair<double, double>, std::pair<double, double>> UniformDistribu
     return std::make_tuple(a_ci, b_ci);
 }
 
-std::tuple<double, double, double, double> UniformDistribution::computeInformationCriteria(
-    const std::vector<double>& data,
-    const UniformDistribution& fitted_distribution) {
-    
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    
-    const size_t n = data.size();
-    const int k = 2; // Number of parameters for uniform distribution (a, b)
-    
-    // Compute log likelihood
-    double log_likelihood = 0.0;
-    for (double x : data) {
-        double log_prob = fitted_distribution.getLogProbability(x);
-        // Handle the case where data points are outside the distribution bounds
-        if (std::isfinite(log_prob)) {
-            log_likelihood += log_prob;
-        } else {
-            // Penalize data points outside bounds with a large negative value
-            log_likelihood += -1000.0;
-        }
-    }
-    
-    // Compute information criteria
-    double aic = -2.0 * log_likelihood + 2.0 * k;
-    double bic = -2.0 * log_likelihood + k * std::log(n);
-    
-    // AICc (corrected AIC for small sample sizes)
-    double aicc = aic;
-    if (n > k + 1) {
-        aicc += (2.0 * k * (k + 1)) / static_cast<double>(n - k - 1);
-    }
-    
-    return std::make_tuple(aic, bic, aicc, log_likelihood);
-}
+//==========================================================================
+// 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
+//==========================================================================
+
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
 
 //==============================================================================
-// RESULT-BASED SETTERS (C++20 Best Practice: Complex implementations in .cpp)
-//==============================================================================
-
-VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
-    auto validation = validateUniformParameters(a, b);
-    if (validation.isError()) {
-        return validation;
-    }
-    
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    a_ = a;
-    b_ = b;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    
-    // Invalidate atomic parameters when parameters change
-    atomicParamsValid_.store(false, std::memory_order_release);
-    
-    return VoidResult::ok(true);
-}
-
-//==============================================================================
-// SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
+// 13. SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
 //==============================================================================
 
 void UniformDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -1917,7 +1751,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
 }
 
 //==============================================================================
-// EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+// 14. EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
 //==============================================================================
 
 void UniformDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
@@ -2398,5 +2232,292 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
         }
     );
 }
+
+//==============================================================================
+// 15. COMPARISON OPERATORS
+//==============================================================================
+
+bool UniformDistribution::operator==(const UniformDistribution& other) const {
+    std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+    std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+    std::lock(lock1, lock2);
+    
+    return std::abs(a_ - other.a_) <= constants::precision::DEFAULT_TOLERANCE &&
+           std::abs(b_ - other.b_) <= constants::precision::DEFAULT_TOLERANCE;
+}
+
+//==============================================================================
+// 16. STREAM OPERATORS
+//==============================================================================
+
+std::ostream& operator<<(std::ostream& os, const UniformDistribution& distribution) {
+    return os << distribution.toString();
+}
+
+std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
+    std::string token;
+    double a, b;
+    
+    // Expected format: "UniformDistribution(a=<value>, b=<value>)"
+    // We'll parse this step by step
+    
+    // Skip whitespace and read the first part
+    is >> token;
+    if (token.find("UniformDistribution(") != 0) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Extract 'a' value
+    if (token.find("a=") == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    size_t a_pos = token.find("a=") + 2;
+    size_t comma_pos = token.find(",", a_pos);
+    if (comma_pos == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    try {
+        std::string a_str = token.substr(a_pos, comma_pos - a_pos);
+        a = std::stod(a_str);
+    } catch (...) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Extract 'b' value
+    if (token.find("b=") == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    size_t b_pos = token.find("b=") + 2;
+    size_t close_paren = token.find(")", b_pos);
+    if (close_paren == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    try {
+        std::string b_str = token.substr(b_pos, close_paren - b_pos);
+        b = std::stod(b_str);
+    } catch (...) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    
+    // Validate and set parameters using the safe API
+    auto result = distribution.trySetParameters(a, b);
+    if (result.isError()) {
+        is.setstate(std::ios::failbit);
+    }
+    
+    return is;
+}
+
+//==========================================================================
+// 17. PRIVATE FACTORY METHODS
+//==========================================================================
+
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
+
+//==============================================================================
+// 18. PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
+//==============================================================================
+
+void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                        double a, double b, double inv_width) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: For uniform distribution, computation is extremely simple (just bounds checking)
+        // so SIMD rarely provides benefits, but we use centralized policy for consistency
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            // Use exclusion check (x < a || x > b) for CPU efficiency:
+            // - Short-circuits on first true condition (common for out-of-support values)
+            // - Matches scalar implementation exactly for consistency
+            results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
+    // due to the simple nature of bounds checking, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
+    // Use scalar implementation even when SIMD is available because uniform distribution
+    // operations are not amenable to vectorization (primarily branching logic)
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        // Use exclusion check (x < a || x > b) for CPU efficiency:
+        // - Short-circuits on first true condition (common for out-of-support values)
+        // - Matches scalar implementation exactly for consistency
+        results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
+    }
+}
+
+void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                           double a, double b, double log_inv_width) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: For uniform distribution, computation is extremely simple (just bounds checking)
+        // so SIMD rarely provides benefits, but we use centralized policy for consistency
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
+            // - Matches boundary conditions exactly
+            // - Short-circuits efficiently for out-of-support values
+            results[i] = (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
+    // due to the simple nature of bounds checking, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
+    // Use scalar implementation even when SIMD is available because uniform distribution
+    // operations are not amenable to vectorization (primarily branching logic)
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
+        // - Matches boundary conditions exactly
+        // - Short-circuits efficiently for out-of-support values
+        results[i] = (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
+    }
+}
+
+void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                                  double a, double b, double inv_width) const noexcept {
+    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
+    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    
+    if (!use_simd) {
+        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
+        // Note: For uniform distribution CDF, computation is simple (bounds checking + linear interpolation)
+        // so SIMD rarely provides benefits, but we use centralized policy for consistency
+        const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
+                                     (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        
+        if (is_unit_interval) {
+            // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                if (x < constants::math::ZERO_DOUBLE) {
+                    results[i] = constants::math::ZERO_DOUBLE;
+                } else if (x > constants::math::ONE) {
+                    results[i] = constants::math::ONE;
+                } else {
+                    results[i] = x;
+                }
+            }
+        } else {
+            // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
+            for (std::size_t i = 0; i < count; ++i) {
+                const double x = values[i];
+                if (x < a) {
+                    results[i] = constants::math::ZERO_DOUBLE;
+                } else if (x > b) {
+                    results[i] = constants::math::ONE;
+                } else {
+                    results[i] = (x - a) * inv_width;
+                }
+            }
+        }
+        return;
+    }
+    
+    // Runtime CPU detection passed - use vectorized implementation if possible
+    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
+    // due to the simple nature of bounds checking, but we implement for consistency
+    // In practice, this will mostly fall back to scalar due to the nature of the operation
+    
+    const bool is_unit_interval = (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
+                                 (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+    
+    // Use scalar implementation even when SIMD is available because uniform distribution
+    // operations are not amenable to vectorization (primarily branching logic)
+    if (is_unit_interval) {
+        // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x < constants::math::ZERO_DOUBLE) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (x > constants::math::ONE) {
+                results[i] = constants::math::ONE;
+            } else {
+                results[i] = x;
+            }
+        }
+    } else {
+        // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x < a) {
+                results[i] = constants::math::ZERO_DOUBLE;
+            } else if (x > b) {
+                results[i] = constants::math::ONE;
+            } else {
+                results[i] = (x - a) * inv_width;
+            }
+        }
+    }
+}
+
+//==========================================================================
+// 19. PRIVATE COMPUTATIONAL METHODS (if needed)
+//==========================================================================
+
+// Note: All methods in this section currently implemented inline in the header
+// This section maintained for template compliance
+
+//==========================================================================
+// 20. PRIVATE UTILITY METHODS (if needed)
+//==========================================================================
+
+// For Uniform distribution, internal helper methods are minimal.
+// Additional data processing utilities, validation helpers, or
+// formatting utilities would be placed here if needed in future versions.
+
+//==============================================================================
+// 21. DISTRIBUTION PARAMETERS
+//==============================================================================
+
+// Note: Distribution parameters are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 22. PERFORMANCE CACHE
+//==============================================================================
+
+// Note: Performance cache variables are declared in the header as mutable private members
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 23. OPTIMIZATION FLAGS
+//==============================================================================
+
+// Note: Optimization flags are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 24. SPECIALIZED CACHES
+//==============================================================================
+
+// Note: Specialized caches are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
 
 } // namespace libstats

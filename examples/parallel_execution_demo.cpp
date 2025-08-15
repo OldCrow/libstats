@@ -11,15 +11,12 @@
  * - Real-world optimization strategies for statistical computing
  */
 
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <numeric>
-#include <chrono>
-#include <iomanip>
-#include <random>
-
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+#include <iostream>
+#include <random>
+#include <iomanip>
+#include <vector>
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;

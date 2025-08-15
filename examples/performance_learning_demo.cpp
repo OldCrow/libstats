@@ -14,13 +14,12 @@
  * - Cross-distribution performance comparison
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
-#include "core/performance_history.h"
 #include <iostream>
-#include <vector>
 #include <random>
 #include <iomanip>
-#include <chrono>
+#include <vector>
 
 std::string strategyToString(libstats::performance::Strategy strategy) {
     switch (strategy) {
@@ -51,8 +50,8 @@ void demonstrate_smart_dispatch() {
               << "Operation: Computing PDF values for each input\n" << std::endl;
     
     // Create distributions
-    libstats::Gaussian normal(0.0, 1.0);
-    libstats::Exponential exponential(2.0);
+    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
+    auto exponential = libstats::ExponentialDistribution::create(2.0).value;
     
     // Create test data of various sizes
     std::vector<size_t> data_sizes = {100, 1000, 10000, 100000};
@@ -174,7 +173,7 @@ void demonstrate_performance_dispatcher() {
 void demonstrate_adaptive_learning() {
     print_separator("Adaptive Performance Learning");
     
-    libstats::Gaussian normal(0.0, 1.0);
+    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
     auto& history = libstats::performance::PerformanceDispatcher::getPerformanceHistory();
     
     std::cout << "\nTraining the adaptive performance learning system with Gaussian N(0,1) distribution.\n"
@@ -285,8 +284,8 @@ void demonstrate_cross_distribution_comparison() {
               << "Strategy: Recommended by performance learning system based on training data\n" << std::endl;
     
     // Create different distributions
-    libstats::Gaussian normal(0.0, 1.0);
-    libstats::Exponential exponential(1.0);
+    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
+    auto exponential = libstats::ExponentialDistribution::create(1.0).value;
     
     const size_t test_size = 10000;
     std::vector<double> normal_input(test_size);

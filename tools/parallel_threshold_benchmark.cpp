@@ -6,12 +6,8 @@
  * for parallel execution, utilizing adaptive learning from PerformanceHistory.
  */
 
-#include <iostream>
-#include <vector>
-#include <chrono>
-#include <random>
-#include <algorithm>
-#include <iomanip>
+// Use consolidated tool utilities header which includes libstats.h
+#include "tool_utils.h"
 #include <fstream>
 #include <span>
 #include <map>
@@ -77,7 +73,7 @@ namespace {
     constexpr const char* RESULTS_CSV_FILENAME = "parallel_threshold_benchmark_results.csv";
 }
 
-struct BenchmarkResult {
+struct ToolBenchmarkResult {
     std::size_t data_size;
     std::string distribution_type;
     std::string operation_type;
@@ -92,7 +88,7 @@ struct BenchmarkResult {
 class ParallelThresholdBenchmark {
 private:
     std::mt19937 gen_;
-    std::vector<BenchmarkResult> results_;
+    std::vector<ToolBenchmarkResult> results_;
     std::vector<std::size_t> test_sizes_;
     
     void initializeTestSizes(bool include_large) {
@@ -144,7 +140,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Uniform Distribution Benchmark");
-        UniformDistribution uniform(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX);
+        auto uniform = libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -176,7 +172,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Poisson Distribution Benchmark");
-        PoissonDistribution poisson(distribution_params::DEFAULT_POISSON_LAMBDA);
+        auto poisson = libstats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -208,7 +204,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Discrete Distribution Benchmark");
-        DiscreteDistribution discrete(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX);
+        auto discrete = libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -240,7 +236,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Gaussian Distribution Benchmark");
-        GaussianDistribution gaussian(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV);
+        auto gaussian = libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -272,7 +268,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Exponential Distribution Benchmark");
-        ExponentialDistribution exponential(distribution_params::EXPONENTIAL_LAMBDA);
+        auto exponential = libstats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -304,7 +300,7 @@ private:
         using namespace libstats::tools;
         
         display::subsectionHeader("Gamma Distribution Benchmark");
-        GammaDistribution gamma(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA);
+        auto gamma = libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA).value;
         
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -333,11 +329,11 @@ private:
     }
     
     template<typename Distribution>
-    BenchmarkResult benchmarkOperation(const Distribution& dist, 
+    ToolBenchmarkResult benchmarkOperation(const Distribution& dist, 
                                      const std::vector<double>& test_data,
                                      const std::string& operation,
                                      const std::string& dist_type) {
-        BenchmarkResult result;
+        ToolBenchmarkResult result;
         result.data_size = test_data.size();
         result.distribution_type = dist_type;
         result.operation_type = operation;
@@ -430,7 +426,7 @@ private:
         std::cout << "\n=== Analysis Results ===\n";
         
         // Group results by distribution and operation
-        std::map<std::string, std::vector<BenchmarkResult*>> grouped_results;
+        std::map<std::string, std::vector<ToolBenchmarkResult*>> grouped_results;
         for (auto& result : results_) {
             std::string key = result.distribution_type + "_" + result.operation_type;
             grouped_results[key].push_back(&result);

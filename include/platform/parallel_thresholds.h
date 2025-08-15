@@ -9,11 +9,8 @@
  * an explosion of architecture-specific constants.
  */
 
-#include <cstddef>
-#include <string>
+#include "platform_common.h"
 #include <unordered_map>
-#include "../core/constants.h"
-#include "cpu_detection.h"
 
 namespace libstats {
 namespace parallel {

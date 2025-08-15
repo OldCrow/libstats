@@ -41,7 +41,10 @@ protected:
             non_uniform_data_.push_back(normal_gen(rng));
         }
         
-        test_distribution_ = UniformDistribution(test_a_, test_b_);
+        auto result = libstats::UniformDistribution::create(test_a_, test_b_);
+        if (result.isOk()) {
+            test_distribution_ = std::move(result.value);
+        };
     }
     
     const double test_a_ = 2.0;
@@ -57,7 +60,7 @@ protected:
 
 TEST_F(UniformEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard uniform distribution properties
-    UniformDistribution stdUniform(0.0, 1.0);
+    auto stdUniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     EXPECT_DOUBLE_EQ(stdUniform.getLowerBound(), 0.0);
     EXPECT_DOUBLE_EQ(stdUniform.getUpperBound(), 1.0);
@@ -74,7 +77,7 @@ TEST_F(UniformEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(cdf_at_mid, 0.5);  // CDF at midpoint
     
     // Test custom distribution
-    UniformDistribution custom(-2.0, 4.0);
+    auto custom = libstats::UniformDistribution::create(-2.0, 4.0).value;
     EXPECT_DOUBLE_EQ(custom.getLowerBound(), -2.0);
     EXPECT_DOUBLE_EQ(custom.getUpperBound(), 4.0);
     EXPECT_DOUBLE_EQ(custom.getMean(), 1.0);
@@ -133,7 +136,7 @@ TEST_F(UniformEnhancedTest, InformationCriteriaTests) {
     std::cout << "\n=== Information Criteria Tests ===\n";
     
     // Fit distribution to data
-    UniformDistribution fitted_dist;
+    auto fitted_dist = libstats::UniformDistribution::create().value;
     fitted_dist.fit(uniform_data_);
     
     auto [aic, bic, aicc, log_likelihood] = UniformDistribution::computeInformationCriteria(
@@ -225,7 +228,7 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
-    UniformDistribution stdUniform(0.0, 1.0);
+    auto stdUniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
     
@@ -368,7 +371,7 @@ TEST_F(UniformEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
     
-    UniformDistribution uniform_dist(0.0, 1.0);
+    auto uniform_dist = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -404,7 +407,7 @@ TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
     
     // Test cache invalidation - create a new distribution with different parameters
-    UniformDistribution new_dist(0.5, 1.5);
+    auto new_dist = libstats::UniformDistribution::create(0.5, 1.5).value;
     
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = new_dist.getMean();
@@ -423,7 +426,7 @@ TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
-    UniformDistribution uniform_dist(0.0, 1.0);
+    auto uniform_dist = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -522,7 +525,7 @@ TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    UniformDistribution stdUniform(0.0, 1.0);
+    auto stdUniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
     
     // Generate test data
@@ -683,11 +686,158 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
 }
 
 //==============================================================================
+// PARALLEL BATCH FITTING TESTS
+//==============================================================================
+
+TEST_F(UniformEnhancedTest, ParallelBatchFittingTests) {
+    std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
+    
+    // Create multiple datasets for batch fitting
+    std::vector<std::vector<double>> datasets;
+    std::vector<UniformDistribution> expected_distributions;
+    
+    std::mt19937 rng(42);
+    
+    // Generate 6 datasets with known parameters
+    std::vector<std::pair<double, double>> true_params = {
+        {0.0, 1.0}, {-2.0, 2.0}, {5.0, 10.0}, {-1.0, 3.0}, {0.5, 1.5}, {-5.0, 5.0}
+    };
+    
+    for (const auto& [a, b] : true_params) {
+        std::vector<double> dataset;
+        dataset.reserve(1000);
+        
+        std::uniform_real_distribution<double> gen(a, b);
+        for (int i = 0; i < 1000; ++i) {
+            dataset.push_back(gen(rng));
+        }
+        
+        datasets.push_back(std::move(dataset));
+        expected_distributions.push_back(UniformDistribution::create(a, b).value);
+    }
+    
+    std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
+    
+    // Test 1: Basic parallel batch fitting correctness
+    std::vector<UniformDistribution> batch_results(datasets.size());
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    UniformDistribution::parallelBatchFit(datasets, batch_results);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Verify correctness by comparing with individual fits
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        UniformDistribution individual_fit;
+        individual_fit.fit(datasets[i]);
+        
+        // Parameters should match within tolerance
+        EXPECT_NEAR(batch_results[i].getLowerBound(), individual_fit.getLowerBound(), 1e-10)
+            << "Batch fit lower bound mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getUpperBound(), individual_fit.getUpperBound(), 1e-10)
+            << "Batch fit upper bound mismatch for dataset " << i;
+        
+        // Should be reasonably close to true parameters
+        double expected_a = true_params[i].first;
+        double expected_b = true_params[i].second;
+        double n = datasets[i].size();
+        
+        // For uniform distribution, the sample range should be close to true range
+        // Allow some tolerance for sample variation
+        double range_tolerance = (expected_b - expected_a) * 0.1; // 10% tolerance
+        
+        EXPECT_NEAR(batch_results[i].getLowerBound(), expected_a, range_tolerance)
+            << "Fitted lower bound too far from true value for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getUpperBound(), expected_b, range_tolerance)
+            << "Fitted upper bound too far from true value for dataset " << i;
+    }
+    
+    std::cout << "  ✓ Parallel batch fitting correctness verified\n";
+    
+    // Test 2: Performance comparison with sequential batch fitting
+    std::vector<UniformDistribution> sequential_results(datasets.size());
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
+    
+    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+    
+    // Verify sequential and parallel results match
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        EXPECT_NEAR(batch_results[i].getLowerBound(), sequential_results[i].getLowerBound(), 1e-12)
+            << "Sequential vs parallel lower bound mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getUpperBound(), sequential_results[i].getUpperBound(), 1e-12)
+            << "Sequential vs parallel upper bound mismatch for dataset " << i;
+    }
+    
+    // Test 3: Edge cases
+    std::cout << "  Testing edge cases...\n";
+    
+    // Empty datasets vector
+    std::vector<std::vector<double>> empty_datasets;
+    std::vector<UniformDistribution> empty_results;
+    UniformDistribution::parallelBatchFit(empty_datasets, empty_results);
+    EXPECT_TRUE(empty_results.empty());
+    
+    // Single dataset
+    std::vector<std::vector<double>> single_dataset = {datasets[0]};
+    std::vector<UniformDistribution> single_result(1);
+    UniformDistribution::parallelBatchFit(single_dataset, single_result);
+    EXPECT_NEAR(single_result[0].getLowerBound(), batch_results[0].getLowerBound(), 1e-12);
+    EXPECT_NEAR(single_result[0].getUpperBound(), batch_results[0].getUpperBound(), 1e-12);
+    
+    // Results vector auto-sizing
+    std::vector<UniformDistribution> auto_sized_results;
+    UniformDistribution::parallelBatchFit(datasets, auto_sized_results);
+    EXPECT_EQ(auto_sized_results.size(), datasets.size());
+    
+    std::cout << "  ✓ Edge cases handled correctly\n";
+    
+    // Test 4: Thread safety with concurrent calls
+    std::cout << "  Testing thread safety...\n";
+    
+    const int num_threads = 4;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<UniformDistribution>> concurrent_results(num_threads);
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&, t]() {
+            concurrent_results[t].resize(datasets.size());
+            UniformDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    // Verify all concurrent results match
+    for (int t = 0; t < num_threads; ++t) {
+        for (size_t i = 0; i < datasets.size(); ++i) {
+            EXPECT_NEAR(concurrent_results[t][i].getLowerBound(), batch_results[i].getLowerBound(), 1e-10)
+                << "Thread " << t << " lower bound result mismatch for dataset " << i;
+            EXPECT_NEAR(concurrent_results[t][i].getUpperBound(), batch_results[i].getUpperBound(), 1e-10)
+                << "Thread " << t << " upper bound result mismatch for dataset " << i;
+        }
+    }
+    
+    std::cout << "  ✓ Thread safety verified\n";
+}
+
+//==============================================================================
 // NUMERICAL STABILITY AND EDGE CASES
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
-    UniformDistribution uniform(0.0, 1.0);
+    auto uniform = libstats::UniformDistribution::create(0.0, 1.0).value;
     
     EdgeCaseTester<UniformDistribution>::testExtremeValues(uniform, "Uniform");
     EdgeCaseTester<UniformDistribution>::testEmptyBatchOperations(uniform, "Uniform");

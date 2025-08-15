@@ -6,16 +6,11 @@
  * distribution characteristics instead of hardcoded assumptions.
  */
 
-#include "../include/libstats.h"
-#include "../include/core/distribution_characteristics.h"
-#include "../include/core/performance_dispatcher.h"
+// Use consolidated tool utilities header which includes libstats.h
 #include "tool_utils.h"
 
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <string>
-#include <sstream>
+// Additional includes for empirical characteristics
+#include "../include/core/distribution_characteristics.h"
 
 using namespace libstats;
 using namespace libstats::performance;
@@ -197,31 +192,22 @@ void demonstrateAdaptiveLearning() {
     std::cout << "  Base Complexity: " << std::fixed << std::setprecision(1) 
               << base_chars.base_complexity << "\n";
     
-    // Simulate learned refinements
-    adaptive::LearnedRefinements refinements;
-    refinements.simd_efficiency_multiplier = 1.2;      // 20% better than expected
-    refinements.parallel_efficiency_multiplier = 0.85; // 15% worse than expected
-    refinements.complexity_adjustment = 0.9;           // 10% less complex than expected
-    refinements.simd_threshold_offset = -8;            // SIMD beneficial 8 elements earlier
-    refinements.learning_confidence = 0.7;             // 70% confidence in learned values
-    
-    auto refined_chars = adaptive::applyRefinements(base_chars, refinements);
-    
-    std::cout << "\nAfter Adaptive Learning (70% confidence):\n";
-    std::cout << "  SIMD Efficiency: " << std::fixed << std::setprecision(2) 
-              << refined_chars.vectorization_efficiency 
-              << " (+" << std::fixed << std::setprecision(1) 
-              << ((refined_chars.vectorization_efficiency / base_chars.vectorization_efficiency - 1.0) * 100) << "%)\n";
-    std::cout << "  Parallel Efficiency: " << std::fixed << std::setprecision(2) 
-              << refined_chars.parallelization_efficiency 
-              << " (" << std::fixed << std::setprecision(1) 
-              << ((refined_chars.parallelization_efficiency / base_chars.parallelization_efficiency - 1.0) * 100) << "%)\n";
-    std::cout << "  Base Complexity: " << std::fixed << std::setprecision(1) 
-              << refined_chars.base_complexity 
-              << " (" << std::fixed << std::setprecision(1) 
-              << ((refined_chars.base_complexity / base_chars.base_complexity - 1.0) * 100) << "%)\n";
-    std::cout << "  SIMD Threshold: " << refined_chars.min_simd_threshold 
-              << " (was " << base_chars.min_simd_threshold << ")\n";
+    // Note: Adaptive refinement functionality not yet implemented
+    std::cout << "\nAdaptive Learning (Planned Feature):\n";
+    std::cout << "  The system will learn from actual performance measurements to refine:\n";
+    std::cout << "  • SIMD efficiency multipliers based on observed speedups\n";
+    std::cout << "  • Parallel efficiency adjustments for specific workloads\n";
+    std::cout << "  • Complexity refinements based on measured execution times\n";
+    std::cout << "  • Threshold adjustments for optimal strategy selection\n";
+    std::cout << "\n  Example potential improvements:\n";
+    std::cout << "  • SIMD Efficiency: " << std::fixed << std::setprecision(2) 
+              << base_chars.vectorization_efficiency << " → "
+              << (base_chars.vectorization_efficiency * 1.2) << " (+20%)\n";
+    std::cout << "  • Parallel Efficiency: " << std::fixed << std::setprecision(2) 
+              << base_chars.parallelization_efficiency << " → "
+              << (base_chars.parallelization_efficiency * 0.85) << " (-15%)\n";
+    std::cout << "  • SIMD Threshold: " << base_chars.min_simd_threshold << " → "
+              << (base_chars.min_simd_threshold - 8) << " (8 elements earlier)\n";
     
     std::cout << "\nAdaptive Learning Benefits:\n";
     std::cout << "  • Starts with empirically-derived baselines instead of assumptions\n";

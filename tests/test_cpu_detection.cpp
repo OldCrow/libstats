@@ -1,7 +1,7 @@
+// Use focused header for CPU detection testing
 #include "../include/platform/cpu_detection.h"
-#include "../include/platform/platform_constants.h"
+#include "../include/platform/parallel_thresholds.h"
 #include <iostream>
-#include <iomanip>
 
 int main() {
     try {

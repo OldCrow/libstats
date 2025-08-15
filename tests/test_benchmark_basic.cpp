@@ -1,7 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <chrono>
-#include <thread>
+// Use focused header for benchmark infrastructure
 #include "../include/platform/benchmark.h"
 
 using namespace libstats;

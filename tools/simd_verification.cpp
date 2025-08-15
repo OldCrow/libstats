@@ -14,13 +14,11 @@
  * - Uses libstats' built-in SIMD detection and capabilities
  */
 
-#include <iostream>
-#include <vector>
-#include <random>
+// Use consolidated tool utilities header which includes libstats.h
+#include "tool_utils.h"
+
+// Additional standard library includes for SIMD verification
 #include <cmath>
-#include <iomanip>
-#include <sstream>
-#include <map>
 #include <algorithm>
 #include <limits>
 
@@ -142,7 +140,7 @@ private:
     
     void testUniformDistribution() {
         display::subsectionHeader("Uniform Distribution SIMD Verification");
-        UniformDistribution dist(0.0, 1.0);
+        auto dist = libstats::UniformDistribution::create(0.0, 1.0).value;
         
         // Test data around the distribution range
         auto test_data = generateTestData(-0.5, 1.5, TEST_SIZE);
@@ -152,7 +150,7 @@ private:
     
     void testGaussianDistribution() {
         display::subsectionHeader("Gaussian Distribution SIMD Verification");
-        GaussianDistribution dist(0.0, 1.0);
+        auto dist = libstats::GaussianDistribution::create(0.0, 1.0).value;
         
         // Test data with wider range for Gaussian
         auto test_data = generateTestData(-5.0, 5.0, TEST_SIZE);
@@ -162,7 +160,7 @@ private:
     
     void testExponentialDistribution() {
         display::subsectionHeader("Exponential Distribution SIMD Verification");
-        ExponentialDistribution dist(1.0);
+        auto dist = libstats::ExponentialDistribution::create(1.0).value;
         
         // Test data for exponential (positive values)
         auto test_data = generateTestData(0.0, 10.0, TEST_SIZE);
@@ -172,7 +170,7 @@ private:
     
     void testDiscreteDistribution() {
         display::subsectionHeader("Discrete Distribution SIMD Verification");
-        DiscreteDistribution dist(0, 10);
+        auto dist = libstats::DiscreteDistribution::create(0, 10).value;
         
         // Test data with integer and near-integer values
         auto test_data = generateIntegerTestData(-2, 12, TEST_SIZE);
@@ -182,7 +180,7 @@ private:
     
     void testPoissonDistribution() {
         display::subsectionHeader("Poisson Distribution SIMD Verification");
-        PoissonDistribution dist(3.0);
+        auto dist = libstats::PoissonDistribution::create(3.0).value;
         
         // Test data with non-negative integer and near-integer values
         auto test_data = generateIntegerTestData(0, 15, TEST_SIZE);
@@ -192,7 +190,7 @@ private:
     
     void testGammaDistribution() {
         display::subsectionHeader("Gamma Distribution SIMD Verification");
-        GammaDistribution dist(2.0, 1.0);
+        auto dist = libstats::GammaDistribution::create(2.0, 1.0).value;
         
         // Test data for gamma (positive values)
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
@@ -386,12 +384,12 @@ private:
         
         // Test each distribution with edge case values
         std::vector<std::pair<std::string, std::function<void()>>> edge_tests = {
-            {"Uniform", [this]() { testDistributionEdgeCases(UniformDistribution(0.0, 1.0), "Uniform"); }},
-            {"Gaussian", [this]() { testDistributionEdgeCases(GaussianDistribution(0.0, 1.0), "Gaussian"); }},
-            {"Exponential", [this]() { testDistributionEdgeCases(ExponentialDistribution(1.0), "Exponential"); }},
-            {"Discrete", [this]() { testDistributionEdgeCases(DiscreteDistribution(0, 10), "Discrete"); }},
-            {"Poisson", [this]() { testDistributionEdgeCases(PoissonDistribution(3.0), "Poisson"); }},
-            {"Gamma", [this]() { testDistributionEdgeCases(GammaDistribution(2.0, 1.0), "Gamma"); }}
+            {"Uniform", [this]() { testDistributionEdgeCases(libstats::Uniform(0.0, 1.0), "Uniform"); }},
+            {"Gaussian", [this]() { testDistributionEdgeCases(libstats::Gaussian(0.0, 1.0), "Gaussian"); }},
+            {"Exponential", [this]() { testDistributionEdgeCases(libstats::Exponential(1.0), "Exponential"); }},
+            {"Discrete", [this]() { testDistributionEdgeCases(libstats::Discrete(0, 10), "Discrete"); }},
+            {"Poisson", [this]() { testDistributionEdgeCases(libstats::Poisson(3.0), "Poisson"); }},
+            {"Gamma", [this]() { testDistributionEdgeCases(libstats::Gamma(2.0, 1.0), "Gamma"); }}
         };
         
         for (const auto& test : edge_tests) {

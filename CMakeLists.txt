@@ -112,7 +112,7 @@ if(APPLE OR (UNIX AND NOT WIN32))
     endif()
 endif()
 
-project(libstats VERSION 0.8.3 LANGUAGES CXX)
+project(libstats VERSION 0.9.0 LANGUAGES CXX)
 
 # Set default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -905,6 +905,7 @@ endif()
 set(LIBSTATS_FOUNDATION_SOURCES
     src/cpu_detection.cpp              # Runtime CPU feature detection
     src/simd_policy.cpp               # SIMD policy and feature detection
+    src/platform_constants_impl.cpp   # Platform constants PIMPL implementation (Phase 2)
 )
 
 # Level 2: Core Utilities (Depends on Level 0-1)
@@ -1561,6 +1562,7 @@ if(LIBSTATS_BUILD_TOOLS)
     
     # Performance & Benchmarking Tools
     add_libstats_tool(parallel_threshold_benchmark parallel_threshold_benchmark.cpp)
+    add_libstats_tool(parallel_batch_fitting_benchmark parallel_batch_fitting_benchmark.cpp)
     add_libstats_tool(performance_dispatcher_tool performance_dispatcher_tool.cpp)
     add_libstats_tool(learning_analyzer learning_analyzer.cpp)
     add_libstats_tool(empirical_characteristics_demo empirical_characteristics_demo.cpp)
@@ -1571,6 +1573,7 @@ if(LIBSTATS_BUILD_TOOLS)
     message(STATUS "  - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)")
     message(STATUS "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests")
     message(STATUS "  - parallel_threshold_benchmark: Enhanced distribution-specific threshold optimization with adaptive learning")
+    message(STATUS "  - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing")
     message(STATUS "  - performance_dispatcher_tool: Interactive Phase 3 performance framework demonstration")
     message(STATUS "  - learning_analyzer: Unified adaptive learning analysis with both educational simulation and real execution data (consolidates threshold_learning_demo and adaptive_learning_analyzer)")
     message(STATUS "  - empirical_characteristics_demo: Demonstration of empirical distribution characteristics system replacing assumption-based performance models")

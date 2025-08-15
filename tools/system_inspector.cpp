@@ -18,7 +18,7 @@
 #include <vector>
 #include <chrono>
 #include <thread>
-#include <string>
+// Use consolidated header for complete library functionality
 #include "tool_utils.h"
 
 using namespace std::chrono;

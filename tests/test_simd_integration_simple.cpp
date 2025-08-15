@@ -70,7 +70,7 @@ int main() {
     // 3. Test Gaussian distribution (the only implemented one)
     cout << "3. GAUSSIAN DISTRIBUTION TEST:" << endl;
     try {
-        GaussianDistribution normal(0.0, 1.0);  // Standard normal
+        auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
         
         cout << "   Standard Normal Distribution N(0,1):" << endl;
         cout << "   Mean: " << normal.getMean() << endl;

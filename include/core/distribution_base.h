@@ -1,6 +1,7 @@
 #pragma once
 
-// Include the split components
+// Include the common base and split components
+#include "distribution_base_common.h"
 #include "distribution_interface.h"
 #include "distribution_memory.h"
 #include "distribution_validation.h"
@@ -8,14 +9,6 @@
 // Platform components
 #include "../platform/distribution_cache.h"
 #include "../platform/platform_constants.h"
-
-// Standard library includes
-#include <chrono>
-#include <functional>
-#include <limits>
-#include <random>
-#include <vector>
-#include <string>
 
 namespace libstats {
 

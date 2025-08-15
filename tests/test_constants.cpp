@@ -1,6 +1,11 @@
+// Use focused headers for constants testing
+// Add standard library includes that the headers depend on
+#include <limits>
+#include <cstddef>
 #include <iostream>
 #include <cmath>
 #include <cassert>
+
 #include "../include/core/constants.h"
 #include "../include/platform/platform_constants.h"
 

@@ -1,7 +1,9 @@
-#include "core/performance_dispatcher.h"
-#include "core/performance_history.h"
+// Use focused header for performance dispatcher testing
+#include "../include/core/performance_dispatcher.h"
+#include "../include/core/performance_history.h"
 #include <gtest/gtest.h>
 #include <thread>
+#include <vector>
 
 using namespace libstats::performance;
 

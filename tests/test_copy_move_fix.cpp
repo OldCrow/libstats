@@ -53,8 +53,8 @@ void testGaussianCopyMove() {
     cout << "\nTesting Gaussian copy/move semantics:" << endl;
     
     // Test Gaussian copy assignment
-    GaussianDistribution gauss1(1.0, 2.0);
-    GaussianDistribution gauss2(5.0, 1.0);
+    auto gauss1 = libstats::GaussianDistribution::create(1.0, 2.0).value;
+    auto gauss2 = libstats::GaussianDistribution::create(5.0, 1.0).value;
     
     cout << "  Before copy assignment: gauss1 N(" << gauss1.getMean() << ", " << gauss1.getVariance() << ")" << endl;
     cout << "  Before copy assignment: gauss2 N(" << gauss2.getMean() << ", " << gauss2.getVariance() << ")" << endl;
@@ -65,8 +65,8 @@ void testGaussianCopyMove() {
     cout << "  ✓ Copy assignment successful" << endl;
     
     // Test Gaussian move assignment
-    GaussianDistribution gauss3(3.0, 4.0);
-    GaussianDistribution gauss4(7.0, 9.0);
+    auto gauss3 = libstats::GaussianDistribution::create(3.0, 4.0).value;
+    auto gauss4 = libstats::GaussianDistribution::create(7.0, 9.0).value;
     
     cout << "  Before move assignment: gauss3 N(" << gauss3.getMean() << ", " << gauss3.getVariance() << ")" << endl;
     
@@ -127,7 +127,7 @@ void testConcurrentCopyMove() {
             for (int i = 0; i < numOperations; ++i) {
                 // Create distributions
                 auto uniformResult = UniformDistribution::create(t, t + 1);
-                GaussianDistribution gauss(t, 1.0);
+                auto gauss = libstats::GaussianDistribution::create(t, 1.0).value;
                 auto expResult = ExponentialDistribution::create(t + 1);
                 
                 if (uniformResult.isOk() && expResult.isOk()) {

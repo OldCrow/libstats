@@ -10,18 +10,12 @@
  * @version 1.0.0
  * @since 1.0.0
  */
-
-#include <iostream>
-#include <chrono>
-#include <thread>
-#include <vector>
-#include <atomic>
-#include <cassert>
-
-// Include distribution headers
+// Use focused headers for atomic parameters testing
 #include "../include/distributions/exponential.h"
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/discrete.h"
+#include <cassert>
+#include <iostream>
 
 using namespace libstats;
 

@@ -1,14 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <random>
-#include <iomanip>
-#include <cassert>
-#include <cmath>
-#include <chrono>
-#include <span>
-#include <sstream>
-
-// Include the Gamma distribution
+// Focused unit test for gamma distribution
 #include "../include/distributions/gamma.h"
 #include "basic_test_template.h"
 
@@ -26,23 +16,23 @@ int main() {
         cout << "copy (parameterized), move (temporary (5,0.5)) constructors, and the safe factory method that avoids exceptions." << endl;
         
         // Default constructor test
-        GammaDistribution default_gamma;
+        auto default_gamma = libstats::GammaDistribution::create().value;
         StandardizedBasicTest::printProperty("Default Alpha (shape)", default_gamma.getAlpha());
         StandardizedBasicTest::printProperty("Default Beta (rate)", default_gamma.getBeta());
         
         // Parameterized constructor test
-        GammaDistribution param_gamma(2.0, 3.0);
+        auto param_gamma = libstats::GammaDistribution::create(2.0, 3.0).value;
         StandardizedBasicTest::printProperty("Param Alpha", param_gamma.getAlpha());
         StandardizedBasicTest::printProperty("Param Beta", param_gamma.getBeta());
         
         // Copy constructor test
-        GammaDistribution copy_gamma(param_gamma);
+        auto copy_gamma = param_gamma;
         StandardizedBasicTest::printProperty("Copy Alpha", copy_gamma.getAlpha());
         StandardizedBasicTest::printProperty("Copy Beta", copy_gamma.getBeta());
         
         // Move constructor test
-        GammaDistribution temp_gamma(5.0, 0.5);
-        GammaDistribution move_gamma(std::move(temp_gamma));
+        auto temp_gamma = libstats::GammaDistribution::create(5.0, 0.5).value;
+        auto move_gamma = std::move(temp_gamma);
         StandardizedBasicTest::printProperty("Move Alpha", move_gamma.getAlpha());
         StandardizedBasicTest::printProperty("Move Beta", move_gamma.getBeta());
         
@@ -63,7 +53,7 @@ int main() {
         cout << "exception-based setters, and safe setters that return Result types instead of throwing." << endl;
         cout << "Using a Gamma(2.0, 1.0) distribution as the results are well known (mean=2, variance=2)." << endl;
         
-        GammaDistribution gamma_dist(2.0, 1.0);
+        auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
         
         // Test getters
         StandardizedBasicTest::printProperty("Initial Alpha", gamma_dist.getAlpha());
@@ -110,7 +100,7 @@ int main() {
         cout << "and Gamma-specific utilities like mode and entropy for different parameter values." << endl;
         cout << "Expected: For Gamma(2,1): mean=2, mode=1, relatively skewed right distribution." << endl;
         
-        GammaDistribution test_gamma(2.0, 1.0);
+        auto test_gamma = libstats::GammaDistribution::create(2.0, 1.0).value;
         double x = 1.5;
         
         StandardizedBasicTest::printProperty("PDF(1.5)", test_gamma.getProbability(x));
@@ -170,7 +160,7 @@ int main() {
         
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generateGammaTestData();
-        GammaDistribution fitted_dist;
+        auto fitted_dist = libstats::GammaDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printProperty("Fitted Alpha", fitted_dist.getAlpha());
         StandardizedBasicTest::printProperty("Fitted Beta", fitted_dist.getBeta());
@@ -193,7 +183,7 @@ int main() {
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large." << endl;
         cout << "Compares performance and verifies correctness against traditional batch methods." << endl;
         
-        GammaDistribution test_dist(2.0, 1.0);
+        auto test_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
         
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {0.5, 1.2, 2.1, 0.8, 1.5};
@@ -328,9 +318,9 @@ int main() {
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions." << endl;
         
-        GammaDistribution dist1(2.0, 1.0);
-        GammaDistribution dist2(2.0, 1.0);
-        GammaDistribution dist3(3.0, 2.0);
+        auto dist1 = libstats::GammaDistribution::create(2.0, 1.0).value;
+        auto dist2 = libstats::GammaDistribution::create(2.0, 1.0).value;
+        auto dist3 = libstats::GammaDistribution::create(3.0, 2.0).value;
         
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -343,7 +333,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         
         // Test stream input (using proper format from output)
-        GammaDistribution input_dist;
+        auto input_dist = libstats::GammaDistribution::create().value;
         ss.seekg(0); // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -358,6 +348,8 @@ int main() {
         
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
+        // NOTE: Using ::create() here (not libstats::Gamma) to test exception-free error handling
+        // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = GammaDistribution::create(0.0, -1.0);  // Invalid parameters
         if (error_result.isError()) {
             StandardizedBasicTest::printTestSuccess("Error handling works: " + error_result.message);

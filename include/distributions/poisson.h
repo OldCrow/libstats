@@ -1,17 +1,12 @@
 #pragma once
 
-#include "../core/distribution_base.h"
-#include "../core/constants.h"
-#include "../core/error_handling.h" // Safe error handling without exceptions
-#include "../core/performance_dispatcher.h" // For smart auto-dispatch
-#include "../platform/work_stealing_pool.h" // For parallel work-stealing operations
-#include "../platform/adaptive_cache.h" // For cache-aware operations
-#include <mutex>       // For thread-safe cache updates
-#include <shared_mutex> // For shared_mutex and shared_lock
-#include <atomic>      // For atomic cache validation
-#include <span>        // For std::span interface in parallel operations
-#include <tuple>       // For statistical test results
-#include <vector>      // For batch operations and data handling
+// Common distribution includes (consolidates std library and core headers)
+#include "../core/distribution_common.h"
+
+// Common platform headers for distributions (consolidates shared platform dependencies)
+#include "distribution_platform_common.h"
+
+// Additional standard headers specific to Poisson
 #include <array>	   // For precomputed factorials
 
 namespace libstats {
@@ -133,7 +128,7 @@ class PoissonDistribution : public DistributionBase
 {   
 public:
     //==========================================================================
-    // CONSTRUCTORS AND DESTRUCTOR
+    // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================
     
     /**
@@ -187,7 +182,7 @@ public:
     ~PoissonDistribution() override = default;
     
     //==========================================================================
-    // SAFE FACTORY METHODS (Exception-free construction)
+    // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
     
     /**
@@ -222,7 +217,7 @@ public:
     }
     
     //==========================================================================
-    // PARAMETER GETTERS AND SETTERS
+    // 3. PARAMETER GETTERS AND SETTERS
     //==========================================================================
 
     /**
@@ -281,6 +276,15 @@ public:
      * @throws std::invalid_argument if lambda <= 0 or is not finite
      */
     void setLambda(double lambda);
+    
+    /**
+     * @brief Sets the rate parameter (exception-based API).
+     * Thread-safe: acquires unique lock for cache invalidation
+     *
+     * @param lambda New rate parameter λ (must be positive)
+     * @throws std::invalid_argument if lambda is invalid
+     */
+    void setParameters(double lambda);
     
     /**
      * Gets the mean of the distribution.
@@ -372,29 +376,8 @@ public:
         return std::numeric_limits<double>::infinity();
     }
     
-    /**
-     * Gets the mode of the distribution.
-     * For Poisson distribution, mode = ⌊λ⌋ (floor of λ)
-     *
-     * @return Mode value
-     */
-    [[nodiscard]] double getMode() const noexcept;
-    
-    /**
-     * Gets the median of the distribution.
-     * For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ (approximate formula)
-     * Uses cached value for efficiency.
-     *
-     * @return Median value (approximate)
-     */
-    [[nodiscard]] double getMedian() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        // Approximate formula for Poisson median
-        return lambda_ + 1.0/3.0 - 0.02/lambda_;
-    }
-    
     //==========================================================================
-    // RESULT-BASED SETTERS
+    // 4. RESULT-BASED SETTERS
     //==========================================================================
     
     /**
@@ -416,15 +399,6 @@ public:
     [[nodiscard]] VoidResult trySetParameters(double lambda) noexcept;
     
     /**
-     * @brief Sets the rate parameter (exception-based API).
-     * Thread-safe: acquires unique lock for cache invalidation
-     * 
-     * @param lambda New rate parameter λ (must be positive)
-     * @throws std::invalid_argument if lambda is invalid
-     */
-    void setParameters(double lambda);
-    
-    /**
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
      */
@@ -434,7 +408,7 @@ public:
     }
 
     //==========================================================================
-    // CORE PROBABILITY METHODS
+    // 5. CORE PROBABILITY METHODS
     //==========================================================================
 
     /**
@@ -503,7 +477,7 @@ public:
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override;
 
     //==========================================================================
-    // DISTRIBUTION MANAGEMENT
+    // 6. DISTRIBUTION MANAGEMENT
     //==========================================================================
 
     /**
@@ -514,6 +488,17 @@ public:
      * @throws std::invalid_argument if values is empty or contains negative values
      */
     void fit(const std::vector<double>& values) override;
+
+    /**
+     * @brief Parallel batch fitting for multiple datasets
+     * Efficiently fits Poisson distribution parameters to multiple independent datasets in parallel
+     * 
+     * @param datasets Vector of datasets, each representing independent observations
+     * @param results Vector to store fitted PoissonDistribution objects
+     * @throws std::invalid_argument if datasets is empty or results size doesn't match
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                               std::vector<PoissonDistribution>& results);
 
     /**
      * Resets the distribution to default parameters (λ = 1.0).
@@ -529,7 +514,7 @@ public:
     std::string toString() const override;
     
     //==========================================================================
-    // ADVANCED STATISTICAL METHODS
+    // 7. ADVANCED STATISTICAL METHODS
     //==========================================================================
     
     /**
@@ -666,39 +651,9 @@ public:
     [[nodiscard]] static std::tuple<double, double, bool> rateStabilityTest(
         const std::vector<double>& data, double significance_level = 0.05);
     
-    /**
-     * @brief Comprehensive Poisson goodness-of-fit test
-     *
-     * Performs multiple tests to assess whether data follows a Poisson distribution:
-     * - Mean-variance equality test
-     * - Chi-square goodness-of-fit test
-     * - Index of dispersion test
-     *
-     * @param data Vector of observed count data
-     * @param significance_level Significance level for tests (default: 0.05)
-     * @return Tuple of (combined_statistic, combined_p_value, follows_poisson)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> comprehensiveGoodnessOfFitTest(
-        const std::vector<double>& data, double significance_level = 0.05);
-    
     //==========================================================================
-    // GOODNESS-OF-FIT TESTS
+    // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
-    
-    /**
-     * @brief Chi-square goodness-of-fit test for Poisson distribution
-     *
-     * Tests whether observed data follows the specified Poisson distribution.
-     * Groups rare events to ensure expected frequencies ≥ 5 for valid chi-square test.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Hypothesized Poisson distribution
-     * @param significance_level Significance level for test
-     * @return Tuple of (chi_square_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> chiSquareGoodnessOfFit(
-        const std::vector<double>& data, const PoissonDistribution& distribution,
-        double significance_level = 0.05);
     
     /**
      * @brief Kolmogorov-Smirnov test adapted for discrete distributions
@@ -732,8 +687,38 @@ public:
         const std::vector<double>& data, const PoissonDistribution& distribution,
         double significance_level = 0.05);
     
+    /**
+     * @brief Chi-square goodness-of-fit test for Poisson distribution
+     *
+     * Tests whether observed data follows the specified Poisson distribution.
+     * Groups rare events to ensure expected frequencies ≥ 5 for valid chi-square test.
+     *
+     * @param data Vector of observed count data
+     * @param distribution Hypothesized Poisson distribution
+     * @param significance_level Significance level for test
+     * @return Tuple of (chi_square_statistic, p_value, reject_null)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> chiSquareGoodnessOfFit(
+        const std::vector<double>& data, const PoissonDistribution& distribution,
+        double significance_level = 0.05);
+    
+    /**
+     * @brief Comprehensive Poisson goodness-of-fit test
+     *
+     * Performs multiple tests to assess whether data follows a Poisson distribution:
+     * - Mean-variance equality test
+     * - Chi-square goodness-of-fit test
+     * - Index of dispersion test
+     *
+     * @param data Vector of observed count data
+     * @param significance_level Significance level for tests (default: 0.05)
+     * @return Tuple of (combined_statistic, combined_p_value, follows_poisson)
+     */
+    [[nodiscard]] static std::tuple<double, double, bool> comprehensiveGoodnessOfFitTest(
+        const std::vector<double>& data, double significance_level = 0.05);
+    
     //==========================================================================
-    // CROSS-VALIDATION METHODS
+    // 9. CROSS-VALIDATION METHODS
     //==========================================================================
     
     /**
@@ -763,7 +748,7 @@ public:
         const std::vector<double>& data);
     
     //==========================================================================
-    // INFORMATION CRITERIA
+    // 10. INFORMATION CRITERIA
     //==========================================================================
     
     /**
@@ -780,7 +765,7 @@ public:
         const std::vector<double>& data, const PoissonDistribution& distribution);
     
     //==========================================================================
-    // BOOTSTRAP METHODS
+    // 11. BOOTSTRAP METHODS
     //==========================================================================
     
     /**
@@ -800,7 +785,7 @@ public:
         int num_bootstrap_samples = 1000, unsigned int random_seed = 42);
     
     //==========================================================================
-    // POISSON-SPECIFIC UTILITY METHODS
+    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
     
     /**
@@ -853,10 +838,29 @@ public:
      */
     [[nodiscard]] bool canUseNormalApproximation() const noexcept;
     
+    /**
+     * Gets the median of the distribution.
+     * For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ (approximate formula)
+     * Uses cached value for efficiency.
+     *
+     * @return Median value (approximate)
+     */
+    [[nodiscard]] double getMedian() const noexcept {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        // Approximate formula for Poisson median
+        return lambda_ + 1.0/3.0 - 0.02/lambda_;
+    }
     
+    /**
+     * Gets the mode of the distribution.
+     * For Poisson distribution, mode = ⌊λ⌋ (floor of λ)
+     *
+     * @return Mode value
+     */
+    [[nodiscard]] double getMode() const noexcept;
     
     //==========================================================================
-    // SMART AUTO-DISPATCH BATCH OPERATIONS
+    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -898,7 +902,7 @@ public:
     void getCumulativeProbability(std::span<const double> values, std::span<double> results, const performance::PerformanceHint& hint = {}) const;
     
     //==========================================================================
-    // EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
+    // 14. EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
     //==========================================================================
 
     /**
@@ -950,7 +954,7 @@ public:
                                              performance::Strategy strategy) const;
     
     //==========================================================================
-    // COMPARISON OPERATORS
+    // 15. COMPARISON OPERATORS
     //==========================================================================
     
     /**
@@ -968,7 +972,7 @@ public:
     bool operator!=(const PoissonDistribution& other) const { return !(*this == other); }
     
     //==========================================================================
-    // FRIEND FUNCTION STREAM OPERATORS
+    // 16. FRIEND FUNCTION STREAM OPERATORS
     //==========================================================================
     
     /**
@@ -989,7 +993,7 @@ public:
 
 private:
     //==========================================================================
-    // PRIVATE FACTORY METHODS
+    // 17. PRIVATE FACTORY METHODS
     //==========================================================================
     
     /**
@@ -1015,7 +1019,23 @@ private:
     }
     
     //==========================================================================
-    // PRIVATE COMPUTATIONAL METHODS
+    // 18. PRIVATE BATCH IMPLEMENTATION METHODS
+    //==========================================================================
+    
+    /** @brief Internal implementation for batch PMF calculation */
+    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                       double lambda, double log_lambda, double exp_neg_lambda) const noexcept;
+    
+    /** @brief Internal implementation for batch log PMF calculation */
+    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                          double lambda, double log_lambda) const noexcept;
+    
+    /** @brief Internal implementation for batch CDF calculation */
+    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                                 double lambda) const noexcept;
+    
+    //==========================================================================
+    // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
     
     /** @brief Compute PMF for small λ using direct method */
@@ -1036,118 +1056,6 @@ private:
     /** @brief Fast log factorial computation using Stirling's approximation */
     [[nodiscard]] static double logFactorial(int n) noexcept;
     
-    //==========================================================================
-    // PRIVATE BATCH IMPLEMENTATION METHODS
-    //==========================================================================
-    
-    /** @brief Internal implementation for batch PMF calculation */
-    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                       double lambda, double log_lambda, double exp_neg_lambda) const noexcept;
-    
-    /** @brief Internal implementation for batch log PMF calculation */
-    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                          double lambda, double log_lambda) const noexcept;
-    
-    /** @brief Internal implementation for batch CDF calculation */
-    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                                 double lambda) const noexcept;
-    
-    //==========================================================================
-    // PRIVATE UTILITY METHODS
-    //==========================================================================
-    
-    /** @brief Round double to nearest non-negative integer */
-    static int roundToNonNegativeInt(double x) noexcept {
-        if (x < 0.0) return 0;
-        return static_cast<int>(std::round(x));
-    }
-    
-    /** @brief Check if rounded value is a valid count (non-negative integer) */
-    static bool isValidCount(double x) noexcept {
-        return (x >= 0.0 && x <= static_cast<double>(INT_MAX));
-    }
-    
-    //==========================================================================
-    // DISTRIBUTION PARAMETERS
-    //==========================================================================
-    
-    /** @brief Rate parameter λ (mean number of events) - must be positive */
-    double lambda_{constants::math::ONE};
-    
-    /** @brief C++20 atomic copy of parameter for lock-free access */
-    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
-    mutable std::atomic<bool> atomicParamsValid_{false};
-
-    //==========================================================================
-    // PERFORMANCE CACHE
-    //==========================================================================
-    
-    /** @brief Cached value of log(λ) for efficiency in PMF calculations */
-    mutable double logLambda_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of e^(-λ) for efficiency in PMF calculations */
-    mutable double expNegLambda_{constants::math::E_INV};
-    
-    /** @brief Cached value of √λ for efficiency in normal approximation */
-    mutable double sqrtLambda_{constants::math::ONE};
-    
-    /** @brief Cached value of log(Γ(λ+1)) for Stirling's approximation */
-    mutable double logGammaLambdaPlus1_{constants::math::ZERO_DOUBLE};
-    
-    /** @brief Cached value of 1/λ for efficiency in various calculations */
-    mutable double invLambda_{constants::math::ONE};
-    
-    //==========================================================================
-    // OPTIMIZATION FLAGS
-    //==========================================================================
-    
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-    
-    /** @brief True if λ is small (< 10) for direct computation algorithm */
-    mutable bool isSmallLambda_{true};
-    
-    /** @brief True if λ is large (> 100) for normal approximation */
-    mutable bool isLargeLambda_{false};
-    
-    /** @brief True if λ is very large (> 1000) for asymptotic approximations */
-    mutable bool isVeryLargeLambda_{false};
-    
-    /** @brief True if λ is an integer for optimization */
-    mutable bool isIntegerLambda_{true};
-    
-    /** @brief True if λ is very small (< 0.1) for series expansion */
-    mutable bool isTinyLambda_{false};
-
-    //==========================================================================
-    // COMPUTATIONAL CACHE FOR SMALL LAMBDA
-    //==========================================================================
-    
-    /** @brief Pre-computed factorials for small integers (0! to 20!) */
-    static constexpr std::array<double, 21> FACTORIAL_CACHE = {
-        1.0,                    // 0!
-        1.0,                    // 1!
-        2.0,                    // 2!
-        6.0,                    // 3!
-        24.0,                   // 4!
-        120.0,                  // 5!
-        720.0,                  // 6!
-        5040.0,                 // 7!
-        40320.0,                // 8!
-        362880.0,               // 9!
-        3628800.0,              // 10!
-        39916800.0,             // 11!
-        479001600.0,            // 12!
-        6227020800.0,           // 13!
-        87178291200.0,          // 14!
-        1307674368000.0,        // 15!
-        20922789888000.0,       // 16!
-        355687428096000.0,      // 17!
-        6402373705728000.0,     // 18!
-        121645100408832000.0,   // 19!
-        2432902008176640000.0   // 20!
-    };
-
     /**
      * Updates cached values when parameters change - assumes mutex is already held
      */
@@ -1189,6 +1097,103 @@ private:
             throw std::invalid_argument("Lambda too large for accurate Poisson computation");
         }
     }
+    
+    //==========================================================================
+    // 20. PRIVATE UTILITY METHODS
+    //==========================================================================
+    
+    /** @brief Round double to nearest non-negative integer */
+    static int roundToNonNegativeInt(double x) noexcept {
+        if (x < 0.0) return 0;
+        return static_cast<int>(std::round(x));
+    }
+    
+    /** @brief Check if rounded value is a valid count (non-negative integer) */
+    static bool isValidCount(double x) noexcept {
+        return (x >= 0.0 && x <= static_cast<double>(INT_MAX));
+    }
+    
+    //==========================================================================
+    // 21. DISTRIBUTION PARAMETERS
+    //==========================================================================
+    
+    /** @brief Rate parameter λ (mean number of events) - must be positive */
+    double lambda_{constants::math::ONE};
+    
+    /** @brief C++20 atomic copy of parameter for lock-free access */
+    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
+    mutable std::atomic<bool> atomicParamsValid_{false};
+
+    //==========================================================================
+    // 22. PERFORMANCE CACHE
+    //==========================================================================
+    
+    /** @brief Cached value of log(λ) for efficiency in PMF calculations */
+    mutable double logLambda_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of e^(-λ) for efficiency in PMF calculations */
+    mutable double expNegLambda_{constants::math::E_INV};
+    
+    /** @brief Cached value of √λ for efficiency in normal approximation */
+    mutable double sqrtLambda_{constants::math::ONE};
+    
+    /** @brief Cached value of log(Γ(λ+1)) for Stirling's approximation */
+    mutable double logGammaLambdaPlus1_{constants::math::ZERO_DOUBLE};
+    
+    /** @brief Cached value of 1/λ for efficiency in various calculations */
+    mutable double invLambda_{constants::math::ONE};
+    
+    //==========================================================================
+    // 23. OPTIMIZATION FLAGS
+    //==========================================================================
+    
+    /** @brief Atomic cache validity flag for lock-free fast path optimization */
+    mutable std::atomic<bool> cacheValidAtomic_{false};
+    
+    /** @brief True if λ is small (< 10) for direct computation algorithm */
+    mutable bool isSmallLambda_{true};
+    
+    /** @brief True if λ is large (> 100) for normal approximation */
+    mutable bool isLargeLambda_{false};
+    
+    /** @brief True if λ is very large (> 1000) for asymptotic approximations */
+    mutable bool isVeryLargeLambda_{false};
+    
+    /** @brief True if λ is an integer for optimization */
+    mutable bool isIntegerLambda_{true};
+    
+    /** @brief True if λ is very small (< 0.1) for series expansion */
+    mutable bool isTinyLambda_{false};
+
+    //==========================================================================
+    // 24. SPECIALIZED CACHES (if needed)
+    //==========================================================================
+    
+    /** @brief Pre-computed factorials for small integers (0! to 20!) */
+    static constexpr std::array<double, 21> FACTORIAL_CACHE = {
+        1.0,                    // 0!
+        1.0,                    // 1!
+        2.0,                    // 2!
+        6.0,                    // 3!
+        24.0,                   // 4!
+        120.0,                  // 5!
+        720.0,                  // 6!
+        5040.0,                 // 7!
+        40320.0,                // 8!
+        362880.0,               // 9!
+        3628800.0,              // 10!
+        39916800.0,             // 11!
+        479001600.0,            // 12!
+        6227020800.0,           // 13!
+        87178291200.0,          // 14!
+        1307674368000.0,        // 15!
+        20922789888000.0,       // 16!
+        355687428096000.0,      // 17!
+        6402373705728000.0,     // 18!
+        121645100408832000.0,   // 19!
+        2432902008176640000.0   // 20!
+    };
+
 };
 
 } // namespace libstats

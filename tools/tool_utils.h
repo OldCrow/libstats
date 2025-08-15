@@ -8,15 +8,14 @@
 
 #pragma once
 
-#include <string>
-#include <chrono>
+// Use libstats.h for complete library functionality
+#define LIBSTATS_FULL_INTERFACE
+#include "../include/libstats.h"
+
+// Additional standard library includes for tool-specific functionality
+#include <iostream>
 #include <sstream>
 #include <iomanip>
-#include <iostream>
-#include <vector>
-#include "../include/libstats.h"
-#include "../include/core/performance_dispatcher.h"
-#include "../include/core/constants.h"
 
 namespace libstats {
 namespace tools {

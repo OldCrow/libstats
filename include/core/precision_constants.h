@@ -1,5 +1,8 @@
 #pragma once
 
+#include <limits>
+#include <cstddef>
+
 namespace libstats {
 namespace constants {
 namespace precision {

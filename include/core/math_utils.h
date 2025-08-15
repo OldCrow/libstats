@@ -1,11 +1,7 @@
 #pragma once
 
-#include <cmath>
-#include <functional>
-#include <span>
-#include <concepts>
-#include <algorithm>
-#include "constants.h"
+#include "utility_common.h"
+#include "constants.h"  // Math utils needs the full constants
 #include "safety.h"
 #include "../platform/simd.h"
 
@@ -22,25 +18,11 @@ namespace libstats {
 namespace math {
 
 // =============================================================================
-// C++20 CONCEPTS FOR TYPE SAFETY
+// C++20 CONCEPTS FOR TYPE SAFETY (imported from utility_common.h)
 // =============================================================================
 
-/**
- * @brief Concept for floating-point types suitable for mathematical operations
- */
-template<typename T>
-concept FloatingPoint = std::floating_point<T> && requires(T t) {
-    std::isfinite(t);
-    std::isnan(t);
-    std::isinf(t);
-};
-
-/**
- * @brief Concept for callable objects that can be used as mathematical functions
- */
-template<typename F, typename T>
-concept MathFunction = std::invocable<F, T> && 
-                       std::convertible_to<std::invoke_result_t<F, T>, double>;
+// FloatingPoint and MathFunction concepts are now defined in utility_common.h
+// and available through the math namespace
 
 // =============================================================================
 // SPECIAL MATHEMATICAL FUNCTIONS

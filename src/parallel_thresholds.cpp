@@ -111,6 +111,8 @@ std::size_t AdaptiveThresholdCalculator::getThreshold(const std::string& distrib
             threshold = 64;
         } else if (op_lower == "cdf") {
             threshold = 16384;
+        } else if (op_lower == "batch_fit") {
+            threshold = 64; // Lower threshold for batch_fit operations
         } else {
             threshold = 8192;
         }
@@ -121,6 +123,8 @@ std::size_t AdaptiveThresholdCalculator::getThreshold(const std::string& distrib
             threshold = 32768;
         } else if (op_lower == "cdf") {
             threshold = 65536;
+        } else if (op_lower == "batch_fit") {
+            threshold = 64; // Lower threshold for batch_fit operations
         } else {
             threshold = 32768;
         }
@@ -131,6 +135,8 @@ std::size_t AdaptiveThresholdCalculator::getThreshold(const std::string& distrib
             threshold = 128;
         } else if (op_lower == "cdf") {
             threshold = 64;
+        } else if (op_lower == "batch_fit") {
+            threshold = 32; // Lower threshold for batch_fit operations
         } else {
             threshold = 64;
         }
@@ -141,6 +147,8 @@ std::size_t AdaptiveThresholdCalculator::getThreshold(const std::string& distrib
             threshold = 256;
         } else if (op_lower == "cdf") {
             threshold = 64;
+        } else if (op_lower == "batch_fit") {
+            threshold = 32; // Lower threshold for batch_fit operations
         } else {
             threshold = 256;
         }
@@ -151,8 +159,22 @@ std::size_t AdaptiveThresholdCalculator::getThreshold(const std::string& distrib
             threshold = 8192;
         } else if (op_lower == "cdf") {
             threshold = 512;
+        } else if (op_lower == "batch_fit") {
+            threshold = 64; // Lower threshold for batch_fit operations
         } else {
             threshold = 4096;
+        }
+    } else if (dist_lower == "gamma") {
+        if (op_lower == "pdf") {
+            threshold = 256;
+        } else if (op_lower == "logpdf") {
+            threshold = 512;
+        } else if (op_lower == "cdf") {
+            threshold = 128;
+        } else if (op_lower == "batch_fit") {
+            threshold = 64; // Lower threshold for batch_fit operations
+        } else {
+            threshold = 256;
         }
     } else if (dist_lower == "generic") {
         // Generic operations use moderate thresholds

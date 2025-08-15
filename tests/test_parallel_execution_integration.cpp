@@ -5,6 +5,7 @@
 #include <numeric>
 
 // Test integration with main header
+#define LIBSTATS_FULL_INTERFACE
 #include "../include/libstats.h"
 
 int main() {

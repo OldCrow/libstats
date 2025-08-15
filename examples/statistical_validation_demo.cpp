@@ -10,11 +10,11 @@
  * - Performance testing with non-normal data using advanced tests
  */
 
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
 #include <iostream>
-#include <vector>
-#include <tuple>
 #include <random>
+#include <vector>
 
 int main() {
     try {
@@ -38,7 +38,7 @@ int main() {
         std::cout << "✓ Using fixed random seed (42) for reproducible results" << std::endl;
         
         // Create a Gaussian distribution to test against
-        libstats::Gaussian test_dist(5.0, 2.0);
+        auto test_dist = libstats::GaussianDistribution::create(5.0, 2.0).value;
         std::cout << "✓ Created reference distribution for hypothesis testing" << std::endl;
         
         std::cout << "\n" << std::string(70, '=') << std::endl;

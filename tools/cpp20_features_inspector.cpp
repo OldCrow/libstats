@@ -1,12 +1,9 @@
-#include <iostream>
-#include <vector>
-#include <string>
-#include <sstream>
-#include <iomanip>
-#include <atomic>
-#include <thread>
-#include <functional>
-#include <memory>
+// Use consolidated tool utilities header which includes libstats.h
+#include "tool_utils.h"
+
+// Additional standard library includes for C++20 features demonstration
+#include <array>
+#include <numeric>
 #include <chrono>
 #include <bitset>
 #include <numeric>
