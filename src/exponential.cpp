@@ -431,6 +431,143 @@ void ExponentialDistribution::fit(const std::vector<double>& values) {
     setLambda(constants::math::ONE / sample_mean);
 }
 
+void ExponentialDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                               std::vector<ExponentialDistribution>& results) {
+    if (datasets.empty()) {
+        // Handle empty datasets gracefully
+        results.clear();
+        return;
+    }
+    
+    // Ensure results vector has correct size
+    if (results.size() != datasets.size()) {
+        results.resize(datasets.size());
+    }
+    
+    const std::size_t num_datasets = datasets.size();
+    
+    // Use distribution-specific parallel thresholds for optimal work distribution
+    if (parallel::shouldUseDistributionParallel("exponential", "batch_fit", num_datasets)) {
+        // Thread-safe parallel execution with proper exception handling
+        // Use a static mutex to synchronize access to the global thread pool from multiple threads
+        static std::mutex pool_access_mutex;
+        
+        try {
+            ThreadPool* pool_ptr = nullptr;
+            {
+                // Brief lock to get thread pool reference - minimize lock contention
+                std::lock_guard<std::mutex> pool_lock(pool_access_mutex);
+                pool_ptr = &ParallelUtils::getGlobalThreadPool();
+            }
+            
+            const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
+            const std::size_t num_chunks = (num_datasets + optimal_grain_size - 1) / optimal_grain_size;
+            
+            // Pre-allocate futures with known size to avoid reallocation during concurrent access
+            std::vector<std::future<void>> futures;
+            futures.reserve(num_chunks);
+            
+            // Atomic counter for tracking completion and error handling
+            std::atomic<std::size_t> completed_chunks{0};
+            std::atomic<bool> has_error{false};
+            std::mutex error_mutex;
+            std::string error_message;
+            
+            // Submit all tasks with exception handling
+            for (std::size_t i = 0; i < num_datasets; i += optimal_grain_size) {
+                const std::size_t chunk_start = i;
+                const std::size_t chunk_end = std::min(i + optimal_grain_size, num_datasets);
+                
+                auto future = pool_ptr->submit([&datasets, &results, chunk_start, chunk_end, 
+                                               &completed_chunks, &has_error, &error_mutex, &error_message]() {
+                    try {
+                        // Process chunk with local error handling
+                        for (std::size_t j = chunk_start; j < chunk_end; ++j) {
+                            results[j].fit(datasets[j]);
+                        }
+                        completed_chunks.fetch_add(1, std::memory_order_relaxed);
+                    } catch (const std::exception& e) {
+                        // Thread-safe error recording
+                        {
+                            std::lock_guard<std::mutex> error_lock(error_mutex);
+                            if (!has_error.load()) {
+                                error_message = "Parallel batch fit error in chunk [" + 
+                                              std::to_string(chunk_start) + ", " + 
+                                              std::to_string(chunk_end) + "): " + e.what();
+                                has_error.store(true, std::memory_order_release);
+                            }
+                        }
+                    } catch (...) {
+                        // Handle non-standard exceptions
+                        {
+                            std::lock_guard<std::mutex> error_lock(error_mutex);
+                            if (!has_error.load()) {
+                                error_message = "Unknown error in parallel batch fit chunk [" + 
+                                              std::to_string(chunk_start) + ", " + 
+                                              std::to_string(chunk_end) + ")";
+                                has_error.store(true, std::memory_order_release);
+                            }
+                        }
+                    }
+                });
+                
+                futures.push_back(std::move(future));
+            }
+            
+            // Wait for all chunks to complete with timeout and error checking
+            bool all_completed = true;
+            for (auto& future : futures) {
+                try {
+                    // Use wait() instead of get() to avoid exception re-throwing from task
+                    future.wait();
+                } catch (const std::exception& e) {
+                    // Handle future-related exceptions
+                    std::lock_guard<std::mutex> error_lock(error_mutex);
+                    if (!has_error.load()) {
+                        error_message = "Future wait error: " + std::string(e.what());
+                        has_error.store(true, std::memory_order_release);
+                    }
+                    all_completed = false;
+                }
+            }
+            
+            // Check for errors after all futures complete
+            if (has_error.load()) {
+                std::lock_guard<std::mutex> error_lock(error_mutex);
+                throw std::runtime_error("Parallel batch fitting failed: " + error_message);
+            }
+            
+            if (!all_completed) {
+                throw std::runtime_error("Some parallel batch fitting tasks failed to complete properly");
+            }
+            
+        } catch (const std::exception& e) {
+            // If parallel execution fails, fall back to serial execution
+            // This ensures robustness in case of thread pool issues
+            for (std::size_t i = 0; i < num_datasets; ++i) {
+                try {
+                    results[i].fit(datasets[i]);
+                } catch (const std::exception& fit_error) {
+                    throw std::runtime_error("Serial fallback failed for dataset " + 
+                                            std::to_string(i) + ": " + fit_error.what() + 
+                                            " (original parallel error: " + e.what() + ")");
+                }
+            }
+        }
+        
+    } else {
+        // Serial processing for small numbers of datasets
+        for (std::size_t i = 0; i < num_datasets; ++i) {
+            try {
+                results[i].fit(datasets[i]);
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Serial batch fit failed for dataset " + 
+                                        std::to_string(i) + ": " + e.what());
+            }
+        }
+    }
+}
+
 void ExponentialDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     lambda_ = constants::math::ONE;
@@ -1111,7 +1248,7 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
 // Only complex methods requiring implementation are included here
 
 //==============================================================================
-// 13.A. SMART AUTO-DISPATCH BATCH OPERATIONS
+// 13. SMART AUTO-DISPATCH BATCH OPERATIONS
 //==============================================================================
 
 void ExponentialDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -1638,7 +1775,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
 }
 
 //==============================================================================
-// 13.B. EXPLICIT STRATEGY BATCH METHODS (POWER USER INTERFACE)
+// 14. EXPLICIT STRATEGY BATCH METHODS (POWER USER INTERFACE)
 //==============================================================================
 
 void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
@@ -2145,7 +2282,7 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<con
 }
 
 //==============================================================================
-// 14. COMPARISON OPERATORS
+// 15. COMPARISON OPERATORS
 //==============================================================================
 
 bool ExponentialDistribution::operator==(const ExponentialDistribution& other) const {
@@ -2157,7 +2294,7 @@ bool ExponentialDistribution::operator==(const ExponentialDistribution& other) c
 }
 
 //==============================================================================
-// 15. STREAM OPERATORS
+// 16. FRIEND FUNCTION STREAM OPERATORS
 //==============================================================================
 
 std::ostream& operator<<(std::ostream& os, const ExponentialDistribution& distribution) {
@@ -2207,13 +2344,6 @@ std::istream& operator>>(std::istream& is, ExponentialDistribution& distribution
     
     return is;
 }
-
-//==============================================================================
-// 16. FRIEND FUNCTION STREAM OPERATORS
-//==============================================================================
-
-// Note: Friend function stream operators are implemented inline in the header for performance
-// This section exists for standardization and documentation purposes
 
 //==============================================================================
 // 17. PRIVATE FACTORY IMPLEMENTATION METHODS

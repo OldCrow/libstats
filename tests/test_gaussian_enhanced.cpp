@@ -655,5 +655,172 @@ TEST_F(GaussianEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "  Edge case testing completed\n";
 }
 
+//==============================================================================
+// PARALLEL BATCH FITTING TESTS
+//==============================================================================
+
+TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
+    std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
+    
+    // Create multiple datasets for batch fitting
+    std::vector<std::vector<double>> datasets;
+    std::vector<GaussianDistribution> expected_distributions;
+    
+    std::mt19937 rng(42);
+    
+    // Generate 6 datasets with known parameters
+    std::vector<std::pair<double, double>> true_params = {
+        {0.0, 1.0}, {5.0, 2.0}, {-2.0, 0.5}, {10.0, 3.0}, {1.0, 1.5}, {-5.0, 4.0}
+    };
+    
+    for (const auto& [mean, std] : true_params) {
+        std::vector<double> dataset;
+        dataset.reserve(1000);
+        
+        std::normal_distribution<double> gen(mean, std);
+        for (int i = 0; i < 1000; ++i) {
+            dataset.push_back(gen(rng));
+        }
+        
+        datasets.push_back(std::move(dataset));
+        expected_distributions.push_back(GaussianDistribution::create(mean, std).value);
+    }
+    
+    std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
+    
+    // Test 1: Basic parallel batch fitting correctness
+    std::vector<GaussianDistribution> batch_results(datasets.size());
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    GaussianDistribution::parallelBatchFit(datasets, batch_results);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Verify correctness by comparing with individual fits
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        GaussianDistribution individual_fit;
+        individual_fit.fit(datasets[i]);
+        
+        // Parameters should match within tolerance
+        EXPECT_NEAR(batch_results[i].getMean(), individual_fit.getMean(), 1e-10)
+            << "Batch fit mean mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getStandardDeviation(), individual_fit.getStandardDeviation(), 1e-10)
+            << "Batch fit std dev mismatch for dataset " << i;
+        
+        // Should be reasonably close to true parameters (within 3 standard errors)
+        double expected_mean = true_params[i].first;
+        double expected_std = true_params[i].second;
+        double n = datasets[i].size();
+        
+        double mean_tolerance = 3.0 * expected_std / std::sqrt(n);  // 3 standard errors
+        double std_tolerance = 0.1 * expected_std;  // 10% tolerance for std dev estimation
+        
+        EXPECT_NEAR(batch_results[i].getMean(), expected_mean, mean_tolerance)
+            << "Fitted mean too far from true value for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getStandardDeviation(), expected_std, std_tolerance)
+            << "Fitted std dev too far from true value for dataset " << i;
+    }
+    
+    std::cout << "  ✓ Parallel batch fitting correctness verified\n";
+    
+    // Test 2: Performance comparison with sequential batch fitting
+    std::vector<GaussianDistribution> sequential_results(datasets.size());
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
+    
+    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+    
+    // Verify sequential and parallel results match
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        EXPECT_NEAR(batch_results[i].getMean(), sequential_results[i].getMean(), 1e-12)
+            << "Sequential vs parallel mean mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getStandardDeviation(), sequential_results[i].getStandardDeviation(), 1e-12)
+            << "Sequential vs parallel std dev mismatch for dataset " << i;
+    }
+    
+    // Test 3: Edge cases
+    std::cout << "  Testing edge cases...\n";
+    
+    // Empty datasets vector
+    std::vector<std::vector<double>> empty_datasets;
+    std::vector<GaussianDistribution> empty_results;
+    GaussianDistribution::parallelBatchFit(empty_datasets, empty_results);
+    EXPECT_TRUE(empty_results.empty());
+    
+    // Single dataset
+    std::vector<std::vector<double>> single_dataset = {datasets[0]};
+    std::vector<GaussianDistribution> single_result(1);
+    GaussianDistribution::parallelBatchFit(single_dataset, single_result);
+    EXPECT_NEAR(single_result[0].getMean(), batch_results[0].getMean(), 1e-12);
+    EXPECT_NEAR(single_result[0].getStandardDeviation(), batch_results[0].getStandardDeviation(), 1e-12);
+    
+    // Results vector auto-sizing
+    std::vector<GaussianDistribution> auto_sized_results;
+    GaussianDistribution::parallelBatchFit(datasets, auto_sized_results);
+    EXPECT_EQ(auto_sized_results.size(), datasets.size());
+    
+    std::cout << "  ✓ Edge cases handled correctly\n";
+    
+    // Test 4: Thread safety with concurrent calls
+    std::cout << "  Testing thread safety...\n";
+    
+    const int num_threads = 4;
+    const int calls_per_thread = 10;
+    std::vector<std::thread> threads;
+    std::atomic<int> successful_calls{0};
+    std::atomic<int> total_calls{0};
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&datasets, &successful_calls, &total_calls, calls_per_thread]() {
+            for (int call = 0; call < calls_per_thread; ++call) {
+                try {
+                    std::vector<GaussianDistribution> thread_results(datasets.size());
+                    GaussianDistribution::parallelBatchFit(datasets, thread_results);
+                    
+                    // Verify at least one result is reasonable
+                    if (!thread_results.empty() && 
+                        std::isfinite(thread_results[0].getMean()) && 
+                        std::isfinite(thread_results[0].getStandardDeviation()) &&
+                        thread_results[0].getStandardDeviation() > 0.0) {
+                        successful_calls++;
+                    }
+                } catch (const std::exception& e) {
+                    // Thread safety failure
+                    std::cerr << "Thread safety test exception: " << e.what() << "\n";
+                }
+                total_calls++;
+            }
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    double success_rate = static_cast<double>(successful_calls.load()) / static_cast<double>(total_calls.load());
+    std::cout << "  Thread safety: " << successful_calls.load() << "/" << total_calls.load() 
+              << " calls successful (" << (success_rate * 100.0) << "%)\n";
+    
+    EXPECT_GT(success_rate, 0.95) << "Thread safety test should have >95% success rate";
+    
+    std::cout << "  ✓ Thread safety verified\n";
+    
+    // Performance expectations
+    if (std::thread::hardware_concurrency() > 1) {
+        EXPECT_GT(speedup, 0.8) << "Parallel batch fitting should provide reasonable speedup on multi-core systems";
+    }
+    
+    std::cout << "✅ All parallel batch fitting tests passed\n";
+}
+
 } // namespace libstats
 

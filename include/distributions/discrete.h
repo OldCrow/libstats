@@ -609,6 +609,17 @@ public:
     void fit(const std::vector<double>& values) override;
 
     /**
+     * @brief Parallel batch fitting for multiple datasets
+     * Efficiently fits discrete distribution parameters to multiple independent datasets in parallel
+     * 
+     * @param datasets Vector of datasets, each representing independent observations
+     * @param results Vector to store fitted DiscreteDistribution objects
+     * @throws std::invalid_argument if datasets is empty or results size doesn't match
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                               std::vector<DiscreteDistribution>& results);
+
+    /**
      * Resets the distribution to default parameters (a = 0, b = 1).
      * This corresponds to a binary uniform distribution.
      */

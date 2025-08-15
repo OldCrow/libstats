@@ -672,6 +672,140 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
 }
 
 //==============================================================================
+// PARALLEL BATCH FITTING TESTS
+//==============================================================================
+
+TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
+    std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
+    
+    // Create multiple datasets for batch fitting
+    std::vector<std::vector<double>> datasets;
+    std::vector<ExponentialDistribution> expected_distributions;
+    
+    std::mt19937 rng(42);
+    
+    // Generate 6 datasets with known parameters
+    std::vector<double> true_lambdas = {1.0, 2.0, 0.5, 3.0, 1.5, 0.8};
+    
+    for (double lambda : true_lambdas) {
+        std::vector<double> dataset;
+        dataset.reserve(1000);
+        
+        std::exponential_distribution<double> gen(lambda);
+        for (int i = 0; i < 1000; ++i) {
+            dataset.push_back(gen(rng));
+        }
+        
+        datasets.push_back(std::move(dataset));
+        expected_distributions.push_back(ExponentialDistribution::create(lambda).value);
+    }
+    
+    std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
+    
+    // Test 1: Basic parallel batch fitting correctness
+    std::vector<ExponentialDistribution> batch_results(datasets.size());
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    ExponentialDistribution::parallelBatchFit(datasets, batch_results);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Verify correctness by comparing with individual fits
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        ExponentialDistribution individual_fit;
+        individual_fit.fit(datasets[i]);
+        
+        // Parameters should match within tolerance
+        EXPECT_NEAR(batch_results[i].getLambda(), individual_fit.getLambda(), 1e-10)
+            << "Batch fit lambda mismatch for dataset " << i;
+        
+        // Should be reasonably close to true parameters (within 3 standard errors)
+        double expected_lambda = true_lambdas[i];
+        double n = datasets[i].size();
+        
+        // For exponential distribution, std error of lambda estimate is lambda/sqrt(n)
+        double lambda_tolerance = 3.0 * expected_lambda / std::sqrt(n);
+        
+        EXPECT_NEAR(batch_results[i].getLambda(), expected_lambda, lambda_tolerance)
+            << "Fitted lambda too far from true value for dataset " << i;
+    }
+    
+    std::cout << "  ✓ Parallel batch fitting correctness verified\n";
+    
+    // Test 2: Performance comparison with sequential batch fitting
+    std::vector<ExponentialDistribution> sequential_results(datasets.size());
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
+    
+    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+    
+    // Verify sequential and parallel results match
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        EXPECT_NEAR(batch_results[i].getLambda(), sequential_results[i].getLambda(), 1e-12)
+            << "Sequential vs parallel lambda mismatch for dataset " << i;
+    }
+    
+    // Test 3: Edge cases
+    std::cout << "  Testing edge cases...\n";
+    
+    // Empty datasets vector
+    std::vector<std::vector<double>> empty_datasets;
+    std::vector<ExponentialDistribution> empty_results;
+    ExponentialDistribution::parallelBatchFit(empty_datasets, empty_results);
+    EXPECT_TRUE(empty_results.empty());
+    
+    // Single dataset
+    std::vector<std::vector<double>> single_dataset = {datasets[0]};
+    std::vector<ExponentialDistribution> single_result(1);
+    ExponentialDistribution::parallelBatchFit(single_dataset, single_result);
+    EXPECT_NEAR(single_result[0].getLambda(), batch_results[0].getLambda(), 1e-12);
+    
+    // Results vector auto-sizing
+    std::vector<ExponentialDistribution> auto_sized_results;
+    ExponentialDistribution::parallelBatchFit(datasets, auto_sized_results);
+    EXPECT_EQ(auto_sized_results.size(), datasets.size());
+    
+    std::cout << "  ✓ Edge cases handled correctly\n";
+    
+    // Test 4: Thread safety with concurrent calls
+    std::cout << "  Testing thread safety...\n";
+    
+    const int num_threads = 4;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<ExponentialDistribution>> concurrent_results(num_threads);
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&, t]() {
+            concurrent_results[t].resize(datasets.size());
+            ExponentialDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    // Verify all concurrent results match
+    for (int t = 0; t < num_threads; ++t) {
+        for (size_t i = 0; i < datasets.size(); ++i) {
+            EXPECT_NEAR(concurrent_results[t][i].getLambda(), batch_results[i].getLambda(), 1e-10)
+                << "Thread " << t << " result mismatch for dataset " << i;
+        }
+    }
+    
+    std::cout << "  ✓ Thread safety verified\n";
+}
+
+//==============================================================================
 // NUMERICAL STABILITY AND EDGE CASES
 //==============================================================================
 

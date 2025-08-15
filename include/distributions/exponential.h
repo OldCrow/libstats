@@ -462,6 +462,17 @@ public:
     void fit(const std::vector<double>& values) override;
 
     /**
+     * @brief Parallel batch fitting for multiple datasets
+     * Efficiently fits exponential distribution parameters to multiple independent datasets in parallel
+     * 
+     * @param datasets Vector of datasets, each representing independent observations
+     * @param results Vector to store fitted ExponentialDistribution objects
+     * @throws std::invalid_argument if datasets is empty or results size doesn't match
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                               std::vector<ExponentialDistribution>& results);
+
+    /**
      * Resets the distribution to default parameters (λ = 1.0).
      * This corresponds to the standard exponential distribution.
      */

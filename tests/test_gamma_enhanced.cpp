@@ -727,6 +727,153 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
 }
 
 //==============================================================================
+// PARALLEL BATCH FITTING TESTS
+//==============================================================================
+
+TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
+    std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
+    
+    // Create multiple datasets for batch fitting
+    std::vector<std::vector<double>> datasets;
+    std::vector<GammaDistribution> expected_distributions;
+    
+    std::mt19937 rng(42);
+    
+    // Generate 6 datasets with known parameters
+    std::vector<std::pair<double, double>> true_params = {
+        {1.0, 1.0}, {2.0, 0.5}, {3.0, 2.0}, {0.5, 1.5}, {4.0, 0.25}, {1.5, 3.0}
+    };
+    
+    for (const auto& [alpha, beta] : true_params) {
+        std::vector<double> dataset;
+        dataset.reserve(1000);
+        
+        std::gamma_distribution<double> gen(alpha, 1.0/beta); // std::gamma uses scale parameter (1/beta)
+        for (int i = 0; i < 1000; ++i) {
+            dataset.push_back(gen(rng));
+        }
+        
+        datasets.push_back(std::move(dataset));
+        expected_distributions.push_back(GammaDistribution::create(alpha, beta).value);
+    }
+    
+    std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
+    
+    // Test 1: Basic parallel batch fitting correctness
+    std::vector<GammaDistribution> batch_results(datasets.size());
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    GammaDistribution::parallelBatchFit(datasets, batch_results);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Verify correctness by comparing with individual fits
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        GammaDistribution individual_fit;
+        individual_fit.fit(datasets[i]);
+        
+        // Parameters should match within tolerance
+        EXPECT_NEAR(batch_results[i].getAlpha(), individual_fit.getAlpha(), 1e-10)
+            << "Batch fit alpha mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getBeta(), individual_fit.getBeta(), 1e-10)
+            << "Batch fit beta mismatch for dataset " << i;
+        
+        // Should be reasonably close to true parameters
+        double expected_alpha = true_params[i].first;
+        double expected_beta = true_params[i].second;
+        
+        // For gamma distribution, MLE estimates have known properties
+        // Allow reasonable tolerance for sample variation
+        double alpha_tolerance = expected_alpha * 0.15; // 15% tolerance
+        double beta_tolerance = expected_beta * 0.15;   // 15% tolerance
+        
+        EXPECT_NEAR(batch_results[i].getAlpha(), expected_alpha, alpha_tolerance)
+            << "Fitted alpha too far from true value for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getBeta(), expected_beta, beta_tolerance)
+            << "Fitted beta too far from true value for dataset " << i;
+    }
+    
+    std::cout << "  ✓ Parallel batch fitting correctness verified\n";
+    
+    // Test 2: Performance comparison with sequential batch fitting
+    std::vector<GammaDistribution> sequential_results(datasets.size());
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
+    
+    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+    
+    // Verify sequential and parallel results match
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        EXPECT_NEAR(batch_results[i].getAlpha(), sequential_results[i].getAlpha(), 1e-12)
+            << "Sequential vs parallel alpha mismatch for dataset " << i;
+        EXPECT_NEAR(batch_results[i].getBeta(), sequential_results[i].getBeta(), 1e-12)
+            << "Sequential vs parallel beta mismatch for dataset " << i;
+    }
+    
+    // Test 3: Edge cases
+    std::cout << "  Testing edge cases...\n";
+    
+    // Empty datasets vector
+    std::vector<std::vector<double>> empty_datasets;
+    std::vector<GammaDistribution> empty_results;
+    GammaDistribution::parallelBatchFit(empty_datasets, empty_results);
+    EXPECT_TRUE(empty_results.empty());
+    
+    // Single dataset
+    std::vector<std::vector<double>> single_dataset = {datasets[0]};
+    std::vector<GammaDistribution> single_result(1);
+    GammaDistribution::parallelBatchFit(single_dataset, single_result);
+    EXPECT_NEAR(single_result[0].getAlpha(), batch_results[0].getAlpha(), 1e-12);
+    EXPECT_NEAR(single_result[0].getBeta(), batch_results[0].getBeta(), 1e-12);
+    
+    // Results vector auto-sizing
+    std::vector<GammaDistribution> auto_sized_results;
+    GammaDistribution::parallelBatchFit(datasets, auto_sized_results);
+    EXPECT_EQ(auto_sized_results.size(), datasets.size());
+    
+    std::cout << "  ✓ Edge cases handled correctly\n";
+    
+    // Test 4: Thread safety with concurrent calls
+    std::cout << "  Testing thread safety...\n";
+    
+    const int num_threads = 4;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<GammaDistribution>> concurrent_results(num_threads);
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&, t]() {
+            concurrent_results[t].resize(datasets.size());
+            GammaDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    // Verify all concurrent results match
+    for (int t = 0; t < num_threads; ++t) {
+        for (size_t i = 0; i < datasets.size(); ++i) {
+            EXPECT_NEAR(concurrent_results[t][i].getAlpha(), batch_results[i].getAlpha(), 1e-10)
+                << "Thread " << t << " alpha result mismatch for dataset " << i;
+            EXPECT_NEAR(concurrent_results[t][i].getBeta(), batch_results[i].getBeta(), 1e-10)
+                << "Thread " << t << " beta result mismatch for dataset " << i;
+        }
+    }
+    
+    std::cout << "  ✓ Thread safety verified\n";
+}
+
+//==============================================================================
 // NUMERICAL STABILITY AND EDGE CASES
 //==============================================================================
 

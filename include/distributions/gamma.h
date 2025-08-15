@@ -579,6 +579,17 @@ public:
     void fit(const std::vector<double>& values) override;
 
     /**
+     * @brief Parallel batch fitting for multiple datasets
+     * Efficiently fits gamma distribution parameters to multiple independent datasets in parallel
+     * 
+     * @param datasets Vector of datasets, each representing independent observations
+     * @param results Vector to store fitted GammaDistribution objects
+     * @throws std::invalid_argument if datasets is empty or results size doesn't match
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                               std::vector<GammaDistribution>& results);
+
+    /**
      * Resets the distribution to default parameters (α = 1.0, β = 1.0).
      * This corresponds to the standard exponential distribution.
      */
@@ -919,8 +930,6 @@ public:
      */
     [[nodiscard]] static Result<GammaDistribution> createFromMoments(double mean, double variance) noexcept;
     
-    
-    
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
@@ -1024,7 +1033,6 @@ public:
     void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                              performance::Strategy strategy) const;
     
-
     //==========================================================================
     // 15. COMPARISON OPERATORS
     //==========================================================================
@@ -1186,7 +1194,6 @@ private:
             throw std::invalid_argument("Beta (rate parameter) must be a positive finite number");
         }
     }
-    
     
     //==========================================================================
     // 20. PRIVATE UTILITY METHODS

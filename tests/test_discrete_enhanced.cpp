@@ -674,6 +674,198 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
 }
 
 //==============================================================================
+// PARALLEL BATCH FITTING TESTS
+//==============================================================================
+
+TEST_F(DiscreteEnhancedTest, ParallelBatchFittingTests) {
+    std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
+    
+    // Create multiple datasets for batch fitting (convert to double for interface)
+    std::vector<std::vector<double>> datasets;
+    
+    std::mt19937 rng(42);
+    
+    // Generate 6 datasets with different discrete value distributions
+    std::vector<std::vector<int>> value_sets = {
+        {1, 2, 3, 4},           // Simple consecutive values
+        {0, 5, 10},             // Sparse values
+        {-2, -1, 0, 1, 2},      // Values around zero
+        {10, 20, 30, 40, 50},   // Large values
+        {1, 3, 7, 15},          // Non-uniform spacing
+        {0, 1}                  // Binary case
+    };
+    
+    std::vector<std::vector<double>> probability_sets = {
+        {0.1, 0.2, 0.3, 0.4},        // Simple probabilities
+        {0.5, 0.3, 0.2},             // Decreasing probabilities 
+        {0.1, 0.15, 0.5, 0.15, 0.1}, // Peaked in middle
+        {0.2, 0.2, 0.2, 0.2, 0.2},   // Uniform probabilities
+        {0.4, 0.3, 0.2, 0.1},        // Decreasing
+        {0.7, 0.3}                   // Binary
+    };
+    
+    for (size_t set_idx = 0; set_idx < value_sets.size(); ++set_idx) {
+        const auto& values = value_sets[set_idx];
+        const auto& probabilities = probability_sets[set_idx];
+        
+        // Create a discrete distribution for data generation
+        std::discrete_distribution<int> gen(probabilities.begin(), probabilities.end());
+        
+        std::vector<double> dataset;
+        dataset.reserve(1000);
+        
+        for (int i = 0; i < 1000; ++i) {
+            int outcome_index = gen(rng);
+            dataset.push_back(static_cast<double>(values[outcome_index]));
+        }
+        
+        datasets.push_back(std::move(dataset));
+    }
+    
+    std::cout << "  Generated " << datasets.size() << " datasets with different discrete distributions\n";
+    
+    // Test 1: Basic parallel batch fitting correctness
+    std::vector<DiscreteDistribution> batch_results(datasets.size());
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    DiscreteDistribution::parallelBatchFit(datasets, batch_results);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Verify correctness by comparing with individual fits
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        DiscreteDistribution individual_fit;
+        individual_fit.fit(datasets[i]);
+        
+        // Get the bounds instead of support (DiscreteDistribution uses bounds)
+        int batch_lower = static_cast<int>(batch_results[i].getSupportLowerBound());
+        int batch_upper = static_cast<int>(batch_results[i].getSupportUpperBound());
+        int individual_lower = static_cast<int>(individual_fit.getSupportLowerBound());
+        int individual_upper = static_cast<int>(individual_fit.getSupportUpperBound());
+        
+        // Bounds should match
+        EXPECT_EQ(batch_lower, individual_lower)
+            << "Batch fit lower bound mismatch for dataset " << i;
+        EXPECT_EQ(batch_upper, individual_upper)
+            << "Batch fit upper bound mismatch for dataset " << i;
+        
+        // Probabilities should match within tolerance for each value in support
+        for (int value = batch_lower; value <= batch_upper; ++value) {
+            EXPECT_NEAR(batch_results[i].getProbability(value), individual_fit.getProbability(value), 1e-10)
+                << "Batch fit probability mismatch for dataset " << i << " at value " << value;
+        }
+    }
+    
+    std::cout << "  ✓ Parallel batch fitting correctness verified\n";
+    
+    // Test 2: Performance comparison with sequential batch fitting
+    std::vector<DiscreteDistribution> sequential_results(datasets.size());
+    
+    start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
+    
+    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+    
+    // Verify sequential and parallel results match
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        int batch_lower = static_cast<int>(batch_results[i].getSupportLowerBound());
+        int batch_upper = static_cast<int>(batch_results[i].getSupportUpperBound());
+        int sequential_lower = static_cast<int>(sequential_results[i].getSupportLowerBound());
+        int sequential_upper = static_cast<int>(sequential_results[i].getSupportUpperBound());
+        
+        EXPECT_EQ(batch_lower, sequential_lower)
+            << "Sequential vs parallel lower bound mismatch for dataset " << i;
+        EXPECT_EQ(batch_upper, sequential_upper)
+            << "Sequential vs parallel upper bound mismatch for dataset " << i;
+        
+        for (int value = batch_lower; value <= batch_upper; ++value) {
+            EXPECT_NEAR(batch_results[i].getProbability(value), sequential_results[i].getProbability(value), 1e-12)
+                << "Sequential vs parallel probability mismatch for dataset " << i << " at value " << value;
+        }
+    }
+    
+    // Test 3: Edge cases
+    std::cout << "  Testing edge cases...\n";
+    
+    // Empty datasets vector
+    std::vector<std::vector<double>> empty_datasets;
+    std::vector<DiscreteDistribution> empty_results;
+    DiscreteDistribution::parallelBatchFit(empty_datasets, empty_results);
+    EXPECT_TRUE(empty_results.empty());
+    
+    // Single dataset
+    std::vector<std::vector<double>> single_dataset = {datasets[0]};
+    std::vector<DiscreteDistribution> single_result(1);
+    DiscreteDistribution::parallelBatchFit(single_dataset, single_result);
+    
+    int batch_lower = static_cast<int>(batch_results[0].getSupportLowerBound());
+    int batch_upper = static_cast<int>(batch_results[0].getSupportUpperBound());
+    int single_lower = static_cast<int>(single_result[0].getSupportLowerBound());
+    int single_upper = static_cast<int>(single_result[0].getSupportUpperBound());
+    EXPECT_EQ(batch_lower, single_lower);
+    EXPECT_EQ(batch_upper, single_upper);
+    for (int value = batch_lower; value <= batch_upper; ++value) {
+        EXPECT_NEAR(single_result[0].getProbability(value), batch_results[0].getProbability(value), 1e-12)
+            << "Single dataset result mismatch at value " << value;
+    }
+    
+    // Results vector auto-sizing
+    std::vector<DiscreteDistribution> auto_sized_results;
+    DiscreteDistribution::parallelBatchFit(datasets, auto_sized_results);
+    EXPECT_EQ(auto_sized_results.size(), datasets.size());
+    
+    std::cout << "  ✓ Edge cases handled correctly\n";
+    
+    // Test 4: Thread safety with concurrent calls
+    std::cout << "  Testing thread safety...\n";
+    
+    const int num_threads = 4;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<DiscreteDistribution>> concurrent_results(num_threads);
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&, t]() {
+            concurrent_results[t].resize(datasets.size());
+            DiscreteDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    // Verify all concurrent results match
+    for (int t = 0; t < num_threads; ++t) {
+        for (size_t i = 0; i < datasets.size(); ++i) {
+            int thread_lower = static_cast<int>(concurrent_results[t][i].getSupportLowerBound());
+            int thread_upper = static_cast<int>(concurrent_results[t][i].getSupportUpperBound());
+            int batch_lower = static_cast<int>(batch_results[i].getSupportLowerBound());
+            int batch_upper = static_cast<int>(batch_results[i].getSupportUpperBound());
+            
+            EXPECT_EQ(thread_lower, batch_lower)
+                << "Thread " << t << " lower bound mismatch for dataset " << i;
+            EXPECT_EQ(thread_upper, batch_upper)
+                << "Thread " << t << " upper bound mismatch for dataset " << i;
+            
+            for (int value = batch_lower; value <= batch_upper; ++value) {
+                EXPECT_NEAR(concurrent_results[t][i].getProbability(value), batch_results[i].getProbability(value), 1e-10)
+                    << "Thread " << t << " probability mismatch for dataset " << i << " at value " << value;
+            }
+        }
+    }
+    
+    std::cout << "  ✓ Thread safety verified\n";
+}
+
+//==============================================================================
 // NUMERICAL STABILITY AND EDGE CASES
 //==============================================================================
 

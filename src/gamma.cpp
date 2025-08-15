@@ -429,6 +429,54 @@ void GammaDistribution::fit(const std::vector<double>& values) {
     fitMaximumLikelihood(values);
 }
 
+void GammaDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                        std::vector<GammaDistribution>& results) {
+    if (datasets.empty()) {
+        // Handle empty datasets gracefully
+        results.clear();
+        return;
+    }
+    
+    // Ensure results vector has correct size
+    if (results.size() != datasets.size()) {
+        results.resize(datasets.size());
+    }
+    
+    const std::size_t num_datasets = datasets.size();
+    
+    // Use distribution-specific parallel thresholds for optimal work distribution
+    if (parallel::shouldUseDistributionParallel("gamma", "batch_fit", num_datasets)) {
+        // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
+        ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
+        const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
+        std::vector<std::future<void>> futures;
+        futures.reserve((num_datasets + optimal_grain_size - 1) / optimal_grain_size);
+        
+        for (std::size_t i = 0; i < num_datasets; i += optimal_grain_size) {
+            const std::size_t chunk_end = std::min(i + optimal_grain_size, num_datasets);
+            
+            auto future = pool.submit([&datasets, &results, i, chunk_end]() {
+                for (std::size_t j = i; j < chunk_end; ++j) {
+                    results[j].fit(datasets[j]);
+                }
+            });
+            
+            futures.push_back(std::move(future));
+        }
+        
+        // Wait for all chunks to complete
+        for (auto& future : futures) {
+            future.wait();
+        }
+        
+    } else {
+        // Serial processing for small numbers of datasets
+        for (std::size_t i = 0; i < num_datasets; ++i) {
+            results[i].fit(datasets[i]);
+        }
+    }
+}
+
 void GammaDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     alpha_ = constants::math::ONE;
@@ -993,7 +1041,6 @@ std::tuple<double, double, bool> GammaDistribution::andersonDarlingTest(
     return std::make_tuple(ad_statistic, p_value, reject_null);
 }
 
-
 //==========================================================================
 // 9. CROSS-VALIDATION METHODS
 //==========================================================================
@@ -1289,9 +1336,8 @@ Result<GammaDistribution> GammaDistribution::createFromMoments(double mean, doub
     return create(alpha, beta);
 }
 
-
 //==========================================================================
-// 13.A. SMART AUTO-DISPATCH BATCH OPERATIONS IMPLEMENTATION
+// 13. SMART AUTO-DISPATCH BATCH OPERATIONS IMPLEMENTATION
 //==========================================================================
 
 void GammaDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -1785,7 +1831,7 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
 }
 
 //==========================================================================
-// 13.B. EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
+// 14. EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
 //==========================================================================
 
 void GammaDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
@@ -2295,7 +2341,7 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
 }
 
 //==========================================================================
-// 14. COMPARISON OPERATORS
+// 15. COMPARISON OPERATORS
 //==========================================================================
 
 bool GammaDistribution::operator==(const GammaDistribution& other) const {
@@ -2310,7 +2356,7 @@ bool GammaDistribution::operator==(const GammaDistribution& other) const {
 }
 
 //==========================================================================
-// 15. STREAM OPERATORS
+// 16. FRIEND FUNCTION STREAM OPERATORS
 //==========================================================================
 
 std::ostream& operator<<(std::ostream& os, const GammaDistribution& dist) {
@@ -2362,13 +2408,6 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
     
     return is;
 }
-
-//==============================================================================
-// 16. FRIEND FUNCTION STREAM OPERATORS
-//==============================================================================
-
-// Note: Friend function stream operators are implemented inline in the header for performance
-// This section exists for standardization and documentation purposes
 
 //==============================================================================
 // 17. PRIVATE FACTORY IMPLEMENTATION METHODS

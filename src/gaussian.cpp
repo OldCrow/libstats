@@ -605,7 +605,9 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
 void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
                                            std::vector<GaussianDistribution>& results) {
     if (datasets.empty()) {
-        throw std::invalid_argument("Cannot fit to empty dataset collection");
+        // Handle empty datasets gracefully
+        results.clear();
+        return;
     }
     
     // Ensure results vector has correct size
@@ -615,19 +617,124 @@ void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double
     
     const std::size_t num_datasets = datasets.size();
     
-    // Use Level 0-3 ParallelUtils for optimal work distribution
-    if (parallel::should_use_parallel(num_datasets)) {
-        // Leverage ParallelUtils::parallelFor with optimal grain sizing
-        ParallelUtils::parallelFor(std::size_t{0}, num_datasets,
-                                  [&datasets, &results](std::size_t idx) {
-            // Fit each dataset independently in parallel with Level 0-3 infrastructure
-            results[idx].fit(datasets[idx]);
-        });
+    // Use distribution-specific parallel thresholds for optimal work distribution
+    if (parallel::shouldUseDistributionParallel("gaussian", "batch_fit", num_datasets)) {
+        // Thread-safe parallel execution with proper exception handling
+        // Use a static mutex to synchronize access to the global thread pool from multiple threads
+        static std::mutex pool_access_mutex;
+        
+        try {
+            ThreadPool* pool_ptr = nullptr;
+            {
+                // Brief lock to get thread pool reference - minimize lock contention
+                std::lock_guard<std::mutex> pool_lock(pool_access_mutex);
+                pool_ptr = &ParallelUtils::getGlobalThreadPool();
+            }
+            
+            const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
+            const std::size_t num_chunks = (num_datasets + optimal_grain_size - 1) / optimal_grain_size;
+            
+            // Pre-allocate futures with known size to avoid reallocation during concurrent access
+            std::vector<std::future<void>> futures;
+            futures.reserve(num_chunks);
+            
+            // Atomic counter for tracking completion and error handling
+            std::atomic<std::size_t> completed_chunks{0};
+            std::atomic<bool> has_error{false};
+            std::mutex error_mutex;
+            std::string error_message;
+            
+            // Submit all tasks with exception handling
+            for (std::size_t i = 0; i < num_datasets; i += optimal_grain_size) {
+                const std::size_t chunk_start = i;
+                const std::size_t chunk_end = std::min(i + optimal_grain_size, num_datasets);
+                
+                auto future = pool_ptr->submit([&datasets, &results, chunk_start, chunk_end, 
+                                               &completed_chunks, &has_error, &error_mutex, &error_message]() {
+                    try {
+                        // Process chunk with local error handling
+                        for (std::size_t j = chunk_start; j < chunk_end; ++j) {
+                            results[j].fit(datasets[j]);
+                        }
+                        completed_chunks.fetch_add(1, std::memory_order_relaxed);
+                    } catch (const std::exception& e) {
+                        // Thread-safe error recording
+                        {
+                            std::lock_guard<std::mutex> error_lock(error_mutex);
+                            if (!has_error.load()) {
+                                error_message = "Parallel batch fit error in chunk [" + 
+                                              std::to_string(chunk_start) + ", " + 
+                                              std::to_string(chunk_end) + "): " + e.what();
+                                has_error.store(true, std::memory_order_release);
+                            }
+                        }
+                    } catch (...) {
+                        // Handle non-standard exceptions
+                        {
+                            std::lock_guard<std::mutex> error_lock(error_mutex);
+                            if (!has_error.load()) {
+                                error_message = "Unknown error in parallel batch fit chunk [" + 
+                                              std::to_string(chunk_start) + ", " + 
+                                              std::to_string(chunk_end) + ")";
+                                has_error.store(true, std::memory_order_release);
+                            }
+                        }
+                    }
+                });
+                
+                futures.push_back(std::move(future));
+            }
+            
+            // Wait for all chunks to complete with timeout and error checking
+            bool all_completed = true;
+            for (auto& future : futures) {
+                try {
+                    // Use wait() instead of get() to avoid exception re-throwing from task
+                    future.wait();
+                } catch (const std::exception& e) {
+                    // Handle future-related exceptions
+                    std::lock_guard<std::mutex> error_lock(error_mutex);
+                    if (!has_error.load()) {
+                        error_message = "Future wait error: " + std::string(e.what());
+                        has_error.store(true, std::memory_order_release);
+                    }
+                    all_completed = false;
+                }
+            }
+            
+            // Check for errors after all futures complete
+            if (has_error.load()) {
+                std::lock_guard<std::mutex> error_lock(error_mutex);
+                throw std::runtime_error("Parallel batch fitting failed: " + error_message);
+            }
+            
+            if (!all_completed) {
+                throw std::runtime_error("Some parallel batch fitting tasks failed to complete properly");
+            }
+            
+        } catch (const std::exception& e) {
+            // If parallel execution fails, fall back to serial execution
+            // This ensures robustness in case of thread pool issues
+            for (std::size_t i = 0; i < num_datasets; ++i) {
+                try {
+                    results[i].fit(datasets[i]);
+                } catch (const std::exception& fit_error) {
+                    throw std::runtime_error("Serial fallback failed for dataset " + 
+                                            std::to_string(i) + ": " + fit_error.what() + 
+                                            " (original parallel error: " + e.what() + ")");
+                }
+            }
+        }
         
     } else {
         // Serial processing for small numbers of datasets
         for (std::size_t i = 0; i < num_datasets; ++i) {
-            results[i].fit(datasets[i]);
+            try {
+                results[i].fit(datasets[i]);
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Serial batch fit failed for dataset " + 
+                                        std::to_string(i) + ": " + e.what());
+            }
         }
     }
 }
@@ -2890,5 +2997,33 @@ void GaussianDistribution::validateParameters(double mean, double stdDev) {
 
 // Note: Currently no private utility methods needed for Gaussian distribution
 // This section maintained for template compliance
+
+//==============================================================================
+// 21. DISTRIBUTION PARAMETERS
+//==============================================================================
+
+// Note: Distribution parameters are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 22. PERFORMANCE CACHE
+//==============================================================================
+
+// Note: Performance cache variables are declared in the header as mutable private members
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 23. OPTIMIZATION FLAGS
+//==============================================================================
+
+// Note: Optimization flags are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
+
+//==============================================================================
+// 24. SPECIALIZED CACHES
+//==============================================================================
+
+// Note: Specialized caches are declared in the header as private member variables
+// This section exists for standardization and documentation purposes
 
 } // namespace libstats

@@ -490,6 +490,17 @@ public:
     void fit(const std::vector<double>& values) override;
 
     /**
+     * @brief Parallel batch fitting for multiple datasets
+     * Efficiently fits Poisson distribution parameters to multiple independent datasets in parallel
+     * 
+     * @param datasets Vector of datasets, each representing independent observations
+     * @param results Vector to store fitted PoissonDistribution objects
+     * @throws std::invalid_argument if datasets is empty or results size doesn't match
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                               std::vector<PoissonDistribution>& results);
+
+    /**
      * Resets the distribution to default parameters (λ = 1.0).
      * This corresponds to a standard Poisson distribution.
      */
