@@ -96,7 +96,7 @@ int main() {
         std::cout << "  avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL: " << libstats::constants::parallel::avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
         std::cout << "  avx::MIN_ELEMENTS_FOR_PARALLEL: " << libstats::constants::parallel::avx::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
         std::cout << "  fallback::MIN_ELEMENTS_FOR_PARALLEL: " << libstats::constants::parallel::fallback::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
-        std::cout << "  Legacy constants (backward compat): " << libstats::constants::parallel::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
+        std::cout << "  Legacy constants (backward compat): " << libstats::constants::parallel::adaptive::min_elements_for_parallel() << std::endl;
         
         std::cout << "\n=== Test Results ===" << std::endl;
         std::cout << "✓ All CPU detection tests completed successfully!" << std::endl;

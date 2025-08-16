@@ -219,7 +219,7 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     const std::size_t numWorkers = getThreadCount();
     
     // Use Level 0 constants for thresholds
-    if (totalWork < constants::parallel::MIN_ELEMENTS_FOR_PARALLEL) {
+    if (totalWork < constants::parallel::adaptive::min_elements_for_parallel()) {
         // Execute sequentially for small workloads
         for (std::size_t i = start; i < end; ++i) {
             func(i);

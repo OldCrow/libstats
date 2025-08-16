@@ -316,12 +316,8 @@ namespace parallel {
     }
     
     /// ===== Legacy Constants for Backward Compatibility =====
-    /// NOTE: These are fallback constants - for new code, prefer the adaptive:: functions
-    inline constexpr std::size_t MIN_ELEMENTS_FOR_PARALLEL = 4096;
-    inline constexpr std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 2048;
-    inline constexpr std::size_t MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL = 32768;
-    inline constexpr std::size_t SIMPLE_OPERATION_GRAIN_SIZE = 128;
-    inline constexpr std::size_t DEFAULT_GRAIN_SIZE = 256;
+    /// NOTE: These constants are defined in platform_constants_impl.cpp to avoid ODR violations
+    /// For new code, prefer the adaptive:: functions below
     
     /// Minimum dataset size for parallel statistical algorithms
     /// Statistical algorithms benefit from parallelization when

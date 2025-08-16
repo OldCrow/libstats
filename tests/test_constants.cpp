@@ -163,11 +163,11 @@ void test_platform_optimizations() {
 void test_parallel_constants() {
     using namespace libstats::constants::parallel;
     
-    // Test parallel processing constants
-    assert(MIN_ELEMENTS_FOR_PARALLEL > 0);
-    assert(MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL > 0);
-    assert(DEFAULT_GRAIN_SIZE > 0);
-    assert(SIMPLE_OPERATION_GRAIN_SIZE > 0);
+    // Test parallel processing constants (using accessor functions)
+    assert(adaptive::min_elements_for_parallel() > 0);
+    assert(adaptive::min_elements_for_distribution_parallel() > 0);
+    assert(adaptive::grain_size() > 0);
+    assert(adaptive::simple_operation_grain_size() > 0);
     assert(MIN_DATASET_SIZE_FOR_PARALLEL > 0);
     assert(MIN_BOOTSTRAP_SAMPLES_FOR_PARALLEL > 0);
     assert(MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL > 0);
@@ -178,9 +178,9 @@ void test_parallel_constants() {
     assert(MIN_MATRIX_SIZE_FOR_PARALLEL > 0);
     assert(MIN_ITERATIONS_FOR_PARALLEL > 0);
     
-    // Test logical relationships
-    assert(MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL <= MIN_ELEMENTS_FOR_PARALLEL);
-    assert(SIMPLE_OPERATION_GRAIN_SIZE <= DEFAULT_GRAIN_SIZE);
+    // Test logical relationships (using accessor functions)
+    assert(adaptive::min_elements_for_distribution_parallel() <= adaptive::min_elements_for_parallel());
+    assert(adaptive::simple_operation_grain_size() <= adaptive::grain_size());
     assert(adaptive::monte_carlo_grain_size() <= adaptive::max_grain_size());
     
     // Test adaptive functions

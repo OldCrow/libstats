@@ -172,7 +172,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
             break;
     }
     
-    return std::max(adjusted_grain, constants::parallel::SIMPLE_OPERATION_GRAIN_SIZE); // Minimum grain size
+    return std::max(adjusted_grain, constants::parallel::adaptive::simple_operation_grain_size()); // Minimum grain size
 }
 
 /**
@@ -237,7 +237,7 @@ inline bool should_use_parallel(std::size_t problem_size) noexcept {
  */
 inline bool should_use_distribution_parallel(std::size_t problem_size) noexcept {
     return has_execution_policies() && 
-           (problem_size >= constants::parallel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL);
+           (problem_size >= constants::parallel::adaptive::min_elements_for_distribution_parallel());
 }
 
 //==============================================================================

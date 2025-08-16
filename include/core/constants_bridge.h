@@ -18,7 +18,7 @@ namespace parallel {
     }
     
     // Legacy constants for backward compatibility (static fallbacks)
-    inline constexpr std::size_t SIMPLE_OPERATION_GRAIN_SIZE = 128;
+    // NOTE: SIMPLE_OPERATION_GRAIN_SIZE is defined in platform_constants_impl.cpp to avoid ODR violations
     inline constexpr std::size_t MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL = 10000;
     inline constexpr std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 2048;
     

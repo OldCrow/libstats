@@ -346,7 +346,7 @@ private:
         
         // Use WorkStealingPool for dynamic load balancing
         // Use same threshold as regular parallel operations to avoid inconsistency
-        if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL)) {
+        if (WorkStealingUtils::shouldUseWorkStealing(count, constants::parallel::adaptive::min_elements_for_simple_distribution_parallel())) {
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 computation_func(i);
             });

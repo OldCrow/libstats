@@ -226,7 +226,7 @@ public:
         if (range == 0) return;
         
         // Use constants from Level 0 for optimal thresholds
-        const std::size_t minParallelSize = constants::parallel::MIN_ELEMENTS_FOR_PARALLEL;
+        const std::size_t minParallelSize = constants::parallel::adaptive::min_elements_for_parallel();
         if (range < minParallelSize) {
             // Execute sequentially for small ranges
             for (std::size_t i = start; i < end; ++i) {
@@ -336,7 +336,7 @@ public:
         // Use safety checks from Level 1
         safety::check_finite(static_cast<double>(size), "array size");
         
-        const std::size_t minParallelSize = constants::parallel::MIN_ELEMENTS_FOR_PARALLEL;
+        const std::size_t minParallelSize = constants::parallel::adaptive::min_elements_for_parallel();
         if (size < minParallelSize) {
             // Execute sequentially for small arrays
             func(input, output, size);
@@ -369,7 +369,7 @@ public:
         }
         
         const std::size_t size = data.size();
-        const std::size_t minParallelSize = constants::parallel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
+        const std::size_t minParallelSize = constants::parallel::adaptive::min_elements_for_distribution_parallel();
         
         if (size < minParallelSize) {
             // Sequential sum for small arrays
@@ -417,7 +417,7 @@ public:
         const double actualMean = mean.value_or(parallelMean(data, grainSize));
         
         const std::size_t size = data.size();
-        const std::size_t minParallelSize = constants::parallel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
+        const std::size_t minParallelSize = constants::parallel::adaptive::min_elements_for_distribution_parallel();
         
         if (size < minParallelSize) {
             // Sequential variance for small arrays
@@ -456,7 +456,7 @@ public:
         }
         
         const std::size_t size = data.size();
-        const std::size_t minParallelSize = constants::parallel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
+        const std::size_t minParallelSize = constants::parallel::adaptive::min_elements_for_distribution_parallel();
         
         if (size < minParallelSize) {
             return operation(data);

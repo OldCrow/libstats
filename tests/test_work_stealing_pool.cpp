@@ -177,8 +177,8 @@ int main() {
     std::cout << "Test 6: Level 0 Constants Integration\n";
     {
         // Test that constants are properly used
-        auto parallelThreshold = constants::parallel::MIN_ELEMENTS_FOR_PARALLEL;
-        auto distributionThreshold = constants::parallel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
+        auto parallelThreshold = constants::parallel::adaptive::min_elements_for_parallel();
+        auto distributionThreshold = constants::parallel::adaptive::min_elements_for_distribution_parallel();
         auto defaultGrainSize = constants::parallel::adaptive::grain_size();
         auto simdBlockSize = constants::platform::get_optimal_simd_block_size();
         auto memoryAlignment = constants::platform::get_optimal_alignment();
