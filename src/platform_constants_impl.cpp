@@ -567,10 +567,9 @@ namespace platform {
 /// Cache system optimization constants (implementation)
 namespace cache {
     namespace sizing {
-        const std::size_t MIN_CACHE_SIZE_BYTES = 64 * 1024;  // 64KB
-        const std::size_t MAX_CACHE_SIZE_BYTES = 64 * 1024 * 1024;  // 64MB
-        const std::size_t MIN_ENTRY_COUNT = 32;
-        const std::size_t MAX_ENTRY_COUNT = 65536;
+        // Note: These constants are defined as inline constexpr in platform_constants.h
+        // The extern declarations in platform_constants_fwd.h are for backward compatibility
+        // No implementation needed here since inline constexpr definitions are used
     }
 }
 

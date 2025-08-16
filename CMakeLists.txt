@@ -597,6 +597,8 @@ set(LIBSTATS_CLANG_STRICT_WARNINGS
     -Wloop-analysis -Wlogical-op-parentheses -Wbool-conversion
     -Wint-conversion -Wnull-dereference -Wuninitialized
     -Wconditional-uninitialized -Wstring-conversion
+    # ODR (One Definition Rule) violation detection
+    -Wduplicate-decl-specifier -Wodr -fno-common
     # Allow some warnings that are too strict for practical development
     -Wno-unused-parameter  # Common in template/callback code
     -Wno-padded           # Not practical for cross-platform development
@@ -621,6 +623,8 @@ set(LIBSTATS_GCC_STRICT_WARNINGS
     -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2
     # GCC's stricter undefined behavior detection
     -Wshift-overflow=2 -Wstringop-overflow=4
+    # ODR (One Definition Rule) violation detection
+    -fno-common
     # Allow some warnings that are too pedantic
     -Wno-inline -Wno-padded -Wno-unused-parameter
     -Wno-sign-conversion  # Too noisy with standard library
@@ -647,6 +651,15 @@ set(LIBSTATS_MSVC_ENHANCED_WARNINGS
     /w14242 /w14254 /w14263 /w14265 /w14287 /w14289 /w14296 /w14311
     /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826
     /w14905 /w14906 /w14928
+    # ODR (One Definition Rule) violation detection
+    /we4020  # Too many actual parameters for function-like macro
+    /we4002  # Too many actual parameters for macro 
+    /we4005  # Macro redefinition (can catch ODR issues)
+)
+
+# MSVC-specific linker flags for ODR detection
+set(LIBSTATS_MSVC_ODR_LINKER_FLAGS
+    /FORCE:MULTIPLE  # Force link even with multiply-defined symbols (to catch ODR issues)
 )
 
 # Optimization levels for different build types
