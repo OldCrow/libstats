@@ -559,7 +559,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
-        result.simd_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        result.simd_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
         
         // 2. Standard Parallel Operations (if available) - fallback to SIMD
         std::span<const double> input_span(test_values);
@@ -592,7 +592,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        result.parallel_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
         
         // 3. Work-Stealing Operations (if available) - fallback to SIMD
         if (op == "PMF") {
@@ -623,7 +623,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.work_stealing_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        result.work_stealing_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
         
         // 4. Cache-Aware Operations (if available) - fallback to SIMD
         if (op == "PMF") {
@@ -654,7 +654,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.cache_aware_time_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        result.cache_aware_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
         
         // Calculate speedups
         result.parallel_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);

@@ -652,6 +652,12 @@ set(LIBSTATS_MSVC_ENHANCED_WARNINGS
     /w14242 /w14254 /w14263 /w14265 /w14287 /w14289 /w14296 /w14311
     /w14545 /w14546 /w14547 /w14549 /w14555 /w14619 /w14640 /w14826
     /w14905 /w14906 /w14928
+    # Additional warnings that MSVC shows but our builds miss
+    /w14267  # size_t to smaller integer conversion
+    /w14244  # possible loss of data (narrowing conversion)
+    /w14101  # unreferenced local variable
+    # Code analysis warnings
+    /analyze:WX-  # Don't treat code analysis warnings as errors (for MSVCWarn)
     # ODR (One Definition Rule) violation detection - Enhanced
     /we4020  # Too many actual parameters for function-like macro
     /we4002  # Too many actual parameters for macro 

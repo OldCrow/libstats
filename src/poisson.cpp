@@ -1221,7 +1221,7 @@ std::tuple<double, double, bool> PoissonDistribution::comprehensiveGoodnessOfFit
         
         return {fisher_statistic, combined_p_value, follows_poisson};
         
-    } catch (const std::exception& e) {
+    } catch (const std::exception& /* e */) {
         // If any individual test fails, return conservative result
         return {0.0, 0.0, false};
     }

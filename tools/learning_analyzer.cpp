@@ -565,7 +565,7 @@ private:
                 auto uniform_dist = libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN, distribution_params::UNIFORM_MAX).value;
                 exerciseDistributionEnhanced("Uniform", DistributionType::UNIFORM, uniform_dist, batch_sizes);
                 std::cout << " ✓\n";
-                completed += batch_sizes.size();
+                completed += static_cast<int>(batch_sizes.size());
             }
             
             {
@@ -573,7 +573,7 @@ private:
                 auto gaussian_dist = libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN, distribution_params::GAUSSIAN_STDDEV).value;
                 exerciseDistributionEnhanced("Gaussian", DistributionType::GAUSSIAN, gaussian_dist, batch_sizes);
                 std::cout << " ✓\n";
-                completed += batch_sizes.size();
+                completed += static_cast<int>(batch_sizes.size());
             }
             
             {
@@ -581,7 +581,7 @@ private:
                 auto exp_dist = libstats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA).value;
                 exerciseDistributionEnhanced("Exponential", DistributionType::EXPONENTIAL, exp_dist, batch_sizes);
                 std::cout << " ✓\n";
-                completed += batch_sizes.size();
+                completed += static_cast<int>(batch_sizes.size());
             }
             
             {
@@ -589,7 +589,7 @@ private:
                 auto disc_dist = libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN, distribution_params::DISCRETE_MAX).value;
                 exerciseDistributionEnhanced("Discrete", DistributionType::DISCRETE, disc_dist, batch_sizes);
                 std::cout << " ✓\n";
-                completed += batch_sizes.size();
+                completed += static_cast<int>(batch_sizes.size());
             }
             
             {
@@ -597,7 +597,7 @@ private:
                 auto poisson_dist = libstats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA).value;
                 exerciseDistributionEnhanced("Poisson", DistributionType::POISSON, poisson_dist, batch_sizes);
                 std::cout << " ✓\n";
-                completed += batch_sizes.size();
+                completed += static_cast<int>(batch_sizes.size());
             }
             
             {
@@ -605,7 +605,7 @@ private:
                 auto gamma_dist = libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA, distribution_params::GAMMA_BETA).value;
                 exerciseDistributionEnhanced("Gamma", DistributionType::GAMMA, gamma_dist, batch_sizes);
                 std::cout << " ✓\n";
-                completed += batch_sizes.size();
+                completed += static_cast<int>(batch_sizes.size());
             }
             
             double progress = static_cast<double>(completed) / static_cast<double>(total_operations) * 100.0;
