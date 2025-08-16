@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
+#endif
+
 // Use focused header for math utilities testing
 #include <gtest/gtest.h>
 #include "../include/core/math_utils.h"
@@ -392,3 +397,8 @@ TEST_F(MathUtilsTest, ComprehensiveFunctionVerification) {
     double chi_inv = inverse_chi_squared_cdf(chi_cdf, df);
     EXPECT_TRUE(near_equal(chi_inv, x, VERY_LOOSE_TOLERANCE));
 }
+
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif

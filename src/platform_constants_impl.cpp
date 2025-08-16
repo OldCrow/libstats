@@ -574,4 +574,8 @@ namespace cache {
 }
 
 } // namespace constants
+
+// Note: Bridge functions declared in constants_bridge.h are implemented 
+// by the functions above in this file via the forward declaration system.
+
 } // namespace libstats

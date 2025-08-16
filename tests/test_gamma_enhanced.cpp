@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
+#endif
+
 #include <gtest/gtest.h>
 #include "../include/distributions/gamma.h"
 #include "enhanced_test_template.h"
@@ -942,3 +947,8 @@ int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif

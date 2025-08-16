@@ -697,147 +697,37 @@ namespace platform {
      * @brief Get optimized SIMD block size based on detected CPU features
      * @return Optimal block size for SIMD operations
      */
-    inline std::size_t get_optimal_simd_block_size() {
-        const auto& features = cpu::get_features();
-        
-        // AVX-512: 8 doubles per register
-        if (features.avx512f) {
-            return 8;
-        }
-        // AVX/AVX2: 4 doubles per register
-        else if (features.avx || features.avx2) {
-            return 4;
-        }
-        // SSE2: 2 doubles per register
-        else if (features.sse2) {
-            return 2;
-        }
-        // ARM NEON: 2 doubles per register
-        else if (features.neon) {
-            return 2;
-        }
-        // No SIMD support
-        else {
-            return 1;
-        }
-    }
+    std::size_t get_optimal_simd_block_size();
     
     /**
      * @brief Get optimized memory alignment based on detected CPU features
      * @return Optimal memory alignment in bytes
      */
-    inline std::size_t get_optimal_alignment() {
-        const auto& features = cpu::get_features();
-        
-        // AVX-512: 64-byte alignment
-        if (features.avx512f) {
-            return 64;
-        }
-        // AVX/AVX2: 32-byte alignment
-        else if (features.avx || features.avx2) {
-            return 32;
-        }
-        // SSE2: 16-byte alignment
-        else if (features.sse2) {
-            return 16;
-        }
-        // ARM NEON: 16-byte alignment
-        else if (features.neon) {
-            return 16;
-        }
-        // Default cache line alignment
-        else {
-            return features.cache_line_size > 0 ? features.cache_line_size : 64;
-        }
-    }
+    std::size_t get_optimal_alignment();
     
     /**
      * @brief Get optimized minimum size for SIMD operations
      * @return Minimum size threshold for SIMD benefit
      */
-    inline std::size_t get_min_simd_size() {
-        const auto& features = cpu::get_features();
-        
-        // Higher-end SIMD can handle smaller datasets efficiently
-        if (features.avx512f) {
-            return 4;
-        }
-        else if (features.avx2 || features.fma) {
-            return 6;
-        }
-        else if (features.avx || features.sse4_2) {
-            return 8;
-        }
-        else if (features.sse2 || features.neon) {
-            return 12;
-        }
-        else {
-            return 32;  // No SIMD benefit until larger sizes
-        }
-    }
+    std::size_t get_min_simd_size();
     
     /**
      * @brief Get optimized parallel processing thresholds based on CPU features
      * @return Optimal minimum elements for parallel processing
      */
-    inline std::size_t get_min_parallel_elements() {
-        const auto& features = cpu::get_features();
-        
-        // More powerful SIMD allows for lower parallel thresholds
-        if (features.avx512f) {
-            return 256;
-        }
-        else if (features.avx2 || features.fma) {
-            return 384;
-        }
-        else if (features.avx) {
-            return 512;
-        }
-        else if (features.sse4_2) {
-            return 768;
-        }
-        else if (features.sse2 || features.neon) {
-            return 1024;
-        }
-        else {
-            return 2048;  // Higher threshold for scalar operations
-        }
-    }
+    std::size_t get_min_parallel_elements();
     
     /**
      * @brief Get platform-optimized grain size for parallel operations
      * @return Optimal grain size for work distribution
      */
-    inline std::size_t get_optimal_grain_size() {
-        const auto& features = cpu::get_features();
-        const std::size_t optimal_block = get_optimal_simd_block_size();
-        
-        // Grain size should be a multiple of SIMD block size
-        // and account for cache line efficiency
-        const std::size_t cache_line_elements = features.cache_line_size / sizeof(double);
-        const std::size_t base_grain = std::max(optimal_block * 8, cache_line_elements);
-        
-        // Adjust based on CPU capabilities
-        if (features.avx512f) {
-            return base_grain * 2;  // Can handle larger chunks efficiently
-        }
-        else if (features.avx2 || features.fma) {
-            return static_cast<std::size_t>(std::round(static_cast<double>(base_grain) * 1.5));
-        }
-        else {
-            return base_grain;
-        }
-    }
+    std::size_t get_optimal_grain_size();
     
     /**
      * @brief Check if platform supports efficient transcendental functions
      * @return True if CPU has hardware support for fast transcendental operations
      */
-    inline bool supports_fast_transcendental() {
-        const auto& features = cpu::get_features();
-        // FMA typically indicates more modern CPU with better transcendental support
-        return features.fma || features.avx2 || features.avx512f;
-    }
+    bool supports_fast_transcendental();
     
     /**
      * @brief Get cache-optimized thresholds for algorithms
@@ -850,27 +740,7 @@ namespace platform {
         std::size_t blocking_size;      // Optimal blocking size for cache tiling
     };
     
-    inline CacheThresholds get_cache_thresholds() {
-        const auto& features = cpu::get_features();
-        CacheThresholds thresholds{};
-        
-        // Convert cache sizes from bytes to number of doubles
-        thresholds.l1_optimal_size = features.l1_cache_size > 0 ? 
-            (features.l1_cache_size / sizeof(double)) / 2 : 4096;  // Use half of L1
-        
-        thresholds.l2_optimal_size = features.l2_cache_size > 0 ? 
-            (features.l2_cache_size / sizeof(double)) / 2 : 32768;
-        
-        thresholds.l3_optimal_size = features.l3_cache_size > 0 ? 
-            (features.l3_cache_size / sizeof(double)) / 4 : 262144;
-        
-        // Blocking size for cache tiling (typically sqrt of L1 size)
-        thresholds.blocking_size = static_cast<std::size_t>(
-            std::sqrt(static_cast<double>(thresholds.l1_optimal_size))
-        );
-        
-        return thresholds;
-    }
+    CacheThresholds get_cache_thresholds();
 }
 
 /// Cache system optimization constants

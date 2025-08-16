@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
+#endif
+
 #include <gtest/gtest.h>
 #include "../include/distributions/poisson.h"
 #include "enhanced_test_template.h"
@@ -813,3 +818,8 @@ TEST_F(PoissonEnhancedTest, NumericalStabilityAndEdgeCases) {
 }
 
 } // namespace libstats
+
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif

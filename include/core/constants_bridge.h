@@ -9,13 +9,9 @@ namespace constants {
 // Now using lightweight PIMPL interface (Phase 2 optimization)
 namespace parallel {
     // Bridge to PIMPL functions for runtime optimization
-    inline std::size_t get_simple_operation_grain_size() {
-        return libstats::constants::parallel::get_simple_operation_grain_size();
-    }
+    std::size_t get_simple_operation_grain_size();
     
-    inline std::size_t get_min_elements_for_distribution_parallel() {
-        return libstats::constants::parallel::get_min_elements_for_distribution_parallel();
-    }
+    std::size_t get_min_elements_for_distribution_parallel();
     
     // Legacy constants for backward compatibility (static fallbacks)
     // NOTE: SIMPLE_OPERATION_GRAIN_SIZE is defined in platform_constants_impl.cpp to avoid ODR violations
@@ -24,17 +20,13 @@ namespace parallel {
     
     // Adaptive functions - bridge to PIMPL implementation
     namespace adaptive {
-        inline std::size_t grain_size() {
-            return libstats::constants::parallel::get_default_grain_size();
-        }
+        std::size_t grain_size();
     }
 }
 
 // SIMD constants bridge - now using PIMPL
 namespace simd {
-    inline std::size_t get_default_block_size() {
-        return libstats::constants::simd::get_default_block_size();
-    }
+    std::size_t get_default_block_size();
     
     // Legacy constant for backward compatibility
     inline constexpr std::size_t DEFAULT_BLOCK_SIZE = 8;
@@ -51,25 +43,15 @@ namespace simd {
 
 // Platform functions bridge - lightweight access to PIMPL functions
 namespace platform {
-    inline std::size_t get_optimal_simd_block_size() {
-        return libstats::constants::platform::get_optimal_simd_block_size();
-    }
+    std::size_t get_optimal_simd_block_size();
     
-    inline std::size_t get_optimal_alignment() {
-        return libstats::constants::platform::get_optimal_alignment();
-    }
+    std::size_t get_optimal_alignment();
     
-    inline std::size_t get_min_simd_size() {
-        return libstats::constants::platform::get_min_simd_size();
-    }
+    std::size_t get_min_simd_size();
     
-    inline auto get_cache_thresholds() {
-        return libstats::constants::platform::get_cache_thresholds();
-    }
+    libstats::constants::platform::CacheThresholds get_cache_thresholds();
     
-    inline bool supports_fast_transcendental() {
-        return libstats::constants::platform::supports_fast_transcendental();
-    }
+    bool supports_fast_transcendental();
 }
 
 } // namespace constants

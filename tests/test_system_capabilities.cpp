@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
+#endif
+
 // Use focused header for system capabilities testing
 #include "../include/core/performance_dispatcher.h"
 #include <thread>
@@ -243,3 +248,8 @@ TEST_F(SystemCapabilitiesIntegrationTest, ConsistentResults) {
     EXPECT_DOUBLE_EQ(caps1.threading_overhead_ns(), caps2.threading_overhead_ns());
     EXPECT_DOUBLE_EQ(caps1.memory_bandwidth_gb_s(), caps2.memory_bandwidth_gb_s());
 }
+
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif

@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
+#endif
+
 #include "core/performance_history.h"
 #include "core/performance_dispatcher.h"
 #include <gtest/gtest.h>
@@ -195,3 +200,8 @@ TEST_F(PerformanceHistoryTest, PerformanceSnapshotCopyable) {
     assigned = copy;
     EXPECT_EQ(assigned.getAverageTimeNs(), 1500);
 }
+
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif

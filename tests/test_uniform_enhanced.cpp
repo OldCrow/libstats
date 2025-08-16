@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
+#endif
+
 #include <gtest/gtest.h>
 #include "../include/distributions/uniform.h"
 #include "enhanced_test_template.h"
@@ -844,3 +849,8 @@ TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
 }
 
 } // namespace libstats
+
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
