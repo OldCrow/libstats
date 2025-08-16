@@ -100,7 +100,7 @@ void demonstrate_smart_dispatch() {
             std::chrono::high_resolution_clock::now() - start).count();
         
         // Store timing data
-        timing_results.emplace_back(size, time_no_hint, time_accuracy, time_speed);
+        timing_results.emplace_back(size, static_cast<long>(time_no_hint), static_cast<long>(time_accuracy), static_cast<long>(time_speed));
         
         std::cout << std::left << std::setw(12) << size
                   << std::setw(18) << (std::to_string(time_no_hint) + " μs")

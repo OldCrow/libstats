@@ -265,10 +265,10 @@ void compare_performance() {
     
     // Find fastest
     std::vector<std::pair<std::string, long>> times = {
-        {"Uniform", uniform_time},
-        {"Exponential", exp_time},
-        {"Gaussian", gaussian_time},
-        {"Poisson", poisson_time}
+        {"Uniform", static_cast<long>(uniform_time)},
+        {"Exponential", static_cast<long>(exp_time)},
+        {"Gaussian", static_cast<long>(gaussian_time)},
+        {"Poisson", static_cast<long>(poisson_time)}
     };
     
     auto fastest = *std::min_element(times.begin(), times.end(), 
