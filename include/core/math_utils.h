@@ -4,6 +4,7 @@
 #include "constants.h"  // Math utils needs the full constants
 #include "safety.h"
 #include "../platform/simd.h"
+#include <array>  // Required for std::array return type in sample_moments function
 
 /**
  * @file math_utils.h
