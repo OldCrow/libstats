@@ -262,7 +262,7 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
         
         // Use empirical minimum thresholds, scaled by system characteristics
         size_t empirical_parallel_threshold = static_cast<size_t>(
-            chars.min_parallel_threshold * complexity_scaling
+            static_cast<double>(chars.min_parallel_threshold) * complexity_scaling
         );
         
         // Assign to distribution-specific thresholds

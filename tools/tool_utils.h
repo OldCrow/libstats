@@ -153,7 +153,7 @@ namespace format {
      * @return String containing the separator line
      */
     inline std::string separator(int width, char character = '-') {
-        return std::string(width, character);
+        return std::string(static_cast<std::size_t>(width), character);
     }
 
     /**
@@ -234,7 +234,7 @@ namespace table {
          * @return Formatted separator string
          */
         std::string getSeparator(char character = '-') const {
-            return std::string(getTotalWidth(), character);
+            return std::string(static_cast<std::size_t>(getTotalWidth()), character);
         }
 
     private:
@@ -274,9 +274,9 @@ namespace display {
      */
     inline void sectionHeader(const std::string& title, char separator_char = '=') {
         const int separator_width = static_cast<int>(title.length() + 4);
-        std::cout << "\n" << std::string(separator_width, separator_char) << "\n";
+        std::cout << "\n" << std::string(static_cast<std::size_t>(separator_width), separator_char) << "\n";
         std::cout << "  " << title << "\n";
-        std::cout << std::string(separator_width, separator_char) << "\n\n";
+        std::cout << std::string(static_cast<std::size_t>(separator_width), separator_char) << "\n\n";
     }
 
     /**

@@ -710,7 +710,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
         // Should be reasonably close to true parameters (within 3 standard errors)
         double expected_mean = true_params[i].first;
         double expected_std = true_params[i].second;
-        double n = datasets[i].size();
+        [[maybe_unused]] double n = static_cast<double>(datasets[i].size());
         
         double mean_tolerance = 3.0 * expected_std / std::sqrt(n);  // 3 standard errors
         double std_tolerance = 0.1 * expected_std;  // 10% tolerance for std dev estimation
@@ -780,7 +780,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
     std::atomic<int> total_calls{0};
     
     for (int t = 0; t < num_threads; ++t) {
-        threads.emplace_back([&datasets, &successful_calls, &total_calls, calls_per_thread]() {
+        threads.emplace_back([&datasets, &successful_calls, &total_calls]() {
             for (int call = 0; call < calls_per_thread; ++call) {
                 try {
                     std::vector<GaussianDistribution> thread_results(datasets.size());

@@ -194,7 +194,7 @@ void demonstrate_sampling() {
     
     std::cout << "🎲 10 samples from Poisson(λ=1.5): ";
     for (int i = 0; i < 10; ++i) {
-        int sample = low_rate_dist.sample(rng);
+        int sample = static_cast<int>(low_rate_dist.sample(rng));
         std::cout << std::setw(3) << sample;
     }
     std::cout << std::endl;
@@ -202,7 +202,7 @@ void demonstrate_sampling() {
     std::cout << "🎲 10 samples from Poisson(λ=8.0):  ";
     rng.seed(42); // Reset for comparison
     for (int i = 0; i < 10; ++i) {
-        int sample = high_rate_dist.sample(rng);
+        int sample = static_cast<int>(high_rate_dist.sample(rng));
         std::cout << std::setw(3) << sample;
     }
     std::cout << std::endl;
@@ -224,7 +224,7 @@ void demonstrate_parameter_estimation() {
     std::cout << "📦 Generated 5000 samples from Poisson(λ=" << true_lambda << ")" << std::endl;
     
     // For Poisson distribution, MLE of λ is simply the sample mean
-    double estimated_lambda = std::accumulate(sample_data.begin(), sample_data.end(), 0.0) / sample_data.size();
+    double estimated_lambda = std::accumulate(sample_data.begin(), sample_data.end(), 0.0) / static_cast<double>(sample_data.size());
     
     std::cout << "\n🔍 Parameter estimation results:\n";
     std::cout << "     True λ: " << std::fixed << std::setprecision(4) << true_lambda << std::endl;
@@ -258,9 +258,9 @@ void demonstrate_parameter_estimation() {
               [](const auto& a, const auto& b) { return a.second > b.second; });
     
     for (int i = 0; i < std::min(5, static_cast<int>(freq_pairs.size())); ++i) {
-        std::cout << "       " << freq_pairs[i].first << ": " << freq_pairs[i].second 
+        std::cout << "       " << freq_pairs[static_cast<std::size_t>(i)].first << ": " << freq_pairs[static_cast<std::size_t>(i)].second 
                   << " times (" << std::fixed << std::setprecision(1) 
-                  << (100.0 * freq_pairs[i].second / sample_data.size()) << "%)" << std::endl;
+                  << (100.0 * static_cast<double>(freq_pairs[static_cast<std::size_t>(i)].second) / static_cast<double>(sample_data.size())) << "%)" << std::endl;
     }
 }
 

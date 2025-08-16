@@ -286,9 +286,9 @@ private:
         result.distribution_name = dist_name;
         result.operation_name = operation_name;
         result.test_size = test_data.size();
-        result.scalar_time_ns = scalar_time;
-        result.simd_time_ns = simd_time;
-        result.speedup_ratio = static_cast<double>(scalar_time) / simd_time;
+        result.scalar_time_ns = static_cast<double>(scalar_time);
+        result.simd_time_ns = static_cast<double>(simd_time);
+        result.speedup_ratio = static_cast<double>(scalar_time) / static_cast<double>(simd_time);
         result.simd_level_used = active_simd_level_;
         
         analyzeDifferences(scalar_results, simd_results, result);
@@ -368,7 +368,7 @@ private:
             sum_differences += diff;
         }
         
-        result.avg_difference = sum_differences / scalar_results.size();
+        result.avg_difference = sum_differences / static_cast<double>(scalar_results.size());
         result.correctness_passed = (result.failed_comparisons == 0);
         result.error_details = error_stream.str();
         
@@ -459,15 +459,15 @@ private:
         
         // Summary statistics
         size_t total_tests = results_.size();
-        size_t passed_tests = std::count_if(results_.begin(), results_.end(),
-                                          [](const auto& r) { return r.correctness_passed; });
+        size_t passed_tests = static_cast<size_t>(std::count_if(results_.begin(), results_.end(),
+                                          [](const auto& r) { return r.correctness_passed; }));
         
         std::cout << "\n=== Summary ===\n";
         std::cout << "SIMD Level Tested: " << active_simd_level_ << "\n";
         std::cout << "Total tests: " << total_tests << "\n";
         std::cout << "Passed: " << passed_tests << " (" 
                   << std::fixed << std::setprecision(1) 
-                  << (100.0 * passed_tests / total_tests) << "%)\n";
+                  << (100.0 * static_cast<double>(passed_tests) / static_cast<double>(total_tests)) << "%)\n";
         std::cout << "Failed: " << (total_tests - passed_tests) << "\n\n";
         
         // Detailed results table

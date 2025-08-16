@@ -148,12 +148,12 @@ void compare_sampling_behavior() {
     
     // Calculate empirical statistics
     auto calc_stats = [](const auto& samples) {
-        double mean = std::accumulate(samples.begin(), samples.end(), 0.0) / samples.size();
+        double mean = std::accumulate(samples.begin(), samples.end(), 0.0) / static_cast<double>(samples.size());
         double variance = 0.0;
         for (auto val : samples) {
             variance += (val - mean) * (val - mean);
         }
-        variance /= (samples.size() - 1);
+        variance /= static_cast<double>(samples.size() - 1);
         auto [min_it, max_it] = std::minmax_element(samples.begin(), samples.end());
         return std::make_tuple(mean, variance, std::sqrt(variance), *min_it, *max_it);
     };
@@ -253,7 +253,7 @@ void compare_performance() {
         std::cout << "  " << std::left << std::setw(15) << name << ": " 
                   << std::right << std::setw(6) << duration.count() << " μs (" 
                   << std::setprecision(2) << std::fixed 
-                  << (duration.count() / double(n_operations)) << " μs/sample)" << std::endl;
+                  << (static_cast<double>(duration.count()) / static_cast<double>(n_operations)) << " μs/sample)" << std::endl;
         return duration.count();
     };
     

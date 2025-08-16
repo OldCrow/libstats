@@ -318,7 +318,7 @@ public:
                 auto end = std::chrono::high_resolution_clock::now();
                 
                 auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-                total_parallel_time += parallel_time.count() / 1000.0;  // Convert to milliseconds
+                total_parallel_time += static_cast<double>(parallel_time.count()) / 1000.0;  // Convert to milliseconds
                 
                 // Sequential benchmark
                 std::vector<Distribution> sequential_results(datasets.size());
@@ -329,7 +329,7 @@ public:
                 end = std::chrono::high_resolution_clock::now();
                 
                 auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-                total_sequential_time += sequential_time.count() / 1000.0;  // Convert to milliseconds
+                total_sequential_time += static_cast<double>(sequential_time.count()) / 1000.0;  // Convert to milliseconds
                 
                 // Verify correctness on first trial
                 if (trial == 0) {
@@ -337,8 +337,8 @@ public:
                 }
             }
             
-            result.parallel_time_ms = total_parallel_time / num_trials;
-            result.sequential_time_ms = total_sequential_time / num_trials;
+            result.parallel_time_ms = total_parallel_time / static_cast<double>(num_trials);
+            result.sequential_time_ms = total_sequential_time / static_cast<double>(num_trials);
             result.speedup = result.sequential_time_ms > 0 ? 
                 result.sequential_time_ms / result.parallel_time_ms : 0.0;
             result.efficiency = result.speedup / std::thread::hardware_concurrency();
@@ -379,7 +379,7 @@ private:
         }
         
         // Return accuracy score (1.0 = perfect, 0.0 = completely wrong)
-        double avg_error = count > 0 ? total_error / count : 1.0;
+        double avg_error = count > 0 ? total_error / static_cast<double>(count) : 1.0;
         return std::max(0.0, 1.0 - avg_error);
     }
     
@@ -448,7 +448,7 @@ public:
         
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
-        summary.total_runtime_seconds = duration.count();
+        summary.total_runtime_seconds = static_cast<double>(duration.count());
         
         printSummary(summary);
         
@@ -527,7 +527,7 @@ private:
         std::cout << "Total tests: " << total_tests << "\n";
         std::cout << "Successful: " << successful_tests << " (" 
                  << std::fixed << std::setprecision(1)
-                 << (100.0 * successful_tests / total_tests) << "%)\n";
+                 << (100.0 * static_cast<double>(successful_tests) / static_cast<double>(total_tests)) << "%)\n";
         std::cout << "Failed: " << failed_tests << "\n";
         std::cout << "Runtime: " << summary.total_runtime_seconds << " seconds\n\n";
         
@@ -558,8 +558,8 @@ private:
                 avg_efficiency += result->efficiency;
             }
             
-            avg_speedup /= results.size();
-            avg_efficiency /= results.size();
+            avg_speedup /= static_cast<double>(results.size());
+            avg_efficiency /= static_cast<double>(results.size());
             
             std::cout << std::left << std::setw(12) << dist_name
                      << std::right << std::fixed << std::setprecision(2)

@@ -197,7 +197,7 @@ namespace scaling {
         // Diminishing returns: Amdahl's law approximation
         double overhead_factor = 1.0 / (1.0 + (0.1 / chars.base_complexity));
         
-        return std::min(thread_efficiency * overhead_factor, static_cast<double>(num_threads * 0.85));
+        return std::min(thread_efficiency * overhead_factor, static_cast<double>(num_threads) * 0.85);
     }
 }
 

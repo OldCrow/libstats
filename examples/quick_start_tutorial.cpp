@@ -65,7 +65,7 @@ int main() {
     // Multiple samples
     auto normal_samples = normal.sample(rng, 1000);
     std::cout << "   Generated 1000 normal samples, first 5: ";
-    for (int i = 0; i < 5; ++i) {
+    for (std::size_t i = 0; i < 5; ++i) {
         std::cout << normal_samples[i] << " ";
     }
     std::cout << std::endl;

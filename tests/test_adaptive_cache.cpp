@@ -375,7 +375,7 @@ void test_string_key_performance_degradation() {
         auto total_time = std::chrono::duration_cast<std::chrono::microseconds>(total_end - total_start);
         
         // Calculate performance metrics
-        double ops_per_second = (static_cast<double>(batch_size) / total_time.count()) * 1000000.0;
+        double ops_per_second = (static_cast<double>(batch_size) / static_cast<double>(total_time.count())) * 1000000.0;
         
         // Determine performance trend
         std::string performance_trend;

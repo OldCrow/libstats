@@ -263,7 +263,7 @@ void demonstrate_sampling_safety() {
     // Safe sampling with error handling
     auto safe_sample = [](auto& dist, std::mt19937& rng, int n_samples) -> std::vector<double> {
         std::vector<double> samples;
-        samples.reserve(n_samples);
+        samples.reserve(static_cast<std::size_t>(n_samples));
         
         try {
             for (int i = 0; i < n_samples; ++i) {
@@ -310,7 +310,7 @@ void demonstrate_sampling_safety() {
         std::cout << "   NaN samples: " << nan_count << std::endl;
         std::cout << "   Infinite samples: " << inf_count << std::endl;
         std::cout << "   Sample mean: " << std::fixed << std::setprecision(4) 
-                  << sum / (batch_samples.size() - nan_count - inf_count) << std::endl;
+                  << sum / static_cast<double>(batch_samples.size() - static_cast<std::size_t>(nan_count) - static_cast<std::size_t>(inf_count)) << std::endl;
         
         if (nan_count > 0 || inf_count > 0) {
             std::cout << "⚠️  Warning: Found problematic samples!" << std::endl;
@@ -326,7 +326,7 @@ void demonstrate_sampling_safety() {
     std::cout << "\n🌱 RNG seeding best practices:" << std::endl;
     
     // Method 1: Time-based seeding
-    auto time_seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    auto time_seed = static_cast<std::uint_fast32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     std::mt19937 time_rng(time_seed);
     std::cout << "✅ Time-based seeding for non-reproducible results" << std::endl;
     
@@ -485,13 +485,13 @@ void demonstrate_recovery_strategies() {
         
         // Compute statistics on clean data
         double sum = std::accumulate(clean_data.begin(), clean_data.end(), 0.0);
-        double mean = sum / clean_data.size();
+        double mean = sum / static_cast<double>(clean_data.size());
         
         double variance = 0.0;
         for (double val : clean_data) {
             variance += (val - mean) * (val - mean);
         }
-        variance /= (clean_data.size() - 1);
+        variance /= static_cast<double>(clean_data.size() - 1);
         
         std::cout << "📊 Robust statistics computed:" << std::endl;
         std::cout << "   Original data size: " << data.size() << std::endl;

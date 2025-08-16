@@ -721,7 +721,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
         
         // Should be reasonably close to true parameters (within 3 standard errors)
         double expected_lambda = true_lambdas[i];
-        double n = datasets[i].size();
+        [[maybe_unused]] double n = static_cast<double>(datasets[i].size());
         
         // For exponential distribution, std error of lambda estimate is lambda/sqrt(n)
         double lambda_tolerance = 3.0 * expected_lambda / std::sqrt(n);
@@ -785,8 +785,8 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
     
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
-            concurrent_results[t].resize(datasets.size());
-            ExponentialDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+            concurrent_results[static_cast<size_t>(t)].resize(datasets.size());
+            ExponentialDistribution::parallelBatchFit(datasets, concurrent_results[static_cast<size_t>(t)]);
         });
     }
     
@@ -797,7 +797,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
     // Verify all concurrent results match
     for (int t = 0; t < num_threads; ++t) {
         for (size_t i = 0; i < datasets.size(); ++i) {
-            EXPECT_NEAR(concurrent_results[t][i].getLambda(), batch_results[i].getLambda(), 1e-10)
+            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getLambda(), batch_results[i].getLambda(), 1e-10)
                 << "Thread " << t << " result mismatch for dataset " << i;
         }
     }

@@ -356,11 +356,11 @@ private:
                 
                 // Record performance for SCALAR strategy
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::SCALAR, dist_type, batch_size, duration.count()
+                    Strategy::SCALAR, dist_type, batch_size, static_cast<std::uint64_t>(duration.count())
                 );
                 
                 std::cout << "  PDF (scalar): " << libstats::tools::time::formatDuration(duration)
-                         << " (" << (duration.count() / batch_size) << "ns/op)" << std::endl;
+                         << " (" << (static_cast<std::uint64_t>(duration.count()) / batch_size) << "ns/op)" << std::endl;
             }
             
             // Test CDF operations (higher complexity)
@@ -377,27 +377,27 @@ private:
                 if (batch_size >= MIN_SIMD_BATCH_SIZE) {
                     auto simd_duration = duration / SIMD_SPEEDUP_FACTOR;
                     PerformanceDispatcher::recordPerformance(
-                        Strategy::SIMD_BATCH, dist_type, batch_size, simd_duration.count()
+                        Strategy::SIMD_BATCH, dist_type, batch_size, static_cast<std::uint64_t>(simd_duration.count())
                     );
                     std::cout << "  CDF (simd):   " << libstats::tools::time::formatDuration(simd_duration)
-                             << " (" << (simd_duration.count() / batch_size) << "ns/op)" << std::endl;
+                             << " (" << (static_cast<std::uint64_t>(simd_duration.count()) / batch_size) << "ns/op)" << std::endl;
                 }
                 
                 // Simulate parallel performance for very large batches
                 if (batch_size >= MIN_PARALLEL_BATCH_SIZE) {
                     auto parallel_duration = duration / PARALLEL_SPEEDUP_FACTOR;
                     PerformanceDispatcher::recordPerformance(
-                        Strategy::PARALLEL_SIMD, dist_type, batch_size, parallel_duration.count()
+                        Strategy::PARALLEL_SIMD, dist_type, batch_size, static_cast<std::uint64_t>(parallel_duration.count())
                     );
                     std::cout << "  CDF (parallel): " << libstats::tools::time::formatDuration(parallel_duration)
-                             << " (" << (parallel_duration.count() / batch_size) << "ns/op)" << std::endl;
+                             << " (" << (static_cast<std::uint64_t>(parallel_duration.count()) / batch_size) << "ns/op)" << std::endl;
                 }
                 
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::SCALAR, dist_type, batch_size, duration.count()
+                    Strategy::SCALAR, dist_type, batch_size, static_cast<std::uint64_t>(duration.count())
                 );
                 std::cout << "  CDF (scalar): " << libstats::tools::time::formatDuration(duration)
-                         << " (" << (duration.count() / batch_size) << "ns/op)" << std::endl;
+                         << " (" << (static_cast<std::uint64_t>(duration.count()) / batch_size) << "ns/op)" << std::endl;
             }
             
             // For very large batches, test advanced strategies
@@ -413,19 +413,19 @@ private:
                 // Simulate work-stealing
                 auto work_stealing_duration = base_duration / WORK_STEALING_SPEEDUP_FACTOR;
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::WORK_STEALING, dist_type, batch_size, work_stealing_duration.count()
+                    Strategy::WORK_STEALING, dist_type, batch_size, static_cast<std::uint64_t>(work_stealing_duration.count())
                 );
                 std::cout << "  Mixed (work-stealing): " << libstats::tools::time::formatDuration(work_stealing_duration)
-                         << " (" << (work_stealing_duration.count() / batch_size) << "ns/op)" << std::endl;
+                         << " (" << (static_cast<std::uint64_t>(work_stealing_duration.count()) / batch_size) << "ns/op)" << std::endl;
                 
                 if (batch_size >= MIN_CACHE_AWARE_BATCH_SIZE) {
                     // Simulate cache-aware
                     auto cache_aware_duration = base_duration / CACHE_AWARE_SPEEDUP_FACTOR;
                     PerformanceDispatcher::recordPerformance(
-                        Strategy::CACHE_AWARE, dist_type, batch_size, cache_aware_duration.count()
+                        Strategy::CACHE_AWARE, dist_type, batch_size, static_cast<std::uint64_t>(cache_aware_duration.count())
                     );
                     std::cout << "  Mixed (cache-aware): " << libstats::tools::time::formatDuration(cache_aware_duration)
-                             << " (" << (cache_aware_duration.count() / batch_size) << "ns/op)" << std::endl;
+                             << " (" << (static_cast<std::uint64_t>(cache_aware_duration.count()) / batch_size) << "ns/op)" << std::endl;
                 }
             }
         }
@@ -552,7 +552,7 @@ private:
         
         // Multiple runs per batch size to generate sufficient data
         constexpr int RUNS_PER_BATCH_SIZE = 3;
-        int total_operations = 6 * batch_sizes.size() * RUNS_PER_BATCH_SIZE; // 6 distributions * sizes * runs
+        int total_operations = static_cast<int>(6 * batch_sizes.size() * RUNS_PER_BATCH_SIZE); // 6 distributions * sizes * runs
         int completed = 0;
         
         // Enhanced testing with multiple strategies per size
@@ -608,7 +608,7 @@ private:
                 completed += batch_sizes.size();
             }
             
-            double progress = (double)completed / total_operations * 100.0;
+            double progress = static_cast<double>(completed) / static_cast<double>(total_operations) * 100.0;
             std::cout << "Progress: " << std::fixed << std::setprecision(1) << progress << "%\n";
         }
         
@@ -641,7 +641,7 @@ private:
                 auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
                 
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::SCALAR, dist_type, batch_size, duration.count()
+                    Strategy::SCALAR, dist_type, batch_size, static_cast<uint64_t>(duration.count())
                 );
             }
             
@@ -658,7 +658,7 @@ private:
                 // Simulate SIMD improvement
                 auto simd_duration = base_duration / SIMD_SPEEDUP_FACTOR;
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::SIMD_BATCH, dist_type, batch_size, simd_duration.count()
+                    Strategy::SIMD_BATCH, dist_type, batch_size, static_cast<uint64_t>(simd_duration.count())
                 );
             }
             
@@ -675,7 +675,7 @@ private:
                 // Simulate parallel improvement
                 auto parallel_duration = base_duration / PARALLEL_SPEEDUP_FACTOR;
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::PARALLEL_SIMD, dist_type, batch_size, parallel_duration.count()
+                    Strategy::PARALLEL_SIMD, dist_type, batch_size, static_cast<uint64_t>(parallel_duration.count())
                 );
             }
             
@@ -691,7 +691,7 @@ private:
                 
                 auto work_stealing_duration = base_duration / WORK_STEALING_SPEEDUP_FACTOR;
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::WORK_STEALING, dist_type, batch_size, work_stealing_duration.count()
+                    Strategy::WORK_STEALING, dist_type, batch_size, static_cast<std::uint64_t>(work_stealing_duration.count())
                 );
             }
             
@@ -708,7 +708,7 @@ private:
                 
                 auto cache_aware_duration = base_duration / CACHE_AWARE_SPEEDUP_FACTOR;
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::CACHE_AWARE, dist_type, batch_size, cache_aware_duration.count()
+                    Strategy::CACHE_AWARE, dist_type, batch_size, static_cast<std::uint64_t>(cache_aware_duration.count())
                 );
             }
         }
@@ -848,7 +848,7 @@ private:
             }
             
             if (total_distributions > 0) {
-                double effectiveness = (double)effective_distributions / total_distributions * 100.0;
+                double effectiveness = static_cast<double>(effective_distributions) / static_cast<double>(total_distributions) * 100.0;
                 std::cout << "  " << strings::strategyToDisplayString(strategy) 
                          << ": " << std::fixed << std::setprecision(1) << effectiveness 
                          << "% effective (" << effective_distributions << "/" << total_distributions << " distributions)\n";

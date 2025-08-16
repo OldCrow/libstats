@@ -716,7 +716,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchFittingTests) {
         
         for (int i = 0; i < 1000; ++i) {
             int outcome_index = gen(rng);
-            dataset.push_back(static_cast<double>(values[outcome_index]));
+            dataset.push_back(static_cast<double>(values[static_cast<size_t>(outcome_index)]));
         }
         
         datasets.push_back(std::move(dataset));
@@ -833,8 +833,8 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchFittingTests) {
     
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
-            concurrent_results[t].resize(datasets.size());
-            DiscreteDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+            concurrent_results[static_cast<size_t>(t)].resize(datasets.size());
+            DiscreteDistribution::parallelBatchFit(datasets, concurrent_results[static_cast<size_t>(t)]);
         });
     }
     
@@ -845,18 +845,18 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchFittingTests) {
     // Verify all concurrent results match
     for (int t = 0; t < num_threads; ++t) {
         for (size_t i = 0; i < datasets.size(); ++i) {
-            int thread_lower = static_cast<int>(concurrent_results[t][i].getSupportLowerBound());
-            int thread_upper = static_cast<int>(concurrent_results[t][i].getSupportUpperBound());
-            int batch_lower = static_cast<int>(batch_results[i].getSupportLowerBound());
-            int batch_upper = static_cast<int>(batch_results[i].getSupportUpperBound());
+            int thread_lower = static_cast<int>(concurrent_results[static_cast<size_t>(t)][i].getSupportLowerBound());
+            int thread_upper = static_cast<int>(concurrent_results[static_cast<size_t>(t)][i].getSupportUpperBound());
+            int expected_lower = static_cast<int>(batch_results[i].getSupportLowerBound());
+            int expected_upper = static_cast<int>(batch_results[i].getSupportUpperBound());
             
-            EXPECT_EQ(thread_lower, batch_lower)
+            EXPECT_EQ(thread_lower, expected_lower)
                 << "Thread " << t << " lower bound mismatch for dataset " << i;
-            EXPECT_EQ(thread_upper, batch_upper)
+            EXPECT_EQ(thread_upper, expected_upper)
                 << "Thread " << t << " upper bound mismatch for dataset " << i;
             
-            for (int value = batch_lower; value <= batch_upper; ++value) {
-                EXPECT_NEAR(concurrent_results[t][i].getProbability(value), batch_results[i].getProbability(value), 1e-10)
+            for (int value = expected_lower; value <= expected_upper; ++value) {
+                EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getProbability(value), batch_results[i].getProbability(value), 1e-10)
                     << "Thread " << t << " probability mismatch for dataset " << i << " at value " << value;
             }
         }

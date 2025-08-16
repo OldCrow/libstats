@@ -851,8 +851,8 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
     
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
-            concurrent_results[t].resize(datasets.size());
-            GammaDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+            concurrent_results[static_cast<size_t>(t)].resize(datasets.size());
+            GammaDistribution::parallelBatchFit(datasets, concurrent_results[static_cast<size_t>(t)]);
         });
     }
     
@@ -863,9 +863,9 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
     // Verify all concurrent results match
     for (int t = 0; t < num_threads; ++t) {
         for (size_t i = 0; i < datasets.size(); ++i) {
-            EXPECT_NEAR(concurrent_results[t][i].getAlpha(), batch_results[i].getAlpha(), 1e-10)
+            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getAlpha(), batch_results[i].getAlpha(), 1e-10)
                 << "Thread " << t << " alpha result mismatch for dataset " << i;
-            EXPECT_NEAR(concurrent_results[t][i].getBeta(), batch_results[i].getBeta(), 1e-10)
+            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getBeta(), batch_results[i].getBeta(), 1e-10)
                 << "Thread " << t << " beta result mismatch for dataset " << i;
         }
     }

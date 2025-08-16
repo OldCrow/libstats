@@ -66,7 +66,7 @@ private:
     
     template<typename Dist>
     std::vector<double> generate_test_data(size_t size, int seed = 12345) {
-        std::mt19937 gen(seed);
+        std::mt19937 gen(static_cast<std::mt19937::result_type>(seed));
         std::vector<double> data(size);
         
         if constexpr (std::is_same_v<Dist, DiscreteDistribution>) {
@@ -117,7 +117,7 @@ private:
         auto dist = dist_result.value;
         std::vector<double> results(inputs.size());
         
-        libstats::ThreadPool pool(num_threads);
+        libstats::ThreadPool pool(static_cast<std::size_t>(num_threads));
         
         auto worker = [&](size_t start, size_t end) {
             for (size_t i = start; i < end; ++i) {
@@ -131,12 +131,12 @@ private:
             }
         };
         
-        size_t chunk_size = inputs.size() / num_threads;
+        size_t chunk_size = inputs.size() / static_cast<std::size_t>(num_threads);
         std::vector<std::future<void>> futures;
         
         for (int t = 0; t < num_threads; ++t) {
-            size_t start = t * chunk_size;
-            size_t end = (t == num_threads - 1) ? inputs.size() : (t + 1) * chunk_size;
+            size_t start = static_cast<std::size_t>(t) * chunk_size;
+            size_t end = (t == num_threads - 1) ? inputs.size() : (static_cast<std::size_t>(t) + 1) * chunk_size;
             futures.push_back(pool.submit(worker, start, end));
         }
         
@@ -484,19 +484,19 @@ public:
                 avg_speedup += result->performance_ratio;
             }
             
-            avg_speedup /= total;
+            avg_speedup /= static_cast<double>(total);
             
             std::cout << "\n" << system << " Threading System:\n";
             std::cout << "  Total tests: " << total << "\n";
             std::cout << "  Correctness: " << correctness_passed << "/" << total 
                       << " (" << std::fixed << std::setprecision(1) 
-                      << (100.0 * correctness_passed / total) << "%)\n";
+                      << (100.0 * static_cast<double>(correctness_passed) / static_cast<double>(total)) << "%)\n";
             std::cout << "  Determinism: " << determinism_passed << "/" << total 
                       << " (" << std::fixed << std::setprecision(1) 
-                      << (100.0 * determinism_passed / total) << "%)\n";
+                      << (100.0 * static_cast<double>(determinism_passed) / static_cast<double>(total)) << "%)\n";
             std::cout << "  Thread Safety: " << thread_safety_passed << "/" << total 
                       << " (" << std::fixed << std::setprecision(1) 
-                      << (100.0 * thread_safety_passed / total) << "%)\n";
+                      << (100.0 * static_cast<double>(thread_safety_passed) / static_cast<double>(total)) << "%)\n";
             std::cout << "  Average speedup: " << std::fixed << std::setprecision(1) << avg_speedup << "x\n";
         }
         
@@ -542,7 +542,7 @@ public:
         for (const auto& result : results_) {
             overall_avg_speedup += result.performance_ratio;
         }
-        overall_avg_speedup /= results_.size();
+        overall_avg_speedup /= static_cast<double>(results_.size());
         
         if (overall_avg_speedup > 1.5) {
             std::cout << "✅ Parallel performance is meeting expectations (avg " << std::fixed << std::setprecision(1) << overall_avg_speedup << "x).\n";

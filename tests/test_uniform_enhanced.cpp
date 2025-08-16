@@ -740,7 +740,7 @@ TEST_F(UniformEnhancedTest, ParallelBatchFittingTests) {
         // Should be reasonably close to true parameters
         double expected_a = true_params[i].first;
         double expected_b = true_params[i].second;
-        double n = datasets[i].size();
+        [[maybe_unused]] double n = static_cast<double>(datasets[i].size());
         
         // For uniform distribution, the sample range should be close to true range
         // Allow some tolerance for sample variation
@@ -810,8 +810,8 @@ TEST_F(UniformEnhancedTest, ParallelBatchFittingTests) {
     
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
-            concurrent_results[t].resize(datasets.size());
-            UniformDistribution::parallelBatchFit(datasets, concurrent_results[t]);
+            concurrent_results[static_cast<size_t>(t)].resize(datasets.size());
+            UniformDistribution::parallelBatchFit(datasets, concurrent_results[static_cast<size_t>(t)]);
         });
     }
     
@@ -822,9 +822,9 @@ TEST_F(UniformEnhancedTest, ParallelBatchFittingTests) {
     // Verify all concurrent results match
     for (int t = 0; t < num_threads; ++t) {
         for (size_t i = 0; i < datasets.size(); ++i) {
-            EXPECT_NEAR(concurrent_results[t][i].getLowerBound(), batch_results[i].getLowerBound(), 1e-10)
+            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getLowerBound(), batch_results[i].getLowerBound(), 1e-10)
                 << "Thread " << t << " lower bound result mismatch for dataset " << i;
-            EXPECT_NEAR(concurrent_results[t][i].getUpperBound(), batch_results[i].getUpperBound(), 1e-10)
+            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getUpperBound(), batch_results[i].getUpperBound(), 1e-10)
                 << "Thread " << t << " upper bound result mismatch for dataset " << i;
         }
     }
