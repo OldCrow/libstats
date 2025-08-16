@@ -145,10 +145,10 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
     // Platform-specific adjustments
     #if defined(__APPLE__) && defined(__aarch64__)
         // Apple Silicon: Fast thread creation, can handle smaller grains
-        adjusted_grain = base_grain / constants::math::TWO;
+        adjusted_grain = static_cast<std::size_t>(base_grain / constants::math::TWO);
     #elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
         // High-end x86_64: Larger grains for better SIMD utilization
-        adjusted_grain = base_grain * constants::math::TWO;
+        adjusted_grain = static_cast<std::size_t>(base_grain * constants::math::TWO);
     #endif
     
     // Operation type adjustments
@@ -191,7 +191,10 @@ inline std::size_t get_optimal_thread_count([[maybe_unused]] std::size_t workloa
         
         // For very large workloads, consider using more threads
         if (workload_size > constants::benchmark::MAX_ITERATIONS) {
-            optimal_threads = std::min(logical_cores + constants::math::TWO, logical_cores * constants::math::THREE / constants::math::TWO);
+            optimal_threads = std::min(
+                static_cast<std::size_t>(logical_cores + constants::math::TWO), 
+                static_cast<std::size_t>(logical_cores * constants::math::THREE / constants::math::TWO)
+            );
         }
     #elif defined(__x86_64__)
         // x86_64: Balance between physical and logical cores
