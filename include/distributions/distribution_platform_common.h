@@ -18,7 +18,6 @@
 // Core platform optimization headers used by most distributions
 #include "../platform/simd.h"                   // SIMD operations (used by all distributions)
 #include "../platform/parallel_execution.h"     // Parallel execution policies (used by all)
-#include "../cache/adaptive_cache.h"         // Cache management (used by most)
 #include "../platform/work_stealing_pool.h"     // Work-stealing parallelism (used by most)
 
 // Thread pool integration - used by distributions with heavy batch operations
@@ -35,7 +34,7 @@ namespace platform_support {
     // Common platform integration types used across distributions
     using SIMDVectorWidth = std::size_t;
     using ParallelThreshold = std::size_t;
-    using CacheStrategy = cache::EvictionPolicy;
+    // Note: CacheStrategy moved to platform/cache_platform.h for components that need caching
 }
 
 } // namespace distributions

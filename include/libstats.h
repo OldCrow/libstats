@@ -180,12 +180,13 @@
     #include "platform/cpu_detection.h"
     #include "platform/parallel_execution.h"
     #include "platform/work_stealing_pool.h"
+    #include "platform/benchmark.h"
     
     // Advanced caching infrastructure
-#include "cache/adaptive_cache.h"
+    #include "platform/cache_platform.h"       // Cache-specific platform support
     
     // Performance infrastructure (v0.9.1 additions)
-#include "cache/distribution_cache.h"
+    #include "cache/distribution_cache.h"
     #include "core/performance_history.h"
     #include "core/performance_dispatcher.h"
     

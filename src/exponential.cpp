@@ -6,7 +6,6 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h" // For parallel execution policies
 #include "../include/platform/work_stealing_pool.h" // For WorkStealingPool
-#include "../include/cache/adaptive_cache.h" // For AdaptiveCache
 // ParallelUtils functionality is provided by parallel_execution.h
 #include "../include/core/dispatch_utils.h" // For DispatchUtils::autoDispatch
 #include <iostream>
@@ -1374,9 +1373,9 @@ void ExponentialDistribution::getProbability(std::span<const double> values, std
                 }
             });
         },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
+            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU performance
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1396,15 +1395,14 @@ void ExponentialDistribution::getProbability(std::span<const double> values, std
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
             const double cached_lambda = dist.lambda_;
             const double cached_neg_lambda = dist.negLambda_;
             const bool cached_is_unit_rate = dist.isUnitRate_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for dynamic load balancing (GPU fallback)
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < constants::math::ZERO_DOUBLE) {
                     res[i] = constants::math::ZERO_DOUBLE;
@@ -1541,8 +1539,9 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values, 
                 }
             });
         },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
+            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU performance
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1562,38 +1561,23 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values, 
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
             const double cached_log_lambda = dist.logLambda_;
             const double cached_neg_lambda = dist.negLambda_;
             const bool cached_is_unit_rate = dist.isUnitRate_;
             lock.unlock();
             
-            // Cache-aware processing: for exponential distribution, caching can be beneficial for logarithmic computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for dynamic load balancing (GPU fallback)
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "exp_logpdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_rate) {
+                    res[i] = -x;
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        result = constants::probability::NEGATIVE_INFINITY;
-                    } else if (cached_is_unit_rate) {
-                        result = -x;
-                    } else {
-                        result = cached_log_lambda + cached_neg_lambda * x;
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = cached_log_lambda + cached_neg_lambda * x;
                 }
-            }
+            });
         }
     );
 }
@@ -1718,8 +1702,9 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                 }
             });
         },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
+            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU performance
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1739,37 +1724,22 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
             const double cached_neg_lambda = dist.negLambda_;
             const bool cached_is_unit_rate = dist.isUnitRate_;
             lock.unlock();
             
-            // Cache-aware processing: for exponential distribution, caching can be beneficial for expensive exp() calls
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for dynamic load balancing (GPU fallback)
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "exp_cdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = constants::math::ONE - std::exp(-x);
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        result = constants::math::ZERO_DOUBLE;
-                    } else if (cached_is_unit_rate) {
-                        result = constants::math::ONE - std::exp(-x);
-                    } else {
-                        result = constants::math::ONE - std::exp(cached_neg_lambda * x);
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
                 }
-            }
+            });
         }
     );
 }
@@ -1890,8 +1860,9 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
                 }
             });
         },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
+            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU performance
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1911,38 +1882,23 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
             const double cached_lambda = dist.lambda_;
             const double cached_neg_lambda = dist.negLambda_;
             const bool cached_is_unit_rate = dist.isUnitRate_;
             lock.unlock();
             
-            // Cache-aware processing: for exponential distribution, caching can be beneficial for expensive exp() calls
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for dynamic load balancing (GPU fallback)
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "exp_pdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = std::exp(-x);
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        result = constants::math::ZERO_DOUBLE;
-                    } else if (cached_is_unit_rate) {
-                        result = std::exp(-x);
-                    } else {
-                        result = cached_lambda * std::exp(cached_neg_lambda * x);
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
                 }
-            }
+            });
         }
     );
 }
@@ -2059,8 +2015,9 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
                 }
             });
         },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
+            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU performance
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2080,38 +2037,23 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware processing
+            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) processing
             const double cached_log_lambda = dist.logLambda_;
             const double cached_neg_lambda = dist.negLambda_;
             const bool cached_is_unit_rate = dist.isUnitRate_;
             lock.unlock();
             
-            // Cache-aware processing: for exponential distribution, caching can be beneficial for logarithmic computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for dynamic load balancing (GPU fallback)
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "exp_logpdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_rate) {
+                    res[i] = -x;
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        result = constants::probability::NEGATIVE_INFINITY;
-                    } else if (cached_is_unit_rate) {
-                        result = -x;
-                    } else {
-                        result = cached_log_lambda + cached_neg_lambda * x;
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = cached_log_lambda + cached_neg_lambda * x;
                 }
-            }
+            });
         }
     );
 }
@@ -2225,8 +2167,9 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<con
                 }
             });
         },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
+            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU performance
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2246,37 +2189,22 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<con
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware processing
+            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) processing
             const double cached_neg_lambda = dist.negLambda_;
             const bool cached_is_unit_rate = dist.isUnitRate_;
             lock.unlock();
             
-            // Cache-aware processing: for exponential distribution, caching can be beneficial for expensive exp() calls
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for dynamic load balancing (GPU fallback)
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "exp_cdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x < constants::math::ZERO_DOUBLE) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (cached_is_unit_rate) {
+                    res[i] = constants::math::ONE - std::exp(-x);
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        result = constants::math::ZERO_DOUBLE;
-                    } else if (cached_is_unit_rate) {
-                        result = constants::math::ONE - std::exp(-x);
-                    } else {
-                        result = constants::math::ONE - std::exp(cached_neg_lambda * x);
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
                 }
-            }
+            });
         }
     );
 }

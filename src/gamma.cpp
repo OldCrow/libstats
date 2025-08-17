@@ -1465,7 +1465,7 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                 }
             });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
             // Cache-Aware lambda: For continuous distributions, caching is counterproductive
             // Fallback to parallel execution which is faster and more predictable
             if (vals.size() != res.size()) {
@@ -1495,9 +1495,9 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            // This approach avoids the cache contention issues that caused performance regression
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
                     res[i] = 0.0;
@@ -1631,9 +1631,8 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 }
             });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1653,16 +1652,15 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_beta = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
             const double cached_alpha_log_beta = dist.alphaLogBeta_;
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
                     res[i] = constants::probability::NEGATIVE_INFINITY;
@@ -1789,9 +1787,8 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 }
             });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1811,14 +1808,13 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_alpha = dist.alpha_;
             const double cached_beta = dist.beta_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
                     res[i] = 0.0;
@@ -1950,8 +1946,8 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
                 }
             });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // GPU-Accelerated lambda: should use cache.get and cache.put
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1972,37 +1968,22 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
             }
             
             // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_alpha = dist.alpha_;
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
             const double cached_beta = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
             const double cached_alpha_log_beta = dist.alphaLogBeta_;
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
             
-            // GPU-accelerated processing: for gamma distribution, caching can be beneficial for complex computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "gamma_pdf_" << x << "_" << cached_alpha << "_" << cached_beta;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x <= 0.0) {
-                        result = 0.0;
-                    } else {
-                        result = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) - cached_beta * x - cached_log_gamma_alpha);
                 }
-            }
+            });
         }
     );
 }
@@ -2123,8 +2104,8 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
                 }
             });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // GPU-Accelerated lambda: should use cache.get and cache.put
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2145,37 +2126,22 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             }
             
             // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_alpha = dist.alpha_;
+            [[maybe_unused]] const double cached_alpha = dist.alpha_;
             const double cached_beta = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
             const double cached_alpha_log_beta = dist.alphaLogBeta_;
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
             
-            // GPU-accelerated processing: for log probability, caching can be beneficial for repeated computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "gamma_logpdf_" << x << "_" << cached_alpha << "_" << cached_beta;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x <= 0.0) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x <= 0.0) {
-                        result = constants::probability::NEGATIVE_INFINITY;
-                    } else {
-                        result = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha + cached_alpha_minus_one * std::log(x) - cached_beta * x;
                 }
-            }
+            });
         }
     );
 }
@@ -2286,8 +2252,8 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
                 }
             });
         },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // GPU-Accelerated lambda: should use cache.get and cache.put
+        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2312,30 +2278,15 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
             const double cached_beta = dist.beta_;
             lock.unlock();
             
-            // GPU-accelerated processing: for CDF, caching can be beneficial for expensive computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "gamma_cdf_" << x << "_" << cached_alpha << "_" << cached_beta;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x <= 0.0) {
-                        result = 0.0;
-                    } else {
-                        result = math::gamma_p(cached_alpha, cached_beta * x);
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
                 }
-            }
+            });
         }
     );
 }

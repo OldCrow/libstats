@@ -1717,8 +1717,8 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                 }
             });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1738,15 +1738,15 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_lambda = dist.lambda_;
             const double cached_log_lambda = dist.logLambda_;
             const double cached_exp_neg_lambda = dist.expNegLambda_;
             [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
             lock.unlock();
             
-            // Use parallel processing instead of caching (caching system is broken)
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < 0.0) {
                     res[i] = 0.0;
                     return;
@@ -1906,8 +1906,8 @@ void PoissonDistribution::getLogProbability(std::span<const double> values, std:
                 res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
             });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1927,13 +1927,13 @@ void PoissonDistribution::getLogProbability(std::span<const double> values, std:
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_lambda = dist.lambda_;
             const double cached_log_lambda = dist.logLambda_;
             lock.unlock();
             
-            // Use parallel processing instead of caching (caching system is broken)
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < constants::math::ZERO_DOUBLE) {
                     res[i] = constants::probability::MIN_LOG_PROBABILITY;
                     return;
@@ -2083,8 +2083,8 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                 res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
             });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: Use pool.parallelFor for GPU acceleration pattern
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2104,12 +2104,12 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe parallel processing  
             const double cached_lambda = dist.lambda_;
             lock.unlock();
             
-            // Use parallel processing instead of caching (caching system is broken)
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use pool.parallelFor for GPU acceleration pattern
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < 0.0) {
                     res[i] = 0.0;
                     return;
@@ -2265,8 +2265,8 @@ void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> val
                 }
             });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2286,15 +2286,15 @@ void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> val
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_lambda = dist.lambda_;
             const double cached_log_lambda = dist.logLambda_;
             const double cached_exp_neg_lambda = dist.expNegLambda_;
             [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
             lock.unlock();
             
-            // Use parallel processing instead of caching (caching system is broken)
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < 0.0) {
                     res[i] = 0.0;
                     return;
@@ -2434,8 +2434,8 @@ void PoissonDistribution::getLogProbabilityWithStrategy(std::span<const double> 
                 res[i] = k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
             });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2455,13 +2455,13 @@ void PoissonDistribution::getLogProbabilityWithStrategy(std::span<const double> 
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_lambda = dist.lambda_;
             const double cached_log_lambda = dist.logLambda_;
             lock.unlock();
             
-            // Use parallel processing instead of caching (caching system is broken)
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < constants::math::ZERO_DOUBLE) {
                     res[i] = constants::probability::MIN_LOG_PROBABILITY;
                     return;
@@ -2591,8 +2591,8 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
                 res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
             });
         },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Caching system is broken, fallback to parallel execution
+        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2612,12 +2612,12 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_lambda = dist.lambda_;
             lock.unlock();
             
-            // Use parallel processing instead of caching (caching system is broken)
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < 0.0) {
                     res[i] = 0.0;
                     return;

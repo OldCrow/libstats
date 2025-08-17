@@ -1,6 +1,6 @@
 #pragma once
 
-#include "adaptive_cache.h"
+#include "../platform/cache_platform.h"  // For cache infrastructure
 #include <atomic>
 #include <chrono>
 #include <memory>

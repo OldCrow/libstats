@@ -6,7 +6,6 @@
 #include "../include/core/safety.h"
 #include "../include/platform/thread_pool.h"
 #include "../include/platform/work_stealing_pool.h"
-#include "../include/cache/adaptive_cache.h"
 #include "../include/platform/parallel_execution.h"
 #include "../include/core/dispatch_utils.h"
 #include <cmath>
@@ -1743,9 +1742,8 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
-            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1765,15 +1763,14 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            // Cache parameters for thread-safe GPU-accelerated access
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const double cached_prob = dist.probability_;
             lock.unlock();
             
-            // Use parallel processing instead of broken string-based caching
-            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
@@ -1915,9 +1912,8 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values, std
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
-            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1937,16 +1933,15 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values, std
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            // Cache parameters for thread-safe GPU-accelerated access
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const double cached_log_prob = dist.logProbability_;
             const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
             
-            // Use parallel processing instead of broken string-based caching
-            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
@@ -2101,9 +2096,8 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
-            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2123,16 +2117,15 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            // Cache parameters for thread-safe GPU-accelerated access
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const int cached_range = dist.range_;
             const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
             
-            // Use parallel processing instead of broken string-based caching
-            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < static_cast<double>(cached_a)) {
                     res[i] = constants::math::ZERO_DOUBLE;
@@ -2263,9 +2256,8 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
-            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2285,15 +2277,14 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            // Cache parameters for thread-safe GPU-accelerated access
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const double cached_prob = dist.probability_;
             lock.unlock();
             
-            // Use parallel processing instead of broken string-based caching
-            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
@@ -2423,9 +2414,8 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
-            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2445,16 +2435,15 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            // Cache parameters for thread-safe GPU-accelerated access
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const double cached_log_prob = dist.logProbability_;
             const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
             
-            // Use parallel processing instead of broken string-based caching
-            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
@@ -2594,9 +2583,8 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                 }
             });
         },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: Cache infrastructure is fundamentally broken - use parallel fallback
-            // String-based cache key generation creates O(n²) performance disasters even for discrete distributions
+        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2616,16 +2604,15 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing (fallback from broken cache infrastructure)
+            // Cache parameters for thread-safe GPU-accelerated access
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const int cached_range = dist.range_;
             const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
             
-            // Use parallel processing instead of broken string-based caching
-            // Cache-Aware infrastructure disabled for v1.0.0 due to fundamental performance flaws
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < static_cast<double>(cached_a)) {
                     res[i] = constants::math::ZERO_DOUBLE;

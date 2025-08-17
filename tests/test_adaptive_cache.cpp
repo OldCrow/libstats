@@ -1,5 +1,5 @@
 // Use focused header for adaptive cache testing
-#include "../include/cache/adaptive_cache.h"
+#include "../include/platform/cache_platform.h"  // For cache functionality
 // Implementation is already included via the header
 #include <iostream>
 #include <cassert>

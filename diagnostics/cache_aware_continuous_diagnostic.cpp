@@ -1,4 +1,4 @@
-#include "../include/cache/adaptive_cache.h"
+#include "../include/platform/cache_platform.h"  // For cache functionality
 #include "../include/platform/thread_pool.h"
 #include <iostream>
 #include <chrono>

@@ -1800,9 +1800,8 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                 }
             });
         },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1822,16 +1821,15 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_mean = dist.mean_;
             const double cached_norm_constant = dist.normalizationConstant_;
             const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
             const bool cached_is_standard_normal = dist.isStandardNormal_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
                     res[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
@@ -1973,9 +1971,8 @@ void GaussianDistribution::getLogProbability(std::span<const double> values, std
                 }
             });
         },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1995,16 +1992,15 @@ void GaussianDistribution::getLogProbability(std::span<const double> values, std
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_mean = dist.mean_;
             const double cached_log_std = dist.logStandardDeviation_;
             const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
             const bool cached_is_standard_normal = dist.isStandardNormal_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
                     res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
@@ -2137,9 +2133,8 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 }
             });
         },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2159,15 +2154,14 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_mean = dist.mean_;
             const double cached_sigma_sqrt2 = dist.sigmaSqrt2_;
             const bool cached_is_standard_normal = dist.isStandardNormal_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     res[i] = constants::math::HALF * (constants::math::ONE + std::erf(vals[i] * constants::math::INV_SQRT_2));
                 } else {
@@ -2295,9 +2289,8 @@ void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> va
                 }
             });
         },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2317,23 +2310,22 @@ void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> va
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_mean = dist.mean_;
-            const double cached_norm_constant = dist.normalizationConstant_;
+            const double cached_log_std = dist.logStandardDeviation_;
             const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
             const bool cached_is_standard_normal = dist.isStandardNormal_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+                    res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
-                    res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
+                    res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std + cached_neg_half_inv_var * sq_diff;
                 }
             });
         }
@@ -2452,9 +2444,8 @@ void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double>
                 }
             });
         },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2474,16 +2465,15 @@ void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double>
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_mean = dist.mean_;
             const double cached_log_std = dist.logStandardDeviation_;
             const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
             const bool cached_is_standard_normal = dist.isStandardNormal_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
                     res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
@@ -2602,9 +2592,8 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                 }
             });
         },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2624,15 +2613,14 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_mean = dist.mean_;
             const double cached_sigma_sqrt2 = dist.sigmaSqrt2_;
             const bool cached_is_standard_normal = dist.isStandardNormal_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     res[i] = constants::math::HALF * (constants::math::ONE + std::erf(vals[i] * constants::math::INV_SQRT_2));
                 } else {

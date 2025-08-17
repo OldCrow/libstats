@@ -5,7 +5,6 @@
 #include "../include/core/log_space_ops.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/work_stealing_pool.h"
-#include "../include/cache/adaptive_cache.h"
 #include "../include/core/dispatch_utils.h"
 #include "../include/platform/parallel_execution.h"
 #include <sstream>
@@ -1370,9 +1369,9 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                 res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: Use work-stealing pool for optimal performance
+            // This replaces the previous cache-aware implementation that caused 100x performance regression
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1398,9 +1397,9 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             const double cached_inv_width = dist.invWidth_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            // This approach avoids the cache contention issues that caused performance regression
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
             });
@@ -1530,9 +1529,8 @@ void UniformDistribution::getLogProbability(std::span<const double> values, std:
                 }
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1552,16 +1550,15 @@ void UniformDistribution::getLogProbability(std::span<const double> values, std:
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel access
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_log_inv_width = -std::log(dist.width_);
             const bool cached_is_unit_interval = dist.isUnitInterval_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a || x > cached_b) {
                     res[i] = constants::probability::NEGATIVE_INFINITY;
@@ -1703,9 +1700,8 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 }
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1725,16 +1721,15 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe parallel access
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_inv_width = dist.invWidth_;
             const bool cached_is_unit_interval = dist.isUnitInterval_;
             lock.unlock();
             
-            // Use parallel processing instead of caching for continuous distributions
-            // Caching continuous values provides no benefit (near-zero hit rate) and severe performance penalty
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a) {
                     res[i] = constants::math::ZERO_DOUBLE;
@@ -1847,8 +1842,8 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
                 res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1868,31 +1863,16 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_inv_width = dist.invWidth_;
             lock.unlock();
             
-            // Cache-aware processing: for uniform distribution, caching isn't very beneficial but we demonstrate the pattern
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "uniform_pdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
-                } else {
-                    // Compute and cache
-                    const double result = (x >= cached_a && x <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
-                    res[i] = result;
-                    cache.put(cache_key, result);
-                }
-            }
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width : constants::math::ZERO_DOUBLE;
+            });
         }
     );
 }
@@ -2004,8 +1984,8 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
                 }
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2025,39 +2005,23 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_log_inv_width = -std::log(dist.width_);
             const bool cached_is_unit_interval = dist.isUnitInterval_;
             lock.unlock();
             
-            // Cache-aware processing: for uniform distribution, caching can be beneficial for logarithmic computations
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "uniform_logpdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (vals[i] < cached_a || vals[i] > cached_b) {
+                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                } else if (cached_is_unit_interval) {
+                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < cached_a || x > cached_b) {
-                        result = constants::probability::NEGATIVE_INFINITY;
-                    } else if (cached_is_unit_interval) {
-                        result = constants::math::ZERO_DOUBLE;  // log(1) = 0
-                    } else {
-                        result = cached_log_inv_width;
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = cached_log_inv_width;
                 }
-            }
+            });
         }
     );
 }
@@ -2173,8 +2137,8 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
                 }
             });
         },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res, WorkStealingPool& pool) {
+            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2194,41 +2158,26 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware access
+            // Cache parameters for thread-safe GPU-accelerated access
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_inv_width = dist.invWidth_;
             const bool cached_is_unit_interval = dist.isUnitInterval_;
             lock.unlock();
             
-            // Cache-aware processing: for uniform distribution, caching can be beneficial for CDF computations
-            for (std::size_t i = 0; i < count; ++i) {
+            // Use work-stealing pool for optimal load balancing and performance
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                
-                // Generate cache key (simplified - in practice, might include distribution params)
-                std::ostringstream key_stream;
-                key_stream << std::fixed << std::setprecision(6) << "uniform_cdf_" << x;
-                const std::string cache_key = key_stream.str();
-                
-                // Try to get from cache first
-                if (auto cached_result = cache.get(cache_key)) {
-                    res[i] = *cached_result;
+                if (x < cached_a) {
+                    res[i] = constants::math::ZERO_DOUBLE;
+                } else if (x > cached_b) {
+                    res[i] = constants::math::ONE;
+                } else if (cached_is_unit_interval) {
+                    res[i] = x;  // CDF(x) = x for U(0,1)
                 } else {
-                    // Compute and cache
-                    double result;
-                    if (x < cached_a) {
-                        result = constants::math::ZERO_DOUBLE;
-                    } else if (x > cached_b) {
-                        result = constants::math::ONE;
-                    } else if (cached_is_unit_interval) {
-                        result = x;  // CDF(x) = x for U(0,1)
-                    } else {
-                        result = (x - cached_a) * cached_inv_width;
-                    }
-                    res[i] = result;
-                    cache.put(cache_key, result);
+                    res[i] = (x - cached_a) * cached_inv_width;
                 }
-            }
+            });
         }
     );
 }

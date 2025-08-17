@@ -4,7 +4,7 @@
 #include <functional>
 #include "performance_dispatcher.h"
 #include "../platform/work_stealing_pool.h"
-#include "../cache/adaptive_cache.h"
+#include "../platform/cache_platform.h"  // For cache-aware dispatch strategies
 #include "../platform/thread_pool.h" // For ParallelUtils
 
 namespace libstats {
@@ -272,8 +272,9 @@ private:
                 
             case Strategy::GPU_ACCELERATED: {
                 // GPU acceleration fallback to work-stealing for optimal CPU performance
-                static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-                gpu_accelerated_func(dist, values, results, default_cache);
+                // NOTE: GPU implementation not yet available - forwards to work-stealing for best CPU performance
+                static thread_local WorkStealingPool default_pool;
+                gpu_accelerated_func(dist, values, results, default_pool);
                 break;
             }
         }
