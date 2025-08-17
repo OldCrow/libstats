@@ -1780,9 +1780,9 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
 
 void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                         performance::Strategy strategy) const {
-    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(
@@ -1949,9 +1949,9 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
 
 void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                            performance::Strategy strategy) const {
-    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(
@@ -2118,9 +2118,9 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
 
 void ExponentialDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                                   performance::Strategy strategy) const {
-    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(

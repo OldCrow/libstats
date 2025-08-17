@@ -3,6 +3,8 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/core/performance_history.h"
 #include "../include/core/distribution_characteristics.h"
+#include <iostream>
+#include <mutex>
 
 namespace libstats {
 namespace performance {
@@ -40,6 +42,16 @@ PerformanceDispatcher::SIMDArchitecture PerformanceDispatcher::detectSIMDArchite
     }
 }
 
+// GPU fallback logging function
+static void logGPUFallback() noexcept {
+    // Only log once per application run to avoid spam
+    static std::once_flag logged;
+    std::call_once(logged, []() {
+        std::cerr << "INFO: GPU acceleration requested but not yet implemented. "
+                  << "Using optimal CPU strategy." << std::endl;
+    });
+}
+
 Strategy PerformanceDispatcher::selectOptimalStrategy(
     size_t batch_size,
     DistributionType dist_type,
@@ -51,6 +63,28 @@ Strategy PerformanceDispatcher::selectOptimalStrategy(
      
     // Retrieve the best strategy recommendation based on performance history
     auto recommendation = performance_history.getBestStrategy(dist_type, batch_size);
+    
+    // Check if GPU acceleration was requested (this would come from explicit strategy requests)
+    if (recommendation.has_sufficient_data && 
+        recommendation.recommended_strategy == Strategy::GPU_ACCELERATED) {
+        // GPU acceleration not yet implemented - select best CPU strategy
+        logGPUFallback();
+        
+        // Use same selection logic as auto-dispatch
+        auto parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
+        if (batch_size >= parallel_threshold) {
+            // For large batches, prefer work-stealing for optimal CPU performance
+            if (batch_size >= thresholds_.work_stealing_min && system.logical_cores() > 2) {
+                return Strategy::WORK_STEALING;
+            } else {
+                return Strategy::PARALLEL_SIMD;
+            }
+        } else if (batch_size >= thresholds_.simd_min) {
+            return Strategy::SIMD_BATCH;
+        } else {
+            return Strategy::SCALAR;
+        }
+    }
     
     // Use historical data if we have high confidence
     if (recommendation.has_sufficient_data && recommendation.confidence_score > 0.8) {
@@ -84,8 +118,8 @@ bool PerformanceDispatcher::shouldUseWorkStealing(size_t batch_size, [[maybe_unu
     return batch_size >= thresholds_.work_stealing_min;
 }
 
-bool PerformanceDispatcher::shouldUseCacheAware(size_t batch_size, const SystemCapabilities& system) const {
-    return batch_size >= thresholds_.cache_aware_min && 
+bool PerformanceDispatcher::shouldUseGpuAccelerated(size_t batch_size, const SystemCapabilities& system) const {
+    return batch_size >= thresholds_.gpu_accelerated_min && 
            system.memory_bandwidth_gb_s() >= 50.0;
 }
 
@@ -172,13 +206,15 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
         return Strategy::SCALAR;
     }
     
-    // Memory-intensive operations benefit from cache-aware strategies
-    bool use_cache_aware = (batch_size >= thresholds_.cache_aware_min) &&
-                          (memory_bandwidth >= 50.0) &&
-                          (dist_chars.memory_access_pattern > 0.8);
+    // Memory-intensive operations would benefit from GPU acceleration
+    // For now, return work-stealing as GPU is not yet implemented
+    bool use_gpu_equivalent = (batch_size >= thresholds_.gpu_accelerated_min) &&
+                             (memory_bandwidth >= 50.0) &&
+                             (dist_chars.memory_access_pattern > 0.8);
     
-    if (use_cache_aware) {
-        return Strategy::CACHE_AWARE;
+    if (use_gpu_equivalent) {
+        // GPU acceleration not implemented - use best CPU alternative
+        return Strategy::WORK_STEALING;
     }
     
     // Work stealing benefits distributions with variable execution time
@@ -218,34 +254,34 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
         case simd::SIMDPolicy::Level::AVX512:
             thresholds.parallel_min = 500;         // Powerful SIMD reduces parallel threshold
             thresholds.work_stealing_min = 8000;
-            thresholds.cache_aware_min = 32000;
+            thresholds.gpu_accelerated_min = 32000;
             break;
         case simd::SIMDPolicy::Level::AVX2:
             thresholds.parallel_min = 1000;        // Good SIMD efficiency
             thresholds.work_stealing_min = 10000;
-            thresholds.cache_aware_min = 50000;
+            thresholds.gpu_accelerated_min = 50000;
             break;
         case simd::SIMDPolicy::Level::AVX:
             thresholds.parallel_min = 5000;        // AVX often has limited efficiency
             thresholds.work_stealing_min = 50000;
-            thresholds.cache_aware_min = 200000;
+            thresholds.gpu_accelerated_min = 200000;
             break;
         case simd::SIMDPolicy::Level::SSE2:
             thresholds.parallel_min = 2000;        // Older architecture, conservative
             thresholds.work_stealing_min = 20000;
-            thresholds.cache_aware_min = 100000;
+            thresholds.gpu_accelerated_min = 100000;
             break;
         case simd::SIMDPolicy::Level::NEON:
             thresholds.parallel_min = 1500;        // ARM characteristics
             thresholds.work_stealing_min = 15000;
-            thresholds.cache_aware_min = 75000;
+            thresholds.gpu_accelerated_min = 75000;
             break;
         case simd::SIMDPolicy::Level::None:
         default:
             thresholds.simd_min = SIZE_MAX;         // Disable SIMD entirely
             thresholds.parallel_min = 500;         // Lower threshold since SIMD unavailable
             thresholds.work_stealing_min = 5000;
-            thresholds.cache_aware_min = 25000;
+            thresholds.gpu_accelerated_min = 25000;
             break;
     }
     
@@ -412,13 +448,13 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
         gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * multiplier);
     }
     
-    // Refine cache-aware thresholds based on memory bandwidth
+    // Refine GPU acceleration thresholds based on memory bandwidth
     if (memory_bandwidth < 20.0) {
-        // Low memory bandwidth, raise cache-aware threshold
-        cache_aware_min = static_cast<size_t>(static_cast<double>(cache_aware_min) * 1.5);
+        // Low memory bandwidth, raise GPU acceleration threshold
+        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 1.5);
     } else if (memory_bandwidth > 100.0) {
-        // High memory bandwidth, lower cache-aware threshold
-        cache_aware_min = static_cast<size_t>(static_cast<double>(cache_aware_min) * 0.7);
+        // High memory bandwidth, lower GPU acceleration threshold
+        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 0.7);
     }
     
     // Adjust work-stealing based on core count
@@ -434,7 +470,7 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
     simd_min = std::max(simd_min, static_cast<size_t>(4));
     parallel_min = std::max(parallel_min, static_cast<size_t>(100));
     work_stealing_min = std::max(work_stealing_min, static_cast<size_t>(1000));
-    cache_aware_min = std::max(cache_aware_min, static_cast<size_t>(10000));
+    gpu_accelerated_min = std::max(gpu_accelerated_min, static_cast<size_t>(10000));
 }
 
 } // namespace performance

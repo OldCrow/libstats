@@ -27,7 +27,7 @@ std::string strategyToString(libstats::performance::Strategy strategy) {
         case libstats::performance::Strategy::SIMD_BATCH: return "SIMD_BATCH";
         case libstats::performance::Strategy::PARALLEL_SIMD: return "PARALLEL_SIMD";
         case libstats::performance::Strategy::WORK_STEALING: return "WORK_STEALING";
-        case libstats::performance::Strategy::CACHE_AWARE: return "CACHE_AWARE";
+        case libstats::performance::Strategy::GPU_ACCELERATED: return "GPU_ACCELERATED";
         default: return "UNKNOWN";
     }
 }

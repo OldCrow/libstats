@@ -163,7 +163,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
         1000, DistributionType::GAUSSIAN, ComputationComplexity::MODERATE, capabilities);
     
     // Should return a valid strategy
-    EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::CACHE_AWARE);
+    EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::GPU_ACCELERATED);
     
     // Test with different parameters
     auto small_strategy = dispatcher.selectOptimalStrategy(
@@ -177,7 +177,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
             100000, DistributionType::GAMMA, ComputationComplexity::COMPLEX, capabilities);
         EXPECT_TRUE(large_strategy == Strategy::PARALLEL_SIMD ||
                     large_strategy == Strategy::WORK_STEALING ||
-                    large_strategy == Strategy::CACHE_AWARE);
+                    large_strategy == Strategy::GPU_ACCELERATED);
     }
 }
 

@@ -208,10 +208,10 @@ int main() {
         assert(adaptive_grain >= 64);    // Minimum grain size
     }
     
-    // Test cache-aware grain sizing for memory operations
-    auto cache_aware_grain = libstats::parallel::get_adaptive_grain_size(0, 1000000); // 1M elements
-    std::cout << "  - Cache-aware grain (1M elements): " << cache_aware_grain << std::endl;
-    assert(cache_aware_grain >= 64);
+    // Test GPU-accelerated grain sizing for memory operations
+    auto gpu_accelerated_grain = libstats::parallel::get_adaptive_grain_size(0, 1000000); // 1M elements
+    std::cout << "  - GPU-accelerated grain (1M elements): " << gpu_accelerated_grain << std::endl;
+    assert(gpu_accelerated_grain >= 64);
     
     // Test distribution parallel thresholds
     bool should_parallel_small = libstats::parallel::should_use_distribution_parallel(100);

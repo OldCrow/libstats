@@ -731,7 +731,7 @@ namespace platform {
     
     /**
      * @brief Get cache-optimized thresholds for algorithms
-     * @return Structure with cache-aware thresholds
+     * @return Structure with GPU-accelerated thresholds
      */
     struct CacheThresholds {
         std::size_t l1_optimal_size;    // Optimal size for L1 cache

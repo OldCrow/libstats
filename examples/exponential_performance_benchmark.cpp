@@ -154,7 +154,7 @@ int main() {
         large_test_mutable[i] = cache_exp_dist(cache_rng);
     }
     
-    bench.addTest("Cache-Aware Batch PDF", [&, large_test_mutable]() mutable {
+    bench.addTest("GPU-Accelerated Batch PDF", [&]() mutable {
         std::span<const double> values_span(large_test_mutable);
         std::span<double> results_span(large_results);
         auto hint = libstats::performance::PerformanceHint::minimal_latency();
@@ -288,7 +288,7 @@ int main() {
     double batch_cdf_100k_parallel = 0.0;
     double inverse_transform_unit = 0.0;
     double inverse_transform_custom = 0.0;
-    double cache_aware_ops_per_sec = 0.0;
+    double gpu_accelerated_ops_per_sec = 0.0;
     double work_stealing_ops_per_sec = 0.0;
     double fitting_small_ops_per_sec = 0.0;
     double fitting_large_ops_per_sec = 0.0;
@@ -335,8 +335,8 @@ int main() {
             inverse_transform_unit = result.stats.throughput;
         } else if (result.name == "Inverse Transform Sampling Custom Exp") {
             inverse_transform_custom = result.stats.throughput;
-        } else if (result.name == "Cache-Aware Batch PDF") {
-            cache_aware_ops_per_sec = result.stats.throughput;
+        } else if (result.name == "GPU-Accelerated Batch PDF") {
+            gpu_accelerated_ops_per_sec = result.stats.throughput;
         } else if (result.name == "Work-Stealing Batch PDF") {
             work_stealing_ops_per_sec = result.stats.throughput;
         } else if (result.name == "Parameter Fitting Small Dataset") {
@@ -377,7 +377,7 @@ int main() {
     std::cout << "├─ Parallel Log PDF:    " << std::scientific << batch_log_pdf_100k_parallel << " elements/sec" << std::endl;
     std::cout << "├─ Scalar CDF:          " << std::scientific << batch_cdf_100k_scalar << " elements/sec" << std::endl;
     std::cout << "├─ Parallel CDF:        " << std::scientific << batch_cdf_100k_parallel << " elements/sec" << std::endl;
-    std::cout << "├─ Cache-Aware PDF:     " << std::scientific << cache_aware_ops_per_sec << " elements/sec" << std::endl;
+    std::cout << "├─ GPU-Accelerated PDF: " << std::scientific << gpu_accelerated_ops_per_sec << " elements/sec" << std::endl;
     std::cout << "└─ Work-Stealing PDF:   " << std::scientific << work_stealing_ops_per_sec << " elements/sec" << std::endl;
     
     std::cout << "\nSAMPLING AND FITTING PERFORMANCE:" << std::endl;

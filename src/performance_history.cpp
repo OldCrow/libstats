@@ -69,7 +69,7 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
     
     // Check all available strategies
     for (auto strategy : {Strategy::SCALAR, Strategy::SIMD_BATCH, Strategy::PARALLEL_SIMD, 
-                         Strategy::WORK_STEALING, Strategy::CACHE_AWARE}) {
+                         Strategy::WORK_STEALING, Strategy::GPU_ACCELERATED}) {
         std::string key = generateKey(strategy, distribution_type, batch_category);
         auto it = performance_data_.find(key);
         
@@ -136,7 +136,7 @@ std::optional<std::pair<std::size_t, std::size_t>> PerformanceHistory::learnOpti
                 // Determine strategy from key - improved parsing
                 Strategy strategy = Strategy::SCALAR;
                 if (key.find("WORK_STEALING") != std::string::npos) strategy = Strategy::WORK_STEALING;
-                else if (key.find("CACHE_AWARE") != std::string::npos) strategy = Strategy::CACHE_AWARE;
+                else if (key.find("GPU_ACCELERATED") != std::string::npos) strategy = Strategy::GPU_ACCELERATED;
                 else if (key.find("PARALLEL_SIMD") != std::string::npos) strategy = Strategy::PARALLEL_SIMD;
                 else if (key.find("SIMD_BATCH") != std::string::npos) strategy = Strategy::SIMD_BATCH;
                 else if (key.find("SCALAR") != std::string::npos) strategy = Strategy::SCALAR;
@@ -228,7 +228,7 @@ const char* PerformanceHistory::strategyToString(Strategy strategy) noexcept {
         case Strategy::SIMD_BATCH: return "SIMD_BATCH";
         case Strategy::PARALLEL_SIMD: return "PARALLEL_SIMD";
         case Strategy::WORK_STEALING: return "WORK_STEALING";
-        case Strategy::CACHE_AWARE: return "CACHE_AWARE";
+        case Strategy::GPU_ACCELERATED: return "GPU_ACCELERATED";
         default: return "UNKNOWN";
     }
 }
@@ -254,7 +254,7 @@ std::size_t PerformanceHistory::findOptimalThreshold(
     std::size_t fallback_threshold = 100;  // Default for SIMD
     if (target_strategy == Strategy::PARALLEL_SIMD) fallback_threshold = 5000;
     else if (target_strategy == Strategy::WORK_STEALING) fallback_threshold = 10000;
-    else if (target_strategy == Strategy::CACHE_AWARE) fallback_threshold = 50000;
+    else if (target_strategy == Strategy::GPU_ACCELERATED) fallback_threshold = 50000;
     
     // Collect crossover candidates with performance ratios
     std::vector<std::pair<std::size_t, double>> crossover_candidates;

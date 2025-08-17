@@ -682,22 +682,22 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 4. Cache-Aware Operations (use shared cache manager to avoid resource issues)
         if constexpr (requires {
             typename cache::AdaptiveCache<std::string, double>;
-            { gamma_dist.getProbabilityWithStrategy(input_span, std::span<double>(pdf_results), libstats::performance::Strategy::CACHE_AWARE) };
+            { gamma_dist.getProbabilityWithStrategy(input_span, std::span<double>(pdf_results), libstats::performance::Strategy::GPU_ACCELERATED) };
         }) {
             if (op == "PDF") {
                 std::span<double> output_span(pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::CACHE_AWARE);
+                gamma_dist.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 std::span<double> log_output_span(log_pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::CACHE_AWARE);
+                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 std::span<double> cdf_output_span(cdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::CACHE_AWARE);
+                gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             }
         } else {
@@ -716,12 +716,12 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                 end = std::chrono::high_resolution_clock::now();
             }
         }
-        result.cache_aware_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        result.gpu_accelerated_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
         
         // Calculate speedups
         result.parallel_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us) : 0.0;
         result.work_stealing_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.work_stealing_time_us) : 0.0;
-        result.cache_aware_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.cache_aware_time_us) : 0.0;
+        result.gpu_accelerated_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.gpu_accelerated_time_us) : 0.0;
         
         benchmark_results.push_back(result);
     }

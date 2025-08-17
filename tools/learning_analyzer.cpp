@@ -55,13 +55,13 @@ namespace {
     constexpr int SIMD_SPEEDUP_FACTOR = 3;
     constexpr int PARALLEL_SPEEDUP_FACTOR = 6;
     constexpr int WORK_STEALING_SPEEDUP_FACTOR = 8;
-    constexpr int CACHE_AWARE_SPEEDUP_FACTOR = 12;
+    constexpr int GPU_ACCELERATED_SPEEDUP_FACTOR = 12;
     
     // Strategy threshold sizes
     constexpr size_t MIN_SIMD_BATCH_SIZE = 32;
     constexpr size_t MIN_PARALLEL_BATCH_SIZE = 1000;
     constexpr size_t MIN_WORK_STEALING_BATCH_SIZE = 10000;
-    constexpr size_t MIN_CACHE_AWARE_BATCH_SIZE = 50000;
+    constexpr size_t MIN_GPU_ACCELERATED_BATCH_SIZE = 50000;
     
     // Distribution parameters
     namespace distribution_params {
@@ -418,14 +418,14 @@ private:
                 std::cout << "  Mixed (work-stealing): " << libstats::tools::time::formatDuration(work_stealing_duration)
                          << " (" << (static_cast<std::uint64_t>(work_stealing_duration.count()) / batch_size) << "ns/op)" << std::endl;
                 
-                if (batch_size >= MIN_CACHE_AWARE_BATCH_SIZE) {
-                    // Simulate cache-aware
-                    auto cache_aware_duration = base_duration / CACHE_AWARE_SPEEDUP_FACTOR;
+                if (batch_size >= MIN_GPU_ACCELERATED_BATCH_SIZE) {
+                    // Simulate gpu-accelerated
+                    auto gpu_accelerated_duration = base_duration / GPU_ACCELERATED_SPEEDUP_FACTOR;
                     PerformanceDispatcher::recordPerformance(
-                        Strategy::CACHE_AWARE, dist_type, batch_size, static_cast<std::uint64_t>(cache_aware_duration.count())
+                        Strategy::GPU_ACCELERATED, dist_type, batch_size, static_cast<std::uint64_t>(gpu_accelerated_duration.count())
                     );
-                    std::cout << "  Mixed (cache-aware): " << libstats::tools::time::formatDuration(cache_aware_duration)
-                             << " (" << (static_cast<std::uint64_t>(cache_aware_duration.count()) / batch_size) << "ns/op)" << std::endl;
+                    std::cout << "  Mixed (gpu-accelerated): " << libstats::tools::time::formatDuration(gpu_accelerated_duration)
+                             << " (" << (static_cast<std::uint64_t>(gpu_accelerated_duration.count()) / batch_size) << "ns/op)" << std::endl;
                 }
             }
         }
@@ -529,7 +529,7 @@ private:
             
             std::vector<Strategy> strategies = {
                 Strategy::SCALAR, Strategy::SIMD_BATCH, Strategy::PARALLEL_SIMD,
-                Strategy::WORK_STEALING, Strategy::CACHE_AWARE
+                Strategy::WORK_STEALING, Strategy::GPU_ACCELERATED
             };
             
             for (auto strategy : strategies) {
@@ -695,20 +695,20 @@ private:
                 );
             }
             
-            // Test cache-aware for extremely large batch sizes
-            if (batch_size >= MIN_CACHE_AWARE_BATCH_SIZE) {
+            // Test gpu-accelerated for extremely large batch sizes
+            if (batch_size >= MIN_GPU_ACCELERATED_BATCH_SIZE) {
                 auto start = std::chrono::high_resolution_clock::now();
                 std::vector<double> results(batch_size);
-                // More complex operation for cache-aware testing
+                // More complex operation for gpu-accelerated testing
                 for (size_t i = 0; i < batch_size; ++i) {
                     results[i] = dist.getProbability(values[i]) + dist.getCumulativeProbability(values[i]);
                 }
                 auto end = std::chrono::high_resolution_clock::now();
                 auto base_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
                 
-                auto cache_aware_duration = base_duration / CACHE_AWARE_SPEEDUP_FACTOR;
+                auto gpu_accelerated_duration = base_duration / GPU_ACCELERATED_SPEEDUP_FACTOR;
                 PerformanceDispatcher::recordPerformance(
-                    Strategy::CACHE_AWARE, dist_type, batch_size, static_cast<std::uint64_t>(cache_aware_duration.count())
+                    Strategy::GPU_ACCELERATED, dist_type, batch_size, static_cast<std::uint64_t>(gpu_accelerated_duration.count())
                 );
             }
         }
@@ -779,7 +779,7 @@ private:
             
             std::vector<Strategy> strategies = {
                 Strategy::SCALAR, Strategy::SIMD_BATCH, Strategy::PARALLEL_SIMD,
-                Strategy::WORK_STEALING, Strategy::CACHE_AWARE
+                Strategy::WORK_STEALING, Strategy::GPU_ACCELERATED
             };
             
             for (auto strategy : strategies) {
@@ -830,7 +830,7 @@ private:
         // Strategy effectiveness analysis
         std::cout << "\nStrategy Effectiveness Summary:\n";
         for (auto strategy : {Strategy::SIMD_BATCH, Strategy::PARALLEL_SIMD, 
-                             Strategy::WORK_STEALING, Strategy::CACHE_AWARE}) {
+                             Strategy::WORK_STEALING, Strategy::GPU_ACCELERATED}) {
             int total_distributions = 0;
             int effective_distributions = 0;
             

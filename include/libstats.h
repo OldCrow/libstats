@@ -176,7 +176,7 @@
     #include "core/distribution_base.h"
     #include "core/constants.h"
     
-    // Performance and platform detection (v0.9.0 enhancements)
+    // Performance and platform detection (v0.9.1 enhancements)
     #include "platform/cpu_detection.h"
     #include "platform/parallel_execution.h"
     #include "platform/work_stealing_pool.h"
@@ -184,7 +184,7 @@
     // Advanced caching infrastructure
     #include "platform/adaptive_cache.h"
     
-    // Performance infrastructure (v0.9.0 additions)
+    // Performance infrastructure (v0.9.1 additions)
     #include "platform/benchmark.h"
     #include "core/performance_history.h"
     #include "core/performance_dispatcher.h"
@@ -212,8 +212,8 @@ namespace libstats {
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;
 constexpr int LIBSTATS_VERSION_MINOR = 9;
-constexpr int LIBSTATS_VERSION_PATCH = 0;
-    constexpr const char* VERSION_STRING = "0.9.0";
+constexpr int LIBSTATS_VERSION_PATCH = 1;
+    constexpr const char* VERSION_STRING = "0.9.1";
     
     /**
      * @brief Initialize performance systems to eliminate cold-start delays

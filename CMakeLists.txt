@@ -112,7 +112,7 @@ if(APPLE OR (UNIX AND NOT WIN32))
     endif()
 endif()
 
-project(libstats VERSION 0.9.0 LANGUAGES CXX)
+project(libstats VERSION 0.9.1 LANGUAGES CXX)
 
 # Set default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)

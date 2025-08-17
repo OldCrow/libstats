@@ -62,7 +62,7 @@ TEST_F(PerformanceDispatcherTest, BasicStrategySelection) {
         100000, DistributionType::GAUSSIAN, ComputationComplexity::COMPLEX, system);
     EXPECT_TRUE(strategy_large == Strategy::PARALLEL_SIMD || 
                 strategy_large == Strategy::WORK_STEALING ||
-                strategy_large == Strategy::CACHE_AWARE);
+                strategy_large == Strategy::GPU_ACCELERATED);
 }
 
 TEST_F(PerformanceDispatcherTest, DistributionSpecificThresholds) {
@@ -102,7 +102,7 @@ TEST_F(PerformanceDispatcherTest, ComplexityInfluencesStrategy) {
     
     // Complex operations should be more likely to choose parallel execution
     // (This is a general trend, though specific results depend on system capabilities)
-    EXPECT_TRUE(simple_strategy != Strategy::CACHE_AWARE);  // Simple ops unlikely to need cache optimization
+    EXPECT_TRUE(simple_strategy != Strategy::GPU_ACCELERATED);  // Simple ops unlikely to need GPU acceleration
 }
 
 TEST_F(PerformanceDispatcherTest, ThresholdUpdating) {
@@ -188,7 +188,7 @@ TEST_F(PerformanceDispatcherTest, EdgeCases) {
         SIZE_MAX / 2, DistributionType::UNIFORM, ComputationComplexity::SIMPLE, system);
     EXPECT_TRUE(huge_strategy == Strategy::PARALLEL_SIMD ||
                 huge_strategy == Strategy::WORK_STEALING ||
-                huge_strategy == Strategy::CACHE_AWARE);
+                huge_strategy == Strategy::GPU_ACCELERATED);
 }
 
 TEST_F(PerformanceDispatcherTest, ThreadSafety) {
@@ -229,7 +229,7 @@ TEST_F(PerformanceDispatcherTest, ThreadSafety) {
         EXPECT_EQ(results[t].size(), selections_per_thread);
         // All strategies should be valid
         for (auto strategy : results[t]) {
-            EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::CACHE_AWARE);
+            EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::GPU_ACCELERATED);
         }
     }
     

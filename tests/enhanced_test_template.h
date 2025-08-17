@@ -26,10 +26,10 @@ struct BenchmarkResult {
     long simd_time_us;
     long parallel_time_us;
     long work_stealing_time_us;
-    long cache_aware_time_us;
+    long gpu_accelerated_time_us;    // Renamed from cache_aware_time_us
     double parallel_speedup;
     double work_stealing_speedup;
-    double cache_aware_speedup;
+    double gpu_accelerated_speedup;  // Renamed from cache_aware_speedup
 };
 
 class StandardizedBenchmark {
@@ -44,8 +44,8 @@ public:
         std::cout << "\nBenchmark Results:" << std::endl;
         std::cout << std::setw(10) << "Operation" << std::setw(12) << "SIMD (μs)" 
                   << std::setw(15) << "Parallel (μs)" << std::setw(18) << "Work-Steal (μs)"
-                  << std::setw(18) << "Cache-Aware (μs)" << std::setw(12) << "P-Speedup"
-                  << std::setw(12) << "WS-Speedup" << std::setw(12) << "CA-Speedup" << std::endl;
+                  << std::setw(18) << "GPU-Accel (μs)" << std::setw(12) << "P-Speedup"
+                  << std::setw(12) << "WS-Speedup" << std::setw(12) << "GA-Speedup" << std::endl;
         std::cout << std::string(120, '-') << std::endl;
         
         for (const auto& result : results) {
@@ -53,10 +53,10 @@ public:
                       << std::setw(12) << result.simd_time_us
                       << std::setw(15) << result.parallel_time_us
                       << std::setw(18) << result.work_stealing_time_us
-                      << std::setw(18) << result.cache_aware_time_us
+                      << std::setw(18) << result.gpu_accelerated_time_us
                       << std::setw(12) << std::fixed << std::setprecision(2) << result.parallel_speedup
                       << std::setw(12) << std::fixed << std::setprecision(2) << result.work_stealing_speedup
-                      << std::setw(12) << std::fixed << std::setprecision(2) << result.cache_aware_speedup
+                      << std::setw(12) << std::fixed << std::setprecision(2) << result.gpu_accelerated_speedup
                       << std::endl;
         }
     }

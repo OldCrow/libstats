@@ -163,7 +163,7 @@ void demonstrateStrategySelection() {
             if (strategy_str == "PARALLEL_SIMD") strategy_str = "PAR_SIMD";
             else if (strategy_str == "SIMD_BATCH") strategy_str = "SIMD";
             else if (strategy_str == "WORK_STEALING") strategy_str = "WORK_ST";
-            else if (strategy_str == "CACHE_AWARE") strategy_str = "CACHE";
+            else if (strategy_str == "GPU_ACCELERATED") strategy_str = "GPU_ACC";
             else if (strategy_str == "SCALAR") strategy_str = "SCALAR";
             
             std::cout << std::setw(12) << strategy_str;

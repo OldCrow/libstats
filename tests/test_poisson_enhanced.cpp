@@ -622,8 +622,8 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
-                stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::CACHE_AWARE);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+                stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
             }
@@ -631,8 +631,8 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "LogPMF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
-                stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::CACHE_AWARE);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+                stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 stdPoisson.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
             }
@@ -640,19 +640,19 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
-                stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::CACHE_AWARE);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+                stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 stdPoisson.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.cache_aware_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        result.gpu_accelerated_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
         
         // Calculate speedups
         result.parallel_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
         result.work_stealing_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.work_stealing_time_us);
-        result.cache_aware_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.cache_aware_time_us);
+        result.gpu_accelerated_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.gpu_accelerated_time_us);
         
         benchmark_results.push_back(result);
         

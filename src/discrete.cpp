@@ -2158,10 +2158,9 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
 
 void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                      performance::Strategy strategy) const {
-    // Safety override for v1.0.0 - Cache-Aware has fundamental design flaws causing O(n²) performance
-    // String-based cache key generation creates catastrophic overhead even for discrete distributions
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(
@@ -2309,10 +2308,9 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
 
 void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                         performance::Strategy strategy) const {
-    // Safety override for v1.0.0 - Cache-Aware has fundamental design flaws causing O(n²) performance
-    // String-based cache key generation creates catastrophic overhead even for discrete distributions
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(
@@ -2475,10 +2473,9 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
 
 void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                                performance::Strategy strategy) const {
-    // Safety override for v1.0.0 - Cache-Aware has fundamental design flaws causing O(n²) performance
-    // String-based cache key generation creates catastrophic overhead even for discrete distributions
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(

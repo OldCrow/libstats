@@ -627,8 +627,8 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; unitExp.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
-                unitExp.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::CACHE_AWARE);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; unitExp.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+                unitExp.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 unitExp.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
             }
@@ -636,8 +636,8 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; unitExp.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
-                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::CACHE_AWARE);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; unitExp.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
             }
@@ -645,19 +645,19 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; unitExp.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::CACHE_AWARE); }) {
-                unitExp.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::CACHE_AWARE);
+            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; unitExp.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+                unitExp.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.cache_aware_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        result.gpu_accelerated_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
         
         // Calculate speedups
         result.parallel_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
         result.work_stealing_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.work_stealing_time_us);
-        result.cache_aware_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.cache_aware_time_us);
+        result.gpu_accelerated_speedup = static_cast<double>(result.simd_time_us) / static_cast<double>(result.gpu_accelerated_time_us);
         
         benchmark_results.push_back(result);
         

@@ -824,7 +824,7 @@ public:
      * - Tiny batches (≤8): SCALAR for minimal overhead
      * - Small batches (9-63): SIMD_BATCH for vectorization benefits
      * - Medium batches (64-4095): PARALLEL_SIMD for multi-core + vectorization
-     * - Large batches (≥4096): WORK_STEALING or CACHE_AWARE for load balancing
+     * - Large batches (≥4096): WORK_STEALING or GPU_ACCELERATED for load balancing
      * 
      * @par Performance Characteristics:
      * - AUTO mode: ~5-10ns overhead per batch for strategy selection

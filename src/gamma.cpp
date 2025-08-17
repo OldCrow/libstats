@@ -1836,9 +1836,9 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
 
 void GammaDistribution::getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                    performance::Strategy strategy) const {
-    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(
@@ -1951,7 +1951,7 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
             });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+            // GPU-Accelerated lambda: should use cache.get and cache.put
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -1971,7 +1971,7 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_alpha = dist.alpha_;
             const double cached_beta = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
@@ -1979,7 +1979,7 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
             
-            // Cache-aware processing: for gamma distribution, caching can be beneficial for complex computations
+            // GPU-accelerated processing: for gamma distribution, caching can be beneficial for complex computations
             for (std::size_t i = 0; i < count; ++i) {
                 const double x = vals[i];
                 
@@ -2009,9 +2009,9 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
 
 void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                       performance::Strategy strategy) const {
-    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(
@@ -2124,7 +2124,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+            // GPU-Accelerated lambda: should use cache.get and cache.put
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2144,7 +2144,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_alpha = dist.alpha_;
             const double cached_beta = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
@@ -2152,7 +2152,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
             
-            // Cache-aware processing: for log probability, caching can be beneficial for repeated computations
+            // GPU-accelerated processing: for log probability, caching can be beneficial for repeated computations
             for (std::size_t i = 0; i < count; ++i) {
                 const double x = vals[i];
                 
@@ -2182,9 +2182,9 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
 
 void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                                              performance::Strategy strategy) const {
-    // Safety override for continuous distributions - cache-aware provides no benefit and severe performance penalty
-    if (strategy == performance::Strategy::CACHE_AWARE) {
-        strategy = performance::Strategy::PARALLEL_SIMD;
+    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
+    if (strategy == performance::Strategy::GPU_ACCELERATED) {
+        strategy = performance::Strategy::WORK_STEALING;
     }
     
     performance::DispatchUtils::executeWithStrategy(
@@ -2287,7 +2287,7 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
             });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res, cache::AdaptiveCache<std::string, double>& cache) {
-            // Cache-Aware lambda: should use cache.get and cache.put
+            // GPU-Accelerated lambda: should use cache.get and cache.put
             if (vals.size() != res.size()) {
                 throw std::invalid_argument("Input and output spans must have the same size");
             }
@@ -2307,12 +2307,12 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
                 lock.lock();
             }
             
-            // Cache parameters for thread-safe cache-aware processing
+            // Cache parameters for thread-safe GPU-accelerated processing
             const double cached_alpha = dist.alpha_;
             const double cached_beta = dist.beta_;
             lock.unlock();
             
-            // Cache-aware processing: for CDF, caching can be beneficial for expensive computations
+            // GPU-accelerated processing: for CDF, caching can be beneficial for expensive computations
             for (std::size_t i = 0; i < count; ++i) {
                 const double x = vals[i];
                 

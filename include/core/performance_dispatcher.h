@@ -41,7 +41,7 @@ enum class Strategy {
     SIMD_BATCH,       ///< SIMD vectorized for medium batches
     PARALLEL_SIMD,    ///< Parallel + SIMD for large batches
     WORK_STEALING,    ///< Dynamic load balancing for irregular workloads
-    CACHE_AWARE       ///< Cache-optimized for very large batches
+    GPU_ACCELERATED   ///< GPU-accelerated execution (CPU fallback if GPU unavailable)
 };
 
 /**
@@ -137,7 +137,7 @@ public:
         size_t simd_min = 8;                     ///< SIMD overhead threshold
         size_t parallel_min = 1000;              ///< Threading overhead threshold
         size_t work_stealing_min = 10000;        ///< Work-stealing benefit threshold
-        size_t cache_aware_min = 50000;          ///< Cache optimization threshold
+        size_t gpu_accelerated_min = 50000;      ///< GPU acceleration threshold
         
         // Distribution-specific overrides (architecture-dependent)
         size_t uniform_parallel_min = 65536;     ///< Simple operations need higher threshold
@@ -252,7 +252,7 @@ private:
     
     size_t getDistributionSpecificParallelThreshold(DistributionType dist_type) const;
     bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
-    bool shouldUseCacheAware(size_t batch_size, const SystemCapabilities& system) const;
+    bool shouldUseGpuAccelerated(size_t batch_size, const SystemCapabilities& system) const;
     
     /**
      * @brief Detect the highest available SIMD architecture

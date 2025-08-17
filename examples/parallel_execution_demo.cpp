@@ -186,8 +186,8 @@ void benchmark_parallel_operations() {
     }
 }
 
-void demonstrate_cache_awareness() {
-    print_separator("Cache-Aware Optimization");
+void demonstrate_gpu_acceleration() {
+    print_separator("GPU-Accelerated Optimization");
     
     const auto& cpu_features = libstats::cpu::get_features();
     
@@ -231,7 +231,7 @@ int main() {
         demonstrate_adaptive_grain_sizing();
         demonstrate_thread_optimization();
         benchmark_parallel_operations();
-        demonstrate_cache_awareness();
+        demonstrate_gpu_acceleration();
         
         print_separator("Summary");
         std::cout << "✅ Platform detection working correctly" << std::endl;

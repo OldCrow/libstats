@@ -27,7 +27,7 @@ public:
      * @tparam BatchFunc Function type for SIMD batch operations  
      * @tparam ParallelFunc Function type for parallel operations
      * @tparam WorkStealingFunc Function type for work-stealing operations
-     * @tparam CacheAwareFunc Function type for cache-aware operations
+     * @tparam GpuAcceleratedFunc Function type for GPU-accelerated operations
      * 
      * @param dist Reference to the distribution instance
      * @param values Input values span
@@ -39,7 +39,7 @@ public:
      * @param batch_func Function to call for SIMD batch operations
      * @param parallel_func Function to call for parallel operations  
      * @param work_stealing_func Function to call for work-stealing operations
-     * @param cache_aware_func Function to call for cache-aware operations
+     * @param gpu_accelerated_func Function to call for GPU-accelerated operations
      */
     template<
         typename Distribution,
@@ -47,7 +47,7 @@ public:
         typename BatchFunc,
         typename ParallelFunc,
         typename WorkStealingFunc,
-        typename CacheAwareFunc
+        typename GpuAcceleratedFunc
     >
     static void autoDispatch(
         const Distribution& dist,
@@ -60,7 +60,7 @@ public:
         BatchFunc&& batch_func,
         ParallelFunc&& parallel_func,
         WorkStealingFunc&& work_stealing_func,
-        CacheAwareFunc&& cache_aware_func
+        GpuAcceleratedFunc&& gpu_accelerated_func
     ) {
         // Validate input
         if (values.size() != results.size()) {
@@ -105,7 +105,7 @@ public:
             std::forward<BatchFunc>(batch_func),
             std::forward<ParallelFunc>(parallel_func),
             std::forward<WorkStealingFunc>(work_stealing_func),
-            std::forward<CacheAwareFunc>(cache_aware_func)
+            std::forward<GpuAcceleratedFunc>(gpu_accelerated_func)
         );
     }
     
@@ -146,7 +146,7 @@ public:
      * @tparam BatchFunc Function type for SIMD batch operations  
      * @tparam ParallelFunc Function type for parallel operations
      * @tparam WorkStealingFunc Function type for work-stealing operations
-     * @tparam CacheAwareFunc Function type for cache-aware operations
+     * @tparam GpuAcceleratedFunc Function type for GPU-accelerated operations
      * 
      * @param dist Reference to the distribution instance
      * @param values Input values span
@@ -156,7 +156,7 @@ public:
      * @param batch_func Function to call for SIMD batch operations
      * @param parallel_func Function to call for parallel operations  
      * @param work_stealing_func Function to call for work-stealing operations
-     * @param cache_aware_func Function to call for cache-aware operations
+     * @param gpu_accelerated_func Function to call for GPU-accelerated operations
      */
     template<
         typename Distribution,
@@ -164,7 +164,7 @@ public:
         typename BatchFunc,
         typename ParallelFunc,
         typename WorkStealingFunc,
-        typename CacheAwareFunc
+        typename GpuAcceleratedFunc
     >
     static void executeWithStrategy(
         const Distribution& dist,
@@ -175,7 +175,7 @@ public:
         BatchFunc&& batch_func,
         ParallelFunc&& parallel_func,
         WorkStealingFunc&& work_stealing_func,
-        CacheAwareFunc&& cache_aware_func
+        GpuAcceleratedFunc&& gpu_accelerated_func
     ) {
         // Validate input
         if (values.size() != results.size()) {
@@ -196,7 +196,7 @@ public:
             std::forward<BatchFunc>(batch_func),
             std::forward<ParallelFunc>(parallel_func),
             std::forward<WorkStealingFunc>(work_stealing_func),
-            std::forward<CacheAwareFunc>(cache_aware_func)
+            std::forward<GpuAcceleratedFunc>(gpu_accelerated_func)
         );
     }
     
@@ -230,7 +230,7 @@ private:
         typename BatchFunc,
         typename ParallelFunc,
         typename WorkStealingFunc,
-        typename CacheAwareFunc
+        typename GpuAcceleratedFunc
     >
     static void executeStrategy(
         Strategy strategy,
@@ -242,7 +242,7 @@ private:
         BatchFunc&& batch_func,
         ParallelFunc&& parallel_func,
         WorkStealingFunc&& work_stealing_func,
-        CacheAwareFunc&& cache_aware_func
+        GpuAcceleratedFunc&& gpu_accelerated_func
     ) {
         
         switch (strategy) {
@@ -270,10 +270,10 @@ private:
                 break;
             }
                 
-            case Strategy::CACHE_AWARE: {
-                // Use cache-aware implementation
+            case Strategy::GPU_ACCELERATED: {
+                // GPU acceleration fallback to work-stealing for optimal CPU performance
                 static thread_local cache::AdaptiveCache<std::string, double> default_cache;
-                cache_aware_func(dist, values, results, default_cache);
+                gpu_accelerated_func(dist, values, results, default_cache);
                 break;
             }
         }
@@ -360,7 +360,10 @@ private:
     }
     
     /**
-     * @brief Execute cache-aware batch operations with common pattern
+     * @brief Execute GPU-accelerated batch operations (CPU fallback)
+     * 
+     * NOTE: GPU acceleration is not yet implemented. This function provides
+     * the best CPU alternative using work-stealing for optimal performance.
      * 
      * @tparam Distribution The distribution type
      * @tparam ComputationFunc Function type for element-wise computation
@@ -368,51 +371,31 @@ private:
      * @param dist Reference to the distribution instance
      * @param values Input values span
      * @param results Output results span
-     * @param cache_manager Adaptive cache manager
-     * @param operation_name Name of the operation for cache key generation
+     * @param cache_manager Adaptive cache manager (maintained for API compatibility)
+     * @param operation_name Name of the operation for logging
      * @param computation_func Function to compute result for each element
      */
     template<typename Distribution, typename ComputationFunc>
-    static void executeBatchCacheAware(
-        [[maybe_unused]] const Distribution& dist,
+    static void executeBatchGpuAccelerated(
+        const Distribution& dist,
         std::span<const double> values,
         std::span<double> results,
-        cache::AdaptiveCache<std::string, double>& cache_manager,
-        const std::string& operation_name,
+        [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager,
+        [[maybe_unused]] const std::string& operation_name,
         ComputationFunc&& computation_func
     ) {
-        if (values.size() != results.size()) {
-            throw std::invalid_argument("Input and output spans must have the same size");
-        }
+        // TODO: Implement proper GPU acceleration in v1.1.0+
+        // For now, use work-stealing to avoid the 100x performance regression
+        // that the previous cache-aware implementation caused.
         
-        const std::size_t count = values.size();
-        if (count == 0) return;
-        
-        // Integrate with Level 0-3 adaptive cache system
-        const std::string cache_key = operation_name + "_batch_" + std::to_string(count);
-        
-        auto cached_params = cache_manager.getCachedComputationParams(cache_key);
-        if (cached_params.has_value()) {
-            // Future: Use cached performance metrics for optimization
-        }
-        
-        // Determine optimal batch size based on cache behavior
-        const std::size_t optimal_grain_size = cache_manager.getOptimalGrainSize(count, operation_name);
-        
-        // Use cache-aware parallel processing
-        if (parallel::should_use_parallel(count)) {
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                computation_func(i);
-            }, optimal_grain_size);
-        } else {
-            // Serial processing for small datasets
-            for (std::size_t i = 0; i < count; ++i) {
-                computation_func(i);
-            }
-        }
-        
-        // Update cache manager with performance metrics
-        cache_manager.recordBatchPerformance(cache_key, count, optimal_grain_size);
+        static thread_local WorkStealingPool fallback_pool;
+        executeBatchWorkStealing(
+            dist, 
+            values, 
+            results, 
+            fallback_pool, 
+            std::forward<ComputationFunc>(computation_func)
+        );
     }
     
     /**
