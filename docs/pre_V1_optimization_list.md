@@ -49,14 +49,21 @@ This document tracks all optimization, refactoring, and polish tasks that should
 ## Code Quality & Constants
 
 ### 🔢 **Magic Numbers Elimination**
-- [ ] **Replace all magic numbers with named constants**
+- [x] **Major constants organization completed (Phase 1)**
+  - [x] ✅ Statistical constants extracted and organized into focused headers
+  - [x] ✅ Mathematical constants (π, e, √2π) centralized
+  - [x] ✅ Precision and threshold constants properly categorized
+  - [x] ✅ Constants namespaces flattened for better usability
+- [ ] **Final review of remaining magic numbers in distribution implementations**
   - [ ] Review DiscreteDistribution for remaining magic numbers
   - [ ] Review GaussianDistribution implementation
   - [ ] Review ExponentialDistribution implementation  
   - [ ] Review UniformDistribution implementation
   - [ ] Review PoissonDistribution implementation
   - [ ] Review GammaDistribution implementation
-  - [ ] Ensure all statistical constants are in `constants::math::` or `constants::probability::`
+  - [ ] Verify all constants use proper organized namespaces
+  - **Priority**: High - Essential for code quality and maintainability
+  - **Status**: Infrastructure complete, distribution review needed
 
 ### 📦 **Header Management**
 - [ ] **Convert remaining files to use Phase 2 PIMPL optimization headers**
