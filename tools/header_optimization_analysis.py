@@ -14,7 +14,7 @@ def analyze_header_complexity(header_path):
         content = f.read()
     
     # Extract includes
-    includes = re.findall(r'#include\s+[<"]([^>"]+)[">]', content)
+    includes = re.findall(r'#include\s+[<"]([^>"]+)[>"]', content)
     
     # Count template usage
     template_count = len(re.findall(r'\btemplate\s*<', content))
@@ -58,8 +58,20 @@ def analyze_header_complexity(header_path):
     }
 
 def find_optimization_opportunities():
-    """Find specific optimization opportunities in v0.9.0 headers"""
-    include_dir = 'include'
+    """Find header optimization opportunities in the codebase"""
+    # Determine the correct include directory path
+    if os.path.exists('include'):
+        include_dir = 'include'
+        output_path = 'tools/header_optimization_analysis.json'
+    elif os.path.exists('../include'):
+        include_dir = '../include'
+        output_path = 'header_optimization_analysis.json'
+    else:
+        print("❌ Error: Cannot find 'include' directory")
+        print("   Current directory:", os.getcwd())
+        print("   Please run from project root or tools directory")
+        return []
+    
     opportunities = []
     header_analysis = {}
     
@@ -76,7 +88,7 @@ def find_optimization_opportunities():
     # Sort by complexity score
     sorted_headers = sorted(header_analysis.items(), key=lambda x: x[1]['complexity_score'], reverse=True)
     
-    print("🚀 V0.9.0 Header Optimization Analysis")
+    print("🚀 Header Optimization Analysis")
     print("=" * 60)
     
     # Top 10 most complex headers
@@ -96,22 +108,25 @@ def find_optimization_opportunities():
     print(f"\n🔄 Most Redundant Includes (Consolidation Candidates):")
     print("-" * 60)
     for include, count in include_counter.most_common(15):
-        percentage = (count / len(header_analysis)) * 100
+        percentage = (count / len(header_analysis)) * 100 if header_analysis else 0
         print(f"   {include:<35} | Used {count:2d} times ({percentage:5.1f}% of headers)")
     
-    # Identify v0.9.0 specific opportunities
-    print(f"\n🆕 V0.9.0 Specific Optimization Opportunities:")
+    # Identify highest priority optimization targets
+    print(f"\n🎯 Priority Header Optimization Targets:")
     print("-" * 60)
     
-    v9_new_headers = [
+    priority_headers = [
         'core/performance_dispatcher.h',
         'core/performance_history.h', 
         'platform/work_stealing_pool.h',
         'platform/benchmark.h',
-        'platform/thread_pool.h'
+        'platform/thread_pool.h',
+        'platform/parallel_execution.h',
+        'core/distribution_memory.h',
+        'core/dispatch_utils.h'
     ]
     
-    for header in v9_new_headers:
+    for header in priority_headers:
         if header in header_analysis:
             analysis = header_analysis[header]
             print(f"   {header}")
@@ -121,8 +136,8 @@ def find_optimization_opportunities():
             if analysis['heavy_stl_headers']:
                 print(f"   └─ Heavy includes: {', '.join(analysis['heavy_stl_headers'])}")
     
-    # Phase 2 recommendations
-    print(f"\n📈 Phase 2 Optimization Recommendations:")
+    # Optimization recommendations
+    print(f"\n📈 Optimization Recommendations:")
     print("-" * 60)
     
     # Find headers that could benefit from PIMPL
@@ -162,19 +177,25 @@ def find_optimization_opportunities():
         print(f"     Could create: libstats_{stl_header.replace('<', '').replace('>', '').replace('.h', '')}_common.h")
     
     # Performance impact estimation
-    print(f"\n⚡ Expected Performance Impact of Phase 2:")
+    print(f"\n⚡ Expected Performance Impact:")
     print("-" * 60)
     
     total_complexity = sum(analysis['complexity_score'] for analysis in header_analysis.values())
     top_10_complexity = sum(analysis['complexity_score'] for _, analysis in sorted_headers[:10])
     
-    potential_reduction = top_10_complexity * 0.6  # Assume 60% reduction from optimizations
-    improvement_percentage = (potential_reduction / total_complexity) * 100
-    
-    print(f"   Current total complexity score: {total_complexity:.1f}")
-    print(f"   Top 10 headers complexity: {top_10_complexity:.1f} ({top_10_complexity/total_complexity*100:.1f}%)")
-    print(f"   Potential reduction: {potential_reduction:.1f}")
-    print(f"   Expected compilation improvement: {improvement_percentage:.1f}%")
+    if total_complexity == 0:
+        print("   ❌ No headers found for analysis")
+        print(f"   Headers analyzed: {len(header_analysis)}")
+        print(f"   Include directory: {include_dir}")
+        improvement_percentage = 0
+    else:
+        potential_reduction = top_10_complexity * 0.6  # Assume 60% reduction from optimizations
+        improvement_percentage = (potential_reduction / total_complexity) * 100
+        
+        print(f"   Current total complexity score: {total_complexity:.1f}")
+        print(f"   Top 10 headers complexity: {top_10_complexity:.1f} ({top_10_complexity/total_complexity*100:.1f}%)")
+        print(f"   Potential reduction: {potential_reduction:.1f}")
+        print(f"   Expected compilation improvement: {improvement_percentage:.1f}%")
     
     # Save detailed analysis
     analysis_data = {
@@ -190,8 +211,12 @@ def find_optimization_opportunities():
         }
     }
     
-    with open('tools/v0_9_0_analysis.json', 'w') as f:
-        json.dump(analysis_data, f, indent=2)
+    try:
+        with open(output_path, 'w') as f:
+            json.dump(analysis_data, f, indent=2)
+        print(f"\n✅ Analysis complete! Results saved to {output_path}")
+    except Exception as e:
+        print(f"\n⚠️  Analysis complete but could not save to {output_path}: {e}")
     
     return opportunities
 
@@ -200,15 +225,24 @@ def check_phase1_effectiveness():
     print(f"\n🔍 Phase 1 Effectiveness Check:")
     print("-" * 60)
     
-    # Check if forward_declarations.h is being used effectively
-    forward_decl_path = 'include/core/forward_declarations.h'
-    libstats_path = 'include/libstats.h'
+    # Determine correct paths
+    if os.path.exists('include'):
+        forward_decl_path = 'include/core/forward_declarations.h'
+        libstats_path = 'include/libstats.h'
+    elif os.path.exists('../include'):
+        forward_decl_path = '../include/core/forward_declarations.h'
+        libstats_path = '../include/libstats.h'
+    else:
+        print("   ❌ Cannot find include directory")
+        return
     
     if os.path.exists(forward_decl_path):
         with open(forward_decl_path, 'r') as f:
             forward_content = f.read()
         forward_classes = len(re.findall(r'\bclass\s+\w+;', forward_content))
         print(f"   ✅ Forward declarations header: {forward_classes} classes declared")
+    else:
+        print(f"   ❌ Forward declarations header not found at {forward_decl_path}")
     
     if os.path.exists(libstats_path):
         with open(libstats_path, 'r') as f:
@@ -241,27 +275,27 @@ def check_phase1_effectiveness():
         print(f"   📊 Full mode additional includes: {full_includes}")
         reduction_ratio = (full_includes / (default_includes + full_includes)) * 100 if (default_includes + full_includes) > 0 else 0
         print(f"   📈 Include reduction achieved: {reduction_ratio:.1f}% of includes moved to full mode")
+    else:
+        print(f"   ❌ libstats.h not found at {libstats_path}")
 
 def main():
-    print("🔬 Comprehensive V0.9.0 Header Optimization Analysis")
+    print("🔬 Comprehensive Header Optimization Analysis")
     print("=" * 80)
     
-    # Change to project directory
+    # Change to project directory if running from build
     if os.path.basename(os.getcwd()) == 'build':
         os.chdir('..')
     
     find_optimization_opportunities()
     check_phase1_effectiveness()
     
-    print(f"\n✅ Analysis complete! Results saved to tools/v0_9_0_analysis.json")
-    
-    print(f"\n📋 Next Steps for Phase 2:")
+    print(f"\n📋 Recommended Next Steps:")
     print("-" * 60)
     print("   1. Implement PIMPL pattern for top complexity headers")
     print("   2. Create STL consolidation headers for common includes")
     print("   3. Add explicit template instantiations for frequently used templates")
     print("   4. Consider precompiled headers for remaining STL dependencies")
-    print("   5. Measure and validate improvements with compilation_benchmark.py")
+    print("   5. Measure and validate improvements with compilation benchmarks")
 
 if __name__ == "__main__":
     main()

@@ -124,17 +124,19 @@ class HeaderAnalyzer:
         """Check if our refactoring was effective by looking for common header usage."""
         print("\n✅ Refactoring effectiveness analysis:")
         
-        # Look for usage of our common headers
-        common_header_usage = {
-            'core/distribution_common.h': 0,
-            'core/essential_constants.h': 0,
-            'platform/platform_common.h': 0,
-            'distributions/distribution_platform_common.h': 0
+        # Look for usage of our common headers (using relative path patterns)
+        common_header_patterns = {
+            'core/distribution_common.h': ['core/distribution_common.h', '../core/distribution_common.h'],
+            'core/essential_constants.h': ['core/essential_constants.h', '../core/essential_constants.h'],
+            'platform/platform_common.h': ['platform/platform_common.h', 'platform_common.h', '../platform/platform_common.h'],
+            'distributions/distribution_platform_common.h': ['distribution_platform_common.h', 'distributions/distribution_platform_common.h']
         }
         
+        common_header_usage = {header: 0 for header in common_header_patterns}
+        
         for header_path, includes in self.include_graph.items():
-            for common_header in common_header_usage:
-                if any(common_header in inc for inc in includes):
+            for common_header, patterns in common_header_patterns.items():
+                if any(pattern in inc for inc in includes for pattern in patterns):
                     common_header_usage[common_header] += 1
         
         print("   Common header adoption:")
