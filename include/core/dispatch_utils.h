@@ -4,7 +4,7 @@
 #include <functional>
 #include "performance_dispatcher.h"
 #include "../platform/work_stealing_pool.h"
-#include "../platform/adaptive_cache.h"
+#include "../cache/adaptive_cache.h"
 #include "../platform/thread_pool.h" // For ParallelUtils
 
 namespace libstats {

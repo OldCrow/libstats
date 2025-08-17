@@ -1,4 +1,4 @@
-#include "../include/platform/adaptive_cache.h"
+#include "../include/cache/adaptive_cache.h"
 #include <iostream>
 #include <chrono>
 #include <thread>

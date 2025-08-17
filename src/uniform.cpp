@@ -5,7 +5,7 @@
 #include "../include/core/log_space_ops.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/work_stealing_pool.h"
-#include "../include/platform/adaptive_cache.h"
+#include "../include/cache/adaptive_cache.h"
 #include "../include/core/dispatch_utils.h"
 #include "../include/platform/parallel_execution.h"
 #include <sstream>

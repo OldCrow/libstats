@@ -7,7 +7,8 @@
 #include "distribution_validation.h"
 
 // Platform components
-#include "../platform/distribution_cache.h"
+#include "../cache/adaptive_cache.h"
+#include "../cache/distribution_cache.h"
 #include "../platform/platform_constants.h"
 
 namespace libstats {

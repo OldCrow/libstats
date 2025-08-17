@@ -1,6 +1,6 @@
 #pragma once
 
-#include "platform_common.h"
+#include "../platform/platform_common.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <list>

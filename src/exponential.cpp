@@ -6,7 +6,7 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h" // For parallel execution policies
 #include "../include/platform/work_stealing_pool.h" // For WorkStealingPool
-#include "../include/platform/adaptive_cache.h" // For AdaptiveCache
+#include "../include/cache/adaptive_cache.h" // For AdaptiveCache
 // ParallelUtils functionality is provided by parallel_execution.h
 #include "../include/core/dispatch_utils.h" // For DispatchUtils::autoDispatch
 #include <iostream>

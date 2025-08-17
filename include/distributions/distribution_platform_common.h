@@ -18,7 +18,7 @@
 // Core platform optimization headers used by most distributions
 #include "../platform/simd.h"                   // SIMD operations (used by all distributions)
 #include "../platform/parallel_execution.h"     // Parallel execution policies (used by all)
-#include "../platform/adaptive_cache.h"         // Cache management (used by most)
+#include "../cache/adaptive_cache.h"         // Cache management (used by most)
 #include "../platform/work_stealing_pool.h"     // Work-stealing parallelism (used by most)
 
 // Thread pool integration - used by distributions with heavy batch operations

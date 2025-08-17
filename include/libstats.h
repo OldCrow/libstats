@@ -182,10 +182,10 @@
     #include "platform/work_stealing_pool.h"
     
     // Advanced caching infrastructure
-    #include "platform/adaptive_cache.h"
+#include "cache/adaptive_cache.h"
     
     // Performance infrastructure (v0.9.1 additions)
-    #include "platform/benchmark.h"
+#include "cache/distribution_cache.h"
     #include "core/performance_history.h"
     #include "core/performance_dispatcher.h"
     

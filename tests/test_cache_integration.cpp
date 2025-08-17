@@ -1,5 +1,5 @@
 // Test program to verify AdaptiveCache integration
-#include "../include/platform/adaptive_cache.h"
+#include "../include/cache/adaptive_cache.h"
 #include "../include/core/distribution_base.h"
 #include <iostream>
 #include <string>

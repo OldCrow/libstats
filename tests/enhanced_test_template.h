@@ -12,7 +12,7 @@
 #include <iostream>
 #include <iomanip>
 #include "../include/platform/work_stealing_pool.h"
-#include "../include/platform/adaptive_cache.h"
+#include "../include/cache/adaptive_cache.h"
 
 namespace libstats {
 namespace testing {
