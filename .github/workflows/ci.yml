@@ -25,14 +25,13 @@ jobs:
           cmake: true
           ninja: true
       - name: Configure (Release with warnings as errors)
-        run: |
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DLIBSTATS_VERBOSE_BUILD=ON \
-            -DCMAKE_CXX_FLAGS="-Werror"
+        shell: bash
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLIBSTATS_VERBOSE_BUILD=ON -DCMAKE_CXX_FLAGS="-Werror"
       - name: Build
+        shell: bash
         run: cmake --build build -j
       - name: Tests
+        shell: bash
         run: ctest --test-dir build --output-on-failure
 
   sanitizers:
@@ -46,15 +45,13 @@ jobs:
           cmake: true
           ninja: true
       - name: Configure (ASAN/UBSAN)
-        run: |
-          cmake -S . -B build-asan -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DLIBSTATS_VERBOSE_BUILD=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+        shell: bash
+        run: cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIBSTATS_VERBOSE_BUILD=ON -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
       - name: Build
+        shell: bash
         run: cmake --build build-asan -j
       - name: Tests
+        shell: bash
         run: ctest --test-dir build-asan --output-on-failure
 
   thread-sanitizer:
@@ -68,14 +65,13 @@ jobs:
           cmake: true
           ninja: true
       - name: Configure (TSAN)
-        run: |
-          cmake -S . -B build-tsan -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer -O1" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+        shell: bash
+        run: cmake -S . -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer -O1" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
       - name: Build
+        shell: bash
         run: cmake --build build-tsan -j
       - name: Tests
+        shell: bash
         run: ctest --test-dir build-tsan --output-on-failure
 
   coverage:
@@ -89,14 +85,13 @@ jobs:
           cmake: true
           ninja: true
       - name: Configure (coverage)
-        run: |
-          cmake -S . -B build-cov -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_FLAGS="--coverage -O0" \
-            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+        shell: bash
+        run: cmake -S . -B build-cov -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage -O0" -DCMAKE_EXE_LINKER_FLAGS="--coverage"
       - name: Build
+        shell: bash
         run: cmake --build build-cov -j
       - name: Tests
+        shell: bash
         run: ctest --test-dir build-cov --output-on-failure
       - name: Upload coverage (lcov)
         uses: actions/upload-artifact@v4
@@ -113,6 +108,7 @@ jobs:
         run: |
           git ls-files '*.h' '*.hpp' '*.cpp' | xargs -I{} clang-format -n --Werror {}
       - name: clang-tidy (build config)
+        shell: bash
         run: |
           cmake -S . -B build-tidy -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           run-clang-tidy -p build-tidy

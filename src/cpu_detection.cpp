@@ -332,9 +332,9 @@ namespace {
         
         // Get vendor string
         char vendor[13] = {0};
-        memcpy(vendor, &ebx, 4);
-        memcpy(vendor + 4, &edx, 4);
-        memcpy(vendor + 8, &ecx, 4);
+        std::memcpy(vendor, &ebx, 4);
+        std::memcpy(vendor + 4, &edx, 4);
+        std::memcpy(vendor + 8, &ecx, 4);
         features.vendor = vendor;
         
         // Get basic CPU info and feature flags
@@ -384,11 +384,11 @@ namespace {
         if (eax >= 0x80000004) {
             char brand[49] = {0};
             safe_cpuid(0x80000002, 0, eax, ebx, ecx, edx);
-            memcpy(brand, &eax, 16);
+            std::memcpy(brand, &eax, 16);
             safe_cpuid(0x80000003, 0, eax, ebx, ecx, edx);
-            memcpy(brand + 16, &eax, 16);
+            std::memcpy(brand + 16, &eax, 16);
             safe_cpuid(0x80000004, 0, eax, ebx, ecx, edx);
-            memcpy(brand + 32, &eax, 16);
+            std::memcpy(brand + 32, &eax, 16);
             features.brand = brand;
         }
         

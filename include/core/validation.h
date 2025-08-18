@@ -33,7 +33,7 @@
 
 #include <vector>
 #include <string>
-#include "../libstats/export.h"
+#include <libstats/export.h>
 
 namespace libstats {
 
