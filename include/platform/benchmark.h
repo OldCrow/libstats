@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/platform_common.h"
+#include "../libstats/export.h"
 #include <iostream>
 #include <map>
 
@@ -10,7 +11,7 @@
 namespace libstats {
 
 /// High-resolution timer for performance measurements
-class Timer {
+class LIBSTATS_API Timer {
 private:
     using Clock = std::chrono::high_resolution_clock;
     using TimePoint = std::chrono::time_point<Clock>;
@@ -61,7 +62,7 @@ public:
 };
 
 /// Statistics for benchmark results
-struct BenchmarkStats {
+struct LIBSTATS_API BenchmarkStats {
     double mean = 0.0;           ///< Mean execution time
     double median = 0.0;         ///< Median execution time
     double stddev = 0.0;         ///< Standard deviation
@@ -76,7 +77,7 @@ struct BenchmarkStats {
 };
 
 /// Benchmark result for a single test
-struct BenchmarkResult {
+struct LIBSTATS_API BenchmarkResult {
     std::string name;                    ///< Test name
     BenchmarkStats stats;                ///< Statistical results
     std::vector<double> rawTimes;        ///< Raw timing measurements
@@ -95,7 +96,7 @@ struct BenchmarkResult {
 };
 
 /// Benchmark suite for statistical computing performance testing
-class Benchmark {
+class LIBSTATS_API Benchmark {
 public:
     /// Test function type
     using TestFunction = std::function<void()>;

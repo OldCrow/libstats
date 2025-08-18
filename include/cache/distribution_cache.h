@@ -7,6 +7,7 @@
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
+#include "../libstats/export.h"
 
 namespace libstats {
 
@@ -216,7 +217,7 @@ public:
  * Provides the infrastructure for thread-safe caching in distribution classes
  * using the distribution cache adapter pattern.
  */
-class ThreadSafeCacheManager {
+class LIBSTATS_API ThreadSafeCacheManager {
 protected:
     /**
      * @brief Thread-safe cache management infrastructure

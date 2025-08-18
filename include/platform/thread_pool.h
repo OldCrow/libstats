@@ -8,6 +8,7 @@
 
 // Platform headers needed for template implementations
 #include "simd.h"
+#include "../libstats/export.h"
 
 // Level 1 infrastructure
 #include "../core/math_utils.h"
@@ -73,7 +74,7 @@ namespace libstats {
  *     });
  * @endcode
  */
-class ThreadPool {
+class LIBSTATS_API ThreadPool {
 public:
     /// Task function type
     using Task = std::function<void()>;

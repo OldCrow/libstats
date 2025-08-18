@@ -1,6 +1,7 @@
 #pragma once
 
 #include "performance_dispatcher.h"
+#include "../libstats/export.h"
 #include <unordered_map>
 #include <string>
 #include <chrono>
@@ -68,7 +69,7 @@ struct PerformanceSnapshot {
     }
 };
 
-class PerformanceHistory {
+class LIBSTATS_API PerformanceHistory {
 public:
     /**
      * @brief Performance statistics for a specific strategy and workload (atomic version)

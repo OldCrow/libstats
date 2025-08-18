@@ -8,6 +8,7 @@
 
 // Platform headers needed for template implementations
 #include "simd.h"
+#include "../libstats/export.h"
 
 // Level 1 infrastructure
 #include "../core/math_utils.h"
@@ -43,7 +44,7 @@ namespace libstats {
  * - NUMA would only be reconsidered if >10% performance impact demonstrated
  *   on systems with >32 cores and multiple memory controllers
  */
-class WorkStealingPool {
+class LIBSTATS_API WorkStealingPool {
 public:
     using Task = std::function<void()>;
     

@@ -33,6 +33,7 @@
 
 #include <vector>
 #include <string>
+#include "../libstats/export.h"
 
 namespace libstats {
 
@@ -89,7 +90,7 @@ struct ModelDiagnostics {
  * @param distribution Theoretical distribution
  * @return KS test result
  */
-KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
+LIBSTATS_API KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
                                    const DistributionBase& distribution);
 
 /**
@@ -98,7 +99,7 @@ KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
  * @param distribution Theoretical distribution
  * @return AD test result
  */
-ADTestResult anderson_darling_test(const std::vector<double>& data,
+LIBSTATS_API ADTestResult anderson_darling_test(const std::vector<double>& data,
                                  const DistributionBase& distribution);
 
 /**
@@ -107,7 +108,7 @@ ADTestResult anderson_darling_test(const std::vector<double>& data,
  * @param expected_probabilities Expected probabilities
  * @return Chi-squared test result
  */
-ChiSquaredResult chi_squared_goodness_of_fit(const std::vector<int>& observed_counts,
+LIBSTATS_API ChiSquaredResult chi_squared_goodness_of_fit(const std::vector<int>& observed_counts,
                                             const std::vector<double>& expected_probabilities);
 
 /**
@@ -116,7 +117,7 @@ ChiSquaredResult chi_squared_goodness_of_fit(const std::vector<int>& observed_co
  * @param data Data used for fitting
  * @return Model diagnostics
  */
-ModelDiagnostics calculate_model_diagnostics(const DistributionBase& distribution,
+LIBSTATS_API ModelDiagnostics calculate_model_diagnostics(const DistributionBase& distribution,
                                            const std::vector<double>& data);
 
 /**
@@ -125,7 +126,7 @@ ModelDiagnostics calculate_model_diagnostics(const DistributionBase& distributio
  * @param distribution Fitted distribution
  * @return Vector of standardized residuals
  */
-std::vector<double> calculate_residuals(const std::vector<double>& data,
+LIBSTATS_API std::vector<double> calculate_residuals(const std::vector<double>& data,
                                       const DistributionBase& distribution);
 
 /**
@@ -153,7 +154,7 @@ struct BootstrapTestResult {
  * @param alpha Significance level (default: 0.05)
  * @return Bootstrap test result
  */
-BootstrapTestResult bootstrap_kolmogorov_smirnov_test(
+LIBSTATS_API BootstrapTestResult bootstrap_kolmogorov_smirnov_test(
     const std::vector<double>& data,
     const DistributionBase& distribution,
     size_t num_bootstrap = 1000,
@@ -172,7 +173,7 @@ BootstrapTestResult bootstrap_kolmogorov_smirnov_test(
  * @param alpha Significance level (default: 0.05)
  * @return Bootstrap test result
  */
-BootstrapTestResult bootstrap_anderson_darling_test(
+LIBSTATS_API BootstrapTestResult bootstrap_anderson_darling_test(
     const std::vector<double>& data,
     const DistributionBase& distribution,
     size_t num_bootstrap = 1000,
@@ -191,7 +192,7 @@ BootstrapTestResult bootstrap_anderson_darling_test(
  * @param alpha Significance level (default: 0.05)
  * @return Bootstrap test result
  */
-BootstrapTestResult bootstrap_parameter_test(
+LIBSTATS_API BootstrapTestResult bootstrap_parameter_test(
     const std::vector<double>& data,
     const DistributionBase& distribution,
     size_t num_bootstrap = 1000,
@@ -216,7 +217,7 @@ struct ConfidenceInterval {
     double confidence_level;
 };
 
-std::vector<ConfidenceInterval> bootstrap_confidence_intervals(
+LIBSTATS_API std::vector<ConfidenceInterval> bootstrap_confidence_intervals(
     const std::vector<double>& data,
     const DistributionBase& distribution,
     double confidence_level = 0.95,

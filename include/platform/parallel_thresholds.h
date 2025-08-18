@@ -10,6 +10,7 @@
  */
 
 #include "../common/platform_common.h"
+#include "../libstats/export.h"
 #include <unordered_map>
 
 namespace libstats {
@@ -40,7 +41,7 @@ enum class DistributionComplexity {
 /**
  * @brief Architecture performance characteristics
  */
-struct ArchitectureProfile {
+struct LIBSTATS_API ArchitectureProfile {
     std::size_t thread_creation_cost_us;     // Microseconds to create/sync threads
     std::size_t simd_width_elements;         // SIMD vector width in doubles
     std::size_t l3_cache_size_elements;      // L3 cache size in doubles
@@ -57,7 +58,7 @@ struct ArchitectureProfile {
  * 3. Operation complexity
  * 4. Runtime performance measurements (future enhancement)
  */
-class AdaptiveThresholdCalculator {
+class LIBSTATS_API AdaptiveThresholdCalculator {
 private:
     ArchitectureProfile arch_profile_;
     mutable std::unordered_map<std::string, std::size_t> cached_thresholds_;
@@ -102,7 +103,7 @@ private:
     DistributionComplexity getDistributionComplexity(const std::string& distribution) const;
 
 public:
-AdaptiveThresholdCalculator() {
+AdaptiveThresholdCalculator
         arch_profile_ = detectArchitectureProfile();
     }
     
@@ -145,7 +146,7 @@ AdaptiveThresholdCalculator() {
  * This singleton provides easy access to threshold calculations throughout
  * the library without requiring each distribution to manage its own calculator.
  */
-AdaptiveThresholdCalculator& getGlobalThresholdCalculator();
+LIBSTATS_API AdaptiveThresholdCalculator& getGlobalThresholdCalculator();
 
 /**
  * @brief Convenience function for checking if parallel execution should be used

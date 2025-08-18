@@ -15,6 +15,7 @@ namespace simd {
 }
 
 #include "../platform/simd_policy.h"
+#include "../libstats/export.h"
 
 /**
  * @file performance_dispatcher.h
@@ -68,7 +69,7 @@ enum class ComputationComplexity {
 /**
  * @brief System capabilities and performance characteristics
  */
-class SystemCapabilities {
+class LIBSTATS_API SystemCapabilities {
 public:
     static const SystemCapabilities& current();
     
@@ -106,7 +107,7 @@ private:
 /**
  * @brief Performance decision engine for strategy selection
  */
-class PerformanceDispatcher {
+class LIBSTATS_API PerformanceDispatcher {
 public:
     /**
      * @brief Default constructor - initializes with architecture-aware thresholds
@@ -133,7 +134,7 @@ public:
     /**
      * @brief Decision thresholds (architecture-aware with capability refinement)
      */
-    struct Thresholds {
+struct LIBSTATS_API Thresholds {
         size_t simd_min = 8;                     ///< SIMD overhead threshold
         size_t parallel_min = 1000;              ///< Threading overhead threshold
         size_t work_stealing_min = 10000;        ///< Work-stealing benefit threshold
