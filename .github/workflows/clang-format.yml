@@ -1,0 +1,55 @@
+name: Lint (clang-format)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format cmake ninja-build
+
+      - name: Configure (generate compile_commands.json)
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Run clang-format (report only; does not fail build)
+        shell: bash
+        run: |
+          mapfile -t files < <(git ls-files \
+            'include/**/*.h' 'include/**/*.hpp' 'include/**/*.hh' \
+            'src/**/*.c' 'src/**/*.cc' 'src/**/*.cpp' 'src/**/*.cxx' \
+            'test/**/*.c' 'test/**/*.cc' 'test/**/*.cpp' 'test/**/*.cxx' \
+            'examples/**/*.c' 'examples/**/*.cc' 'examples/**/*.cpp' 'examples/**/*.cxx')
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No source files found for clang-format."; exit 0; fi
+
+          echo "Running clang-format in check mode (non-fatal)..."
+          had_warnings=0
+          for f in "${files[@]}"; do
+            # -n prints warnings about files that would be reformatted; never modifies files
+            if ! clang-format -style=file -n "$f" 2>&1 | tee /dev/stderr | grep -q "would be reformatted"; then
+              : # no warning for this file
+            else
+              had_warnings=1
+            fi
+          done
+
+          if [ "$had_warnings" -eq 1 ]; then
+            echo "clang-format detected files that would be reformatted (reporting only)."
+          else
+            echo "clang-format found no issues."
+          fi
+
