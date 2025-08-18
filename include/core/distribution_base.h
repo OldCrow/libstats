@@ -1,14 +1,16 @@
 #pragma once
 
 // Include the common base and split components
-#include "distribution_base_common.h"
+#include "../common/distribution_base_common.h"
 #include "distribution_interface.h"
 #include "distribution_memory.h"
 #include "distribution_validation.h"
 
 // Platform components
-#include "../cache/adaptive_cache.h"
-#include "../cache/distribution_cache.h"
+// NOTE: adaptive_cache.h commented out until cache integration is implemented
+// TODO: Uncomment when integrating mathematical function cache or distribution-specific caching
+// #include "../cache/adaptive_cache.h"
+#include "../cache/distribution_cache.h"  // Needed for ThreadSafeCacheManager
 #include "../platform/platform_constants.h"
 
 namespace libstats {
@@ -207,16 +209,18 @@ public:
     // =============================================================================
     // DISTRIBUTION CACHE ACCESS - Protected Interface
     // =============================================================================
-    
-    /**
+    // NOTE: Distribution cache access methods commented out until cache integration
+    // TODO: Uncomment when integrating mathematical function cache or distribution-specific caching
+    /*
      * @brief Get distribution cache adapter instance
      * @return Reference to platform-optimized cache adapter
-     */
+     *
     template<typename Key, typename Value>
     DistributionCacheAdapter<Key, Value>& getDistributionCache() const {
         static thread_local DistributionCacheAdapter<Key, Value> cache;
         return cache;
     }
+    */
 
 protected:
     // =============================================================================

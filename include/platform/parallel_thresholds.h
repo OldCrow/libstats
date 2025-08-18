@@ -9,7 +9,7 @@
  * an explosion of architecture-specific constants.
  */
 
-#include "platform_common.h"
+#include "../common/platform_common.h"
 #include <unordered_map>
 
 namespace libstats {

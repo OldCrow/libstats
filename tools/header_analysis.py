@@ -126,10 +126,10 @@ class HeaderAnalyzer:
         
         # Look for usage of our common headers (using relative path patterns)
         common_header_patterns = {
-            'core/distribution_common.h': ['core/distribution_common.h', '../core/distribution_common.h'],
+            'common/distribution_common.h': ['common/distribution_common.h', '../common/distribution_common.h'],
             'core/essential_constants.h': ['core/essential_constants.h', '../core/essential_constants.h'],
-            'platform/platform_common.h': ['platform/platform_common.h', 'platform_common.h', '../platform/platform_common.h'],
-            'distributions/distribution_platform_common.h': ['distribution_platform_common.h', 'distributions/distribution_platform_common.h']
+            'common/platform_common.h': ['platform_common.h', '../common/platform_common.h'],
+            'common/distribution_platform_common.h': ['distribution_platform_common.h', '../common/distribution_platform_common.h']
         }
         
         common_header_usage = {header: 0 for header in common_header_patterns}

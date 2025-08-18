@@ -17,6 +17,7 @@
 #include <vector>
 #include <memory>
 #include <cstddef>
+#include <thread>
 
 namespace libstats {
 namespace common {
@@ -143,6 +144,3 @@ namespace vector_utils {
 
 } // namespace common
 } // namespace libstats
-
-// Include thread for utility functions that need it
-#include <thread>

@@ -3,7 +3,7 @@
 #include <cstddef>
 
 /**
- * @file platform/platform_constants_fwd.h
+ * @file common/platform_constants_fwd.h
  * @brief Lightweight forward declarations for platform constants - Phase 2 PIMPL optimization
  * 
  * This header provides a minimal interface to platform constants without pulling in

@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file core/distribution_base_common.h
+ * @file common/distribution_base_common.h
  * @brief Common dependencies for distribution interface and base classes
  * 
  * This header consolidates the common standard library and core includes
@@ -26,8 +26,8 @@
 #include <limits>
 
 // Core libstats headers common to distribution interfaces
-#include "essential_constants.h"  // Only essential constants
-#include "error_handling.h"       // Result types and validation
+#include "../core/essential_constants.h"  // Only essential constants
+#include "../core/error_handling.h"       // Result types and validation
 
 namespace libstats {
 

@@ -4,7 +4,7 @@
 #include <string>
 
 /**
- * @file platform/parallel_execution_fwd.h
+ * @file common/parallel_execution_fwd.h
  * @brief Lightweight forward declarations for parallel execution - Phase 2 PIMPL optimization
  * 
  * This header provides a minimal interface to parallel execution capabilities without

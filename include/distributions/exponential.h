@@ -1,10 +1,10 @@
 #pragma once
 
 // Common distribution includes (consolidates std library and core headers)
-#include "../core/distribution_common.h"
+#include "../common/distribution_common.h"
 
 // Common platform headers for distributions (consolidates shared platform dependencies)
-#include "distribution_platform_common.h"
+#include "../common/distribution_platform_common.h"
 
 namespace libstats {
 

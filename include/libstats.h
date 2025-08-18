@@ -161,7 +161,7 @@
  */
 
 // Forward declarations for lightweight header inclusion
-#include "core/forward_declarations.h"
+#include "common/forward_declarations.h"
 
 // Essential constants that don't pull in heavy dependencies
 #include "core/essential_constants.h"

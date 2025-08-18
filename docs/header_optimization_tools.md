@@ -1,6 +1,13 @@
 # Header Optimization Analysis Tools
 
-This document describes the automated tools created to validate and measure the effectiveness of header optimization work in the libstats project.
+> ⚠️ **DEPRECATED**: This document has been superseded by the comprehensive [Header Tools Guide](HEADER_TOOLS_GUIDE.md) which provides better explanations and includes new user-friendly tools.
+>
+> **Quick Migration Guide:**
+> - For daily use: `python3 tools/header_dashboard.py`
+> - For optimization planning: `python3 tools/header_insights.py`
+> - The tools described below still work but are less user-friendly
+
+This document describes the original automated tools created to validate and measure the effectiveness of header optimization work in the libstats project.
 
 ## Overview
 

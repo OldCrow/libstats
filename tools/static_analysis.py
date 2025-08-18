@@ -32,15 +32,33 @@ class StaticAnalyzer:
                 test_file = f.name
             
             # Run clang with unused include detection
-            cmd = [
-                'clang++',
-                '-std=c++20',
-                f'-I{self.project_root}/include',
-                '-Wunused-macros',
-                '-Wall',
-                '-fsyntax-only',
-                test_file
-            ]
+            # Use Homebrew LLVM if available, otherwise fall back to system clang++
+            compiler = '/usr/local/opt/llvm/bin/clang++' if os.path.exists('/usr/local/opt/llvm/bin/clang++') else 'clang++'
+            
+            if compiler.startswith('/usr/local/opt/llvm'):
+                # Homebrew LLVM configuration
+                cmd = [
+                    compiler,
+                    '-std=c++20',
+                    '-stdlib=libc++',
+                    '-I/usr/local/opt/llvm/include/c++/v1',
+                    f'-I{self.project_root}/include',
+                    '-Wunused-macros',
+                    '-Wall',
+                    '-fsyntax-only',
+                    test_file
+                ]
+            else:
+                # System compiler (fallback)
+                cmd = [
+                    compiler,
+                    '-std=c++20',
+                    f'-I{self.project_root}/include',
+                    '-Wunused-macros',
+                    '-Wall',
+                    '-fsyntax-only',
+                    test_file
+                ]
             
             result = subprocess.run(
                 cmd,
@@ -69,10 +87,10 @@ class StaticAnalyzer:
         print("✅ Validating common header effectiveness...")
         
         common_headers = [
-            'core/distribution_common.h',
+            'common/distribution_common.h',
             'core/essential_constants.h',
-            'platform/platform_common.h',
-            'distributions/distribution_platform_common.h'
+            'common/platform_common.h',
+            'common/distribution_platform_common.h'
         ]
         
         results = {}

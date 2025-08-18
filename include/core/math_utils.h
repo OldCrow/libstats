@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utility_common.h"
+#include "../common/utility_common.h"
 #include "constants.h"  // Math utils needs the full constants
 #include "safety.h"
 #include "../platform/simd.h"

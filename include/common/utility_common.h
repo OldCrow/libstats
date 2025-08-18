@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file core/utility_common.h
+ * @file common/utility_common.h
  * @brief Common dependencies for utility and statistical helper functions
  * 
  * This header provides shared standard library includes and forward declarations
@@ -31,7 +31,7 @@
 #include <stdexcept> // Exception types
 
 // Core constants - but only essential ones to avoid heavy dependencies
-#include "essential_constants.h"
+#include "../core/essential_constants.h"
 
 namespace libstats {
 

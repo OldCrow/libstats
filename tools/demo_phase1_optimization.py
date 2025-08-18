@@ -14,10 +14,22 @@ def measure_compilation(code, description):
     try:
         # Measure compilation time
         start = time.time()
-        result = subprocess.run([
-            'g++', '-std=c++20', '-I', 'include',
-            '-E', temp_file
-        ], capture_output=True, text=True, cwd='/Users/wolfman/Development/libstats')
+        
+        # Use Homebrew LLVM if available, otherwise fall back to system compiler
+        compiler = '/usr/local/opt/llvm/bin/clang++' if os.path.exists('/usr/local/opt/llvm/bin/clang++') else 'clang++'
+        
+        if compiler.startswith('/usr/local/opt/llvm'):
+            # Homebrew LLVM configuration
+            cmd = [
+                compiler, '-std=c++20', '-stdlib=libc++',
+                '-I/usr/local/opt/llvm/include/c++/v1',
+                '-I', 'include', '-E', temp_file
+            ]
+        else:
+            # System compiler (fallback)
+            cmd = [compiler, '-std=c++20', '-I', 'include', '-E', temp_file]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd='/Users/wolfman/Development/libstats')
         end = time.time()
         
         if result.returncode != 0:

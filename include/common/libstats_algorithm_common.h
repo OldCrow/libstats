@@ -18,8 +18,15 @@
 #include <numeric>
 #include <functional>
 #include <iterator>
-#include <execution>
 #include <cstddef>
+
+// Conditionally include execution for parallel algorithms
+#if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603L
+    #include <execution>
+    #define LIBSTATS_HAS_EXECUTION_POLICY 1
+#else
+    #define LIBSTATS_HAS_EXECUTION_POLICY 0
+#endif
 
 namespace libstats {
 namespace common {
@@ -109,12 +116,16 @@ namespace algorithm_utils {
             
             // Use parallel execution for large datasets
             if (size > 1000) {
+#if LIBSTATS_HAS_EXECUTION_POLICY
                 try {
                     return std::transform(std::execution::par_unseq, first, last, d_first, op);
                 } catch (...) {
                     // Fallback to sequential if parallel execution fails
                     return std::transform(first, last, d_first, op);
                 }
+#else
+                return std::transform(first, last, d_first, op);
+#endif
             } else {
                 return std::transform(first, last, d_first, op);
             }
@@ -126,11 +137,15 @@ namespace algorithm_utils {
             const auto size = std::distance(first, last);
             
             if (size > 1000) {
+#if LIBSTATS_HAS_EXECUTION_POLICY
                 try {
                     std::for_each(std::execution::par_unseq, first, last, f);
                 } catch (...) {
                     std::for_each(first, last, f);
                 }
+#else
+                std::for_each(first, last, f);
+#endif
             } else {
                 std::for_each(first, last, f);
             }
@@ -142,11 +157,15 @@ namespace algorithm_utils {
             const auto size = std::distance(first, last);
             
             if (size > 1000) {
+#if LIBSTATS_HAS_EXECUTION_POLICY
                 try {
                     return std::reduce(std::execution::par_unseq, first, last, init, op);
                 } catch (...) {
                     return std::accumulate(first, last, init, op);
                 }
+#else
+                return std::accumulate(first, last, init, op);
+#endif
             } else {
                 return std::accumulate(first, last, init, op);
             }
@@ -158,11 +177,15 @@ namespace algorithm_utils {
             const auto size = std::distance(first, last);
             
             if (size > 1000) {
+#if LIBSTATS_HAS_EXECUTION_POLICY
                 try {
                     std::sort(std::execution::par_unseq, first, last, comp);
                 } catch (...) {
                     std::sort(first, last, comp);
                 }
+#else
+                std::sort(first, last, comp);
+#endif
             } else {
                 std::sort(first, last, comp);
             }

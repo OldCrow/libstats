@@ -227,10 +227,10 @@ def check_phase1_effectiveness():
     
     # Determine correct paths
     if os.path.exists('include'):
-        forward_decl_path = 'include/core/forward_declarations.h'
+        forward_decl_path = 'include/common/forward_declarations.h'
         libstats_path = 'include/libstats.h'
     elif os.path.exists('../include'):
-        forward_decl_path = '../include/core/forward_declarations.h'
+        forward_decl_path = '../include/common/forward_declarations.h'
         libstats_path = '../include/libstats.h'
     else:
         print("   ❌ Cannot find include directory")
@@ -249,7 +249,7 @@ def check_phase1_effectiveness():
             libstats_content = f.read()
         
         has_conditional = '#ifdef LIBSTATS_FULL_INTERFACE' in libstats_content
-        includes_forward = 'core/forward_declarations.h' in libstats_content
+        includes_forward = 'common/forward_declarations.h' in libstats_content
         
         print(f"   ✅ Conditional compilation: {'Implemented' if has_conditional else 'Missing'}")
         print(f"   ✅ Forward declarations used: {'Yes' if includes_forward else 'No'}")

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../platform/platform_constants_fwd.h"
+#include "platform_constants_fwd.h"
 
 namespace libstats {
 namespace constants {

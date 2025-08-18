@@ -1,6 +1,6 @@
 #pragma once
 
-#include "distribution_base_common.h"
+#include "../common/distribution_base_common.h"
 
 namespace libstats {
 

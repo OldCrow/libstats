@@ -949,6 +949,7 @@ set(LIBSTATS_PLATFORM_SOURCES
 set(LIBSTATS_INFRASTRUCTURE_SOURCES
     src/adaptive_cache.cpp            # Memory-aware adaptive caching
     src/distribution_cache.cpp        # Distribution-specific cache optimization
+    src/math_function_cache.cpp       # High-performance mathematical function caching
     src/benchmark.cpp                 # Performance benchmarking utilities
     src/performance_history.cpp       # Performance data collection and analysis
     src/performance_dispatcher.cpp    # Smart auto-dispatch system
@@ -1356,6 +1357,9 @@ if(LIBSTATS_BUILD_TESTS)
     # Performance and Caching Infrastructure
     # adaptive_cache.h - Memory-aware adaptive caching
     create_libstats_test(test_adaptive_cache tests/test_adaptive_cache.cpp)
+    
+    # math_function_cache.h - Mathematical function caching with precision rounding
+    create_libstats_gtest(test_math_function_cache tests/test_math_function_cache.cpp)
     
     # parallel_execution.h - C++20 parallel execution with automatic fallback
     create_libstats_test(test_parallel_execution_integration tests/test_parallel_execution_integration.cpp)

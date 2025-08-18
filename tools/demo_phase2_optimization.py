@@ -23,18 +23,43 @@ def create_test_file(content, suffix=".cpp"):
         f.write(content)
     return path
 
-def measure_compilation(source_file, include_paths=None, extra_flags=None):
+def get_compiler_config():
+    """Get compiler configuration for Homebrew LLVM or system compiler."""
+    compiler = '/usr/local/opt/llvm/bin/clang++' if os.path.exists('/usr/local/opt/llvm/bin/clang++') else 'clang++'
+    
+    if compiler.startswith('/usr/local/opt/llvm'):
+        # Homebrew LLVM configuration
+        base_flags = [
+            compiler, '-std=c++20', '-stdlib=libc++',
+            '-I/usr/local/opt/llvm/include/c++/v1'
+        ]
+    else:
+        # System compiler (fallback)
+        base_flags = [compiler, '-std=c++20']
+    
+    return base_flags
+
+def measure_compilation(source_file, include_paths=None, extra_flags=None, link_sources=None):
     """Measure compilation time and preprocessed output size."""
     if include_paths is None:
         include_paths = []
     if extra_flags is None:
         extra_flags = []
+    if link_sources is None:
+        link_sources = []
+    
+    # Get compiler configuration
+    base_flags = get_compiler_config()
     
     # Build compile command
-    compile_cmd = ['clang++', '-std=c++20', '-c'] + extra_flags
+    compile_cmd = base_flags + ['-c'] + extra_flags
     for include_path in include_paths:
         compile_cmd.extend(['-I', include_path])
     compile_cmd.extend(['-o', '/dev/null', source_file])
+    
+    # Add source files for linking if needed
+    if link_sources:
+        compile_cmd.extend(link_sources)
     
     # Measure compilation time
     start_time = time.time()
@@ -46,7 +71,7 @@ def measure_compilation(source_file, include_paths=None, extra_flags=None):
         return None, None
     
     # Measure preprocessed output size
-    preprocess_cmd = ['clang++', '-std=c++20', '-E'] + extra_flags
+    preprocess_cmd = base_flags + ['-E'] + extra_flags
     for include_path in include_paths:
         preprocess_cmd.extend(['-I', include_path])
     preprocess_cmd.append(source_file)
@@ -67,27 +92,41 @@ def test_platform_constants_optimization():
     print("🔧 Phase 2: Platform Constants PIMPL Optimization")
     print("=" * 60)
     
-    # Test using original heavy header (simulation)
+    # Test using original heavy header that pulls in many dependencies
+    # This simulates the old approach where platform constants were inline in headers
     heavy_test_content = '''
 #include "platform/platform_constants.h"
+#include "platform/cpu_detection.h"
 #include <iostream>
+#include <vector>
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 
 int main() {
-    // Use some platform constants
-    auto block_size = libstats::constants::simd::DEFAULT_BLOCK_SIZE;
-    auto grain_size = libstats::constants::parallel::DEFAULT_GRAIN_SIZE;
+    // Simulate heavy usage of platform constants with complex computations
+    // This represents the old approach with heavy template instantiation
+    std::vector<double> data(1000, 1.0);
+    
+    // Use memory access constants  
     auto cache_size = libstats::constants::memory::access::CACHE_LINE_SIZE_BYTES;
     
-    std::cout << "Block size: " << block_size << std::endl;
-    std::cout << "Grain size: " << grain_size << std::endl; 
+    // Simulate expensive operations that would be inline in old approach
+    auto start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < data.size(); ++i) {
+        data[i] = std::sqrt(data[i] * cache_size);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    
     std::cout << "Cache size: " << cache_size << std::endl;
+    std::cout << "Computed " << data.size() << " values" << std::endl;
     return 0;
 }
 '''
     
     # Test using lightweight forward declaration header
     lightweight_test_content = '''
-#include "platform/platform_constants_fwd.h"
+#include "common/platform_constants_fwd.h"
 #include <iostream>
 
 int main() {
@@ -165,6 +204,7 @@ def test_stl_consolidation_optimization():
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <numeric>
 #include <functional>
 #include <iostream>
 

@@ -1,4 +1,4 @@
-#include "platform/platform_constants_fwd.h"
+#include "../include/common/platform_constants_fwd.h"
 #include "platform/cpu_detection.h"
 
 // Heavy STL includes are now contained in this implementation file

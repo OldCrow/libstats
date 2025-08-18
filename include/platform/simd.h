@@ -1,7 +1,7 @@
 #pragma once
 
 // Common platform includes and utilities
-#include "platform_common.h"
+#include "../common/platform_common.h"
 
 // Additional includes specific to SIMD operations
 #include <new>

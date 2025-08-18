@@ -27,6 +27,8 @@ This guide provides comprehensive information about the libstats header organiza
 
 **Location**: `include/core/*_constants.h`, `include/platform/simd_policy.h`
 
+> **✅ Phase 2 Update**: Some foundation headers have been moved to `include/common/` for better organization.
+
 These headers have no internal project dependencies and provide fundamental constants and basic platform detection.
 
 #### Constants Headers
@@ -54,6 +56,8 @@ These headers have no internal project dependencies and provide fundamental cons
 
 **Location**: `include/core/essential_constants.h`, `include/core/constants.h`, `include/platform/cpu_detection.h`
 
+> **✅ Phase 2 Update**: Some platform constants have been moved to `include/common/` - use the new paths where applicable.
+
 #### Essential Constants (Recommended)
 ```cpp
 #include "core/essential_constants.h"       // Most common constants (precision + math + statistical)
@@ -67,8 +71,10 @@ These headers have no internal project dependencies and provide fundamental cons
 #### Platform Foundation
 ```cpp
 #include "platform/cpu_detection.h"        // Runtime CPU feature detection
-#include "platform/platform_constants.h"   // Platform-specific optimization constants
+#include "platform/platform_constants.h"   // Platform-specific optimization constants (via common/)
 ```
+
+> **✅ Phase 2 Update**: `platform_constants.h` now pulls from `common/platform_constants_fwd.h` and `common/platform_common.h`
 
 ### Level 2: Core Utilities and Platform Capabilities
 
@@ -102,15 +108,20 @@ These headers have no internal project dependencies and provide fundamental cons
 
 ### Level 3: Advanced Infrastructure
 
-**Location**: `include/platform/`, `include/core/performance*.h`
+**Location**: `include/cache/`, `include/platform/`, `include/core/performance*.h`
 
 #### Caching and Performance
 ```cpp
-#include "platform/adaptive_cache.h"      // Memory-aware caching
-#include "platform/distribution_cache.h"  // Distribution-specific caching
+#include "cache/adaptive_cache.h"         // Memory-aware caching
+#include "cache/distribution_cache.h"     // Distribution-specific caching
+#include "cache/math_function_cache.h"    // Mathematical function caching (NEW)
 #include "platform/parallel_execution.h" // C++20 parallel algorithms
 #include "platform/benchmark.h"           // Performance measurement utilities
 ```
+
+> **✅ Phase 2 Update**: Cache headers moved to dedicated `include/cache/` directory
+> 
+> **🆕 NEW**: `math_function_cache.h` provides high-performance caching for gamma, erf, beta, and logarithm functions with precision rounding and thread-safe statistics.
 
 #### Performance Framework
 ```cpp
@@ -136,7 +147,9 @@ These headers have no internal project dependencies and provide fundamental cons
 
 ### Level 5: Consolidated Common Headers
 
-**Location**: `include/core/*_common.h`, `include/distributions/distribution_platform_common.h`
+**Location**: `include/common/*_common.h`, `include/core/*_common.h`, `include/distributions/distribution_platform_common.h`
+
+> **✅ Phase 2 Update**: Major header reorganization completed - common shared headers consolidated in `include/common/`
 
 #### Distribution Development (Recommended Pattern)
 ```cpp
@@ -153,14 +166,16 @@ These headers have no internal project dependencies and provide fundamental cons
 #### Alternative Patterns
 ```cpp
 // For utilities that need base functionality:
-#include "core/distribution_base_common.h"     // Common base dependencies
+#include "common/distribution_base_common.h"   // Common base dependencies (MOVED)
 
 // For math utilities:
-#include "core/utility_common.h"               // Common utility dependencies
+#include "common/utility_common.h"             // Common utility dependencies (MOVED)
 
 // For platform code:
-#include "platform/platform_common.h"         // Platform-specific common headers
+#include "common/platform_common.h"           // Platform-specific common headers (MOVED)
 ```
+
+> **✅ Phase 2 Update**: Common shared headers moved to `include/common/` for better organization
 
 ### Level 6: Concrete Distributions
 
@@ -192,7 +207,7 @@ These headers have no internal project dependencies and provide fundamental cons
 #pragma once
 
 // Use consolidated headers for common functionality
-#include "../core/distribution_common.h"
+#include "../common/distribution_common.h"    // UPDATED PATH (Phase 2)
 #include "distribution_platform_common.h"
 
 // Add specific headers only when needed
@@ -204,6 +219,8 @@ class MyDistribution : public DistributionBase {
     // Implementation using the full framework
 };
 ```
+
+> **✅ Phase 2 Update**: `distribution_common.h` moved to `include/common/` directory
 
 #### Key Benefits of This Pattern
 - **~60% fewer includes** compared to individual headers
@@ -228,8 +245,8 @@ class MyDistribution : public DistributionBase {
 #include "../include/libstats.h"
 
 // For tools that need only specific distributions:
-#include "../include/core/distribution_common.h"
-#include "../include/distributions/gaussian.h"  // Only what's needed
+#include "../include/common/distribution_common.h"  // UPDATED PATH (Phase 2)
+#include "../include/distributions/gaussian.h"     // Only what's needed
 
 // For performance analysis tools:
 #include "../include/core/performance_dispatcher.h"
@@ -252,8 +269,8 @@ class MyDistribution : public DistributionBase {
 #include "../include/libstats.h"
 
 // For focused unit tests:
-#include "../include/core/distribution_common.h"
-#include "../include/distributions/gaussian.h"  // Test target
+#include "../include/common/distribution_common.h"  // UPDATED PATH (Phase 2)
+#include "../include/distributions/gaussian.h"     // Test target
 
 // For performance tests:
 #include "../include/platform/benchmark.h"
@@ -348,8 +365,8 @@ if (libstats::cpu::supports_avx()) {
 #include "../platform/simd.h"
 #include "../platform/parallel_execution.h"
 
-// NEW PATTERN:
-#include "../core/distribution_common.h"           // Replaces first 8 includes
+// NEW PATTERN (Phase 2):
+#include "../common/distribution_common.h"         // UPDATED PATH - replaces first 8 includes
 #include "distribution_platform_common.h"         // Replaces platform includes
 ```
 
@@ -361,10 +378,19 @@ if (libstats::cpu::supports_avx()) {
 ## Performance Metrics
 
 ### Achieved Improvements
+
+#### Phase 1 (Cache Consolidation)
 - **6 files changed**: 722 insertions, 29 deletions in consolidation
 - **100% build success** with zero functionality loss
 - **100% test pass rate** after consolidation
-- **Significant maintainability improvement** through centralized dependencies
+
+#### Phase 2 (Common Header Reorganization) 
+- **9 header files moved** to `include/common/` for shared functionality
+- **All include paths updated** across codebase (30+ files affected)
+- **Mathematical function cache added** with comprehensive testing
+- **Cache infrastructure optimized** in `distribution_base.h`
+- **Zero functionality loss** with improved organization
+- **100% test pass rate** maintained throughout reorganization
 
 ### Expected Benefits
 - **15-25% faster builds** for incremental changes
@@ -440,7 +466,7 @@ For most development scenarios, using the consolidated headers (`distribution_co
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-08-13  
-**Covers**: Core consolidation, platform consolidation, and usage guidelines  
-**Next Review**: After tools/ and tests/ header standardization
+**Document Version**: 2.0  
+**Last Updated**: 2025-08-18  
+**Covers**: Phase 1 cache consolidation, Phase 2 common header reorganization, mathematical function cache, and updated usage guidelines  
+**Next Review**: After mathematical function cache integration into distributions

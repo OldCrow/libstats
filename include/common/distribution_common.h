@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file core/distribution_common.h
+ * @file common/distribution_common.h
  * @brief Common includes and using declarations for all distribution implementations
  *
  * This header consolidates the standard library and core project headers that are
@@ -26,13 +26,13 @@
 #include <version>
 
 // Core libstats headers needed by all distributions
-#include "distribution_base.h"
-#include "distribution_interface.h"
-#include "essential_constants.h"
-#include "error_handling.h"
+#include "../core/distribution_base.h"
+#include "../core/distribution_interface.h"
+#include "../core/essential_constants.h"
+#include "../core/error_handling.h"
 
 // Performance and platform headers commonly used
-#include "performance_dispatcher.h"
+#include "../core/performance_dispatcher.h"
 
 // Utility using declarations to avoid repetition
 using std::shared_lock;

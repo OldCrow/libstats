@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file distributions/distribution_platform_common.h
+ * @file common/distribution_platform_common.h
  * @brief Common platform headers for statistical distributions
  * 
  * This header consolidates the platform dependencies that are commonly needed

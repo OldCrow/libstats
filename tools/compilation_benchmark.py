@@ -47,7 +47,16 @@ class CompilationBenchmark:
         try:
             # Build the compile command
             include_flags = [f"-I{inc}" for inc in include_dirs]
-            cmd_base = ["clang++", "-std=c++20", "-O0"] + include_flags
+            # Use Homebrew LLVM if available, otherwise fall back to system clang++
+            compiler = "/usr/local/opt/llvm/bin/clang++" if os.path.exists("/usr/local/opt/llvm/bin/clang++") else "clang++"
+            
+            # Configure compiler with proper C++20 flags
+            if compiler.startswith("/usr/local/opt/llvm"):
+                # Homebrew LLVM configuration
+                cmd_base = [compiler, "-std=c++20", "-stdlib=libc++", "-I/usr/local/opt/llvm/include/c++/v1", "-O0"] + include_flags
+            else:
+                # System compiler (fallback)
+                cmd_base = [compiler, "-std=c++20", "-O0"] + include_flags
             
             # Measure preprocessing
             preprocess_cmd = cmd_base + ["-E", test_cpp, "-o", "/dev/null"]

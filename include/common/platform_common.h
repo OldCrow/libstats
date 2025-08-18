@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @file platform/platform_common.h
+ * @file common/platform_common.h
  * @brief Common includes and utilities for all platform headers
  *
  * This header consolidates the standard library and core project headers that are
@@ -52,7 +52,7 @@
 #include "../core/safety.h"
 
 // Platform constants that are shared across platform modules
-#include "platform_constants.h"
+#include "../platform/platform_constants.h"
 
 // Utility using declarations to avoid repetition across platform headers
 namespace libstats {

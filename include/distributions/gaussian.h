@@ -1,10 +1,10 @@
 #pragma once
 
 // Common distribution includes (consolidates std library and core headers)
-#include "../core/distribution_common.h"
+#include "../common/distribution_common.h"
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive caching, etc.)
-#include "distribution_platform_common.h"
+#include "../common/distribution_platform_common.h"
 
 // Additional standard headers specific to Gaussian (C++20 showcase)
 #include <algorithm>   // C++20 ranges algorithms
