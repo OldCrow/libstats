@@ -1,0 +1,43 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  clang-tools:
+    name: clang-format and clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-format \
+            clang-tidy \
+            clang-tools \
+            cmake \
+            ninja-build
+
+      - name: clang-format check
+        run: |
+          set -euo pipefail
+          files=$(git ls-files '*.h' '*.hpp' '*.hh' '*.c' '*.cc' '*.cpp' '*.cxx' '*.ixx' '*.tpp' || true)
+          if [ -z "$files" ]; then
+            echo "No source files to check."
+            exit 0
+          fi
+          echo "$files" | xargs -I{} clang-format -n --Werror {}
+
+      - name: Configure compile_commands.json
+        run: |
+          cmake -S . -B build-tidy -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: clang-tidy
+        run: |
+          run-clang-tidy -p build-tidy
+
