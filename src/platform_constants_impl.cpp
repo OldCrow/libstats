@@ -555,6 +555,14 @@ namespace platform {
         thresholds.l3_optimal_size = features.l3_cache_size > 0 ? 
             (features.l3_cache_size / sizeof(double)) / 4 : 262144;
         
+        // Special handling for platforms where L3 cache might not be detected (e.g., Apple Silicon)
+        // Ensure L3 optimal size is at least as large as L2 optimal size
+        #ifdef __APPLE__
+        if (thresholds.l3_optimal_size < thresholds.l2_optimal_size) {
+            thresholds.l3_optimal_size = thresholds.l2_optimal_size;
+        }
+        #endif
+        
         // Blocking size for cache tiling (typically sqrt of L1 size)
         thresholds.blocking_size = static_cast<std::size_t>(
             std::sqrt(static_cast<double>(thresholds.l1_optimal_size))
