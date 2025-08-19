@@ -85,6 +85,25 @@ jobs:
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} --parallel
 
+    - name: Copy DLLs for Windows tests
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        # For Windows, copy the built DLL to where test executables are
+        if [ -f "build/${{ matrix.build_type }}/libstats.dll" ]; then
+          cp "build/${{ matrix.build_type }}/libstats.dll" "build/tests/${{ matrix.build_type }}/" || true
+        fi
+        if [ -f "build/Release/libstats.dll" ]; then
+          cp "build/Release/libstats.dll" "build/tests/Release/" || true
+        fi
+        if [ -f "build/Debug/libstats.dll" ]; then
+          cp "build/Debug/libstats.dll" "build/tests/Debug/" || true
+        fi
+        # Also check for standard Windows build output locations
+        if [ -f "build/libstats.dll" ]; then
+          find build -type d -name tests -exec cp "build/libstats.dll" {} \; 2>/dev/null || true
+        fi
+
     - name: Test
       working-directory: build
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --parallel
