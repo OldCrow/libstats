@@ -34,7 +34,6 @@ namespace platform_support {
     // Common platform integration types used across distributions
     using SIMDVectorWidth = std::size_t;
     using ParallelThreshold = std::size_t;
-    // Note: CacheStrategy moved to platform/cache_platform.h for components that need caching
 }
 
 } // namespace distributions

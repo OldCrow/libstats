@@ -590,7 +590,6 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
     
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-    cache::AdaptiveCache<std::string, double> cache_manager;
     
     std::vector<BenchmarkResult> benchmark_results;
     
@@ -681,7 +680,6 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
         
         // 4. Cache-Aware Operations (use shared cache manager to avoid resource issues)
         if constexpr (requires {
-            typename cache::AdaptiveCache<std::string, double>;
             { gamma_dist.getProbabilityWithStrategy(input_span, std::span<double>(pdf_results), libstats::performance::Strategy::GPU_ACCELERATED) };
         }) {
             if (op == "PDF") {

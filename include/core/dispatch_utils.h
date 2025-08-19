@@ -4,7 +4,6 @@
 #include <functional>
 #include "performance_dispatcher.h"
 #include "../platform/work_stealing_pool.h"
-#include "../platform/cache_platform.h"  // For cache-aware dispatch strategies
 #include "../platform/thread_pool.h" // For ParallelUtils
 
 namespace libstats {
@@ -372,7 +371,6 @@ private:
      * @param dist Reference to the distribution instance
      * @param values Input values span
      * @param results Output results span
-     * @param cache_manager Adaptive cache manager (maintained for API compatibility)
      * @param operation_name Name of the operation for logging
      * @param computation_func Function to compute result for each element
      */
@@ -381,13 +379,11 @@ private:
         const Distribution& dist,
         std::span<const double> values,
         std::span<double> results,
-        [[maybe_unused]] cache::AdaptiveCache<std::string, double>& cache_manager,
         [[maybe_unused]] const std::string& operation_name,
         ComputationFunc&& computation_func
     ) {
         // TODO: Implement proper GPU acceleration in v1.1.0+
-        // For now, use work-stealing to avoid the 100x performance regression
-        // that the previous cache-aware implementation caused.
+        // For now, use work-stealing for optimal performance.
         
         static thread_local WorkStealingPool fallback_pool;
         executeBatchWorkStealing(

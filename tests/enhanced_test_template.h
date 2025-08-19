@@ -12,7 +12,6 @@
 #include <iostream>
 #include <iomanip>
 #include "../include/platform/work_stealing_pool.h"
-#include "../include/platform/cache_platform.h"  // For cache functionality
 
 namespace libstats {
 namespace testing {

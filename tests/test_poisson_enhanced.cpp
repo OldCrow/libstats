@@ -531,7 +531,6 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
     
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-    cache::AdaptiveCache<std::string, double> cache_manager;
     
     std::vector<BenchmarkResult> benchmark_results;
     
@@ -622,7 +621,7 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+            if constexpr (requires { stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
                 stdPoisson.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
@@ -631,7 +630,7 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "LogPMF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+            if constexpr (requires { stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
                 stdPoisson.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 stdPoisson.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
@@ -640,7 +639,7 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+            if constexpr (requires { stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
                 stdPoisson.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 stdPoisson.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);

@@ -512,7 +512,6 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
     // Create shared thread pool ONCE outside the loop to avoid resource issues
     // This prevents thread creation/destruction overhead and potential hangs
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-    cache::AdaptiveCache<std::string, double> cache_manager;
     
     std::vector<BenchmarkResult> benchmark_results;
     
