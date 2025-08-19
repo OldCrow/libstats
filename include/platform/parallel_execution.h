@@ -792,7 +792,7 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_pthread_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    const size_t max_threads = std::min(num_chunks, cpu::get_logical_core_count());
+    const size_t max_threads = std::min(num_chunks, static_cast<size_t>(cpu::get_logical_core_count()));
     
     if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
         std::for_each(first, last, f);
@@ -837,7 +837,7 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
 template<typename Iterator1, typename Iterator2, typename UnaryOp>
 void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
-    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), cpu::get_logical_core_count());
+    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), static_cast<size_t>(cpu::get_logical_core_count()));
     
     if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
         std::transform(first1, last1, first2, op);
@@ -882,7 +882,7 @@ void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unar
 template<typename Iterator, typename T, typename BinaryOp>
 T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
-    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), cpu::get_logical_core_count());
+    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), static_cast<size_t>(cpu::get_logical_core_count()));
     
     if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
         return std::accumulate(first, last, init, op);
