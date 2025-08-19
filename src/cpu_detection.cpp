@@ -418,11 +418,11 @@ namespace {
     }
 #endif  // LIBSTATS_X86_FAMILY
     
+#if defined(__APPLE__)
     /**
      * @brief Detect macOS CPU topology using sysctl (works for both Intel and ARM)
      */
-    void detect_macos_topology([[maybe_unused]] Features& features) {
-        #if defined(__APPLE__)
+    void detect_macos_topology(Features& features) {
             size_t size = sizeof(int);
             int value = 0;
             
@@ -482,8 +482,8 @@ namespace {
                 features.l2_cache.line_size = features.cache_line_size;
                 features.l3_cache.line_size = features.cache_line_size;
             }
-        #endif
     }
+#endif // __APPLE__
 
 #ifdef LIBSTATS_ARM64_FAMILY
     
