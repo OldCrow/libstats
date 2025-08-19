@@ -1,5 +1,7 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
+[![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/OldCrow/libstats/branch/main/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
 [![CMake](https://img.shields.io/badge/CMake-3.20%2B-blue.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
