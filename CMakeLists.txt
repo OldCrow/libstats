@@ -597,6 +597,7 @@ set(LIBSTATS_CLANG_STRICT_WARNINGS
     -Wloop-analysis -Wlogical-op-parentheses -Wbool-conversion
     -Wint-conversion -Wnull-dereference -Wuninitialized
     -Wconditional-uninitialized -Wstring-conversion
+    -Wdeprecated-volatile  # Catch deprecated volatile usage (C++20)
     # ODR (One Definition Rule) violation detection - Enhanced
     -Wduplicate-decl-specifier -Wodr -fno-common
     -Winconsistent-missing-override -Wmultiple-move-vbase
