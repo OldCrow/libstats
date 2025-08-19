@@ -144,12 +144,19 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y gcc-11 g++-11 lcov
 
+    - name: Set compiler paths
+      run: |
+        echo "CC=gcc-11" >> $GITHUB_ENV
+        echo "CXX=g++-11" >> $GITHUB_ENV
+        which gcc-11
+        which g++-11
+        gcc-11 --version
+        g++-11 --version
+
     - name: Configure with coverage
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_CXX_COMPILER=g++-11 \
-          -DCMAKE_C_COMPILER=gcc-11 \
           -DCMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage"
 
     - name: Build
