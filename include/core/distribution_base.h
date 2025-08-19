@@ -7,10 +7,7 @@
 #include "distribution_validation.h"
 
 // Platform components
-// NOTE: adaptive_cache.h commented out until cache integration is implemented
-// TODO: Uncomment when integrating mathematical function cache or distribution-specific caching
-// #include "../cache/adaptive_cache.h"
-#include "../cache/distribution_cache.h"  // Needed for ThreadSafeCacheManager
+#include "distribution_cache.h"  // Needed for ThreadSafeCacheManager
 #include "../platform/platform_constants.h"
 
 namespace libstats {

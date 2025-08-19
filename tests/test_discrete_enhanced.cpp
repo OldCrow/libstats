@@ -538,7 +538,6 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
     
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-    cache::AdaptiveCache<std::string, double> cache_manager;
     
     std::vector<BenchmarkResult> benchmark_results;
     
@@ -629,7 +628,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             std::span<double> output_span(pmf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; dice.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+            if constexpr (requires { dice.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
                 dice.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 dice.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pmf_results), libstats::performance::Strategy::SCALAR);
@@ -638,7 +637,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "LogPMF") {
             std::span<double> log_output_span(log_pmf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; dice.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+            if constexpr (requires { dice.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
                 dice.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 dice.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pmf_results), libstats::performance::Strategy::SCALAR);
@@ -647,7 +646,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires { typename cache::AdaptiveCache<std::string, double>; dice.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
+            if constexpr (requires { dice.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED); }) {
                 dice.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);

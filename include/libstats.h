@@ -12,7 +12,6 @@
  * - Thread-safe concurrent access
  * - SIMD optimization with runtime detection
  * - C++20 parallel execution with automatic fallback
- * - Advanced adaptive caching with memory management
  * - Zero external dependencies
  * 
  * SIMD USAGE GUIDE:
@@ -92,40 +91,6 @@
  * - Use C++20 execution policies when available
  * - Fallback to serial execution when parallel processing not beneficial
  * - Include numerical stability checks
- * 
- * ADAPTIVE CACHING GUIDE:
- * 
- * This library provides advanced caching for expensive statistical computations:
- * 
- * 1. AUTOMATIC CACHE MANAGEMENT (adaptive_cache.h):
- *    - Memory-aware eviction policies with configurable limits
- *    - TTL-based expiration to prevent stale data
- *    - Thread-safe concurrent access with optimized locking
- *    - Background optimization and performance metrics
- * 
- * 2. RECOMMENDED USAGE PATTERN:
- * 
- *   #define LIBSTATS_FULL_INTERFACE  // Enable full functionality
- *   #include "libstats.h"             // Includes adaptive_cache.h
- * 
- *   // Example: Create cache for expensive quantile computations
- *   libstats::cache::AdaptiveCacheConfig config;
- *   config.max_memory_bytes = 2 * 1024 * 1024;  // 2MB limit
- *   config.ttl = std::chrono::minutes(5);       // 5 minute expiry
- *   
- *   libstats::cache::AdaptiveCache<double, double> quantile_cache(config);
- * 
- * 3. CACHE FEATURES:
- *    - Automatic memory pressure detection and response
- *    - Access pattern tracking for predictive prefetching
- *    - Comprehensive performance metrics and diagnostics
- *    - Configurable eviction policies (LRU, LFU, TTL, Adaptive)
- * 
- * The distribution classes will automatically use adaptive caching for:
- * - Expensive quantile function evaluations
- * - Complex special function computations (gamma, beta, etc.)
- * - Parameter estimation intermediate results
- * - Batch operation optimizations
  *
  * HEADER OPTIMIZATION GUIDE:
  *
@@ -182,11 +147,8 @@
     #include "platform/work_stealing_pool.h"
     #include "platform/benchmark.h"
     
-    // Advanced caching infrastructure
-    #include "platform/cache_platform.h"       // Cache-specific platform support
-    
-    // Performance infrastructure (v0.9.1 additions)
-    #include "cache/distribution_cache.h"
+    // Cache infrastructure
+    #include "core/distribution_cache.h"       // Distribution parameter caching
     #include "core/performance_history.h"
     #include "core/performance_dispatcher.h"
     
