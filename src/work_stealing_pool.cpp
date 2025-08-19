@@ -313,15 +313,33 @@ std::size_t WorkStealingPool::getOptimalThreadCount() noexcept {
     const auto physicalCores = features.topology.physical_cores;
     const auto logicalCores = features.topology.logical_cores;
     
+    // Handle cases where CPU detection fails (common in CI/VM environments)
+    if (logicalCores == 0 && physicalCores == 0) {
+        // Fall back to std::thread::hardware_concurrency()
+        const auto hwConcurrency = std::thread::hardware_concurrency();
+        if (hwConcurrency > 0) {
+            return hwConcurrency;
+        }
+        // If even hardware_concurrency fails, default to 2 threads
+        // (minimum for meaningful work stealing)
+        return 2;
+    }
+    
     // For work-stealing pools, we can use more threads than regular thread pools
     // because work stealing handles load balancing automatically
-    if (features.topology.hyperthreading) {
+    if (features.topology.hyperthreading && logicalCores > 0) {
         // Use logical cores for work-stealing - the work stealing algorithm
         // can handle the increased parallelism effectively
         return logicalCores;
-    } else {
+    } else if (physicalCores > 0) {
         // No hyperthreading, use physical cores
         return physicalCores;
+    } else if (logicalCores > 0) {
+        // If we only have logical cores info, use it
+        return logicalCores;
+    } else {
+        // Should not reach here, but be safe
+        return std::max(std::thread::hardware_concurrency(), std::size_t(2));
     }
 }
 
