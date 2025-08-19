@@ -208,6 +208,8 @@ jobs:
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_COMPILER=gcc-11 \
+          -DCMAKE_CXX_COMPILER=g++-11 \
           -DCMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage"
 
     - name: Build
