@@ -4,6 +4,7 @@
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include <climits>
 #include <limits>
 
 namespace libstats {
@@ -168,14 +169,16 @@ inline VoidResult validateDiscreteParameters(int a, int b) noexcept {
     }
     
     // Check for integer overflow in range calculation
-    if (b > INT_MAX - 1 || a < INT_MIN + 1) {
+    constexpr int int_max = std::numeric_limits<int>::max();
+    constexpr int int_min = std::numeric_limits<int>::min();
+    if (b > int_max - 1 || a < int_min + 1) {
         return VoidResult::makeError(ValidationError::InvalidRange, 
                                 "Parameter range too large - risk of integer overflow");
     }
     
     // Additional safety check for very large ranges
     const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
-    if (range_check > INT_MAX) {
+    if (range_check > int_max) {
         return VoidResult::makeError(ValidationError::InvalidRange, 
                                 "Parameter range exceeds maximum supported size");
     }
