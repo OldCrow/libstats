@@ -237,7 +237,7 @@ jobs:
       run: |
         # Explicitly use gcov-11 for coverage collection
         lcov --gcov-tool gcov-11 --directory build --capture --output-file coverage.info
-        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info --ignore-errors unused
         lcov --list coverage.info
 
     - name: Upload coverage to Codecov
