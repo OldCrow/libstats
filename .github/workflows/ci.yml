@@ -187,6 +187,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-11 g++-11 lcov
+        # Verify compilers are installed
+        which gcc-11 || (echo "gcc-11 not found" && exit 1)
+        which g++-11 || (echo "g++-11 not found" && exit 1)
+        which gcov-11 || (echo "gcov-11 not found" && exit 1)
+        gcc-11 --version
+        g++-11 --version
+        gcov-11 --version
         # Set up alternatives to ensure gcov-11 is used
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
         sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
@@ -206,10 +213,14 @@ jobs:
 
     - name: Configure with coverage
       run: |
+        # Verify compilers are accessible before CMake
+        which gcc-11 || (echo "gcc-11 not found before CMake" && exit 1)
+        which g++-11 || (echo "g++-11 not found before CMake" && exit 1)
+        # Configure with explicit compiler paths
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_C_COMPILER=gcc-11 \
-          -DCMAKE_CXX_COMPILER=g++-11 \
+          -DCMAKE_C_COMPILER=/usr/bin/gcc-11 \
+          -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 \
           -DCMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage"
 
     - name: Build
