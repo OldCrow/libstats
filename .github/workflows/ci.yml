@@ -121,6 +121,7 @@ jobs:
 
     - name: Test
       working-directory: build
+      shell: bash
       run: |
         if [ "${{ runner.os }}" == "Windows" ]; then
           # On Windows, ensure PATH includes DLL directories
