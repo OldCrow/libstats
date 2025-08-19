@@ -1,0 +1,82 @@
+---
+# LibStats Clang-Tidy Configuration
+# Focuses on bug detection, modernization, and performance
+# Explicitly excludes system and standard library code
+
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
+  performance-*,
+  portability-*,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-else-after-return,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+
+WarningsAsErrors: ''
+
+# Only check our headers, not system headers
+HeaderFilterRegex: '^.*/(include|src|tests|examples|tools)/.*\.(h|hpp)$'
+
+# Exclude system headers from analysis
+SystemHeaders: false
+
+CheckOptions:
+  # Suppress warnings from system headers
+  - key: cppcoreguidelines-pro-type-member-init.IgnoreArrays
+    value: true
+  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value: true
+  - key: modernize-use-override.IgnoreDestructors
+    value: true
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: 'std::shared_ptr;std::unique_ptr'
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelCase
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberSuffix
+    value: '_'
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+  - key: performance-for-range-copy.WarnOnAllAutoCopies
+    value: true
+  - key: performance-unnecessary-value-param.IncludeStyle
+    value: google
+  - key: modernize-use-nullptr.NullMacros
+    value: 'NULL'
+  - key: cppcoreguidelines-explicit-virtual-functions.IgnoreDestructors
+    value: true
+  # Ignore issues in template instantiations from std library
+  - key: cppcoreguidelines-pro-bounds-constant-array-index.GslHeader
+    value: ''
+  - key: cppcoreguidelines-pro-type-vararg.AllowPODTypes
+    value: true

@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, 'release/*', 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} ${{ matrix.compiler.name }} ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [Debug, Release]
+        compiler:
+          - { name: gcc-11, cc: gcc-11, cxx: g++-11 }
+          - { name: gcc-12, cc: gcc-12, cxx: g++-12 }
+          - { name: clang-14, cc: clang-14, cxx: clang++-14 }
+          - { name: clang-15, cc: clang-15, cxx: clang++-15 }
+          - { name: msvc, cc: cl, cxx: cl }
+        exclude:
+          # MSVC only on Windows
+          - os: ubuntu-latest
+            compiler: { name: msvc, cc: cl, cxx: cl }
+          - os: macos-latest
+            compiler: { name: msvc, cc: cl, cxx: cl }
+          # GCC not on Windows (use MinGW if needed)
+          - os: windows-latest
+            compiler: { name: gcc-11, cc: gcc-11, cxx: g++-11 }
+          - os: windows-latest
+            compiler: { name: gcc-12, cc: gcc-12, cxx: g++-12 }
+          # Older Clang not on Windows
+          - os: windows-latest
+            compiler: { name: clang-14, cc: clang-14, cxx: clang++-14 }
+          - os: windows-latest
+            compiler: { name: clang-15, cc: clang-15, cxx: clang++-15 }
+          # macOS uses AppleClang, exclude Linux clangs
+          - os: macos-latest
+            compiler: { name: clang-14, cc: clang-14, cxx: clang++-14 }
+          - os: macos-latest
+            compiler: { name: clang-15, cc: clang-15, cxx: clang++-15 }
+          # macOS doesn't have these GCC versions easily
+          - os: macos-latest
+            compiler: { name: gcc-11, cc: gcc-11, cxx: g++-11 }
+          - os: macos-latest
+            compiler: { name: gcc-12, cc: gcc-12, cxx: g++-12 }
+        include:
+          # Add macOS with AppleClang
+          - os: macos-latest
+            compiler: { name: AppleClang, cc: clang, cxx: clang++ }
+            build_type: Debug
+          - os: macos-latest
+            compiler: { name: AppleClang, cc: clang, cxx: clang++ }
+            build_type: Release
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install compiler (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        if [[ "${{ matrix.compiler.cc }}" == gcc* ]]; then
+          sudo apt-get install -y ${{ matrix.compiler.cc }} ${{ matrix.compiler.cxx }}
+        elif [[ "${{ matrix.compiler.cc }}" == clang* ]]; then
+          sudo apt-get install -y ${{ matrix.compiler.cc }}
+        fi
+
+    - name: Setup compiler environment
+      if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
+      run: |
+        echo "CC=${{ matrix.compiler.cc }}" >> $GITHUB_ENV
+        echo "CXX=${{ matrix.compiler.cxx }}" >> $GITHUB_ENV
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+    - name: Test
+      working-directory: build
+      run: ctest -C ${{ matrix.build_type }} --output-on-failure --parallel
+
+    - name: Benchmark (Release only)
+      if: matrix.build_type == 'Release'
+      run: |
+        if [ -f "build/tools/system_inspector" ]; then
+          ./build/tools/system_inspector --quick
+        fi
+        if [ -f "build/examples/gaussian_performance_benchmark" ]; then
+          timeout 30 ./build/examples/gaussian_performance_benchmark || true
+        fi
+
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format-15 clang-tidy-15 cppcheck
+
+    - name: Check formatting
+      run: |
+        find include src tests -name '*.h' -o -name '*.cpp' | xargs clang-format-15 --dry-run --Werror || true
+        echo "Note: Format checking configured but not enforced yet"
+
+    - name: Run clang-tidy
+      run: |
+        cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        # Only check our source files, exclude system headers
+        find src -name '*.cpp' | head -5 | xargs clang-tidy-15 -p build \
+          --header-filter='.*/(include|src)/.*\.h$' \
+          --system-headers=false \
+          --warnings-as-errors="" || true
+        echo "Note: clang-tidy configured but not enforced yet"
+
+    - name: Run cppcheck
+      run: |
+        cppcheck --enable=warning,style,performance,portability --error-exitcode=0 \
+                 --suppress=missingIncludeSystem \
+                 --inline-suppr \
+                 -I include src 2>&1 | tee cppcheck.log
+        echo "Note: cppcheck configured but not enforced yet"
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-11 g++-11 lcov
+
+    - name: Configure with coverage
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_CXX_COMPILER=g++-11 \
+          -DCMAKE_C_COMPILER=gcc-11 \
+          -DCMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage"
+
+    - name: Build
+      run: cmake --build build --parallel
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure --parallel
+
+    - name: Generate coverage report
+      run: |
+        lcov --directory build --capture --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
