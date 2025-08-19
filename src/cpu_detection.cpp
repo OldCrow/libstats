@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <cstring>  // For memcpy
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
     #if defined(_MSC_VER)

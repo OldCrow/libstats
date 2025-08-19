@@ -302,7 +302,7 @@ void gcd_for_each(Iterator first, Iterator last, UnaryFunction f) noexcept(noexc
     
     dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
                    ^(size_t chunk_index) {
-                       const auto [start_idx, end_idx] = get_chunk_bounds(chunk_index, chunk_size, total_elements);
+                       const auto [start_idx, end_idx] = detail::get_chunk_bounds(chunk_index, chunk_size, total_elements);
                        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
                        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
                        std::for_each(chunk_first, chunk_last, f);
@@ -318,7 +318,7 @@ void gcd_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp 
     
     dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
                    ^(size_t chunk_index) {
-                       const auto [start_idx, end_idx] = get_chunk_bounds(chunk_index, chunk_size, total_elements);
+                       const auto [start_idx, end_idx] = detail::get_chunk_bounds(chunk_index, chunk_size, total_elements);
                        auto chunk_first1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
                        auto chunk_last1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
                        auto chunk_first2 = first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
@@ -427,6 +427,18 @@ gcd_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
 #if defined(LIBSTATS_HAS_WIN_THREADPOOL)
 
 namespace detail {
+
+/// Helper function to calculate number of chunks safely (shared)
+inline size_t calculate_num_chunks(size_t total_elements, size_t chunk_size) noexcept {
+    return (total_elements + chunk_size - 1) / chunk_size;
+}
+
+/// Helper function to calculate chunk bounds safely (shared)
+inline std::pair<size_t, size_t> get_chunk_bounds(size_t chunk_index, size_t chunk_size, size_t total_elements) noexcept {
+    const size_t start_idx = chunk_index * chunk_size;
+    const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
+    return {start_idx, end_idx};
+}
 
 /// Helper structure for Windows Thread Pool work items
 struct WorkItem {
@@ -617,7 +629,7 @@ void openmp_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
-    if (total_elements < get_optimal_parallel_threshold()) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         std::for_each(first, last, f);
         return;
     }
@@ -634,7 +646,7 @@ void openmp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unary
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
-    if (total_elements < get_optimal_parallel_threshold()) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         std::transform(first1, last1, first2, op);
         return;
     }
@@ -651,7 +663,7 @@ void openmp_fill(Iterator first, Iterator last, const T& value) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
-    if (total_elements < get_optimal_parallel_threshold()) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         std::fill(first, last, value);
         return;
     }
@@ -668,7 +680,7 @@ T openmp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
-    if (total_elements < get_optimal_parallel_threshold()) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         return std::accumulate(first, last, init, op);
     }
     
@@ -691,7 +703,7 @@ openmp_count(Iterator first, Iterator last, const T& value) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
-    if (total_elements < get_optimal_parallel_threshold()) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         return std::count(first, last, value);
     }
     
@@ -714,7 +726,7 @@ openmp_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
     
-    if (total_elements < get_optimal_parallel_threshold()) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         return std::count_if(first, last, pred);
     }
     
@@ -741,6 +753,11 @@ openmp_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
 #if defined(LIBSTATS_HAS_PTHREADS)
 
 namespace detail {
+
+/// Helper function to calculate number of chunks safely (shared)
+inline size_t calculate_num_chunks(size_t total_elements, size_t chunk_size) noexcept {
+    return (total_elements + chunk_size - 1) / chunk_size;
+}
 
 /// Helper structure for pthread work items
 struct PThreadWorkItem {
@@ -777,7 +794,7 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
     const size_t max_threads = std::min(num_chunks, cpu::get_logical_core_count());
     
-    if (total_elements < get_optimal_parallel_threshold() || max_threads <= 1) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
         std::for_each(first, last, f);
         return;
     }
@@ -822,7 +839,7 @@ void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unar
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), cpu::get_logical_core_count());
     
-    if (total_elements < get_optimal_parallel_threshold() || max_threads <= 1) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
         std::transform(first1, last1, first2, op);
         return;
     }
@@ -867,7 +884,7 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), cpu::get_logical_core_count());
     
-    if (total_elements < get_optimal_parallel_threshold() || max_threads <= 1) {
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
         return std::accumulate(first, last, init, op);
     }
     
