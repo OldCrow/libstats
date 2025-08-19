@@ -85,13 +85,32 @@ jobs:
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} --parallel
 
-    - name: Copy DLLs for Windows tests
+    - name: Setup Windows DLL paths
       if: runner.os == 'Windows'
       shell: bash
       run: |
-        # For Windows, copy the built DLL to where test executables are
+        # Add DLL directories to PATH for Windows
+        echo "Adding DLL directories to PATH..."
+        
+        # Convert to Windows paths and add to PATH
+        if [ -d "build/${{ matrix.build_type }}" ]; then
+          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\${{ matrix.build_type }}")
+          echo "$WIN_PATH" >> $GITHUB_PATH
+        fi
+        
+        if [ -d "build/tests/${{ matrix.build_type }}" ]; then
+          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/tests/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\tests\\${{ matrix.build_type }}")
+          echo "$WIN_PATH" >> $GITHUB_PATH
+        fi
+        
+        # Also add the main build directory
+        WIN_PATH=$(cygpath -w "${{ github.workspace }}/build" 2>/dev/null || echo "${{ github.workspace }}\\build")
+        echo "$WIN_PATH" >> $GITHUB_PATH
+        
+        # Copy DLLs as a fallback
         if [ -f "build/${{ matrix.build_type }}/libstats.dll" ]; then
           cp "build/${{ matrix.build_type }}/libstats.dll" "build/tests/${{ matrix.build_type }}/" || true
+          echo "Copied libstats.dll to build/tests/${{ matrix.build_type }}/"
         fi
         if [ -f "build/Release/libstats.dll" ]; then
           cp "build/Release/libstats.dll" "build/tests/Release/" || true
@@ -99,14 +118,15 @@ jobs:
         if [ -f "build/Debug/libstats.dll" ]; then
           cp "build/Debug/libstats.dll" "build/tests/Debug/" || true
         fi
-        # Also check for standard Windows build output locations
-        if [ -f "build/libstats.dll" ]; then
-          find build -type d -name tests -exec cp "build/libstats.dll" {} \; 2>/dev/null || true
-        fi
 
     - name: Test
       working-directory: build
-      run: ctest -C ${{ matrix.build_type }} --output-on-failure --parallel
+      run: |
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          # On Windows, ensure PATH includes DLL directories
+          export PATH="${{ github.workspace }}/build/${{ matrix.build_type }}:${{ github.workspace }}/build/tests/${{ matrix.build_type }}:${{ github.workspace }}/build:$PATH"
+        fi
+        ctest -C ${{ matrix.build_type }} --output-on-failure --parallel
 
     - name: Benchmark (Release only)
       if: matrix.build_type == 'Release'

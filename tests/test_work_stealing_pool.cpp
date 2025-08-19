@@ -116,7 +116,10 @@ int main() {
     // Test 4: Work stealing statistics with performance measurement
     std::cout << "Test 4: Performance and statistics\n";
     {
-        WorkStealingPool pool(std::thread::hardware_concurrency());
+        // Ensure we have at least 1 thread (hardware_concurrency can return 0)
+        unsigned int thread_count = std::thread::hardware_concurrency();
+        if (thread_count == 0) thread_count = 2; // Default to 2 if detection fails
+        WorkStealingPool pool(thread_count);
         const int numTasks = 1000;
         
         auto start_time = std::chrono::high_resolution_clock::now();
