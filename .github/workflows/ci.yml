@@ -131,6 +131,7 @@ jobs:
 
     - name: Benchmark (Release only)
       if: matrix.build_type == 'Release'
+      shell: bash
       run: |
         if [ -f "build/tools/system_inspector" ]; then
           ./build/tools/system_inspector --quick
@@ -178,6 +179,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Clean build directory
+      run: rm -rf build
 
     - name: Install dependencies
       run: |
