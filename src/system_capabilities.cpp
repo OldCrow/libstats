@@ -85,7 +85,7 @@ namespace {
             std::copy(source.begin(), source.end(), destination.begin());
             
             // Ensure the operation isn't optimized away
-            sink += destination[iter % array_size];
+            sink = sink + destination[iter % array_size];
         }
         
         auto end = std::chrono::high_resolution_clock::now();

@@ -13,7 +13,7 @@ int main() {
     bench.addTest("Simple Loop", []() {
         volatile int sum = 0;
         for (int i = 0; i < 1000; ++i) {
-            sum += i;
+            sum = sum + i;
         }
     });
     
@@ -27,7 +27,7 @@ int main() {
         // Compute sum
         volatile double sum = 0.0;
         for (double val : data) {
-            sum += val;
+            sum = sum + val;
         }
     });
     

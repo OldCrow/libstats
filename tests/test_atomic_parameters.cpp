@@ -258,7 +258,7 @@ void test_performance_comparison() {
     auto start = std::chrono::high_resolution_clock::now();
     volatile double sum_regular = 0.0;
     for (int i = 0; i < iterations; ++i) {
-        sum_regular += exp_dist.getLambda();
+        sum_regular = sum_regular + exp_dist.getLambda();
     }
     auto end = std::chrono::high_resolution_clock::now();
     auto regular_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
@@ -267,7 +267,7 @@ void test_performance_comparison() {
     start = std::chrono::high_resolution_clock::now();
     volatile double sum_atomic = 0.0;
     for (int i = 0; i < iterations; ++i) {
-        sum_atomic += exp_dist.getLambdaAtomic();
+        sum_atomic = sum_atomic + exp_dist.getLambdaAtomic();
     }
     end = std::chrono::high_resolution_clock::now();
     auto atomic_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);

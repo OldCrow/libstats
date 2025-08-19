@@ -131,7 +131,7 @@ int main() {
                 
                 volatile long long sum = 0;
                 for (auto value : work_amount) {
-                    sum += value;
+                    sum = sum + value;
                 }
             });
         }
