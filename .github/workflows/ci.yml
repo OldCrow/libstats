@@ -216,12 +216,13 @@ jobs:
         # Verify compilers are accessible before CMake
         which gcc-11 || (echo "gcc-11 not found before CMake" && exit 1)
         which g++-11 || (echo "g++-11 not found before CMake" && exit 1)
-        # Configure with explicit compiler paths
+        # Configure with explicit compiler paths and atomic profile updates
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Debug \
           -DCMAKE_C_COMPILER=/usr/bin/gcc-11 \
           -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 \
-          -DCMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage"
+          -DCMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic" \
+          -DCMAKE_C_FLAGS="--coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic"
 
     - name: Build
       run: cmake --build build --parallel
@@ -229,7 +230,8 @@ jobs:
     - name: Run tests
       run: |
         cd build
-        ctest --output-on-failure --parallel
+        # Run tests sequentially for coverage to avoid profile data corruption
+        ctest --output-on-failure
 
     - name: Generate coverage report
       run: |
