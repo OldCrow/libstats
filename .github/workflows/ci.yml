@@ -187,15 +187,22 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-11 g++-11 lcov
+        # Set up alternatives to ensure gcov-11 is used
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+        sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-11 100
 
     - name: Set compiler paths
       run: |
         echo "CC=gcc-11" >> $GITHUB_ENV
         echo "CXX=g++-11" >> $GITHUB_ENV
+        echo "GCOV=gcov-11" >> $GITHUB_ENV
         which gcc-11
         which g++-11
+        which gcov-11
         gcc-11 --version
         g++-11 --version
+        gcov-11 --version
 
     - name: Configure with coverage
       run: |
@@ -213,7 +220,8 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        lcov --directory build --capture --output-file coverage.info
+        # Explicitly use gcov-11 for coverage collection
+        lcov --gcov-tool gcov-11 --directory build --capture --output-file coverage.info
         lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info
         lcov --list coverage.info
 
