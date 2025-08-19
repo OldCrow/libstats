@@ -4,6 +4,8 @@
 #include <chrono>
 #include <vector>
 #include <numeric>
+#include <cmath>
+#include <algorithm>
 
 namespace libstats {
 namespace performance {
