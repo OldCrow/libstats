@@ -767,7 +767,7 @@ struct PThreadWorkItem {
 };
 
 /// pthread worker function
-void* pthread_worker(void* arg) {
+inline void* pthread_worker(void* arg) {
     PThreadWorkItem* item = static_cast<PThreadWorkItem*>(arg);
     try {
         item->work_function();
