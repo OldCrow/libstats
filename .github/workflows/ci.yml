@@ -79,7 +79,12 @@ jobs:
         echo "CC=${{ matrix.compiler.cc }}" >> $GITHUB_ENV
         echo "CXX=${{ matrix.compiler.cxx }}" >> $GITHUB_ENV
 
-    - name: Configure CMake
+    - name: Configure CMake (Windows MSVC)
+      if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -A x64
+
+    - name: Configure CMake (Non-Windows or Non-MSVC)
+      if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20
 
     - name: Build
