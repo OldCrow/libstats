@@ -96,7 +96,7 @@ The build system provides multiple build types optimized for different use cases
 - **ClangStrict**: Strict Clang warnings as errors
 - **ClangWarn**: Strict Clang warnings (not errors)
 
-#### GCC Build Types  
+#### GCC Build Types
 - **GCCStrict**: Strict GCC warnings as errors
 - **GCCWarn**: Strict GCC warnings (not errors)
 
@@ -163,7 +163,7 @@ The build system implements a dual-layer SIMD detection system:
 - **AVX2**: Enhanced 256-bit integer operations
 - **AVX-512**: 512-bit vector operations (server CPUs)
 
-#### ARM64 Platforms  
+#### ARM64 Platforms
 - **NEON**: ARM's SIMD instruction set
 
 ### SIMD Detection Examples
@@ -173,7 +173,7 @@ The build system implements a dual-layer SIMD detection system:
 -- Runtime sse2 test: PASSED
 -- SIMD: SSE2 enabled (compiler + runtime)
 -- Runtime avx test: PASSED
--- SIMD: AVX enabled (compiler + runtime)  
+-- SIMD: AVX enabled (compiler + runtime)
 -- Runtime avx2 test: PASSED
 -- SIMD: AVX2 enabled (compiler + runtime)
 -- SIMD detection complete:
@@ -242,7 +242,7 @@ The comprehensive build script provides automatic parallel detection:
 # Clean build with tests
 ./scripts/build.sh -c -t Release
 
-# Configure only (no build)  
+# Configure only (no build)
 ./scripts/build.sh --configure-only Dev
 
 # Verbose output with parallel builds
@@ -287,7 +287,7 @@ make -j8
 - **Threading**: POSIX threads, TBB, OpenMP detection
 - **Distribution**: Supports major Linux distributions
 
-#### Windows  
+#### Windows
 - **Compilers**: MSVC, ClangCL support
 - **SIMD Support**: x86_64 SIMD instruction sets
 - **Threading**: Windows Thread Pool API detection
@@ -346,7 +346,7 @@ Automatic detection and configuration of Homebrew LLVM:
 # ARM64 Macs (Apple Silicon)
 /opt/homebrew/opt/llvm
 
-# Intel Macs  
+# Intel Macs
 /usr/local/opt/llvm
 ```
 
@@ -428,7 +428,7 @@ cl.exe /std:c++20 /EHsc /W3 /O2 \
 # AVX support
 -mavx
 
-# AVX2 support  
+# AVX2 support
 -mavx2
 
 # AVX-512 support (server CPUs)
@@ -491,7 +491,7 @@ src/distributions/*.cpp
 # SIMD implementations (conditional)
 src/simd_fallback.cpp     # Always
 src/simd_sse2.cpp        # If SSE2 available
-src/simd_avx.cpp         # If AVX available  
+src/simd_avx.cpp         # If AVX available
 src/simd_avx2.cpp        # If AVX2 available
 src/simd_neon.cpp        # If NEON available (ARM64)
 ```
@@ -539,7 +539,7 @@ link.exe /DLL /OUT:libstats.dll *.obj
 #endif
 
 // Check for TBB
-#ifdef __has_include  
+#ifdef __has_include
   #if __has_include(<tbb/tbb.h>)
     #define LIBSTATS_HAS_TBB 1
   #endif
@@ -760,7 +760,7 @@ make VERBOSE=1 | grep -E "O2|O3|march"
 ./scripts/build.sh Release
 ./tests/performance_test > release_results.txt
 
-./scripts/build.sh Debug  
+./scripts/build.sh Debug
 ./tests/performance_test > debug_results.txt
 ```
 
@@ -778,7 +778,7 @@ The CMake system is the recommended approach for most users, providing zero-conf
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-08-13  
-**Covers**: Complete build system, CMake configuration, SIMD detection, parallel builds, cross-platform support  
+**Document Version**: 1.0
+**Last Updated**: 2025-08-13
+**Covers**: Complete build system, CMake configuration, SIMD detection, parallel builds, cross-platform support
 **Replaces**: `build_types.md`, `parallel_builds.md`, `simd_build_system.md`

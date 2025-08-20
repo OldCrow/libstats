@@ -16,7 +16,7 @@ This branch contains Windows-specific enhancements to libstats for improved comp
 - **MSVC/Clang-cl Detection**: Added logic to detect MSVC and Clang-cl on Windows
 - **Windows SIMD Flags**: Implemented Windows-specific SIMD compiler flags:
   - `/arch:SSE2` for SSE2 support
-  - `/arch:AVX` for AVX support  
+  - `/arch:AVX` for AVX support
   - `/arch:AVX2` for AVX2 support
   - `/arch:AVX512` for AVX-512 support
 - **Runtime Testing**: Enhanced runtime CPU feature testing to work with both GCC/Clang and MSVC compilers
@@ -112,7 +112,7 @@ When ready to merge back to main:
 Potential areas for future Windows-specific improvements:
 
 1. **CPU Topology Detection**: Windows-specific CPU core/thread detection
-2. **Memory Management**: Windows-specific memory allocation optimizations  
+2. **Memory Management**: Windows-specific memory allocation optimizations
 3. **Thread Affinity**: Windows thread affinity APIs for performance
 4. **Visual Studio Integration**: Project templates and debugging support
 

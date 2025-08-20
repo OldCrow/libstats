@@ -261,6 +261,82 @@ We're particularly interested in contributions in these areas:
 - **GitHub Discussions**: For general questions and community discussion
 - **Code Review**: We provide thorough, constructive code reviews
 
+## 📝 Commit Message Guidelines
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear communication and automated versioning.
+
+### Commit Message Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Commit Types
+
+- **feat**: New feature (triggers minor version bump)
+- **fix**: Bug fix (triggers patch version bump)
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, etc.)
+- **refactor**: Code refactoring without changing functionality
+- **perf**: Performance improvements
+- **test**: Adding or updating tests
+- **build**: Build system or dependency changes
+- **ci**: CI/CD configuration changes
+- **chore**: Other maintenance tasks
+- **revert**: Reverts a previous commit
+
+### Examples
+
+```bash
+# Feature
+git commit -m "feat(gaussian): add parallel batch fitting support"
+
+# Bug fix
+git commit -m "fix(simd): correct AVX2 detection on older CPUs"
+
+# Breaking change (triggers major version bump)
+git commit -m "feat(api)!: change distribution interface
+
+BREAKING CHANGE: All distribution classes now require explicit template parameters"
+```
+
+### Using the Commit Template
+
+Configure git to use our commit message template:
+
+```bash
+git config commit.template .gitmessage
+```
+
+## 🚀 Release Process
+
+Our release process is automated using semantic versioning based on commit messages.
+
+### Automatic Version Bumping
+
+- **feat commits**: Trigger minor version bump (0.X.0)
+- **fix/perf commits**: Trigger patch version bump (0.0.X)
+- **BREAKING CHANGE**: Triggers major version bump (X.0.0)
+
+### Release Workflow
+
+1. Commits to `main` trigger automatic version analysis
+2. Version is bumped based on commit types since last release
+3. CHANGELOG.md is automatically generated
+4. GitHub release is created with release notes
+5. Documentation is built and deployed to GitHub Pages
+
+### Manual Releases
+
+Maintainers can trigger manual releases:
+1. Go to Actions → Release workflow
+2. Click "Run workflow"
+3. Select release type (patch/minor/major)
+
 ---
 
 Thank you for contributing to libstats! Your efforts help make statistical computing in C++ more accessible and powerful for everyone.

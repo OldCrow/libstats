@@ -1,9 +1,10 @@
 #include "core/distribution_cache.h"
+
 #include <functional>
 
 namespace libstats {
 
-template<typename Func>
+template <typename Func>
 auto ThreadSafeCacheManager::getCachedValue(Func&& accessor) const -> decltype(accessor()) {
     // Fast path: check cache validity atomically without lock
     if (cacheValidAtomic_.load(std::memory_order_acquire)) {
@@ -31,10 +32,13 @@ auto ThreadSafeCacheManager::getCachedValue(Func&& accessor) const -> decltype(a
 // Instantiate for common accessor types to reduce compilation overhead.
 // Add more instantiations as needed for other return types or function signatures.
 
-template double ThreadSafeCacheManager::getCachedValue<std::function<double()>>(std::function<double()>&&) const;
-template bool ThreadSafeCacheManager::getCachedValue<std::function<bool()>>(std::function<bool()>&&) const;
-template int ThreadSafeCacheManager::getCachedValue<std::function<int()>>(std::function<int()>&&) const;
-template size_t ThreadSafeCacheManager::getCachedValue<std::function<size_t()>>(std::function<size_t()>&&) const;
+template double ThreadSafeCacheManager::getCachedValue<std::function<double()>>(
+    std::function<double()>&&) const;
+template bool ThreadSafeCacheManager::getCachedValue<std::function<bool()>>(
+    std::function<bool()>&&) const;
+template int ThreadSafeCacheManager::getCachedValue<std::function<int()>>(
+    std::function<int()>&&) const;
+template size_t ThreadSafeCacheManager::getCachedValue<std::function<size_t()>>(
+    std::function<size_t()>&&) const;
 
-}
-
+}  // namespace libstats

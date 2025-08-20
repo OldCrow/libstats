@@ -22,7 +22,7 @@ Our library supports both compile-time and runtime CPU feature detection to opti
   ```cpp
   #include "libstats/performance/simd.h"
   #include "libstats/cpu/cpu_detection.h"
-  
+
   if (libstats::cpu::supports_avx()) {
       // Execute AVX code path
   } else {
@@ -113,7 +113,7 @@ libstats/
 The libstats library now includes 5 fully implemented statistical distributions:
 
 1. **Gaussian (Normal) Distribution** ✅ - N(μ, σ²)
-2. **Exponential Distribution** ✅ - Exp(λ) 
+2. **Exponential Distribution** ✅ - Exp(λ)
 3. **Uniform Distribution** ✅ - U(a, b)
 4. **Poisson Distribution** ✅ - P(λ)
 5. **Discrete Distribution** ✅ - Custom discrete distributions with arbitrary support
@@ -142,31 +142,31 @@ namespace libstats {
     private:
         double mu_{0.0};      // Mean
         double sigma_{1.0};   // Standard deviation
-        
+
     public:
         // Constructors
         GaussianDistribution(double mu = 0.0, double sigma = 1.0);
-        
+
         // Distribution-specific interface
         double getMu() const { return mu_; }
         void setMu(double mu) { mu_ = mu; invalidateCache(); }
         double getSigma() const { return sigma_; }
         void setSigma(double sigma);
         double getSigmaSquared() const { return sigma_ * sigma_; }
-        
+
         // Pure virtual implementations
         double getProbability(double x) const override;
         double getCumulativeProbability(double x) const override;
         double getQuantile(double p) const override;
         double sample(std::mt19937& rng) const override;
         void fit(const std::vector<double>& data) override;
-        
+
         // Statistical properties
         double getMean() const override { return mu_; }
         double getVariance() const override { return sigma_ * sigma_; }
         double getSkewness() const override { return 0.0; }
         double getKurtosis() const override { return 0.0; }
-        
+
         // Metadata
         std::string getDistributionName() const override { return "Gaussian"; }
         int getNumParameters() const override { return 2; }
@@ -246,7 +246,7 @@ install(DIRECTORY include/ DESTINATION include/libstats)
 /**
  * @file libstats.h
  * @brief Modern C++20 statistical distributions library
- * 
+ *
  * Provides comprehensive statistical interface with:
  * - PDF, CDF, and quantile functions
  * - Random sampling using std:: distributions
@@ -286,7 +286,7 @@ namespace libstats {
     using Uniform = UniformDistribution;
     using Poisson = PoissonDistribution;
     using Gamma = GammaDistribution;
-    
+
     // Version information
     constexpr int VERSION_MAJOR = 1;
     constexpr int VERSION_MINOR = 0;
@@ -307,32 +307,32 @@ int main() {
     // Create distributions
     libstats::Gaussian normal(0.0, 1.0);
     libstats::Exponential exponential(2.0);
-    
+
     // Statistical properties
     std::cout << "Normal mean: " << normal.getMean() << std::endl;
     std::cout << "Normal variance: " << normal.getVariance() << std::endl;
-    
+
     // PDF evaluation
     std::cout << "P(X=1.0) for N(0,1): " << normal.getProbability(1.0) << std::endl;
-    
+
     // CDF evaluation
     std::cout << "P(X<=1.0) for N(0,1): " << normal.getCumulativeProbability(1.0) << std::endl;
-    
+
     // Quantiles
     std::cout << "95th percentile of N(0,1): " << normal.getQuantile(0.95) << std::endl;
-    
+
     // Random sampling
     std::mt19937 rng(42);
     auto samples = normal.sample(rng, 1000);
-    
+
     // Parameter fitting
     normal.fit(samples);
     std::cout << "Fitted mean: " << normal.getMean() << std::endl;
-    
+
     // Validation
     auto validation = normal.validate(samples);
     std::cout << "KS p-value: " << validation.ks_p_value << std::endl;
-    
+
     return 0;
 }
 ```
@@ -349,7 +349,7 @@ int main() {
 
 ### **Performance Analysis Tools**
 - **Comprehensive benchmarking**: Multi-threaded performance testing with detailed analysis
-- **System analysis**: CPU feature detection and mathematical constant verification  
+- **System analysis**: CPU feature detection and mathematical constant verification
 - **Parallel optimization**: Grain size optimization with efficiency metrics (8-15x speedups achieved)
 - **Threshold analysis**: Automated parallel vs serial threshold determination
 - **CSV reporting**: Detailed performance data for optimization decisions
@@ -365,7 +365,7 @@ The libstats library successfully addresses the gap in the C++ ecosystem by prov
 
 ---
 
-*Document created: 2025-01-10*  
-*Version: 1.0*  
-*Author: AI Assistant*  
+*Document created: 2025-01-10*
+*Version: 1.0*
+*Author: AI Assistant*
 *Status: Project Concept Document*

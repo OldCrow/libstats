@@ -34,7 +34,7 @@ print_error() {
 detect_cpu_cores() {
     local cpu_count=0
     local detection_method=""
-    
+
     # Try different methods to detect CPU count
     if command -v nproc >/dev/null 2>&1; then
         cpu_count=$(nproc)
@@ -48,18 +48,18 @@ detect_cpu_cores() {
         cpu_count=$(grep -c ^processor /proc/cpuinfo)
         detection_method="/proc/cpuinfo"
     fi
-    
+
     # Fallback if detection fails
     if [ "$cpu_count" -eq 0 ]; then
         cpu_count=4
         detection_method="fallback default"
     fi
-    
+
     # Output info message to stderr so it doesn't interfere with return value
     if [ -n "$detection_method" ]; then
         print_info "Detected $cpu_count CPU cores using $detection_method" >&2
     fi
-    
+
     echo $cpu_count
 }
 
@@ -81,11 +81,11 @@ OPTIONS:
 
 BUILD_TYPE:
     Debug           Debug build with full debug info
-    Release         Optimized release build  
+    Release         Optimized release build
     Dev             Development build (default) - light optimization + debug info
     ClangStrict     Clang with strict warnings as errors
     ClangWarn       Clang with strict warnings (not errors)
-    GCCStrict       GCC with strict warnings as errors  
+    GCCStrict       GCC with strict warnings as errors
     GCCWarn         GCC with strict warnings (not errors)
     MSVCStrict      MSVC with strict warnings as errors
     MSVCWarn        MSVC with strict warnings (not errors)
@@ -202,41 +202,41 @@ if [ "$BUILD_ONLY" != true ]; then
         -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
         "-DCMAKE_BUILD_PARALLEL_LEVEL=$CPU_COUNT"
     )
-    
+
     if [ "$VERBOSE" = true ]; then
         cmake_args+=("--verbose")
     fi
-    
+
     cmake "${cmake_args[@]}" "$PROJECT_ROOT"
-    
+
     if [ $? -ne 0 ]; then
         print_error "CMake configuration failed"
         exit 1
     fi
-    
+
     print_success "CMake configuration completed"
 fi
 
-# Build step  
+# Build step
 if [ "$CONFIGURE_ONLY" != true ]; then
     print_info "Building with $CPU_COUNT parallel jobs..."
-    
+
     build_args=(
         --build .
         --parallel "$CPU_COUNT"
     )
-    
+
     if [ "$VERBOSE" = true ]; then
         build_args+=("--verbose")
     fi
-    
+
     cmake "${build_args[@]}"
-    
+
     if [ $? -ne 0 ]; then
         print_error "Build failed"
         exit 1
     fi
-    
+
     print_success "Build completed successfully"
 fi
 
@@ -244,7 +244,7 @@ fi
 if [ "$RUN_TESTS" = true ] && [ "$CONFIGURE_ONLY" != true ]; then
     print_info "Running tests..."
     ctest --output-on-failure --parallel "$CPU_COUNT"
-    
+
     if [ $? -eq 0 ]; then
         print_success "All tests passed"
     else

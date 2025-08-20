@@ -2,11 +2,12 @@
 // This file contains only the decision logic for which implementation to use
 // Enhanced with platform-specific optimizations and adaptive thresholds
 
+#include "../include/core/constants.h"
+#include "../include/platform/cpu_detection.h"
+#include "../include/platform/platform_constants.h"
 #include "../include/platform/simd.h"
 #include "../include/platform/simd_policy.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/core/constants.h"
-#include "../include/platform/platform_constants.h"
+
 #include <algorithm>
 #include <cstring>
 
@@ -22,10 +23,10 @@ double VectorOps::dot_product(const double* a, const double* b, std::size_t size
     if (!SIMDPolicy::shouldUseSIMD(size)) {
         return dot_product_fallback(a, b, size);
     }
-    
+
     // Dispatch to best available implementation in order of performance
     // Each implementation includes its own runtime safety checks
-    
+
 #ifdef LIBSTATS_HAS_AVX512
     if (cpu::supports_avx512()) {
         return dot_product_avx512(a, b, size);
@@ -60,11 +61,12 @@ double VectorOps::dot_product(const double* a, const double* b, std::size_t size
     return dot_product_fallback(a, b, size);
 }
 
-void VectorOps::vector_add(const double* a, const double* b, double* result, std::size_t size) noexcept {
+void VectorOps::vector_add(const double* a, const double* b, double* result,
+                           std::size_t size) noexcept {
     if (!SIMDPolicy::shouldUseSIMD(size)) {
         return vector_add_fallback(a, b, result, size);
     }
-    
+
 #ifdef LIBSTATS_HAS_AVX512
     if (cpu::supports_avx512()) {
         return vector_add_avx512(a, b, result, size);
@@ -98,11 +100,12 @@ void VectorOps::vector_add(const double* a, const double* b, double* result, std
     return vector_add_fallback(a, b, result, size);
 }
 
-void VectorOps::vector_subtract(const double* a, const double* b, double* result, std::size_t size) noexcept {
+void VectorOps::vector_subtract(const double* a, const double* b, double* result,
+                                std::size_t size) noexcept {
     if (!SIMDPolicy::shouldUseSIMD(size)) {
         return vector_subtract_fallback(a, b, result, size);
     }
-    
+
 #ifdef LIBSTATS_HAS_AVX512
     if (cpu::supports_avx512()) {
         return vector_subtract_avx512(a, b, result, size);
@@ -136,11 +139,12 @@ void VectorOps::vector_subtract(const double* a, const double* b, double* result
     return vector_subtract_fallback(a, b, result, size);
 }
 
-void VectorOps::vector_multiply(const double* a, const double* b, double* result, std::size_t size) noexcept {
+void VectorOps::vector_multiply(const double* a, const double* b, double* result,
+                                std::size_t size) noexcept {
     if (!SIMDPolicy::shouldUseSIMD(size)) {
         return vector_multiply_fallback(a, b, result, size);
     }
-    
+
 #ifdef LIBSTATS_HAS_AVX512
     if (cpu::supports_avx512()) {
         return vector_multiply_avx512(a, b, result, size);
@@ -174,11 +178,12 @@ void VectorOps::vector_multiply(const double* a, const double* b, double* result
     return vector_multiply_fallback(a, b, result, size);
 }
 
-void VectorOps::scalar_multiply(const double* a, double scalar, double* result, std::size_t size) noexcept {
+void VectorOps::scalar_multiply(const double* a, double scalar, double* result,
+                                std::size_t size) noexcept {
     if (!SIMDPolicy::shouldUseSIMD(size)) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
-    
+
 #ifdef LIBSTATS_HAS_AVX512
     if (cpu::supports_avx512()) {
         return scalar_multiply_avx512(a, scalar, result, size);
@@ -212,11 +217,12 @@ void VectorOps::scalar_multiply(const double* a, double scalar, double* result, 
     return scalar_multiply_fallback(a, scalar, result, size);
 }
 
-void VectorOps::scalar_add(const double* a, double scalar, double* result, std::size_t size) noexcept {
+void VectorOps::scalar_add(const double* a, double scalar, double* result,
+                           std::size_t size) noexcept {
     if (!SIMDPolicy::shouldUseSIMD(size)) {
         return scalar_add_fallback(a, scalar, result, size);
     }
-    
+
 #ifdef LIBSTATS_HAS_AVX512
     if (cpu::supports_avx512()) {
         return scalar_add_avx512(a, scalar, result, size);
@@ -262,7 +268,8 @@ void VectorOps::vector_log(const double* values, double* results, std::size_t si
     return vector_log_fallback(values, results, size);
 }
 
-void VectorOps::vector_pow(const double* base, double exponent, double* results, std::size_t size) noexcept {
+void VectorOps::vector_pow(const double* base, double exponent, double* results,
+                           std::size_t size) noexcept {
     // For complex math functions like pow, we currently use fallback
     return vector_pow_fallback(base, exponent, results, size);
 }
@@ -320,94 +327,102 @@ std::size_t VectorOps::get_optimal_block_size() noexcept {
 //========== Enhanced Platform-Aware Dispatch Utilities ==========
 
 namespace {
-    /// Internal utility: Check if memory alignment is beneficial for current platform
-    inline bool is_alignment_beneficial(const void* ptr1, const void* ptr2 = nullptr, const void* ptr3 = nullptr) noexcept {
-        const std::size_t alignment = constants::platform::get_optimal_alignment();
-        
-        bool aligned = (reinterpret_cast<uintptr_t>(ptr1) % alignment) == constants::math::ZERO_INT;
-        if (ptr2) {
-            aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr2) % alignment) == constants::math::ZERO_INT);
-        }
-        if (ptr3) {
-            aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr3) % alignment) == constants::math::ZERO_INT);
-        }
-        
-        return aligned;
+/// Internal utility: Check if memory alignment is beneficial for current platform
+inline bool is_alignment_beneficial(const void* ptr1, const void* ptr2 = nullptr,
+                                    const void* ptr3 = nullptr) noexcept {
+    const std::size_t alignment = constants::platform::get_optimal_alignment();
+
+    bool aligned = (reinterpret_cast<uintptr_t>(ptr1) % alignment) == constants::math::ZERO_INT;
+    if (ptr2) {
+        aligned = aligned &&
+                  ((reinterpret_cast<uintptr_t>(ptr2) % alignment) == constants::math::ZERO_INT);
     }
-    
-    /// Internal utility: Get platform-specific cache optimization threshold
-    inline std::size_t get_cache_optimization_threshold() noexcept {
-        const auto thresholds = constants::platform::get_cache_thresholds();
-        return thresholds.l1_optimal_size / constants::math::FOUR_INT; // Use quarter of L1 as threshold
+    if (ptr3) {
+        aligned = aligned &&
+                  ((reinterpret_cast<uintptr_t>(ptr3) % alignment) == constants::math::ZERO_INT);
     }
-    
-    /// Internal utility: Choose optimal SIMD path based on data characteristics
-    template<typename Operation>
-    inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const void* ptr2 = nullptr, const void* ptr3 = nullptr) noexcept {
-        // Basic size check
-        if (!SIMDPolicy::shouldUseSIMD(size)) {
-            return false;
-        }
-        
-        // For very large datasets, always use SIMD regardless of alignment
-        const std::size_t cache_threshold = get_cache_optimization_threshold();
-        if (size >= cache_threshold) {
-            return true;
-        }
-        
-        // For medium datasets, check alignment benefits
-        if (size >= constants::simd::optimization::MEDIUM_DATASET_MIN_SIZE && is_alignment_beneficial(ptr1, ptr2, ptr3)) {
-            return true;
-        }
-        
-        // For high-end SIMD (AVX-512), use for smaller aligned datasets
-        #ifdef LIBSTATS_HAS_AVX512
-        if (cpu::supports_avx512() && size >= constants::simd::optimization::AVX512_MIN_ALIGNED_SIZE && is_alignment_beneficial(ptr1, ptr2, ptr3)) {
-            return true;
-        }
-        #endif
-        
-        // For Apple Silicon, be more aggressive with SIMD usage
-        #if defined(LIBSTATS_APPLE_SILICON)
-        if (size >= constants::simd::optimization::APPLE_SILICON_AGGRESSIVE_THRESHOLD) {
-            return true;
-        }
-        #endif
-        
-        return size >= constants::platform::get_min_simd_size();
-    }
+
+    return aligned;
 }
+
+/// Internal utility: Get platform-specific cache optimization threshold
+inline std::size_t get_cache_optimization_threshold() noexcept {
+    const auto thresholds = constants::platform::get_cache_thresholds();
+    return thresholds.l1_optimal_size /
+           constants::math::FOUR_INT;  // Use quarter of L1 as threshold
+}
+
+/// Internal utility: Choose optimal SIMD path based on data characteristics
+template <typename Operation>
+inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const void* ptr2 = nullptr,
+                                     const void* ptr3 = nullptr) noexcept {
+    // Basic size check
+    if (!SIMDPolicy::shouldUseSIMD(size)) {
+        return false;
+    }
+
+    // For very large datasets, always use SIMD regardless of alignment
+    const std::size_t cache_threshold = get_cache_optimization_threshold();
+    if (size >= cache_threshold) {
+        return true;
+    }
+
+    // For medium datasets, check alignment benefits
+    if (size >= constants::simd::optimization::MEDIUM_DATASET_MIN_SIZE &&
+        is_alignment_beneficial(ptr1, ptr2, ptr3)) {
+        return true;
+    }
+
+// For high-end SIMD (AVX-512), use for smaller aligned datasets
+#ifdef LIBSTATS_HAS_AVX512
+    if (cpu::supports_avx512() && size >= constants::simd::optimization::AVX512_MIN_ALIGNED_SIZE &&
+        is_alignment_beneficial(ptr1, ptr2, ptr3)) {
+        return true;
+    }
+#endif
+
+// For Apple Silicon, be more aggressive with SIMD usage
+#if defined(LIBSTATS_APPLE_SILICON)
+    if (size >= constants::simd::optimization::APPLE_SILICON_AGGRESSIVE_THRESHOLD) {
+        return true;
+    }
+#endif
+
+    return size >= constants::platform::get_min_simd_size();
+}
+}  // namespace
 
 //========== Enhanced Public Interface Functions ==========
 
-bool VectorOps::should_use_vectorized_path(std::size_t size, const void* data1, const void* data2, const void* data3) noexcept {
+bool VectorOps::should_use_vectorized_path(std::size_t size, const void* data1, const void* data2,
+                                           const void* data3) noexcept {
     return should_use_advanced_simd<void>(size, data1, data2, data3);
 }
 
 std::string VectorOps::get_platform_optimization_info() noexcept {
     const auto thresholds = constants::platform::get_cache_thresholds();
-    
+
     std::string info = "Platform: ";
-    
-    #if defined(LIBSTATS_APPLE_SILICON)
-        info += "Apple Silicon (";
-    #elif defined(__aarch64__) || defined(_M_ARM64)
-        info += "ARM64 (";
-    #elif defined(__x86_64__) || defined(_M_X64)
-        info += "x86_64 (";
-    #elif defined(__i386) || defined(_M_IX86)
-        info += "x86_32 (";
-    #else
-        info += "Unknown (";
-    #endif
-    
+
+#if defined(LIBSTATS_APPLE_SILICON)
+    info += "Apple Silicon (";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    info += "ARM64 (";
+#elif defined(__x86_64__) || defined(_M_X64)
+    info += "x86_64 (";
+#elif defined(__i386) || defined(_M_IX86)
+    info += "x86_32 (";
+#else
+    info += "Unknown (";
+#endif
+
     info += get_active_simd_level() + "), ";
     info += "SIMD Width: " + std::to_string(double_vector_width()) + ", ";
     info += "Min SIMD Size: " + std::to_string(min_simd_size()) + ", ";
     info += "L1 Cache Elements: " + std::to_string(thresholds.l1_optimal_size);
-    
+
     return info;
 }
 
-} // namespace simd
-} // namespace libstats
+}  // namespace simd
+}  // namespace libstats

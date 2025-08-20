@@ -1,19 +1,19 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
-#include <chrono>
-#include <optional>
 
 /**
  * @file cpu_detection.h
  * @brief Runtime CPU feature detection for SIMD capabilities
- * 
+ *
  * This header provides runtime detection of CPU features to ensure that
  * SIMD instructions are only used when actually supported by the hardware,
  * not just when the compiler can generate them.
- * 
+ *
  * This solves the problem where:
  * - Compiler capability != CPU capability
  * - CMake's check_cxx_source_compiles only tests compilation, not execution
@@ -49,11 +49,11 @@ struct TopologyInfo {
  * @brief Performance monitoring capabilities
  */
 struct PerformanceInfo {
-    bool has_perf_counters = false;  ///< Hardware performance counters available
-    bool has_rdtsc = false;          ///< RDTSC instruction available
-    bool has_invariant_tsc = false;  ///< TSC frequency is invariant
-    uint64_t tsc_frequency = 0;      ///< TSC frequency in Hz (0 if unknown)
-    std::vector<std::string> counter_names; ///< Available performance counter names
+    bool has_perf_counters = false;          ///< Hardware performance counters available
+    bool has_rdtsc = false;                  ///< RDTSC instruction available
+    bool has_invariant_tsc = false;          ///< TSC frequency is invariant
+    uint64_t tsc_frequency = 0;              ///< TSC frequency in Hz (0 if unknown)
+    std::vector<std::string> counter_names;  ///< Available performance counter names
 };
 
 /**
@@ -76,33 +76,33 @@ struct Features {
     bool avx512vl = false;    ///< AVX-512 Vector Length Extensions
     bool avx512vnni = false;  ///< AVX-512 Vector Neural Network Instructions
     bool avx512bf16 = false;  ///< AVX-512 BFLOAT16 Instructions
-    
+
     // ARM features
     bool neon = false;
-    bool sve = false;         ///< ARM Scalable Vector Extensions
-    bool sve2 = false;        ///< ARM Scalable Vector Extensions 2
-    bool crypto = false;      ///< ARM Cryptography Extensions
-    bool crc32 = false;       ///< ARM CRC32 Instructions
-    
+    bool sve = false;     ///< ARM Scalable Vector Extensions
+    bool sve2 = false;    ///< ARM Scalable Vector Extensions 2
+    bool crypto = false;  ///< ARM Cryptography Extensions
+    bool crc32 = false;   ///< ARM CRC32 Instructions
+
     // CPU identification
     std::string vendor;
     std::string brand;
     uint32_t family = 0;
     uint32_t model = 0;
     uint32_t stepping = 0;
-    
+
     // Enhanced cache information
     CacheInfo l1_data_cache;
     CacheInfo l1_instruction_cache;
     CacheInfo l2_cache;
     CacheInfo l3_cache;
-    
+
     // CPU topology
     TopologyInfo topology;
-    
+
     // Performance monitoring
     PerformanceInfo performance;
-    
+
     // Legacy cache info for backwards compatibility
     uint32_t l1_cache_size = 0;
     uint32_t l2_cache_size = 0;
@@ -138,10 +138,10 @@ bool supports_neon();
  * These functions identify specific Intel CPU generations for optimized constants
  */
 bool is_sandy_ivy_bridge();    // Sandy Bridge (2011) / Ivy Bridge (2012) - AVX, no AVX2
-bool is_haswell_broadwell();    // Haswell (2013) / Broadwell (2014) - AVX2, FMA
-bool is_skylake_generation();   // Skylake (2015) and derivatives - improved AVX2
-bool is_kaby_coffee_lake();     // Kaby Lake (2016) / Coffee Lake (2017-2018) - optimized Skylake
-bool is_modern_intel();         // Ice Lake (2019+) and newer - AVX-512 or latest optimizations
+bool is_haswell_broadwell();   // Haswell (2013) / Broadwell (2014) - AVX2, FMA
+bool is_skylake_generation();  // Skylake (2015) and derivatives - improved AVX2
+bool is_kaby_coffee_lake();    // Kaby Lake (2016) / Coffee Lake (2017-2018) - optimized Skylake
+bool is_modern_intel();        // Ice Lake (2019+) and newer - AVX-512 or latest optimizations
 
 /**
  * @brief Get a human-readable string of supported features
@@ -220,17 +220,17 @@ struct TimingResult {
  * @param func Function to measure
  * @return Timing measurements
  */
-template<typename Func>
+template <typename Func>
 TimingResult measure_performance(Func&& func);
 
 // Forward declaration
 uint64_t read_tsc();
 
 // Template implementation
-template<typename Func>
+template <typename Func>
 TimingResult measure_performance(Func&& func) {
     TimingResult result;
-    
+
     if (!has_rdtsc()) {
         // Fallback to time-only measurement
         auto start = std::chrono::high_resolution_clock::now();
@@ -240,20 +240,20 @@ TimingResult measure_performance(Func&& func) {
         result.valid = true;
         return result;
     }
-    
+
     // Use TSC for cycle counting
     auto start_time = std::chrono::high_resolution_clock::now();
     uint64_t start_cycles = read_tsc();
-    
+
     func();
-    
+
     uint64_t end_cycles = read_tsc();
     auto end_time = std::chrono::high_resolution_clock::now();
-    
+
     result.cycles = end_cycles - start_cycles;
     result.duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
     result.valid = true;
-    
+
     return result;
 }
 
@@ -282,5 +282,5 @@ std::string detailed_cpu_info();
  */
 bool validate_feature_consistency();
 
-} // namespace cpu
-} // namespace libstats
+}  // namespace cpu
+}  // namespace libstats

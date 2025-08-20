@@ -1,0 +1,14 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/libstats
+
+Name: libstats
+Description: High-performance C++ statistics library with SIMD optimizations
+Version: @PROJECT_VERSION@
+URL: https://github.com/yourusername/libstats
+
+Requires:
+Libs: -L${libdir} -lstats
+Libs.private: @LIBSTATS_PC_LIBS_PRIVATE@
+Cflags: -I${includedir} -std=c++20

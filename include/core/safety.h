@@ -1,33 +1,34 @@
 #pragma once
 
-#include <stdexcept>
+#include "../platform/simd.h"
+#include "constants.h"
+
 #include <cassert>
-#include <cstddef>
-#include <string>
-#include <vector>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <span>
-#include "constants.h"
-#include "../platform/simd.h"
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 /**
  * @file safety.h
  * @brief Memory safety, bounds checking, and numerical stability utilities for libstats
- * 
+ *
  * This header provides comprehensive safety utilities including bounds checking,
  * memory safety verification, numerical stability checks, and error recovery
  * mechanisms for statistical computations.
- * 
+ *
  * ## Design Pattern for Safety Functions
- * 
+ *
  * This module uses a dual-layer approach for mathematical safety functions:
- * 
+ *
  * 1. **Scalar Functions (inline)**: Small, frequently-used functions like safe_log(),
  *    safe_exp(), safe_sqrt() are implemented as inline functions in this header
  *    for maximum performance. These handle edge cases and provide numerically
  *    stable versions of standard math functions.
- * 
+ *
  * 2. **Vector Functions (compiled)**: Larger, more complex functions like
  *    vector_safe_log(), vector_safe_exp(), vector_safe_sqrt() are implemented
  *    in safety.cpp. These functions:
@@ -35,7 +36,7 @@
  *    - Fall back to scalar implementations for small arrays
  *    - Call the inline scalar functions to ensure consistent behavior
  *    - Handle memory layout and chunking for optimal performance
- * 
+ *
  * This design ensures that:
  * - Single-value operations are fast (inlined)
  * - Array operations are optimized (vectorized when beneficial)
@@ -57,10 +58,11 @@ namespace safety {
  * @param context Description for error messages
  * @throws std::out_of_range if index >= size
  */
-inline void check_bounds(std::size_t index, std::size_t size, const char* context = "array access") {
+inline void check_bounds(std::size_t index, std::size_t size,
+                         const char* context = "array access") {
     if (index >= size) {
-        throw std::out_of_range(std::string("Index ") + std::to_string(index) + 
-                               " out of bounds [0, " + std::to_string(size) + ") in " + context);
+        throw std::out_of_range(std::string("Index ") + std::to_string(index) +
+                                " out of bounds [0, " + std::to_string(size) + ") in " + context);
     }
 }
 
@@ -73,14 +75,13 @@ inline void check_bounds(std::size_t index, std::size_t size, const char* contex
  * @param context Description for error messages
  * @throws std::out_of_range if indices are out of bounds
  */
-inline void check_matrix_bounds(std::size_t row, std::size_t col, 
-                               std::size_t rows, std::size_t cols, 
-                               const char* context = "matrix access") {
+inline void check_matrix_bounds(std::size_t row, std::size_t col, std::size_t rows,
+                                std::size_t cols, const char* context = "matrix access") {
     if (row >= rows || col >= cols) {
-        throw std::out_of_range(std::string("Matrix index (") + std::to_string(row) + 
-                               ", " + std::to_string(col) + ") out of bounds [0, " + 
-                               std::to_string(rows) + ") x [0, " + std::to_string(cols) + 
-                               ") in " + context);
+        throw std::out_of_range(std::string("Matrix index (") + std::to_string(row) + ", " +
+                                std::to_string(col) + ") out of bounds [0, " +
+                                std::to_string(rows) + ") x [0, " + std::to_string(cols) + ") in " +
+                                context);
     }
 }
 
@@ -94,9 +95,8 @@ inline void check_matrix_bounds(std::size_t row, std::size_t col,
  * @return Linear index
  * @throws std::out_of_range if indices are out of bounds
  */
-inline std::size_t safe_matrix_index(std::size_t row, std::size_t col, 
-                                    std::size_t cols, std::size_t rows,
-                                    const char* context = "matrix indexing") {
+inline std::size_t safe_matrix_index(std::size_t row, std::size_t col, std::size_t cols,
+                                     std::size_t rows, const char* context = "matrix indexing") {
     check_matrix_bounds(row, col, rows, cols, context);
     return row * cols + col;
 }
@@ -110,13 +110,13 @@ inline std::size_t safe_matrix_index(std::size_t row, std::size_t col,
  * @return Safe offset pointer
  * @throws std::out_of_range if offset is out of bounds
  */
-template<typename T>
+template <typename T>
 inline T* safe_pointer_offset(T* base_ptr, std::size_t offset, std::size_t max_offset,
-                             const char* context = "pointer offset") {
+                              const char* context = "pointer offset") {
     if (offset >= max_offset) {
-        throw std::out_of_range(std::string("Pointer offset ") + std::to_string(offset) + 
-                               " out of bounds [0, " + std::to_string(max_offset) + 
-                               ") in " + context);
+        throw std::out_of_range(std::string("Pointer offset ") + std::to_string(offset) +
+                                " out of bounds [0, " + std::to_string(max_offset) + ") in " +
+                                context);
     }
     return base_ptr + offset;
 }
@@ -134,12 +134,12 @@ inline std::size_t safe_array_size(std::size_t rows, std::size_t cols, std::size
     if (rows > 0 && cols > SIZE_MAX / rows) {
         throw std::overflow_error("Matrix size calculation overflow: rows * cols");
     }
-    
+
     const std::size_t total_elements = rows * cols;
     if (total_elements > 0 && element_size > SIZE_MAX / total_elements) {
         throw std::overflow_error("Array size calculation overflow: elements * element_size");
     }
-    
+
     return total_elements * element_size;
 }
 
@@ -150,12 +150,13 @@ inline std::size_t safe_array_size(std::size_t rows, std::size_t cols, std::size
  * @param context Description for error messages
  * @throws std::runtime_error if pointer is not properly aligned
  */
-template<typename T>
-inline void verify_simd_alignment(const T* ptr, std::size_t alignment, const char* context = "SIMD operation") {
+template <typename T>
+inline void verify_simd_alignment(const T* ptr, std::size_t alignment,
+                                  const char* context = "SIMD operation") {
     const uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
     if ((addr & (alignment - 1)) != 0) {
-        throw std::runtime_error(std::string("Pointer not aligned to ") + std::to_string(alignment) + 
-                                " bytes for " + context);
+        throw std::runtime_error(std::string("Pointer not aligned to ") +
+                                 std::to_string(alignment) + " bytes for " + context);
     }
 }
 
@@ -163,18 +164,24 @@ inline void verify_simd_alignment(const T* ptr, std::size_t alignment, const cha
  * @brief Debug-only bounds checking macros that compile to nothing in release builds
  */
 #ifdef NDEBUG
-    #define LIBSTATS_ASSERT_BOUNDS(index, size, context) do { } while(false)
-    #define LIBSTATS_ASSERT_MATRIX_BOUNDS(row, col, rows, cols, context) do { } while(false)
-    #define LIBSTATS_ASSERT_ALIGNMENT(ptr, alignment, context) do { } while(false)
+    #define LIBSTATS_ASSERT_BOUNDS(index, size, context)                                           \
+        do {                                                                                       \
+        } while (false)
+    #define LIBSTATS_ASSERT_MATRIX_BOUNDS(row, col, rows, cols, context)                           \
+        do {                                                                                       \
+        } while (false)
+    #define LIBSTATS_ASSERT_ALIGNMENT(ptr, alignment, context)                                     \
+        do {                                                                                       \
+        } while (false)
 #else
-    #define LIBSTATS_ASSERT_BOUNDS(index, size, context) \
+    #define LIBSTATS_ASSERT_BOUNDS(index, size, context)                                           \
         assert((index) < (size) && "Bounds check failed in " context)
-    
-    #define LIBSTATS_ASSERT_MATRIX_BOUNDS(row, col, rows, cols, context) \
+
+    #define LIBSTATS_ASSERT_MATRIX_BOUNDS(row, col, rows, cols, context)                           \
         assert((row) < (rows) && (col) < (cols) && "Matrix bounds check failed in " context)
-    
-    #define LIBSTATS_ASSERT_ALIGNMENT(ptr, alignment, context) \
-        assert((reinterpret_cast<uintptr_t>(ptr) & ((alignment) - 1)) == 0 && \
+
+    #define LIBSTATS_ASSERT_ALIGNMENT(ptr, alignment, context)                                     \
+        assert((reinterpret_cast<uintptr_t>(ptr) & ((alignment) - 1)) == 0 &&                      \
                "Alignment check failed in " context)
 #endif
 
@@ -202,8 +209,8 @@ inline void check_finite(double value, const std::string& name = "value") {
  */
 inline void check_probability(double prob, const std::string& name = "probability") {
     if (!std::isfinite(prob) || prob < 0.0 || prob > 1.0) {
-        throw std::runtime_error("Invalid probability " + name + ": " + std::to_string(prob) + 
-                                " (must be in [0, 1])");
+        throw std::runtime_error("Invalid probability " + name + ": " + std::to_string(prob) +
+                                 " (must be in [0, 1])");
     }
 }
 
@@ -215,8 +222,8 @@ inline void check_probability(double prob, const std::string& name = "probabilit
  */
 inline void check_log_probability(double log_prob, const std::string& name = "log_probability") {
     if (!std::isfinite(log_prob) || log_prob > 0.0) {
-        throw std::runtime_error("Invalid log probability " + name + ": " + std::to_string(log_prob) + 
-                                " (must be <= 0)");
+        throw std::runtime_error("Invalid log probability " + name + ": " +
+                                 std::to_string(log_prob) + " (must be <= 0)");
     }
 }
 
@@ -226,9 +233,12 @@ inline void check_log_probability(double log_prob, const std::string& name = "lo
  * @return Clamped probability
  */
 inline double clamp_probability(double prob) noexcept {
-    if (std::isnan(prob)) return constants::probability::MIN_PROBABILITY;
-    if (prob <= 0.0) return constants::probability::MIN_PROBABILITY;
-    if (prob >= 1.0) return constants::probability::MAX_PROBABILITY;
+    if (std::isnan(prob))
+        return constants::probability::MIN_PROBABILITY;
+    if (prob <= 0.0)
+        return constants::probability::MIN_PROBABILITY;
+    if (prob >= 1.0)
+        return constants::probability::MAX_PROBABILITY;
     return prob;
 }
 
@@ -238,8 +248,10 @@ inline double clamp_probability(double prob) noexcept {
  * @return Clamped log probability
  */
 inline double clamp_log_probability(double log_prob) noexcept {
-    if (std::isnan(log_prob)) return constants::probability::MIN_LOG_PROBABILITY;
-    if (log_prob > 0.0) return constants::probability::MAX_LOG_PROBABILITY;
+    if (std::isnan(log_prob))
+        return constants::probability::MIN_LOG_PROBABILITY;
+    if (log_prob > 0.0)
+        return constants::probability::MAX_LOG_PROBABILITY;
     if (log_prob < constants::probability::MIN_LOG_PROBABILITY) {
         return constants::probability::MIN_LOG_PROBABILITY;
     }
@@ -267,14 +279,15 @@ inline double safe_log(double value) noexcept {
  * @return Safe exponential, clamped to valid range
  */
 inline double safe_exp(double value) noexcept {
-    if (std::isnan(value)) return 0.0;
+    if (std::isnan(value))
+        return 0.0;
     if (value < constants::probability::MIN_LOG_PROBABILITY) {
         return constants::probability::MIN_PROBABILITY;
     }
     if (value > constants::thresholds::LOG_EXP_OVERFLOW_THRESHOLD) {  // Prevent overflow
         return std::numeric_limits<double>::max();
     }
-    
+
     double result = std::exp(value);
     // Handle underflow: if exp() returns 0 but value is finite, clamp to MIN_PROBABILITY
     if (result == 0.0 && std::isfinite(value)) {
@@ -364,11 +377,12 @@ void vector_clamp_log_probability(std::span<const double> input, std::span<doubl
  * @param name Vector name for error messages
  * @throws std::runtime_error if vector contains non-finite values
  */
-inline void check_vector_finite(const std::vector<double>& data, const std::string& name = "vector") {
+inline void check_vector_finite(const std::vector<double>& data,
+                                const std::string& name = "vector") {
     for (std::size_t i = 0; i < data.size(); ++i) {
         if (!std::isfinite(data[i])) {
-            throw std::runtime_error("Vector " + name + " contains non-finite value at index " + 
-                                    std::to_string(i) + ": " + std::to_string(data[i]));
+            throw std::runtime_error("Vector " + name + " contains non-finite value at index " +
+                                     std::to_string(i) + ": " + std::to_string(data[i]));
         }
     }
 }
@@ -380,7 +394,7 @@ inline void check_vector_finite(const std::vector<double>& data, const std::stri
  */
 inline bool normalize_probabilities(std::vector<double>& probs) noexcept {
     double sum = 0.0;
-    
+
     // First pass: calculate sum and check for negative values
     for (double& prob : probs) {
         if (prob < 0.0 || std::isnan(prob)) {
@@ -388,7 +402,7 @@ inline bool normalize_probabilities(std::vector<double>& probs) noexcept {
         }
         sum += prob;
     }
-    
+
     // If sum is too small, set to uniform distribution
     if (sum < constants::precision::ZERO) {
         const double uniform_prob = 1.0 / static_cast<double>(probs.size());
@@ -397,12 +411,12 @@ inline bool normalize_probabilities(std::vector<double>& probs) noexcept {
         }
         return false;
     }
-    
+
     // Normalize
     for (double& prob : probs) {
         prob /= sum;
     }
-    
+
     return true;
 }
 
@@ -412,8 +426,9 @@ inline bool normalize_probabilities(std::vector<double>& probs) noexcept {
  * @param tolerance Tolerance for sum check
  * @return True if probabilities are properly normalized
  */
-inline bool is_probability_distribution(const std::vector<double>& probs, 
-                                       double tolerance = constants::precision::DEFAULT_TOLERANCE) noexcept {
+inline bool is_probability_distribution(
+    const std::vector<double>& probs,
+    double tolerance = constants::precision::DEFAULT_TOLERANCE) noexcept {
     double sum = 0.0;
     for (double prob : probs) {
         if (prob < 0.0 || prob > 1.0 || std::isnan(prob)) {
@@ -432,14 +447,14 @@ inline bool is_probability_distribution(const std::vector<double>& probs,
  * @brief Convergence detector for iterative algorithms
  */
 class ConvergenceDetector {
-private:
+   private:
     std::vector<double> history_;
     double tolerance_;
     std::size_t max_iterations_;
     std::size_t window_size_;
     std::size_t current_iteration_;
-    
-public:
+
+   public:
     /**
      * @brief Constructor with convergence parameters
      * @param tolerance Convergence tolerance
@@ -447,13 +462,14 @@ public:
      * @param window_size Number of previous values to consider for convergence
      */
     explicit ConvergenceDetector(double tolerance = constants::precision::DEFAULT_TOLERANCE,
-                                std::size_t max_iterations = 1000,
-                                std::size_t window_size = 5)
-        : tolerance_(tolerance), max_iterations_(max_iterations), 
-          window_size_(window_size), current_iteration_(0) {
+                                 std::size_t max_iterations = 1000, std::size_t window_size = 5)
+        : tolerance_(tolerance),
+          max_iterations_(max_iterations),
+          window_size_(window_size),
+          current_iteration_(0) {
         history_.reserve(window_size_);
     }
-    
+
     /**
      * @brief Add a new value and check convergence
      * @param value New value (e.g., log-likelihood)
@@ -462,27 +478,27 @@ public:
     bool add_value(double value) {
         history_.push_back(value);
         ++current_iteration_;
-        
+
         // Keep only the last window_size_ values
         if (history_.size() > window_size_) {
             history_.erase(history_.begin());
         }
-        
+
         // Need at least 2 values to check convergence
         if (history_.size() < 2) {
             return false;
         }
-        
+
         // Check if recent values are within tolerance
         for (std::size_t i = 1; i < history_.size(); ++i) {
-            if (std::abs(history_[i] - history_[i-1]) > tolerance_) {
+            if (std::abs(history_[i] - history_[i - 1]) > tolerance_) {
                 return false;
             }
         }
-        
+
         return true;
     }
-    
+
     /**
      * @brief Check if maximum iterations reached
      * @return True if max iterations exceeded
@@ -490,23 +506,19 @@ public:
     bool is_max_iterations_reached() const noexcept {
         return current_iteration_ >= max_iterations_;
     }
-    
+
     /**
      * @brief Get current iteration count
      * @return Current iteration number
      */
-    std::size_t get_current_iteration() const noexcept {
-        return current_iteration_;
-    }
-    
+    std::size_t get_current_iteration() const noexcept { return current_iteration_; }
+
     /**
      * @brief Get convergence history
      * @return Vector of recent values
      */
-    const std::vector<double>& get_history() const noexcept {
-        return history_;
-    }
-    
+    const std::vector<double>& get_history() const noexcept { return history_; }
+
     /**
      * @brief Reset the detector for a new run
      */
@@ -514,18 +526,19 @@ public:
         history_.clear();
         current_iteration_ = 0;
     }
-    
+
     /**
      * @brief Check for oscillation (values bouncing back and forth)
      * @return True if oscillation detected
      */
     bool is_oscillating() const noexcept {
-        if (history_.size() < 4) return false;
-        
+        if (history_.size() < 4)
+            return false;
+
         // Simple oscillation check: alternating increases and decreases
         bool increasing = history_[1] > history_[0];
         for (std::size_t i = 2; i < history_.size(); ++i) {
-            bool current_increasing = history_[i] > history_[i-1];
+            bool current_increasing = history_[i] > history_[i - 1];
             if (current_increasing == increasing) {
                 return false;  // Not oscillating
             }
@@ -533,19 +546,20 @@ public:
         }
         return true;
     }
-    
+
     /**
      * @brief Check for stagnation (values not changing significantly)
      * @return True if stagnation detected
      */
     bool is_stagnating() const noexcept {
-        if (history_.size() < window_size_) return false;
-        
+        if (history_.size() < window_size_)
+            return false;
+
         double max_change = 0.0;
         for (std::size_t i = 1; i < history_.size(); ++i) {
-            max_change = std::max(max_change, std::abs(history_[i] - history_[i-1]));
+            max_change = std::max(max_change, std::abs(history_[i] - history_[i - 1]));
         }
-        
+
         return max_change < tolerance_ * 0.1;  // Very small changes
     }
 };
@@ -555,28 +569,29 @@ public:
 //==============================================================================
 
 #ifdef STRICT
-#undef STRICT
+    #undef STRICT
 #endif
 #ifdef GRACEFUL
-#undef GRACEFUL
+    #undef GRACEFUL
 #endif
 #ifdef ROBUST
-#undef ROBUST
+    #undef ROBUST
 #endif
 #ifdef ADAPTIVE
-#undef ADAPTIVE
+    #undef ADAPTIVE
 #endif
 /**
  * @brief Error recovery strategies for numerical failures
  */
 enum class RecoveryStrategy {
-    StrictMode,      ///< Throw exception on any numerical issue
-    GracefulMode,    ///< Try to recover with degraded precision
-    RobustMode,      ///< Aggressively recover, may sacrifice some accuracy
-    AdaptiveMode     ///< Choose strategy based on problem characteristics
+    StrictMode,    ///< Throw exception on any numerical issue
+    GracefulMode,  ///< Try to recover with degraded precision
+    RobustMode,    ///< Aggressively recover, may sacrifice some accuracy
+    AdaptiveMode   ///< Choose strategy based on problem characteristics
 };
 
-inline bool recover_from_underflow(std::vector<double>& probs, RecoveryStrategy strategy = RecoveryStrategy::GracefulMode) {
+inline bool recover_from_underflow(std::vector<double>& probs,
+                                   RecoveryStrategy strategy = RecoveryStrategy::GracefulMode) {
     bool had_underflow = false;
     for (double& prob : probs) {
         if (prob < constants::probability::MIN_PROBABILITY) {
@@ -598,7 +613,8 @@ inline bool recover_from_underflow(std::vector<double>& probs, RecoveryStrategy 
     return had_underflow;
 }
 
-inline std::size_t handle_nan_values(std::vector<double>& values, RecoveryStrategy strategy = RecoveryStrategy::GracefulMode) {
+inline std::size_t handle_nan_values(std::vector<double>& values,
+                                     RecoveryStrategy strategy = RecoveryStrategy::GracefulMode) {
     std::size_t nan_count = 0;
     for (double& value : values) {
         if (std::isnan(value)) {
@@ -619,5 +635,5 @@ inline std::size_t handle_nan_values(std::vector<double>& values, RecoveryStrate
     return nan_count;
 }
 
-} // namespace safety
-} // namespace libstats
+}  // namespace safety
+}  // namespace libstats

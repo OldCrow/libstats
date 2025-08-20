@@ -1,11 +1,12 @@
 #ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
+    #pragma warning(push)
+    #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
-#include <gtest/gtest.h>
 #include "../include/distributions/gamma.h"
 #include "enhanced_test_template.h"
+
+#include <gtest/gtest.h>
 
 using namespace std;
 using namespace libstats;
@@ -18,7 +19,7 @@ namespace libstats {
 //==============================================================================
 
 class GammaEnhancedTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         std::mt19937 rng(42);
         std::gamma_distribution<double> gamma_gen(test_alpha_, test_beta_);
@@ -47,37 +48,41 @@ protected:
 
 TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard gamma distribution properties
-    auto gamma1 = libstats::GammaDistribution::create(2.0, 1.0).value;  // shape=2, rate=1 -> mean=2, var=2
-    
+    auto gamma1 =
+        libstats::GammaDistribution::create(2.0, 1.0).value;  // shape=2, rate=1 -> mean=2, var=2
+
     EXPECT_DOUBLE_EQ(gamma1.getAlpha(), 2.0);
     EXPECT_DOUBLE_EQ(gamma1.getBeta(), 1.0);
     EXPECT_DOUBLE_EQ(gamma1.getMean(), 2.0);
     EXPECT_DOUBLE_EQ(gamma1.getVariance(), 2.0);
     EXPECT_DOUBLE_EQ(gamma1.getSkewness(), 2.0 / std::sqrt(2.0));
     EXPECT_DOUBLE_EQ(gamma1.getKurtosis(), 6.0 / 2.0);  // Excess kurtosis for gamma distribution
-    
+
     // Test another gamma distribution
-    auto gamma2 = libstats::GammaDistribution::create(1.0, 0.5).value;  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
+    auto gamma2 = libstats::GammaDistribution::create(1.0, 0.5)
+                      .value;  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
     EXPECT_DOUBLE_EQ(gamma2.getAlpha(), 1.0);
     EXPECT_DOUBLE_EQ(gamma2.getBeta(), 0.5);
     EXPECT_DOUBLE_EQ(gamma2.getMean(), 2.0);
     EXPECT_DOUBLE_EQ(gamma2.getVariance(), 4.0);
-    
+
     // Test known PDF values
     double pdf_at_1 = gamma1.getProbability(1.0);
     EXPECT_TRUE(pdf_at_1 > 0.0);
     EXPECT_TRUE(std::isfinite(pdf_at_1));
-    
+
     // Test gamma-specific properties
-    EXPECT_TRUE(gamma1.getProbability(0.5) > 0.0);  // Positive values should have non-zero probability
-    EXPECT_EQ(gamma1.getProbability(0.0), 0.0);    // Zero should have zero probability for shape > 1
-    EXPECT_EQ(gamma1.getProbability(-1.0), 0.0);   // Negative values have zero probability
+    EXPECT_TRUE(gamma1.getProbability(0.5) >
+                0.0);                            // Positive values should have non-zero probability
+    EXPECT_EQ(gamma1.getProbability(0.0), 0.0);  // Zero should have zero probability for shape > 1
+    EXPECT_EQ(gamma1.getProbability(-1.0), 0.0);  // Negative values have zero probability
     EXPECT_FALSE(gamma1.isDiscrete());
     EXPECT_EQ(gamma1.getDistributionName(), "Gamma");
-    
+
     // Test CDF properties
     double cdf_at_0 = gamma1.getCumulativeProbability(0.0);
-    double cdf_at_inf = gamma1.getCumulativeProbability(1000.0);  // Large value approximating infinity
+    double cdf_at_inf =
+        gamma1.getCumulativeProbability(1000.0);  // Large value approximating infinity
     EXPECT_DOUBLE_EQ(cdf_at_0, 0.0);
     EXPECT_NEAR(cdf_at_inf, 1.0, 1e-10);
 }
@@ -88,20 +93,22 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
 
 TEST_F(GammaEnhancedTest, AdvancedStatisticalMethods) {
     std::cout << "\n=== Advanced Statistical Methods ===\n";
-    
+
     // Confidence interval for shape
     auto [ci_lower, ci_upper] = test_distribution_.confidenceIntervalShape(gamma_data_, 0.95);
     EXPECT_LT(ci_lower, ci_upper);
     EXPECT_TRUE(std::isfinite(ci_lower));
     EXPECT_TRUE(std::isfinite(ci_upper));
     std::cout << "  95% CI for shape: [" << ci_lower << ", " << ci_upper << "]\n";
-    
+
     // Method of moments estimation
-    auto [estimated_alpha, estimated_beta] = GammaDistribution::methodOfMomentsEstimation(gamma_data_);
+    auto [estimated_alpha, estimated_beta] =
+        GammaDistribution::methodOfMomentsEstimation(gamma_data_);
     EXPECT_TRUE(std::isfinite(estimated_alpha));
     EXPECT_TRUE(std::isfinite(estimated_beta));
     EXPECT_GT(estimated_beta, 0.0);
-    std::cout << "  MoM estimates: alpha=" << estimated_alpha << ", beta=" << estimated_beta << "\n";
+    std::cout << "  MoM estimates: alpha=" << estimated_alpha << ", beta=" << estimated_beta
+              << "\n";
 }
 
 //==============================================================================
@@ -110,24 +117,25 @@ TEST_F(GammaEnhancedTest, AdvancedStatisticalMethods) {
 
 TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
     std::cout << "\n=== Goodness-of-Fit Tests ===\n";
-    
+
     // Test 1: Gamma-distributed data (should accept null hypothesis)
     std::cout << "\n--- Test 1: Gamma-distributed data (should NOT reject H0) ---\n";
-    
+
     // IMPORTANT: Fit the distribution to the actual gamma data
-    // The test data was generated with std::gamma_distribution(2.0, 1.5) which uses shape-scale parameterization
-    // Our GammaDistribution uses shape-rate parameterization, so we need to fit to get the correct parameters
+    // The test data was generated with std::gamma_distribution(2.0, 1.5) which uses shape-scale
+    // parameterization Our GammaDistribution uses shape-rate parameterization, so we need to fit to
+    // get the correct parameters
     GammaDistribution fitted_test_distribution;
     fitted_test_distribution.fit(gamma_data_);
-    
-    std::cout << "  Original parameters: alpha=" << test_distribution_.getAlpha() 
-              << ", beta=" << test_distribution_.getBeta() 
+
+    std::cout << "  Original parameters: alpha=" << test_distribution_.getAlpha()
+              << ", beta=" << test_distribution_.getBeta()
               << ", mean=" << test_distribution_.getMean() << "\n";
-    std::cout << "  Fitted parameters: alpha=" << fitted_test_distribution.getAlpha() 
-              << ", beta=" << fitted_test_distribution.getBeta() 
+    std::cout << "  Fitted parameters: alpha=" << fitted_test_distribution.getAlpha()
+              << ", beta=" << fitted_test_distribution.getBeta()
               << ", mean=" << fitted_test_distribution.getMean() << "\n";
-    
-    auto [ks_stat_gamma, ks_p_gamma, ks_reject_gamma] = 
+
+    auto [ks_stat_gamma, ks_p_gamma, ks_reject_gamma] =
         fitted_test_distribution.kolmogorovSmirnovTest(gamma_data_, fitted_test_distribution, 0.05);
     EXPECT_GE(ks_stat_gamma, 0.0);
     EXPECT_LE(ks_stat_gamma, 1.0);
@@ -135,84 +143,91 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
     EXPECT_LE(ks_p_gamma, 1.0);
     EXPECT_TRUE(std::isfinite(ks_stat_gamma));
     EXPECT_TRUE(std::isfinite(ks_p_gamma));
-    
-    std::cout << "  KS test (gamma data): D=" << ks_stat_gamma << ", p=" << ks_p_gamma 
+
+    std::cout << "  KS test (gamma data): D=" << ks_stat_gamma << ", p=" << ks_p_gamma
               << ", reject=" << ks_reject_gamma << "\n";
-    
-    auto [ad_stat_gamma, ad_p_gamma, ad_reject_gamma] = 
+
+    auto [ad_stat_gamma, ad_p_gamma, ad_reject_gamma] =
         fitted_test_distribution.andersonDarlingTest(gamma_data_, fitted_test_distribution, 0.05);
     EXPECT_GE(ad_stat_gamma, 0.0);
     EXPECT_GE(ad_p_gamma, 0.0);
     EXPECT_LE(ad_p_gamma, 1.0);
     EXPECT_TRUE(std::isfinite(ad_stat_gamma));
     EXPECT_TRUE(std::isfinite(ad_p_gamma));
-    
-    std::cout << "  AD test (gamma data): A²=" << ad_stat_gamma << ", p=" << ad_p_gamma 
+
+    std::cout << "  AD test (gamma data): A²=" << ad_stat_gamma << ", p=" << ad_p_gamma
               << ", reject=" << ad_reject_gamma << "\n";
-    
+
     // Test 2: Non-gamma data (quadratic/polynomial relationship - should reject null hypothesis)
     std::cout << "\n--- Test 2: Non-gamma data (should REJECT H0) ---\n";
     std::vector<double> non_gamma_data;
     non_gamma_data.reserve(100);
-    
+
     // Generate quadratic/polynomial data that clearly doesn't follow gamma distribution
     for (int i = 1; i <= 100; ++i) {
-        double x = i / 10.0;  // x from 0.1 to 10.0
+        double x = i / 10.0;                     // x from 0.1 to 10.0
         double y = 0.1 * x * x + 0.5 * x + 1.0;  // Quadratic: y = 0.1x² + 0.5x + 1
         non_gamma_data.push_back(y);
     }
-    
-    auto [ks_stat_non_gamma, ks_p_non_gamma, ks_reject_non_gamma] = 
-        fitted_test_distribution.kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution, 0.05);
+
+    auto [ks_stat_non_gamma, ks_p_non_gamma, ks_reject_non_gamma] =
+        fitted_test_distribution.kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution,
+                                                       0.05);
     EXPECT_GE(ks_stat_non_gamma, 0.0);
     EXPECT_LE(ks_stat_non_gamma, 1.0);
     EXPECT_GE(ks_p_non_gamma, 0.0);
     EXPECT_LE(ks_p_non_gamma, 1.0);
     EXPECT_TRUE(std::isfinite(ks_stat_non_gamma));
     EXPECT_TRUE(std::isfinite(ks_p_non_gamma));
-    
-    std::cout << "  KS test (non-gamma data): D=" << ks_stat_non_gamma << ", p=" << ks_p_non_gamma 
+
+    std::cout << "  KS test (non-gamma data): D=" << ks_stat_non_gamma << ", p=" << ks_p_non_gamma
               << ", reject=" << ks_reject_non_gamma << "\n";
-    
-    auto [ad_stat_non_gamma, ad_p_non_gamma, ad_reject_non_gamma] = 
-        fitted_test_distribution.andersonDarlingTest(non_gamma_data, fitted_test_distribution, 0.05);
+
+    auto [ad_stat_non_gamma, ad_p_non_gamma, ad_reject_non_gamma] =
+        fitted_test_distribution.andersonDarlingTest(non_gamma_data, fitted_test_distribution,
+                                                     0.05);
     EXPECT_GE(ad_stat_non_gamma, 0.0);
     EXPECT_GE(ad_p_non_gamma, 0.0);
     EXPECT_LE(ad_p_non_gamma, 1.0);
     EXPECT_TRUE(std::isfinite(ad_stat_non_gamma));
     EXPECT_TRUE(std::isfinite(ad_p_non_gamma));
-    
-    std::cout << "  AD test (non-gamma data): A²=" << ad_stat_non_gamma << ", p=" << ad_p_non_gamma 
+
+    std::cout << "  AD test (non-gamma data): A²=" << ad_stat_non_gamma << ", p=" << ad_p_non_gamma
               << ", reject=" << ad_reject_non_gamma << "\n";
-    
+
     // The non-gamma data should have much higher test statistics and lower p-values than gamma data
     EXPECT_GT(ks_stat_non_gamma, ks_stat_gamma) << "Non-gamma data should have higher KS statistic";
-    // Note: AD test comparison may not always hold due to numerical issues, so we make it conditional
-    if (std::isfinite(ad_stat_gamma) && std::isfinite(ad_stat_non_gamma) && 
-        ad_stat_gamma < 1e15 && ad_stat_non_gamma < 1e15) {
-        EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma) << "Non-gamma data should have higher AD statistic";
+    // Note: AD test comparison may not always hold due to numerical issues, so we make it
+    // conditional
+    if (std::isfinite(ad_stat_gamma) && std::isfinite(ad_stat_non_gamma) && ad_stat_gamma < 1e15 &&
+        ad_stat_non_gamma < 1e15) {
+        EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma)
+            << "Non-gamma data should have higher AD statistic";
     }
     EXPECT_LT(ks_p_non_gamma, ks_p_gamma) << "Non-gamma data should have lower KS p-value";
     if (ad_p_gamma > 0.0 && ad_p_non_gamma > 0.0) {
         EXPECT_LT(ad_p_non_gamma, ad_p_gamma) << "Non-gamma data should have lower AD p-value";
     }
-    
+
     // For gamma data, we expect it to NOT be rejected (though this can vary with sample size)
     if (!ks_reject_gamma && !ad_reject_gamma) {
         std::cout << "  ✓ Both tests correctly accepted gamma data\n";
     } else if (!ks_reject_gamma || !ad_reject_gamma) {
         std::cout << "  ⚠ Only one test accepted gamma data (this can happen with small samples)\n";
     } else {
-        std::cout << "  ⚠ Both tests rejected gamma data (may indicate insufficient sample size or poor fit)\n";
+        std::cout << "  ⚠ Both tests rejected gamma data (may indicate insufficient sample size or "
+                     "poor fit)\n";
     }
-    
+
     // For non-gamma data, we expect it to be rejected
     if (ks_reject_non_gamma && ad_reject_non_gamma) {
         std::cout << "  ✓ Both tests correctly rejected non-gamma data\n";
     } else if (ks_reject_non_gamma || ad_reject_non_gamma) {
-        std::cout << "  ⚠ Only one test rejected non-gamma data (this can happen with small effect sizes)\n";
+        std::cout << "  ⚠ Only one test rejected non-gamma data (this can happen with small effect "
+                     "sizes)\n";
     } else {
-        std::cout << "  ⚠ Neither test rejected non-gamma data (effect size may be small, but test statistics should still be higher)\n";
+        std::cout << "  ⚠ Neither test rejected non-gamma data (effect size may be small, but test "
+                     "statistics should still be higher)\n";
     }
 }
 
@@ -222,28 +237,28 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
 
 TEST_F(GammaEnhancedTest, InformationCriteriaTests) {
     std::cout << "\n=== Information Criteria Tests ===\n";
-    
+
     // Fit distribution to the data
     GammaDistribution fitted_dist;
     fitted_dist.fit(gamma_data_);
-    
-    auto [aic, bic, aicc, log_likelihood] = GammaDistribution::computeInformationCriteria(
-        gamma_data_, fitted_dist);
-    
+
+    auto [aic, bic, aicc, log_likelihood] =
+        GammaDistribution::computeInformationCriteria(gamma_data_, fitted_dist);
+
     // Basic sanity checks
-    EXPECT_LE(log_likelihood, 0.0);    // Log-likelihood should be negative
-    EXPECT_GT(aic, 0.0);               // AIC is typically positive
-    EXPECT_GT(bic, 0.0);               // BIC is typically positive
-    EXPECT_GT(aicc, 0.0);              // AICc is typically positive
-    EXPECT_GE(aicc, aic);              // AICc should be >= AIC (correction term is positive)
-    EXPECT_GT(bic, aic);               // For moderate sample sizes, BIC typically penalizes more than AIC
-    
+    EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
+    EXPECT_GT(aic, 0.0);             // AIC is typically positive
+    EXPECT_GT(bic, 0.0);             // BIC is typically positive
+    EXPECT_GT(aicc, 0.0);            // AICc is typically positive
+    EXPECT_GE(aicc, aic);            // AICc should be >= AIC (correction term is positive)
+    EXPECT_GT(bic, aic);  // For moderate sample sizes, BIC typically penalizes more than AIC
+
     // Check for finite values
     EXPECT_TRUE(std::isfinite(aic));
     EXPECT_TRUE(std::isfinite(bic));
     EXPECT_TRUE(std::isfinite(aicc));
     EXPECT_TRUE(std::isfinite(log_likelihood));
-    
+
     std::cout << "  AIC: " << aic << ", BIC: " << bic << ", AICc: " << aicc << "\n";
     std::cout << "  Log-likelihood: " << log_likelihood << "\n";
 }
@@ -254,7 +269,7 @@ TEST_F(GammaEnhancedTest, InformationCriteriaTests) {
 
 TEST_F(GammaEnhancedTest, ThreadSafetyAndEdgeCases) {
     std::cout << "\n=== Thread Safety and Edge Cases ===\n";
-    
+
     // Basic thread safety test
     ThreadSafetyTester<GammaDistribution>::testBasicThreadSafety(test_distribution_, "Gamma");
 
@@ -269,59 +284,58 @@ TEST_F(GammaEnhancedTest, ThreadSafetyAndEdgeCases) {
 
 TEST_F(GammaEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
-    
+
     // Bootstrap parameter confidence intervals
-    auto [alpha_ci, beta_ci] = GammaDistribution::bootstrapParameterConfidenceIntervals(
-        gamma_data_, 0.95, 1000, 456);
-    
+    auto [alpha_ci, beta_ci] =
+        GammaDistribution::bootstrapParameterConfidenceIntervals(gamma_data_, 0.95, 1000, 456);
+
     // Check that confidence intervals are reasonable
     EXPECT_LT(alpha_ci.first, alpha_ci.second);  // Lower bound < Upper bound
     EXPECT_LT(beta_ci.first, beta_ci.second);    // Lower bound < Upper bound
-    
+
     // Check for finite positive values
     EXPECT_GT(beta_ci.first, 0.0);
     EXPECT_GT(beta_ci.second, 0.0);
-    
+
     EXPECT_TRUE(std::isfinite(alpha_ci.first));
     EXPECT_TRUE(std::isfinite(alpha_ci.second));
     EXPECT_TRUE(std::isfinite(beta_ci.first));
     EXPECT_TRUE(std::isfinite(beta_ci.second));
-    
+
     std::cout << "  Alpha 95% CI: [" << alpha_ci.first << ", " << alpha_ci.second << "]\n";
     std::cout << "  Beta 95% CI: [" << beta_ci.first << ", " << beta_ci.second << "]\n";
-    
+
     // K-fold cross-validation
     auto cv_results = GammaDistribution::kFoldCrossValidation(gamma_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
-    
+
     for (const auto& [mae, rmse, log_likelihood] : cv_results) {
-        EXPECT_GE(mae, 0.0);               // MAE should be non-negative
-        EXPECT_GE(rmse, 0.0);              // RMSE should be non-negative
-        EXPECT_GE(rmse, mae);              // RMSE should be >= MAE
-        EXPECT_LE(log_likelihood, 0.0);   // Log-likelihood should be negative
+        EXPECT_GE(mae, 0.0);             // MAE should be non-negative
+        EXPECT_GE(rmse, 0.0);            // RMSE should be non-negative
+        EXPECT_GE(rmse, mae);            // RMSE should be >= MAE
+        EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
         EXPECT_TRUE(std::isfinite(mae));
         EXPECT_TRUE(std::isfinite(rmse));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
-    
+
     std::cout << "  K-fold CV completed with " << cv_results.size() << " folds\n";
-    
+
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_gamma_data(gamma_data_.begin(), gamma_data_.begin() + 20);
-    auto [mae, rmse, total_log_likelihood] = 
+    auto [mae, rmse, total_log_likelihood] =
         GammaDistribution::leaveOneOutCrossValidation(small_gamma_data);
-    
-    EXPECT_GE(mae, 0.0);                     // MAE should be non-negative
-    EXPECT_GE(rmse, 0.0);                    // RMSE should be non-negative
-    EXPECT_GE(rmse, mae);                    // RMSE should be >= MAE
-    EXPECT_LE(total_log_likelihood, 0.0);   // Total log-likelihood should be negative
-    
+
+    EXPECT_GE(mae, 0.0);                   // MAE should be non-negative
+    EXPECT_GE(rmse, 0.0);                  // RMSE should be non-negative
+    EXPECT_GE(rmse, mae);                  // RMSE should be >= MAE
+    EXPECT_LE(total_log_likelihood, 0.0);  // Total log-likelihood should be negative
+
     EXPECT_TRUE(std::isfinite(mae));
     EXPECT_TRUE(std::isfinite(rmse));
     EXPECT_TRUE(std::isfinite(total_log_likelihood));
-    
-    std::cout << "  Leave-one-out CV: MAE=" << mae 
-              << ", RMSE=" << rmse 
+
+    std::cout << "  Leave-one-out CV: MAE=" << mae << ", RMSE=" << rmse
               << ", Total LogL=" << total_log_likelihood << "\n";
 }
 
@@ -331,110 +345,132 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 
 TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
     auto stdGamma = libstats::GammaDistribution::create(2.0, 1.0).value;
-    
+
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
-    
+
     // Create shared WorkStealingPool once to avoid resource creation overhead
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-    
+
     // Test multiple batch sizes to show scaling behavior
     std::vector<size_t> batch_sizes = {5000, 50000};
-    
+
     for (size_t batch_size : batch_sizes) {
         std::cout << "\n--- Batch Size: " << batch_size << " elements ---\n";
-        
+
         // Generate test data (positive values for Gamma distribution)
         std::vector<double> test_values(batch_size);
         std::vector<double> results(batch_size);
-        
+
         std::mt19937 gen(42);
         std::uniform_real_distribution<> dis(0.1, 10.0);  // Positive values for Gamma
         for (size_t i = 0; i < batch_size; ++i) {
             test_values[i] = dis(gen);
         }
-        
+
         // 1. Sequential individual calls (baseline)
         auto start = std::chrono::high_resolution_clock::now();
         for (size_t i = 0; i < batch_size; ++i) {
             results[i] = stdGamma.getProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
-        auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        
+        auto sequential_time =
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
         start = std::chrono::high_resolution_clock::now();
-        stdGamma.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(simd_results), libstats::performance::Strategy::SCALAR);
+        stdGamma.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                            std::span<double>(simd_results),
+                                            libstats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        
+
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
         std::span<const double> input_span(test_values);
         std::span<double> output_span(parallel_results);
-        
+
         start = std::chrono::high_resolution_clock::now();
-        stdGamma.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+        stdGamma.getProbabilityWithStrategy(input_span, output_span,
+                                            libstats::performance::Strategy::PARALLEL_SIMD);
         end = std::chrono::high_resolution_clock::now();
-        auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        
+        auto parallel_time =
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
         // 4. Work-stealing operations (if available)
         std::vector<double> work_stealing_results(batch_size);
         auto work_stealing_time = std::chrono::microseconds(0).count();
-        
+
         if constexpr (requires {
-            typename WorkStealingPool;
-            { stdGamma.getProbabilityWithStrategy(
-                input_span, 
-                std::span<double>(work_stealing_results),
-                libstats::performance::Strategy::WORK_STEALING) };
-        }) {
+                          typename WorkStealingPool;
+                          {
+                              stdGamma.getProbabilityWithStrategy(
+                                  input_span, std::span<double>(work_stealing_results),
+                                  libstats::performance::Strategy::WORK_STEALING)
+                          };
+                      }) {
             std::span<double> ws_output_span(work_stealing_results);
-            
+
             start = std::chrono::high_resolution_clock::now();
-            stdGamma.getProbabilityWithStrategy(input_span, ws_output_span, libstats::performance::Strategy::WORK_STEALING);
+            stdGamma.getProbabilityWithStrategy(input_span, ws_output_span,
+                                                libstats::performance::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
-            work_stealing_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            work_stealing_time =
+                std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         } else {
             // Fallback to parallel method
             std::span<double> ws_output_span(work_stealing_results);
             start = std::chrono::high_resolution_clock::now();
-            stdGamma.getProbabilityWithStrategy(input_span, ws_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+            stdGamma.getProbabilityWithStrategy(input_span, ws_output_span,
+                                                libstats::performance::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
-            work_stealing_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            work_stealing_time =
+                std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         }
-        
+
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
-        double parallel_speedup = static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
-        double ws_speedup = static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
-        
+        double parallel_speedup =
+            static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
+        double ws_speedup =
+            static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
+
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
         std::cout << "  SIMD Batch: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
-        std::cout << "  Parallel: " << parallel_time << "μs (" << parallel_speedup << "x speedup)\n";
-        std::cout << "  Work Stealing: " << work_stealing_time << "μs (" << ws_speedup << "x speedup)\n";
-        
+        std::cout << "  Parallel: " << parallel_time << "μs (" << parallel_speedup
+                  << "x speedup)\n";
+        std::cout << "  Work Stealing: " << work_stealing_time << "μs (" << ws_speedup
+                  << "x speedup)\n";
+
         // Verify correctness across all methods (sample verification)
         size_t verification_samples = std::min(batch_size, size_t(100));
         for (size_t i = 0; i < verification_samples; ++i) {
             double expected = results[i];
-            EXPECT_NEAR(simd_results[i], expected, 1e-12) << "SIMD result mismatch at index " << i << " for batch size " << batch_size;
-            EXPECT_NEAR(parallel_results[i], expected, 1e-12) << "Parallel result mismatch at index " << i << " for batch size " << batch_size;
-            EXPECT_NEAR(work_stealing_results[i], expected, 1e-12) << "Work-stealing result mismatch at index " << i << " for batch size " << batch_size;
+            EXPECT_NEAR(simd_results[i], expected, 1e-12)
+                << "SIMD result mismatch at index " << i << " for batch size " << batch_size;
+            EXPECT_NEAR(parallel_results[i], expected, 1e-12)
+                << "Parallel result mismatch at index " << i << " for batch size " << batch_size;
+            EXPECT_NEAR(work_stealing_results[i], expected, 1e-12)
+                << "Work-stealing result mismatch at index " << i << " for batch size "
+                << batch_size;
         }
-        
+
         // Performance expectations (adjusted for batch size)
         if (simd_time > 0) {
-            EXPECT_GT(simd_speedup, 0.5) << "SIMD should provide reasonable performance for batch size " << batch_size;
+            EXPECT_GT(simd_speedup, 0.5)
+                << "SIMD should provide reasonable performance for batch size " << batch_size;
         }
-        
+
         if (std::thread::hardware_concurrency() > 1) {
             if (batch_size >= 10000) {
                 // For large batches, parallel should be competitive
-                EXPECT_GT(parallel_speedup, 0.5) << "Parallel should be competitive for large batches";
+                EXPECT_GT(parallel_speedup, 0.5)
+                    << "Parallel should be competitive for large batches";
             } else {
                 // For smaller batches, parallel may have overhead but should still be reasonable
-                EXPECT_GT(parallel_speedup, 0.2) << "Parallel should provide reasonable performance for batch size " << batch_size;
+                EXPECT_GT(parallel_speedup, 0.2)
+                    << "Parallel should provide reasonable performance for batch size "
+                    << batch_size;
             }
         }
     }
@@ -446,40 +482,45 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
 
 TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
     auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
-    
+
     std::cout << "\n=== Auto-Dispatch Strategy Assessment ===\n";
-    
+
     // Test different batch sizes to verify auto-dispatch picks the right method
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
-    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "SIMD_BATCH", "SIMD_BATCH", "PARALLEL_SIMD"};
-    
+    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "SIMD_BATCH", "SIMD_BATCH",
+                                                    "PARALLEL_SIMD"};
+
     for (size_t i = 0; i < batch_sizes.size(); ++i) {
         size_t batch_size = batch_sizes[i];
         std::string expected_strategy = expected_strategies[i];
-        
+
         // Generate test data (positive values for Gamma distribution)
         std::vector<double> test_values(batch_size);
         std::vector<double> auto_results(batch_size);
         std::vector<double> traditional_results(batch_size);
-        
+
         std::mt19937 gen(42 + static_cast<unsigned int>(i));
         std::uniform_real_distribution<> dis(0.1, 5.0);
         for (size_t j = 0; j < batch_size; ++j) {
             test_values[j] = dis(gen);
         }
-        
+
         // Test auto-dispatch
         auto start = std::chrono::high_resolution_clock::now();
-        gamma_dist.getProbability(std::span<const double>(test_values), std::span<double>(auto_results));
+        gamma_dist.getProbability(std::span<const double>(test_values),
+                                  std::span<double>(auto_results));
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        
+
         // Compare with traditional batch method
         start = std::chrono::high_resolution_clock::now();
-        gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(traditional_results), libstats::performance::Strategy::SCALAR);
+        gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                              std::span<double>(traditional_results),
+                                              libstats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
-        auto traditional_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        
+        auto traditional_time =
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
         // Verify correctness
         bool results_match = true;
         for (size_t j = 0; j < batch_size; ++j) {
@@ -488,22 +529,30 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
                 break;
             }
         }
-        
+
         std::cout << "  Batch size " << batch_size << " (expected: " << expected_strategy << "): ";
         std::cout << "Auto " << auto_time << "μs vs Traditional " << traditional_time << "μs, ";
         std::cout << "Correct: " << (results_match ? "✅" : "❌") << "\n";
-        
-        EXPECT_TRUE(results_match) << "Auto-dispatch results should match traditional for batch size " << batch_size;
-        
+
+        EXPECT_TRUE(results_match)
+            << "Auto-dispatch results should match traditional for batch size " << batch_size;
+
         // Auto-dispatch should be competitive or better
         if (traditional_time == 0) {
-            EXPECT_LT(auto_time, 100) << "Auto-dispatch should complete quickly for small batches (batch size " << batch_size << ")";
+            EXPECT_LT(auto_time, 100)
+                << "Auto-dispatch should complete quickly for small batches (batch size "
+                << batch_size << ")";
         } else {
-            double performance_ratio = static_cast<double>(auto_time) / static_cast<double>(traditional_time);
+            double performance_ratio =
+                static_cast<double>(auto_time) / static_cast<double>(traditional_time);
             if (batch_size <= 100) {
-                EXPECT_LT(performance_ratio, 10.0) << "Auto-dispatch should be reasonable for small batches (batch size " << batch_size << ")";
+                EXPECT_LT(performance_ratio, 10.0)
+                    << "Auto-dispatch should be reasonable for small batches (batch size "
+                    << batch_size << ")";
             } else {
-                EXPECT_LT(performance_ratio, 2.0) << "Auto-dispatch should not be significantly slower than traditional for batch size " << batch_size;
+                EXPECT_LT(performance_ratio, 2.0) << "Auto-dispatch should not be significantly "
+                                                     "slower than traditional for batch size "
+                                                  << batch_size;
             }
         }
     }
@@ -515,9 +564,9 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
 
 TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
-    
+
     auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
-    
+
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
     double mean_first = gamma_dist.getMean();
@@ -526,7 +575,7 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     double kurt_first = gamma_dist.getKurtosis();
     auto end = std::chrono::high_resolution_clock::now();
     auto first_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    
+
     // Second call - cache hit
     start = std::chrono::high_resolution_clock::now();
     double mean_second = gamma_dist.getMean();
@@ -535,33 +584,34 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     double kurt_second = gamma_dist.getKurtosis();
     end = std::chrono::high_resolution_clock::now();
     auto second_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    
+
     double cache_speedup = static_cast<double>(first_time) / static_cast<double>(second_time);
-    
+
     std::cout << "  First getter calls (cache miss): " << first_time << "ns\n";
     std::cout << "  Second getter calls (cache hit): " << second_time << "ns\n";
     std::cout << "  Cache speedup: " << cache_speedup << "x\n";
-    
+
     // Verify correctness
     EXPECT_EQ(mean_first, mean_second);
     EXPECT_EQ(var_first, var_second);
     EXPECT_EQ(skew_first, skew_second);
     EXPECT_EQ(kurt_first, kurt_second);
-    
+
     // Cache should provide speedup (allow some measurement noise)
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
-    
+
     // Test cache invalidation
-    gamma_dist.setAlpha(3.0); // This should invalidate the cache
-    
+    gamma_dist.setAlpha(3.0);  // This should invalidate the cache
+
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = gamma_dist.getMean();
     end = std::chrono::high_resolution_clock::now();
-    auto after_change_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    
+    auto after_change_time =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
     EXPECT_EQ(mean_after_change, 3.0 / gamma_dist.getBeta());
     std::cout << "  After parameter change: " << after_change_time << "ns\n";
-    
+
     // Test cache functionality: verify that cache invalidation worked correctly
     // (the new parameter value is returned, proving cache was invalidated)
 }
@@ -573,88 +623,103 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
 TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
     auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
-    
+
     // Generate test data (positive values for Gamma distribution)
     std::vector<double> test_values(BENCHMARK_SIZE);
     std::vector<double> pdf_results(BENCHMARK_SIZE);
     std::vector<double> log_pdf_results(BENCHMARK_SIZE);
     std::vector<double> cdf_results(BENCHMARK_SIZE);
-    
+
     std::mt19937 gen(42);
     std::gamma_distribution<> dis(2.0, 1.0);
     for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
         test_values[i] = dis(gen);
     }
-    
+
     StandardizedBenchmark::printBenchmarkHeader("Gamma Distribution", BENCHMARK_SIZE);
-    
+
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-    
+
     std::vector<BenchmarkResult> benchmark_results;
-    
+
     // For each operation type (PDF, LogPDF, CDF)
     std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
-    
+
     for (const auto& op : operations) {
         BenchmarkResult result;
         result.operation_name = op;
-        
+
         // 1. SIMD Batch (baseline)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
+            gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                                  std::span<double>(pdf_results),
+                                                  libstats::performance::Strategy::SCALAR);
         } else if (op == "LogPDF") {
-            gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
+            gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
+                                                     std::span<double>(log_pdf_results),
+                                                     libstats::performance::Strategy::SCALAR);
         } else if (op == "CDF") {
-            gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
+            gamma_dist.getCumulativeProbabilityWithStrategy(
+                std::span<const double>(test_values), std::span<double>(cdf_results),
+                libstats::performance::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
-        result.simd_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-        
+        result.simd_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
         // 2. Standard Parallel Operations
         std::span<const double> input_span(test_values);
-        
+
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            gamma_dist.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+            gamma_dist.getProbabilityWithStrategy(input_span, output_span,
+                                                  libstats::performance::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+            gamma_dist.getLogProbabilityWithStrategy(
+                input_span, log_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+            gamma_dist.getCumulativeProbabilityWithStrategy(
+                input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-        
+        result.parallel_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
         // 3. Work-Stealing Operations (use shared pool to avoid resource issues)
         if constexpr (requires {
-            typename WorkStealingPool;
-            { gamma_dist.getProbabilityWithStrategy(
-                input_span, 
-                std::span<double>(pdf_results),
-                libstats::performance::Strategy::WORK_STEALING) };
-        }) {
+                          typename WorkStealingPool;
+                          {
+                              gamma_dist.getProbabilityWithStrategy(
+                                  input_span, std::span<double>(pdf_results),
+                                  libstats::performance::Strategy::WORK_STEALING)
+                          };
+                      }) {
             if (op == "PDF") {
                 std::span<double> output_span(pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::WORK_STEALING);
+                gamma_dist.getProbabilityWithStrategy(
+                    input_span, output_span, libstats::performance::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 std::span<double> log_output_span(log_pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::WORK_STEALING);
+                gamma_dist.getLogProbabilityWithStrategy(
+                    input_span, log_output_span, libstats::performance::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 std::span<double> cdf_output_span(cdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::WORK_STEALING);
+                gamma_dist.getCumulativeProbabilityWithStrategy(
+                    input_span, cdf_output_span, libstats::performance::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             }
         } else {
@@ -662,68 +727,95 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if (op == "PDF") {
                 std::span<double> output_span(pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+                gamma_dist.getProbabilityWithStrategy(
+                    input_span, output_span, libstats::performance::Strategy::PARALLEL_SIMD);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 std::span<double> log_output_span(log_pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+                gamma_dist.getLogProbabilityWithStrategy(
+                    input_span, log_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 std::span<double> cdf_output_span(cdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+                gamma_dist.getCumulativeProbabilityWithStrategy(
+                    input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
                 end = std::chrono::high_resolution_clock::now();
             }
         }
-        result.work_stealing_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-        
+        result.work_stealing_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
         // 4. Cache-Aware Operations (use shared cache manager to avoid resource issues)
         if constexpr (requires {
-            { gamma_dist.getProbabilityWithStrategy(input_span, std::span<double>(pdf_results), libstats::performance::Strategy::GPU_ACCELERATED) };
-        }) {
+                          {
+                              gamma_dist.getProbabilityWithStrategy(
+                                  input_span, std::span<double>(pdf_results),
+                                  libstats::performance::Strategy::GPU_ACCELERATED)
+                          };
+                      }) {
             if (op == "PDF") {
                 std::span<double> output_span(pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                gamma_dist.getProbabilityWithStrategy(
+                    input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 std::span<double> log_output_span(log_pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                gamma_dist.getLogProbabilityWithStrategy(
+                    input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 std::span<double> cdf_output_span(cdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                gamma_dist.getCumulativeProbabilityWithStrategy(
+                    input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             }
         } else {
             // Fallback to SIMD batch method
             if (op == "PDF") {
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(pdf_results), libstats::performance::Strategy::SCALAR);
+                gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                                      std::span<double>(pdf_results),
+                                                      libstats::performance::Strategy::SCALAR);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(log_pdf_results), libstats::performance::Strategy::SCALAR);
+                gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
+                                                         std::span<double>(log_pdf_results),
+                                                         libstats::performance::Strategy::SCALAR);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values), std::span<double>(cdf_results), libstats::performance::Strategy::SCALAR);
+                gamma_dist.getCumulativeProbabilityWithStrategy(
+                    std::span<const double>(test_values), std::span<double>(cdf_results),
+                    libstats::performance::Strategy::SCALAR);
                 end = std::chrono::high_resolution_clock::now();
             }
         }
-        result.gpu_accelerated_time_us = static_cast<long>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-        
+        result.gpu_accelerated_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
         // Calculate speedups
-        result.parallel_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us) : 0.0;
-        result.work_stealing_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.work_stealing_time_us) : 0.0;
-        result.gpu_accelerated_speedup = result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) / static_cast<double>(result.gpu_accelerated_time_us) : 0.0;
-        
+        result.parallel_speedup = result.simd_time_us > 0
+                                      ? static_cast<double>(result.simd_time_us) /
+                                            static_cast<double>(result.parallel_time_us)
+                                      : 0.0;
+        result.work_stealing_speedup = result.simd_time_us > 0
+                                           ? static_cast<double>(result.simd_time_us) /
+                                                 static_cast<double>(result.work_stealing_time_us)
+                                           : 0.0;
+        result.gpu_accelerated_speedup =
+            result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) /
+                                          static_cast<double>(result.gpu_accelerated_time_us)
+                                    : 0.0;
+
         benchmark_results.push_back(result);
     }
-    
+
     // Print results and verify correctness
     StandardizedBenchmark::printBenchmarkResults(benchmark_results);
     StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
@@ -735,85 +827,88 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
 
 TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
     std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
-    
+
     // Create multiple datasets for batch fitting
     std::vector<std::vector<double>> datasets;
     std::vector<GammaDistribution> expected_distributions;
-    
+
     std::mt19937 rng(42);
-    
+
     // Generate 6 datasets with known parameters
-    std::vector<std::pair<double, double>> true_params = {
-        {1.0, 1.0}, {2.0, 0.5}, {3.0, 2.0}, {0.5, 1.5}, {4.0, 0.25}, {1.5, 3.0}
-    };
-    
+    std::vector<std::pair<double, double>> true_params = {{1.0, 1.0}, {2.0, 0.5},  {3.0, 2.0},
+                                                          {0.5, 1.5}, {4.0, 0.25}, {1.5, 3.0}};
+
     for (const auto& [alpha, beta] : true_params) {
         std::vector<double> dataset;
         dataset.reserve(1000);
-        
-        std::gamma_distribution<double> gen(alpha, 1.0/beta); // std::gamma uses scale parameter (1/beta)
+
+        std::gamma_distribution<double> gen(
+            alpha, 1.0 / beta);  // std::gamma uses scale parameter (1/beta)
         for (int i = 0; i < 1000; ++i) {
             dataset.push_back(gen(rng));
         }
-        
+
         datasets.push_back(std::move(dataset));
         expected_distributions.push_back(GammaDistribution::create(alpha, beta).value);
     }
-    
+
     std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
-    
+
     // Test 1: Basic parallel batch fitting correctness
     std::vector<GammaDistribution> batch_results(datasets.size());
-    
+
     auto start = std::chrono::high_resolution_clock::now();
     GammaDistribution::parallelBatchFit(datasets, batch_results);
     auto end = std::chrono::high_resolution_clock::now();
     auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
+
     // Verify correctness by comparing with individual fits
     for (size_t i = 0; i < datasets.size(); ++i) {
         GammaDistribution individual_fit;
         individual_fit.fit(datasets[i]);
-        
+
         // Parameters should match within tolerance
         EXPECT_NEAR(batch_results[i].getAlpha(), individual_fit.getAlpha(), 1e-10)
             << "Batch fit alpha mismatch for dataset " << i;
         EXPECT_NEAR(batch_results[i].getBeta(), individual_fit.getBeta(), 1e-10)
             << "Batch fit beta mismatch for dataset " << i;
-        
+
         // Should be reasonably close to true parameters
         double expected_alpha = true_params[i].first;
         double expected_beta = true_params[i].second;
-        
+
         // For gamma distribution, MLE estimates have known properties
         // Allow reasonable tolerance for sample variation
-        double alpha_tolerance = expected_alpha * 0.15; // 15% tolerance
-        double beta_tolerance = expected_beta * 0.15;   // 15% tolerance
-        
+        double alpha_tolerance = expected_alpha * 0.15;  // 15% tolerance
+        double beta_tolerance = expected_beta * 0.15;    // 15% tolerance
+
         EXPECT_NEAR(batch_results[i].getAlpha(), expected_alpha, alpha_tolerance)
             << "Fitted alpha too far from true value for dataset " << i;
         EXPECT_NEAR(batch_results[i].getBeta(), expected_beta, beta_tolerance)
             << "Fitted beta too far from true value for dataset " << i;
     }
-    
+
     std::cout << "  ✓ Parallel batch fitting correctness verified\n";
-    
+
     // Test 2: Performance comparison with sequential batch fitting
     std::vector<GammaDistribution> sequential_results(datasets.size());
-    
+
     start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < datasets.size(); ++i) {
         sequential_results[i].fit(datasets[i]);
     }
     end = std::chrono::high_resolution_clock::now();
-    auto sequential_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    double speedup = sequential_time > 0 ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time) : 1.0;
-    
+    auto sequential_time =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    double speedup = sequential_time > 0
+                         ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time)
+                         : 1.0;
+
     std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
     std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
     std::cout << "  Speedup: " << speedup << "x\n";
-    
+
     // Verify sequential and parallel results match
     for (size_t i = 0; i < datasets.size(); ++i) {
         EXPECT_NEAR(batch_results[i].getAlpha(), sequential_results[i].getAlpha(), 1e-12)
@@ -821,58 +916,61 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
         EXPECT_NEAR(batch_results[i].getBeta(), sequential_results[i].getBeta(), 1e-12)
             << "Sequential vs parallel beta mismatch for dataset " << i;
     }
-    
+
     // Test 3: Edge cases
     std::cout << "  Testing edge cases...\n";
-    
+
     // Empty datasets vector
     std::vector<std::vector<double>> empty_datasets;
     std::vector<GammaDistribution> empty_results;
     GammaDistribution::parallelBatchFit(empty_datasets, empty_results);
     EXPECT_TRUE(empty_results.empty());
-    
+
     // Single dataset
     std::vector<std::vector<double>> single_dataset = {datasets[0]};
     std::vector<GammaDistribution> single_result(1);
     GammaDistribution::parallelBatchFit(single_dataset, single_result);
     EXPECT_NEAR(single_result[0].getAlpha(), batch_results[0].getAlpha(), 1e-12);
     EXPECT_NEAR(single_result[0].getBeta(), batch_results[0].getBeta(), 1e-12);
-    
+
     // Results vector auto-sizing
     std::vector<GammaDistribution> auto_sized_results;
     GammaDistribution::parallelBatchFit(datasets, auto_sized_results);
     EXPECT_EQ(auto_sized_results.size(), datasets.size());
-    
+
     std::cout << "  ✓ Edge cases handled correctly\n";
-    
+
     // Test 4: Thread safety with concurrent calls
     std::cout << "  Testing thread safety...\n";
-    
+
     const int num_threads = 4;
     std::vector<std::thread> threads;
     std::vector<std::vector<GammaDistribution>> concurrent_results(num_threads);
-    
+
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
             concurrent_results[static_cast<size_t>(t)].resize(datasets.size());
-            GammaDistribution::parallelBatchFit(datasets, concurrent_results[static_cast<size_t>(t)]);
+            GammaDistribution::parallelBatchFit(datasets,
+                                                concurrent_results[static_cast<size_t>(t)]);
         });
     }
-    
+
     for (auto& thread : threads) {
         thread.join();
     }
-    
+
     // Verify all concurrent results match
     for (int t = 0; t < num_threads; ++t) {
         for (size_t i = 0; i < datasets.size(); ++i) {
-            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getAlpha(), batch_results[i].getAlpha(), 1e-10)
+            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getAlpha(),
+                        batch_results[i].getAlpha(), 1e-10)
                 << "Thread " << t << " alpha result mismatch for dataset " << i;
-            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getBeta(), batch_results[i].getBeta(), 1e-10)
+            EXPECT_NEAR(concurrent_results[static_cast<size_t>(t)][i].getBeta(),
+                        batch_results[i].getBeta(), 1e-10)
                 << "Thread " << t << " beta result mismatch for dataset " << i;
         }
     }
-    
+
     std::cout << "  ✓ Thread safety verified\n";
 }
 
@@ -882,71 +980,77 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
 
 TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "\n=== Numerical Stability and Edge Cases ===\n";
-    
+
     auto gamma_dist = libstats::GammaDistribution::create(2.0, 1.0).value;
-    
+
     // Test extreme values (Gamma distribution support is [0, ∞))
     std::vector<double> extreme_values = {1e-10, 0.001, 0.1, 10.0, 100.0, 1000.0};
-    
+
     for (double val : extreme_values) {
         double pdf = gamma_dist.getProbability(val);
         double log_pdf = gamma_dist.getLogProbability(val);
         double cdf = gamma_dist.getCumulativeProbability(val);
-        
+
         EXPECT_GE(pdf, 0.0) << "PDF should be non-negative for value " << val;
         EXPECT_TRUE(std::isfinite(log_pdf)) << "Log PDF should be finite for value " << val;
         EXPECT_GE(cdf, 0.0) << "CDF should be non-negative for value " << val;
         EXPECT_LE(cdf, 1.0) << "CDF should be <= 1 for value " << val;
-        
-        std::cout << "  Value " << val << ": PDF=" << pdf << ", LogPDF=" << log_pdf << ", CDF=" << cdf << "\n";
+
+        std::cout << "  Value " << val << ": PDF=" << pdf << ", LogPDF=" << log_pdf
+                  << ", CDF=" << cdf << "\n";
     }
-    
+
     // Test negative values (should return 0 for PDF and -∞ for log PDF)
     std::vector<double> negative_values = {-1.0, -0.1};
     for (double val : negative_values) {
         double pdf = gamma_dist.getProbability(val);
         double log_pdf = gamma_dist.getLogProbability(val);
         double cdf = gamma_dist.getCumulativeProbability(val);
-        
+
         EXPECT_EQ(pdf, 0.0) << "PDF should be 0 for negative value " << val;
-        EXPECT_TRUE(std::isinf(log_pdf) && log_pdf < 0) << "Log PDF should be -∞ for negative value " << val;
+        EXPECT_TRUE(std::isinf(log_pdf) && log_pdf < 0)
+            << "Log PDF should be -∞ for negative value " << val;
         EXPECT_EQ(cdf, 0.0) << "CDF should be 0 for negative value " << val;
     }
-    
+
     // Test empty batch operations
     std::vector<double> empty_input;
     std::vector<double> empty_output;
-    
+
     // These should not crash
-    gamma_dist.getProbabilityWithStrategy(std::span<const double>(empty_input), std::span<double>(empty_output), libstats::performance::Strategy::SCALAR);
-    gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(empty_input), std::span<double>(empty_output), libstats::performance::Strategy::SCALAR);
-    gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_input), std::span<double>(empty_output), libstats::performance::Strategy::SCALAR);
-    
+    gamma_dist.getProbabilityWithStrategy(std::span<const double>(empty_input),
+                                          std::span<double>(empty_output),
+                                          libstats::performance::Strategy::SCALAR);
+    gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(empty_input),
+                                             std::span<double>(empty_output),
+                                             libstats::performance::Strategy::SCALAR);
+    gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_input),
+                                                    std::span<double>(empty_output),
+                                                    libstats::performance::Strategy::SCALAR);
+
     // Test invalid parameter creation
     auto result_zero_alpha = GammaDistribution::create(0.0, 1.0);
     EXPECT_TRUE(result_zero_alpha.isError()) << "Should fail with zero alpha";
-    
+
     auto result_negative_alpha = GammaDistribution::create(-1.0, 1.0);
     EXPECT_TRUE(result_negative_alpha.isError()) << "Should fail with negative alpha";
-    
+
     auto result_zero_beta = GammaDistribution::create(1.0, 0.0);
     EXPECT_TRUE(result_zero_beta.isError()) << "Should fail with zero beta";
-    
+
     auto result_negative_beta = GammaDistribution::create(1.0, -1.0);
     EXPECT_TRUE(result_negative_beta.isError()) << "Should fail with negative beta";
-    
+
     std::cout << "  Edge case testing completed\n";
 }
 
-} // namespace libstats
+}  // namespace libstats
 
-
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 
-
 #ifdef _MSC_VER
-#pragma warning(pop)
+    #pragma warning(pop)
 #endif

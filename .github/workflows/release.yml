@@ -1,0 +1,196 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type (patch, minor, major)'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for changelog generation
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install semantic-release and plugins
+      run: |
+        npm install -g \
+          semantic-release \
+          @semantic-release/changelog \
+          @semantic-release/git \
+          @semantic-release/github \
+          @semantic-release/commit-analyzer \
+          @semantic-release/release-notes-generator \
+          conventional-changelog-conventionalcommits
+
+    - name: Create semantic-release config if not exists
+      run: |
+        if [ ! -f .releaserc.json ]; then
+          cat > .releaserc.json << 'EOF'
+        {
+          "branches": ["main"],
+          "plugins": [
+            [
+              "@semantic-release/commit-analyzer",
+              {
+                "preset": "conventionalcommits",
+                "releaseRules": [
+                  {"type": "feat", "release": "minor"},
+                  {"type": "fix", "release": "patch"},
+                  {"type": "perf", "release": "patch"},
+                  {"type": "docs", "scope": "README", "release": "patch"},
+                  {"type": "chore", "scope": "deps", "release": "patch"},
+                  {"breaking": true, "release": "major"},
+                  {"revert": true, "release": "patch"}
+                ]
+              }
+            ],
+            [
+              "@semantic-release/release-notes-generator",
+              {
+                "preset": "conventionalcommits",
+                "presetConfig": {
+                  "types": [
+                    {"type": "feat", "section": "✨ Features"},
+                    {"type": "fix", "section": "🐛 Bug Fixes"},
+                    {"type": "perf", "section": "⚡ Performance"},
+                    {"type": "docs", "section": "📚 Documentation"},
+                    {"type": "style", "section": "💄 Style"},
+                    {"type": "refactor", "section": "♻️ Refactoring"},
+                    {"type": "test", "section": "✅ Tests"},
+                    {"type": "build", "section": "🏗️ Build System"},
+                    {"type": "ci", "section": "👷 CI/CD"},
+                    {"type": "chore", "section": "🔧 Maintenance"},
+                    {"type": "revert", "section": "⏪ Reverts"}
+                  ]
+                }
+              }
+            ],
+            [
+              "@semantic-release/changelog",
+              {
+                "changelogFile": "CHANGELOG.md"
+              }
+            ],
+            [
+              "@semantic-release/git",
+              {
+                "assets": ["CHANGELOG.md", "CMakeLists.txt"],
+                "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+              }
+            ],
+            [
+              "@semantic-release/github",
+              {
+                "successComment": false,
+                "failComment": false
+              }
+            ]
+          ]
+        }
+        EOF
+        fi
+
+    - name: Run semantic-release (dry run for PRs)
+      if: github.event_name == 'pull_request'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: npx semantic-release --dry-run
+
+    - name: Run semantic-release
+      if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.release_type }}" ]; then
+          # Manual release with specified type
+          case "${{ github.event.inputs.release_type }}" in
+            major)
+              echo "Creating major release..."
+              # Create a temporary commit with breaking change marker
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git commit --allow-empty -m "feat!: manual major release
+
+              BREAKING CHANGE: Manual major version bump triggered via workflow dispatch"
+              ;;
+            minor)
+              echo "Creating minor release..."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git commit --allow-empty -m "feat: manual minor release"
+              ;;
+            patch)
+              echo "Creating patch release..."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git commit --allow-empty -m "fix: manual patch release"
+              ;;
+          esac
+        fi
+        npx semantic-release
+
+    - name: Update CMakeLists.txt version
+      if: steps.semantic.outputs.new_release_published == 'true'
+      run: |
+        VERSION="${{ steps.semantic.outputs.new_release_version }}"
+        sed -i "s/VERSION [0-9]\+\.[0-9]\+\.[0-9]\+/VERSION ${VERSION}/" CMakeLists.txt
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add CMakeLists.txt
+        git commit -m "chore: update CMakeLists.txt version to ${VERSION} [skip ci]" || true
+        git push || true
+
+  # Alternative: git-cliff for changelog generation (can be used standalone)
+  changelog-cliff:
+    name: Generate Changelog with git-cliff
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Generate changelog with git-cliff
+      uses: orhun/git-cliff-action@v3
+      with:
+        config: cliff.toml
+        args: --verbose
+      env:
+        OUTPUT: CHANGELOG-cliff.md
+
+    - name: Upload changelog
+      uses: actions/upload-artifact@v4
+      with:
+        name: changelog-cliff
+        path: CHANGELOG-cliff.md

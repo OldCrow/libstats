@@ -1,0 +1,256 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, 'release/*', 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} ${{ matrix.compiler.name }} ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [Debug, Release]
+        compiler:
+          - { name: gcc-11, cc: gcc-11, cxx: g++-11 }
+          - { name: gcc-12, cc: gcc-12, cxx: g++-12 }
+          - { name: clang-14, cc: clang-14, cxx: clang++-14 }
+          - { name: clang-15, cc: clang-15, cxx: clang++-15 }
+          - { name: msvc, cc: cl, cxx: cl }
+        exclude:
+          # MSVC only on Windows
+          - os: ubuntu-latest
+            compiler: { name: msvc, cc: cl, cxx: cl }
+          - os: macos-latest
+            compiler: { name: msvc, cc: cl, cxx: cl }
+          # GCC not on Windows (use MinGW if needed)
+          - os: windows-latest
+            compiler: { name: gcc-11, cc: gcc-11, cxx: g++-11 }
+          - os: windows-latest
+            compiler: { name: gcc-12, cc: gcc-12, cxx: g++-12 }
+          # Older Clang not on Windows
+          - os: windows-latest
+            compiler: { name: clang-14, cc: clang-14, cxx: clang++-14 }
+          - os: windows-latest
+            compiler: { name: clang-15, cc: clang-15, cxx: clang++-15 }
+          # macOS uses AppleClang, exclude Linux clangs
+          - os: macos-latest
+            compiler: { name: clang-14, cc: clang-14, cxx: clang++-14 }
+          - os: macos-latest
+            compiler: { name: clang-15, cc: clang-15, cxx: clang++-15 }
+          # macOS doesn't have these GCC versions easily
+          - os: macos-latest
+            compiler: { name: gcc-11, cc: gcc-11, cxx: g++-11 }
+          - os: macos-latest
+            compiler: { name: gcc-12, cc: gcc-12, cxx: g++-12 }
+        include:
+          # Add macOS with AppleClang
+          - os: macos-latest
+            compiler: { name: AppleClang, cc: clang, cxx: clang++ }
+            build_type: Debug
+          - os: macos-latest
+            compiler: { name: AppleClang, cc: clang, cxx: clang++ }
+            build_type: Release
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Install compiler (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        if [[ "${{ matrix.compiler.cc }}" == gcc* ]]; then
+          sudo apt-get install -y ${{ matrix.compiler.cc }} ${{ matrix.compiler.cxx }}
+        elif [[ "${{ matrix.compiler.cc }}" == clang* ]]; then
+          sudo apt-get install -y ${{ matrix.compiler.cc }}
+        fi
+
+    - name: Setup compiler environment
+      if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
+      run: |
+        echo "CC=${{ matrix.compiler.cc }}" >> $GITHUB_ENV
+        echo "CXX=${{ matrix.compiler.cxx }}" >> $GITHUB_ENV
+
+    - name: Configure CMake (Windows MSVC)
+      if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -A x64
+
+    - name: Configure CMake (Non-Windows or Non-MSVC)
+      if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+    - name: Setup Windows DLL paths
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        # Add DLL directories to PATH for Windows
+        echo "Adding DLL directories to PATH..."
+
+        # Convert to Windows paths and add to PATH
+        if [ -d "build/${{ matrix.build_type }}" ]; then
+          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\${{ matrix.build_type }}")
+          echo "$WIN_PATH" >> $GITHUB_PATH
+        fi
+
+        if [ -d "build/tests/${{ matrix.build_type }}" ]; then
+          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/tests/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\tests\\${{ matrix.build_type }}")
+          echo "$WIN_PATH" >> $GITHUB_PATH
+        fi
+
+        # Also add the main build directory
+        WIN_PATH=$(cygpath -w "${{ github.workspace }}/build" 2>/dev/null || echo "${{ github.workspace }}\\build")
+        echo "$WIN_PATH" >> $GITHUB_PATH
+
+        # Copy DLLs as a fallback
+        if [ -f "build/${{ matrix.build_type }}/libstats.dll" ]; then
+          cp "build/${{ matrix.build_type }}/libstats.dll" "build/tests/${{ matrix.build_type }}/" || true
+          echo "Copied libstats.dll to build/tests/${{ matrix.build_type }}/"
+        fi
+        if [ -f "build/Release/libstats.dll" ]; then
+          cp "build/Release/libstats.dll" "build/tests/Release/" || true
+        fi
+        if [ -f "build/Debug/libstats.dll" ]; then
+          cp "build/Debug/libstats.dll" "build/tests/Debug/" || true
+        fi
+
+    - name: Test
+      working-directory: build
+      shell: bash
+      run: |
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          # On Windows, ensure PATH includes DLL directories
+          export PATH="${{ github.workspace }}/build/${{ matrix.build_type }}:${{ github.workspace }}/build/tests/${{ matrix.build_type }}:${{ github.workspace }}/build:$PATH"
+        fi
+        ctest -C ${{ matrix.build_type }} --output-on-failure --parallel
+
+    - name: Benchmark (Release only)
+      if: matrix.build_type == 'Release'
+      shell: bash
+      run: |
+        if [ -f "build/tools/system_inspector" ]; then
+          ./build/tools/system_inspector --quick
+        fi
+        if [ -f "build/examples/gaussian_performance_benchmark" ]; then
+          timeout 30 ./build/examples/gaussian_performance_benchmark || true
+        fi
+
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format-15 clang-tidy-15 cppcheck
+
+    - name: Check formatting
+      run: |
+        find include src tests -name '*.h' -o -name '*.cpp' | xargs clang-format-15 --dry-run --Werror || true
+        echo "Note: Format checking configured but not enforced yet"
+
+    - name: Run clang-tidy
+      run: |
+        cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        # Only check our source files, exclude system headers
+        find src -name '*.cpp' | head -5 | xargs clang-tidy-15 -p build \
+          --header-filter='.*/(include|src)/.*\.h$' \
+          --system-headers=false \
+          --warnings-as-errors="" || true
+        echo "Note: clang-tidy configured but not enforced yet"
+
+    - name: Run cppcheck
+      run: |
+        cppcheck --enable=warning,style,performance,portability --error-exitcode=0 \
+                 --suppress=missingIncludeSystem \
+                 --inline-suppr \
+                 -I include src 2>&1 | tee cppcheck.log
+        echo "Note: cppcheck configured but not enforced yet"
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Clean build directory
+      run: rm -rf build
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-11 g++-11 lcov
+        # Verify compilers are installed
+        which gcc-11 || (echo "gcc-11 not found" && exit 1)
+        which g++-11 || (echo "g++-11 not found" && exit 1)
+        which gcov-11 || (echo "gcov-11 not found" && exit 1)
+        gcc-11 --version
+        g++-11 --version
+        gcov-11 --version
+        # Set up alternatives to ensure gcov-11 is used
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+        sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-11 100
+
+    - name: Set compiler paths
+      run: |
+        echo "CC=gcc-11" >> $GITHUB_ENV
+        echo "CXX=g++-11" >> $GITHUB_ENV
+        echo "GCOV=gcov-11" >> $GITHUB_ENV
+        which gcc-11
+        which g++-11
+        which gcov-11
+        gcc-11 --version
+        g++-11 --version
+        gcov-11 --version
+
+    - name: Configure with coverage
+      run: |
+        # Verify compilers are accessible before CMake
+        which gcc-11 || (echo "gcc-11 not found before CMake" && exit 1)
+        which g++-11 || (echo "g++-11 not found before CMake" && exit 1)
+        # Configure with explicit compiler paths and atomic profile updates
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_COMPILER=/usr/bin/gcc-11 \
+          -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 \
+          -DCMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic" \
+          -DCMAKE_C_FLAGS="--coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic"
+
+    - name: Build
+      run: cmake --build build --parallel
+
+    - name: Run tests
+      run: |
+        cd build
+        # Run tests sequentially for coverage to avoid profile data corruption
+        ctest --output-on-failure
+
+    - name: Generate coverage report
+      run: |
+        # Explicitly use gcov-11 for coverage collection
+        lcov --gcov-tool gcov-11 --directory build --capture --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info --ignore-errors unused
+        lcov --list coverage.info
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false

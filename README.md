@@ -1,5 +1,7 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
+[![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
 [![CMake](https://img.shields.io/badge/CMake-3.20%2B-blue.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -62,7 +64,7 @@ A modern, high-performance C++20 statistical distributions library providing com
 ### Quick Build
 
 ```bash
-git clone https://github.com/yourusername/libstats.git
+git clone https://github.com/OldCrow/libstats.git
 cd libstats
 mkdir build && cd build
 cmake ..                    # Auto-detects optimal configuration
@@ -82,24 +84,24 @@ ctest --output-on-failure  # Run tests
 int main() {
     // Initialize performance systems (recommended)
     libstats::initialize_performance_systems();
-    
+
     // Create distributions with safe factory methods
     auto gaussian_result = libstats::GaussianDistribution::create(0.0, 1.0);
     if (gaussian_result.isOk()) {
         auto& gaussian = gaussian_result.value;
-        
+
         // Single-value operations
         std::cout << "PDF at 1.0: " << gaussian.getProbability(1.0) << std::endl;
         std::cout << "CDF at 1.0: " << gaussian.getCumulativeProbability(1.0) << std::endl;
-        
+
         // High-performance batch operations (auto-optimized)
         std::vector<double> values(10000);
         std::vector<double> results(10000);
         std::iota(values.begin(), values.end(), -5.0);
-        
-        gaussian.getProbability(std::span<const double>(values), 
+
+        gaussian.getProbability(std::span<const double>(values),
                                std::span<double>(results));
-        
+
         std::cout << "Processed " << values.size() << " values with auto-optimization" << std::endl;
     }
     return 0;
@@ -214,7 +216,7 @@ For complete information about libstats, refer to these comprehensive guides:
 Complete build system documentation covering:
 - Cross-platform build instructions (Windows, macOS, Linux)
 - SIMD detection and optimization
-- Parallel build configuration  
+- Parallel build configuration
 - Advanced CMake options
 - Troubleshooting and manual builds
 
@@ -272,7 +274,7 @@ Windows development environment support:
 
 ### Phase 5: Optimization and Cross-Platform Tuning (In Progress) 🔧
 - [x] Core performance analysis tools delivered
-- [x] Parallel optimization with grain size tuning 
+- [x] Parallel optimization with grain size tuning
 - [x] SIMD acceleration with runtime detection
 - [ ] Cross-platform testing (Linux, Windows)
 - [ ] Compiler compatibility testing (GCC, MSVC)
