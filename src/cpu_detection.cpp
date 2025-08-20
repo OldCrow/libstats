@@ -41,8 +41,10 @@
     #if defined(__APPLE__)
         #include <sys/sysctl.h>
     #elif defined(_WIN32)
+    // clang-format off
+        #include <windows.h>     // Must be included before sysinfoapi.h
         #include <sysinfoapi.h>
-        #include <windows.h>
+    // clang-format on
     #endif
 #elif defined(__aarch64__) || defined(_M_ARM64)
     #define LIBSTATS_ARM64_FAMILY
