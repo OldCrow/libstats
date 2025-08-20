@@ -1,7 +1,7 @@
 /**
  * @file exponential_performance_benchmark.cpp
  * @brief Comprehensive performance benchmark for enhanced Exponential distribution
- * 
+ *
  * This benchmark demonstrates and measures performance of all enhanced features
  * in the Exponential distribution implementation, including:
  * - Basic probability functions (PDF, CDF, quantiles, log PDF)
@@ -16,9 +16,10 @@
 
 #define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
+
+#include <iomanip>
 #include <iostream>
 #include <random>
-#include <iomanip>
 #include <vector>
 
 using namespace libstats;
@@ -39,113 +40,147 @@ int main() {
     std::cout << "   • Trivial inverse CDF for sampling: -ln(1-u)/λ\n";
     std::cout << "   • Memoryless property simplifies many calculations\n\n";
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
-    
+
     // Create Exponential distributions for testing
-    auto unitExponential = libstats::ExponentialDistribution::create(1.0).value;  // Unit exponential (λ = 1)
-    auto customExponential = libstats::ExponentialDistribution::create(2.5).value;  // Custom distribution (λ = 2.5)
-    
+    auto unitExponential =
+        libstats::ExponentialDistribution::create(1.0).value;  // Unit exponential (λ = 1)
+    auto customExponential =
+        libstats::ExponentialDistribution::create(2.5).value;  // Custom distribution (λ = 2.5)
+
     // Benchmark setup
     libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
-    
+
     //==========================================================================
     // 1. BASIC OPERATIONS BENCHMARK
     //==========================================================================
     std::cout << "\n📋 Phase 1: Setting up basic operations benchmarks..." << std::endl;
-    std::cout << "   Testing individual probability computations with closed-form solutions.\n" << std::endl;
-    
+    std::cout << "   Testing individual probability computations with closed-form solutions.\n"
+              << std::endl;
+
     // Single value operations
-    bench.addTest("PDF Single Value", [&]() {
-        volatile double result = unitExponential.getProbability(1.0);
-        (void)result;  // Prevent optimization
-    }, 0, 1000000.0);  // 1M operations for throughput measurement
-    
-    bench.addTest("CDF Single Value", [&]() {
-        volatile double result = unitExponential.getCumulativeProbability(0.5);
-        (void)result;
-    }, 0, 1000000.0);
-    
-    bench.addTest("Log PDF Single Value", [&]() {
-        volatile double result = unitExponential.getLogProbability(1.0);
-        (void)result;
-    }, 0, 1000000.0);
-    
-    bench.addTest("Quantile Single Value", [&]() {
-        volatile double result = unitExponential.getQuantile(0.75);
-        (void)result;
-    }, 0, 1000000.0);
-    
+    bench.addTest(
+        "PDF Single Value",
+        [&]() {
+            volatile double result = unitExponential.getProbability(1.0);
+            (void)result;  // Prevent optimization
+        },
+        0, 1000000.0);  // 1M operations for throughput measurement
+
+    bench.addTest(
+        "CDF Single Value",
+        [&]() {
+            volatile double result = unitExponential.getCumulativeProbability(0.5);
+            (void)result;
+        },
+        0, 1000000.0);
+
+    bench.addTest(
+        "Log PDF Single Value",
+        [&]() {
+            volatile double result = unitExponential.getLogProbability(1.0);
+            (void)result;
+        },
+        0, 1000000.0);
+
+    bench.addTest(
+        "Quantile Single Value",
+        [&]() {
+            volatile double result = unitExponential.getQuantile(0.75);
+            (void)result;
+        },
+        0, 1000000.0);
+
     //==========================================================================
-    // 2. BATCH OPERATIONS BENCHMARK 
+    // 2. BATCH OPERATIONS BENCHMARK
     //==========================================================================
     std::cout << "\n⚡ Phase 2: Setting up batch operations benchmarks..." << std::endl;
-    std::cout << "   Testing SIMD-vectorized exp() operations on exponential data arrays.\n" << std::endl;
-    
+    std::cout << "   Testing SIMD-vectorized exp() operations on exponential data arrays.\n"
+              << std::endl;
+
     // Create test data - exponential distribution domain is [0, ∞)
     const std::vector<size_t> test_sizes = {100, 1000, 10000, 100000};
-    
+
     for (size_t size : test_sizes) {
         std::vector<double> test_values(size);
         std::vector<double> results(size);
-        
+
         // Fill test data with positive random values suitable for exponential domain
         std::mt19937 rng(42);
         std::exponential_distribution<double> exp_dist(0.5);  // Generate exponential-like test data
         for (size_t i = 0; i < size; ++i) {
             test_values[i] = exp_dist(rng);
         }
-        
+
         // Scalar batch operations - using modern span-based API
-        bench.addTest("Batch PDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
-            std::span<const double> values_span(test_values);
-            std::span<double> results_span(results);
-            unitExponential.getProbability(values_span, results_span);
-        }, 0, static_cast<double>(size));
-        
-        bench.addTest("Batch Log PDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
-            std::span<const double> values_span(test_values);
-            std::span<double> results_span(results);
-            unitExponential.getLogProbability(values_span, results_span);
-        }, 0, static_cast<double>(size));
-        
-        bench.addTest("Batch CDF Scalar " + std::to_string(size), [&, test_values, results]() mutable {
-            std::span<const double> values_span(test_values);
-            std::span<double> results_span(results);
-            unitExponential.getCumulativeProbability(values_span, results_span);
-        }, 0, static_cast<double>(size));
-        
+        bench.addTest(
+            "Batch PDF Scalar " + std::to_string(size),
+            [&, test_values, results]() mutable {
+                std::span<const double> values_span(test_values);
+                std::span<double> results_span(results);
+                unitExponential.getProbability(values_span, results_span);
+            },
+            0, static_cast<double>(size));
+
+        bench.addTest(
+            "Batch Log PDF Scalar " + std::to_string(size),
+            [&, test_values, results]() mutable {
+                std::span<const double> values_span(test_values);
+                std::span<double> results_span(results);
+                unitExponential.getLogProbability(values_span, results_span);
+            },
+            0, static_cast<double>(size));
+
+        bench.addTest(
+            "Batch CDF Scalar " + std::to_string(size),
+            [&, test_values, results]() mutable {
+                std::span<const double> values_span(test_values);
+                std::span<double> results_span(results);
+                unitExponential.getCumulativeProbability(values_span, results_span);
+            },
+            0, static_cast<double>(size));
+
         // Parallel batch operations - using performance hints
-        bench.addTest("Batch PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
-            std::span<const double> values_span(test_values);
-            std::span<double> results_span(results);
-            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
-            unitExponential.getProbability(values_span, results_span, hint);
-        }, 0, static_cast<double>(size));
-        
-        bench.addTest("Batch Log PDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
-            std::span<const double> values_span(test_values);
-            std::span<double> results_span(results);
-            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
-            unitExponential.getLogProbability(values_span, results_span, hint);
-        }, 0, static_cast<double>(size));
-        
-        bench.addTest("Batch CDF Parallel " + std::to_string(size), [&, test_values, results]() mutable {
-            std::span<const double> values_span(test_values);
-            std::span<double> results_span(results);
-            auto hint = libstats::performance::PerformanceHint::maximum_throughput();
-            unitExponential.getCumulativeProbability(values_span, results_span, hint);
-        }, 0, static_cast<double>(size));
+        bench.addTest(
+            "Batch PDF Parallel " + std::to_string(size),
+            [&, test_values, results]() mutable {
+                std::span<const double> values_span(test_values);
+                std::span<double> results_span(results);
+                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                unitExponential.getProbability(values_span, results_span, hint);
+            },
+            0, static_cast<double>(size));
+
+        bench.addTest(
+            "Batch Log PDF Parallel " + std::to_string(size),
+            [&, test_values, results]() mutable {
+                std::span<const double> values_span(test_values);
+                std::span<double> results_span(results);
+                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                unitExponential.getLogProbability(values_span, results_span, hint);
+            },
+            0, static_cast<double>(size));
+
+        bench.addTest(
+            "Batch CDF Parallel " + std::to_string(size),
+            [&, test_values, results]() mutable {
+                std::span<const double> values_span(test_values);
+                std::span<double> results_span(results);
+                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                unitExponential.getCumulativeProbability(values_span, results_span, hint);
+            },
+            0, static_cast<double>(size));
     }
-    
+
     //==========================================================================
     // 3. ADVANCED FEATURES BENCHMARK
     //==========================================================================
     std::cout << "\n💻 Phase 3: Setting up advanced features benchmarks..." << std::endl;
     std::cout << "   Testing cache-aware processing and work-stealing parallelism.\n" << std::endl;
-    
+
     // Cache-aware operations - using performance hints
     const std::vector<double> large_test(10000);
     std::vector<double> large_results(10000);
-    
+
     // Fill with exponential-like test data
     std::mt19937 cache_rng(42);
     std::exponential_distribution<double> cache_exp_dist(1.0);
@@ -153,50 +188,64 @@ int main() {
     for (size_t i = 0; i < large_test_mutable.size(); ++i) {
         large_test_mutable[i] = cache_exp_dist(cache_rng);
     }
-    
-    bench.addTest("GPU-Accelerated Batch PDF", [&]() mutable {
-        std::span<const double> values_span(large_test_mutable);
-        std::span<double> results_span(large_results);
-        auto hint = libstats::performance::PerformanceHint::minimal_latency();
-        unitExponential.getProbability(values_span, results_span, hint);
-    }, 0, static_cast<double>(large_test.size()));
-    
+
+    bench.addTest(
+        "GPU-Accelerated Batch PDF",
+        [&]() mutable {
+            std::span<const double> values_span(large_test_mutable);
+            std::span<double> results_span(large_results);
+            auto hint = libstats::performance::PerformanceHint::minimal_latency();
+            unitExponential.getProbability(values_span, results_span, hint);
+        },
+        0, static_cast<double>(large_test.size()));
+
     // Work-stealing parallel operations - using expert strategy selection
-    bench.addTest("Work-Stealing Batch PDF", [&, large_test_mutable]() mutable {
-        std::span<const double> values_span(large_test_mutable);
-        std::span<double> results_span(large_results);
-        unitExponential.getProbabilityWithStrategy(values_span, results_span,
-                                                   libstats::performance::Strategy::WORK_STEALING);
-    }, 0, static_cast<double>(large_test.size()));
-    
+    bench.addTest(
+        "Work-Stealing Batch PDF",
+        [&, large_test_mutable]() mutable {
+            std::span<const double> values_span(large_test_mutable);
+            std::span<double> results_span(large_results);
+            unitExponential.getProbabilityWithStrategy(
+                values_span, results_span, libstats::performance::Strategy::WORK_STEALING);
+        },
+        0, static_cast<double>(large_test.size()));
+
     //==========================================================================
     // 4. SAMPLING BENCHMARK
     //==========================================================================
     std::cout << "\n🎲 Phase 4: Setting up sampling benchmarks..." << std::endl;
-    std::cout << "   Testing highly efficient inverse transform sampling for exponentials.\n" << std::endl;
-    
+    std::cout << "   Testing highly efficient inverse transform sampling for exponentials.\n"
+              << std::endl;
+
     std::mt19937 sample_rng(42);
-    
-    bench.addTest("Inverse Transform Sampling Unit Exp", [&]() mutable {
-        volatile double result = unitExponential.sample(sample_rng);
-        (void)result;
-    }, 0, 1000000.0);
-    
-    bench.addTest("Inverse Transform Sampling Custom Exp", [&]() mutable {
-        volatile double result = customExponential.sample(sample_rng);
-        (void)result;
-    }, 0, 1000000.0);
-    
+
+    bench.addTest(
+        "Inverse Transform Sampling Unit Exp",
+        [&]() mutable {
+            volatile double result = unitExponential.sample(sample_rng);
+            (void)result;
+        },
+        0, 1000000.0);
+
+    bench.addTest(
+        "Inverse Transform Sampling Custom Exp",
+        [&]() mutable {
+            volatile double result = customExponential.sample(sample_rng);
+            (void)result;
+        },
+        0, 1000000.0);
+
     //==========================================================================
-    // 5. PARAMETER FITTING BENCHMARK  
+    // 5. PARAMETER FITTING BENCHMARK
     //==========================================================================
     std::cout << "\n🔧 Phase 5: Setting up fitting benchmarks..." << std::endl;
-    std::cout << "   Testing maximum likelihood estimation for exponential rate parameter.\n" << std::endl;
-    
+    std::cout << "   Testing maximum likelihood estimation for exponential rate parameter.\n"
+              << std::endl;
+
     // Generate realistic test data for fitting using true exponential distribution
     std::vector<double> fit_data_small(1000);
     std::vector<double> fit_data_large(100000);
-    
+
     std::exponential_distribution<double> true_exp_gen(1.5);  // Rate = 1.5
     for (size_t i = 0; i < fit_data_small.size(); ++i) {
         fit_data_small[i] = true_exp_gen(sample_rng);
@@ -204,71 +253,95 @@ int main() {
     for (size_t i = 0; i < fit_data_large.size(); ++i) {
         fit_data_large[i] = true_exp_gen(sample_rng);
     }
-    
-    bench.addTest("Parameter Fitting Small Dataset", [&]() {
-        auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
-        temp_dist.fit(fit_data_small);
-    }, 0, static_cast<double>(fit_data_small.size()));
-    
-    bench.addTest("Parameter Fitting Large Dataset", [&]() {
-        auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
-        temp_dist.fit(fit_data_large);
-    }, 0, static_cast<double>(fit_data_large.size()));
-    
+
+    bench.addTest(
+        "Parameter Fitting Small Dataset",
+        [&]() {
+            auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
+            temp_dist.fit(fit_data_small);
+        },
+        0, static_cast<double>(fit_data_small.size()));
+
+    bench.addTest(
+        "Parameter Fitting Large Dataset",
+        [&]() {
+            auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
+            temp_dist.fit(fit_data_large);
+        },
+        0, static_cast<double>(fit_data_large.size()));
+
     //==========================================================================
     // 6. ADVANCED STATISTICAL METHODS BENCHMARK
     //==========================================================================
     std::cout << "\n📊 Phase 6: Setting up advanced statistical methods benchmarks..." << std::endl;
-    std::cout << "   Testing confidence intervals, hypothesis tests, and Bayesian methods.\n" << std::endl;
-    
+    std::cout << "   Testing confidence intervals, hypothesis tests, and Bayesian methods.\n"
+              << std::endl;
+
     // Use medium-sized dataset for statistical methods
     std::vector<double> stats_data(5000);
     for (size_t i = 0; i < stats_data.size(); ++i) {
         stats_data[i] = true_exp_gen(sample_rng);
     }
-    
-    bench.addTest("Confidence Interval Rate", [&]() {
-        volatile auto result = libstats::Exponential::confidenceIntervalRate(stats_data, 0.95);
-        (void)result;
-    }, 0, static_cast<double>(stats_data.size()));
-    
-    bench.addTest("Likelihood Ratio Test", [&]() {
-        volatile auto result = libstats::Exponential::likelihoodRatioTest(stats_data, 1.5, 0.05);
-        (void)result;
-    }, 0, static_cast<double>(stats_data.size()));
-    
-    bench.addTest("Bayesian Estimation", [&]() {
-        volatile auto result = libstats::Exponential::bayesianEstimation(stats_data, 1.0, 1.0);
-        (void)result;
-    }, 0, static_cast<double>(stats_data.size()));
-    
-    bench.addTest("Method of Moments Estimation", [&]() {
-        volatile double result = libstats::Exponential::methodOfMomentsEstimation(stats_data);
-        (void)result;
-    }, 0, static_cast<double>(stats_data.size()));
-    
-    bench.addTest("Robust Estimation (Winsorized)", [&]() {
-        volatile double result = libstats::Exponential::robustEstimation(stats_data, "winsorized", 0.1);
-        (void)result;
-    }, 0, static_cast<double>(stats_data.size()));
-    
+
+    bench.addTest(
+        "Confidence Interval Rate",
+        [&]() {
+            volatile auto result = libstats::Exponential::confidenceIntervalRate(stats_data, 0.95);
+            (void)result;
+        },
+        0, static_cast<double>(stats_data.size()));
+
+    bench.addTest(
+        "Likelihood Ratio Test",
+        [&]() {
+            volatile auto result =
+                libstats::Exponential::likelihoodRatioTest(stats_data, 1.5, 0.05);
+            (void)result;
+        },
+        0, static_cast<double>(stats_data.size()));
+
+    bench.addTest(
+        "Bayesian Estimation",
+        [&]() {
+            volatile auto result = libstats::Exponential::bayesianEstimation(stats_data, 1.0, 1.0);
+            (void)result;
+        },
+        0, static_cast<double>(stats_data.size()));
+
+    bench.addTest(
+        "Method of Moments Estimation",
+        [&]() {
+            volatile double result = libstats::Exponential::methodOfMomentsEstimation(stats_data);
+            (void)result;
+        },
+        0, static_cast<double>(stats_data.size()));
+
+    bench.addTest(
+        "Robust Estimation (Winsorized)",
+        [&]() {
+            volatile double result =
+                libstats::Exponential::robustEstimation(stats_data, "winsorized", 0.1);
+            (void)result;
+        },
+        0, static_cast<double>(stats_data.size()));
+
     //==========================================================================
     // RUN BENCHMARKS
     //==========================================================================
     std::cout << "\n" << std::string(80, '=') << std::endl;
     std::cout << "RUNNING EXPONENTIAL DISTRIBUTION BENCHMARKS" << std::endl;
     std::cout << std::string(80, '=') << std::endl;
-    
+
     auto results = bench.runAll();
     bench.printResults();
-    
+
     //==========================================================================
     // ANALYSIS AND SUMMARY
     //==========================================================================
     std::cout << "\n" << std::string(80, '=') << std::endl;
     std::cout << "PERFORMANCE ANALYSIS SUMMARY" << std::endl;
     std::cout << std::string(80, '=') << std::endl;
-    
+
     // Find key performance metrics
     double single_pdf_ops_per_sec = 0.0;
     double single_cdf_ops_per_sec = 0.0;
@@ -297,7 +370,7 @@ int main() {
     double bayesian_estimation_ops_per_sec = 0.0;
     double moments_estimation_ops_per_sec = 0.0;
     double robust_estimation_ops_per_sec = 0.0;
-    
+
     for (const auto& result : results) {
         if (result.name == "PDF Single Value") {
             single_pdf_ops_per_sec = result.stats.throughput;
@@ -355,49 +428,77 @@ int main() {
             robust_estimation_ops_per_sec = result.stats.throughput;
         }
     }
-    
+
     std::cout << "\nSINGLE OPERATION PERFORMANCE:" << std::endl;
-    std::cout << "├─ PDF Operations:      " << std::scientific << single_pdf_ops_per_sec << " ops/sec" << std::endl;
-    std::cout << "├─ CDF Operations:      " << std::scientific << single_cdf_ops_per_sec << " ops/sec" << std::endl;
-    std::cout << "├─ Log PDF Operations:  " << std::scientific << single_log_pdf_ops_per_sec << " ops/sec" << std::endl;
-    std::cout << "└─ Quantile Operations: " << std::scientific << single_quantile_ops_per_sec << " ops/sec" << std::endl;
-    
+    std::cout << "├─ PDF Operations:      " << std::scientific << single_pdf_ops_per_sec
+              << " ops/sec" << std::endl;
+    std::cout << "├─ CDF Operations:      " << std::scientific << single_cdf_ops_per_sec
+              << " ops/sec" << std::endl;
+    std::cout << "├─ Log PDF Operations:  " << std::scientific << single_log_pdf_ops_per_sec
+              << " ops/sec" << std::endl;
+    std::cout << "└─ Quantile Operations: " << std::scientific << single_quantile_ops_per_sec
+              << " ops/sec" << std::endl;
+
     std::cout << "\nBATCH OPERATION PERFORMANCE (1K Elements):" << std::endl;
-    std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_1k_scalar << " elements/sec" << std::endl;
-    std::cout << "├─ Parallel PDF:        " << std::scientific << batch_pdf_1k_parallel << " elements/sec" << std::endl;
-    std::cout << "├─ Scalar Log PDF:      " << std::scientific << batch_log_pdf_1k_scalar << " elements/sec" << std::endl;
-    std::cout << "├─ Parallel Log PDF:    " << std::scientific << batch_log_pdf_1k_parallel << " elements/sec" << std::endl;
-    std::cout << "├─ Scalar CDF:          " << std::scientific << batch_cdf_1k_scalar << " elements/sec" << std::endl;
-    std::cout << "└─ Parallel CDF:        " << std::scientific << batch_cdf_1k_parallel << " elements/sec" << std::endl;
-    
+    std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_1k_scalar
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Parallel PDF:        " << std::scientific << batch_pdf_1k_parallel
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Scalar Log PDF:      " << std::scientific << batch_log_pdf_1k_scalar
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Parallel Log PDF:    " << std::scientific << batch_log_pdf_1k_parallel
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Scalar CDF:          " << std::scientific << batch_cdf_1k_scalar
+              << " elements/sec" << std::endl;
+    std::cout << "└─ Parallel CDF:        " << std::scientific << batch_cdf_1k_parallel
+              << " elements/sec" << std::endl;
+
     std::cout << "\nBATCH OPERATION PERFORMANCE (100K Elements):" << std::endl;
-    std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_100k_scalar << " elements/sec" << std::endl;
-    std::cout << "├─ Parallel PDF:        " << std::scientific << batch_pdf_100k_parallel << " elements/sec" << std::endl;
-    std::cout << "├─ Scalar Log PDF:      " << std::scientific << batch_log_pdf_100k_scalar << " elements/sec" << std::endl;
-    std::cout << "├─ Parallel Log PDF:    " << std::scientific << batch_log_pdf_100k_parallel << " elements/sec" << std::endl;
-    std::cout << "├─ Scalar CDF:          " << std::scientific << batch_cdf_100k_scalar << " elements/sec" << std::endl;
-    std::cout << "├─ Parallel CDF:        " << std::scientific << batch_cdf_100k_parallel << " elements/sec" << std::endl;
-    std::cout << "├─ GPU-Accelerated PDF: " << std::scientific << gpu_accelerated_ops_per_sec << " elements/sec" << std::endl;
-    std::cout << "└─ Work-Stealing PDF:   " << std::scientific << work_stealing_ops_per_sec << " elements/sec" << std::endl;
-    
+    std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_100k_scalar
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Parallel PDF:        " << std::scientific << batch_pdf_100k_parallel
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Scalar Log PDF:      " << std::scientific << batch_log_pdf_100k_scalar
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Parallel Log PDF:    " << std::scientific << batch_log_pdf_100k_parallel
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Scalar CDF:          " << std::scientific << batch_cdf_100k_scalar
+              << " elements/sec" << std::endl;
+    std::cout << "├─ Parallel CDF:        " << std::scientific << batch_cdf_100k_parallel
+              << " elements/sec" << std::endl;
+    std::cout << "├─ GPU-Accelerated PDF: " << std::scientific << gpu_accelerated_ops_per_sec
+              << " elements/sec" << std::endl;
+    std::cout << "└─ Work-Stealing PDF:   " << std::scientific << work_stealing_ops_per_sec
+              << " elements/sec" << std::endl;
+
     std::cout << "\nSAMPLING AND FITTING PERFORMANCE:" << std::endl;
-    std::cout << "├─ Inverse Transform (Unit):     " << std::scientific << inverse_transform_unit << " samples/sec" << std::endl;
-    std::cout << "├─ Inverse Transform (Custom):   " << std::scientific << inverse_transform_custom << " samples/sec" << std::endl;
-    std::cout << "├─ Parameter Fitting (Small):    " << std::scientific << fitting_small_ops_per_sec << " datapoints/sec" << std::endl;
-    std::cout << "└─ Parameter Fitting (Large):    " << std::scientific << fitting_large_ops_per_sec << " datapoints/sec" << std::endl;
-    
+    std::cout << "├─ Inverse Transform (Unit):     " << std::scientific << inverse_transform_unit
+              << " samples/sec" << std::endl;
+    std::cout << "├─ Inverse Transform (Custom):   " << std::scientific << inverse_transform_custom
+              << " samples/sec" << std::endl;
+    std::cout << "├─ Parameter Fitting (Small):    " << std::scientific << fitting_small_ops_per_sec
+              << " datapoints/sec" << std::endl;
+    std::cout << "└─ Parameter Fitting (Large):    " << std::scientific << fitting_large_ops_per_sec
+              << " datapoints/sec" << std::endl;
+
     std::cout << "\nADVANCED STATISTICAL METHODS:" << std::endl;
-    std::cout << "├─ Confidence Intervals:         " << std::scientific << confidence_interval_ops_per_sec << " datapoints/sec" << std::endl;
-    std::cout << "├─ Likelihood Ratio Tests:       " << std::scientific << likelihood_ratio_ops_per_sec << " datapoints/sec" << std::endl;
-    std::cout << "├─ Bayesian Estimation:          " << std::scientific << bayesian_estimation_ops_per_sec << " datapoints/sec" << std::endl;
-    std::cout << "├─ Method of Moments:            " << std::scientific << moments_estimation_ops_per_sec << " datapoints/sec" << std::endl;
-    std::cout << "└─ Robust Estimation:            " << std::scientific << robust_estimation_ops_per_sec << " datapoints/sec" << std::endl;
-    
+    std::cout << "├─ Confidence Intervals:         " << std::scientific
+              << confidence_interval_ops_per_sec << " datapoints/sec" << std::endl;
+    std::cout << "├─ Likelihood Ratio Tests:       " << std::scientific
+              << likelihood_ratio_ops_per_sec << " datapoints/sec" << std::endl;
+    std::cout << "├─ Bayesian Estimation:          " << std::scientific
+              << bayesian_estimation_ops_per_sec << " datapoints/sec" << std::endl;
+    std::cout << "├─ Method of Moments:            " << std::scientific
+              << moments_estimation_ops_per_sec << " datapoints/sec" << std::endl;
+    std::cout << "└─ Robust Estimation:            " << std::scientific
+              << robust_estimation_ops_per_sec << " datapoints/sec" << std::endl;
+
     if (batch_pdf_100k_parallel > 0 && batch_pdf_100k_scalar > 0) {
         double speedup = batch_pdf_100k_parallel / batch_pdf_100k_scalar;
-        std::cout << "\nPARALLEL SPEEDUP: " << std::fixed << std::setprecision(2) << speedup << "x" << std::endl;
+        std::cout << "\nPARALLEL SPEEDUP: " << std::fixed << std::setprecision(2) << speedup << "x"
+                  << std::endl;
     }
-    
+
     // Exponential-specific performance insights
     std::cout << "\nEXPONENTIAL DISTRIBUTION INSIGHTS:" << std::endl;
     std::cout << "├─ Unit rate optimization: Fast path for λ=1" << std::endl;
@@ -405,9 +506,9 @@ int main() {
     std::cout << "├─ Inverse transform sampling: Single log() + division" << std::endl;
     std::cout << "├─ Advanced statistics: Gamma conjugate priors" << std::endl;
     std::cout << "└─ Numerical stability: Handles extreme λ values" << std::endl;
-    
+
     std::cout << "\n🚀 EXPONENTIAL DISTRIBUTION BENCHMARK COMPLETE! 🚀" << std::endl;
     std::cout << "All enhanced features successfully benchmarked." << std::endl;
-    
+
     return 0;
 }

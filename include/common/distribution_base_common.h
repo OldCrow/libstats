@@ -3,31 +3,31 @@
 /**
  * @file common/distribution_base_common.h
  * @brief Common dependencies for distribution interface and base classes
- * 
+ *
  * This header consolidates the common standard library and core includes
  * needed by distribution interface components, following our policy of
  * reducing redundancy while maintaining clear separation of concerns.
- * 
+ *
  * This header is used by:
  * - distribution_interface.h
- * - distribution_base.h  
+ * - distribution_base.h
  * - distribution_memory.h
  * - distribution_validation.h
- * 
+ *
  * Individual headers still include their specific dependencies as needed.
  */
 
 // Standard library includes common to distribution interfaces
-#include <vector>
-#include <string>
-#include <random>
-#include <functional>
 #include <chrono>
+#include <functional>
 #include <limits>
+#include <random>
+#include <string>
+#include <vector>
 
 // Core libstats headers common to distribution interfaces
-#include "../core/essential_constants.h"  // Only essential constants
 #include "../core/error_handling.h"       // Result types and validation
+#include "../core/essential_constants.h"  // Only essential constants
 
 namespace libstats {
 
@@ -40,4 +40,4 @@ class ThreadSafeCacheManager;
 struct ValidationResult;
 struct FitResults;
 
-} // namespace libstats
+}  // namespace libstats

@@ -32,18 +32,18 @@
     #include <malloc.h>
     #include <windows.h>
 #elif defined(__APPLE__)
-    #include <cstdlib>
     #include <cerrno>
-    #include <sys/sysctl.h>
+    #include <cstdlib>
     #include <mach/mach.h>
+    #include <sys/sysctl.h>
 #elif defined(__linux__)
-    #include <cstdlib>
     #include <cerrno>
-    #include <unistd.h>
+    #include <cstdlib>
     #include <sys/sysinfo.h>
+    #include <unistd.h>
 #else
-    #include <cstdlib>
     #include <cerrno>
+    #include <cstdlib>
 #endif
 
 // Core libstats headers needed by platform implementations
@@ -64,11 +64,11 @@ namespace platform_utils {
  */
 constexpr std::size_t get_optimal_alignment() noexcept {
 #if defined(__AVX512F__)
-    return 64; // AVX-512 benefits from 64-byte alignment
+    return 64;  // AVX-512 benefits from 64-byte alignment
 #elif defined(__AVX__) || defined(__AVX2__)
-    return 32; // AVX requires 32-byte alignment
+    return 32;  // AVX requires 32-byte alignment
 #elif defined(__SSE2__) || defined(__ARM_NEON)
-    return 16; // SSE2/NEON benefits from 16-byte alignment
+    return 16;  // SSE2/NEON benefits from 16-byte alignment
 #else
     return 8;  // Basic double alignment
 #endif
@@ -80,7 +80,7 @@ constexpr std::size_t get_optimal_alignment() noexcept {
  */
 constexpr std::size_t get_cache_line_size() noexcept {
 #if defined(__APPLE__) && defined(__aarch64__)
-    return 128; // Apple Silicon has 128-byte cache lines
+    return 128;  // Apple Silicon has 128-byte cache lines
 #elif defined(__x86_64__) || defined(__i386__)
     return 64;  // Most x86/x64 processors have 64-byte cache lines
 #elif defined(__ARM_NEON)
@@ -98,5 +98,5 @@ constexpr bool has_steady_high_resolution_clock() noexcept {
     return std::chrono::high_resolution_clock::is_steady;
 }
 
-} // namespace platform_utils
-} // namespace libstats
+}  // namespace platform_utils
+}  // namespace libstats

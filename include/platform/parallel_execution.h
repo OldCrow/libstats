@@ -1,13 +1,13 @@
 #pragma once
 
 /**
- * @file parallel_execution.h  
+ * @file parallel_execution.h
  * @brief C++20 parallel execution policy detection and utilities
- * 
+ *
  * This header centralizes all C++20 parallel execution support detection
  * and provides utilities for using std::execution policies safely across
  * different compilers and standard library implementations.
- * 
+ *
  */
 
 // Platform-specific includes and utilities
@@ -117,7 +117,8 @@ inline const char* execution_support_string() noexcept {
  * @brief Get CPU-aware optimal parallel threshold
  * @return Optimal minimum elements for parallel processing based on CPU features
  */
-inline std::size_t get_optimal_parallel_threshold(const std::string& distribution, const std::string& operation) noexcept {
+inline std::size_t get_optimal_parallel_threshold(const std::string& distribution,
+                                                  const std::string& operation) noexcept {
     return libstats::parallel::getGlobalThresholdCalculator().getThreshold(distribution, operation);
 }
 
@@ -135,44 +136,50 @@ inline std::size_t get_optimal_grain_size() noexcept {
  * @param data_size Size of data being processed
  * @return Optimized grain size for the operation
  */
-inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t data_size = 0) noexcept {
+inline std::size_t get_adaptive_grain_size(int operation_type = 0,
+                                           std::size_t data_size = 0) noexcept {
     const auto& features = cpu::get_features();
     const auto base_grain = constants::parallel::adaptive::grain_size();
-    
+
     // Adjust grain size based on operation type and platform capabilities
     std::size_t adjusted_grain = base_grain;
-    
-    // Platform-specific adjustments
-    #if defined(__APPLE__) && defined(__aarch64__)
-        // Apple Silicon: Fast thread creation, can handle smaller grains
-        adjusted_grain = static_cast<std::size_t>(base_grain / constants::math::TWO);
-    #elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
-        // High-end x86_64: Larger grains for better SIMD utilization
-        adjusted_grain = static_cast<std::size_t>(base_grain * constants::math::TWO);
-    #endif
-    
+
+// Platform-specific adjustments
+#if defined(__APPLE__) && defined(__aarch64__)
+    // Apple Silicon: Fast thread creation, can handle smaller grains
+    adjusted_grain = static_cast<std::size_t>(base_grain / constants::math::TWO);
+#elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
+    // High-end x86_64: Larger grains for better SIMD utilization
+    adjusted_grain = static_cast<std::size_t>(base_grain * constants::math::TWO);
+#endif
+
     // Operation type adjustments
     switch (operation_type) {
-        case 0: // Memory-bound operations
+        case 0:  // Memory-bound operations
             if (features.l3_cache_size > 0 && data_size > 0) {
                 // Adjust grain to fit well in cache hierarchy
-                const std::size_t cache_elements = static_cast<std::size_t>(std::round(features.l3_cache_size / (sizeof(double) * constants::math::FOUR)));
+                const std::size_t cache_elements = static_cast<std::size_t>(
+                    std::round(features.l3_cache_size / (sizeof(double) * constants::math::FOUR)));
                 if (data_size > cache_elements) {
-                    adjusted_grain = std::max(adjusted_grain, cache_elements / cpu::get_logical_core_count());
+                    adjusted_grain =
+                        std::max(adjusted_grain, cache_elements / cpu::get_logical_core_count());
                 }
             }
             break;
-        case 1: // Computation-bound operations
+        case 1:  // Computation-bound operations
             // Larger grains for computation to amortize thread overhead
-            adjusted_grain = static_cast<std::size_t>(static_cast<double>(adjusted_grain) * constants::math::TWO);
+            adjusted_grain = static_cast<std::size_t>(static_cast<double>(adjusted_grain) *
+                                                      constants::math::TWO);
             break;
-        case 2: // Mixed operations (default)
+        case 2:  // Mixed operations (default)
         default:
             // Use base grain size
             break;
     }
-    
-    return std::max(adjusted_grain, constants::parallel::adaptive::simple_operation_grain_size()); // Minimum grain size
+
+    return std::max(
+        adjusted_grain,
+        constants::parallel::adaptive::simple_operation_grain_size());  // Minimum grain size
 }
 
 /**
@@ -180,35 +187,35 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0, std::size_t d
  * @param workload_size Total amount of work to be parallelized
  * @return Optimal number of threads to use
  */
-inline std::size_t get_optimal_thread_count([[maybe_unused]] std::size_t workload_size = 0) noexcept {
+inline std::size_t get_optimal_thread_count(
+    [[maybe_unused]] std::size_t workload_size = 0) noexcept {
     [[maybe_unused]] const std::size_t logical_cores = cpu::get_logical_core_count();
     [[maybe_unused]] const std::size_t physical_cores = cpu::get_physical_core_count();
-    
-    // Platform-specific thread count optimization
-    #if defined(__APPLE__) && defined(__aarch64__)
-        // Apple Silicon: Excellent threading, can use more threads
-        std::size_t optimal_threads = logical_cores;
-        
-        // For very large workloads, consider using more threads
-        if (workload_size > constants::benchmark::MAX_ITERATIONS) {
-            optimal_threads = std::min(
-                static_cast<std::size_t>(logical_cores + constants::math::TWO), 
-                static_cast<std::size_t>(logical_cores * constants::math::THREE / constants::math::TWO)
-            );
-        }
-    #elif defined(__x86_64__)
-        // x86_64: Balance between physical and logical cores
-        std::size_t optimal_threads = physical_cores;
-        
-        // Use hyperthreading for memory-bound workloads
-        if (workload_size > constants::parallel::MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL) {
-            optimal_threads = logical_cores;
-        }
-    #else
-        // Conservative default: use physical cores
-        std::size_t optimal_threads = physical_cores;
-    #endif
-    
+
+// Platform-specific thread count optimization
+#if defined(__APPLE__) && defined(__aarch64__)
+    // Apple Silicon: Excellent threading, can use more threads
+    std::size_t optimal_threads = logical_cores;
+
+    // For very large workloads, consider using more threads
+    if (workload_size > constants::benchmark::MAX_ITERATIONS) {
+        optimal_threads = std::min(static_cast<std::size_t>(logical_cores + constants::math::TWO),
+                                   static_cast<std::size_t>(logical_cores * constants::math::THREE /
+                                                            constants::math::TWO));
+    }
+#elif defined(__x86_64__)
+    // x86_64: Balance between physical and logical cores
+    std::size_t optimal_threads = physical_cores;
+
+    // Use hyperthreading for memory-bound workloads
+    if (workload_size > constants::parallel::MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL) {
+        optimal_threads = logical_cores;
+    }
+#else
+    // Conservative default: use physical cores
+    std::size_t optimal_threads = physical_cores;
+#endif
+
     return std::max(optimal_threads, static_cast<std::size_t>(1));
 }
 
@@ -219,7 +226,8 @@ inline std::size_t get_optimal_thread_count([[maybe_unused]] std::size_t workloa
  * @param problem_size Total number of elements or operations
  * @return true if parallel execution is likely beneficial
  */
-inline bool should_use_parallel(const std::string& distribution, const std::string& operation, std::size_t problem_size) noexcept {
+inline bool should_use_parallel(const std::string& distribution, const std::string& operation,
+                                std::size_t problem_size) noexcept {
     const std::size_t actual_threshold = get_optimal_parallel_threshold(distribution, operation);
     return has_execution_policies() && (problem_size >= actual_threshold);
 }
@@ -239,8 +247,9 @@ inline bool should_use_parallel(std::size_t problem_size) noexcept {
  * @return true if parallel execution is likely beneficial for distribution operations
  */
 inline bool should_use_distribution_parallel(std::size_t problem_size) noexcept {
-    return has_execution_policies() && 
-           (problem_size >= constants::parallel::adaptive::min_elements_for_distribution_parallel());
+    return has_execution_policies() &&
+           (problem_size >=
+            constants::parallel::adaptive::min_elements_for_distribution_parallel());
 }
 
 //==============================================================================
@@ -249,7 +258,7 @@ inline bool should_use_distribution_parallel(std::size_t problem_size) noexcept 
 
 /**
  * @brief Safely execute parallel algorithms with automatic fallback
- * 
+ *
  * These macros provide a clean way to use parallel algorithms with automatic
  * fallback to serial algorithms when parallel execution is not available.
  */
@@ -261,7 +270,7 @@ inline bool should_use_distribution_parallel(std::size_t problem_size) noexcept 
     #define LIBSTATS_SEQ std::execution::seq,
 #else
     #define LIBSTATS_PAR_UNSEQ
-    #define LIBSTATS_PAR  
+    #define LIBSTATS_PAR
     #define LIBSTATS_SEQ
 #endif
 
@@ -287,138 +296,175 @@ inline size_t calculate_num_chunks(size_t total_elements, size_t chunk_size) noe
 }
 
 /// Helper function to calculate chunk bounds safely
-inline std::pair<size_t, size_t> get_chunk_bounds(size_t chunk_index, size_t chunk_size, size_t total_elements) noexcept {
+inline std::pair<size_t, size_t> get_chunk_bounds(size_t chunk_index, size_t chunk_size,
+                                                  size_t total_elements) noexcept {
     const size_t start_idx = chunk_index * chunk_size;
     const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
     return {start_idx, end_idx};
 }
 
 /// GCD-based parallel for_each implementation
-template<typename Iterator, typename UnaryFunction>
+template <typename Iterator, typename UnaryFunction>
 void gcd_for_each(Iterator first, Iterator last, UnaryFunction f) noexcept(noexcept(f(*first))) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    
-    dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-                   ^(size_t chunk_index) {
-                       const auto [start_idx, end_idx] = detail::get_chunk_bounds(chunk_index, chunk_size, total_elements);
-                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-                       std::for_each(chunk_first, chunk_last, f);
-                   });
+
+    dispatch_apply(
+        num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
+        ^(size_t chunk_index) {
+          const auto [start_idx, end_idx] =
+              detail::get_chunk_bounds(chunk_index, chunk_size, total_elements);
+          auto chunk_first =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+          auto chunk_last =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+          std::for_each(chunk_first, chunk_last, f);
+        });
 }
 
 /// GCD-based parallel transform implementation
-template<typename Iterator1, typename Iterator2, typename UnaryOp>
-void gcd_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) noexcept(noexcept(op(*first1))) {
+template <typename Iterator1, typename Iterator2, typename UnaryOp>
+void gcd_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2,
+                   UnaryOp op) noexcept(noexcept(op(*first1))) {
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    
-    dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-                   ^(size_t chunk_index) {
-                       const auto [start_idx, end_idx] = detail::get_chunk_bounds(chunk_index, chunk_size, total_elements);
-                       auto chunk_first1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
-                       auto chunk_last1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
-                       auto chunk_first2 = first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
-                       std::transform(chunk_first1, chunk_last1, chunk_first2, op);
-                   });
+
+    dispatch_apply(
+        num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
+        ^(size_t chunk_index) {
+          const auto [start_idx, end_idx] =
+              detail::get_chunk_bounds(chunk_index, chunk_size, total_elements);
+          auto chunk_first1 =
+              first1 +
+              static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
+          auto chunk_last1 =
+              first1 +
+              static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
+          auto chunk_first2 =
+              first2 +
+              static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
+          std::transform(chunk_first1, chunk_last1, chunk_first2, op);
+        });
 }
 
 /// GCD-based parallel fill implementation
-template<typename Iterator, typename T>
+template <typename Iterator, typename T>
 void gcd_fill(Iterator first, Iterator last, const T& value) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
-    
-    dispatch_apply(total_elements / chunk_size + ((total_elements % chunk_size) ? 1 : 0),
-                   dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-                   ^(size_t chunk_index) {
-                       const size_t start_idx = chunk_index * chunk_size;
-                       const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-                       std::fill(chunk_first, chunk_last, value);
-                   });
+
+    dispatch_apply(
+        total_elements / chunk_size + ((total_elements % chunk_size) ? 1 : 0),
+        dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(size_t chunk_index) {
+          const size_t start_idx = chunk_index * chunk_size;
+          const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
+          auto chunk_first =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+          auto chunk_last =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+          std::fill(chunk_first, chunk_last, value);
+        });
 }
 
 /// GCD-based parallel reduce implementation
-template<typename Iterator, typename T, typename BinaryOp>
+template <typename Iterator, typename T, typename BinaryOp>
 T gcd_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = (total_elements + chunk_size - 1) / chunk_size;
-    
+
     std::vector<T> partial_results(num_chunks, init);
     T* results_ptr = partial_results.data();
-    
-    dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-                   ^(size_t chunk_index) {
-                       const size_t start_idx = chunk_index * chunk_size;
-                       const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-                       results_ptr[chunk_index] = std::accumulate(chunk_first, chunk_last, init, op);
-                   });
-    
+
+    dispatch_apply(
+        num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
+        ^(size_t chunk_index) {
+          const size_t start_idx = chunk_index * chunk_size;
+          const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
+          auto chunk_first =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+          auto chunk_last =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+          results_ptr[chunk_index] = std::accumulate(chunk_first, chunk_last, init, op);
+        });
+
     // Combine partial results
     return std::accumulate(partial_results.begin(), partial_results.end(), init, op);
 }
 
-/// GCD-based parallel count implementation  
-template<typename Iterator, typename T>
-typename std::iterator_traits<Iterator>::difference_type
-gcd_count(Iterator first, Iterator last, const T& value) {
+/// GCD-based parallel count implementation
+template <typename Iterator, typename T>
+typename std::iterator_traits<Iterator>::difference_type gcd_count(Iterator first, Iterator last,
+                                                                   const T& value) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = (total_elements + chunk_size - 1) / chunk_size;
-    
-    std::vector<typename std::iterator_traits<Iterator>::difference_type> partial_results(num_chunks, 0);
+
+    std::vector<typename std::iterator_traits<Iterator>::difference_type> partial_results(
+        num_chunks, 0);
     auto* results_ptr = partial_results.data();
-    
-    dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-                   ^(size_t chunk_index) {
-                       const size_t start_idx = chunk_index * chunk_size;
-                       const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-                       results_ptr[chunk_index] = std::count(chunk_first, chunk_last, value);
-                   });
-    
+
+    dispatch_apply(
+        num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
+        ^(size_t chunk_index) {
+          const size_t start_idx = chunk_index * chunk_size;
+          const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
+          auto chunk_first =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+          auto chunk_last =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+          results_ptr[chunk_index] = std::count(chunk_first, chunk_last, value);
+        });
+
     // Sum partial results
-    return std::accumulate(partial_results.begin(), partial_results.end(), 
-                          typename std::iterator_traits<Iterator>::difference_type{0});
+    return std::accumulate(partial_results.begin(), partial_results.end(),
+                           typename std::iterator_traits<Iterator>::difference_type{0});
 }
 
 /// GCD-based parallel count_if implementation
-template<typename Iterator, typename UnaryPredicate>
-typename std::iterator_traits<Iterator>::difference_type
-gcd_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
+template <typename Iterator, typename UnaryPredicate>
+typename std::iterator_traits<Iterator>::difference_type gcd_count_if(Iterator first, Iterator last,
+                                                                      UnaryPredicate pred) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_gcd_chunk_size(total_elements);
     const size_t num_chunks = (total_elements + chunk_size - 1) / chunk_size;
-    
-    std::vector<typename std::iterator_traits<Iterator>::difference_type> partial_results(num_chunks, 0);
+
+    std::vector<typename std::iterator_traits<Iterator>::difference_type> partial_results(
+        num_chunks, 0);
     auto* results_ptr = partial_results.data();
-    
-    dispatch_apply(num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-                   ^(size_t chunk_index) {
-                       const size_t start_idx = chunk_index * chunk_size;
-                       const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
-                       auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-                       auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-                       results_ptr[chunk_index] = std::count_if(chunk_first, chunk_last, pred);
-                   });
-    
+
+    dispatch_apply(
+        num_chunks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
+        ^(size_t chunk_index) {
+          const size_t start_idx = chunk_index * chunk_size;
+          const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
+          auto chunk_first =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+          auto chunk_last =
+              first +
+              static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+          results_ptr[chunk_index] = std::count_if(chunk_first, chunk_last, pred);
+        });
+
     // Sum partial results
-    return std::accumulate(partial_results.begin(), partial_results.end(), 
-                          typename std::iterator_traits<Iterator>::difference_type{0});
+    return std::accumulate(partial_results.begin(), partial_results.end(),
+                           typename std::iterator_traits<Iterator>::difference_type{0});
 }
 
-} // namespace detail
+}  // namespace detail
 
-#endif // LIBSTATS_HAS_GCD
+#endif  // LIBSTATS_HAS_GCD
 
 //==============================================================================
 // WINDOWS THREAD POOL API PARALLEL ALGORITHM IMPLEMENTATIONS
@@ -434,7 +480,8 @@ inline size_t calculate_num_chunks(size_t total_elements, size_t chunk_size) noe
 }
 
 /// Helper function to calculate chunk bounds safely (shared)
-inline std::pair<size_t, size_t> get_chunk_bounds(size_t chunk_index, size_t chunk_size, size_t total_elements) noexcept {
+inline std::pair<size_t, size_t> get_chunk_bounds(size_t chunk_index, size_t chunk_size,
+                                                  size_t total_elements) noexcept {
     const size_t start_idx = chunk_index * chunk_size;
     const size_t end_idx = std::min(start_idx + chunk_size, total_elements);
     return {start_idx, end_idx};
@@ -472,40 +519,43 @@ inline size_t get_wintp_chunk_size(size_t total_elements) noexcept {
 }
 
 /// Windows Thread Pool-based parallel for_each implementation
-template<typename Iterator, typename UnaryFunction>
+template <typename Iterator, typename UnaryFunction>
 void wintp_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_wintp_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    
+
     if (num_chunks <= 1) {
         std::for_each(first, last, f);
         return;
     }
-    
+
     std::vector<PTP_WORK> work_items(num_chunks);
     std::vector<WorkItem> work_data(num_chunks);
     std::vector<std::atomic<bool>> completion_flags(num_chunks);
-    
+
     // Create work items
     for (size_t i = 0; i < num_chunks; ++i) {
         const auto [start_idx, end_idx] = get_chunk_bounds(i, chunk_size, total_elements);
-        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-        
+        auto chunk_first =
+            first +
+            static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last =
+            first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+
         completion_flags[i].store(false, std::memory_order_relaxed);
         work_data[i].work_function = [chunk_first, chunk_last, f]() {
             std::for_each(chunk_first, chunk_last, f);
         };
         work_data[i].completion_flag = &completion_flags[i];
         work_data[i].completion_event = nullptr;
-        
+
         work_items[i] = CreateThreadpoolWork(ThreadPoolWorkCallback, &work_data[i], nullptr);
         if (work_items[i]) {
             SubmitThreadpoolWork(work_items[i]);
         }
     }
-    
+
     // Wait for completion
     for (size_t i = 0; i < num_chunks; ++i) {
         if (work_items[i]) {
@@ -516,39 +566,45 @@ void wintp_for_each(Iterator first, Iterator last, UnaryFunction f) {
 }
 
 /// Windows Thread Pool-based parallel transform implementation
-template<typename Iterator1, typename Iterator2, typename UnaryOp>
+template <typename Iterator1, typename Iterator2, typename UnaryOp>
 void wintp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t chunk_size = get_wintp_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    
+
     if (num_chunks <= 1) {
         std::transform(first1, last1, first2, op);
         return;
     }
-    
+
     std::vector<PTP_WORK> work_items(num_chunks);
     std::vector<WorkItem> work_data(num_chunks);
-    
+
     // Create work items
     for (size_t i = 0; i < num_chunks; ++i) {
         const auto [start_idx, end_idx] = get_chunk_bounds(i, chunk_size, total_elements);
-        auto chunk_first1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
-        auto chunk_last1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
-        auto chunk_first2 = first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
-        
+        auto chunk_first1 =
+            first1 +
+            static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
+        auto chunk_last1 =
+            first1 +
+            static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
+        auto chunk_first2 =
+            first2 +
+            static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
+
         work_data[i].work_function = [chunk_first1, chunk_last1, chunk_first2, op]() {
             std::transform(chunk_first1, chunk_last1, chunk_first2, op);
         };
         work_data[i].completion_flag = nullptr;
         work_data[i].completion_event = nullptr;
-        
+
         work_items[i] = CreateThreadpoolWork(ThreadPoolWorkCallback, &work_data[i], nullptr);
         if (work_items[i]) {
             SubmitThreadpoolWork(work_items[i]);
         }
     }
-    
+
     // Wait for completion
     for (size_t i = 0; i < num_chunks; ++i) {
         if (work_items[i]) {
@@ -559,38 +615,41 @@ void wintp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryO
 }
 
 /// Windows Thread Pool-based parallel reduce implementation
-template<typename Iterator, typename T, typename BinaryOp>
+template <typename Iterator, typename T, typename BinaryOp>
 T wintp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_wintp_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    
+
     if (num_chunks <= 1) {
         return std::accumulate(first, last, init, op);
     }
-    
+
     std::vector<T> partial_results(num_chunks, init);
     std::vector<PTP_WORK> work_items(num_chunks);
     std::vector<WorkItem> work_data(num_chunks);
-    
+
     // Create work items
     for (size_t i = 0; i < num_chunks; ++i) {
         const auto [start_idx, end_idx] = get_chunk_bounds(i, chunk_size, total_elements);
-        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-        
+        auto chunk_first =
+            first +
+            static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last =
+            first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+
         work_data[i].work_function = [chunk_first, chunk_last, &partial_results, i, init, op]() {
             partial_results[i] = std::accumulate(chunk_first, chunk_last, init, op);
         };
         work_data[i].completion_flag = nullptr;
         work_data[i].completion_event = nullptr;
-        
+
         work_items[i] = CreateThreadpoolWork(ThreadPoolWorkCallback, &work_data[i], nullptr);
         if (work_items[i]) {
             SubmitThreadpoolWork(work_items[i]);
         }
     }
-    
+
     // Wait for completion
     for (size_t i = 0; i < num_chunks; ++i) {
         if (work_items[i]) {
@@ -598,14 +657,14 @@ T wintp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
             CloseThreadpoolWork(work_items[i]);
         }
     }
-    
+
     // Combine partial results
     return std::accumulate(partial_results.begin(), partial_results.end(), init, op);
 }
 
-} // namespace detail
+}  // namespace detail
 
-#endif // LIBSTATS_HAS_WIN_THREADPOOL
+#endif  // LIBSTATS_HAS_WIN_THREADPOOL
 
 //==============================================================================
 // OPENMP PARALLEL ALGORITHM IMPLEMENTATIONS
@@ -624,16 +683,16 @@ inline size_t get_openmp_chunk_size(size_t total_elements) noexcept {
 }
 
 /// OpenMP-based parallel for_each implementation
-template<typename Iterator, typename UnaryFunction>
+template <typename Iterator, typename UnaryFunction>
 void openmp_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
-    
+
     if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         std::for_each(first, last, f);
         return;
     }
-    
+
     #pragma omp parallel for schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
         f(*(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
@@ -641,33 +700,34 @@ void openmp_for_each(Iterator first, Iterator last, UnaryFunction f) {
 }
 
 /// OpenMP-based parallel transform implementation
-template<typename Iterator1, typename Iterator2, typename UnaryOp>
+template <typename Iterator1, typename Iterator2, typename UnaryOp>
 void openmp_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
-    
+
     if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         std::transform(first1, last1, first2, op);
         return;
     }
-    
+
     #pragma omp parallel for schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        *(first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(i)) = op(*(first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(i)));
+        *(first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(i)) = op(
+            *(first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(i)));
     }
 }
 
 /// OpenMP-based parallel fill implementation
-template<typename Iterator, typename T>
+template <typename Iterator, typename T>
 void openmp_fill(Iterator first, Iterator last, const T& value) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
-    
+
     if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         std::fill(first, last, value);
         return;
     }
-    
+
     #pragma omp parallel for schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
         *(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)) = value;
@@ -675,76 +735,81 @@ void openmp_fill(Iterator first, Iterator last, const T& value) {
 }
 
 /// OpenMP-based parallel reduce implementation
-template<typename Iterator, typename T, typename BinaryOp>
+template <typename Iterator, typename T, typename BinaryOp>
 T openmp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
-    
+
     if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         return std::accumulate(first, last, init, op);
     }
-    
+
     T result = init;
-    
-    #pragma omp parallel for reduction(+:result) schedule(dynamic, chunk_size)
+
+    #pragma omp parallel for reduction(+ : result) schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
         // Note: This assumes op is associative and commutative (like +)
         // For more complex operations, we'd need a different approach
-        result = op(result, *(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
+        result =
+            op(result,
+               *(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
     }
-    
+
     return result;
 }
 
 /// OpenMP-based parallel count implementation
-template<typename Iterator, typename T>
-typename std::iterator_traits<Iterator>::difference_type
-openmp_count(Iterator first, Iterator last, const T& value) {
+template <typename Iterator, typename T>
+typename std::iterator_traits<Iterator>::difference_type openmp_count(Iterator first, Iterator last,
+                                                                      const T& value) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
-    
+
     if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         return std::count(first, last, value);
     }
-    
+
     typename std::iterator_traits<Iterator>::difference_type result = 0;
-    
-    #pragma omp parallel for reduction(+:result) schedule(dynamic, chunk_size)
+
+    #pragma omp parallel for reduction(+ : result) schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        if (*(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)) == value) {
+        if (*(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)) ==
+            value) {
             ++result;
         }
     }
-    
+
     return result;
 }
 
 /// OpenMP-based parallel count_if implementation
-template<typename Iterator, typename UnaryPredicate>
-typename std::iterator_traits<Iterator>::difference_type
-openmp_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
+template <typename Iterator, typename UnaryPredicate>
+typename std::iterator_traits<Iterator>::difference_type openmp_count_if(Iterator first,
+                                                                         Iterator last,
+                                                                         UnaryPredicate pred) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_openmp_chunk_size(total_elements);
-    
+
     if (total_elements < get_optimal_parallel_threshold("generic", "operation")) {
         return std::count_if(first, last, pred);
     }
-    
+
     typename std::iterator_traits<Iterator>::difference_type result = 0;
-    
-    #pragma omp parallel for reduction(+:result) schedule(dynamic, chunk_size)
+
+    #pragma omp parallel for reduction(+ : result) schedule(dynamic, chunk_size)
     for (size_t i = 0; i < total_elements; ++i) {
-        if (pred(*(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)))) {
+        if (pred(*(first +
+                   static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)))) {
             ++result;
         }
     }
-    
+
     return result;
 }
 
-} // namespace detail
+}  // namespace detail
 
-#endif // LIBSTATS_HAS_OPENMP
+#endif  // LIBSTATS_HAS_OPENMP
 
 //==============================================================================
 // POSIX THREADS PARALLEL ALGORITHM IMPLEMENTATIONS
@@ -787,32 +852,37 @@ inline size_t get_pthread_chunk_size(size_t total_elements) noexcept {
 }
 
 /// pthreads-based parallel for_each implementation
-template<typename Iterator, typename UnaryFunction>
+template <typename Iterator, typename UnaryFunction>
 void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_pthread_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    const size_t max_threads = std::min(num_chunks, static_cast<size_t>(cpu::get_logical_core_count()));
-    
-    if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
+    const size_t max_threads =
+        std::min(num_chunks, static_cast<size_t>(cpu::get_logical_core_count()));
+
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation") ||
+        max_threads <= 1) {
         std::for_each(first, last, f);
         return;
     }
-    
+
     std::vector<pthread_t> threads(max_threads);
     std::vector<PThreadWorkItem> work_items(max_threads);
-    
+
     // Create threads
     for (size_t t = 0; t < max_threads; ++t) {
         const size_t start_idx = (t * total_elements) / max_threads;
         const size_t end_idx = ((t + 1) * total_elements) / max_threads;
-        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-        
+        auto chunk_first =
+            first +
+            static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last =
+            first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+
         work_items[t].work_function = [chunk_first, chunk_last, f]() {
             std::for_each(chunk_first, chunk_last, f);
         };
-        
+
         if (pthread_create(&threads[t], nullptr, pthread_worker, &work_items[t]) != 0) {
             // If thread creation fails, fall back to serial execution for remaining work
             std::for_each(chunk_first, last, f);
@@ -823,7 +893,7 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
             return;
         }
     }
-    
+
     // Wait for all threads to complete
     for (size_t t = 0; t < max_threads; ++t) {
         pthread_join(threads[t], nullptr);
@@ -834,31 +904,39 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
 }
 
 /// pthreads-based parallel transform implementation
-template<typename Iterator1, typename Iterator2, typename UnaryOp>
+template <typename Iterator1, typename Iterator2, typename UnaryOp>
 void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
-    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), static_cast<size_t>(cpu::get_logical_core_count()));
-    
-    if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
+    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(),
+                                        static_cast<size_t>(cpu::get_logical_core_count()));
+
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation") ||
+        max_threads <= 1) {
         std::transform(first1, last1, first2, op);
         return;
     }
-    
+
     std::vector<pthread_t> threads(max_threads);
     std::vector<PThreadWorkItem> work_items(max_threads);
-    
+
     // Create threads
     for (size_t t = 0; t < max_threads; ++t) {
         const size_t start_idx = (t * total_elements) / max_threads;
         const size_t end_idx = ((t + 1) * total_elements) / max_threads;
-        auto chunk_first1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
-        auto chunk_last1 = first1 + static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
-        auto chunk_first2 = first2 + static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
-        
+        auto chunk_first1 =
+            first1 +
+            static_cast<typename std::iterator_traits<Iterator1>::difference_type>(start_idx);
+        auto chunk_last1 =
+            first1 +
+            static_cast<typename std::iterator_traits<Iterator1>::difference_type>(end_idx);
+        auto chunk_first2 =
+            first2 +
+            static_cast<typename std::iterator_traits<Iterator2>::difference_type>(start_idx);
+
         work_items[t].work_function = [chunk_first1, chunk_last1, chunk_first2, op]() {
             std::transform(chunk_first1, chunk_last1, chunk_first2, op);
         };
-        
+
         if (pthread_create(&threads[t], nullptr, pthread_worker, &work_items[t]) != 0) {
             // If thread creation fails, fall back to serial execution
             std::transform(chunk_first1, last1, chunk_first2, op);
@@ -868,7 +946,7 @@ void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unar
             return;
         }
     }
-    
+
     // Wait for all threads to complete
     for (size_t t = 0; t < max_threads; ++t) {
         pthread_join(threads[t], nullptr);
@@ -879,30 +957,35 @@ void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unar
 }
 
 /// pthreads-based parallel reduce implementation
-template<typename Iterator, typename T, typename BinaryOp>
+template <typename Iterator, typename T, typename BinaryOp>
 T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
-    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(), static_cast<size_t>(cpu::get_logical_core_count()));
-    
-    if (total_elements < get_optimal_parallel_threshold("generic", "operation") || max_threads <= 1) {
+    const size_t max_threads = std::min(total_elements / get_optimal_grain_size(),
+                                        static_cast<size_t>(cpu::get_logical_core_count()));
+
+    if (total_elements < get_optimal_parallel_threshold("generic", "operation") ||
+        max_threads <= 1) {
         return std::accumulate(first, last, init, op);
     }
-    
+
     std::vector<pthread_t> threads(max_threads);
     std::vector<PThreadWorkItem> work_items(max_threads);
     std::vector<T> partial_results(max_threads, init);
-    
+
     // Create threads
     for (size_t t = 0; t < max_threads; ++t) {
         const size_t start_idx = (t * total_elements) / max_threads;
         const size_t end_idx = ((t + 1) * total_elements) / max_threads;
-        auto chunk_first = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
-        auto chunk_last = first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
-        
+        auto chunk_first =
+            first +
+            static_cast<typename std::iterator_traits<Iterator>::difference_type>(start_idx);
+        auto chunk_last =
+            first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(end_idx);
+
         work_items[t].work_function = [chunk_first, chunk_last, &partial_results, t, init, op]() {
             partial_results[t] = std::accumulate(chunk_first, chunk_last, init, op);
         };
-        
+
         if (pthread_create(&threads[t], nullptr, pthread_worker, &work_items[t]) != 0) {
             // If thread creation fails, compute remaining serially
             partial_results[t] = std::accumulate(chunk_first, last, init, op);
@@ -912,7 +995,7 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
             break;
         }
     }
-    
+
     // Wait for all threads to complete
     for (size_t t = 0; t < max_threads; ++t) {
         pthread_join(threads[t], nullptr);
@@ -920,14 +1003,14 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
             std::rethrow_exception(work_items[t].exception_ptr);
         }
     }
-    
+
     // Combine partial results
     return std::accumulate(partial_results.begin(), partial_results.end(), init, op);
 }
 
-} // namespace detail
+}  // namespace detail
 
-#endif // LIBSTATS_HAS_PTHREADS
+#endif  // LIBSTATS_HAS_PTHREADS
 
 //==============================================================================
 // PARALLEL ALGORITHM WRAPPERS
@@ -935,17 +1018,17 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
 
 /**
  * @brief Safe wrappers for common parallel algorithms
- * 
+ *
  * These provide a consistent API that automatically uses parallel execution
  * when available and falls back to serial execution otherwise.
  */
 
 /// Safe parallel fill operation with Level 0-2 integration
-template<typename Iterator, typename T>
+template <typename Iterator, typename T>
 void safe_fill(Iterator first, Iterator last, const T& value) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "fill", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::fill(std::execution::par_unseq, first, last, value);
@@ -968,11 +1051,11 @@ void safe_fill(Iterator first, Iterator last, const T& value) {
 }
 
 /// Safe parallel transform operation with Level 0-2 integration
-template<typename Iterator1, typename Iterator2, typename UnaryOp>
+template <typename Iterator1, typename Iterator2, typename UnaryOp>
 void safe_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
     const auto count = std::distance(first1, last1);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "transform", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::transform(std::execution::par_unseq, first1, last1, first2, op);
@@ -987,11 +1070,11 @@ void safe_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp
 }
 
 /// Safe parallel reduce operation with Level 0-2 integration
-template<typename Iterator, typename T>
+template <typename Iterator, typename T>
 T safe_reduce(Iterator first, Iterator last, T init) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "reduce", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::reduce(std::execution::par_unseq, first, last, init);
@@ -1006,11 +1089,11 @@ T safe_reduce(Iterator first, Iterator last, T init) {
 }
 
 /// Safe parallel for_each operation with Level 0-2 integration
-template<typename Iterator, typename UnaryFunction>
+template <typename Iterator, typename UnaryFunction>
 void safe_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "for_each", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::for_each(std::execution::par_unseq, first, last, f);
@@ -1025,11 +1108,11 @@ void safe_for_each(Iterator first, Iterator last, UnaryFunction f) {
 }
 
 /// Safe parallel sort operation with Level 0-2 integration
-template<typename Iterator>
+template <typename Iterator>
 void safe_sort(Iterator first, Iterator last) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::sort(std::execution::par_unseq, first, last);
@@ -1043,11 +1126,11 @@ void safe_sort(Iterator first, Iterator last) {
 }
 
 /// Safe parallel sort operation with custom comparator and Level 0-2 integration
-template<typename Iterator, typename Compare>
+template <typename Iterator, typename Compare>
 void safe_sort(Iterator first, Iterator last, Compare comp) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::sort(std::execution::par_unseq, first, last, comp);
@@ -1061,11 +1144,11 @@ void safe_sort(Iterator first, Iterator last, Compare comp) {
 }
 
 /// Safe parallel partial sort operation with Level 0-2 integration
-template<typename Iterator>
+template <typename Iterator>
 void safe_partial_sort(Iterator first, Iterator middle, Iterator last) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "partial_sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::partial_sort(std::execution::par_unseq, first, middle, last);
@@ -1079,11 +1162,11 @@ void safe_partial_sort(Iterator first, Iterator middle, Iterator last) {
 }
 
 /// Safe parallel inclusive scan operation with Level 0-2 integration
-template<typename Iterator1, typename Iterator2>
+template <typename Iterator1, typename Iterator2>
 void safe_inclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "scan", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::inclusive_scan(std::execution::par_unseq, first, last, result);
@@ -1097,11 +1180,11 @@ void safe_inclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result) {
 }
 
 /// Safe parallel exclusive scan operation with Level 0-2 integration
-template<typename Iterator1, typename Iterator2, typename T>
+template <typename Iterator1, typename Iterator2, typename T>
 void safe_exclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result, T init) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "scan", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         std::exclusive_scan(std::execution::par_unseq, first, last, result, init);
@@ -1115,11 +1198,11 @@ void safe_exclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result, T in
 }
 
 /// Safe parallel find operation with Level 0-2 integration
-template<typename Iterator, typename T>
+template <typename Iterator, typename T>
 Iterator safe_find(Iterator first, Iterator last, const T& value) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "search", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::find(std::execution::par_unseq, first, last, value);
@@ -1133,11 +1216,11 @@ Iterator safe_find(Iterator first, Iterator last, const T& value) {
 }
 
 /// Safe parallel find_if operation with Level 0-2 integration
-template<typename Iterator, typename UnaryPredicate>
+template <typename Iterator, typename UnaryPredicate>
 Iterator safe_find_if(Iterator first, Iterator last, UnaryPredicate pred) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "search", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::find_if(std::execution::par_unseq, first, last, pred);
@@ -1151,12 +1234,12 @@ Iterator safe_find_if(Iterator first, Iterator last, UnaryPredicate pred) {
 }
 
 /// Safe parallel count operation with Level 0-2 integration
-template<typename Iterator, typename T>
-typename std::iterator_traits<Iterator>::difference_type 
-safe_count(Iterator first, Iterator last, const T& value) {
+template <typename Iterator, typename T>
+typename std::iterator_traits<Iterator>::difference_type safe_count(Iterator first, Iterator last,
+                                                                    const T& value) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "count", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::count(std::execution::par_unseq, first, last, value);
@@ -1171,12 +1254,13 @@ safe_count(Iterator first, Iterator last, const T& value) {
 }
 
 /// Safe parallel count_if operation with Level 0-2 integration
-template<typename Iterator, typename UnaryPredicate>
-typename std::iterator_traits<Iterator>::difference_type 
-safe_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
+template <typename Iterator, typename UnaryPredicate>
+typename std::iterator_traits<Iterator>::difference_type safe_count_if(Iterator first,
+                                                                       Iterator last,
+                                                                       UnaryPredicate pred) {
     const auto count = std::distance(first, last);
     safety::check_finite(static_cast<double>(count), "element count");
-    
+
     if (should_use_parallel("generic", "count", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
         return std::count_if(std::execution::par_unseq, first, last, pred);
@@ -1190,5 +1274,5 @@ safe_count_if(Iterator first, Iterator last, UnaryPredicate pred) {
     }
 }
 
-} // namespace parallel
-} // namespace libstats
+}  // namespace parallel
+}  // namespace libstats

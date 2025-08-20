@@ -91,22 +91,22 @@ jobs:
       run: |
         # Add DLL directories to PATH for Windows
         echo "Adding DLL directories to PATH..."
-        
+
         # Convert to Windows paths and add to PATH
         if [ -d "build/${{ matrix.build_type }}" ]; then
           WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\${{ matrix.build_type }}")
           echo "$WIN_PATH" >> $GITHUB_PATH
         fi
-        
+
         if [ -d "build/tests/${{ matrix.build_type }}" ]; then
           WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/tests/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\tests\\${{ matrix.build_type }}")
           echo "$WIN_PATH" >> $GITHUB_PATH
         fi
-        
+
         # Also add the main build directory
         WIN_PATH=$(cygpath -w "${{ github.workspace }}/build" 2>/dev/null || echo "${{ github.workspace }}\\build")
         echo "$WIN_PATH" >> $GITHUB_PATH
-        
+
         # Copy DLLs as a fallback
         if [ -f "build/${{ matrix.build_type }}/libstats.dll" ]; then
           cp "build/${{ matrix.build_type }}/libstats.dll" "build/tests/${{ matrix.build_type }}/" || true

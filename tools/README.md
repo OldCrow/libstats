@@ -31,7 +31,7 @@ See [Header Tools Guide](../docs/HEADER_TOOLS_GUIDE.md) for complete usage instr
 These tools still work but are less user-friendly:
 
 - `header_analysis.py` - Include dependency analysis
-- `static_analysis.py` - Clang-based unused include detection  
+- `static_analysis.py` - Clang-based unused include detection
 - `header_optimization_analysis.py` - Comprehensive scoring
 - `demo_phase1_optimization.py` - Phase 1 optimization demo
 - `demo_phase2_optimization.py` - Phase 2 optimization demo
@@ -40,7 +40,7 @@ These tools still work but are less user-friendly:
 
 After Phase 2 header reorganization:
 - **Header Health Score**: 81% (Excellent)
-- **Build Time**: ~3 minutes  
+- **Build Time**: ~3 minutes
 - **Common Headers**: 12 headers consolidated in `include/common/`
 - **Test Pass Rate**: 90% (36/40 tests passing)
 

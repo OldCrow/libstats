@@ -1,0 +1,50 @@
+# Include What You Use mapping file for libstats
+# This file maps implementation headers to their public interfaces
+
+[
+  # Map internal headers to public API
+  { "include": ["<core/constants.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<core/distribution_base.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<core/distribution_common.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<core/distribution_result.h>", "private", "<libstats.h>", "public"] },
+
+  # Map platform internals
+  { "include": ["<platform/cpu_detection.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<platform/platform_selector.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<platform/thread_pool.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<platform/simd_operations.h>", "private", "<libstats.h>", "public"] },
+
+  # Map distributions to main header
+  { "include": ["<distributions/gaussian.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<distributions/exponential.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<distributions/uniform.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<distributions/poisson.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<distributions/discrete.h>", "private", "<libstats.h>", "public"] },
+  { "include": ["<distributions/gamma.h>", "private", "<libstats.h>", "public"] },
+
+  # C++ standard library mappings for common patterns in libstats
+  { "include": ["<__algorithm/find.h>", "private", "<algorithm>", "public"] },
+  { "include": ["<__algorithm/sort.h>", "private", "<algorithm>", "public"] },
+  { "include": ["<__memory/shared_ptr.h>", "private", "<memory>", "public"] },
+  { "include": ["<__memory/unique_ptr.h>", "private", "<memory>", "public"] },
+  { "include": ["<__functional/function.h>", "private", "<functional>", "public"] },
+  { "include": ["<__random/mersenne_twister_engine.h>", "private", "<random>", "public"] },
+
+  # System headers that should be included directly
+  { "include": ["<bits/std_abs.h>", "private", "<cmath>", "public"] },
+  { "include": ["<bits/std_function.h>", "private", "<functional>", "public"] },
+
+  # Mapping for SIMD headers
+  { "include": ["<immintrin.h>", "private", "<platform/simd_operations.h>", "public"] },
+  { "include": ["<emmintrin.h>", "private", "<platform/simd_operations.h>", "public"] },
+  { "include": ["<xmmintrin.h>", "private", "<platform/simd_operations.h>", "public"] },
+  { "include": ["<arm_neon.h>", "private", "<platform/simd_operations.h>", "public"] },
+
+  # Forward declaration preferences
+  { "symbol": ["libstats::GaussianDistribution", "private", "<distributions/gaussian.h>", "public"] },
+  { "symbol": ["libstats::ExponentialDistribution", "private", "<distributions/exponential.h>", "public"] },
+  { "symbol": ["libstats::UniformDistribution", "private", "<distributions/uniform.h>", "public"] },
+  { "symbol": ["libstats::PoissonDistribution", "private", "<distributions/poisson.h>", "public"] },
+  { "symbol": ["libstats::DiscreteDistribution", "private", "<distributions/discrete.h>", "public"] },
+  { "symbol": ["libstats::GammaDistribution", "private", "<distributions/gamma.h>", "public"] }
+]

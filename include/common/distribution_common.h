@@ -28,16 +28,16 @@
 // Core libstats headers needed by all distributions
 #include "../core/distribution_base.h"
 #include "../core/distribution_interface.h"
-#include "../core/essential_constants.h"
 #include "../core/error_handling.h"
+#include "../core/essential_constants.h"
 
 // Performance and platform headers commonly used
 #include "../core/performance_dispatcher.h"
 
 // Utility using declarations to avoid repetition
 using std::shared_lock;
-using std::unique_lock;
 using std::shared_mutex;
+using std::unique_lock;
 
 /**
  * @brief Common validation helper for distribution parameters
@@ -48,11 +48,11 @@ using std::shared_mutex;
  * @param max_val Maximum allowed value (inclusive)
  * @throws std::invalid_argument if value is outside valid range
  */
-template<typename T>
+template <typename T>
 inline void validateParameter(T value, const std::string& name, T min_val, T max_val) {
     if (value < min_val || value > max_val || !std::isfinite(value)) {
         throw std::invalid_argument("Parameter " + name + " must be finite and in range [" +
-                                  std::to_string(min_val) + ", " + std::to_string(max_val) + "]");
+                                    std::to_string(min_val) + ", " + std::to_string(max_val) + "]");
     }
 }
 
@@ -63,7 +63,7 @@ inline void validateParameter(T value, const std::string& name, T min_val, T max
  * @param name Parameter name for error messages
  * @throws std::invalid_argument if value is not positive and finite
  */
-template<typename T>
+template <typename T>
 inline void validatePositiveParameter(T value, const std::string& name) {
     if (value <= T(0) || !std::isfinite(value)) {
         throw std::invalid_argument("Parameter " + name + " must be positive and finite");
@@ -77,7 +77,7 @@ inline void validatePositiveParameter(T value, const std::string& name) {
  * @param name Parameter name for error messages
  * @throws std::invalid_argument if value is negative or not finite
  */
-template<typename T>
+template <typename T>
 inline void validateNonNegativeParameter(T value, const std::string& name) {
     if (value < T(0) || !std::isfinite(value)) {
         throw std::invalid_argument("Parameter " + name + " must be non-negative and finite");

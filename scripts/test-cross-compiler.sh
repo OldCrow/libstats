@@ -62,19 +62,20 @@ cleanup_build_dirs() {
 test_build_config() {
     local config="$1"
     local description="$2"
-    local build_dir="build-$(echo $config | tr '[:upper:]' '[:lower:]')"
-    
+    local build_dir
+    build_dir="build-$(echo "$config" | tr '[:upper:]' '[:lower:]')"
+
     print_section "Testing $config build"
     echo "Description: $description"
     echo "Build directory: $build_dir"
     echo
-    
+
     TOTAL_BUILDS=$((TOTAL_BUILDS + 1))
-    
+
     # Create build directory
     mkdir -p "$build_dir"
     cd "$build_dir"
-    
+
     # Configure
     echo "Configuring..."
     if ! cmake -DCMAKE_BUILD_TYPE="$config" .. &>/dev/null; then
@@ -82,13 +83,13 @@ test_build_config() {
         cd ..
         return 1
     fi
-    
+
     # Build (capture both stdout and stderr, show only first 50 lines of errors)
     echo "Building..."
-    if make -j$(nproc 2>/dev/null || echo 2) >build.log 2>&1; then
+    if make -j"$(nproc 2>/dev/null || echo 2)" >build.log 2>&1; then
         print_success "$config build completed successfully"
         SUCCESSFUL_BUILDS=$((SUCCESSFUL_BUILDS + 1))
-        
+
         # Optional: Run a quick smoke test
         if find . -name "libstats*" -type f | grep -q .; then
             print_success "Generated library files found"
@@ -98,14 +99,14 @@ test_build_config() {
     else
         print_error "$config build failed"
         FAILED_BUILDS=$((FAILED_BUILDS + 1))
-        
+
         echo "Build errors (first 50 lines):"
         head -50 build.log | sed 's/^/  /'
         echo
         if [ "$(wc -l < build.log)" -gt 50 ]; then
             echo "  ... ($(wc -l < build.log) total lines in build.log)"
         fi
-        
+
         # For strict modes, show which specific warnings caused failures
         if echo "$config" | grep -q "Strict"; then
             echo "Specific error analysis:"
@@ -124,7 +125,7 @@ test_build_config() {
             echo
         fi
     fi
-    
+
     cd ..
     echo
 }
@@ -132,12 +133,12 @@ test_build_config() {
 # Print final summary
 print_summary() {
     print_section "Cross-Compiler Compatibility Test Results"
-    
+
     echo "Total builds tested: $TOTAL_BUILDS"
     echo "Successful builds: $SUCCESSFUL_BUILDS"
     echo "Failed builds: $FAILED_BUILDS"
     echo
-    
+
     # Compatibility recommendations
     if [ "$FAILED_BUILDS" -eq 0 ]; then
         print_success "All builds passed! Your code is compatible across compiler configurations."
@@ -180,12 +181,12 @@ fi
 # Main execution
 main() {
     print_header
-    
+
     # Clean previous builds if requested
     if [ "$1" == "--clean" ]; then
         cleanup_build_dirs
     fi
-    
+
     # Test each configuration
     test_build_config "ClangStrict" "Clang-specific warnings (modern C++ standards, performance) - ERRORS"
     test_build_config "ClangWarn" "Clang-specific warnings (modern C++ standards, performance) - WARNINGS"
@@ -195,10 +196,10 @@ main() {
     test_build_config "MSVCWarn" "MSVC-like strictness (type conversions, implicit casts) - WARNINGS"
     test_build_config "Release" "Standard release build (baseline compatibility)"
     test_build_config "Debug" "Standard debug build (baseline compatibility)"
-    
+
     # Print summary
     print_summary
-    
+
     # Exit with error code if any builds failed
     if [ "$FAILED_BUILDS" -gt 0 ]; then
         exit 1

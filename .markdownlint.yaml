@@ -1,0 +1,39 @@
+# Markdown lint configuration for libstats
+
+# Default state for all rules
+default: true
+
+# Line length
+MD013:
+  line_length: 100
+  code_blocks: false
+  tables: false
+
+# Allow inline HTML
+MD033: false
+
+# Allow duplicate headers in different sections
+MD024:
+  siblings_only: true
+
+# Ordered list item prefix
+MD029:
+  style: "ordered"
+
+# Allow trailing punctuation in headers
+MD026: false
+
+# Allow multiple spaces after blockquote symbol
+MD027: false
+
+# Code block style
+MD046:
+  style: "fenced"
+
+# Emphasis style
+MD049:
+  style: "asterisk"
+
+# Strong style
+MD050:
+  style: "asterisk"

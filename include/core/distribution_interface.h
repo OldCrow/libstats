@@ -6,11 +6,11 @@ namespace libstats {
 
 /**
  * @brief Pure interface for probability distributions
- * 
+ *
  * This interface defines the core functionality that all statistical distributions
  * must implement. It focuses purely on the statistical interface without
  * implementation details like caching, memory management, or thread safety.
- * 
+ *
  * @par Core Statistical Interface:
  * - Probability density/mass functions (PDF/PMF)
  * - Cumulative distribution function (CDF)
@@ -21,7 +21,7 @@ namespace libstats {
  * - Distribution metadata
  */
 class DistributionInterface {
-public:
+   public:
     /**
      * @brief Virtual destructor for proper polymorphic cleanup
      */
@@ -30,14 +30,14 @@ public:
     // =============================================================================
     // CORE PROBABILITY FUNCTIONS - Pure Virtual (Must Override)
     // =============================================================================
-    
+
     /**
      * @brief Probability density/mass function evaluation
      * @param x Value at which to evaluate the distribution
      * @return Probability density (continuous) or mass (discrete) at x
      */
     virtual double getProbability(double x) const = 0;
-    
+
     /**
      * @brief Log probability density/mass function evaluation
      * @param x Value at which to evaluate the log distribution
@@ -45,14 +45,14 @@ public:
      * @note Override for numerical stability when possible
      */
     virtual double getLogProbability(double x) const = 0;
-    
+
     /**
      * @brief Cumulative distribution function evaluation
      * @param x Value at which to evaluate the CDF
      * @return P(X <= x)
      */
     virtual double getCumulativeProbability(double x) const = 0;
-    
+
     /**
      * @brief Quantile function (inverse CDF)
      * @param p Probability value in [0,1]
@@ -64,27 +64,27 @@ public:
     // =============================================================================
     // STATISTICAL MOMENTS - Pure Virtual (Must Override)
     // =============================================================================
-    
+
     /**
      * @brief Distribution mean (first moment)
      * @return Expected value E[X]
      */
     virtual double getMean() const = 0;
-    
+
     /**
      * @brief Distribution variance (second central moment)
      * @return Variance Var(X) = E[(X - μ)²]
      * @note Prefer variance over standard deviation as fundamental property
      */
     virtual double getVariance() const = 0;
-    
+
     /**
      * @brief Distribution skewness (third standardized moment)
      * @return Skewness coefficient
      * @note Return NaN if undefined for distribution
      */
     virtual double getSkewness() const = 0;
-    
+
     /**
      * @brief Distribution kurtosis (fourth standardized moment)
      * @return Excess kurtosis (kurtosis - 3)
@@ -95,14 +95,14 @@ public:
     // =============================================================================
     // RANDOM NUMBER GENERATION - Pure Virtual (Must Override)
     // =============================================================================
-    
+
     /**
      * @brief Generate single random sample from distribution
      * @param rng Random number generator
      * @return Single random sample
      */
     virtual double sample(std::mt19937& rng) const = 0;
-    
+
     /**
      * @brief Generate multiple random samples from distribution
      * @param rng Random number generator
@@ -122,14 +122,14 @@ public:
     // =============================================================================
     // PARAMETER ESTIMATION - Pure Virtual (Must Override)
     // =============================================================================
-    
+
     /**
      * @brief Fit distribution parameters to data using Maximum Likelihood Estimation
      * @param data Vector of observations
      * @throws std::invalid_argument if data is empty or contains invalid values
      */
     virtual void fit(const std::vector<double>& data) = 0;
-    
+
     /**
      * @brief Reset distribution to default parameter values
      */
@@ -138,20 +138,20 @@ public:
     // =============================================================================
     // DISTRIBUTION METADATA - Pure Virtual (Must Override)
     // =============================================================================
-    
+
     /**
      * @brief Get number of parameters for this distribution
      * @return Number of free parameters
      * @note Used for AIC/BIC calculations
      */
     virtual int getNumParameters() const = 0;
-    
+
     /**
      * @brief Get distribution name
      * @return Human-readable distribution name
      */
     virtual std::string getDistributionName() const = 0;
-    
+
     /**
      * @brief Get string representation of distribution with current parameters
      * @return Formatted string description
@@ -161,21 +161,21 @@ public:
     // =============================================================================
     // DISTRIBUTION PROPERTIES - Pure Virtual (Must Override)
     // =============================================================================
-    
+
     /**
      * @brief Check if distribution is discrete
      * @return true if discrete, false if continuous
      */
     virtual bool isDiscrete() const = 0;
-    
+
     /**
      * @brief Get distribution support lower bound
      * @return Minimum possible value (or -infinity)
      */
     virtual double getSupportLowerBound() const = 0;
-    
+
     /**
-     * @brief Get distribution support upper bound  
+     * @brief Get distribution support upper bound
      * @return Maximum possible value (or +infinity)
      */
     virtual double getSupportUpperBound() const = 0;
@@ -202,8 +202,8 @@ inline double getStandardDeviation(const DistributionInterface& distribution) {
  */
 inline double getCoefficientOfVariation(const DistributionInterface& distribution) {
     double mean = distribution.getMean();
-    return (mean != 0.0) ? getStandardDeviation(distribution) / std::abs(mean) : 
-                           std::numeric_limits<double>::infinity();
+    return (mean != 0.0) ? getStandardDeviation(distribution) / std::abs(mean)
+                         : std::numeric_limits<double>::infinity();
 }
 
-} // namespace libstats
+}  // namespace libstats

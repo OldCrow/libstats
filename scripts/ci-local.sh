@@ -148,7 +148,7 @@ cd ..
 if [ "$RUN_LINT" = "yes" ]; then
     echo ""
     echo -e "${YELLOW}Running code quality checks...${NC}"
-    
+
     # Check if clang-format is available
     if command -v clang-format &> /dev/null || command -v clang-format-15 &> /dev/null; then
         echo "Checking code formatting..."

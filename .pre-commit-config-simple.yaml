@@ -1,0 +1,67 @@
+# Simplified pre-commit hooks configuration for initial testing
+# This includes only the most essential checks
+
+default_language_version:
+  python: python3
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Fix trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix missing newline at end of file
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-json
+        name: Check JSON syntax
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: check-case-conflict
+        name: Check for case conflicts
+      - id: mixed-line-ending
+        name: Check line endings
+        args: ['--fix=lf']
+
+  # C++ formatting with clang-format
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.6
+    hooks:
+      - id: clang-format
+        name: Format C++ code with clang-format
+        types_or: [c++, c]
+        args: ['-i', '--style=file']
+        files: \.(cpp|cc|cxx|hpp|h|hxx)$
+
+  # Shell script checks
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        name: Check shell scripts
+        args: ['--severity=warning']
+
+  # Custom local hooks for libstats-specific checks
+  - repo: local
+    hooks:
+      - id: check-pragma-once
+        name: Check for #pragma once in headers
+        entry: scripts/check-pragma-once.sh
+        language: script
+        files: \.(h|hpp|hxx)$
+        pass_filenames: true
+
+# Configuration for specific hooks
+exclude: |
+  (?x)^(
+    build/.*|
+    third_party/.*|
+    docs/archive/.*|
+    .*\.min\.js|
+    .*\.min\.css
+  )$

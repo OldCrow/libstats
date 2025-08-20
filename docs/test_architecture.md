@@ -22,7 +22,7 @@ The libstats project strategically uses two testing approaches:
 
 #### Standalone Tests (`main()` function)
 - **Used for**: Service-level components, basic functionality validation, performance benchmarks
-- **Benefits**: 
+- **Benefits**:
   - Minimal dependencies (no GTest requirement)
   - Fast compilation and execution
   - Direct performance measurement capability
@@ -31,7 +31,7 @@ The libstats project strategically uses two testing approaches:
 
 #### GTest-Based Tests
 - **Used for**: Complex statistical methods, comprehensive distribution testing, advanced features
-- **Benefits**: 
+- **Benefits**:
   - Rich assertion library with detailed failure reporting
   - Test fixtures for setup/teardown
   - Parameterized tests for multiple scenarios
@@ -88,7 +88,7 @@ The libstats project strategically uses two testing approaches:
 - **`test_gaussian_basic`** - Fundamental operations (PDF, CDF, quantiles, basic fitting)
 - **`test_gaussian_enhanced`** (**GTest**) - Advanced statistical methods:
   - Confidence intervals and hypothesis testing
-  - Cross-validation and bootstrap methods  
+  - Cross-validation and bootstrap methods
   - Robust estimation and Bayesian approaches
   - Information criteria (AIC, BIC, DIC)
   - Goodness-of-fit tests (KS, AD)
@@ -149,7 +149,7 @@ All basic distribution tests use a unified template system ensuring consistent c
 
 **StandardizedBasicTest Class Provides:**
 - **Consistent Output Formatting**: Uniform headers, test start/success messages, completion messages
-- **Property Display**: Standardized formatting for numerical properties and results  
+- **Property Display**: Standardized formatting for numerical properties and results
 - **Sample Display**: Consistent formatting for random samples and batch results
 - **Error Handling**: Uniform error message formatting
 - **Summary Generation**: Standardized test summaries with checkmarks
@@ -292,7 +292,7 @@ Each enhanced test includes:
 ### Performance Validation Results
 
 - **Gaussian SIMD**: >1.0x speedup confirmed for batch operations
-- **Exponential SIMD**: 6.7x speedup confirmed for batch operations  
+- **Exponential SIMD**: 6.7x speedup confirmed for batch operations
 - **Uniform SIMD**: Excellent speedups for batch probability and cumulative calculations
 - **Discrete SIMD**: Consistent performance across integer operations
 - **Poisson SIMD**: Optimized performance for both small and large lambda values
@@ -373,7 +373,7 @@ ctest -R ".*dynamic.*"
    # Add to Level 4 tests
    create_libstats_test(test_[distribution]_basic tests/test_[distribution]_basic.cpp)
    create_libstats_gtest(test_[distribution]_enhanced tests/test_[distribution]_enhanced.cpp)
-   
+
    # Add to run_tests dependencies
    test_[distribution]_basic
    test_[distribution]_enhanced

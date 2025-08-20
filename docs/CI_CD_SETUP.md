@@ -9,7 +9,7 @@ This document describes the continuous integration and continuous deployment (CI
 The CI pipeline runs on every push to main/develop branches and on all pull requests. It includes:
 
 ### Build Matrix
-- **Operating Systems**: Ubuntu, macOS, Windows  
+- **Operating Systems**: Ubuntu, macOS, Windows
 - **Compilers**: GCC 11/12, Clang 14/15, MSVC (Windows), AppleClang (macOS)
 - **Build Types**: Debug and Release
 - **C++ Standard**: C++20
@@ -54,6 +54,27 @@ Auto-format all source files:
 
 Uses the project's `.clang-format` configuration to ensure consistent style.
 
+### IWYU Script (`scripts/run-iwyu.sh`)
+Analyze header dependencies and includes:
+```bash
+# Analyze entire project
+./scripts/run-iwyu.sh --all
+
+# Analyze source files only
+./scripts/run-iwyu.sh --src
+
+# Analyze specific file
+./scripts/run-iwyu.sh --file src/gaussian.cpp
+```
+
+### Pre-commit Setup (`scripts/setup-pre-commit.sh`)
+Install and configure pre-commit hooks:
+```bash
+./scripts/setup-pre-commit.sh
+```
+
+This will install pre-commit and set up automatic checks before each commit.
+
 ## Configuration Files
 
 ### `.clang-format`
@@ -74,6 +95,24 @@ Comprehensive static analysis checks:
 
 Excludes system headers to focus on project code.
 
+### `.iwyu_mappings.imp`
+Include What You Use mappings:
+- Maps internal headers to public interfaces
+- Defines symbol-to-header relationships
+- Handles platform-specific SIMD headers
+
+### `.pre-commit-config.yaml`
+Pre-commit hooks configuration:
+- Automatic code formatting (clang-format)
+- File integrity checks (trailing whitespace, EOL)
+- Custom libstats checks (pragma once, debug code)
+- CMake and shell script validation
+- Secret detection to prevent credential leaks
+
+### Supporting Configuration Files
+- `.cmake-format.yaml` - CMake formatting rules
+- `.markdownlint.yaml` - Markdown linting configuration
+
 ## Future Enhancements
 
 ### v0.9.1.5 (Current)
@@ -81,6 +120,10 @@ Excludes system headers to focus on project code.
 - ✅ Multi-platform builds
 - ✅ Code quality tools
 - ✅ Coverage reporting
+
+### Completed (v0.9.1.5 Final)
+- ✅ Include What You Use (IWYU) configuration
+- ✅ Pre-commit hooks for local validation
 
 ### Future Versions
 - [ ] Enforce formatting in CI (fail on violations)
@@ -122,6 +165,69 @@ sudo apt-get install clang-format-15 clang-tidy-15
 brew install llvm@15
 ```
 
+## Pre-commit Hooks
+
+### Installation
+```bash
+# Automatic setup (recommended)
+./scripts/setup-pre-commit.sh
+
+# Manual installation
+pip install pre-commit
+pre-commit install
+```
+
+### Usage
+```bash
+# Run on all files
+pre-commit run --all-files
+
+# Run on staged files (automatic on commit)
+git commit -m "Your message"
+
+# Skip hooks temporarily (not recommended)
+git commit --no-verify
+
+# Update hook versions
+pre-commit autoupdate
+```
+
+### Custom Hooks
+The project includes several custom validation scripts:
+- `check-pragma-once.sh` - Ensures headers use #pragma once
+- `check-copyright.sh` - Validates copyright headers
+- `check-no-debug.sh` - Detects debug code patterns
+- `validate-includes.sh` - Checks include order
+
+## Include What You Use (IWYU)
+
+### Installation
+```bash
+# macOS
+brew install include-what-you-use
+
+# Ubuntu/Debian
+apt-get install iwyu
+```
+
+### Usage
+```bash
+# Generate compilation database if needed
+cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+# Run analysis
+./scripts/run-iwyu.sh --all
+
+# Apply suggested fixes (review carefully)
+./scripts/run-iwyu.sh --apply
+```
+
+### Configuration
+The `.iwyu_mappings.imp` file defines:
+- Header mappings for the libstats API
+- Standard library implementation details
+- Platform-specific header relationships
+
 ## Maintenance
 
 The CI/CD setup should be reviewed and updated:
@@ -129,3 +235,4 @@ The CI/CD setup should be reviewed and updated:
 - Before major releases
 - When deprecating platform support
 - When updating coding standards
+- After adding new dependencies or tools

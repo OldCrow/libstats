@@ -38,10 +38,10 @@ if [ -n "$FILES" ]; then
     echo "  Formatting the following files:"
     # Use xargs to handle a large number of files
     echo "$FILES" | xargs -n 1 -I {} echo "    - {}"
-    
+
     # Run clang-format in-place
     echo "$FILES" | xargs -n 1 -I {} $CLANG_FORMAT -i "{}"
-    
+
     echo ""
     echo "✅ Formatting complete!"
 else

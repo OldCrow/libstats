@@ -87,7 +87,7 @@ For quick problem solving, diagnostics, and testing, you can compile directly wi
 # For Apple Silicon Macs (ARM64)
 LLVM_ROOT="/opt/homebrew/opt/llvm"
 
-# For Intel Macs  
+# For Intel Macs
 LLVM_ROOT="/usr/local/opt/llvm"
 
 # Auto-detect and compile

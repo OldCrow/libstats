@@ -189,7 +189,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         -Wdouble-promotion
         -Wformat=2
     )
-    
+
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         list(APPEND WARNING_FLAGS
             -Wmisleading-indentation
@@ -199,7 +199,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             -Wuseless-cast
         )
     endif()
-    
+
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         list(APPEND WARNING_FLAGS
             -Wno-gnu-zero-variadic-macro-arguments
@@ -243,10 +243,10 @@ target_compile_options(libstats PRIVATE ${WARNING_FLAGS})
 if(LIBSTATS_CI_BUILD)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g3")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
-    
+
     # Enable all warnings in CI
     set(LIBSTATS_WARNINGS_AS_ERRORS ON)
-    
+
     # Enable sanitizers in debug builds
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         option(LIBSTATS_ENABLE_ASAN "Enable Address Sanitizer" ON)

@@ -1,8 +1,8 @@
 # LibStats Post v1.0.0 Enhancement Roadmap
 
-**Document Version:** 1.0  
-**Created:** 2025-08-16  
-**Target Versions:** v1.1.0 - v1.4.0  
+**Document Version:** 1.0
+**Created:** 2025-08-16
+**Target Versions:** v1.1.0 - v1.4.0
 **Current Status:** Planning for post-v1.0.0 enhancements
 
 ---
@@ -14,7 +14,7 @@ This roadmap outlines enhancements and optimizations deferred from the core plat
 ### Deferred Work Categories:
 
 1. **Template System Simplification** - Reduce complexity for better maintainability
-2. **Thread Safety Simplification** - Unified patterns across the codebase  
+2. **Thread Safety Simplification** - Unified patterns across the codebase
 3. **Memory Management Simplification** - Reduce allocation overhead and fragmentation
 4. **Safety Module Reorganization** - Better bounds checking organization
 5. **Performance Instrumentation** - Advanced profiling and optimization tools
@@ -24,20 +24,20 @@ This roadmap outlines enhancements and optimizations deferred from the core plat
 
 ## 🏗️ v1.1.0 - Template System Simplification
 
-**Target Release:** Q2 2025 (Post v1.0.0)  
-**Timeline:** 3-4 weeks  
+**Target Release:** Q2 2025 (Post v1.0.0)
+**Timeline:** 3-4 weeks
 **Risk:** Medium (template complexity reduction)
 
 ### **Objective**
 Simplify the template metaprogramming complexity introduced during Phase 1-3 improvements while maintaining performance benefits. Focus on improving developer experience and code maintainability.
 
-### **Phase 1: Template Complexity Analysis** 
+### **Phase 1: Template Complexity Analysis**
 **Timeline:** 1 week
 
 #### **Task 1.1: Template Usage Audit**
 - [ ] **Analyze current template patterns**:
   - CRTP usage in distribution base classes
-  - Template specializations in performance strategies  
+  - Template specializations in performance strategies
   - Variadic template patterns in batch operations
   - SFINAE usage in type trait systems
 
@@ -62,7 +62,7 @@ Simplify the template metaprogramming complexity introduced during Phase 1-3 imp
 
 - [ ] **Create template refactoring plan**:
   - Priority order: highest complexity/lowest value first
-  - Incremental refactoring approach  
+  - Incremental refactoring approach
   - Compatibility preservation strategy
   - Performance validation checkpoints
 
@@ -73,10 +73,10 @@ Simplify the template metaprogramming complexity introduced during Phase 1-3 imp
 - [ ] **Simplify distribution base template system**:
   ```cpp
   // CURRENT: Complex CRTP hierarchy
-  template<typename Derived, template<class> class PerformancePolicy, 
+  template<typename Derived, template<class> class PerformancePolicy,
            typename CachePolicy, typename ValidationPolicy>
   class DistributionBase;
-  
+
   // SIMPLIFIED: Focused inheritance
   template<typename Derived>
   class DistributionBase {
@@ -90,11 +90,11 @@ Simplify the template metaprogramming complexity introduced during Phase 1-3 imp
 - [ ] **Replace SFINAE with C++20 concepts**:
   ```cpp
   // CURRENT: SFINAE template complexity
-  template<typename T, 
-           std::enable_if_t<std::is_arithmetic_v<T> && 
+  template<typename T,
+           std::enable_if_t<std::is_arithmetic_v<T> &&
                            !std::is_same_v<T, bool>, int> = 0>
   auto process(T value);
-  
+
   // SIMPLIFIED: Clear concepts
   template<ArithmeticNotBool T>
   auto process(T value);
@@ -108,21 +108,21 @@ Simplify the template metaprogramming complexity introduced during Phase 1-3 imp
 
 - [ ] **Consolidate template specializations**:
   - Merge similar specializations using `if constexpr`
-  - Reduce the number of explicit specializations  
+  - Reduce the number of explicit specializations
   - Simplify template instantiation requirements
 
 **Success Criteria:**
 - [ ] **Compilation time:** 20% reduction in template-heavy compilation units
 - [ ] **Code complexity:** Reduced cyclomatic complexity in template systems
-- [ ] **Debugging:** Clearer error messages and improved IDE support  
+- [ ] **Debugging:** Clearer error messages and improved IDE support
 - [ ] **Performance:** No regression in runtime performance metrics
 
 ---
 
 ## 🔒 v1.2.0 - Thread Safety Simplification
 
-**Target Release:** Q3 2025  
-**Timeline:** 2-3 weeks  
+**Target Release:** Q3 2025
+**Timeline:** 2-3 weeks
 **Risk:** Medium (concurrency patterns)
 
 ### **Objective**
@@ -134,7 +134,7 @@ Unify thread safety patterns across the library to eliminate inconsistencies in 
 #### **Task 1.1: Current Thread Safety Audit**
 - [ ] **Analyze existing patterns**:
   - `std::shared_mutex` usage in distribution classes
-  - `std::atomic` usage in performance systems  
+  - `std::atomic` usage in performance systems
   - Lock-free data structures in cache systems
   - Thread pool synchronization patterns
 
@@ -160,13 +160,13 @@ Unify thread safety patterns across the library to eliminate inconsistencies in 
       // Standardized lock types and usage patterns
       using ReadLock = std::shared_lock<std::shared_mutex>;
       using WriteLock = std::unique_lock<std::shared_mutex>;
-      
+
       // RAII lock guards with debugging support
       template<typename Mutex>
       class DebugLockGuard {
           // Lock acquisition timing and contention monitoring
       };
-      
+
       // Lock ordering to prevent deadlocks
       enum class LockPriority { Cache = 1, Performance = 2, Distribution = 3 };
   }
@@ -177,7 +177,7 @@ Unify thread safety patterns across the library to eliminate inconsistencies in 
   - Standardized atomic operations for statistics tracking
   - Clear guidelines for atomic vs mutex protection
 
-#### **Task 2.2: Lock-Free Algorithm Assessment**  
+#### **Task 2.2: Lock-Free Algorithm Assessment**
 - [ ] **Evaluate lock-free alternatives**:
   - Performance counter updates using atomics
   - Cache statistics tracking without locks
@@ -196,28 +196,28 @@ Unify thread safety patterns across the library to eliminate inconsistencies in 
 
 ---
 
-## 💾 v1.3.0 - Memory Management Simplification  
+## 💾 v1.3.0 - Memory Management Simplification
 
-**Target Release:** Q4 2025  
-**Timeline:** 2-3 weeks  
+**Target Release:** Q4 2025
+**Timeline:** 2-3 weeks
 **Risk:** Low (optimization focused)
 
-### **Objective**  
+### **Objective**
 Reduce memory allocation overhead and fragmentation by consolidating allocation patterns, implementing memory pools where beneficial, and optimizing data structure memory layouts.
 
 ### **Phase 1: Memory Usage Analysis**
-**Timeline:** 1 week  
+**Timeline:** 1 week
 
 #### **Task 1.1: Memory Allocation Profiling**
 - [ ] **Analyze current allocation patterns**:
   - Heap allocations per operation across distributions
-  - Allocation frequency and size distribution  
+  - Allocation frequency and size distribution
   - Memory fragmentation patterns in long-running processes
   - Peak memory usage in batch operations
 
 - [ ] **Identify optimization opportunities**:
   - Small object allocation overhead
-  - Repeated allocation/deallocation patterns  
+  - Repeated allocation/deallocation patterns
   - Data structure padding and alignment issues
   - Cache-unfriendly memory layouts
 
@@ -229,11 +229,11 @@ Reduce memory allocation overhead and fragmentation by consolidating allocation 
       class DistributionObjectPool {
           // Pool for distribution instances
       };
-      
+
       class BatchOperationPool {
           // Pool for temporary batch processing arrays
       };
-      
+
       class CacheNodePool {
           // Pool for cache data structures
       };
@@ -275,11 +275,11 @@ Reduce memory allocation overhead and fragmentation by consolidating allocation 
 
 ## 🛡️ v1.4.0 - Safety and Instrumentation
 
-**Target Release:** Q1 2026  
-**Timeline:** 3-4 weeks  
+**Target Release:** Q1 2026
+**Timeline:** 3-4 weeks
 **Risk:** Low (quality of life improvements)
 
-### **Phase 1: Safety Module Reorganization** 
+### **Phase 1: Safety Module Reorganization**
 **Timeline:** 1-2 weeks
 
 #### **Objective**
@@ -291,11 +291,11 @@ Reorganize bounds checking, input validation, and safety mechanisms into a coher
   namespace libstats::safety {
       enum class SafetyLevel {
           None,        // No safety checks (release optimized)
-          Basic,       // Parameter validation only  
+          Basic,       // Parameter validation only
           Standard,    // Parameter + bounds checking
           Paranoid     // All checks + additional validation
       };
-      
+
       template<SafetyLevel Level>
       class SafetyManager {
           // Compile-time safety check selection
@@ -306,7 +306,7 @@ Reorganize bounds checking, input validation, and safety mechanisms into a coher
 - [ ] **Consolidate validation patterns**:
   - Parameter validation across all distributions
   - Numerical stability checks
-  - Domain boundary validation  
+  - Domain boundary validation
   - Result validation and sanitization
 
 ### **Phase 2: Performance Instrumentation**
@@ -325,10 +325,10 @@ Advanced profiling, performance analysis, and optimization guidance tools.
           // Cache performance analysis
           // Thread contention monitoring
       };
-      
+
       class OptimizationAdvisor {
           // Performance recommendations
-          // Configuration tuning suggestions  
+          // Configuration tuning suggestions
           // Bottleneck identification
       };
   }
@@ -343,15 +343,15 @@ Advanced profiling, performance analysis, and optimization guidance tools.
 **Success Criteria:**
 - [ ] **Safety:** Configurable safety levels with minimal performance impact
 - [ ] **Observability:** Comprehensive performance monitoring and analysis
-- [ ] **Optimization:** Automated performance tuning recommendations  
+- [ ] **Optimization:** Automated performance tuning recommendations
 - [ ] **Quality:** Improved debugging and development experience
 
 ---
 
 ## 🚀 v1.4.5 - Advanced Header Optimization (When Justified)
 
-**Target:** TBD (Contingent on build performance requirements)  
-**Timeline:** 2-4 weeks when needed  
+**Target:** TBD (Contingent on build performance requirements)
+**Timeline:** 2-4 weeks when needed
 **Status:** Deferred advanced optimization techniques
 **Prerequisites:** Completion of core PIMPL conversion in v1.0.0
 
@@ -361,8 +361,8 @@ The header optimization analysis identified several advanced techniques that wer
 ### **Advanced Optimization Techniques (Deferred from Header Optimization Analysis)**
 
 #### **Strategy 3: Precompiled Headers (PCH) System**
-**Expected Impact:** 60% compilation improvement  
-**Complexity:** High (build system integration)  
+**Expected Impact:** 60% compilation improvement
+**Complexity:** High (build system integration)
 **Timeline:** 1-2 weeks
 
 ```cpp
@@ -410,8 +410,8 @@ The header optimization analysis identified several advanced techniques that wer
   - Xcode project PCH configuration
 
 #### **Strategy 4: Template Instantiation Control**
-**Expected Impact:** 25% compilation improvement  
-**Complexity:** Medium-High (template expertise required)  
+**Expected Impact:** 25% compilation improvement
+**Complexity:** Medium-High (template expertise required)
 **Timeline:** 1-2 weeks
 
 **Explicit Template Instantiation:**
@@ -450,8 +450,8 @@ public:
 ```
 
 #### **Strategy 5: Unity Build System**
-**Expected Impact:** 40% compilation improvement  
-**Complexity:** Medium (build system changes)  
+**Expected Impact:** 40% compilation improvement
+**Complexity:** Medium (build system changes)
 **Timeline:** 1 week
 
 ```cmake
@@ -468,15 +468,15 @@ if(LIBSTATS_ENABLE_UNITY_BUILD)
         src/gamma.cpp
         src/discrete.cpp
     )
-    
+
     # Create unity build file
     set(UNITY_BUILD_FILE "${CMAKE_BINARY_DIR}/distributions_unity.cpp")
     file(WRITE ${UNITY_BUILD_FILE} "")
-    
+
     foreach(source ${DISTRIBUTION_UNITY_SOURCES})
         file(APPEND ${UNITY_BUILD_FILE} "#include \"${CMAKE_CURRENT_SOURCE_DIR}/${source}\"\n")
     endforeach()
-    
+
     # Use unity file instead of individual sources
     set(DISTRIBUTION_SOURCES ${UNITY_BUILD_FILE})
 else()
@@ -485,8 +485,8 @@ endif()
 ```
 
 #### **Strategy 6: Header-Only Optimizations**
-**Expected Impact:** 20% compilation improvement  
-**Complexity:** Low-Medium  
+**Expected Impact:** 20% compilation improvement
+**Complexity:** Low-Medium
 **Timeline:** 1 week
 
 **Lazy Loading Headers:**
@@ -647,9 +647,9 @@ If full implementation proves too complex:
 
 ## 🏗️ v1.5.0 - Complete PIMPL Conversion (Future Consideration)
 
-**Target:** TBD (Contingent on build time requirements)  
-**Scope:** ~110 remaining files (25 core library files completed in v1.0.0)  
-**Timeline:** 4-6 weeks when needed  
+**Target:** TBD (Contingent on build time requirements)
+**Scope:** ~110 remaining files (25 core library files completed in v1.0.0)
+**Timeline:** 4-6 weeks when needed
 **Status:** Deferred until justified by development needs
 
 ### **Background**
@@ -667,7 +667,7 @@ The Phase 2 PIMPL optimization infrastructure is complete, and the 25 high-prior
 This work should be prioritized if:
 
 1. **Build times become problematic** (>2 minutes for full rebuild)
-2. **Development team size increases** significantly  
+2. **Development team size increases** significantly
 3. **IDE performance** becomes impacted by header parsing
 4. **Incremental compilation** becomes inadequate
 5. **CI/CD pipeline** build times become a bottleneck
@@ -685,7 +685,7 @@ To: #include "common/libstats_vector_common.h"
 
 **Priority Order:**
 - **High Impact (15 files):** Headers frequently included by other files
-- **Medium Impact (32 files):** Source files and less critical headers  
+- **Medium Impact (32 files):** Source files and less critical headers
 - **Low Impact (47+ files):** Test files, tool files, example files
 
 **String Consolidation (32+ files):**
@@ -733,7 +733,7 @@ To: #include "common/libstats_algorithm_common.h"
   ```bash
   # Script to convert STL includes
   ./tools/convert_stl_includes.sh --type=vector --dry-run
-  ./tools/convert_stl_includes.sh --type=string --dry-run  
+  ./tools/convert_stl_includes.sh --type=string --dry-run
   ./tools/convert_stl_includes.sh --type=algorithm --dry-run
   ```
 
@@ -750,7 +750,7 @@ To: #include "common/libstats_algorithm_common.h"
   - Validate no regressions
 
 - [ ] **Batch 2: Medium-impact files (Week 3)**
-  - Convert 32 medium-impact files  
+  - Convert 32 medium-impact files
   - Focus on source files and secondary headers
   - Comprehensive testing
 
@@ -804,7 +804,7 @@ If the full conversion proves unnecessary, consider:
 
 ### **Overall Quality Goals**
 - [ ] **Performance:** No regression in any v1.0.0 benchmarks
-- [ ] **Maintainability:** Reduced code complexity metrics across all areas  
+- [ ] **Maintainability:** Reduced code complexity metrics across all areas
 - [ ] **Developer Experience:** Faster compilation, clearer error messages, better IDE support
 - [ ] **Reliability:** Comprehensive testing of all refactored systems
 - [ ] **Documentation:** Updated examples and best practices for all new systems
@@ -812,7 +812,7 @@ If the full conversion proves unnecessary, consider:
 ### **Release Quality Criteria**
 Each version must pass:
 - [ ] **Performance benchmarks:** All existing benchmarks within 5% of baseline
-- [ ] **Memory usage:** No increase in peak memory consumption  
+- [ ] **Memory usage:** No increase in peak memory consumption
 - [ ] **Thread safety:** Stress testing under high concurrency
 - [ ] **API compatibility:** Existing code compiles without modification
 - [ ] **Documentation completeness:** All public APIs documented
@@ -823,11 +823,11 @@ Each version must pass:
 
 ### **Technical Risks**
 - **Template simplification complexity:** May introduce subtle behavioral changes
-- **Thread safety refactoring:** Potential for introducing race conditions  
+- **Thread safety refactoring:** Potential for introducing race conditions
 - **Memory management changes:** Risk of memory leaks or performance regression
 - **Large-scale refactoring:** Coordination complexity across multiple systems
 
-### **Mitigation Strategies**  
+### **Mitigation Strategies**
 - **Incremental implementation:** Small, testable changes with rollback capability
 - **Comprehensive testing:** Extended test coverage for all modified systems
 - **Performance monitoring:** Continuous benchmark validation during development
@@ -835,6 +835,6 @@ Each version must pass:
 
 ---
 
-**Document Status:** Planning Document - Implementation Details TBD  
-**Dependencies:** v1.0.0 release completion  
+**Document Status:** Planning Document - Implementation Details TBD
+**Dependencies:** v1.0.0 release completion
 **Next Review:** Post v1.0.0 release retrospective

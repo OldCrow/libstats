@@ -1,16 +1,17 @@
 #pragma once
 
 #include "../common/utility_common.h"
+#include "../platform/simd.h"
 #include "constants.h"  // Math utils needs the full constants
 #include "safety.h"
-#include "../platform/simd.h"
+
 #include <array>  // Required for std::array return type in sample_moments function
 
 /**
  * @file math_utils.h
  * @brief Mathematical utilities and special functions for libstats
- * 
- * This header provides common mathematical functions used across 
+ *
+ * This header provides common mathematical functions used across
  * different distributions, including special functions, numerical
  * integration, and optimization routines.
  */
@@ -136,7 +137,8 @@ void vector_gamma_q(double a, std::span<const double> x_values, std::span<double
  * @param b Second shape parameter (constant for all x values)
  * @param output Output array for beta_i(x_values[i], a, b)
  */
-void vector_beta_i(std::span<const double> x_values, double a, double b, std::span<double> output) noexcept;
+void vector_beta_i(std::span<const double> x_values, double a, double b,
+                   std::span<double> output) noexcept;
 
 /**
  * @brief Vectorized natural logarithm of gamma function using SIMD
@@ -152,7 +154,8 @@ void vector_lgamma(std::span<const double> input, std::span<double> output) noex
  * @param output Output array for lbeta(a_values[i], b_values[i])
  * @note Requires a_values.size() == b_values.size() == output.size()
  */
-void vector_lbeta(std::span<const double> a_values, std::span<const double> b_values, std::span<double> output) noexcept;
+void vector_lbeta(std::span<const double> a_values, std::span<const double> b_values,
+                  std::span<double> output) noexcept;
 
 /**
  * @brief Check if vectorized operations should be used for given array size
@@ -180,14 +183,10 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
  * @param max_depth Maximum recursion depth
  * @return Integral approximation
  */
-template<MathFunction<double> F>
-[[nodiscard]] double adaptive_simpson(
-    F&& func, 
-    double lower_bound, 
-    double upper_bound, 
-    double tolerance = constants::precision::DEFAULT_TOLERANCE,
-    int max_depth = 20
-) noexcept;
+template <MathFunction<double> F>
+[[nodiscard]] double adaptive_simpson(F&& func, double lower_bound, double upper_bound,
+                                      double tolerance = constants::precision::DEFAULT_TOLERANCE,
+                                      int max_depth = 20) noexcept;
 
 /**
  * @brief Gauss-Legendre quadrature for smooth functions
@@ -197,13 +196,9 @@ template<MathFunction<double> F>
  * @param n_points Number of quadrature points (8, 16, 32, 64)
  * @return Integral approximation
  */
-template<MathFunction<double> F>
-[[nodiscard]] double gauss_legendre(
-    F&& func,
-    double lower_bound,
-    double upper_bound,
-    int n_points = 16
-) noexcept;
+template <MathFunction<double> F>
+[[nodiscard]] double gauss_legendre(F&& func, double lower_bound, double upper_bound,
+                                    int n_points = 16) noexcept;
 
 // =============================================================================
 // ROOT FINDING AND OPTIMIZATION
@@ -218,32 +213,25 @@ template<MathFunction<double> F>
  * @param max_iterations Maximum number of iterations
  * @return Root approximation
  */
-template<MathFunction<double> F, MathFunction<double> DF>
-[[nodiscard]] double newton_raphson(
-    F&& func,
-    DF&& derivative,
-    double initial_guess,
-    double tolerance = constants::precision::DEFAULT_TOLERANCE,
-    int max_iterations = 100
-) noexcept;
+template <MathFunction<double> F, MathFunction<double> DF>
+[[nodiscard]] double newton_raphson(F&& func, DF&& derivative, double initial_guess,
+                                    double tolerance = constants::precision::DEFAULT_TOLERANCE,
+                                    int max_iterations = 100) noexcept;
 
 /**
  * @brief Brent's method for root finding (robust bracketing method)
  * @param func Function for which to find root
- * @param lower_bound Lower bracket (func(lower_bound) and func(upper_bound) must have opposite signs)
+ * @param lower_bound Lower bracket (func(lower_bound) and func(upper_bound) must have opposite
+ * signs)
  * @param upper_bound Upper bracket
  * @param tolerance Convergence tolerance
  * @param max_iterations Maximum number of iterations
  * @return Root approximation
  */
-template<MathFunction<double> F>
-[[nodiscard]] double brent_root(
-    F&& func,
-    double lower_bound,
-    double upper_bound,
-    double tolerance = constants::precision::DEFAULT_TOLERANCE,
-    int max_iterations = 100
-) noexcept;
+template <MathFunction<double> F>
+[[nodiscard]] double brent_root(F&& func, double lower_bound, double upper_bound,
+                                double tolerance = constants::precision::DEFAULT_TOLERANCE,
+                                int max_iterations = 100) noexcept;
 
 /**
  * @brief Golden section search for univariate optimization
@@ -253,13 +241,10 @@ template<MathFunction<double> F>
  * @param tolerance Convergence tolerance
  * @return Minimum location
  */
-template<MathFunction<double> F>
+template <MathFunction<double> F>
 [[nodiscard]] double golden_section_search(
-    F&& func,
-    double lower_bound,
-    double upper_bound,
-    double tolerance = constants::precision::DEFAULT_TOLERANCE
-) noexcept;
+    F&& func, double lower_bound, double upper_bound,
+    double tolerance = constants::precision::DEFAULT_TOLERANCE) noexcept;
 
 // =============================================================================
 // STATISTICAL DISTRIBUTION FUNCTIONS
@@ -333,7 +318,7 @@ template<MathFunction<double> F>
  * @brief Gamma distribution CDF
  * @param x value (x >= 0)
  * @param shape shape parameter (alpha > 0)
- * @param scale scale parameter (beta > 0) 
+ * @param scale scale parameter (beta > 0)
  * @return P(X <= x) where X ~ Gamma(shape, scale)
  */
 [[nodiscard]] double gamma_cdf(double x, double shape, double scale) noexcept;
@@ -342,7 +327,7 @@ template<MathFunction<double> F>
  * @brief Inverse gamma distribution CDF (quantile function)
  * @param p probability value in (0, 1)
  * @param shape shape parameter (alpha > 0)
- * @param scale scale parameter (beta > 0) 
+ * @param scale scale parameter (beta > 0)
  * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale)
  */
 [[nodiscard]] double gamma_inverse_cdf(double p, double shape, double scale) noexcept;
@@ -360,14 +345,12 @@ template<MathFunction<double> F>
 
 /**
  * @brief Calculate quantiles from sorted data
- * @param data Sorted data vector  
+ * @param data Sorted data vector
  * @param quantiles Quantile levels to calculate
  * @return Vector of quantile values
  */
-[[nodiscard]] std::vector<double> calculate_quantiles(
-    std::span<const double> data,
-    std::span<const double> quantiles
-);
+[[nodiscard]] std::vector<double> calculate_quantiles(std::span<const double> data,
+                                                      std::span<const double> quantiles);
 
 /**
  * @brief Calculate sample moments (mean, variance, skewness, kurtosis)
@@ -387,12 +370,12 @@ template<MathFunction<double> F>
 // GOODNESS-OF-FIT TESTING
 // =============================================================================
 
-} // namespace math
-} // namespace libstats
+}  // namespace math
+}  // namespace libstats
 
 // Forward declaration
 namespace libstats {
-    class DistributionBase;
+class DistributionBase;
 }
 
 namespace libstats {
@@ -404,7 +387,8 @@ namespace math {
  * @param dist Distribution to test against
  * @return KS test statistic
  */
-[[nodiscard]] double calculate_ks_statistic(const std::vector<double>& data, const DistributionBase& dist) noexcept;
+[[nodiscard]] double calculate_ks_statistic(const std::vector<double>& data,
+                                            const DistributionBase& dist) noexcept;
 
 /**
  * @brief Anderson-Darling test statistic calculation
@@ -412,7 +396,8 @@ namespace math {
  * @param dist Distribution to test against
  * @return AD test statistic
  */
-[[nodiscard]] double calculate_ad_statistic(const std::vector<double>& data, const DistributionBase& dist) noexcept;
+[[nodiscard]] double calculate_ad_statistic(const std::vector<double>& data,
+                                            const DistributionBase& dist) noexcept;
 
 // =============================================================================
 // NUMERICAL STABILITY UTILITIES
@@ -465,10 +450,10 @@ namespace math {
  * @param x Value to check
  * @return true if x is finite and safe
  */
-template<typename T> requires FloatingPoint<T>
+template <typename T>
+    requires FloatingPoint<T>
 [[nodiscard]] constexpr bool is_safe_float(T x) noexcept {
-    return std::isfinite(x) && 
-           std::abs(x) < constants::thresholds::MAX_DISTRIBUTION_PARAMETER;
+    return std::isfinite(x) && std::abs(x) < constants::thresholds::MAX_DISTRIBUTION_PARAMETER;
 }
 
 /**
@@ -478,7 +463,8 @@ template<typename T> requires FloatingPoint<T>
  * @param max_val Maximum allowed value
  * @return Clamped value
  */
-template<typename T> requires FloatingPoint<T>
+template <typename T>
+    requires FloatingPoint<T>
 [[nodiscard]] constexpr T clamp_safe(T x, T min_val, T max_val) noexcept {
     if (std::isnan(x)) [[unlikely]] {
         return min_val;
@@ -493,7 +479,8 @@ template<typename T> requires FloatingPoint<T>
  * @param default_value Value to return if denominator is zero
  * @return Safe division result
  */
-template<typename T> requires FloatingPoint<T>
+template <typename T>
+    requires FloatingPoint<T>
 [[nodiscard]] constexpr T safe_divide(T numerator, T denominator, T default_value = T{0}) noexcept {
     if (std::abs(denominator) < constants::precision::ZERO || std::isnan(denominator)) {
         return default_value;
@@ -507,16 +494,17 @@ template<typename T> requires FloatingPoint<T>
  * @return log(sum(exp(x_i)))
  */
 [[nodiscard]] inline double log_sum_exp(std::span<const double> values) noexcept {
-    if (values.empty()) return constants::probability::MIN_LOG_PROBABILITY;
-    
+    if (values.empty())
+        return constants::probability::MIN_LOG_PROBABILITY;
+
     // Find maximum value for numerical stability
     double max_val = *std::max_element(values.begin(), values.end());
-    
+
     // Handle edge case where all values are -inf
     if (std::isinf(max_val) && max_val < 0) {
         return constants::probability::MIN_LOG_PROBABILITY;
     }
-    
+
     // Compute log(sum(exp(x_i - max_val))) + max_val
     double sum_exp = 0.0;
     for (double val : values) {
@@ -524,7 +512,7 @@ template<typename T> requires FloatingPoint<T>
             sum_exp += std::exp(val - max_val);
         }
     }
-    
+
     return safety::safe_log(sum_exp) + max_val;
 }
 
@@ -534,21 +522,21 @@ template<typename T> requires FloatingPoint<T>
  * @param log_weights Vector of log weights
  * @return Weighted average in log space
  */
-[[nodiscard]] inline double log_weighted_average(std::span<const double> log_values, 
+[[nodiscard]] inline double log_weighted_average(std::span<const double> log_values,
                                                  std::span<const double> log_weights) noexcept {
     if (log_values.size() != log_weights.size() || log_values.empty()) {
         return constants::probability::MIN_LOG_PROBABILITY;
     }
-    
+
     // Compute log(sum(w_i * v_i)) and log(sum(w_i))
     std::vector<double> log_weighted_values(log_values.size());
     for (std::size_t i = 0; i < log_values.size(); ++i) {
         log_weighted_values[i] = log_values[i] + log_weights[i];
     }
-    
+
     double log_sum_weighted = log_sum_exp(log_weighted_values);
     double log_sum_weights = log_sum_exp(log_weights);
-    
+
     return log_sum_weighted - log_sum_weights;
 }
 
@@ -558,11 +546,13 @@ template<typename T> requires FloatingPoint<T>
  * @param context Description of the computation
  * @return True if value is numerically sound
  */
-[[nodiscard]] inline bool check_numerical_condition(double value, const std::string& context = "computation") noexcept {
+[[nodiscard]] inline bool check_numerical_condition(
+    double value, const std::string& context = "computation") noexcept {
     if (std::isnan(value)) {
         // In production, we might want to log this instead of throwing
         // For now, the context could be used for debugging/logging purposes
-        [[maybe_unused]] auto _ = context; // Acknowledge parameter to avoid warning in non-debug builds
+        [[maybe_unused]] auto _ =
+            context;  // Acknowledge parameter to avoid warning in non-debug builds
         return false;
     }
     if (std::isinf(value)) {
@@ -583,15 +573,16 @@ template<typename T> requires FloatingPoint<T>
  * @param problem_size Size of the problem
  * @return Scaled tolerance
  */
-[[nodiscard]] inline double adaptive_tolerance(double base_tolerance, 
-                                              double data_range, 
-                                              std::size_t problem_size) noexcept {
+[[nodiscard]] inline double adaptive_tolerance(double base_tolerance, double data_range,
+                                               std::size_t problem_size) noexcept {
     // Scale tolerance based on data range
-    double range_factor = std::max(constants::math::ONE, std::log10(std::max(constants::math::ONE, data_range)));
-    
+    double range_factor =
+        std::max(constants::math::ONE, std::log10(std::max(constants::math::ONE, data_range)));
+
     // Scale tolerance based on problem size
-    double size_factor = std::max(constants::math::ONE, std::log10(static_cast<double>(problem_size)));
-    
+    double size_factor =
+        std::max(constants::math::ONE, std::log10(static_cast<double>(problem_size)));
+
     return base_tolerance * range_factor * size_factor;
 }
 
@@ -620,16 +611,16 @@ struct NumericalDiagnostics {
  * @param name Name for reporting
  * @return Diagnostic report
  */
-[[nodiscard]] inline NumericalDiagnostics analyze_vector(std::span<const double> data, 
+[[nodiscard]] inline NumericalDiagnostics analyze_vector(std::span<const double> data,
                                                          const std::string& name = "vector") {
     NumericalDiagnostics diag;
     diag.problem_size = data.size();
-    
+
     if (data.empty()) {
         diag.recommendations = "Empty " + name + " - no analysis possible";
         return diag;
     }
-    
+
     for (double value : data) {
         if (std::isnan(value)) {
             diag.has_nan = true;
@@ -638,7 +629,7 @@ struct NumericalDiagnostics {
         } else {
             diag.min_value = std::min(diag.min_value, value);
             diag.max_value = std::max(diag.max_value, value);
-            
+
             if (std::abs(value) < constants::precision::ZERO) {
                 diag.has_underflow = true;
             }
@@ -647,12 +638,12 @@ struct NumericalDiagnostics {
             }
         }
     }
-    
+
     // Estimate condition number (simplified)
     if (diag.min_value > 0 && diag.max_value > 0) {
         diag.condition_estimate = diag.max_value / diag.min_value;
     }
-    
+
     // Generate recommendations
     if (diag.has_nan) {
         diag.recommendations += "NaN values detected - check input data; ";
@@ -669,13 +660,13 @@ struct NumericalDiagnostics {
     if (diag.has_overflow) {
         diag.recommendations += "Overflow detected - consider scaling or log-space computation; ";
     }
-    
+
     if (diag.recommendations.empty()) {
         diag.recommendations = "Numerical properties appear healthy";
     }
-    
+
     return diag;
 }
 
-} // namespace math
-} // namespace libstats
+}  // namespace math
+}  // namespace libstats

@@ -37,10 +37,10 @@ done
 # Check formatting
 if [ -n "$CLANG_FORMAT" ]; then
     echo "🔍 Checking code formatting with $CLANG_FORMAT..."
-    
+
     # Find all source files
     FILES=$(find include src tests -name '*.h' -o -name '*.cpp' 2>/dev/null || true)
-    
+
     if [ -n "$FILES" ]; then
         FORMAT_ISSUES=0
         for file in $FILES; do
@@ -49,7 +49,7 @@ if [ -n "$CLANG_FORMAT" ]; then
                 FORMAT_ISSUES=$((FORMAT_ISSUES + 1))
             fi
         done
-        
+
         if [ $FORMAT_ISSUES -eq 0 ]; then
             echo "  ✅ All files are properly formatted"
         else
@@ -67,19 +67,19 @@ echo ""
 # Run clang-tidy
 if [ -n "$CLANG_TIDY" ]; then
     echo "🔍 Running static analysis with $CLANG_TIDY..."
-    
+
     # Need compile_commands.json
     if [ ! -f "build/compile_commands.json" ]; then
         echo "  Building compile_commands.json..."
         cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > /dev/null 2>&1
     fi
-    
+
     # Check a subset of files (to keep it fast for local runs)
     echo "  Checking core source files..."
-    
+
     # Find source files, limiting to core functionality for speed
     CORE_FILES=$(find src -name '*.cpp' -path '*/core/*' -o -path '*/distributions/*' 2>/dev/null | head -10 || true)
-    
+
     if [ -n "$CORE_FILES" ]; then
         TIDY_ISSUES=0
         for file in $CORE_FILES; do
@@ -88,7 +88,7 @@ if [ -n "$CLANG_TIDY" ]; then
                 --header-filter='.*/(include|src)/.*\.h$' \
                 --system-headers=false \
                 --quiet 2>&1 || true)
-            
+
             if [ -n "$OUTPUT" ]; then
                 # Filter out non-error output
                 FILTERED=$(echo "$OUTPUT" | grep -E "warning:|error:" || true)
@@ -99,11 +99,11 @@ if [ -n "$CLANG_TIDY" ]; then
                 fi
             fi
         done
-        
+
         if [ $TIDY_ISSUES -eq 0 ]; then
             echo "  ✅ No issues found in checked files"
         fi
-        
+
         echo "  ℹ️  Run 'scripts/lint-all.sh' for comprehensive analysis"
     fi
 else

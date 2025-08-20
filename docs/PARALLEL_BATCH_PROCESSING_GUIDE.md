@@ -38,7 +38,7 @@ void getProbability(std::span<const double> values, std::span<double> results,
 void getLogProbability(std::span<const double> values, std::span<double> results,
                       const PerformanceHint& hint = {}) const;
 
-// Cumulative Distribution Function (CDF)  
+// Cumulative Distribution Function (CDF)
 void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                              const PerformanceHint& hint = {}) const;
 ```
@@ -98,22 +98,22 @@ enum class Strategy {
 auto result = libstats::GaussianDistribution::create(0.0, 1.0);
 if (result.isOk()) {
     auto gaussian = std::move(result.value);
-    
+
     // Prepare data
     std::vector<double> input_values(10000);
     std::vector<double> pdf_results(10000);
     std::vector<double> cdf_results(10000);
-    
+
     // Fill input with test data
     std::iota(input_values.begin(), input_values.end(), -5.0);
-    
+
     // Auto-dispatch will select optimal strategy (likely PARALLEL_SIMD for 10k elements)
-    gaussian.getProbability(std::span<const double>(input_values), 
+    gaussian.getProbability(std::span<const double>(input_values),
                            std::span<double>(pdf_results));
-    
-    gaussian.getCumulativeProbability(std::span<const double>(input_values), 
+
+    gaussian.getCumulativeProbability(std::span<const double>(input_values),
                                      std::span<double>(cdf_results));
-    
+
     std::cout << "Processed " << input_values.size() << " values" << std::endl;
 }
 ```
@@ -125,14 +125,14 @@ if (result.isOk()) {
 PerformanceHint low_latency;
 low_latency.strategy = PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY;
 
-gaussian.getProbability(std::span<const double>(small_batch), 
+gaussian.getProbability(std::span<const double>(small_batch),
                        std::span<double>(results), low_latency);
 
 // For throughput-focused applications
 PerformanceHint high_throughput;
 high_throughput.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
 
-gaussian.getProbability(std::span<const double>(large_batch), 
+gaussian.getProbability(std::span<const double>(large_batch),
                        std::span<double>(results), high_throughput);
 ```
 
@@ -146,15 +146,15 @@ std::vector<double> input(5000);
 std::vector<double> results(5000);
 
 // Force scalar processing (useful for debugging or comparison)
-gaussian.getProbabilityWithStrategy(std::span<const double>(input), 
+gaussian.getProbabilityWithStrategy(std::span<const double>(input),
                                    std::span<double>(results), Strategy::SCALAR);
 
 // Force parallel processing (useful when you know your data characteristics)
-gaussian.getProbabilityWithStrategy(std::span<const double>(input), 
+gaussian.getProbabilityWithStrategy(std::span<const double>(input),
                                    std::span<double>(results), Strategy::PARALLEL_SIMD);
 
 // Use work-stealing for irregular workloads
-gaussian.getProbabilityWithStrategy(std::span<const double>(input), 
+gaussian.getProbabilityWithStrategy(std::span<const double>(input),
                                    std::span<double>(results), Strategy::WORK_STEALING);
 ```
 
@@ -166,13 +166,13 @@ gaussian.getProbabilityWithStrategy(std::span<const double>(input),
 // Benchmark different strategies
 auto benchmark_strategy = [&](Strategy strategy, const std::string& name) {
     auto start = std::chrono::high_resolution_clock::now();
-    
-    gaussian.getProbabilityWithStrategy(std::span<const double>(test_data), 
+
+    gaussian.getProbabilityWithStrategy(std::span<const double>(test_data),
                                        std::span<double>(results), strategy);
-    
+
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    
+
     std::cout << name << ": " << duration.count() << " μs" << std::endl;
 };
 
@@ -232,7 +232,7 @@ For optimal performance in production applications:
 int main() {
     // Initialize performance systems to eliminate cold-start delays
     libstats::initialize_performance_systems();
-    
+
     // Your application code here...
     auto gaussian = libstats::GaussianDistribution::create(0.0, 1.0);
     // Batch operations will have optimal performance from the start
@@ -250,10 +250,10 @@ for (int i = 0; i < std::thread::hardware_concurrency(); ++i) {
     threads.emplace_back([&gaussian, i]() {
         std::vector<double> local_input(1000);
         std::vector<double> local_results(1000);
-        
+
         // Fill with thread-specific data
         std::iota(local_input.begin(), local_input.end(), i * 1000.0);
-        
+
         // Thread-safe batch processing
         gaussian.getProbability(std::span<const double>(local_input),
                                std::span<double>(local_results));
@@ -293,7 +293,7 @@ poisson.getProbability(std::span<const double>(discrete_values),
 // Uniform: Extremely simple (range checks) - SIMD dominates
 UniformDistribution uniform(0.0, 1.0);
 
-// Gaussian: Moderate complexity - balanced SIMD/Parallel trade-off  
+// Gaussian: Moderate complexity - balanced SIMD/Parallel trade-off
 GaussianDistribution gaussian(0.0, 1.0);
 
 // Gamma: High complexity - Parallel often better than SIMD
@@ -371,13 +371,13 @@ std::vector<double> reusable_results(max_batch_size);
 
 for (size_t batch_start = 0; batch_start < total_size; batch_start += batch_size) {
     size_t current_batch_size = std::min(batch_size, total_size - batch_start);
-    
+
     // Resize without reallocation (if capacity is sufficient)
     reusable_input.resize(current_batch_size);
     reusable_results.resize(current_batch_size);
-    
+
     // Fill input data...
-    
+
     distribution.getProbability(std::span<const double>(reusable_input),
                                std::span<double>(reusable_results));
 }
@@ -403,17 +403,17 @@ auto profile_batch_sizes = [&](const std::vector<size_t>& sizes) {
     for (size_t size : sizes) {
         std::vector<double> test_input(size);
         std::vector<double> test_results(size);
-        
+
         // Fill with representative data...
-        
+
         auto start = std::chrono::high_resolution_clock::now();
         distribution.getProbability(std::span<const double>(test_input),
                                    std::span<double>(test_results));
         auto end = std::chrono::high_resolution_clock::now();
-        
+
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         double throughput = static_cast<double>(size) / duration.count(); // elements per μs
-        
+
         std::cout << "Size " << size << ": " << throughput << " elements/μs" << std::endl;
     }
 };
@@ -474,11 +474,11 @@ auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(auto_end 
 // Try different explicit strategies to see which matches auto-dispatch performance
 auto test_strategy = [&](libstats::performance::Strategy strategy, const std::string& name) {
     auto start = std::chrono::high_resolution_clock::now();
-    distribution.getProbabilityWithStrategy(std::span<const double>(input), 
+    distribution.getProbabilityWithStrategy(std::span<const double>(input),
                                            std::span<double>(explicit_results), strategy);
     auto end = std::chrono::high_resolution_clock::now();
     auto time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    
+
     std::cout << name << ": " << time.count() << " μs";
     if (std::abs(time.count() - auto_time.count()) < auto_time.count() * 0.1) {
         std::cout << " ← Likely auto-selected strategy";
@@ -500,29 +500,29 @@ bool verify_strategies(const std::vector<double>& input) {
     std::vector<double> scalar_results(input.size());
     std::vector<double> simd_results(input.size());
     std::vector<double> parallel_results(input.size());
-    
-    distribution.getProbabilityWithStrategy(std::span<const double>(input), 
-                                           std::span<double>(scalar_results), 
+
+    distribution.getProbabilityWithStrategy(std::span<const double>(input),
+                                           std::span<double>(scalar_results),
                                            libstats::performance::Strategy::SCALAR);
-    
-    distribution.getProbabilityWithStrategy(std::span<const double>(input), 
-                                           std::span<double>(simd_results), 
+
+    distribution.getProbabilityWithStrategy(std::span<const double>(input),
+                                           std::span<double>(simd_results),
                                            libstats::performance::Strategy::SIMD_BATCH);
-    
-    distribution.getProbabilityWithStrategy(std::span<const double>(input), 
-                                           std::span<double>(parallel_results), 
+
+    distribution.getProbabilityWithStrategy(std::span<const double>(input),
+                                           std::span<double>(parallel_results),
                                            libstats::performance::Strategy::PARALLEL_SIMD);
-    
+
     // Check for numerical differences
     for (size_t i = 0; i < input.size(); ++i) {
         if (std::abs(scalar_results[i] - simd_results[i]) > 1e-12 ||
             std::abs(scalar_results[i] - parallel_results[i]) > 1e-12) {
-            std::cout << "Mismatch at index " << i << ": scalar=" << scalar_results[i] 
+            std::cout << "Mismatch at index " << i << ": scalar=" << scalar_results[i]
                       << ", simd=" << simd_results[i] << ", parallel=" << parallel_results[i] << std::endl;
             return false;
         }
     }
-    
+
     return true;
 }
 ```
@@ -543,7 +543,7 @@ The system is designed to scale from small embedded applications to high-perform
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-08-13  
-**Covers**: Complete parallel/batch processing API and usage patterns  
+**Document Version**: 1.0
+**Last Updated**: 2025-08-13
+**Covers**: Complete parallel/batch processing API and usage patterns
 **Replaces**: `batch-processing-refactoring.md`, `deprecated_batch_cleanup_process.md`
