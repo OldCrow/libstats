@@ -4,6 +4,7 @@
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/math_utils.h"
 #include "../include/core/safety.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/parallel_execution.h"
 #include "../include/platform/simd.h"
 #include "../include/platform/simd_policy.h"
@@ -1069,8 +1070,12 @@ std::tuple<double, double, bool> DiscreteDistribution::discreteUniformityTest(
     [[maybe_unused]] const int degrees_of_freedom = range - 1;
 
     // Simple p-value approximation
-    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-    double p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
+    const double critical_value =
+        constants::thresholds::chi_square::CRITICAL_VALUE_005_DF1;  // Chi-squared critical value
+                                                                    // for alpha=0.05, df=1
+    double p_value = (chi_squared > critical_value)
+                         ? constants::thresholds::chi_square::PVAL_LOW
+                         : constants::thresholds::chi_square::PVAL_HIGH;  // Rough approximation
 
     const bool reject_uniformity = p_value < significance_level;
 
@@ -1141,23 +1146,35 @@ std::tuple<double, double, bool> DiscreteDistribution::andersonDarlingTest(
     // Critical values remain the same for discrete distributions
     double critical_value;
     if (alpha <= 0.01) {
-        critical_value = 3.857;
+        critical_value = constants::thresholds::anderson_darling_discrete::CRITICAL_VALUE_001;
     } else if (alpha <= 0.05) {
-        critical_value = 2.492;
+        critical_value = constants::thresholds::anderson_darling_discrete::CRITICAL_VALUE_005;
     } else if (alpha <= 0.10) {
-        critical_value = 1.933;
+        critical_value = constants::thresholds::anderson_darling_discrete::CRITICAL_VALUE_010;
     } else {
-        critical_value = 1.159;  // alpha = 0.25
+        critical_value =
+            constants::thresholds::anderson_darling_discrete::CRITICAL_VALUE_025;  // alpha = 0.25
     }
 
     // P-value calculation for discrete Anderson-Darling test
     double p_value;
-    if (ad_statistic < 0.5) {
-        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-    } else if (ad_statistic < 2.0) {
-        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
+    if (ad_statistic < constants::thresholds::anderson_darling_discrete::PVAL_THRESHOLD_1) {
+        p_value =
+            1.0 -
+            std::exp(
+                constants::thresholds::anderson_darling_discrete::PVAL_RANGE1_COEFF_A *
+                    std::pow(
+                        ad_statistic,
+                        constants::thresholds::anderson_darling_discrete::PVAL_RANGE1_EXPONENT) +
+                constants::thresholds::anderson_darling_discrete::PVAL_RANGE1_COEFF_B);
+    } else if (ad_statistic < constants::thresholds::anderson_darling_discrete::PVAL_THRESHOLD_2) {
+        p_value =
+            1.0 - std::exp(constants::thresholds::anderson_darling_discrete::PVAL_RANGE2_COEFF_A *
+                               ad_statistic +
+                           constants::thresholds::anderson_darling_discrete::PVAL_RANGE2_COEFF_B);
     } else {
-        p_value = std::exp(-ad_statistic);
+        p_value = std::exp(constants::thresholds::anderson_darling_discrete::PVAL_RANGE3_COEFF *
+                           ad_statistic);
     }
     p_value = std::max(0.0, std::min(1.0, p_value));  // Clamp to [0,1]
 
@@ -1217,18 +1234,25 @@ std::tuple<double, double, bool> DiscreteDistribution::chiSquaredGoodnessOfFitTe
     // Calculate p-value using chi-squared distribution
     // For simplicity, we'll use a basic approximation
     // In a full implementation, you'd use a proper chi-squared CDF
-    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
+    const double critical_value =
+        constants::thresholds::chi_square::CRITICAL_VALUE_005_DF1;  // Chi-squared critical value
+                                                                    // for alpha=0.05, df=1
 
     // Simple p-value approximation (this should use proper chi-squared CDF)
     double p_value;
     if (degrees_of_freedom == 1) {
-        p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
+        p_value = (chi_squared > critical_value)
+                      ? constants::thresholds::chi_square::PVAL_LOW
+                      : constants::thresholds::chi_square::PVAL_HIGH;  // Rough approximation
     } else {
         // For higher df, use a rough approximation
         const double mean_chi = degrees_of_freedom;
-        const double std_chi = std::sqrt(2.0 * degrees_of_freedom);
+        const double std_chi = std::sqrt(constants::math::TWO * degrees_of_freedom);
         const double z_score = (chi_squared - mean_chi) / std_chi;
-        p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation
+        p_value =
+            (z_score > constants::thresholds::z_score::Z_SCORE_97_5)
+                ? constants::thresholds::z_score::PVAL_TAIL
+                : constants::thresholds::chi_square::PVAL_HIGH;  // Very rough normal approximation
     }
 
     const bool reject_null = p_value < alpha;

@@ -20,6 +20,7 @@
 #include "../include/platform/cpu_detection.h"
 
 #include "../include/core/constants.h"
+#include "../include/platform/cpu_detection_constants.h"
 #include "../include/platform/platform_constants.h"
 
 #include <atomic>
@@ -143,49 +144,62 @@ void detect_cache_info(Features& features) {
     uint32_t eax, ebx, ecx, edx;
 
     // Try deterministic cache parameters (CPUID leaf 4)
-    safe_cpuid(0, 0, eax, ebx, ecx, edx);
-    if (eax >= 4) {
-        for (uint32_t i = 0; i < 32; ++i) {
-            safe_cpuid(4, i, eax, ebx, ecx, edx);
-            uint32_t cache_type = eax & 0x1F;
+    safe_cpuid(constants::cpu_detection::cpuid_leaf::VENDOR_STRING, 0, eax, ebx, ecx, edx);
+    if (eax >= constants::cpu_detection::cpuid_leaf::CACHE_PARAMETERS) {
+        for (uint32_t i = 0; i < constants::cpu_detection::MAX_CACHE_LEVELS; ++i) {
+            safe_cpuid(constants::cpu_detection::cpuid_leaf::CACHE_PARAMETERS, i, eax, ebx, ecx,
+                       edx);
+            uint32_t cache_type = eax & constants::cpu_detection::bit_masks::CACHE_TYPE_MASK;
 
-            if (cache_type == 0)
+            if (cache_type == constants::cpu_detection::cache_type::NO_MORE_CACHES)
                 break;  // No more cache levels
 
-            uint32_t cache_level = (eax >> 5) & 0x7;
-            uint32_t line_size = (ebx & 0xFFF) + 1;
-            uint32_t partitions = ((ebx >> 12) & 0x3FF) + 1;
-            uint32_t associativity = ((ebx >> 22) & 0x3FF) + 1;
-            uint32_t sets = ecx + 1;
+            uint32_t cache_level = (eax >> constants::cpu_detection::bit_masks::CACHE_LEVEL_SHIFT) &
+                                   constants::cpu_detection::bit_masks::CACHE_LEVEL_MASK;
+            uint32_t line_size = (ebx & constants::cpu_detection::bit_masks::CACHE_LINE_SIZE_MASK) +
+                                 constants::cpu_detection::INCREMENT_ONE;
+            uint32_t partitions =
+                ((ebx >> constants::cpu_detection::bit_masks::CACHE_PARTITIONS_SHIFT) &
+                 constants::cpu_detection::bit_masks::CACHE_PARTITIONS_MASK) +
+                constants::cpu_detection::INCREMENT_ONE;
+            uint32_t associativity =
+                ((ebx >> constants::cpu_detection::bit_masks::CACHE_ASSOCIATIVITY_SHIFT) &
+                 constants::cpu_detection::bit_masks::CACHE_ASSOCIATIVITY_MASK) +
+                constants::cpu_detection::INCREMENT_ONE;
+            uint32_t sets = ecx + constants::cpu_detection::INCREMENT_ONE;
 
             uint32_t cache_size = line_size * partitions * associativity * sets;
 
-            if (cache_level == 1) {
-                if (cache_type == 1) {  // Data cache
+            if (cache_level == constants::cpu_detection::cache_level::L1) {
+                if (cache_type == constants::cpu_detection::cache_type::DATA_CACHE) {  // Data cache
                     features.l1_data_cache.size = cache_size;
                     features.l1_data_cache.line_size = line_size;
                     features.l1_data_cache.associativity = associativity;
                     features.l1_data_cache.sets = sets;
                     features.l1_cache_size = cache_size;  // Legacy
-                } else if (cache_type == 2) {             // Instruction cache
+                } else if (cache_type == constants::cpu_detection::cache_type::
+                                             INSTRUCTION_CACHE) {  // Instruction
+                                                                   // cache
                     features.l1_instruction_cache.size = cache_size;
                     features.l1_instruction_cache.line_size = line_size;
                     features.l1_instruction_cache.associativity = associativity;
                     features.l1_instruction_cache.sets = sets;
                 }
-            } else if (cache_level == 2) {
+            } else if (cache_level == constants::cpu_detection::cache_level::L2) {
                 features.l2_cache.size = cache_size;
                 features.l2_cache.line_size = line_size;
                 features.l2_cache.associativity = associativity;
                 features.l2_cache.sets = sets;
-                features.l2_cache.is_unified = (cache_type == 3);
+                features.l2_cache.is_unified =
+                    (cache_type == constants::cpu_detection::cache_type::UNIFIED_CACHE);
                 features.l2_cache_size = cache_size;  // Legacy
-            } else if (cache_level == 3) {
+            } else if (cache_level == constants::cpu_detection::cache_level::L3) {
                 features.l3_cache.size = cache_size;
                 features.l3_cache.line_size = line_size;
                 features.l3_cache.associativity = associativity;
                 features.l3_cache.sets = sets;
-                features.l3_cache.is_unified = (cache_type == 3);
+                features.l3_cache.is_unified =
+                    (cache_type == constants::cpu_detection::cache_type::UNIFIED_CACHE);
                 features.l3_cache_size = cache_size;  // Legacy
             }
         }
@@ -206,29 +220,38 @@ void detect_topology_info(Features& features) {
     uint32_t eax, ebx, ecx, edx;
 
     // Get logical processor count from CPUID leaf 1
-    safe_cpuid(1, 0, eax, ebx, ecx, edx);
-    uint32_t logical_processors = (ebx >> 16) & 0xFF;
+    safe_cpuid(constants::cpu_detection::cpuid_leaf::BASIC_INFO, 0, eax, ebx, ecx, edx);
+    uint32_t logical_processors =
+        (ebx >> constants::cpu_detection::bit_masks::LOGICAL_PROCESSORS_SHIFT) &
+        constants::cpu_detection::bit_masks::LOGICAL_PROCESSORS_MASK;
 
     features.topology.logical_cores = logical_processors;
 
     // Try extended topology enumeration (CPUID leaf 0xB)
-    safe_cpuid(0, 0, eax, ebx, ecx, edx);
-    if (eax >= 0xB) {
+    safe_cpuid(constants::cpu_detection::cpuid_leaf::VENDOR_STRING, 0, eax, ebx, ecx, edx);
+    if (eax >= constants::cpu_detection::cpuid_leaf::EXTENDED_TOPOLOGY) {
         [[maybe_unused]] uint32_t smt_mask_width = 0;
         [[maybe_unused]] uint32_t core_mask_width = 0;
 
         // Level 0: SMT level
-        safe_cpuid(0xB, 0, eax, ebx, ecx, edx);
-        if (((ecx >> 8) & 0xFF) == 1) {  // SMT level
-            smt_mask_width = eax & 0x1F;
-            features.topology.threads_per_core = ebx & 0xFFFF;
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_TOPOLOGY, 0, eax, ebx, ecx, edx);
+        if (((ecx >> constants::cpu_detection::bit_masks::TOPOLOGY_LEVEL_SHIFT) &
+             constants::cpu_detection::bit_masks::TOPOLOGY_LEVEL_MASK) ==
+            constants::cpu_detection::topology_level::SMT) {  // SMT level
+            smt_mask_width = eax & constants::cpu_detection::bit_masks::TOPOLOGY_MASK_WIDTH_MASK;
+            features.topology.threads_per_core =
+                ebx & constants::cpu_detection::bit_masks::TOPOLOGY_PROCESSOR_COUNT_MASK;
         }
 
         // Level 1: Core level
-        safe_cpuid(0xB, 1, eax, ebx, ecx, edx);
-        if (((ecx >> 8) & 0xFF) == 2) {  // Core level
-            core_mask_width = eax & 0x1F;
-            uint32_t cores_per_package = ebx & 0xFFFF;
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_TOPOLOGY,
+                   constants::cpu_detection::INCREMENT_ONE, eax, ebx, ecx, edx);
+        if (((ecx >> constants::cpu_detection::bit_masks::TOPOLOGY_LEVEL_SHIFT) &
+             constants::cpu_detection::bit_masks::TOPOLOGY_LEVEL_MASK) ==
+            constants::cpu_detection::topology_level::CORE) {  // Core level
+            core_mask_width = eax & constants::cpu_detection::bit_masks::TOPOLOGY_MASK_WIDTH_MASK;
+            uint32_t cores_per_package =
+                ebx & constants::cpu_detection::bit_masks::TOPOLOGY_PROCESSOR_COUNT_MASK;
             features.topology.physical_cores = cores_per_package;
         }
 
@@ -304,21 +327,26 @@ void detect_performance_info(Features& features) {
     uint32_t eax, ebx, ecx, edx;
 
     // Check for RDTSC support
-    safe_cpuid(1, 0, eax, ebx, ecx, edx);
-    features.performance.has_rdtsc = (edx & (1 << 4)) != 0;
+    safe_cpuid(constants::cpu_detection::cpuid_leaf::BASIC_INFO, 0, eax, ebx, ecx, edx);
+    features.performance.has_rdtsc =
+        (edx & (1 << constants::cpu_detection::feature_bits::RDTSC_BIT)) != 0;
 
     // Check for invariant TSC
-    safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
-    if (eax >= 0x80000007) {
-        safe_cpuid(0x80000007, 0, eax, ebx, ecx, edx);
-        features.performance.has_invariant_tsc = (edx & (1 << 8)) != 0;
+    safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_FUNCTION_BASE, 0, eax, ebx, ecx, edx);
+    if (eax >= constants::cpu_detection::cpuid_leaf::EXTENDED_ADVANCED_POWER) {
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_ADVANCED_POWER, 0, eax, ebx, ecx,
+                   edx);
+        features.performance.has_invariant_tsc =
+            (edx & (1 << constants::cpu_detection::feature_bits::INVARIANT_TSC_BIT)) != 0;
     }
 
     // Check for performance monitoring capabilities
-    safe_cpuid(0, 0, eax, ebx, ecx, edx);
-    if (eax >= 0xA) {
-        safe_cpuid(0xA, 0, eax, ebx, ecx, edx);
-        features.performance.has_perf_counters = (eax & 0xFF) > 0;
+    safe_cpuid(constants::cpu_detection::cpuid_leaf::VENDOR_STRING, 0, eax, ebx, ecx, edx);
+    if (eax >= constants::cpu_detection::cpuid_leaf::PERFORMANCE_MONITORING) {
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::PERFORMANCE_MONITORING, 0, eax, ebx, ecx,
+                   edx);
+        features.performance.has_perf_counters =
+            (eax & constants::cpu_detection::bit_masks::PERFORMANCE_VERSION_MASK) > 0;
     }
 
     // Estimate TSC frequency if RDTSC is available
@@ -357,20 +385,26 @@ Features detect_x86_features() {
     safe_cpuid(1, 0, eax, ebx, ecx, edx);
 
     // Extract family, model, stepping
-    features.family = ((eax >> 8) & 0xF) + ((eax >> 20) & 0xFF);
-    features.model = ((eax >> 4) & 0xF) | ((eax >> 12) & 0xF0);
-    features.stepping = eax & 0xF;
+    features.family = ((eax >> constants::cpu_detection::bit_masks::FAMILY_BASE_SHIFT) &
+                       constants::cpu_detection::bit_masks::FAMILY_BASE_MASK) +
+                      ((eax >> constants::cpu_detection::bit_masks::FAMILY_EXTENDED_SHIFT) &
+                       constants::cpu_detection::bit_masks::FAMILY_EXTENDED_MASK);
+    features.model = ((eax >> constants::cpu_detection::bit_masks::MODEL_BASE_SHIFT) &
+                      constants::cpu_detection::bit_masks::MODEL_BASE_MASK) |
+                     ((eax >> constants::cpu_detection::bit_masks::MODEL_EXTENDED_SHIFT) &
+                      constants::cpu_detection::bit_masks::MODEL_EXTENDED_MASK);
+    features.stepping = eax & constants::cpu_detection::bit_masks::STEPPING_MASK;
 
     // Feature detection from CPUID leaf 1
-    features.sse2 = (edx & (1 << 26)) != 0;
-    features.sse3 = (ecx & (1 << 0)) != 0;
-    features.ssse3 = (ecx & (1 << 9)) != 0;
-    features.sse4_1 = (ecx & (1 << 19)) != 0;
-    features.sse4_2 = (ecx & (1 << 20)) != 0;
+    features.sse2 = (edx & (1 << constants::cpu_detection::feature_bits::SSE2_BIT)) != 0;
+    features.sse3 = (ecx & (1 << constants::cpu_detection::feature_bits::SSE3_BIT)) != 0;
+    features.ssse3 = (ecx & (1 << constants::cpu_detection::feature_bits::SSSE3_BIT)) != 0;
+    features.sse4_1 = (ecx & (1 << constants::cpu_detection::feature_bits::SSE41_BIT)) != 0;
+    features.sse4_2 = (ecx & (1 << constants::cpu_detection::feature_bits::SSE42_BIT)) != 0;
 
     // Check for AVX support
-    bool osxsave = (ecx & (1 << 27)) != 0;
-    bool avx_cpuid = (ecx & (1 << 28)) != 0;
+    bool osxsave = (ecx & (1 << constants::cpu_detection::feature_bits::OSXSAVE_BIT)) != 0;
+    bool avx_cpuid = (ecx & (1 << constants::cpu_detection::feature_bits::AVX_BIT)) != 0;
 
     // AVX requires both CPUID support AND OS support (OSXSAVE)
     if (osxsave && avx_cpuid) {
@@ -382,38 +416,57 @@ Features detect_x86_features() {
         xcr0 = _xgetbv(0);
     #endif
 
-        if ((xcr0 & 0x6) == 0x6) {  // Check bits 1 and 2
+        if ((xcr0 & constants::cpu_detection::bit_masks::XCR0_SSE_AVX_MASK) ==
+            constants::cpu_detection::bit_masks::XCR0_SSE_AVX_MASK) {  // Check SSE and AVX state
+                                                                       // bits
             features.avx = true;
-            features.fma = (ecx & (1 << 12)) != 0;
+            features.fma = (ecx & (1 << constants::cpu_detection::feature_bits::FMA_BIT)) != 0;
         }
     }
 
     // Check for AVX2 support (requires CPUID leaf 7)
-    if (features.avx && max_cpuid >= 7) {
-        safe_cpuid(7, 0, eax, ebx, ecx, edx);
-        features.avx2 = (ebx & (1 << 5)) != 0;
-        features.avx512f = (ebx & (1 << 16)) != 0;
+    if (features.avx && max_cpuid >= constants::cpu_detection::cpuid_leaf::EXTENDED_FEATURES) {
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_FEATURES, 0, eax, ebx, ecx, edx);
+        features.avx2 = (ebx & (1 << constants::cpu_detection::feature_bits::AVX2_BIT)) != 0;
+        features.avx512f = (ebx & (1 << constants::cpu_detection::feature_bits::AVX512F_BIT)) != 0;
     }
 
     // Get brand string if available
-    safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
-    if (eax >= 0x80000004) {
-        char brand[49] = {0};
-        safe_cpuid(0x80000002, 0, eax, ebx, ecx, edx);
-        memcpy(brand, &eax, 16);
-        safe_cpuid(0x80000003, 0, eax, ebx, ecx, edx);
-        memcpy(brand + 16, &eax, 16);
-        safe_cpuid(0x80000004, 0, eax, ebx, ecx, edx);
-        memcpy(brand + 32, &eax, 16);
+    safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_FUNCTION_BASE, 0, eax, ebx, ecx, edx);
+    if (eax >= constants::cpu_detection::cpuid_leaf::EXTENDED_BRAND_STRING_3) {
+        char brand[constants::cpu_detection::BRAND_STRING_SIZE] = {0};
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_BRAND_STRING_1, 0, eax, ebx, ecx,
+                   edx);
+        memcpy(brand, &eax,
+               constants::cpu_detection::CPUID_REGISTER_SIZE *
+                   constants::cpu_detection::REGISTERS_PER_LEAF);
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_BRAND_STRING_2, 0, eax, ebx, ecx,
+                   edx);
+        memcpy(brand + constants::cpu_detection::CPUID_REGISTER_SIZE *
+                           constants::cpu_detection::REGISTERS_PER_LEAF,
+               &eax,
+               constants::cpu_detection::CPUID_REGISTER_SIZE *
+                   constants::cpu_detection::REGISTERS_PER_LEAF);
+        safe_cpuid(constants::cpu_detection::cpuid_leaf::EXTENDED_BRAND_STRING_3, 0, eax, ebx, ecx,
+                   edx);
+        memcpy(brand + constants::cpu_detection::CPUID_REGISTER_SIZE *
+                           constants::cpu_detection::REGISTERS_PER_LEAF * 2,
+               &eax,
+               constants::cpu_detection::CPUID_REGISTER_SIZE *
+                   constants::cpu_detection::REGISTERS_PER_LEAF);
         features.brand = brand;
     }
 
     // Additional AVX-512 detection
     if (features.avx512f) {
-        features.avx512dq = (ebx & (1 << 17)) != 0;
-        features.avx512cd = (ebx & (1 << 28)) != 0;
-        features.avx512bw = (ebx & (1 << 30)) != 0;
-        features.avx512vl = (ebx & (1U << 31)) != 0;
+        features.avx512dq =
+            (ebx & (1 << constants::cpu_detection::feature_bits::AVX512DQ_BIT)) != 0;
+        features.avx512cd =
+            (ebx & (1 << constants::cpu_detection::feature_bits::AVX512CD_BIT)) != 0;
+        features.avx512bw =
+            (ebx & (1 << constants::cpu_detection::feature_bits::AVX512BW_BIT)) != 0;
+        features.avx512vl =
+            (ebx & (1U << constants::cpu_detection::feature_bits::AVX512VL_BIT)) != 0;
     }
 
     #if defined(__APPLE__)

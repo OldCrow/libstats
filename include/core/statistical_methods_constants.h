@@ -34,6 +34,18 @@ namespace bootstrap {
 /// Default number of bootstrap samples
 inline constexpr int DEFAULT_BOOTSTRAP_SAMPLES = 1000;
 
+/// Uniform distribution specific constants
+namespace uniform {
+/// Variance divisor for uniform distribution: Var = Range²/12
+inline constexpr double VARIANCE_DIVISOR = 12.0;
+
+/// L-moment scale multiplier for uniform distribution
+inline constexpr double L_MOMENT_SCALE_MULTIPLIER = 3.0;
+
+/// Z-score for 97.5th percentile (used in credible intervals)
+inline constexpr double Z_SCORE_97_5 = 1.96;
+}  // namespace uniform
+
 /// Default random seed for reproducible results
 inline constexpr unsigned int DEFAULT_RANDOM_SEED = 42;
 }  // namespace bootstrap

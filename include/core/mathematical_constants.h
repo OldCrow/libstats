@@ -88,8 +88,16 @@ inline constexpr double THREE = 3.0;
 inline constexpr double FOUR = 4.0;
 inline constexpr double FIVE = 5.0;
 inline constexpr double SIX = 6.0;
+inline constexpr double SEVEN = 7.0;
+inline constexpr double EIGHT = 8.0;
+inline constexpr double NINE = 9.0;
 inline constexpr double TEN = 10.0;
+inline constexpr double TWELVE = 12.0;
 inline constexpr double THIRTEEN = 13.0;
+inline constexpr double FIFTEEN = 15.0;
+inline constexpr double TWENTY = 20.0;
+inline constexpr double THIRTY = 30.0;
+inline constexpr double FIFTY = 50.0;
 inline constexpr double HUNDRED = 100.0;
 inline constexpr double THOUSAND = 1000.0;
 inline constexpr double THOUSANDTH = 0.001;
@@ -110,8 +118,10 @@ inline constexpr int TEN_INT = 10;
 
 /// Precomputed reciprocals to avoid division operations
 inline constexpr double ONE_THIRD = 1.0 / 3.0;
+inline constexpr double TWO_THIRDS = 2.0 / 3.0;
 inline constexpr double ONE_SIXTH = 1.0 / 6.0;
 inline constexpr double ONE_TWELFTH = 1.0 / 12.0;
+inline constexpr double ONE_SIXTEENTH = 1.0 / 16.0;
 
 /// Reciprocal constants
 inline constexpr double E_INV = 1.0 / E;

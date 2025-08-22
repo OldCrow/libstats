@@ -1,7 +1,11 @@
 #include "../include/core/validation.h"
 
+#include "../include/core/algorithm_constants.h"
 #include "../include/core/constants.h"
 #include "../include/core/distribution_base.h"
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/precision_constants.h"
+#include "../include/core/statistical_constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -66,23 +70,24 @@ namespace {
     // Critical values for α = 0.05 (5% significance level)
     if (alpha == constants::thresholds::ALPHA_05) {
         if (df == 1)
-            return 3.841;  // χ²(1,0.05) = 3.841
+            return constants::statistical::chi_square::CHI2_95_DF_1;
         if (df == 2)
-            return 5.991;  // χ²(2,0.05) = 5.991
+            return constants::statistical::chi_square::CHI2_95_DF_2;
         if (df == 3)
-            return 7.815;  // χ²(3,0.05) = 7.815
+            return constants::statistical::chi_square::CHI2_95_DF_3;
         if (df == 4)
-            return 9.488;  // χ²(4,0.05) = 9.488
+            return constants::statistical::chi_square::CHI2_95_DF_4;
         if (df == 5)
-            return 11.070;  // χ²(5,0.05) = 11.070
+            return constants::statistical::chi_square::CHI2_95_DF_5;
     }
 
     // Wilson-Hilferty approximation for general case
-    const double h = constants::math::TWO / (9.0 * df);
-    const double z_alpha =
-        (alpha == constants::thresholds::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile
+    const double h = constants::math::TWO / (constants::math::NINE * df);
+    const double z_alpha = (alpha == constants::thresholds::ALPHA_05)
+                               ? constants::statistical::normal::Z_95_ONE_TAIL
+                               : constants::statistical::normal::Z_95;
     const double term = constants::math::ONE - h + z_alpha * std::sqrt(h);
-    return df * std::pow(term, 3);
+    return df * std::pow(term, constants::math::THREE);
 }
 
 // Calculate empirical CDF
@@ -118,27 +123,29 @@ double gamma_function(double z) {
         return std::numeric_limits<double>::infinity();
 
     // Lanczos approximation coefficients (g=7)
-    static const double g = 7.0;
+    static const double g = constants::algorithm::lanczos::G;
     static const double coeff[] = {
-        0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
-        771.32342877765313,   -176.61502916214059,   12.507343278686905,
-        -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7};
+        constants::algorithm::lanczos::COEFF_0, constants::algorithm::lanczos::COEFF_1,
+        constants::algorithm::lanczos::COEFF_2, constants::algorithm::lanczos::COEFF_3,
+        constants::algorithm::lanczos::COEFF_4, constants::algorithm::lanczos::COEFF_5,
+        constants::algorithm::lanczos::COEFF_6, constants::algorithm::lanczos::COEFF_7,
+        constants::algorithm::lanczos::COEFF_8};
 
-    if (z < 0.5) {
+    if (z < constants::math::HALF) {
         // Use reflection formula: Γ(z) = π / (sin(πz) * Γ(1-z))
-        return M_PI / (std::sin(M_PI * z) * gamma_function(1.0 - z));
+        return M_PI / (std::sin(M_PI * z) * gamma_function(constants::math::ONE - z));
     }
 
-    z -= 1.0;
+    z -= constants::math::ONE;
     double x = coeff[0];
-    for (size_t i = 1; i < 9; ++i) {
+    for (size_t i = 1; i < constants::math::NINE; ++i) {
         x += coeff[i] / (z + static_cast<double>(i));
     }
 
-    const double t = z + g + 0.5;
-    const double sqrt_2pi = std::sqrt(2.0 * M_PI);
+    const double t = z + g + constants::math::HALF;
+    const double sqrt_2pi = std::sqrt(constants::math::TWO * M_PI);
 
-    return sqrt_2pi * std::pow(t, z + 0.5) * std::exp(-t) * x;
+    return sqrt_2pi * std::pow(t, z + constants::math::HALF) * std::exp(-t) * x;
 }
 
 /**
@@ -162,8 +169,8 @@ double lower_incomplete_gamma(double s, double x) {
     if (x == constants::math::ZERO_DOUBLE)
         return constants::math::ZERO_DOUBLE;
 
-    const double eps = 1e-12;
-    const int max_iter = 1000;
+    const double eps = constants::algorithm::convergence::VERY_TIGHT;
+    const int max_iter = constants::algorithm::iterations::VERY_LARGE;
 
     if (x < s + constants::math::ONE) {
         // Use series expansion
@@ -180,25 +187,25 @@ double lower_incomplete_gamma(double s, double x) {
         return std::pow(x, s) * std::exp(-x) * sum;
     } else {
         // Use continued fraction
-        [[maybe_unused]] double a = 1.0;
-        double b = x + 1.0 - s;
+        [[maybe_unused]] double a = constants::math::ONE;
+        double b = x + constants::math::ONE - s;
         double c = 1e30;
-        double d = 1.0 / b;
+        double d = constants::math::ONE / b;
         double h = d;
 
         for (int i = 1; i < max_iter; ++i) {
             const double an = -i * (i - s);
-            b += 2.0;
+            b += constants::math::TWO;
             d = an * d + b;
             if (std::abs(d) < eps)
                 d = eps;
             c = b + an / c;
             if (std::abs(c) < eps)
                 c = eps;
-            d = 1.0 / d;
+            d = constants::math::ONE / d;
             const double del = d * c;
             h *= del;
-            if (std::abs(del - 1.0) < eps)
+            if (std::abs(del - constants::math::ONE) < eps)
                 break;
         }
 
@@ -223,17 +230,19 @@ double chi_squared_pvalue(double chi_squared_statistic, int degrees_of_freedom) 
     if (chi_squared_statistic <= 0 || degrees_of_freedom <= 0)
         return 1.0;
 
-    const double s = degrees_of_freedom / 2.0;
-    const double x = chi_squared_statistic / 2.0;
+    const double s = degrees_of_freedom / constants::math::TWO;
+    const double x = chi_squared_statistic / constants::math::TWO;
 
     const double lower_gamma = lower_incomplete_gamma(s, x);
     const double gamma_val = gamma_function(s);
 
     if (gamma_val == 0)
-        return 1.0;
+        return constants::math::ONE;
 
     const double cdf = lower_gamma / gamma_val;
-    return 1.0 - std::max(0.0, std::min(1.0, cdf));  // Return upper tail probability
+    return constants::math::ONE -
+           std::max(constants::math::ZERO_DOUBLE,
+                    std::min(constants::math::ONE, cdf));  // Return upper tail probability
 }
 
 /**
@@ -255,9 +264,9 @@ double chi_squared_pvalue(double chi_squared_statistic, int degrees_of_freedom) 
  */
 double ks_pvalue_enhanced(double ks_statistic, size_t n) {
     if (ks_statistic <= 0)
-        return 1.0;
+        return constants::math::ONE;
     if (ks_statistic >= 1)
-        return 0.0;
+        return constants::math::ZERO_DOUBLE;
 
     const double sqrt_n = std::sqrt(static_cast<double>(n));
     const double lambda = ks_statistic * sqrt_n;
@@ -267,36 +276,39 @@ double ks_pvalue_enhanced(double ks_statistic, size_t n) {
         double sum = 0.0;
         const double lambda_sq = lambda * lambda;
 
-        for (int k = 1; k <= 200; ++k) {
-            const double term = std::exp(-2.0 * k * k * lambda_sq);
-            if (term < 1e-10)
+        for (int k = 1; k <= constants::algorithm::iterations::MEDIUM; ++k) {
+            const double term = std::exp(-constants::math::TWO * k * k * lambda_sq);
+            if (term < constants::algorithm::convergence::TIGHT)
                 break;  // Early termination for negligible terms
             sum += std::pow(-1, k - 1) * term;
         }
 
-        double p_value = 2.0 * sum;
+        double p_value = constants::math::TWO * sum;
 
         // Apply small-sample correction for moderate n
-        if (n < 100) {
-            const double correction = 1.0 + 2.0 * lambda_sq / (3.0 * sqrt_n);
+        if (n < constants::math::HUNDRED) {
+            const double correction = constants::math::ONE + constants::math::TWO * lambda_sq /
+                                                                 (constants::math::THREE * sqrt_n);
             p_value *= correction;
         }
 
-        return std::max(0.0, std::min(1.0, p_value));
+        return std::max(constants::math::ZERO_DOUBLE, std::min(constants::math::ONE, p_value));
     } else {
         // For small samples, use a more accurate approximation
         // Based on exact distribution properties
         const double z = lambda;
 
-        if (z < 0.27) {
-            return 1.0 - 2.0 * z * z;  // Linear approximation for very small z
-        } else if (z < 1.0) {
+        if (z < constants::algorithm::thresholds::KS_SMALL_Z) {
+            return constants::math::ONE -
+                   constants::math::TWO * z * z;  // Linear approximation for very small z
+        } else if (z < constants::math::ONE) {
             // Improved small-sample approximation
             const double z_sq = z * z;
-            return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);
+            return std::exp(-constants::math::TWO * z_sq) *
+                   (constants::math::ONE + constants::math::TWO * z_sq / constants::math::THREE);
         } else {
             // For large z, use asymptotic expansion
-            return 2.0 * std::exp(-2.0 * z * z);
+            return constants::math::TWO * std::exp(-constants::math::TWO * z * z);
         }
     }
 }
@@ -315,31 +327,39 @@ double ks_pvalue_enhanced(double ks_statistic, size_t n) {
  */
 double anderson_darling_pvalue_enhanced(double statistic) {
     if (statistic <= 0)
-        return 1.0;
+        return constants::math::ONE;
 
     // Extended critical values for better interpolation
     static const double extended_critical_values[] = {
-        0.576,  // α = 0.50
-        0.656,  // α = 0.40
-        0.787,  // α = 0.30
-        1.248,  // α = 0.25
-        1.610,  // α = 0.15
-        1.933,  // α = 0.10
-        2.492,  // α = 0.05
-        3.070,  // α = 0.025
-        3.857,  // α = 0.01
-        4.500   // α = 0.005
-    };
+        constants::algorithm::anderson_darling::CRIT_50,
+        constants::algorithm::anderson_darling::CRIT_40,
+        constants::algorithm::anderson_darling::CRIT_30,
+        constants::algorithm::anderson_darling::CRIT_25,
+        constants::algorithm::anderson_darling::CRIT_15,
+        constants::algorithm::anderson_darling::CRIT_10,
+        constants::algorithm::anderson_darling::CRIT_05,
+        constants::algorithm::anderson_darling::CRIT_025,
+        constants::algorithm::anderson_darling::CRIT_01,
+        constants::algorithm::anderson_darling::CRIT_005};
 
-    static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  0.25, 0.15,
-                                                          0.10, 0.05, 0.025, 0.01, 0.005};
+    static const double extended_significance_levels[] = {
+        constants::algorithm::anderson_darling::ALPHA_50,
+        constants::algorithm::anderson_darling::ALPHA_40,
+        constants::algorithm::anderson_darling::ALPHA_30,
+        constants::algorithm::anderson_darling::ALPHA_25,
+        constants::algorithm::anderson_darling::ALPHA_15,
+        constants::algorithm::anderson_darling::ALPHA_10,
+        constants::algorithm::anderson_darling::ALPHA_05,
+        constants::algorithm::anderson_darling::ALPHA_025,
+        constants::algorithm::anderson_darling::ALPHA_01,
+        constants::algorithm::anderson_darling::ALPHA_005};
 
     const size_t num_points =
         sizeof(extended_critical_values) / sizeof(extended_critical_values[0]);
 
     // Handle boundary cases
     if (statistic <= extended_critical_values[0]) {
-        return 1.0;
+        return constants::math::ONE;
     }
     if (statistic >= extended_critical_values[num_points - 1]) {
         // Asymptotic approximation for very large statistics
@@ -361,7 +381,7 @@ double anderson_darling_pvalue_enhanced(double statistic) {
         }
     }
 
-    return 0.001;  // fallback
+    return constants::algorithm::convergence::VERY_LOOSE;  // fallback
 }
 
 // Legacy function for backward compatibility

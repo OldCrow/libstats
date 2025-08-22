@@ -1,5 +1,7 @@
 #include "../include/platform/benchmark.h"
 
+#include "../include/core/benchmark_display_constants.h"
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -121,14 +123,16 @@ void Benchmark::printResults(std::ostream& os, bool showRawTimes) const {
         os << result.toString() << "\n";
 
         if (showRawTimes && !result.rawTimes.empty()) {
-            os << "Raw times (first 10): ";
-            const size_t showCount = std::min(size_t{10}, result.rawTimes.size());
+            os << "Raw times (first " << constants::benchmark::display::MAX_RAW_TIMES_TO_SHOW
+               << "): ";
+            const size_t showCount = std::min(constants::benchmark::display::MAX_RAW_TIMES_TO_SHOW,
+                                              result.rawTimes.size());
             for (size_t i = 0; i < showCount; ++i) {
                 os << std::fixed << std::setprecision(6) << result.rawTimes[i];
                 if (i < showCount - 1)
                     os << ", ";
             }
-            if (result.rawTimes.size() > 10) {
+            if (result.rawTimes.size() > constants::benchmark::display::MAX_RAW_TIMES_TO_SHOW) {
                 os << ", ... (" << result.rawTimes.size() << " total)";
             }
             os << "\n\n";
@@ -162,7 +166,8 @@ void Benchmark::compareResults(const std::vector<BenchmarkResult>& baseline,
 
             const double speedup = baseResult->stats.mean / compResult.stats.mean;
             const double percentChange =
-                ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) * 100.0;
+                ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) *
+                constants::benchmark::display::PERCENT_FACTOR;
 
             os << "Test: " << name << "\n";
             os << "  Baseline:   " << std::fixed << std::setprecision(6) << baseResult->stats.mean
@@ -171,9 +176,9 @@ void Benchmark::compareResults(const std::vector<BenchmarkResult>& baseline,
                << "s\n";
             os << "  Speedup:    " << std::fixed << std::setprecision(2) << speedup << "x";
 
-            if (speedup > 1.05) {
+            if (speedup > constants::benchmark::comparison::FASTER_THRESHOLD) {
                 os << " (FASTER)";
-            } else if (speedup < 0.95) {
+            } else if (speedup < constants::benchmark::comparison::SLOWER_THRESHOLD) {
                 os << " (SLOWER)";
             } else {
                 os << " (SIMILAR)";
@@ -287,7 +292,8 @@ std::vector<std::vector<double>> StatsBenchmarkUtils::createTestVectors(std::siz
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<double> dist(0.0, 1.0);
+    std::normal_distribution<double> dist(constants::benchmark::test_data::NORMAL_DIST_MEAN,
+                                          constants::benchmark::test_data::NORMAL_DIST_STDDEV);
     std::uniform_int_distribution<std::size_t> sizeDist(minSize, maxSize);
 
     for (std::size_t i = 0; i < numVectors; ++i) {
@@ -314,7 +320,8 @@ std::vector<std::vector<double>> StatsBenchmarkUtils::createTestMatrices(std::si
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<double> dist(0.0, 1.0);
+    std::normal_distribution<double> dist(constants::benchmark::test_data::NORMAL_DIST_MEAN,
+                                          constants::benchmark::test_data::NORMAL_DIST_STDDEV);
     std::uniform_int_distribution<std::size_t> rowDist(minRows, maxRows);
     std::uniform_int_distribution<std::size_t> colDist(minCols, maxCols);
 
@@ -424,7 +431,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(const std::vector<std::vector<
             for (const auto& vec : data) {
                 std::vector<double> result(vec.size());
                 for (size_t i = 0; i < vec.size(); ++i) {
-                    result[i] = vec[i] + 1.0;
+                    result[i] = vec[i] + constants::benchmark::test_data::SCALAR_ADD_VALUE;
                 }
             }
         },
@@ -437,7 +444,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(const std::vector<std::vector<
             for (const auto& vec : data) {
                 std::vector<double> result(vec.size());
                 for (size_t i = 0; i < vec.size(); ++i) {
-                    result[i] = vec[i] * 2.0;
+                    result[i] = vec[i] * constants::benchmark::test_data::SCALAR_MUL_VALUE;
                 }
             }
         },
@@ -459,7 +466,9 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(const std::vector<std::vector<
                 [[maybe_unused]] volatile double result = dotProduct;
             }
         },
-        0, static_cast<double>(data.size()) / 2.0);
+        0,
+        static_cast<double>(data.size()) /
+            constants::benchmark::test_data::DOT_PRODUCT_OPS_DIVISOR);
 }
 
 //========== RegressionTester Implementation ==========
@@ -490,7 +499,7 @@ bool RegressionTester::loadBaseline() {
             tokens.push_back(token);
         }
 
-        if (tokens.size() >= 8) {
+        if (tokens.size() >= constants::benchmark::display::MIN_CSV_TOKENS) {
             BenchmarkResult result;
             result.name = tokens[0];
             result.stats.mean = std::stod(tokens[1]);
@@ -556,7 +565,8 @@ bool RegressionTester::checkRegressions(const std::vector<BenchmarkResult>& curr
 
         const auto& baseline = *it->second;
         const double percentChange =
-            ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) * 100.0;
+            ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) *
+            constants::benchmark::display::PERCENT_FACTOR;
         const bool isRegression = percentChange > tolerancePercent_;
 
         if (isRegression) {
@@ -590,29 +600,46 @@ std::pair<std::size_t, std::size_t> Benchmark::getOptimalBenchmarkParams() const
     std::size_t warmupRuns = constants::benchmark::DEFAULT_WARMUP_RUNS;
 
     // Adjust based on CPU characteristics
-    if (cpuFeatures.topology.physical_cores >= 16) {
+    if (cpuFeatures.topology.physical_cores >=
+        constants::benchmark::cpu_optimization::HIGH_CORE_COUNT) {
         // High-core count systems - more iterations for stable results
-        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.5);
-        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.2);
-    } else if (cpuFeatures.topology.physical_cores <= 4) {
+        iterations = static_cast<std::size_t>(
+            static_cast<double>(iterations) *
+            constants::benchmark::cpu_optimization::HIGH_CORE_ITER_MULTIPLIER);
+        warmupRuns = static_cast<std::size_t>(
+            static_cast<double>(warmupRuns) *
+            constants::benchmark::cpu_optimization::HIGH_CORE_WARMUP_MULTIPLIER);
+    } else if (cpuFeatures.topology.physical_cores <=
+               constants::benchmark::cpu_optimization::LOW_CORE_COUNT) {
         // Low-core count systems - fewer iterations to save time
-        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.8);
-        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 0.8);
+        iterations = static_cast<std::size_t>(
+            static_cast<double>(iterations) *
+            constants::benchmark::cpu_optimization::LOW_CORE_ITER_MULTIPLIER);
+        warmupRuns = static_cast<std::size_t>(
+            static_cast<double>(warmupRuns) *
+            constants::benchmark::cpu_optimization::LOW_CORE_WARMUP_MULTIPLIER);
     }
 
     // Adjust for cache characteristics
-    if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) {  // 16MB+
+    if (cpuFeatures.l3_cache_size >= constants::benchmark::cpu_optimization::LARGE_L3_CACHE) {
         // Large cache - can handle more iterations efficiently
-        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.2);
-    } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) {  // 4MB or less
+        iterations = static_cast<std::size_t>(
+            static_cast<double>(iterations) *
+            constants::benchmark::cpu_optimization::LARGE_CACHE_ITER_MULTIPLIER);
+    } else if (cpuFeatures.l3_cache_size <=
+               constants::benchmark::cpu_optimization::SMALL_L3_CACHE) {
         // Small cache - reduce iterations to minimize cache pressure
-        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.9);
+        iterations = static_cast<std::size_t>(
+            static_cast<double>(iterations) *
+            constants::benchmark::cpu_optimization::SMALL_CACHE_ITER_MULTIPLIER);
     }
 
     // Adjust for hyperthreading
     if (cpuFeatures.topology.logical_cores > cpuFeatures.topology.physical_cores) {
         // Hyperthreading enabled - more warmup needed for stable results
-        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.3);
+        warmupRuns = static_cast<std::size_t>(
+            static_cast<double>(warmupRuns) *
+            constants::benchmark::cpu_optimization::HYPERTHREAD_WARMUP_MULTIPLIER);
     }
 
     // Ensure minimum values

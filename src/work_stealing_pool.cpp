@@ -1,5 +1,6 @@
 #include "../include/platform/work_stealing_pool.h"
 
+#include "../include/platform/parallel_execution_constants.h"
 #include "../include/platform/platform_constants.h"
 
 #include <algorithm>
@@ -67,7 +68,8 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
         std::unique_lock<std::mutex> lock(readinessMutex_);
 
         // Use timeout to prevent indefinite blocking in case of initialization issues
-        const auto timeout = std::chrono::milliseconds(5000);  // 5 second max wait
+        const auto timeout = std::chrono::milliseconds(
+            constants::parallel_execution::threading::THREAD_INIT_TIMEOUT_MS);
         const bool allReady = readinessCondition_.wait_for(lock, timeout, [this, numThreads] {
             return readyThreads_.load(std::memory_order_acquire) == numThreads;
         });
@@ -75,7 +77,8 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
         if (!allReady) {
             // Log warning and continue - this shouldn't happen in normal operation
             const auto actualReady = readyThreads_.load();
-            std::cerr << "Warning: WorkStealingPool thread initialization timeout after 5000ms. "
+            std::cerr << "Warning: WorkStealingPool thread initialization timeout after "
+                      << constants::parallel_execution::threading::THREAD_INIT_TIMEOUT_MS << "ms. "
                       << "Ready threads: " << actualReady << "/" << numThreads;
             if (actualReady < numThreads) {
                 std::cerr << " (" << (numThreads - actualReady) << " threads still initializing)";
@@ -240,11 +243,13 @@ void WorkStealingPool::workerLoop(int workerId) {
             // No work available, sleep briefly to avoid busy waiting
             // Use exponential backoff: yield first, then short sleep
             static thread_local int backoffCount = 0;
-            if (backoffCount < 10) {
+            if (backoffCount <
+                static_cast<int>(constants::parallel_execution::threading::YIELD_BACKOFF_LIMIT)) {
                 std::this_thread::yield();
                 backoffCount++;
             } else {
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
+                std::this_thread::sleep_for(std::chrono::microseconds(
+                    constants::parallel_execution::threading::SLEEP_BACKOFF_MICROSECONDS));
                 backoffCount = 0;  // Reset backoff counter
             }
         }
@@ -342,9 +347,8 @@ std::size_t WorkStealingPool::getOptimalThreadCount() noexcept {
         if (hwConcurrency > 0) {
             return hwConcurrency;
         }
-        // If even hardware_concurrency fails, default to 2 threads
-        // (minimum for meaningful work stealing)
-        return 2;
+        // If even hardware_concurrency fails, use minimum for meaningful work stealing
+        return constants::parallel_execution::threading::MIN_WORK_STEALING_THREADS;
     }
 
     // For work-stealing pools, we can use more threads than regular thread pools
@@ -362,7 +366,7 @@ std::size_t WorkStealingPool::getOptimalThreadCount() noexcept {
     } else {
         // Should not reach here, but be safe
         return std::max(static_cast<std::size_t>(std::thread::hardware_concurrency()),
-                        std::size_t(2));
+                        constants::parallel_execution::threading::MIN_WORK_STEALING_THREADS);
     }
 }
 
@@ -397,8 +401,10 @@ void WorkStealingPool::optimizeCurrentThread([[maybe_unused]] int workerId,
     // Optionally differentiate priority based on worker ID to help with load balancing
     // Lower worker IDs get slightly higher priority (closer to 0)
     if (numWorkers > 1) {
-        // Spread relative priorities from -2 to +2 across workers
-        relative_priority = -2 + (4 * workerId) / (numWorkers - 1);
+        // Spread relative priorities across the QoS priority range
+        using namespace constants::parallel_execution::threading;
+        relative_priority = WORK_STEALING_QOS_MIN_PRIORITY +
+                            (WORK_STEALING_QOS_PRIORITY_RANGE * workerId) / (numWorkers - 1);
     }
 
     // Apply QoS class to the current thread (self)

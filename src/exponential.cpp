@@ -3,6 +3,7 @@
 #include "../include/core/constants.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h"  // For parallel execution policies
@@ -455,7 +456,9 @@ void ExponentialDistribution::parallelBatchFit(const std::vector<std::vector<dou
                 pool_ptr = &ParallelUtils::getGlobalThreadPool();
             }
 
-            const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
+            const std::size_t optimal_grain_size =
+                std::max(std::size_t{1},
+                         num_datasets / constants::parallel::batch_processing::GRAIN_SIZE_DIVISOR);
             const std::size_t num_chunks =
                 (num_datasets + optimal_grain_size - 1) / optimal_grain_size;
 
@@ -859,9 +862,10 @@ std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariation
     }
 
     const size_t n = data.size();
-    if (n < 2) {
+    if (n < constants::thresholds::MIN_DATA_POINTS_FOR_FITTING) {
         throw std::invalid_argument(
-            "At least 2 data points required for coefficient of variation test");
+            "At least " + std::to_string(constants::thresholds::MIN_DATA_POINTS_FOR_FITTING) +
+            " data points required for coefficient of variation test");
     }
 
     // Calculate sample mean and sample standard deviation
@@ -957,22 +961,45 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
     // For exponential distribution with estimated parameter, adjust the statistic
     const size_t n = data.size();
     const double n_double = static_cast<double>(n);
-    const double ad_adjusted = ad_statistic * (constants::math::ONE + 0.6 / n_double);
+    const double ad_adjusted =
+        ad_statistic *
+        (constants::math::ONE +
+         constants::thresholds::anderson_darling_exponential::SAMPLE_SIZE_ADJUSTMENT_FACTOR /
+             n_double);
 
     // Improved p-value approximation for exponential distribution Anderson-Darling test
     // Based on D'Agostino and Stephens (1986) formulas for exponential distribution
     // with enhanced handling for large statistics
     double p_value;
-    if (ad_adjusted < 0.2) {
+    if (ad_adjusted < constants::thresholds::anderson_darling_exponential::RANGE1_THRESHOLD) {
         p_value = constants::math::ONE -
-                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < 0.34) {
+                  std::exp(constants::thresholds::anderson_darling_exponential::RANGE1_COEFF_A +
+                           constants::thresholds::anderson_darling_exponential::RANGE1_COEFF_B *
+                               ad_adjusted +
+                           constants::thresholds::anderson_darling_exponential::RANGE1_COEFF_C *
+                               ad_adjusted * ad_adjusted);
+    } else if (ad_adjusted <
+               constants::thresholds::anderson_darling_exponential::RANGE2_THRESHOLD) {
         p_value = constants::math::ONE -
-                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < 0.6) {
-        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < 2.0) {
-        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
+                  std::exp(constants::thresholds::anderson_darling_exponential::RANGE2_COEFF_A +
+                           constants::thresholds::anderson_darling_exponential::RANGE2_COEFF_B *
+                               ad_adjusted +
+                           constants::thresholds::anderson_darling_exponential::RANGE2_COEFF_C *
+                               ad_adjusted * ad_adjusted);
+    } else if (ad_adjusted <
+               constants::thresholds::anderson_darling_exponential::RANGE3_THRESHOLD) {
+        p_value = std::exp(constants::thresholds::anderson_darling_exponential::RANGE3_COEFF_A +
+                           constants::thresholds::anderson_darling_exponential::RANGE3_COEFF_B *
+                               ad_adjusted +
+                           constants::thresholds::anderson_darling_exponential::RANGE3_COEFF_C *
+                               ad_adjusted * ad_adjusted);
+    } else if (ad_adjusted <
+               constants::thresholds::anderson_darling_exponential::RANGE4_THRESHOLD) {
+        p_value = std::exp(constants::thresholds::anderson_darling_exponential::RANGE4_COEFF_A +
+                           constants::thresholds::anderson_darling_exponential::RANGE4_COEFF_B *
+                               ad_adjusted +
+                           constants::thresholds::anderson_darling_exponential::RANGE4_COEFF_C *
+                               ad_adjusted * ad_adjusted);
     } else {
         // For very large AD statistics, p-value should be very small (close to 0)
         // Use asymptotic approximation for extreme values

@@ -129,7 +129,7 @@ class LogSpaceOps {
     static double safeLog(double prob) noexcept { return (prob > 0.0) ? std::log(prob) : LOG_ZERO; }
 
    private:
-    /// Precomputed lookup table for log(1 + exp(x)) for x in [-50, 0]
+    /// Precomputed lookup table for log(1 + exp(x)) for x in [LOG_SUM_EXP_THRESHOLD, 0]
     static std::array<double, LOOKUP_TABLE_SIZE> logOnePlusExpTable_;
     static bool initialized_;
 

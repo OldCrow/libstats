@@ -2,6 +2,7 @@
 
 #include "../include/core/constants.h"
 #include "../include/core/math_utils.h"
+#include "../include/core/numerical_methods_constants.h"
 #include "../include/core/performance_dispatcher.h"
 #include "../include/core/safety.h"
 #include "../include/platform/parallel_execution.h"
@@ -342,7 +343,8 @@ double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)
         double fa = func(a);
         double fb = func(b);
         double fmid = func(mid);
-        return (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
+        return (b - a) / constants::numerical::simpson::SIMPSON_DIVISOR *
+               (fa + constants::numerical::simpson::MIDPOINT_WEIGHT * fmid + fb);
     }
 
     double mid = (a + b) / 2.0;
@@ -357,22 +359,33 @@ double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)
     double fright_mid = func(right_mid);
 
     // Compute Simpson's rule for whole interval
-    double whole = (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
+    double whole = (b - a) / constants::numerical::simpson::SIMPSON_DIVISOR *
+                   (fa + constants::numerical::simpson::MIDPOINT_WEIGHT * fmid + fb);
 
     // Compute Simpson's rule for left and right halves
-    double left = (mid - a) / 6.0 * (fa + 4.0 * fleft_mid + fmid);
-    double right = (b - mid) / 6.0 * (fmid + 4.0 * fright_mid + fb);
+    double left = (mid - a) / constants::numerical::simpson::SIMPSON_DIVISOR *
+                  (fa + constants::numerical::simpson::MIDPOINT_WEIGHT * fleft_mid + fmid);
+    double right = (b - mid) / constants::numerical::simpson::SIMPSON_DIVISOR *
+                   (fmid + constants::numerical::simpson::MIDPOINT_WEIGHT * fright_mid + fb);
 
     double combined = left + right;
 
     // Check if the error is within tolerance
-    if (std::abs(combined - whole) < 15.0 * tolerance) {
-        return combined + (combined - whole) / 15.0;  // Richardson extrapolation
+    if (std::abs(combined - whole) <
+        constants::numerical::richardson::ERROR_THRESHOLD_MULTIPLIER * tolerance) {
+        return combined +
+               (combined - whole) /
+                   constants::numerical::richardson::EXTRAPOLATION_DIVISOR;  // Richardson
+                                                                             // extrapolation
     }
 
     // Recursively refine both halves with half the tolerance
-    return adaptiveSimpsonIntegration(func, a, mid, tolerance / 2.0, depth + 1, max_depth) +
-           adaptiveSimpsonIntegration(func, mid, b, tolerance / 2.0, depth + 1, max_depth);
+    return adaptiveSimpsonIntegration(
+               func, a, mid, tolerance / constants::numerical::adaptive::TOLERANCE_REDUCTION_FACTOR,
+               depth + 1, max_depth) +
+           adaptiveSimpsonIntegration(
+               func, mid, b, tolerance / constants::numerical::adaptive::TOLERANCE_REDUCTION_FACTOR,
+               depth + 1, max_depth);
 }
 
 double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf_func,
@@ -467,7 +480,7 @@ double DistributionBase::gammaP(double a, double x) noexcept {
     }
 
     // Use series expansion for small x, continued fraction for large x
-    if (x < a + 1.0) {
+    if (x < a + constants::numerical::gamma::SERIES_VS_FRACTION_THRESHOLD) {
         // Series expansion
         double sum = 1.0;
         double term = 1.0;
@@ -506,13 +519,15 @@ double DistributionBase::betaI(double x, double a, double b) noexcept {
     }
 
     // Use continued fraction approximation
-    double bt =
-        std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) + b * std::log(1.0 - x));
+    double bt = std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) +
+                         b * std::log(constants::math::ONE - x));
 
-    if (x < (a + 1.0) / (a + b + 2.0)) {
+    if (x < (a + constants::numerical::beta::COMPUTATION_THRESHOLD_NUMERATOR_OFFSET) /
+                (a + b + constants::numerical::beta::COMPUTATION_THRESHOLD_DENOMINATOR_OFFSET)) {
         return bt * betaI_continued_fraction(x, a, b) / a;
     } else {
-        return 1.0 - bt * betaI_continued_fraction(1.0 - x, b, a) / b;
+        return constants::math::ONE -
+               bt * betaI_continued_fraction(constants::math::ONE - x, b, a) / b;
     }
 }
 
@@ -522,7 +537,7 @@ double DistributionBase::betaI(double x, double a, double b) noexcept {
 
 double DistributionBase::betaI_continued_fraction(double x, double a, double b) noexcept {
     // Continued fraction for incomplete beta function
-    const int max_iterations = 100;
+    const int max_iterations = constants::numerical::beta::MAX_ITERATIONS;
     const double tolerance = constants::precision::DEFAULT_TOLERANCE;
 
     double qab = a + b;

@@ -2891,3 +2891,1502 @@ The full include-list for /Users/wolfman/Development/libstats/src/performance_di
 #include "../include/core/performance_history.h"           // for Performanc...
 #include "../include/platform/simd_policy.h"               // for SIMDPolicy
 ---
+
+/Users/wolfman/Development/libstats/src/simd_dispatch.cpp should add these lines:
+#include <stdint.h>                                  // for uintptr_t
+#include <string>                                    // for basic_string
+#include "core/mathematical_constants.h"             // for ZERO_INT, FOUR_INT
+
+/Users/wolfman/Development/libstats/src/simd_dispatch.cpp should remove these lines:
+- #include <algorithm>  // lines 11-11
+- #include "../include/core/constants.h"  // lines 5-5
+
+The full include-list for /Users/wolfman/Development/libstats/src/simd_dispatch.cpp:
+#include <stdint.h>                                  // for uintptr_t
+#include <cstring>                                   // for size_t
+#include <string>                                    // for basic_string
+#include "../include/platform/cpu_detection.h"       // for supports_avx
+#include "../include/platform/platform_constants.h"  // for get_cache_thresh...
+#include "../include/platform/simd.h"                // for VectorOps
+#include "../include/platform/simd_policy.h"         // for SIMDPolicy
+#include "core/mathematical_constants.h"             // for ZERO_INT, FOUR_INT
+---
+
+
+/Users/wolfman/Development/libstats/include/core/validation.h should add these lines:
+#include <__vector/vector.h>  // for vector
+#include <stddef.h>           // for size_t
+
+/Users/wolfman/Development/libstats/include/core/validation.h should remove these lines:
+- #include <vector>  // lines 35-35
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/validation.h:
+#include <__vector/vector.h>  // for vector
+#include <stddef.h>           // for size_t
+#include <string>             // for basic_string, string
+namespace libstats { class DistributionBase; }  // lines 40-40
+---
+
+/Users/wolfman/Development/libstats/src/validation.cpp should add these lines:
+#include <__math/exponential_functions.h>            // for pow
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <cstdlib>                                   // for abs
+#include "core/distribution_interface.h"             // for DistributionInte...
+#include "core/threshold_constants.h"                // for ANDERSON_DARLING...
+
+/Users/wolfman/Development/libstats/src/validation.cpp should remove these lines:
+- #include "../include/core/constants.h"  // lines 4-4
+- #include "../include/core/precision_constants.h"  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/src/validation.cpp:
+#include "../include/core/validation.h"
+#include <__math/exponential_functions.h>            // for pow
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <algorithm>                                 // for max, sort, min
+#include <cmath>                                     // for exp, log, pow, sqrt
+#include <cstdlib>                                   // for abs
+#include <limits>                                    // for numeric_limits
+#include <numeric>                                   // for accumulate
+#include <random>                                    // for random_device
+#include <sstream>                                   // for basic_ostringstream
+#include "../include/core/algorithm_constants.h"     // for ALPHA_005, ALPHA_01
+#include "../include/core/distribution_base.h"       // for DistributionBase
+#include "../include/core/mathematical_constants.h"  // for ONE, TWO, ZERO_D...
+#include "../include/core/statistical_constants.h"   // for CHI2_95_DF_1
+#include "core/distribution_interface.h"             // for DistributionInte...
+#include "core/threshold_constants.h"                // for ANDERSON_DARLING...
+---
+
+
+/Users/wolfman/Development/libstats/src/simd_dispatch.cpp should add these lines:
+#include <stdint.h>                                  // for uintptr_t
+#include <string>                                    // for basic_string
+#include "core/mathematical_constants.h"             // for ZERO_INT, FOUR_INT
+
+/Users/wolfman/Development/libstats/src/simd_dispatch.cpp should remove these lines:
+- #include <algorithm>  // lines 11-11
+- #include "../include/core/constants.h"  // lines 5-5
+
+The full include-list for /Users/wolfman/Development/libstats/src/simd_dispatch.cpp:
+#include <stdint.h>                                  // for uintptr_t
+#include <cstring>                                   // for size_t
+#include <string>                                    // for basic_string
+#include "../include/platform/cpu_detection.h"       // for supports_avx
+#include "../include/platform/platform_constants.h"  // for get_cache_thresh...
+#include "../include/platform/simd.h"                // for VectorOps
+#include "../include/platform/simd_policy.h"         // for SIMDPolicy
+#include "core/mathematical_constants.h"             // for ZERO_INT, FOUR_INT
+---
+
+
+/Users/wolfman/Development/libstats/include/core/validation.h should add these lines:
+#include <__vector/vector.h>  // for vector
+#include <stddef.h>           // for size_t
+
+/Users/wolfman/Development/libstats/include/core/validation.h should remove these lines:
+- #include <vector>  // lines 35-35
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/validation.h:
+#include <__vector/vector.h>  // for vector
+#include <stddef.h>           // for size_t
+#include <string>             // for basic_string, string
+namespace libstats { class DistributionBase; }  // lines 40-40
+---
+
+/Users/wolfman/Development/libstats/src/validation.cpp should add these lines:
+#include <__math/exponential_functions.h>            // for pow
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <cstdlib>                                   // for abs
+#include "core/distribution_interface.h"             // for DistributionInte...
+#include "core/threshold_constants.h"                // for ANDERSON_DARLING...
+
+/Users/wolfman/Development/libstats/src/validation.cpp should remove these lines:
+- #include "../include/core/constants.h"  // lines 4-4
+- #include "../include/core/precision_constants.h"  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/src/validation.cpp:
+#include "../include/core/validation.h"
+#include <__math/exponential_functions.h>            // for pow
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <algorithm>                                 // for max, sort, min
+#include <cmath>                                     // for exp, log, pow, sqrt
+#include <cstdlib>                                   // for abs
+#include <limits>                                    // for numeric_limits
+#include <numeric>                                   // for accumulate
+#include <random>                                    // for random_device
+#include <sstream>                                   // for basic_ostringstream
+#include "../include/core/algorithm_constants.h"     // for ALPHA_005, ALPHA_01
+#include "../include/core/distribution_base.h"       // for DistributionBase
+#include "../include/core/mathematical_constants.h"  // for ONE, TWO, ZERO_D...
+#include "../include/core/statistical_constants.h"   // for CHI2_95_DF_1
+#include "core/distribution_interface.h"             // for DistributionInte...
+#include "core/threshold_constants.h"                // for ANDERSON_DARLING...
+---
+
+
+/Users/wolfman/Development/libstats/include/core/performance_history.h should add these lines:
+#include <cstddef>        // for size_t
+#include <cstdint>        // for uint64_t, uint32_t, UINT64_MAX
+#include <utility>        // for pair
+namespace libstats { namespace performance { enum class DistributionType; } }
+namespace libstats { namespace performance { enum class Strategy; } }
+
+/Users/wolfman/Development/libstats/include/core/performance_history.h should remove these lines:
+- #include <chrono>  // lines 6-6
+- #include "performance_dispatcher.h"  // lines 3-3
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/performance_history.h:
+#include <atomic>         // for atomic, memory_order_acquire
+#include <cstddef>        // for size_t
+#include <cstdint>        // for uint64_t, uint32_t, UINT64_MAX
+#include <map>            // for map
+#include <mutex>          // for timed_mutex
+#include <optional>       // for optional
+#include <string>         // for basic_string, hash, string
+#include <unordered_map>  // for unordered_map
+#include <utility>        // for pair
+namespace libstats { namespace performance { enum class DistributionType; } }
+namespace libstats { namespace performance { enum class Strategy; } }
+---
+
+/Users/wolfman/Development/libstats/src/performance_history.cpp should add these lines:
+#include <__vector/vector.h>              // for vector
+#include <initializer_list>               // for initializer_list
+#include "core/performance_dispatcher.h"  // for Strategy, DistributionType
+
+/Users/wolfman/Development/libstats/src/performance_history.cpp should remove these lines:
+- #include <cmath>  // lines 4-4
+- #include <vector>  // lines 5-5
+
+The full include-list for /Users/wolfman/Development/libstats/src/performance_history.cpp:
+#include "../include/core/performance_history.h"
+#include <__vector/vector.h>              // for vector
+#include <algorithm>                      // for min, max_element, max, min_...
+#include <initializer_list>               // for initializer_list
+#include "core/performance_dispatcher.h"  // for Strategy, DistributionType
+---
+
+
+/Users/wolfman/Development/libstats/include/distributions/gamma.h should add these lines:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for lgamma, log, round, sqrt
+#include <cstdlib>                        // for abs, size_t
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for Result, VoidResult, validat...
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, HALF
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/include/distributions/gamma.h should remove these lines:
+- #include "../common/distribution_common.h"  // lines 4-4
+- #include "../common/distribution_platform_common.h"  // lines 8-8
+
+The full include-list for /Users/wolfman/Development/libstats/include/distributions/gamma.h:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for lgamma, log, round, sqrt
+#include <cstdlib>                        // for abs, size_t
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for Result, VoidResult, validat...
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, HALF
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+/Users/wolfman/Development/libstats/src/gamma.cpp should add these lines:
+#include <__math/exponential_functions.h>            // for pow
+#include <__math/roots.h>                            // for sqrt
+#include <__ostream/basic_ostream.h>                 // for basic_ostream
+#include <cstddef>                                   // for ptrdiff_t
+#include <exception>                                 // for exception
+#include <future>                                    // for future
+#include <mutex>                                     // for unique_lock, sco...
+#include "core/probability_constants.h"              // for NEGATIVE_INFINITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+#include "platform/simd.h"                           // for aligned_allocator
+#include "platform/simd_policy.h"                    // for SIMDPolicy
+
+/Users/wolfman/Development/libstats/src/gamma.cpp should remove these lines:
+- #include <chrono>  // lines 13-13
+- #include <iostream>  // lines 15-15
+
+The full include-list for /Users/wolfman/Development/libstats/src/gamma.cpp:
+#include "../include/distributions/gamma.h"
+#include <__math/exponential_functions.h>            // for pow
+#include <__math/roots.h>                            // for sqrt
+#include <__ostream/basic_ostream.h>                 // for basic_ostream
+#include <algorithm>                                 // for max, sort, min
+#include <cmath>                                     // for log, exp, sqrt
+#include <cstddef>                                   // for ptrdiff_t
+#include <exception>                                 // for exception
+#include <future>                                    // for future
+#include <limits>                                    // for numeric_limits
+#include <mutex>                                     // for unique_lock, sco...
+#include <numeric>                                   // for accumulate, iota
+#include <random>                                    // for uniform_real_dis...
+#include <sstream>                                   // for basic_istream
+#include <stdexcept>                                 // for invalid_argument
+#include "../include/core/dispatch_utils.h"          // for DispatchUtils
+#include "../include/core/error_handling.h"          // for validateGammaPar...
+#include "../include/core/math_utils.h"              // for gamma_p, gamma_i...
+#include "../include/core/performance_dispatcher.h"  // for Strategy
+#include "../include/core/threshold_constants.h"     // for CRITICAL_VALUE_C...
+#include "../include/platform/parallel_execution.h"  // for should_use_parallel
+#include "../include/platform/thread_pool.h"         // for ParallelUtils
+#include "../include/platform/work_stealing_pool.h"  // for WorkStealingPool
+#include "core/probability_constants.h"              // for NEGATIVE_INFINITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+#include "platform/simd.h"                           // for aligned_allocator
+#include "platform/simd_policy.h"                    // for SIMDPolicy
+---
+
+warning: '/Users/wolfman/Development/libstats/src/simd_neon.cpp' not found in compilation database.
+
+/Users/wolfman/Development/libstats/include/core/distribution_memory.h should add these lines:
+#include <__cstddef/byte.h>         // for byte
+#include <__cstddef/max_align_t.h>  // for max_align_t
+#include <__new/exceptions.h>       // for bad_alloc
+#include <__vector/vector.h>        // for vector
+#include <malloc/_malloc.h>         // for aligned_alloc
+#include <stdint.h>                 // for uintptr_t
+#include <initializer_list>         // for initializer_list
+#include <limits>                   // for numeric_limits
+#include <stdexcept>                // for out_of_range
+#include <utility>                  // for forward
+
+/Users/wolfman/Development/libstats/include/core/distribution_memory.h should remove these lines:
+- #include <new>  // lines 9-9
+- #include <type_traits>  // lines 10-10
+- #include <vector>  // lines 11-11
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/distribution_memory.h:
+#include <__cstddef/byte.h>         // for byte
+#include <__cstddef/max_align_t.h>  // for max_align_t
+#include <__new/exceptions.h>       // for bad_alloc
+#include <__vector/vector.h>        // for vector
+#include <malloc/_malloc.h>         // for aligned_alloc
+#include <stdint.h>                 // for uintptr_t
+#include <algorithm>                // for move
+#include <atomic>                   // for atomic, memory_order_acquire, mem...
+#include <cstddef>                  // for size_t, max_align_t, ptrdiff_t
+#include <cstdlib>                  // for free, aligned_alloc
+#include <initializer_list>         // for initializer_list
+#include <limits>                   // for numeric_limits
+#include <memory>                   // for make_unique, unique_ptr
+#include <mutex>                    // for mutex, lock_guard
+#include <stdexcept>                // for out_of_range
+#include <utility>                  // for forward
+---
+
+(/Users/wolfman/Development/libstats/src/distribution_memory.cpp has correct #includes/fwd-decls)
+
+
+/Users/wolfman/Development/libstats/include/distributions/uniform.h should add these lines:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for log, isinf, isnan
+#include <cstdlib>                        // for abs, size_t
+#include <iosfwd>                         // for istream, ostream
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for VoidResult, validateUniform...
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, HALF, THO...
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/include/distributions/uniform.h should remove these lines:
+- #include "../common/distribution_common.h"  // lines 4-4
+- #include "../common/distribution_platform_common.h"  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/include/distributions/uniform.h:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for log, isinf, isnan
+#include <cstdlib>                        // for abs, size_t
+#include <iosfwd>                         // for istream, ostream
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for VoidResult, validateUniform...
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, HALF, THO...
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+/Users/wolfman/Development/libstats/src/uniform.cpp should add these lines:
+#include <__math/exponential_functions.h>                   // for pow
+#include <__math/logarithms.h>                              // for log
+#include <__math/roots.h>                                   // for sqrt
+#include <__ostream/basic_ostream.h>                        // for basic_ost...
+#include <future>                                           // for future
+#include <limits>                                           // for numeric_l...
+#include <mutex>                                            // for unique_lock
+#include "core/performance_dispatcher.h"                    // for Strategy
+#include "core/probability_constants.h"                     // for NEGATIVE_...
+#include "platform/parallel_thresholds.h"                   // for shouldUse...
+#include "platform/simd_policy.h"                           // for SIMDPolicy
+#include "platform/thread_pool.h"                           // for ParallelU...
+
+/Users/wolfman/Development/libstats/src/uniform.cpp should remove these lines:
+- #include <iomanip>  // lines 16-16
+- #include <vector>  // lines 20-20
+- #include "../include/core/constants.h"  // lines 3-3
+- #include "../include/core/log_space_ops.h"  // lines 7-7
+- #include "../include/core/validation.h"  // lines 9-9
+- #include "../include/platform/cpu_detection.h"  // lines 10-10
+
+The full include-list for /Users/wolfman/Development/libstats/src/uniform.cpp:
+#include "../include/distributions/uniform.h"
+#include <__math/exponential_functions.h>                   // for pow
+#include <__math/logarithms.h>                              // for log
+#include <__math/roots.h>                                   // for sqrt
+#include <__ostream/basic_ostream.h>                        // for basic_ost...
+#include <algorithm>                                        // for min, max
+#include <cmath>                                            // for log, sqrt
+#include <future>                                           // for future
+#include <limits>                                           // for numeric_l...
+#include <mutex>                                            // for unique_lock
+#include <numeric>                                          // for accumulate
+#include <random>                                           // for uniform_r...
+#include <sstream>                                          // for basic_ist...
+#include "../include/core/dispatch_utils.h"                 // for DispatchU...
+#include "../include/core/math_utils.h"                     // for calculate...
+#include "../include/core/statistical_methods_constants.h"  // for VARIANCE_...
+#include "../include/core/threshold_constants.h"            // for CRITICAL_...
+#include "../include/platform/parallel_execution.h"         // for should_us...
+#include "../include/platform/work_stealing_pool.h"         // for WorkSteal...
+#include "core/performance_dispatcher.h"                    // for Strategy
+#include "core/probability_constants.h"                     // for NEGATIVE_...
+#include "platform/parallel_thresholds.h"                   // for shouldUse...
+#include "platform/simd_policy.h"                           // for SIMDPolicy
+#include "platform/thread_pool.h"                           // for ParallelU...
+---
+
+
+/Users/wolfman/Development/libstats/src/system_capabilities.cpp should add these lines:
+#include <__math/traits.h>                           // for isfinite
+#include <__vector/vector.h>                         // for vector
+#include <stddef.h>                                  // for size_t
+
+/Users/wolfman/Development/libstats/src/system_capabilities.cpp should remove these lines:
+- #include <vector>  // lines 9-9
+
+The full include-list for /Users/wolfman/Development/libstats/src/system_capabilities.cpp:
+#include <__math/traits.h>                           // for isfinite
+#include <__vector/vector.h>                         // for vector
+#include <stddef.h>                                  // for size_t
+#include <algorithm>                                 // for max, min, copy
+#include <chrono>                                    // for duration_cast
+#include <cmath>                                     // for isfinite
+#include <numeric>                                   // for accumulate
+#include <thread>                                    // for thread
+#include "../include/core/performance_dispatcher.h"  // for SystemCapabilities
+#include "../include/platform/cpu_detection.h"       // for supports_avx
+---
+
+
+/Users/wolfman/Development/libstats/src/platform_constants_impl.cpp should add these lines:
+#include <string>                                      // for operator==
+
+/Users/wolfman/Development/libstats/src/platform_constants_impl.cpp should remove these lines:
+- #include <chrono>  // lines 6-6
+- #include <climits>  // lines 7-7
+- #include <cstdint>  // lines 10-10
+
+The full include-list for /Users/wolfman/Development/libstats/src/platform_constants_impl.cpp:
+#include <algorithm>                                   // for max
+#include <cmath>                                       // for round, sqrt
+#include <cstddef>                                     // for size_t
+#include <string>                                      // for operator==
+#include "../include/common/platform_constants_fwd.h"  // for CacheThresholds
+#include "platform/cpu_detection.h"                    // for Features, get_...
+---
+
+
+/Users/wolfman/Development/libstats/include/distributions/discrete.h should add these lines:
+#include <__vector/vector.h>              // for vector
+#include <limits.h>                       // for INT_MAX, INT_MIN
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for log, round
+#include <cstddef>                        // for size_t
+#include <iosfwd>                         // for istream, ostream
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for VoidResult, validateDiscret...
+#include "core/mathematical_constants.h"  // for LN2
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/include/distributions/discrete.h should remove these lines:
+- #include "../common/distribution_common.h"  // lines 4-4
+- #include "../common/distribution_platform_common.h"  // lines 8-8
+
+The full include-list for /Users/wolfman/Development/libstats/include/distributions/discrete.h:
+#include <__vector/vector.h>              // for vector
+#include <limits.h>                       // for INT_MAX, INT_MIN
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for log, round
+#include <cstddef>                        // for size_t
+#include <iosfwd>                         // for istream, ostream
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for VoidResult, validateDiscret...
+#include "core/mathematical_constants.h"  // for LN2
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+/Users/wolfman/Development/libstats/src/discrete.cpp should add these lines:
+#include <__math/exponential_functions.h>            // for pow
+#include <__math/roots.h>                            // for sqrt
+#include <__ostream/basic_ostream.h>                 // for basic_ostream
+#include <cstdlib>                                   // for abs
+#include <future>                                    // for future
+#include <limits>                                    // for numeric_limits
+#include <mutex>                                     // for unique_lock, def...
+#include "core/performance_dispatcher.h"             // for Strategy, Perfor...
+#include "core/probability_constants.h"              // for NEGATIVE_INFINITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+
+/Users/wolfman/Development/libstats/src/discrete.cpp should remove these lines:
+- #include <iomanip>  // lines 16-16
+- #include "../include/core/constants.h"  // lines 3-3
+- #include "../include/core/safety.h"  // lines 6-6
+- #include "../include/platform/simd.h"  // lines 9-9
+
+The full include-list for /Users/wolfman/Development/libstats/src/discrete.cpp:
+#include "../include/distributions/discrete.h"
+#include <__math/exponential_functions.h>            // for pow
+#include <__math/roots.h>                            // for sqrt
+#include <__ostream/basic_ostream.h>                 // for basic_ostream
+#include <algorithm>                                 // for min, max, sort
+#include <cmath>                                     // for floor, sqrt, exp
+#include <cstdlib>                                   // for abs
+#include <future>                                    // for future
+#include <limits>                                    // for numeric_limits
+#include <map>                                       // for map
+#include <mutex>                                     // for unique_lock, def...
+#include <numeric>                                   // for iota
+#include <random>                                    // for uniform_int_dist...
+#include <span>                                      // for span
+#include <sstream>                                   // for basic_istream
+#include <stdexcept>                                 // for invalid_argument
+#include "../include/core/dispatch_utils.h"          // for DispatchUtils
+#include "../include/core/math_utils.h"              // for calculate_ad_sta...
+#include "../include/core/threshold_constants.h"     // for PVAL_HIGH, CRITI...
+#include "../include/platform/parallel_execution.h"  // for should_use_parallel
+#include "../include/platform/simd_policy.h"         // for SIMDPolicy
+#include "../include/platform/thread_pool.h"         // for ParallelUtils
+#include "../include/platform/work_stealing_pool.h"  // for WorkStealingPool
+#include "core/performance_dispatcher.h"             // for Strategy, Perfor...
+#include "core/probability_constants.h"              // for NEGATIVE_INFINITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+---
+
+warning: '/Users/wolfman/Development/libstats/src/simd_avx2.cpp' not found in compilation database.
+
+/Users/wolfman/Development/libstats/include/platform/benchmark.h should add these lines:
+#include <__vector/vector.h>  // for vector
+#include <chrono>             // for operator-, duration, time_point, high_r...
+#include <cstddef>            // for size_t
+#include <functional>         // for function
+#include <ratio>              // for ratio
+#include <string>             // for basic_string, string
+#include <utility>            // for pair
+
+/Users/wolfman/Development/libstats/include/platform/benchmark.h should remove these lines:
+- #include "../common/platform_common.h"  // lines 3-3
+- #include "../core/math_utils.h"  // lines 9-9
+
+The full include-list for /Users/wolfman/Development/libstats/include/platform/benchmark.h:
+#include <__vector/vector.h>  // for vector
+#include <chrono>             // for operator-, duration, time_point, high_r...
+#include <cstddef>            // for size_t
+#include <functional>         // for function
+#include <iostream>           // for cout, ostream
+#include <map>                // for map
+#include <ratio>              // for ratio
+#include <string>             // for basic_string, string
+#include <utility>            // for pair
+---
+
+/Users/wolfman/Development/libstats/src/benchmark.cpp should add these lines:
+#include <__math/traits.h>                                // for isfinite
+#include <__ostream/basic_ostream.h>                      // for basic_ostream
+#include <sstream>                                        // for basic_ostri...
+#include "core/benchmark_constants.h"                     // for DEFAULT_ITE...
+#include "core/precision_constants.h"                     // for MACHINE_EPS...
+#include "platform/cpu_detection.h"                       // for Features
+#include "platform/platform_constants.h"                  // for get_features
+
+/Users/wolfman/Development/libstats/src/benchmark.cpp should remove these lines:
+
+The full include-list for /Users/wolfman/Development/libstats/src/benchmark.cpp:
+#include "../include/platform/benchmark.h"
+#include <__math/traits.h>                                // for isfinite
+#include <__ostream/basic_ostream.h>                      // for basic_ostream
+#include <algorithm>                                      // for sort, max, min
+#include <cmath>                                          // for sqrt, isfinite
+#include <fstream>                                        // for basic_ofstream
+#include <iomanip>                                        // for operator<<
+#include <numeric>                                        // for accumulate
+#include <random>                                         // for uniform_int...
+#include <sstream>                                        // for basic_ostri...
+#include "../include/core/benchmark_display_constants.h"  // for MAX_RAW_TIM...
+#include "core/benchmark_constants.h"                     // for DEFAULT_ITE...
+#include "core/precision_constants.h"                     // for MACHINE_EPS...
+#include "platform/cpu_detection.h"                       // for Features
+#include "platform/platform_constants.h"                  // for get_features
+---
+
+
+/Users/wolfman/Development/libstats/include/distributions/gaussian.h should add these lines:
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_acquire
+#include <cmath>                          // for log
+#include <cstdlib>                        // for abs, size_t
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for VoidResult, validateGaussia...
+#include "core/mathematical_constants.h"  // for ZERO_DOUBLE, ONE, SQRT_2PI
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/include/distributions/gaussian.h should remove these lines:
+- #include <algorithm>  // lines 11-11
+- #include "../common/distribution_common.h"  // lines 4-4
+- #include "../common/distribution_platform_common.h"  // lines 8-8
+
+The full include-list for /Users/wolfman/Development/libstats/include/distributions/gaussian.h:
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_acquire
+#include <cmath>                          // for log
+#include <cstdlib>                        // for abs, size_t
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for VoidResult, validateGaussia...
+#include "core/mathematical_constants.h"  // for ZERO_DOUBLE, ONE, SQRT_2PI
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+/Users/wolfman/Development/libstats/src/gaussian.cpp should add these lines:
+#include <__math/exponential_functions.h>             // for pow
+#include <__math/logarithms.h>                        // for log
+#include <__math/traits.h>                            // for isfinite
+#include <__ostream/basic_ostream.h>                  // for basic_ostream
+#include <exception>                                  // for exception
+#include <functional>                                 // for plus
+#include <future>                                     // for future
+#include <mutex>                                      // for unique_lock, mutex
+#include <sstream>                                    // for basic_istream
+#include <stdexcept>                                  // for invalid_argument
+#include "core/math_utils.h"                          // for chi_squared_cdf
+#include "core/robust_constants.h"                    // for MAD_SCALING_FACTOR
+#include "core/threshold_constants.h"                 // for EXCESS_KURTOSIS...
+#include "platform/parallel_execution.h"              // for should_use_para...
+#include "platform/thread_pool.h"                     // for ParallelUtils
+#include "platform/work_stealing_pool.h"              // for WorkStealingPool
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/src/gaussian.cpp should remove these lines:
+- #include <concepts>  // lines 14-14
+- #include <vector>  // lines 18-18
+- #include <version>  // lines 19-19
+- #include "../include/core/constants.h"  // lines 3-3
+- #include "../include/core/safety.h"  // lines 5-5
+- #include "../include/core/validation.h"  // lines 6-6
+- #include "../include/platform/cpu_detection.h"  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/src/gaussian.cpp:
+#include "../include/distributions/gaussian.h"
+#include <__math/exponential_functions.h>             // for pow
+#include <__math/logarithms.h>                        // for log
+#include <__math/traits.h>                            // for isfinite
+#include <__ostream/basic_ostream.h>                  // for basic_ostream
+#include <algorithm>                                  // for sort, min, max
+#include <cmath>                                      // for exp, erf, sqrt
+#include <exception>                                  // for exception
+#include <functional>                                 // for plus
+#include <future>                                     // for future
+#include <mutex>                                      // for unique_lock, mutex
+#include <numeric>                                    // for accumulate, inn...
+#include <ranges>                                     // for drop_view, __pi...
+#include <span>                                       // for span
+#include <sstream>                                    // for basic_istream
+#include <stdexcept>                                  // for invalid_argument
+#include "../include/core/dispatch_utils.h"           // for DispatchUtils
+#include "../include/platform/parallel_thresholds.h"  // for shouldUseDistri...
+#include "../include/platform/simd.h"                 // for VectorOps, alig...
+#include "../include/platform/simd_policy.h"          // for SIMDPolicy
+#include "core/math_utils.h"                          // for chi_squared_cdf
+#include "core/robust_constants.h"                    // for MAD_SCALING_FACTOR
+#include "core/threshold_constants.h"                 // for EXCESS_KURTOSIS...
+#include "platform/parallel_execution.h"              // for should_use_para...
+#include "platform/thread_pool.h"                     // for ParallelUtils
+#include "platform/work_stealing_pool.h"              // for WorkStealingPool
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+
+/Users/wolfman/Development/libstats/include/platform/work_stealing_pool.h should add these lines:
+#include <__vector/vector.h>              // for vector
+#include <algorithm>                      // for max, min
+#include <atomic>                         // for atomic
+#include <cstddef>                        // for size_t
+#include <functional>                     // for function
+#include <memory>                         // for unique_ptr
+#include <mutex>                          // for mutex
+#include <thread>                         // for thread
+#include <type_traits>                    // for invoke_result_t
+#include <utility>                        // for move
+#include <version>                        // for __cpp_lib_is_invocable
+#include "platform/platform_constants.h"  // for grain_size, min_elements_fo...
+
+/Users/wolfman/Development/libstats/include/platform/work_stealing_pool.h should remove these lines:
+- #include <future>  // lines 7-7
+- #include "../common/platform_common.h"  // lines 3-3
+- #include "../core/math_utils.h"  // lines 14-14
+
+The full include-list for /Users/wolfman/Development/libstats/include/platform/work_stealing_pool.h:
+#include <__vector/vector.h>              // for vector
+#include <algorithm>                      // for max, min
+#include <atomic>                         // for atomic
+#include <condition_variable>             // for condition_variable
+#include <cstddef>                        // for size_t
+#include <deque>                          // for deque
+#include <functional>                     // for function
+#include <memory>                         // for unique_ptr
+#include <mutex>                          // for mutex
+#include <random>                         // for random_device, mt19937
+#include <thread>                         // for thread
+#include <type_traits>                    // for invoke_result_t
+#include <utility>                        // for move
+#include <version>                        // for __cpp_lib_is_invocable
+#include "platform/platform_constants.h"  // for grain_size, min_elements_fo...
+#include "simd.h"                         // for double_vector_width
+---
+
+/Users/wolfman/Development/libstats/src/work_stealing_pool.cpp should add these lines:
+#include <__ostream/basic_ostream.h>                           // for basic_...
+#include <pthread/qos.h>                                       // for pthrea...
+#include <sys/qos.h>                                           // for QOS_CL...
+#include <exception>                                           // for exception
+#include <stdexcept>                                           // for runtim...
+#include "core/mathematical_constants.h"                       // for ZERO_INT
+#include "core/safety.h"                                       // for safety
+#include "platform/cpu_detection.h"                            // for Features
+#include "platform/simd_policy.h"                              // for simd
+
+/Users/wolfman/Development/libstats/src/work_stealing_pool.cpp should remove these lines:
+- #include <dispatch/dispatch.h>  // lines 18-18
+- #include <pthread.h>  // lines 19-19
+- #include <sys/sysctl.h>  // lines 20-20
+- #include <sys/types.h>  // lines 21-21
+- #include <cmath>  // lines 8-8
+- #include <future>  // lines 9-9
+- #include <optional>  // lines 12-12
+
+The full include-list for /Users/wolfman/Development/libstats/src/work_stealing_pool.cpp:
+#include "../include/platform/work_stealing_pool.h"
+#include <__ostream/basic_ostream.h>                           // for basic_...
+#include <pthread/qos.h>                                       // for pthrea...
+#include <sys/qos.h>                                           // for QOS_CL...
+#include <algorithm>                                           // for max
+#include <chrono>                                              // for micros...
+#include <exception>                                           // for exception
+#include <iostream>                                            // for char_t...
+#include <memory>                                              // for unique...
+#include <random>                                              // for unifor...
+#include <stdexcept>                                           // for runtim...
+#include <thread>                                              // for thread
+#include "../include/platform/parallel_execution_constants.h"  // for MIN_WO...
+#include "../include/platform/platform_constants.h"            // for get_fe...
+#include "core/mathematical_constants.h"                       // for ZERO_INT
+#include "core/safety.h"                                       // for safety
+#include "platform/cpu_detection.h"                            // for Features
+#include "platform/simd_policy.h"                              // for simd
+---
+
+
+/Users/wolfman/Development/libstats/include/platform/cpu_detection.h should add these lines:
+#include <__vector/vector.h>  // for vector
+#include <stddef.h>           // for size_t
+
+/Users/wolfman/Development/libstats/include/platform/cpu_detection.h should remove these lines:
+- #include <vector>  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/include/platform/cpu_detection.h:
+#include <__vector/vector.h>  // for vector
+#include <stddef.h>           // for size_t
+#include <chrono>             // for duration_cast, high_resolution_clock
+#include <cstdint>            // for uint32_t, uint64_t
+#include <optional>           // for optional
+#include <string>             // for basic_string, string
+---
+
+/Users/wolfman/Development/libstats/src/cpu_detection.cpp should add these lines:
+#include <version>                                        // for __cpp_lib_a...
+
+/Users/wolfman/Development/libstats/src/cpu_detection.cpp should remove these lines:
+- #include <immintrin.h>  // lines 40-40
+- #include <memory>  // lines 29-29
+- #include "../include/core/constants.h"  // lines 22-22
+
+The full include-list for /Users/wolfman/Development/libstats/src/cpu_detection.cpp:
+#include "../include/platform/cpu_detection.h"
+#include <cpuid.h>                                        // for __cpuid_count
+#include <sys/sysctl.h>                                   // for sysctlbyname
+#include <atomic>                                         // for atomic, mem...
+#include <chrono>                                         // for duration
+#include <cstring>                                        // for memcpy
+#include <optional>                                       // for optional
+#include <string>                                         // for basic_string
+#include <thread>                                         // for sleep_for
+#include <version>                                        // for __cpp_lib_a...
+#include "../include/platform/cpu_detection_constants.h"  // for CPUID_REGIS...
+#include "../include/platform/platform_constants.h"       // for NANOSECONDS...
+---
+
+
+/Users/wolfman/Development/libstats/include/platform/parallel_thresholds.h should add these lines:
+#include <cstddef>        // for size_t
+#include <string>         // for basic_string, string, hash
+
+/Users/wolfman/Development/libstats/include/platform/parallel_thresholds.h should remove these lines:
+- #include "../common/platform_common.h"  // lines 12-12
+
+The full include-list for /Users/wolfman/Development/libstats/include/platform/parallel_thresholds.h:
+#include <cstddef>        // for size_t
+#include <string>         // for basic_string, string, hash
+#include <unordered_map>  // for unordered_map
+---
+
+/Users/wolfman/Development/libstats/src/parallel_thresholds.cpp should add these lines:
+#include <_ctype.h>                                            // for tolower
+#include "platform/cpu_detection.h"                            // for Features
+#include "platform/platform_constants.h"                       // for get_fe...
+
+/Users/wolfman/Development/libstats/src/parallel_thresholds.cpp should remove these lines:
+- #include <cctype>  // lines 6-6
+
+The full include-list for /Users/wolfman/Development/libstats/src/parallel_thresholds.cpp:
+#include "../include/platform/parallel_thresholds.h"
+#include <_ctype.h>                                            // for tolower
+#include <algorithm>                                           // for transform
+#include "../include/platform/parallel_execution_constants.h"  // for DEFAUL...
+#include "platform/cpu_detection.h"                            // for Features
+#include "platform/platform_constants.h"                       // for get_fe...
+---
+
+
+/Users/wolfman/Development/libstats/include/distributions/poisson.h should add these lines:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <limits.h>                       // for INT_MAX
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for round, exp, lgamma, log, sqrt
+#include <cstdlib>                        // for size_t, abs
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for validatePoissonParameters
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, E_INV
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+#include "core/threshold_constants.h"     // for MAX_POISSON_LAMBDA, SMALL_L...
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/include/distributions/poisson.h should remove these lines:
+- #include "../common/distribution_common.h"  // lines 4-4
+- #include "../common/distribution_platform_common.h"  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/include/distributions/poisson.h:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <limits.h>                       // for INT_MAX
+#include <array>                          // for array
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for round, exp, lgamma, log, sqrt
+#include <cstdlib>                        // for size_t, abs
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for validatePoissonParameters
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, E_INV
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+#include "core/threshold_constants.h"     // for MAX_POISSON_LAMBDA, SMALL_L...
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+/Users/wolfman/Development/libstats/src/poisson.cpp should add these lines:
+#include <__math/exponential_functions.h>            // for pow
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <exception>                                 // for exception
+#include <future>                                    // for future
+#include <mutex>                                     // for unique_lock, def...
+#include "core/probability_constants.h"              // for MIN_LOG_PROBABILITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+#include "platform/work_stealing_pool.h"             // for WorkStealingPool
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/src/poisson.cpp should remove these lines:
+- #include <any>  // lines 15-15
+- #include <vector>  // lines 21-21
+- #include "../include/core/constants.h"  // lines 3-3
+- #include "../include/core/log_space_ops.h"  // lines 5-5
+- #include "../include/core/safety.h"  // lines 7-7
+- #include "../include/core/validation.h"  // lines 8-8
+- #include "../include/platform/cpu_detection.h"  // lines 9-9
+
+The full include-list for /Users/wolfman/Development/libstats/src/poisson.cpp:
+#include "../include/distributions/poisson.h"
+#include <__math/exponential_functions.h>            // for pow
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <algorithm>                                 // for max, min, sort
+#include <cmath>                                     // for exp, sqrt, isfinite
+#include <exception>                                 // for exception
+#include <future>                                    // for future
+#include <map>                                       // for map
+#include <mutex>                                     // for unique_lock, def...
+#include <numeric>                                   // for accumulate, iota
+#include <random>                                    // for normal_distribution
+#include <sstream>                                   // for basic_istream
+#include "../include/core/dispatch_utils.h"          // for DispatchUtils
+#include "../include/core/math_utils.h"              // for gamma_q, chi_squ...
+#include "../include/platform/parallel_execution.h"  // for should_use_parallel
+#include "../include/platform/simd_policy.h"         // for SIMDPolicy
+#include "../include/platform/thread_pool.h"         // for ParallelUtils
+#include "core/probability_constants.h"              // for MIN_LOG_PROBABILITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+#include "platform/work_stealing_pool.h"             // for WorkStealingPool
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+
+/Users/wolfman/Development/libstats/src/libstats_init.cpp should add these lines:
+#include <mutex>                                     // for mutex, lock_guard
+
+/Users/wolfman/Development/libstats/src/libstats_init.cpp should remove these lines:
+
+The full include-list for /Users/wolfman/Development/libstats/src/libstats_init.cpp:
+#include <mutex>                                     // for mutex, lock_guard
+#include "../include/core/performance_dispatcher.h"  // for PerformanceDispa...
+#include "../include/libstats.h"                     // for initialize_perfo...
+#include "../include/platform/simd_policy.h"         // for SIMDPolicy
+#include "../include/platform/thread_pool.h"         // for ThreadPool
+---
+
+
+/Users/wolfman/Development/libstats/include/core/log_space_ops.h should add these lines:
+#include <__math/traits.h>             // for isnan
+#include <cstddef>                     // for size_t
+#include "core/threshold_constants.h"  // for LOG_SPACE_LOOKUP_TABLE_SIZE
+
+/Users/wolfman/Development/libstats/include/core/log_space_ops.h should remove these lines:
+- #include "../platform/simd.h"  // lines 3-3
+- #include "constants.h"  // lines 4-4
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/log_space_ops.h:
+#include <__math/traits.h>             // for isnan
+#include <array>                       // for array
+#include <cmath>                       // for log, isnan
+#include <cstddef>                     // for size_t
+#include <limits>                      // for numeric_limits
+#include "core/threshold_constants.h"  // for LOG_SPACE_LOOKUP_TABLE_SIZE
+---
+
+/Users/wolfman/Development/libstats/src/log_space_ops.cpp should add these lines:
+#include <utility>                                // for swap
+#include "platform/simd.h"                        // for has_simd_support
+
+/Users/wolfman/Development/libstats/src/log_space_ops.cpp should remove these lines:
+- #include <limits>  // lines 9-9
+
+The full include-list for /Users/wolfman/Development/libstats/src/log_space_ops.cpp:
+#include "../include/core/log_space_ops.h"
+#include <algorithm>                              // for max_element, min
+#include <cmath>                                  // for exp, log1p, floor
+#include <utility>                                // for swap
+#include "../include/core/safety.h"               // for safe_log
+#include "../include/core/threshold_constants.h"  // for LOG_SUM_EXP_THRESHOLD
+#include "../include/platform/simd_policy.h"      // for SIMDPolicy
+#include "platform/simd.h"                        // for has_simd_support
+---
+
+
+/Users/wolfman/Development/libstats/include/core/safety.h should add these lines:
+#include <__math/traits.h>               // for isnan, isfinite, isinf
+#include <__vector/vector.h>             // for vector
+#include <stdint.h>                      // for SIZE_MAX, uintptr_t
+#include <algorithm>                     // for max
+#include <cstdlib>                       // for size_t, abs
+#include "core/precision_constants.h"    // for DEFAULT_TOLERANCE, ZERO
+#include "core/probability_constants.h"  // for MIN_PROBABILITY, MIN_LOG_PRO...
+#include "core/threshold_constants.h"    // for LOG_EXP_OVERFLOW_THRESHOLD
+
+/Users/wolfman/Development/libstats/include/core/safety.h should remove these lines:
+- #include <cstddef>  // lines 8-8
+- #include <vector>  // lines 13-13
+- #include "../platform/simd.h"  // lines 3-3
+- #include "constants.h"  // lines 4-4
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/safety.h:
+#include <__math/traits.h>               // for isnan, isfinite, isinf
+#include <__vector/vector.h>             // for vector
+#include <stdint.h>                      // for SIZE_MAX, uintptr_t
+#include <algorithm>                     // for max
+#include <cassert>                       // for assert
+#include <cmath>                         // for isnan, isfinite, exp, log, sqrt
+#include <cstdlib>                       // for size_t, abs
+#include <limits>                        // for numeric_limits
+#include <span>                          // for span
+#include <stdexcept>                     // for runtime_error, out_of_range
+#include <string>                        // for operator+, allocator, char_t...
+#include "core/precision_constants.h"    // for DEFAULT_TOLERANCE, ZERO
+#include "core/probability_constants.h"  // for MIN_PROBABILITY, MIN_LOG_PRO...
+#include "core/threshold_constants.h"    // for LOG_EXP_OVERFLOW_THRESHOLD
+---
+
+/Users/wolfman/Development/libstats/src/safety.cpp should add these lines:
+#include "core/mathematical_constants.h"          // for ZERO_DOUBLE, ONE
+#include "platform/simd.h"                        // for optimal_alignment
+#include "platform/simd_policy.h"                 // for SIMDPolicy
+
+/Users/wolfman/Development/libstats/src/safety.cpp should remove these lines:
+- #include "../include/core/constants.h"  // lines 3-3
+
+The full include-list for /Users/wolfman/Development/libstats/src/safety.cpp:
+#include "../include/core/safety.h"
+#include <algorithm>                              // for copy
+#include <cmath>                                  // for isnan, exp, log, sqrt
+#include "../include/core/threshold_constants.h"  // for LOG_EXP_OVERFLOW_TH...
+#include "core/mathematical_constants.h"          // for ZERO_DOUBLE, ONE
+#include "platform/simd.h"                        // for optimal_alignment
+#include "platform/simd_policy.h"                 // for SIMDPolicy
+---
+
+
+/Users/wolfman/Development/libstats/src/simd_avx.cpp should add these lines:
+#include <cstddef>                                   // for size_t
+
+/Users/wolfman/Development/libstats/src/simd_avx.cpp should remove these lines:
+- #include <cmath>  // lines 19-19
+- #include "../include/core/constants.h"  // lines 14-14
+
+The full include-list for /Users/wolfman/Development/libstats/src/simd_avx.cpp:
+#include <immintrin.h>                               // for _mm256_loadu_pd
+#include <cstddef>                                   // for size_t
+#include "../include/platform/cpu_detection.h"       // for supports_avx
+#include "../include/platform/platform_constants.h"  // for AVX_DOUBLES
+#include "../include/platform/simd.h"                // for VectorOps
+---
+
+
+/Users/wolfman/Development/libstats/src/simd_fallback.cpp should add these lines:
+#include <cmath>                                     // for erf, exp, log, pow
+#include <cstddef>                                   // for size_t
+
+/Users/wolfman/Development/libstats/src/simd_fallback.cpp should remove these lines:
+- #include <algorithm>  // lines 10-10
+- #include "../include/core/constants.h"  // lines 4-4
+- #include "../include/platform/cpu_detection.h"  // lines 5-5
+
+The full include-list for /Users/wolfman/Development/libstats/src/simd_fallback.cpp:
+#include <cmath>                                     // for erf, exp, log, pow
+#include <cstddef>                                   // for size_t
+#include "../include/platform/platform_constants.h"  // for get_min_simd_size
+#include "../include/platform/simd.h"                // for VectorOps
+#include "../include/platform/simd_policy.h"         // for SIMDPolicy
+---
+
+
+/Users/wolfman/Development/libstats/include/platform/thread_pool.h should add these lines:
+#include <__vector/vector.h>              // for vector
+#include <algorithm>                      // for min, max
+#include <atomic>                         // for atomic
+#include <condition_variable>             // for condition_variable
+#include <cstddef>                        // for size_t
+#include <functional>                     // for function, bind
+#include <memory>                         // for make_shared
+#include <mutex>                          // for mutex, unique_lock
+#include <stdexcept>                      // for runtime_error
+#include <string>                         // for basic_string
+#include <thread>                         // for thread
+#include <type_traits>                    // for invoke_result_t, invoke_result
+#include <utility>                        // for move, forward
+#include <version>                        // for __cpp_lib_is_invocable
+#include "core/safety.h"                  // for check_finite
+#include "platform/platform_constants.h"  // for grain_size, min_elements_fo...
+
+/Users/wolfman/Development/libstats/include/platform/thread_pool.h should remove these lines:
+- #include "../common/platform_common.h"  // lines 3-3
+- #include "../core/math_utils.h"  // lines 14-14
+
+The full include-list for /Users/wolfman/Development/libstats/include/platform/thread_pool.h:
+#include <__vector/vector.h>              // for vector
+#include <algorithm>                      // for min, max
+#include <atomic>                         // for atomic
+#include <condition_variable>             // for condition_variable
+#include <cstddef>                        // for size_t
+#include <functional>                     // for function, bind
+#include <future>                         // for future, packaged_task
+#include <memory>                         // for make_shared
+#include <mutex>                          // for mutex, unique_lock
+#include <optional>                       // for optional, nullopt, nullopt_t
+#include <queue>                          // for queue
+#include <span>                           // for span
+#include <stdexcept>                      // for runtime_error
+#include <string>                         // for basic_string
+#include <thread>                         // for thread
+#include <type_traits>                    // for invoke_result_t, invoke_result
+#include <utility>                        // for move, forward
+#include <version>                        // for __cpp_lib_is_invocable
+#include "core/safety.h"                  // for check_finite
+#include "platform/platform_constants.h"  // for grain_size, min_elements_fo...
+#include "simd.h"                         // for double_vector_width
+---
+
+/Users/wolfman/Development/libstats/src/thread_pool.cpp should add these lines:
+#include <__ostream/basic_ostream.h>                 // for basic_ostream
+#include <exception>                                 // for exception
+#include "core/mathematical_constants.h"             // for ONE_INT, ZERO_INT
+#include "platform/cpu_detection.h"                  // for Features, Topolo...
+
+/Users/wolfman/Development/libstats/src/thread_pool.cpp should remove these lines:
+- #include <mach/mach.h>  // lines 16-16
+- #include <mach/thread_policy.h>  // lines 17-17
+- #include <sys/sysctl.h>  // lines 18-18
+- #include <sys/types.h>  // lines 19-19
+- #include <set>  // lines 8-8
+- #include <sstream>  // lines 9-9
+
+The full include-list for /Users/wolfman/Development/libstats/src/thread_pool.cpp:
+#include "../include/platform/thread_pool.h"
+#include <__ostream/basic_ostream.h>                 // for basic_ostream
+#include <algorithm>                                 // for max
+#include <exception>                                 // for exception
+#include <iostream>                                  // for cerr
+#include "../include/platform/platform_constants.h"  // for get_features
+#include "core/mathematical_constants.h"             // for ONE_INT, ZERO_INT
+#include "platform/cpu_detection.h"                  // for Features, Topolo...
+---
+
+
+/Users/wolfman/Development/libstats/include/core/distribution_cache.h should add these lines:
+
+/Users/wolfman/Development/libstats/include/core/distribution_cache.h should remove these lines:
+- #include <chrono>  // lines 4-4
+- #include <memory>  // lines 5-5
+- #include <optional>  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/distribution_cache.h:
+#include <atomic>        // for atomic, memory_order_release
+#include <mutex>         // for unique_lock
+#include <shared_mutex>  // for shared_mutex
+---
+
+/Users/wolfman/Development/libstats/src/distribution_cache.cpp should add these lines:
+
+/Users/wolfman/Development/libstats/src/distribution_cache.cpp should remove these lines:
+- #include <functional>  // lines 3-3
+
+The full include-list for /Users/wolfman/Development/libstats/src/distribution_cache.cpp:
+#include "core/distribution_cache.h"
+---
+
+
+/Users/wolfman/Development/libstats/include/core/distribution_base.h should add these lines:
+#include <__vector/vector.h>          // for vector
+#include <stddef.h>                   // for size_t
+#include <cmath>                      // for log
+#include <functional>                 // for function
+#include <limits>                     // for numeric_limits
+
+/Users/wolfman/Development/libstats/include/core/distribution_base.h should remove these lines:
+- #include "../common/distribution_base_common.h"  // lines 4-4
+- #include "../platform/platform_constants.h"  // lines 10-10
+- #include "distribution_memory.h"  // lines 6-6
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/distribution_base.h:
+#include <__vector/vector.h>          // for vector
+#include <stddef.h>                   // for size_t
+#include <cmath>                      // for log
+#include <functional>                 // for function
+#include <limits>                     // for numeric_limits
+#include "distribution_cache.h"       // for ThreadSafeCacheManager
+#include "distribution_interface.h"   // for DistributionInterface
+#include "distribution_validation.h"  // for FitResults, ValidationResult
+---
+
+/Users/wolfman/Development/libstats/src/distribution_base.cpp should add these lines:
+#include <__math/logarithms.h>                            // for log
+#include <__math/traits.h>                                // for isfinite
+#include <__ostream/basic_ostream.h>                      // for operator<<
+#include <stdlib.h>                                       // for abs
+#include <exception>                                      // for exception
+#include <string>                                         // for allocator
+#include "core/distribution_validation.h"                 // for ValidationR...
+#include "core/mathematical_constants.h"                  // for ONE, ZERO_D...
+#include "core/precision_constants.h"                     // for ZERO, DEFAU...
+#include "core/probability_constants.h"                   // for MIN_PROBABI...
+#include "core/threshold_constants.h"                     // for ALPHA_05
+
+/Users/wolfman/Development/libstats/src/distribution_base.cpp should remove these lines:
+- #include <numeric>  // lines 12-12
+- #include "../include/core/constants.h"  // lines 3-3
+
+The full include-list for /Users/wolfman/Development/libstats/src/distribution_base.cpp:
+#include "../include/core/distribution_base.h"
+#include <__math/logarithms.h>                            // for log
+#include <__math/traits.h>                                // for isfinite
+#include <__ostream/basic_ostream.h>                      // for operator<<
+#include <stdlib.h>                                       // for abs
+#include <algorithm>                                      // for max, min, sort
+#include <cmath>                                          // for abs, log, exp
+#include <exception>                                      // for exception
+#include <sstream>                                        // for char_traits
+#include <stdexcept>                                      // for invalid_arg...
+#include <string>                                         // for allocator
+#include "../include/core/math_utils.h"                   // for calculate_a...
+#include "../include/core/numerical_methods_constants.h"  // for MIDPOINT_WE...
+#include "../include/core/performance_dispatcher.h"       // for Performance...
+#include "../include/core/safety.h"                       // for check_proba...
+#include "../include/platform/parallel_execution.h"       // for safe_transform
+#include "core/distribution_validation.h"                 // for ValidationR...
+#include "core/mathematical_constants.h"                  // for ONE, ZERO_D...
+#include "core/precision_constants.h"                     // for ZERO, DEFAU...
+#include "core/probability_constants.h"                   // for MIN_PROBABI...
+#include "core/threshold_constants.h"                     // for ALPHA_05
+---
+
+warning: '/Users/wolfman/Development/libstats/src/simd_avx512.cpp' not found in compilation database.
+
+/Users/wolfman/Development/libstats/include/distributions/exponential.h should add these lines:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for log, isinf, isnan
+#include <cstdlib>                        // for size_t, abs
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for validateExponentialParameters
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, LN2, THOU...
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+
+/Users/wolfman/Development/libstats/include/distributions/exponential.h should remove these lines:
+- #include "../common/distribution_common.h"  // lines 4-4
+- #include "../common/distribution_platform_common.h"  // lines 7-7
+
+The full include-list for /Users/wolfman/Development/libstats/include/distributions/exponential.h:
+#include <__math/traits.h>                // for isinf, isnan
+#include <__vector/vector.h>              // for vector
+#include <atomic>                         // for atomic, memory_order_release
+#include <cmath>                          // for log, isinf, isnan
+#include <cstdlib>                        // for size_t, abs
+#include <iosfwd>                         // for istream, ostream
+#include <limits>                         // for numeric_limits
+#include <optional>                       // for optional
+#include <random>                         // for mt19937
+#include <shared_mutex>                   // for shared_mutex, shared_lock
+#include <span>                           // for span
+#include <stdexcept>                      // for invalid_argument
+#include <string>                         // for basic_string, string
+#include <tuple>                          // for tuple
+#include <utility>                        // for pair
+#include "core/distribution_base.h"       // for DistributionBase
+#include "core/error_handling.h"          // for validateExponentialParameters
+#include "core/mathematical_constants.h"  // for ONE, ZERO_DOUBLE, LN2, THOU...
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE
+namespace libstats { namespace performance { enum class Strategy; } }
+namespace libstats { namespace performance { struct PerformanceHint; } }
+---
+
+/Users/wolfman/Development/libstats/src/exponential.cpp should add these lines:
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <cstddef>                                   // for ptrdiff_t
+#include <exception>                                 // for exception
+#include <future>                                    // for future
+#include <mutex>                                     // for unique_lock, mutex
+#include "core/performance_dispatcher.h"             // for Strategy, Perfor...
+#include "core/probability_constants.h"              // for NEGATIVE_INFINITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+#include "platform/platform_constants.h"             // for GRAIN_SIZE_DIVISOR
+
+/Users/wolfman/Development/libstats/src/exponential.cpp should remove these lines:
+- #include <execution>  // lines 17-17
+- #include <functional>  // lines 18-18
+- #include <iomanip>  // lines 19-19
+- #include <iostream>  // lines 20-20
+- #include <ranges>  // lines 23-23
+- #include <vector>  // lines 25-25
+- #include "../include/core/constants.h"  // lines 3-3
+- #include "../include/core/log_space_ops.h"  // lines 5-5
+- #include "../include/core/validation.h"  // lines 7-7
+- #include "../include/platform/cpu_detection.h"  // lines 8-8
+
+The full include-list for /Users/wolfman/Development/libstats/src/exponential.cpp:
+#include "../include/distributions/exponential.h"
+#include <__ostream/basic_ostream.h>                 // for operator<<, basi...
+#include <algorithm>                                 // for __all_of, all_of
+#include <cmath>                                     // for exp, log, sqrt
+#include <cstddef>                                   // for ptrdiff_t
+#include <exception>                                 // for exception
+#include <future>                                    // for future
+#include <mutex>                                     // for unique_lock, mutex
+#include <numeric>                                   // for accumulate, iota
+#include <random>                                    // for uniform_real_dis...
+#include <sstream>                                   // for basic_istream
+#include "../include/core/dispatch_utils.h"          // for DispatchUtils
+#include "../include/core/math_utils.h"              // for inverse_chi_squa...
+#include "../include/core/threshold_constants.h"     // for MIN_DATA_POINTS_...
+#include "../include/platform/parallel_execution.h"  // for should_use_parallel
+#include "../include/platform/thread_pool.h"         // for ParallelUtils
+#include "../include/platform/work_stealing_pool.h"  // for WorkStealingPool
+#include "core/performance_dispatcher.h"             // for Strategy, Perfor...
+#include "core/probability_constants.h"              // for NEGATIVE_INFINITY
+#include "platform/parallel_thresholds.h"            // for shouldUseDistrib...
+#include "platform/platform_constants.h"             // for GRAIN_SIZE_DIVISOR
+---
+
+
+(/Users/wolfman/Development/libstats/include/platform/simd_policy.h has correct #includes/fwd-decls)
+
+/Users/wolfman/Development/libstats/src/simd_policy.cpp should add these lines:
+#include <stdint.h>                                  // for SIZE_MAX
+
+/Users/wolfman/Development/libstats/src/simd_policy.cpp should remove these lines:
+- #include "../include/platform/simd.h"  // lines 5-5
+
+The full include-list for /Users/wolfman/Development/libstats/src/simd_policy.cpp:
+#include "../include/platform/simd_policy.h"
+#include <stdint.h>                                  // for SIZE_MAX
+#include <atomic>                                    // for atomic, memory_o...
+#include <mutex>                                     // for call_once, once_...
+#include "../include/platform/cpu_detection.h"       // for supports_avx
+#include "../include/platform/platform_constants.h"  // for AVX2_DOUBLES
+---
+
+
+/Users/wolfman/Development/libstats/src/simd_sse2.cpp should add these lines:
+#include <cstddef>                                   // for size_t
+
+/Users/wolfman/Development/libstats/src/simd_sse2.cpp should remove these lines:
+- #include <cmath>  // lines 20-20
+- #include "../include/core/constants.h"  // lines 15-15
+
+The full include-list for /Users/wolfman/Development/libstats/src/simd_sse2.cpp:
+#include <emmintrin.h>                               // for _mm_loadu_pd
+#include <cstddef>                                   // for size_t
+#include "../include/platform/cpu_detection.h"       // for supports_sse2
+#include "../include/platform/platform_constants.h"  // for SSE_DOUBLES
+#include "../include/platform/simd.h"                // for VectorOps
+---
+
+
+/Users/wolfman/Development/libstats/include/core/math_utils.h should add these lines:
+#include <__math/traits.h>                // for isinf, isnan, isfinite
+#include <__vector/vector.h>              // for vector
+#include <algorithm>                      // for max, max_element, min, clamp
+#include <cmath>                          // for exp, log1p, log10, isnan
+#include <cstdlib>                        // for abs, size_t
+#include <limits>                         // for numeric_limits
+#include <span>                           // for span
+#include <string>                         // for basic_string, operator+
+#include "core/benchmark_constants.h"     // for MAX_DISTRIBUTION_PARAMETER
+#include "core/mathematical_constants.h"  // for ONE
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE, ZERO
+#include "core/probability_constants.h"   // for MIN_LOG_PROBABILITY
+#include "core/threshold_constants.h"     // for LOG1PEXP_LARGE_THRESHOLD
+
+/Users/wolfman/Development/libstats/include/core/math_utils.h should remove these lines:
+- #include "../platform/simd.h"  // lines 4-4
+- #include "constants.h"  // lines 5-5
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/math_utils.h:
+#include <__math/traits.h>                // for isinf, isnan, isfinite
+#include <__vector/vector.h>              // for vector
+#include <algorithm>                      // for max, max_element, min, clamp
+#include <array>                          // for array
+#include <cmath>                          // for exp, log1p, log10, isnan
+#include <cstdlib>                        // for abs, size_t
+#include <limits>                         // for numeric_limits
+#include <span>                           // for span
+#include <string>                         // for basic_string, operator+
+#include "../common/utility_common.h"     // for MathFunction, FloatingPoint
+#include "core/benchmark_constants.h"     // for MAX_DISTRIBUTION_PARAMETER
+#include "core/mathematical_constants.h"  // for ONE
+#include "core/precision_constants.h"     // for DEFAULT_TOLERANCE, ZERO
+#include "core/probability_constants.h"   // for MIN_LOG_PROBABILITY
+#include "core/threshold_constants.h"     // for LOG1PEXP_LARGE_THRESHOLD
+#include "safety.h"                       // for safe_log
+namespace libstats { class DistributionBase; }  // lines 378-378
+---
+
+/Users/wolfman/Development/libstats/src/math_utils.cpp should add these lines:
+#include "platform/simd.h"                           // for VectorOps
+
+/Users/wolfman/Development/libstats/src/math_utils.cpp should remove these lines:
+- #include "../include/core/constants.h"  // lines 4-4
+- #include "../include/core/safety.h"  // lines 8-8
+- #include "../include/core/statistical_constants.h"  // lines 9-9
+- #include "../include/platform/cpu_detection.h"  // lines 10-10
+
+The full include-list for /Users/wolfman/Development/libstats/src/math_utils.cpp:
+#include "../include/core/math_utils.h"
+#include <algorithm>                                 // for max, sort, min
+#include <array>                                     // for array
+#include <cmath>                                     // for log, sqrt, exp
+#include <stdexcept>                                 // for invalid_argument
+#include "../include/core/algorithm_constants.h"     // for LARGE, ALPHA_10
+#include "../include/core/distribution_base.h"       // for DistributionBase
+#include "../include/core/mathematical_constants.h"  // for ZERO_DOUBLE, ONE
+#include "../include/core/precision_constants.h"     // for ZERO, DEFAULT_TO...
+#include "../include/platform/simd_policy.h"         // for SIMDPolicy
+#include "platform/simd.h"                           // for VectorOps
+---
+
+
+/Users/wolfman/Development/libstats/include/core/performance_dispatcher.h should add these lines:
+#include <cstddef>                    // for size_t
+#include <cstdint>                    // for uint64_t
+
+/Users/wolfman/Development/libstats/include/core/performance_dispatcher.h should remove these lines:
+- #include <chrono>  // lines 3-3
+- #include <functional>  // lines 4-4
+- #include <memory>  // lines 5-5
+- #include <span>  // lines 7-7
+- namespace libstats { namespace simd { class SIMDPolicy; } }  // lines 12-12
+
+The full include-list for /Users/wolfman/Development/libstats/include/core/performance_dispatcher.h:
+#include <cstddef>                    // for size_t
+#include <cstdint>                    // for uint64_t
+#include <optional>                   // for optional, nullopt, nullopt_t
+#include "../platform/simd_policy.h"  // for SIMDPolicy
+---
+
+/Users/wolfman/Development/libstats/src/performance_dispatcher.cpp should add these lines:
+#include <__ostream/basic_ostream.h>                       // for basic_ostream
+#include <algorithm>                                       // for max, min
+#include <array>                                           // for array
+
+/Users/wolfman/Development/libstats/src/performance_dispatcher.cpp should remove these lines:
+- #include "../include/platform/cpu_detection.h"  // lines 5-5
+
+The full include-list for /Users/wolfman/Development/libstats/src/performance_dispatcher.cpp:
+#include "../include/core/performance_dispatcher.h"
+#include <__ostream/basic_ostream.h>                       // for basic_ostream
+#include <algorithm>                                       // for max, min
+#include <array>                                           // for array
+#include <iostream>                                        // for char_traits
+#include <mutex>                                           // for call_once
+#include "../include/core/distribution_characteristics.h"  // for Distributi...
+#include "../include/core/performance_history.h"           // for Performanc...
+#include "../include/platform/simd_policy.h"               // for SIMDPolicy
+---

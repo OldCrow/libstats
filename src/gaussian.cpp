@@ -3068,7 +3068,8 @@ void GaussianDistribution::updateCacheUnsafe() const noexcept {
     isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
     isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE ||
                        standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
-    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
+    isLowVariance_ =
+        cachedSigmaSquared_ < constants::thresholds::LOW_VARIANCE_THRESHOLD;  // σ² < 1/16
 
     // Update atomic parameters for lock-free access
     atomicMean_.store(mean_, std::memory_order_release);

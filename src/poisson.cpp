@@ -1081,12 +1081,23 @@ std::tuple<double, double, bool> PoissonDistribution::andersonDarlingTest(
     // Critical values and p-value approximation for discrete Anderson-Darling test
     // These are approximations since exact distribution is complex for discrete case
     double p_value;
-    if (ad_statistic < 0.5) {
-        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-    } else if (ad_statistic < 2.0) {
-        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
+    if (ad_statistic < constants::thresholds::anderson_darling_discrete::PVAL_THRESHOLD_1) {
+        p_value =
+            1.0 -
+            std::exp(
+                constants::thresholds::anderson_darling_discrete::PVAL_RANGE1_COEFF_A *
+                    std::pow(
+                        ad_statistic,
+                        constants::thresholds::anderson_darling_discrete::PVAL_RANGE1_EXPONENT) +
+                constants::thresholds::anderson_darling_discrete::PVAL_RANGE1_COEFF_B);
+    } else if (ad_statistic < constants::thresholds::anderson_darling_discrete::PVAL_THRESHOLD_2) {
+        p_value =
+            1.0 - std::exp(constants::thresholds::anderson_darling_discrete::PVAL_RANGE2_COEFF_A *
+                               ad_statistic +
+                           constants::thresholds::anderson_darling_discrete::PVAL_RANGE2_COEFF_B);
     } else {
-        p_value = std::exp(-ad_statistic);
+        p_value = std::exp(constants::thresholds::anderson_darling_discrete::PVAL_RANGE3_COEFF *
+                           ad_statistic);
     }
 
     // Ensure p-value is in valid range

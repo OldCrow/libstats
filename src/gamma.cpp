@@ -4,6 +4,7 @@
 #include "../include/core/error_handling.h"
 #include "../include/core/math_utils.h"
 #include "../include/core/performance_dispatcher.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/parallel_execution.h"
 #include "../include/platform/thread_pool.h"
 #include "../include/platform/work_stealing_pool.h"
@@ -983,7 +984,9 @@ std::tuple<double, double, bool> GammaDistribution::kolmogorovSmirnovTest(
     double ks_statistic = math::calculate_ks_statistic(data, distribution);
 
     const size_t n = data.size();
-    double critical_value = 1.36 / std::sqrt(n);  // Approximation for KS test critical value
+    double critical_value =
+        constants::thresholds::kolmogorov_smirnov_gamma::CRITICAL_VALUE_COEFFICIENT /
+        std::sqrt(n);  // Approximation for KS test critical value
     bool reject_null = ks_statistic > critical_value;
 
     // P-value calculation for KS test (improved asymptotic approximation)
@@ -991,9 +994,9 @@ std::tuple<double, double, bool> GammaDistribution::kolmogorovSmirnovTest(
     double lambda = std::sqrt(n) * ks_statistic;
     double p_value;
 
-    if (lambda < 0.27) {
+    if (lambda < constants::thresholds::kolmogorov_smirnov_gamma::LAMBDA_THRESHOLD_LOW) {
         p_value = 1.0;
-    } else if (lambda < 1.0) {
+    } else if (lambda < constants::thresholds::kolmogorov_smirnov_gamma::LAMBDA_THRESHOLD_MID) {
         p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
     } else {
         // Asymptotic series for large lambda
@@ -1024,16 +1027,21 @@ std::tuple<double, double, bool> GammaDistribution::andersonDarlingTest(
 
     // Use the same p-value approximation as Gaussian distribution for consistency
     const double n = static_cast<double>(data.size());
-    const double modified_stat = ad_statistic * (1.0 + 0.75 / n + 2.25 / (n * n));
+    const double modified_stat =
+        ad_statistic * (1.0 + constants::thresholds::anderson_darling_gamma::MOD_STAT_COEFF_1 / n +
+                        constants::thresholds::anderson_darling_gamma::MOD_STAT_COEFF_2 / (n * n));
 
     // Approximate p-value using exponential approximation
     double p_value;
-    if (modified_stat >= 13.0) {
+    if (modified_stat >= constants::thresholds::anderson_darling_gamma::PVAL_THRESHOLD_HIGH) {
         p_value = 0.0;
-    } else if (modified_stat >= 6.0) {
-        p_value = std::exp(-1.28 * modified_stat);
+    } else if (modified_stat >= constants::thresholds::anderson_darling_gamma::PVAL_THRESHOLD_MID) {
+        p_value = std::exp(constants::thresholds::anderson_darling_gamma::PVAL_COEFF_HIGH *
+                           modified_stat);
     } else {
-        p_value = std::exp(-1.8 * modified_stat + 1.5);
+        p_value =
+            std::exp(constants::thresholds::anderson_darling_gamma::PVAL_COEFF_LOW * modified_stat +
+                     constants::thresholds::anderson_darling_gamma::PVAL_OFFSET_LOW);
     }
 
     // Clamp p-value to [0, 1]

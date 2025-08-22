@@ -1,6 +1,7 @@
 #include "../include/core/log_space_ops.h"
 
 #include "../include/core/safety.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/simd_policy.h"
 
 #include <algorithm>
@@ -25,9 +26,9 @@ void LogSpaceOps::initialize() {
         return;
     }
 
-    // Precompute log(1 + exp(x)) for x in [-50, 0]
+    // Precompute log(1 + exp(x)) for x in [LOG_SUM_EXP_THRESHOLD, 0]
     // This covers the range where numerical precision matters most
-    constexpr double x_min = -50.0;
+    constexpr double x_min = constants::thresholds::LOG_SUM_EXP_THRESHOLD;
     constexpr double x_max = 0.0;
     constexpr double step = (x_max - x_min) / (LOOKUP_TABLE_SIZE - 1);
 
@@ -65,7 +66,7 @@ double LogSpaceOps::logSumExp(double logA, double logB) noexcept {
     }
 
     // Use lookup table for common range
-    if (diff >= -50.0 && diff <= 0.0) {
+    if (diff >= constants::thresholds::LOG_SUM_EXP_THRESHOLD && diff <= 0.0) {
         return logA + lookupLogOnePlusExp(diff);
     }
 
@@ -157,8 +158,8 @@ void LogSpaceOps::logMatrixVectorMultiplyTransposed(const double* logMatrix,
 // =============================================================================
 
 double LogSpaceOps::lookupLogOnePlusExp(double x) noexcept {
-    // x should be in [-50, 0] for the lookup table
-    if (x < -50.0) {
+    // x should be in [LOG_SUM_EXP_THRESHOLD, 0] for the lookup table
+    if (x < constants::thresholds::LOG_SUM_EXP_THRESHOLD) {
         return std::exp(x);  // log(1 + exp(x)) ≈ exp(x) for very small x
     }
     if (x > 0.0) {
@@ -166,7 +167,7 @@ double LogSpaceOps::lookupLogOnePlusExp(double x) noexcept {
     }
 
     // Linear interpolation in lookup table
-    constexpr double x_min = -50.0;
+    constexpr double x_min = constants::thresholds::LOG_SUM_EXP_THRESHOLD;
     constexpr double x_max = 0.0;
     constexpr double step = (x_max - x_min) / (LOOKUP_TABLE_SIZE - 1);
 

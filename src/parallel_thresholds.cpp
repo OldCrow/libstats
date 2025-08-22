@@ -1,5 +1,7 @@
 #include "../include/platform/parallel_thresholds.h"
 
+#include "../include/platform/parallel_execution_constants.h"
+
 #include <algorithm>
 #include <cctype>
 
@@ -12,38 +14,39 @@ ArchitectureProfile AdaptiveThresholdCalculator::detectArchitectureProfile() con
     // Get CPU features
     const auto& features = cpu::get_features();
 
-// Base architecture detection and configuration
+    // Base architecture detection and configuration
+    using namespace constants::parallel_execution::architecture;
 #if defined(__APPLE__) && defined(__aarch64__)
     // Apple Silicon: Excellent threading performance
-    profile.thread_creation_cost_us = 2;
-    profile.simd_width_elements = 2;  // NEON 128-bit
-    profile.thread_efficiency_factor = 0.95;
-    profile.base_parallel_threshold = 1024;
+    profile.thread_creation_cost_us = APPLE_SILICON_THREAD_COST_US;
+    profile.simd_width_elements = APPLE_SILICON_SIMD_WIDTH;  // NEON 128-bit
+    profile.thread_efficiency_factor = APPLE_SILICON_EFFICIENCY;
+    profile.base_parallel_threshold = APPLE_SILICON_BASE_THRESHOLD;
 #elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
     // High-end x86_64: Good threading, excellent SIMD
-    profile.thread_creation_cost_us = 5;
-    profile.simd_width_elements = 4;  // AVX2 256-bit / 4 doubles
-    profile.thread_efficiency_factor = 0.85;
-    profile.base_parallel_threshold = 2048;
+    profile.thread_creation_cost_us = HIGH_END_X86_THREAD_COST_US;
+    profile.simd_width_elements = AVX2_SIMD_WIDTH;  // AVX2 256-bit / 4 doubles
+    profile.thread_efficiency_factor = HIGH_END_X86_EFFICIENCY;
+    profile.base_parallel_threshold = HIGH_END_X86_BASE_THRESHOLD;
 #elif defined(__x86_64__)
     // Standard x86_64: Moderate threading
-    profile.thread_creation_cost_us = 8;
-    profile.simd_width_elements = 2;  // SSE 128-bit / 2 doubles
-    profile.thread_efficiency_factor = 0.75;
-    profile.base_parallel_threshold = 4096;
+    profile.thread_creation_cost_us = STANDARD_X86_THREAD_COST_US;
+    profile.simd_width_elements = SSE_SIMD_WIDTH;  // SSE 128-bit / 2 doubles
+    profile.thread_efficiency_factor = STANDARD_X86_EFFICIENCY;
+    profile.base_parallel_threshold = STANDARD_X86_BASE_THRESHOLD;
 #else
     // Conservative defaults for other architectures
-    profile.thread_creation_cost_us = 10;
-    profile.simd_width_elements = 1;  // No SIMD assumed
-    profile.thread_efficiency_factor = 0.7;
-    profile.base_parallel_threshold = 8192;
+    profile.thread_creation_cost_us = DEFAULT_THREAD_COST_US;
+    profile.simd_width_elements = NO_SIMD_WIDTH;  // No SIMD assumed
+    profile.thread_efficiency_factor = DEFAULT_EFFICIENCY;
+    profile.base_parallel_threshold = DEFAULT_BASE_THRESHOLD;
 #endif
 
     // Set L3 cache size
     profile.l3_cache_size_elements = features.l3_cache_size / sizeof(double);
     if (profile.l3_cache_size_elements == 0) {
         // Reasonable default if detection fails
-        profile.l3_cache_size_elements = 2 * 1024 * 1024;  // 2MB worth of doubles
+        profile.l3_cache_size_elements = DEFAULT_L3_CACHE_ELEMENTS;  // 2MB worth of doubles
     }
 
     return profile;
@@ -107,90 +110,93 @@ std::size_t AdaptiveThresholdCalculator::getThreshold(const std::string& distrib
     std::string dist_lower = toLower(distribution);
     std::string op_lower = toLower(operation);
 
+    using namespace constants::parallel_execution::thresholds;
+
     if (dist_lower == "uniform") {
         if (op_lower == "pdf") {
-            threshold = 16384;
+            threshold = uniform::PDF_THRESHOLD;
         } else if (op_lower == "logpdf") {
-            threshold = 64;
+            threshold = uniform::LOGPDF_THRESHOLD;
         } else if (op_lower == "cdf") {
-            threshold = 16384;
+            threshold = uniform::CDF_THRESHOLD;
         } else if (op_lower == "batch_fit") {
-            threshold = 64;  // Lower threshold for batch_fit operations
+            threshold = uniform::BATCH_FIT_THRESHOLD;  // Lower threshold for batch_fit operations
         } else {
-            threshold = 8192;
+            threshold = uniform::DEFAULT_THRESHOLD;
         }
     } else if (dist_lower == "discrete") {
         if (op_lower == "pdf") {
-            threshold = 1048576;
+            threshold = discrete::PDF_THRESHOLD;
         } else if (op_lower == "logpdf") {
-            threshold = 32768;
+            threshold = discrete::LOGPDF_THRESHOLD;
         } else if (op_lower == "cdf") {
-            threshold = 65536;
+            threshold = discrete::CDF_THRESHOLD;
         } else if (op_lower == "batch_fit") {
-            threshold = 64;  // Lower threshold for batch_fit operations
+            threshold = discrete::BATCH_FIT_THRESHOLD;  // Lower threshold for batch_fit operations
         } else {
-            threshold = 32768;
+            threshold = discrete::DEFAULT_THRESHOLD;
         }
     } else if (dist_lower == "exponential") {
         if (op_lower == "pdf") {
-            threshold = 64;
+            threshold = exponential::PDF_THRESHOLD;
         } else if (op_lower == "logpdf") {
-            threshold = 128;
+            threshold = exponential::LOGPDF_THRESHOLD;
         } else if (op_lower == "cdf") {
-            threshold = 64;
+            threshold = exponential::CDF_THRESHOLD;
         } else if (op_lower == "batch_fit") {
-            threshold = 32;  // Lower threshold for batch_fit operations
+            threshold =
+                exponential::BATCH_FIT_THRESHOLD;  // Lower threshold for batch_fit operations
         } else {
-            threshold = 64;
+            threshold = exponential::DEFAULT_THRESHOLD;
         }
     } else if (dist_lower == "gaussian" || dist_lower == "normal") {
         if (op_lower == "pdf") {
-            threshold = 64;
+            threshold = gaussian::PDF_THRESHOLD;
         } else if (op_lower == "logpdf") {
-            threshold = 256;
+            threshold = gaussian::LOGPDF_THRESHOLD;
         } else if (op_lower == "cdf") {
-            threshold = 64;
+            threshold = gaussian::CDF_THRESHOLD;
         } else if (op_lower == "batch_fit") {
-            threshold = 32;  // Lower threshold for batch_fit operations
+            threshold = gaussian::BATCH_FIT_THRESHOLD;  // Lower threshold for batch_fit operations
         } else {
-            threshold = 256;
+            threshold = gaussian::DEFAULT_THRESHOLD;
         }
     } else if (dist_lower == "poisson") {
         if (op_lower == "pdf") {
-            threshold = 4096;
+            threshold = poisson::PDF_THRESHOLD;
         } else if (op_lower == "logpdf") {
-            threshold = 8192;
+            threshold = poisson::LOGPDF_THRESHOLD;
         } else if (op_lower == "cdf") {
-            threshold = 512;
+            threshold = poisson::CDF_THRESHOLD;
         } else if (op_lower == "batch_fit") {
-            threshold = 64;  // Lower threshold for batch_fit operations
+            threshold = poisson::BATCH_FIT_THRESHOLD;  // Lower threshold for batch_fit operations
         } else {
-            threshold = 4096;
+            threshold = poisson::DEFAULT_THRESHOLD;
         }
     } else if (dist_lower == "gamma") {
         if (op_lower == "pdf") {
-            threshold = 256;
+            threshold = gamma::PDF_THRESHOLD;
         } else if (op_lower == "logpdf") {
-            threshold = 512;
+            threshold = gamma::LOGPDF_THRESHOLD;
         } else if (op_lower == "cdf") {
-            threshold = 128;
+            threshold = gamma::CDF_THRESHOLD;
         } else if (op_lower == "batch_fit") {
-            threshold = 64;  // Lower threshold for batch_fit operations
+            threshold = gamma::BATCH_FIT_THRESHOLD;  // Lower threshold for batch_fit operations
         } else {
-            threshold = 256;
+            threshold = gamma::DEFAULT_THRESHOLD;
         }
     } else if (dist_lower == "generic") {
         // Generic operations use moderate thresholds
         if (op_lower == "fill" || op_lower == "transform" || op_lower == "for_each") {
-            threshold = 8192;
+            threshold = generic::FILL_TRANSFORM_THRESHOLD;
         } else if (op_lower == "sort" || op_lower == "partial_sort") {
-            threshold = 4096;
+            threshold = generic::SORT_THRESHOLD;
         } else if (op_lower == "scan") {
-            threshold = 16384;
+            threshold = generic::SCAN_THRESHOLD;
         } else if (op_lower == "search" || op_lower == "count") {
-            threshold = 8192;
+            threshold = generic::SEARCH_COUNT_THRESHOLD;
         } else {
-            threshold = 8192;  // Default for generic operations
+            threshold = generic::DEFAULT_THRESHOLD;  // Default for generic operations
         }
     } else {
         // Fallback to calculated threshold

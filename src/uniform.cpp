@@ -4,6 +4,8 @@
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
+#include "../include/core/statistical_methods_constants.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h"
@@ -701,12 +703,14 @@ UniformDistribution::bayesianEstimation(const std::vector<double>& data,
     const double posterior_a_mean =
         sample_min - (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
     const double posterior_a_var =
-        std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
+        std::pow(sample_max - sample_min, 2) /
+        (constants::bootstrap::uniform::VARIANCE_DIVISOR * (static_cast<double>(n) + 2.0));
 
     const double posterior_b_mean =
         sample_max + (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
     const double posterior_b_var =
-        std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
+        std::pow(sample_max - sample_min, 2) /
+        (constants::bootstrap::uniform::VARIANCE_DIVISOR * (static_cast<double>(n) + 2.0));
 
     // Return as (mean, std_dev) pairs
     std::pair<double, double> posterior_a = {posterior_a_mean, std::sqrt(posterior_a_var)};
@@ -780,7 +784,8 @@ std::pair<double, double> UniformDistribution::methodOfMomentsEstimation(
     }
     variance /= static_cast<double>(n - 1);  // Sample variance
 
-    const double range_estimate = std::sqrt(12.0 * variance);
+    const double range_estimate =
+        std::sqrt(constants::bootstrap::uniform::VARIANCE_DIVISOR * variance);
     const double a_estimate = mean - range_estimate / 2.0;
     const double b_estimate = mean + range_estimate / 2.0;
 
@@ -807,7 +812,9 @@ UniformDistribution::bayesianCredibleInterval(const std::vector<double>& data,
     [[maybe_unused]] const double tail_prob = alpha / 2.0;
 
     // For simplicity, use normal approximation to posterior
-    const double z_score = 1.96;  // Approximate 97.5th percentile of standard normal
+    const double z_score =
+        constants::bootstrap::uniform::Z_SCORE_97_5;  // Approximate 97.5th percentile of standard
+                                                      // normal
 
     // Credible interval for 'a'
     const double a_mean = posterior_params.first.first;
@@ -858,8 +865,8 @@ std::pair<double, double> UniformDistribution::lMomentsEstimation(const std::vec
     L2 = std::abs(L2);  // L2 should be positive
 
     // Invert the relationships: a = L1 - 3*L2, b = L1 + 3*L2
-    const double a_estimate = L1 - 3.0 * L2;
-    const double b_estimate = L1 + 3.0 * L2;
+    const double a_estimate = L1 - constants::bootstrap::uniform::L_MOMENT_SCALE_MULTIPLIER * L2;
+    const double b_estimate = L1 + constants::bootstrap::uniform::L_MOMENT_SCALE_MULTIPLIER * L2;
 
     return {a_estimate, b_estimate};
 }
@@ -885,7 +892,7 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
 
     // Use range/variance ratio test
     // For uniform distribution: Var = Range²/12
-    // Test statistic: T = 12 * Var / Range²
+    // Test statistic: T = VARIANCE_DIVISOR * Var / Range²
     // Should be close to 1 for uniform data
 
     double sample_variance = 0.0;
@@ -900,7 +907,8 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
     }
     sample_variance /= static_cast<double>(n - 1);
 
-    const double expected_variance = sample_range * sample_range / 12.0;
+    const double expected_variance =
+        sample_range * sample_range / constants::bootstrap::uniform::VARIANCE_DIVISOR;
     const double test_statistic = sample_variance / expected_variance;
 
     // For large n, this approximately follows a known distribution
@@ -961,26 +969,39 @@ std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
     // Asymptotic critical values for Anderson-Darling test (approximate)
     double critical_value;
     if (alpha <= 0.01) {
-        critical_value = 3.857;
+        critical_value = constants::thresholds::anderson_darling_uniform::CRITICAL_VALUE_001;
     } else if (alpha <= 0.05) {
-        critical_value = 2.492;
+        critical_value = constants::thresholds::anderson_darling_uniform::CRITICAL_VALUE_005;
     } else if (alpha <= 0.10) {
-        critical_value = 1.933;
+        critical_value = constants::thresholds::anderson_darling_uniform::CRITICAL_VALUE_010;
     } else {
-        critical_value = 1.159;  // alpha = 0.25
+        critical_value =
+            constants::thresholds::anderson_darling_uniform::CRITICAL_VALUE_025;  // alpha = 0.25
     }
 
     // Better p-value approximation for Anderson-Darling test
     // For the uniform distribution, we use a more accurate formula
     double p_value;
-    if (ad_stat < 0.2) {
-        p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat, -0.5));
-    } else if (ad_stat < 0.34) {
-        p_value = 1.0 - std::exp(-0.8 * ad_stat - 0.26);
-    } else if (ad_stat < 0.6) {
-        p_value = std::exp(-0.9 * ad_stat - 0.16);
+    if (ad_stat < constants::thresholds::anderson_darling_uniform::PVAL_THRESHOLD_1) {
+        p_value =
+            1.0 -
+            std::exp(
+                constants::thresholds::anderson_darling_uniform::PVAL_RANGE1_COEFF_A *
+                std::pow(ad_stat,
+                         constants::thresholds::anderson_darling_uniform::PVAL_RANGE1_EXPONENT));
+    } else if (ad_stat < constants::thresholds::anderson_darling_uniform::PVAL_THRESHOLD_2) {
+        p_value =
+            1.0 - std::exp(constants::thresholds::anderson_darling_uniform::PVAL_RANGE2_COEFF_A *
+                               ad_stat +
+                           constants::thresholds::anderson_darling_uniform::PVAL_RANGE2_COEFF_B);
+    } else if (ad_stat < constants::thresholds::anderson_darling_uniform::PVAL_THRESHOLD_3) {
+        p_value = std::exp(constants::thresholds::anderson_darling_uniform::PVAL_RANGE3_COEFF_A *
+                               ad_stat +
+                           constants::thresholds::anderson_darling_uniform::PVAL_RANGE3_COEFF_B);
     } else {
-        p_value = std::exp(-1.8 * ad_stat + 0.258);
+        p_value = std::exp(constants::thresholds::anderson_darling_uniform::PVAL_RANGE4_COEFF_A *
+                               ad_stat +
+                           constants::thresholds::anderson_darling_uniform::PVAL_RANGE4_COEFF_B);
     }
     p_value = std::max(0.0, std::min(1.0, p_value));  // Clamp to [0,1]
 

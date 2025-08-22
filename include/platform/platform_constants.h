@@ -545,6 +545,13 @@ inline constexpr size_t MIN_SAMPLES_FOR_TUNING = 100;         // Minimum operati
 inline constexpr std::chrono::seconds TUNING_INTERVAL{30};    // How often to consider tuning
 inline constexpr double SIGNIFICANT_CHANGE_THRESHOLD = 0.05;  // 5% change triggers re-evaluation
 }  // namespace tuning
+
+/// Parallel batch processing constants
+namespace batch_processing {
+/// Divisor for calculating optimal grain size from number of datasets
+/// grain_size = max(1, num_datasets / GRAIN_SIZE_DIVISOR)
+inline constexpr std::size_t GRAIN_SIZE_DIVISOR = 8;
+}  // namespace batch_processing
 }  // namespace parallel
 
 /// Memory access and prefetching optimization constants

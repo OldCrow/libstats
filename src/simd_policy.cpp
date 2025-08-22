@@ -1,6 +1,7 @@
 #include "../include/platform/simd_policy.h"
 
 #include "../include/platform/cpu_detection.h"
+#include "../include/platform/platform_constants.h"
 #include "../include/platform/simd.h"
 
 #include <atomic>
@@ -145,15 +146,15 @@ SIMDPolicy::Level SIMDPolicy::detectBestLevel() noexcept {
 std::size_t SIMDPolicy::computeOptimalThreshold(SIMDPolicy::Level level) noexcept {
     switch (level) {
         case SIMDPolicy::Level::AVX512:
-            return 16;
+            return constants::simd::registers::AVX512_DOUBLES * 2;  // 16 = 8 * 2
         case SIMDPolicy::Level::AVX2:
-            return 8;
+            return constants::simd::registers::AVX2_DOUBLES * 2;  // 8 = 4 * 2
         case SIMDPolicy::Level::AVX:
-            return 8;
+            return constants::simd::registers::AVX_DOUBLES * 2;  // 8 = 4 * 2
         case SIMDPolicy::Level::SSE2:
-            return 4;
+            return constants::simd::registers::SSE_DOUBLES * 2;  // 4 = 2 * 2
         case SIMDPolicy::Level::NEON:
-            return 4;
+            return constants::simd::registers::NEON_DOUBLES * 2;  // 4 = 2 * 2
         default:
             return SIZE_MAX;
     }
@@ -162,34 +163,35 @@ std::size_t SIMDPolicy::computeOptimalThreshold(SIMDPolicy::Level level) noexcep
 std::size_t SIMDPolicy::computeOptimalBlockSize(SIMDPolicy::Level level) noexcept {
     switch (level) {
         case SIMDPolicy::Level::AVX512:
-            return 8;  // 8 doubles
+            return constants::simd::registers::AVX512_DOUBLES;  // 8 doubles
         case SIMDPolicy::Level::AVX2:
-            return 4;  // 4 doubles
+            return constants::simd::registers::AVX2_DOUBLES;  // 4 doubles
         case SIMDPolicy::Level::AVX:
-            return 4;  // 4 doubles
+            return constants::simd::registers::AVX_DOUBLES;  // 4 doubles
         case SIMDPolicy::Level::SSE2:
-            return 2;  // 2 doubles
+            return constants::simd::registers::SSE_DOUBLES;  // 2 doubles
         case SIMDPolicy::Level::NEON:
-            return 2;  // 2 doubles
+            return constants::simd::registers::NEON_DOUBLES;  // 2 doubles
         default:
-            return 1;  // Scalar
+            return constants::simd::registers::SCALAR_DOUBLES;  // 1 = Scalar
     }
 }
 
 std::size_t SIMDPolicy::computeOptimalAlignment(SIMDPolicy::Level level) noexcept {
     switch (level) {
         case SIMDPolicy::Level::AVX512:
-            return 64;
+            return constants::simd::alignment::AVX512_ALIGNMENT;  // 64
         case SIMDPolicy::Level::AVX2:
-            return 32;
+            return constants::simd::alignment::AVX_ALIGNMENT;  // 32
         case SIMDPolicy::Level::AVX:
-            return 32;
+            return constants::simd::alignment::AVX_ALIGNMENT;  // 32
         case SIMDPolicy::Level::SSE2:
-            return 16;
+            return constants::simd::alignment::SSE_ALIGNMENT;  // 16
         case SIMDPolicy::Level::NEON:
-            return 16;
+            return constants::simd::alignment::NEON_ALIGNMENT;  // 16
         default:
-            return 8;  // Default alignment for double
+            return constants::simd::alignment::MIN_SAFE_ALIGNMENT;  // 8 = Default alignment for
+                                                                    // double
     }
 }
 
