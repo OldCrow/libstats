@@ -10,7 +10,7 @@
 #include "../include/distributions/uniform.h"
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 
 void testUniformCopyMove() {
     cout << "Testing Uniform copy/move semantics:" << endl;
@@ -58,8 +58,8 @@ void testGaussianCopyMove() {
     cout << "\nTesting Gaussian copy/move semantics:" << endl;
 
     // Test Gaussian copy assignment
-    auto gauss1 = libstats::GaussianDistribution::create(1.0, 2.0).value;
-    auto gauss2 = libstats::GaussianDistribution::create(5.0, 1.0).value;
+    auto gauss1 = stats::GaussianDistribution::create(1.0, 2.0).value;
+    auto gauss2 = stats::GaussianDistribution::create(5.0, 1.0).value;
 
     cout << "  Before copy assignment: gauss1 N(" << gauss1.getMean() << ", "
          << gauss1.getVariance() << ")" << endl;
@@ -73,8 +73,8 @@ void testGaussianCopyMove() {
     cout << "  ✓ Copy assignment successful" << endl;
 
     // Test Gaussian move assignment
-    auto gauss3 = libstats::GaussianDistribution::create(3.0, 4.0).value;
-    auto gauss4 = libstats::GaussianDistribution::create(7.0, 9.0).value;
+    auto gauss3 = stats::GaussianDistribution::create(3.0, 4.0).value;
+    auto gauss4 = stats::GaussianDistribution::create(7.0, 9.0).value;
 
     cout << "  Before move assignment: gauss3 N(" << gauss3.getMean() << ", "
          << gauss3.getVariance() << ")" << endl;
@@ -142,7 +142,7 @@ void testConcurrentCopyMove() {
             for (int i = 0; i < numOperations; ++i) {
                 // Create distributions
                 auto uniformResult = UniformDistribution::create(t, t + 1);
-                auto gauss = libstats::GaussianDistribution::create(t, 1.0).value;
+                auto gauss = stats::GaussianDistribution::create(t, 1.0).value;
                 auto expResult = ExponentialDistribution::create(t + 1);
 
                 if (uniformResult.isOk() && expResult.isOk()) {

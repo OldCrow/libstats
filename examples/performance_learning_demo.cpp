@@ -22,17 +22,17 @@
 #include <random>
 #include <vector>
 
-std::string strategyToString(libstats::performance::Strategy strategy) {
+std::string strategyToString(stats::performance::Strategy strategy) {
     switch (strategy) {
-        case libstats::performance::Strategy::SCALAR:
+        case stats::performance::Strategy::SCALAR:
             return "SCALAR";
-        case libstats::performance::Strategy::SIMD_BATCH:
+        case stats::performance::Strategy::SIMD_BATCH:
             return "SIMD_BATCH";
-        case libstats::performance::Strategy::PARALLEL_SIMD:
+        case stats::performance::Strategy::PARALLEL_SIMD:
             return "PARALLEL_SIMD";
-        case libstats::performance::Strategy::WORK_STEALING:
+        case stats::performance::Strategy::WORK_STEALING:
             return "WORK_STEALING";
-        case libstats::performance::Strategy::GPU_ACCELERATED:
+        case stats::performance::Strategy::GPU_ACCELERATED:
             return "GPU_ACCELERATED";
         default:
             return "UNKNOWN";
@@ -59,8 +59,8 @@ void demonstrate_smart_dispatch() {
         << std::endl;
 
     // Create distributions
-    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
-    auto exponential = libstats::ExponentialDistribution::create(2.0).value;
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto exponential = stats::ExponentialDistribution::create(2.0).value;
 
     // Create test data of various sizes
     std::vector<size_t> data_sizes = {100, 1000, 10000, 100000};
@@ -92,7 +92,7 @@ void demonstrate_smart_dispatch() {
                                 .count();
 
         start = std::chrono::high_resolution_clock::now();
-        auto hint_latency = libstats::performance::PerformanceHint::minimal_latency();
+        auto hint_latency = stats::performance::PerformanceHint::minimal_latency();
         normal.getProbability(std::span<const double>(input_data), std::span<double>(output_data),
                               hint_latency);
         auto time_accuracy = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -100,7 +100,7 @@ void demonstrate_smart_dispatch() {
                                  .count();
 
         start = std::chrono::high_resolution_clock::now();
-        auto hint_throughput = libstats::performance::PerformanceHint::maximum_throughput();
+        auto hint_throughput = stats::performance::PerformanceHint::maximum_throughput();
         normal.getProbability(std::span<const double>(input_data), std::span<double>(output_data),
                               hint_throughput);
         auto time_speed = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -138,7 +138,7 @@ void demonstrate_performance_dispatcher() {
               << std::endl;
 
     // Get system capabilities
-    const auto& capabilities = libstats::performance::SystemCapabilities::current();
+    const auto& capabilities = stats::performance::SystemCapabilities::current();
 
     std::cout << "System Capabilities Detection:" << std::endl;
     std::cout << "  Logical Cores: " << capabilities.logical_cores() << std::endl;
@@ -166,7 +166,7 @@ void demonstrate_performance_dispatcher() {
               << capabilities.memory_bandwidth_gb_s() << " GB/s" << std::endl;
 
     // Create a dispatcher instance to show strategy selection
-    libstats::performance::PerformanceDispatcher dispatcher;
+    stats::performance::PerformanceDispatcher dispatcher;
 
     std::cout << "\nStrategy Selection by Problem Size:" << std::endl;
     std::cout << std::left << std::setw(15) << "Problem Size" << std::setw(20)
@@ -177,8 +177,8 @@ void demonstrate_performance_dispatcher() {
 
     for (auto size : problem_sizes) {
         auto strategy = dispatcher.selectOptimalStrategy(
-            size, libstats::performance::DistributionType::GAUSSIAN,
-            libstats::performance::ComputationComplexity::MODERATE, capabilities);
+            size, stats::performance::DistributionType::GAUSSIAN,
+            stats::performance::ComputationComplexity::MODERATE, capabilities);
 
         std::cout << std::setw(15) << size << std::setw(20) << strategyToString(strategy)
                   << std::endl;
@@ -188,8 +188,8 @@ void demonstrate_performance_dispatcher() {
 void demonstrate_adaptive_learning() {
     print_separator("Adaptive Performance Learning");
 
-    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
-    auto& history = libstats::performance::PerformanceDispatcher::getPerformanceHistory();
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto& history = stats::performance::PerformanceDispatcher::getPerformanceHistory();
 
     std::cout << "\nTraining the adaptive performance learning system with Gaussian N(0,1) "
                  "distribution.\n"
@@ -207,9 +207,9 @@ void demonstrate_adaptive_learning() {
     std::uniform_real_distribution<double> dist(-3.0, 3.0);
 
     // Record data for multiple strategies to make the learning system more realistic
-    std::vector<libstats::performance::Strategy> test_strategies = {
-        libstats::performance::Strategy::SCALAR, libstats::performance::Strategy::SIMD_BATCH,
-        libstats::performance::Strategy::PARALLEL_SIMD};
+    std::vector<stats::performance::Strategy> test_strategies = {
+        stats::performance::Strategy::SCALAR, stats::performance::Strategy::SIMD_BATCH,
+        stats::performance::Strategy::PARALLEL_SIMD};
 
     for (int iteration = 0; iteration < 6; ++iteration) {
         std::cout << "Training iteration " << (iteration + 1) << "/6:" << std::endl;
@@ -235,14 +235,14 @@ void demonstrate_adaptive_learning() {
                 // Add some realistic variance based on strategy (simulated)
                 uint64_t adjusted_duration = static_cast<uint64_t>(duration);
                 switch (strategy) {
-                    case libstats::performance::Strategy::SCALAR:
+                    case stats::performance::Strategy::SCALAR:
                         adjusted_duration =
                             static_cast<uint64_t>(static_cast<double>(duration) * 1.5);  // Slower
                         break;
-                    case libstats::performance::Strategy::SIMD_BATCH:
+                    case stats::performance::Strategy::SIMD_BATCH:
                         adjusted_duration = static_cast<uint64_t>(duration);  // Baseline
                         break;
-                    case libstats::performance::Strategy::PARALLEL_SIMD:
+                    case stats::performance::Strategy::PARALLEL_SIMD:
                         if (size > 5000) {
                             adjusted_duration = static_cast<uint64_t>(
                                 static_cast<double>(duration) * 0.7);  // Faster for large sizes
@@ -256,8 +256,8 @@ void demonstrate_adaptive_learning() {
                 }
 
                 // Record performance data
-                libstats::performance::PerformanceDispatcher::recordPerformance(
-                    strategy, libstats::performance::DistributionType::GAUSSIAN, size,
+                stats::performance::PerformanceDispatcher::recordPerformance(
+                    strategy, stats::performance::DistributionType::GAUSSIAN, size,
                     adjusted_duration);
             }
 
@@ -273,7 +273,7 @@ void demonstrate_adaptive_learning() {
 
     for (auto size : training_sizes) {
         auto recommendation =
-            history.getBestStrategy(libstats::performance::DistributionType::GAUSSIAN, size);
+            history.getBestStrategy(stats::performance::DistributionType::GAUSSIAN, size);
 
         double avg_time_us = static_cast<double>(recommendation.expected_time_ns) / 1000.0;
 
@@ -302,8 +302,8 @@ void demonstrate_cross_distribution_comparison() {
         << std::endl;
 
     // Create different distributions
-    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
-    auto exponential = libstats::ExponentialDistribution::create(1.0).value;
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto exponential = stats::ExponentialDistribution::create(1.0).value;
 
     const size_t test_size = 10000;
     std::vector<double> normal_input(test_size);
@@ -339,9 +339,9 @@ void demonstrate_cross_distribution_comparison() {
                                std::chrono::high_resolution_clock::now() - start)
                                .count();
 
-    auto& history = libstats::performance::PerformanceDispatcher::getPerformanceHistory();
+    auto& history = stats::performance::PerformanceDispatcher::getPerformanceHistory();
     auto normal_recommendation =
-        history.getBestStrategy(libstats::performance::DistributionType::GAUSSIAN, test_size);
+        history.getBestStrategy(stats::performance::DistributionType::GAUSSIAN, test_size);
 
     std::cout << std::left << std::setw(20) << "Gaussian N(0,1)" << std::setw(15) << normal_pdf_time
               << std::setw(15) << normal_cdf_time << std::setw(15)
@@ -362,7 +362,7 @@ void demonstrate_cross_distribution_comparison() {
                             .count();
 
     auto exp_recommendation =
-        history.getBestStrategy(libstats::performance::DistributionType::EXPONENTIAL, test_size);
+        history.getBestStrategy(stats::performance::DistributionType::EXPONENTIAL, test_size);
 
     std::cout << std::left << std::setw(20) << "Exponential(λ=1)" << std::setw(15) << exp_pdf_time
               << std::setw(15) << exp_cdf_time << std::setw(15)

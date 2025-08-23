@@ -13,7 +13,7 @@
 // Level 1 infrastructure
 #include "../core/math_utils.h"
 
-namespace libstats {
+namespace stats {
 
 // Compatibility helper for different C++ standard library implementations
 // Uses std::invoke_result_t when available (C++20), falls back to std::result_of for older
@@ -502,4 +502,4 @@ class ParallelUtils {
     }
 };
 
-}  // namespace libstats
+}  // namespace stats

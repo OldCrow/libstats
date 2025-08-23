@@ -9,7 +9,7 @@
 #include "../include/platform/simd.h"
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 
 int main() {
     cout << "=== SIMD Integration Test (Simple) ===" << endl;
@@ -75,7 +75,7 @@ int main() {
     // 3. Test Gaussian distribution (the only implemented one)
     cout << "3. GAUSSIAN DISTRIBUTION TEST:" << endl;
     try {
-        auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
+        auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
 
         cout << "   Standard Normal Distribution N(0,1):" << endl;
         cout << "   Mean: " << normal.getMean() << endl;

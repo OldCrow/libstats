@@ -7,7 +7,7 @@
 #include <functional>
 #include <span>
 
-namespace libstats {
+namespace stats {
 namespace performance {
 
 /**
@@ -424,4 +424,4 @@ struct DistributionTraits<class GammaDistribution> {
 };
 
 }  // namespace performance
-}  // namespace libstats
+}  // namespace stats

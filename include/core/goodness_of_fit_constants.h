@@ -8,7 +8,7 @@
  * goodness-of-fit tests used in distribution fitting and validation.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Kolmogorov-Smirnov critical values for goodness-of-fit tests
@@ -64,4 +64,4 @@ inline constexpr double SW_01_N_50 = 0.930;
 }  // namespace shapiro_wilk
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

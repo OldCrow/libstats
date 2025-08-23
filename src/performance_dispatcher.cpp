@@ -8,7 +8,7 @@
 #include <iostream>
 #include <mutex>
 
-namespace libstats {
+namespace stats {
 namespace performance {
 
 PerformanceDispatcher::PerformanceDispatcher()
@@ -491,4 +491,4 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
 }
 
 }  // namespace performance
-}  // namespace libstats
+}  // namespace stats

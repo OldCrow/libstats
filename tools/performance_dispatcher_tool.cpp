@@ -20,9 +20,9 @@
 #include <map>
 #include <sstream>
 
-using namespace libstats::performance;
+using namespace stats::performance;
 using namespace std::chrono;
-using namespace libstats::constants;
+using namespace stats::constants;
 
 // Tool-specific simulation constants
 namespace {
@@ -70,7 +70,7 @@ class PerformanceDispatcherTool {
     PerformanceDispatcherTool() : system_(SystemCapabilities::current()), rng_(DEMO_SEED) {}
 
     void run() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         // Display tool header with system information
         system_info::displayToolHeader(
@@ -88,7 +88,7 @@ class PerformanceDispatcherTool {
 
    private:
     void demonstrateStrategySelection() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::sectionHeader("Strategy Selection Demonstration");
 
@@ -123,7 +123,7 @@ class PerformanceDispatcherTool {
     }
 
     void demonstratePerformanceLearning() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::sectionHeader("Performance Learning Demonstration");
 
@@ -281,7 +281,7 @@ class PerformanceDispatcherTool {
     }
 
     void runInteractiveMode() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::sectionHeader("Interactive Mode");
 
@@ -317,7 +317,7 @@ class PerformanceDispatcherTool {
 };
 
 int main() {
-    using namespace libstats::tools;
+    using namespace stats::tools;
 
     // Use the standard tool runner pattern
     return tool_utils::runTool("Performance Dispatcher Tool", []() {

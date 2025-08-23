@@ -9,8 +9,8 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace libstats::safety;
-namespace prob = libstats::constants::probability;
+using namespace stats::safety;
+namespace prob = stats::constants::probability;
 
 // Test helper functions
 template <typename T>

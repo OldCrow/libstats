@@ -18,7 +18,7 @@
 #include <vector>
 #include <version>  // C++20 feature detection
 
-namespace libstats {
+namespace stats {
 
 //==============================================================================
 // COMPLEX METHODS (Implementation in .cpp per C++20 best practices)
@@ -3127,4 +3127,4 @@ void GaussianDistribution::validateParameters(double mean, double stdDev) {
 // Note: Specialized caches are declared in the header as private member variables
 // This section exists for standardization and documentation purposes
 
-}  // namespace libstats
+}  // namespace stats

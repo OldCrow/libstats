@@ -8,7 +8,7 @@
  * including Bayesian estimation, bootstrap, and cross-validation.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Bayesian estimation default priors
@@ -45,4 +45,4 @@ inline constexpr int DEFAULT_K_FOLDS = 5;
 }  // namespace cross_validation
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

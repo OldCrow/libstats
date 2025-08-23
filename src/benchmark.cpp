@@ -7,7 +7,7 @@
 #include <numeric>
 #include <random>
 
-namespace libstats {
+namespace stats {
 
 //========== BenchmarkStats Implementation ==========
 
@@ -696,4 +696,4 @@ BenchmarkStats Benchmark::calculateStatsRobust(const std::vector<double>& times,
     return stats;
 }
 
-}  // namespace libstats
+}  // namespace stats

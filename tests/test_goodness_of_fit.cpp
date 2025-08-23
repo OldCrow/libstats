@@ -7,7 +7,7 @@
 #include <vector>
 
 // Simple test implementation of a distribution for testing goodness-of-fit functions
-class TestNormalDistribution : public libstats::DistributionBase {
+class TestNormalDistribution : public stats::DistributionBase {
    public:
     TestNormalDistribution(double mean = 0.0, double stddev = 1.0) : mean_(mean), stddev_(stddev) {}
 
@@ -62,8 +62,8 @@ int main() {
         }
 
         // Test the goodness-of-fit functions
-        double ks_statistic = libstats::math::calculate_ks_statistic(data, normal);
-        double ad_statistic = libstats::math::calculate_ad_statistic(data, normal);
+        double ks_statistic = stats::math::calculate_ks_statistic(data, normal);
+        double ad_statistic = stats::math::calculate_ad_statistic(data, normal);
 
         std::cout << "Goodness-of-fit tests:" << std::endl;
         std::cout << "KS statistic: " << ks_statistic << std::endl;

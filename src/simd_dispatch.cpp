@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace libstats {
+namespace stats {
 namespace simd {
 
 //========== Public Interface Implementations ==========
@@ -425,4 +425,4 @@ std::string VectorOps::get_platform_optimization_info() noexcept {
 }
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats

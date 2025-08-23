@@ -6,7 +6,7 @@
 // Common platform headers for distributions (consolidates shared platform dependencies)
 #include "../common/distribution_platform_common.h"
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Thread-safe Uniform Distribution for modeling equiprobable outcomes over intervals.
@@ -1010,7 +1010,7 @@ class UniformDistribution : public DistributionBase {
      * @param dist Distribution to input
      * @return Reference to the input stream
      */
-    friend std::istream& operator>>(std::istream& is, libstats::UniformDistribution& distribution);
+    friend std::istream& operator>>(std::istream& is, stats::UniformDistribution& distribution);
 
     /**
      * @brief Stream output operator
@@ -1193,4 +1193,4 @@ class UniformDistribution : public DistributionBase {
     // if needed for future optimizations.
 };
 
-}  // namespace libstats
+}  // namespace stats

@@ -2,7 +2,7 @@
 
 #include "../common/distribution_base_common.h"
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Pure interface for probability distributions
@@ -206,4 +206,4 @@ inline double getCoefficientOfVariation(const DistributionInterface& distributio
                          : std::numeric_limits<double>::infinity();
 }
 
-}  // namespace libstats
+}  // namespace stats

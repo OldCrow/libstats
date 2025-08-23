@@ -3,7 +3,7 @@
 #include <cassert>
 #include <iostream>
 
-using namespace libstats::constants;
+using namespace stats::constants;
 
 void test_simd_constants() {
     std::cout << "Testing SIMD architectural constants..." << std::endl;

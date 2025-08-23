@@ -9,7 +9,7 @@
 // Additional standard headers specific to Poisson
 #include <array>  // For precomputed factorials
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Thread-safe Poisson Distribution for modeling count data and rare events.
@@ -980,7 +980,7 @@ class PoissonDistribution : public DistributionBase {
      * @param dist Distribution to input
      * @return Reference to the input stream
      */
-    friend std::istream& operator>>(std::istream& is, libstats::PoissonDistribution& dist);
+    friend std::istream& operator>>(std::istream& is, stats::PoissonDistribution& dist);
 
     /**
      * @brief Stream output operator
@@ -988,7 +988,7 @@ class PoissonDistribution : public DistributionBase {
      * @param dist Distribution to output
      * @return Reference to the output stream
      */
-    friend std::ostream& operator<<(std::ostream& os, const libstats::PoissonDistribution& dist);
+    friend std::ostream& operator<<(std::ostream& os, const stats::PoissonDistribution& dist);
 
    private:
     //==========================================================================
@@ -1197,4 +1197,4 @@ class PoissonDistribution : public DistributionBase {
     };
 };
 
-}  // namespace libstats
+}  // namespace stats

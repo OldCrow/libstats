@@ -44,7 +44,7 @@
  * - Code duplication is minimized
  */
 
-namespace libstats {
+namespace stats {
 namespace safety {
 
 //==============================================================================
@@ -636,4 +636,4 @@ inline std::size_t handle_nan_values(std::vector<double>& values,
 }
 
 }  // namespace safety
-}  // namespace libstats
+}  // namespace stats

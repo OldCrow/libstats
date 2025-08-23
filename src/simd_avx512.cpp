@@ -18,7 +18,7 @@
 #include <cmath>
 #include <immintrin.h>  // AVX-512 intrinsics
 
-namespace libstats {
+namespace stats {
 namespace simd {
 
 // All AVX-512 functions use double-precision (64-bit) values
@@ -164,7 +164,7 @@ void VectorOps::scalar_add_avx512(const double* a, double scalar, double* result
 }
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats
 
 #ifdef __clang__
     #pragma clang attribute pop

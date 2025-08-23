@@ -27,7 +27,7 @@
 
 #include <cmath>
 
-namespace libstats {
+namespace stats {
 namespace simd {
 
 #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
@@ -290,7 +290,7 @@ void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
 #endif  // ARM platform check
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats
 
 #ifdef __clang__
     #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)

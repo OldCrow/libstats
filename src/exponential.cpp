@@ -23,7 +23,7 @@
 #include <sstream>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -2439,4 +2439,4 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 // Note: Specialized caches are declared in the header as private member variables
 // This section exists for standardization and documentation purposes
 
-}  // namespace libstats
+}  // namespace stats

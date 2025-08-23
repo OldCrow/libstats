@@ -28,7 +28,7 @@ void print_separator(const std::string& title) {
 
 int main() {
     // Initialize performance systems for optimal batch operation performance
-    libstats::initialize_performance_systems();
+    stats::initialize_performance_systems();
 
     std::cout << "=== libstats Basic Usage Guide ===" << std::endl;
     std::cout << "Comprehensive demonstration of statistical distribution operations\n"
@@ -43,9 +43,9 @@ int main() {
               << "  - Exponential(λ=2.0): Rate parameter controls decay speed\n"
               << std::endl;
 
-    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
     auto exponential =
-        libstats::ExponentialDistribution::create(2.0).value;  // Rate parameter = 2.0
+        stats::ExponentialDistribution::create(2.0).value;  // Rate parameter = 2.0
 
     std::cout << "✓ Gaussian N(0,1) created" << std::endl;
     std::cout << "✓ Exponential(λ=2.0) created" << std::endl;
@@ -70,7 +70,7 @@ int main() {
     std::cout << "     Mean (1/λ): " << exponential.getMean() << " [Expected: 0.5000]" << std::endl;
     std::cout << "     Variance (1/λ²): " << exponential.getVariance() << " [Expected: 0.2500]"
               << std::endl;
-    std::cout << "     Standard deviation: " << libstats::getStandardDeviation(exponential)
+    std::cout << "     Standard deviation: " << stats::getStandardDeviation(exponential)
               << " [Expected: 0.5000]" << std::endl;
     std::cout << "     Skewness: " << exponential.getSkewness()
               << " [Expected: 2.0000 - right-skewed]" << std::endl;
@@ -150,7 +150,7 @@ int main() {
     std::cout << "📦 Generated 1000 samples from Gaussian N(0,1)" << std::endl;
 
     // Fit a new distribution to the samples
-    libstats::Gaussian fitted_normal;
+    stats::Gaussian fitted_normal;
     fitted_normal.fit(samples);
 
     std::cout << "\n🔍 Maximum likelihood parameter estimation results:" << std::endl;
@@ -171,7 +171,7 @@ int main() {
     std::vector<double> results(test_values.size());
 
     // Use smart dispatch with performance hints and measure timing
-    auto hint = libstats::performance::PerformanceHint::minimal_latency();
+    auto hint = stats::performance::PerformanceHint::minimal_latency();
     std::cout << "🚀 Computing batch Normal distribution PDFs with minimal_latency hint..."
               << std::endl;
     std::cout << "   Processing 16 input values: {-3.0 to 4.5 in 0.5 increments}" << std::endl;

@@ -10,7 +10,7 @@
 // Additional standard headers specific to Gaussian (C++20 showcase)
 #include <algorithm>  // C++20 ranges algorithms
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Modern C++20 Gaussian (Normal) distribution for modeling continuous data.
@@ -1007,7 +1007,7 @@ class GaussianDistribution : public DistributionBase {
      * @param dist Distribution to input
      * @return Reference to the input stream
      */
-    friend std::istream& operator>>(std::istream&, libstats::GaussianDistribution& dist);
+    friend std::istream& operator>>(std::istream&, stats::GaussianDistribution& dist);
 
     /**
      * @brief Stream output operator
@@ -1015,7 +1015,7 @@ class GaussianDistribution : public DistributionBase {
      * @param dist Distribution to output
      * @return Reference to the output stream
      */
-    friend std::ostream& operator<<(std::ostream&, const libstats::GaussianDistribution& dist);
+    friend std::ostream& operator<<(std::ostream&, const stats::GaussianDistribution& dist);
 
    private:
     //==========================================================================
@@ -1169,4 +1169,4 @@ class GaussianDistribution : public DistributionBase {
     // This section maintained for template compliance
 };
 
-}  // namespace libstats
+}  // namespace stats

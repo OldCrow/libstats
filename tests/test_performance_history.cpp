@@ -11,7 +11,7 @@
 #include <random>
 #include <thread>
 
-using namespace libstats::performance;
+using namespace stats::performance;
 
 class PerformanceHistoryTest : public ::testing::Test {
    protected:

@@ -9,10 +9,10 @@
 #include <gtest/gtest.h>
 
 using namespace std;
-using namespace libstats;
-using namespace libstats::testing;
+using namespace stats;
+using namespace stats::testing;
 
-namespace libstats {
+namespace stats {
 
 //==============================================================================
 // TEST FIXTURE FOR DISCRETE ENHANCED METHODS
@@ -38,7 +38,7 @@ class DiscreteEnhancedTest : public ::testing::Test {
             non_uniform_data_.push_back(static_cast<double>(i % 3 + 1));  // Pattern: 1,2,3,1,2,3...
         }
 
-        auto result = libstats::DiscreteDistribution::create(test_lower_, test_upper_);
+        auto result = stats::DiscreteDistribution::create(test_lower_, test_upper_);
         if (result.isOk()) {
             test_distribution_ = std::move(result.value);
         };
@@ -57,7 +57,7 @@ class DiscreteEnhancedTest : public ::testing::Test {
 
 TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard six-sided die
-    auto dice = libstats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).value;
 
     EXPECT_EQ(dice.getLowerBound(), 1);
     EXPECT_EQ(dice.getUpperBound(), 6);
@@ -75,7 +75,7 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_3, 3.0 / 6.0, 1e-10);
 
     // Test binary distribution
-    auto binary = libstats::DiscreteDistribution::create(0, 1).value;
+    auto binary = stats::DiscreteDistribution::create(0, 1).value;
     EXPECT_DOUBLE_EQ(binary.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(binary.getVariance(), 0.25);  // (1-0)(1-0+2)/12 = 1*3/12 = 0.25
     EXPECT_NEAR(binary.getCumulativeProbability(0.5), 1.0, 1e-10);
@@ -240,7 +240,7 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdDiscrete = libstats::DiscreteDistribution::create(1, 6).value;
+    auto stdDiscrete = stats::DiscreteDistribution::create(1, 6).value;
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -277,7 +277,7 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdDiscrete.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                std::span<double>(simd_results),
-                                               libstats::performance::Strategy::SCALAR);
+                                               stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -288,7 +288,7 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdDiscrete.getProbabilityWithStrategy(input_span, output_span,
-                                               libstats::performance::Strategy::PARALLEL_SIMD);
+                                               stats::performance::Strategy::PARALLEL_SIMD);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -299,7 +299,7 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdDiscrete.getProbabilityWithStrategy(input_span, ws_output_span,
-                                               libstats::performance::Strategy::WORK_STEALING);
+                                               stats::performance::Strategy::WORK_STEALING);
         end = std::chrono::high_resolution_clock::now();
         auto work_stealing_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -398,7 +398,7 @@ TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto discrete_dist = libstats::DiscreteDistribution::create(1, 6).value;
+    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -441,7 +441,7 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     EXPECT_LT(second_time, 100000) << "Second access should complete in under 100μs";
 
     // Test cache invalidation - create a new distribution with different parameters
-    auto new_dist = libstats::DiscreteDistribution::create(2, 8).value;
+    auto new_dist = stats::DiscreteDistribution::create(2, 8).value;
 
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = new_dist.getMean();
@@ -461,7 +461,7 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
-    auto discrete_dist = libstats::DiscreteDistribution::create(1, 6).value;
+    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -497,7 +497,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
         } else {
             discrete_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                      std::span<double>(auto_pmf_results),
-                                                     libstats::performance::Strategy::SCALAR);
+                                                     stats::performance::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_pmf_time =
@@ -513,7 +513,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
         } else {
             discrete_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                         std::span<double>(auto_logpmf_results),
-                                                        libstats::performance::Strategy::SCALAR);
+                                                        stats::performance::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_logpmf_time =
@@ -530,7 +530,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
         } else {
             discrete_dist.getCumulativeProbabilityWithStrategy(
                 std::span<const double>(test_values), std::span<double>(auto_cdf_results),
-                libstats::performance::Strategy::SCALAR);
+                stats::performance::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_cdf_time =
@@ -543,13 +543,13 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
 
         discrete_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                  std::span<double>(trad_pmf_results),
-                                                 libstats::performance::Strategy::SCALAR);
+                                                 stats::performance::Strategy::SCALAR);
         discrete_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                     std::span<double>(trad_logpmf_results),
-                                                    libstats::performance::Strategy::SCALAR);
+                                                    stats::performance::Strategy::SCALAR);
         discrete_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                            std::span<double>(trad_cdf_results),
-                                                           libstats::performance::Strategy::SCALAR);
+                                                           stats::performance::Strategy::SCALAR);
 
         // Verify correctness
         bool pmf_correct = true, logpmf_correct = true, cdf_correct = true;
@@ -592,7 +592,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto dice = libstats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data
@@ -626,15 +626,15 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             dice.getProbabilityWithStrategy(std::span<const double>(test_values),
                                             std::span<double>(pmf_results),
-                                            libstats::performance::Strategy::SCALAR);
+                                            stats::performance::Strategy::SCALAR);
         } else if (op == "LogPMF") {
             dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                std::span<double>(log_pmf_results),
-                                               libstats::performance::Strategy::SCALAR);
+                                               stats::performance::Strategy::SCALAR);
         } else if (op == "CDF") {
             dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(cdf_results),
-                                                      libstats::performance::Strategy::SCALAR);
+                                                      stats::performance::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
@@ -649,14 +649,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getProbabilityWithStrategy(
                                   input_span, output_span,
-                                  libstats::performance::Strategy::PARALLEL_SIMD);
+                                  stats::performance::Strategy::PARALLEL_SIMD);
                           }) {
                 dice.getProbabilityWithStrategy(input_span, output_span,
-                                                libstats::performance::Strategy::PARALLEL_SIMD);
+                                                stats::performance::Strategy::PARALLEL_SIMD);
             } else {
                 dice.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                 std::span<double>(pmf_results),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPMF") {
@@ -665,14 +665,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getLogProbabilityWithStrategy(
                                   input_span, log_output_span,
-                                  libstats::performance::Strategy::PARALLEL_SIMD);
+                                  stats::performance::Strategy::PARALLEL_SIMD);
                           }) {
                 dice.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                   libstats::performance::Strategy::PARALLEL_SIMD);
+                                                   stats::performance::Strategy::PARALLEL_SIMD);
             } else {
                 dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(log_pmf_results),
-                                                   libstats::performance::Strategy::SCALAR);
+                                                   stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
@@ -681,14 +681,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getCumulativeProbabilityWithStrategy(
                                   input_span, cdf_output_span,
-                                  libstats::performance::Strategy::PARALLEL_SIMD);
+                                  stats::performance::Strategy::PARALLEL_SIMD);
                           }) {
                 dice.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+                    input_span, cdf_output_span, stats::performance::Strategy::PARALLEL_SIMD);
             } else {
                 dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                           std::span<double>(cdf_results),
-                                                          libstats::performance::Strategy::SCALAR);
+                                                          stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -702,14 +702,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getProbabilityWithStrategy(
                                   input_span, output_span,
-                                  libstats::performance::Strategy::WORK_STEALING);
+                                  stats::performance::Strategy::WORK_STEALING);
                           }) {
                 dice.getProbabilityWithStrategy(input_span, output_span,
-                                                libstats::performance::Strategy::WORK_STEALING);
+                                                stats::performance::Strategy::WORK_STEALING);
             } else {
                 dice.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                 std::span<double>(pmf_results),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPMF") {
@@ -718,14 +718,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getLogProbabilityWithStrategy(
                                   input_span, log_output_span,
-                                  libstats::performance::Strategy::WORK_STEALING);
+                                  stats::performance::Strategy::WORK_STEALING);
                           }) {
                 dice.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                   libstats::performance::Strategy::WORK_STEALING);
+                                                   stats::performance::Strategy::WORK_STEALING);
             } else {
                 dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(log_pmf_results),
-                                                   libstats::performance::Strategy::SCALAR);
+                                                   stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
@@ -734,14 +734,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getCumulativeProbabilityWithStrategy(
                                   input_span, cdf_output_span,
-                                  libstats::performance::Strategy::WORK_STEALING);
+                                  stats::performance::Strategy::WORK_STEALING);
                           }) {
                 dice.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, libstats::performance::Strategy::WORK_STEALING);
+                    input_span, cdf_output_span, stats::performance::Strategy::WORK_STEALING);
             } else {
                 dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                           std::span<double>(cdf_results),
-                                                          libstats::performance::Strategy::SCALAR);
+                                                          stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -755,14 +755,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getProbabilityWithStrategy(
                                   input_span, output_span,
-                                  libstats::performance::Strategy::GPU_ACCELERATED);
+                                  stats::performance::Strategy::GPU_ACCELERATED);
                           }) {
                 dice.getProbabilityWithStrategy(input_span, output_span,
-                                                libstats::performance::Strategy::GPU_ACCELERATED);
+                                                stats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 dice.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                 std::span<double>(pmf_results),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPMF") {
@@ -771,14 +771,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getLogProbabilityWithStrategy(
                                   input_span, log_output_span,
-                                  libstats::performance::Strategy::GPU_ACCELERATED);
+                                  stats::performance::Strategy::GPU_ACCELERATED);
                           }) {
                 dice.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                    input_span, log_output_span, stats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(log_pmf_results),
-                                                   libstats::performance::Strategy::SCALAR);
+                                                   stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
@@ -787,14 +787,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               dice.getCumulativeProbabilityWithStrategy(
                                   input_span, cdf_output_span,
-                                  libstats::performance::Strategy::GPU_ACCELERATED);
+                                  stats::performance::Strategy::GPU_ACCELERATED);
                           }) {
                 dice.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                    input_span, cdf_output_span, stats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                           std::span<double>(cdf_results),
-                                                          libstats::performance::Strategy::SCALAR);
+                                                          stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -1037,13 +1037,13 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchFittingTests) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
-    auto dice = libstats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).value;
 
     EdgeCaseTester<DiscreteDistribution>::testExtremeValues(dice, "Discrete");
     EdgeCaseTester<DiscreteDistribution>::testEmptyBatchOperations(dice, "Discrete");
 }
 
-}  // namespace libstats
+}  // namespace stats
 
 #ifdef _MSC_VER
     #pragma warning(pop)

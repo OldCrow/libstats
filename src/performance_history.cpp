@@ -4,7 +4,7 @@
 #include <cmath>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 namespace performance {
 
 void PerformanceHistory::recordPerformance(Strategy strategy, DistributionType distribution_type,
@@ -389,4 +389,4 @@ std::size_t PerformanceHistory::findOptimalThreshold(
 }
 
 }  // namespace performance
-}  // namespace libstats
+}  // namespace stats

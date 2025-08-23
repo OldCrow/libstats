@@ -45,28 +45,28 @@ void demonstrate_parameter_validation() {
     print_subsection("Valid Parameter Examples");
 
     // Use factory methods instead of constructors for safe creation
-    auto uniform_result = libstats::UniformDistribution::create(0.0, 10.0);
+    auto uniform_result = stats::UniformDistribution::create(0.0, 10.0);
     if (uniform_result.isOk()) {
         std::cout << "✅ Uniform(0.0, 10.0): Valid parameters (a < b)" << std::endl;
     } else {
         std::cout << "❌ Unexpected error: " << uniform_result.message << std::endl;
     }
 
-    auto exp_result = libstats::ExponentialDistribution::create(1.5);
+    auto exp_result = stats::ExponentialDistribution::create(1.5);
     if (exp_result.isOk()) {
         std::cout << "✅ Exponential(1.5): Valid rate parameter (λ > 0)" << std::endl;
     } else {
         std::cout << "❌ Unexpected error: " << exp_result.message << std::endl;
     }
 
-    auto gaussian_result = libstats::GaussianDistribution::create(5.0, 2.0);
+    auto gaussian_result = stats::GaussianDistribution::create(5.0, 2.0);
     if (gaussian_result.isOk()) {
         std::cout << "✅ Gaussian(5.0, 2.0): Valid parameters (σ > 0)" << std::endl;
     } else {
         std::cout << "❌ Unexpected error: " << gaussian_result.message << std::endl;
     }
 
-    auto poisson_result = libstats::PoissonDistribution::create(7.5);
+    auto poisson_result = stats::PoissonDistribution::create(7.5);
     if (poisson_result.isOk()) {
         std::cout << "✅ Poisson(7.5): Valid rate parameter (λ > 0)" << std::endl;
     } else {
@@ -77,7 +77,7 @@ void demonstrate_parameter_validation() {
 
     // Test invalid uniform distribution (a >= b) using factory method
     std::cout << "\n🔍 Testing Uniform distribution with invalid parameters:" << std::endl;
-    auto invalid_uniform_result = libstats::UniformDistribution::create(10.0, 5.0);  // a > b
+    auto invalid_uniform_result = stats::UniformDistribution::create(10.0, 5.0);  // a > b
     if (invalid_uniform_result.isOk()) {
         std::cout << "❌ ERROR: Should have rejected invalid parameters for Uniform(10.0, 5.0)"
                   << std::endl;
@@ -88,7 +88,7 @@ void demonstrate_parameter_validation() {
 
     // Test zero rate parameter using factory method
     std::cout << "\n🔍 Testing Exponential distribution with zero rate:" << std::endl;
-    auto zero_exp_result = libstats::ExponentialDistribution::create(0.0);
+    auto zero_exp_result = stats::ExponentialDistribution::create(0.0);
     if (zero_exp_result.isOk()) {
         std::cout << "❌ ERROR: Should have rejected zero rate parameter" << std::endl;
     } else {
@@ -98,7 +98,7 @@ void demonstrate_parameter_validation() {
     // Test negative standard deviation using factory method
     std::cout << "\n🔍 Testing Gaussian distribution with negative standard deviation:"
               << std::endl;
-    auto negative_gaussian_result = libstats::GaussianDistribution::create(0.0, -1.0);
+    auto negative_gaussian_result = stats::GaussianDistribution::create(0.0, -1.0);
     if (negative_gaussian_result.isOk()) {
         std::cout << "❌ ERROR: Should have rejected negative standard deviation" << std::endl;
     } else {
@@ -108,7 +108,7 @@ void demonstrate_parameter_validation() {
 
     // Test negative Poisson rate using factory method
     std::cout << "\n🔍 Testing Poisson distribution with negative rate:" << std::endl;
-    auto negative_poisson_result = libstats::PoissonDistribution::create(-2.0);
+    auto negative_poisson_result = stats::PoissonDistribution::create(-2.0);
     if (negative_poisson_result.isOk()) {
         std::cout << "❌ ERROR: Should have rejected negative rate parameter" << std::endl;
     } else {
@@ -126,12 +126,12 @@ void demonstrate_safe_creation_patterns() {
     std::cout << "Demonstrating defensive programming patterns for robust code:\n" << std::endl;
 
     // Safe factory function example using libstats factory methods
-    auto safe_create_uniform = [](double a, double b) -> std::unique_ptr<libstats::Uniform> {
+    auto safe_create_uniform = [](double a, double b) -> std::unique_ptr<stats::Uniform> {
         // Use libstats factory method for safe creation
-        auto result = libstats::UniformDistribution::create(a, b);
+        auto result = stats::UniformDistribution::create(a, b);
         if (result.isOk()) {
             // Move the distribution from the result
-            return std::make_unique<libstats::Uniform>(std::move(result.value));
+            return std::make_unique<stats::Uniform>(std::move(result.value));
         } else {
             std::cerr << "Failed to create Uniform(" << a << ", " << b << "): " << result.message
                       << std::endl;
@@ -180,7 +180,7 @@ void demonstrate_safe_creation_patterns() {
     try {
         double rate = 2.5;
         validate_positive(rate, "Exponential rate");
-        auto exp_dist = libstats::ExponentialDistribution::create(rate).value;
+        auto exp_dist = stats::ExponentialDistribution::create(rate).value;
         std::cout << "✅ Exponential distribution created with validated rate: " << rate
                   << std::endl;
     } catch (const std::exception& e) {
@@ -190,7 +190,7 @@ void demonstrate_safe_creation_patterns() {
     try {
         double invalid_rate = -1.0;
         validate_positive(invalid_rate, "Exponential rate");
-        auto exp_dist = libstats::ExponentialDistribution::create(invalid_rate).value;
+        auto exp_dist = stats::ExponentialDistribution::create(invalid_rate).value;
         std::cout << "❌ ERROR: Should not reach here" << std::endl;
     } catch (const std::exception& e) {
         std::cout << "✅ Properly caught invalid rate: " << e.what() << std::endl;
@@ -207,7 +207,7 @@ void demonstrate_numerical_edge_cases() {
     // Very small standard deviation
     std::cout << "🔬 Testing very small standard deviation:" << std::endl;
     try {
-        auto tiny_std = libstats::GaussianDistribution::create(0.0, 1e-10).value;
+        auto tiny_std = stats::GaussianDistribution::create(0.0, 1e-10).value;
         std::cout << "✅ Created Gaussian with σ = 1e-10" << std::endl;
         std::cout << "   PDF at mean: " << std::scientific << std::setprecision(3)
                   << tiny_std.getProbability(0.0) << std::endl;
@@ -220,7 +220,7 @@ void demonstrate_numerical_edge_cases() {
     // Very large standard deviation
     std::cout << "\n🌊 Testing very large standard deviation:" << std::endl;
     try {
-        auto large_std = libstats::GaussianDistribution::create(0.0, 1e6).value;
+        auto large_std = stats::GaussianDistribution::create(0.0, 1e6).value;
         std::cout << "✅ Created Gaussian with σ = 1e6" << std::endl;
         std::cout << "   PDF at mean: " << std::scientific << std::setprecision(3)
                   << large_std.getProbability(0.0) << std::endl;
@@ -233,7 +233,7 @@ void demonstrate_numerical_edge_cases() {
     // Very high Poisson rate
     std::cout << "\n🚀 Testing high Poisson rate (λ = 1000):" << std::endl;
     try {
-        auto high_rate = libstats::PoissonDistribution::create(1000.0).value;
+        auto high_rate = stats::PoissonDistribution::create(1000.0).value;
         std::cout << "✅ Created Poisson with λ = 1000" << std::endl;
         std::cout << "   Mean: " << high_rate.getMean() << std::endl;
         std::cout << "   P(X = 1000): " << std::scientific << std::setprecision(3)
@@ -246,7 +246,7 @@ void demonstrate_numerical_edge_cases() {
 
     print_subsection("Boundary Value Testing");
 
-    auto unit_uniform = libstats::UniformDistribution::create(0.0, 1.0).value;
+    auto unit_uniform = stats::UniformDistribution::create(0.0, 1.0).value;
 
     std::cout << "🎯 Testing uniform distribution boundary values:" << std::endl;
     std::cout << "   PDF at x = 0.0 (lower bound): " << unit_uniform.getProbability(0.0)
@@ -273,7 +273,7 @@ void demonstrate_sampling_safety() {
     std::cout << "🎲 Random number generator state management:" << std::endl;
 
     std::mt19937 rng(42);  // Seeded for reproducibility
-    auto gaussian = libstats::GaussianDistribution::create(0.0, 1.0).value;
+    auto gaussian = stats::GaussianDistribution::create(0.0, 1.0).value;
 
     // Safe sampling with error handling
     auto safe_sample = [](auto& dist, std::mt19937& rng, int n_samples) -> std::vector<double> {
@@ -367,8 +367,8 @@ void demonstrate_input_validation() {
 
     std::cout << "Demonstrating input validation for distribution operations:\n" << std::endl;
 
-    auto gaussian = libstats::GaussianDistribution::create(0.0, 1.0).value;
-    auto poisson = libstats::PoissonDistribution::create(5.0).value;
+    auto gaussian = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto poisson = stats::PoissonDistribution::create(5.0).value;
 
     // Input validation helper
     auto validate_input = [](double x, const std::string& context) -> bool {
@@ -453,20 +453,20 @@ void demonstrate_recovery_strategies() {
 
     // Fallback distribution creation using libstats factory methods
     auto create_distribution_with_fallback =
-        [](double mean, double std_dev) -> std::unique_ptr<libstats::Gaussian> {
+        [](double mean, double std_dev) -> std::unique_ptr<stats::Gaussian> {
         // First try to create with requested parameters using factory method
-        auto result = libstats::GaussianDistribution::create(mean, std_dev);
+        auto result = stats::GaussianDistribution::create(mean, std_dev);
         if (result.isOk()) {
-            return std::make_unique<libstats::Gaussian>(std::move(result.value));
+            return std::make_unique<stats::Gaussian>(std::move(result.value));
         } else {
             std::cout << "⚠️  Failed to create Gaussian(" << mean << ", " << std_dev
                       << "): " << result.message << std::endl;
             std::cout << "   Falling back to standard normal distribution" << std::endl;
 
             // Create fallback using factory method
-            auto fallback = libstats::GaussianDistribution::create(0.0, 1.0);
+            auto fallback = stats::GaussianDistribution::create(0.0, 1.0);
             if (fallback.isOk()) {
-                return std::make_unique<libstats::Gaussian>(std::move(fallback.value));
+                return std::make_unique<stats::Gaussian>(std::move(fallback.value));
             } else {
                 std::cerr << "❌ CRITICAL ERROR: Even fallback distribution failed!" << std::endl;
                 return nullptr;
@@ -479,13 +479,13 @@ void demonstrate_recovery_strategies() {
     // Valid parameters
     if (auto dist = create_distribution_with_fallback(5.0, 2.0)) {
         std::cout << "✅ Created distribution with mean: " << dist->getMean()
-                  << ", std dev: " << libstats::getStandardDeviation(*dist) << std::endl;
+                  << ", std dev: " << stats::getStandardDeviation(*dist) << std::endl;
     }
 
     // Invalid parameters (negative std dev)
     if (auto dist = create_distribution_with_fallback(5.0, -2.0)) {
         std::cout << "✅ Created fallback distribution with mean: " << dist->getMean()
-                  << ", std dev: " << libstats::getStandardDeviation(*dist) << std::endl;
+                  << ", std dev: " << stats::getStandardDeviation(*dist) << std::endl;
     }
 
     print_subsection("Robust Statistical Computation");

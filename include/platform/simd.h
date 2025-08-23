@@ -111,7 +111,7 @@
 // Feature Detection Utilities
 //==============================================================================
 
-namespace libstats {
+namespace stats {
 namespace simd {
 
 /**
@@ -777,4 +777,4 @@ constexpr std::size_t align_size(std::size_t size,
 }
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats

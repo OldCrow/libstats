@@ -8,7 +8,7 @@
 #include <thread>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 namespace performance {
 
 namespace {
@@ -154,4 +154,4 @@ void SystemCapabilities::benchmarkPerformance() {
 }
 
 }  // namespace performance
-}  // namespace libstats
+}  // namespace stats

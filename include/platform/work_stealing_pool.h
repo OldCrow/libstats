@@ -13,7 +13,7 @@
 // Level 1 infrastructure
 #include "../core/math_utils.h"
 
-namespace libstats {
+namespace stats {
 
 // Compatibility helper for different C++ standard library implementations
 #if defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L
@@ -337,4 +337,4 @@ inline void resetStatistics() {
 }
 }  // namespace WorkStealingUtils
 
-}  // namespace libstats
+}  // namespace stats

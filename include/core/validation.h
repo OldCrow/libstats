@@ -34,7 +34,7 @@
 #include <string>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 
 // Forward declaration
 class DistributionBase;
@@ -218,4 +218,4 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(const std::vector
                                                                size_t num_bootstrap = 1000);
 
 }  // namespace validation
-}  // namespace libstats
+}  // namespace stats

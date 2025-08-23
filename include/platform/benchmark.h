@@ -8,7 +8,7 @@
 // Level 1 infrastructure
 #include "../core/math_utils.h"
 
-namespace libstats {
+namespace stats {
 
 /// High-resolution timer for performance measurements
 class Timer {
@@ -282,4 +282,4 @@ class RegressionTester {
     void setTolerance(double percent) { tolerancePercent_ = percent; }
 };
 
-}  // namespace libstats
+}  // namespace stats

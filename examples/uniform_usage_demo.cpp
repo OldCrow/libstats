@@ -38,9 +38,9 @@ int main() {
               << std::endl;
 
     auto standard =
-        libstats::UniformDistribution::create(0.0, 1.0).value;  // Standard uniform [0, 1]
+        stats::UniformDistribution::create(0.0, 1.0).value;  // Standard uniform [0, 1]
     auto custom =
-        libstats::UniformDistribution::create(-5.0, 10.0).value;  // Custom uniform [-5, 10]
+        stats::UniformDistribution::create(-5.0, 10.0).value;  // Custom uniform [-5, 10]
 
     std::cout << "✓ Standard uniform U(0,1) created" << std::endl;
     std::cout << "✓ Custom uniform U(-5,10) created" << std::endl;
@@ -52,7 +52,7 @@ int main() {
     std::cout << "📊 Standard Uniform U(0,1) properties:" << std::endl;
     std::cout << "     Mean: " << standard.getMean() << " [Expected: 0.5000]" << std::endl;
     std::cout << "     Variance: " << standard.getVariance() << " [Expected: 0.0833]" << std::endl;
-    std::cout << "     Standard deviation: " << libstats::getStandardDeviation(standard)
+    std::cout << "     Standard deviation: " << stats::getStandardDeviation(standard)
               << " [Expected: 0.2887]" << std::endl;
     std::cout << "     Skewness: " << standard.getSkewness() << " [Expected: 0.0000 - symmetric]"
               << std::endl;
@@ -66,7 +66,7 @@ int main() {
               << std::endl;
     std::cout << "     Variance: " << custom.getVariance() << " [Expected: " << expected_var << "]"
               << std::endl;
-    std::cout << "     Standard deviation: " << libstats::getStandardDeviation(custom)
+    std::cout << "     Standard deviation: " << stats::getStandardDeviation(custom)
               << " [Expected: " << std::sqrt(expected_var) << "]" << std::endl;
     std::cout << "     Support: [" << custom.getSupportLowerBound() << ", "
               << custom.getSupportUpperBound() << "]" << std::endl;
@@ -171,7 +171,7 @@ int main() {
     std::cout << "📦 Generated 5000 samples from Uniform U(-5,10)" << std::endl;
 
     // Fit a new distribution to the samples
-    libstats::Uniform fitted_uniform;
+    stats::Uniform fitted_uniform;
     fitted_uniform.fit(samples);
 
     std::cout << "\n🔍 Parameter estimation results:" << std::endl;

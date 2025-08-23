@@ -25,7 +25,7 @@
  * behavioral consistency with the inline scalar functions in safety.h.
  */
 
-namespace libstats {
+namespace stats {
 namespace safety {
 
 //==============================================================================
@@ -296,4 +296,4 @@ void vector_clamp_log_probability(std::span<const double> input,
 }
 
 }  // namespace safety
-}  // namespace libstats
+}  // namespace stats

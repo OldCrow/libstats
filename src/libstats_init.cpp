@@ -3,7 +3,7 @@
 #include "../include/platform/simd_policy.h"
 #include "../include/platform/thread_pool.h"
 
-namespace libstats {
+namespace stats {
 
 void initialize_performance_systems() {
     // Thread-safe one-time initialization using static local variable
@@ -57,4 +57,4 @@ void initialize_performance_systems() {
     }
 }
 
-}  // namespace libstats
+}  // namespace stats

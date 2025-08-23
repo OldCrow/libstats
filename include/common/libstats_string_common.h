@@ -20,7 +20,7 @@
 #include <string>
 #include <string_view>
 
-namespace libstats {
+namespace stats {
 namespace common {
 
 /// Common string type aliases
@@ -82,7 +82,7 @@ inline std::string create_error_message(const std::string& function_name,
                                         const std::string& error_description,
                                         const std::string& context = "") {
     std::ostringstream oss;
-    oss << "libstats::" << function_name << ": " << error_description;
+    oss << "stats::" << function_name << ": " << error_description;
     if (!context.empty()) {
         oss << " (context: " << context << ")";
     }
@@ -211,4 +211,4 @@ inline bool is_numeric_string(const std::string& str) {
 }  // namespace string_utils
 
 }  // namespace common
-}  // namespace libstats
+}  // namespace stats

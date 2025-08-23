@@ -43,7 +43,7 @@ class SystemInspector {
     SystemInspector(InspectionMode mode) : mode_(mode) {}
 
     void runInspection() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         // Display tool header with system information (shared across all modes)
         displayToolHeader();
@@ -75,7 +75,7 @@ class SystemInspector {
     InspectionMode mode_;
 
     void displayToolHeader() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         std::string title;
         std::string description;
@@ -105,7 +105,7 @@ class SystemInspector {
     }
 
     void runQuickInspection() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         // Basic system overview
         system_info::displaySystemCapabilities();
@@ -116,7 +116,7 @@ class SystemInspector {
     }
 
     void runConstantsInspection() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         // Shared basic info
         displayBasicSystemInfo();
@@ -131,7 +131,7 @@ class SystemInspector {
     }
 
     void runPerformanceInspection() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         // Shared basic info
         displayBasicSystemInfo();
@@ -146,7 +146,7 @@ class SystemInspector {
     }
 
     void runFullInspection() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::sectionHeader("COMPLETE SYSTEM ANALYSIS", '=');
 
@@ -184,7 +184,7 @@ class SystemInspector {
     // ========================================================================
 
     void displayBasicSystemInfo() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
         system_info::displayCPUFeatures();
         system_info::displayCacheInfo();
     }
@@ -194,7 +194,7 @@ class SystemInspector {
     // ========================================================================
 
     void displaySelectedArchitecture() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Selected Architecture");
         std::cout << "Active Architecture: " << system_info::getActiveArchitecture() << "\n";
@@ -203,8 +203,8 @@ class SystemInspector {
     }
 
     void displayAdditionalAdaptiveConstants() {
-        using namespace libstats::tools;
-        using namespace libstats::constants;
+        using namespace stats::tools;
+        using namespace stats::constants;
 
         display::subsectionHeader("Additional Adaptive Constants");
 
@@ -234,8 +234,8 @@ class SystemInspector {
     }
 
     void displayCacheThresholds() {
-        using namespace libstats::tools;
-        using namespace libstats::constants;
+        using namespace stats::tools;
+        using namespace stats::constants;
 
         display::subsectionHeader("Cache Thresholds");
 
@@ -266,8 +266,8 @@ class SystemInspector {
     }
 
     void displayArchitectureComparison() {
-        using namespace libstats::tools;
-        using namespace libstats::constants;
+        using namespace stats::tools;
+        using namespace stats::constants;
 
         display::subsectionHeader("Architecture-Specific Constants Comparison");
 
@@ -332,11 +332,11 @@ class SystemInspector {
     // ========================================================================
 
     void displayCPUTopology() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("CPU Topology");
 
-        const auto& capabilities = libstats::performance::SystemCapabilities::current();
+        const auto& capabilities = stats::performance::SystemCapabilities::current();
 
         std::cout << std::left << std::setw(25)
                   << "Hardware Threads:" << std::thread::hardware_concurrency() << "\n";
@@ -351,11 +351,11 @@ class SystemInspector {
     }
 
     void displaySIMDCapabilitiesDetailed() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("SIMD Capabilities");
 
-        const auto& capabilities = libstats::performance::SystemCapabilities::current();
+        const auto& capabilities = stats::performance::SystemCapabilities::current();
 
         table::ColumnFormatter formatter({12, 10, 15, 25});
         std::cout << formatter.formatRow({"Instruction", "Support", "Vector Width", "Description"})
@@ -379,24 +379,24 @@ class SystemInspector {
                   << "\n";
 
         // Display active SIMD level
-        std::cout << "\nActive SIMD Level: " << libstats::simd::VectorOps::get_active_simd_level()
+        std::cout << "\nActive SIMD Level: " << stats::simd::VectorOps::get_active_simd_level()
                   << "\n\n";
     }
 
     void displayPerformanceBaselines() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Performance Baselines");
 
         // Simple arithmetic throughput test
         const size_t test_size = BASELINE_TEST_SIZE;
-        std::vector<double> data(test_size, libstats::constants::math::ONE);
+        std::vector<double> data(test_size, stats::constants::math::ONE);
         std::vector<double> result(test_size);
 
         // SIMD throughput
         auto start = high_resolution_clock::now();
         for (int i = 0; i < BASELINE_ITERATIONS; ++i) {
-            libstats::simd::VectorOps::vector_multiply(data.data(), data.data(), result.data(),
+            stats::simd::VectorOps::vector_multiply(data.data(), data.data(), result.data(),
                                                        test_size);
         }
         auto end = high_resolution_clock::now();
@@ -435,7 +435,7 @@ class SystemInspector {
     }
 
     void displayDispatcherConfiguration() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Performance Dispatcher Configuration");
 
@@ -447,24 +447,24 @@ class SystemInspector {
                   << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
-        const auto& capabilities = libstats::performance::SystemCapabilities::current();
+        const auto& capabilities = stats::performance::SystemCapabilities::current();
         std::vector<size_t> test_sizes = {100, 1000, 10000, 100000};
-        std::vector<libstats::performance::DistributionType> dist_types = {
-            libstats::performance::DistributionType::UNIFORM,
-            libstats::performance::DistributionType::GAUSSIAN,
-            libstats::performance::DistributionType::EXPONENTIAL,
-            libstats::performance::DistributionType::POISSON,
-            libstats::performance::DistributionType::DISCRETE};
-        std::vector<libstats::performance::ComputationComplexity> complexities = {
-            libstats::performance::ComputationComplexity::SIMPLE,
-            libstats::performance::ComputationComplexity::MODERATE,
-            libstats::performance::ComputationComplexity::COMPLEX};
+        std::vector<stats::performance::DistributionType> dist_types = {
+            stats::performance::DistributionType::UNIFORM,
+            stats::performance::DistributionType::GAUSSIAN,
+            stats::performance::DistributionType::EXPONENTIAL,
+            stats::performance::DistributionType::POISSON,
+            stats::performance::DistributionType::DISCRETE};
+        std::vector<stats::performance::ComputationComplexity> complexities = {
+            stats::performance::ComputationComplexity::SIMPLE,
+            stats::performance::ComputationComplexity::MODERATE,
+            stats::performance::ComputationComplexity::COMPLEX};
 
         for (auto size : test_sizes) {
             for (auto dist : dist_types) {
                 int complexity_count = 0;
                 for (auto complexity : complexities) {
-                    libstats::performance::PerformanceDispatcher dispatcher;
+                    stats::performance::PerformanceDispatcher dispatcher;
                     auto strategy =
                         dispatcher.selectOptimalStrategy(size, dist, complexity, capabilities);
 
@@ -520,7 +520,7 @@ InspectionMode parseMode(const std::string& arg) {
 }
 
 int main(int argc, char* argv[]) {
-    using namespace libstats::tools;
+    using namespace stats::tools;
 
     // Parse command line arguments
     InspectionMode mode = InspectionMode::FULL;  // default
@@ -538,7 +538,7 @@ int main(int argc, char* argv[]) {
     // Use the standard tool runner pattern with initialization
     return tool_utils::runTool("System Inspector Tool", [mode]() {
         // Initialize performance systems for accurate inspection
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         SystemInspector inspector(mode);
         inspector.runInspection();

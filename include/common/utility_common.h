@@ -33,7 +33,7 @@
 // Core constants - but only essential ones to avoid heavy dependencies
 #include "../core/essential_constants.h"
 
-namespace libstats {
+namespace stats {
 
 // Forward declarations for utility headers
 class DistributionBase;
@@ -66,4 +66,4 @@ struct ChiSquaredResult;
 struct ModelDiagnostics;
 }  // namespace validation
 
-}  // namespace libstats
+}  // namespace stats

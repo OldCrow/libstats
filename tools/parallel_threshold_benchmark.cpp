@@ -27,8 +27,8 @@
 #include "tool_utils.h"
 
 using namespace std::chrono;
-using namespace libstats;
-using namespace libstats::constants;
+using namespace stats;
+using namespace stats::constants;
 
 // Tool-specific benchmark constants
 namespace {
@@ -114,10 +114,10 @@ class ParallelThresholdBenchmark {
     }
 
     void runAllBenchmarks() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         // Initialize performance systems for accurate threshold determination
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         // Display tool header with system information
         system_info::displayToolHeader(
@@ -137,10 +137,10 @@ class ParallelThresholdBenchmark {
 
    private:
     void benchmarkUniformDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Uniform Distribution Benchmark");
-        auto uniform = libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
+        auto uniform = stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
                                                              distribution_params::UNIFORM_MAX)
                            .value;
 
@@ -172,11 +172,11 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkPoissonDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Poisson Distribution Benchmark");
         auto poisson =
-            libstats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA)
+            stats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA)
                 .value;
 
         for (auto size : test_sizes_) {
@@ -206,10 +206,10 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkDiscreteDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Discrete Distribution Benchmark");
-        auto discrete = libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
+        auto discrete = stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
                                                                distribution_params::DISCRETE_MAX)
                             .value;
 
@@ -241,10 +241,10 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkGaussianDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Gaussian Distribution Benchmark");
-        auto gaussian = libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
+        auto gaussian = stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
                                                                distribution_params::GAUSSIAN_STDDEV)
                             .value;
 
@@ -277,11 +277,11 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkExponentialDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Exponential Distribution Benchmark");
         auto exponential =
-            libstats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
+            stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
                 .value;
 
         for (auto size : test_sizes_) {
@@ -312,10 +312,10 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkGammaDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::tools;
 
         display::subsectionHeader("Gamma Distribution Benchmark");
-        auto gamma = libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
+        auto gamma = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
                                                          distribution_params::GAMMA_BETA)
                          .value;
 
@@ -428,25 +428,25 @@ class ParallelThresholdBenchmark {
             // SIMD batch operations using explicit strategy to ensure SIMD benchmarking
             if (operation == "PDF") {
                 dist.getProbabilityWithStrategy(input, output,
-                                                libstats::performance::Strategy::SIMD_BATCH);
+                                                stats::performance::Strategy::SIMD_BATCH);
             } else if (operation == "LogPDF") {
                 dist.getLogProbabilityWithStrategy(input, output,
-                                                   libstats::performance::Strategy::SIMD_BATCH);
+                                                   stats::performance::Strategy::SIMD_BATCH);
             } else if (operation == "CDF") {
                 dist.getCumulativeProbabilityWithStrategy(
-                    input, output, libstats::performance::Strategy::SIMD_BATCH);
+                    input, output, stats::performance::Strategy::SIMD_BATCH);
             }
         } else if (method == "parallel") {
             // Parallel operations using explicit strategy to ensure parallel benchmarking
             if (operation == "PDF") {
                 dist.getProbabilityWithStrategy(input, output,
-                                                libstats::performance::Strategy::PARALLEL_SIMD);
+                                                stats::performance::Strategy::PARALLEL_SIMD);
             } else if (operation == "LogPDF") {
                 dist.getLogProbabilityWithStrategy(input, output,
-                                                   libstats::performance::Strategy::PARALLEL_SIMD);
+                                                   stats::performance::Strategy::PARALLEL_SIMD);
             } else if (operation == "CDF") {
                 dist.getCumulativeProbabilityWithStrategy(
-                    input, output, libstats::performance::Strategy::PARALLEL_SIMD);
+                    input, output, stats::performance::Strategy::PARALLEL_SIMD);
             }
         }
     }

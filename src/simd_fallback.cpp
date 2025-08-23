@@ -9,7 +9,7 @@
 
 #include <algorithm>
 
-namespace libstats {
+namespace stats {
 namespace simd {
 
 //========== Fallback Implementations (Scalar) ==========
@@ -117,4 +117,4 @@ std::size_t VectorOps::double_vector_width() noexcept {
 }
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats

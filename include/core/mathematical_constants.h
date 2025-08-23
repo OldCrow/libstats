@@ -8,7 +8,7 @@
  * well-known mathematical values used throughout the library.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Mathematical constants
@@ -135,4 +135,4 @@ inline constexpr double NEG_HALF_LN_2PI = -0.5 * LN_2PI;
 }  // namespace math
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

@@ -3,7 +3,7 @@
 #include "basic_test_template.h"
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 using namespace BasicTestUtilities;
 
 int main() {
@@ -20,11 +20,11 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_poisson = libstats::PoissonDistribution::create().value;
+        auto default_poisson = stats::PoissonDistribution::create().value;
         StandardizedBasicTest::printProperty("Default Lambda", default_poisson.getLambda());
 
         // Parameterized constructor test
-        auto param_poisson = libstats::PoissonDistribution::create(3.0).value;
+        auto param_poisson = stats::PoissonDistribution::create(3.0).value;
         StandardizedBasicTest::printProperty("Param Lambda", param_poisson.getLambda());
 
         // Copy constructor test
@@ -32,7 +32,7 @@ int main() {
         StandardizedBasicTest::printProperty("Copy Lambda", copy_poisson.getLambda());
 
         // Move constructor test
-        auto temp_poisson = libstats::PoissonDistribution::create(5.0).value;
+        auto temp_poisson = stats::PoissonDistribution::create(5.0).value;
         auto move_poisson = std::move(temp_poisson);
         StandardizedBasicTest::printProperty("Move Lambda", move_poisson.getLambda());
 
@@ -58,7 +58,7 @@ int main() {
                 "variance=3)."
              << endl;
 
-        auto poisson_dist = libstats::PoissonDistribution::create(3.0).value;
+        auto poisson_dist = stats::PoissonDistribution::create(3.0).value;
 
         // Test getters
         StandardizedBasicTest::printProperty("Initial Lambda", poisson_dist.getLambda());
@@ -96,7 +96,7 @@ int main() {
         cout << "Expected: For Poisson(3.0): PMF(3)≈0.224, CDF(3)≈0.647, mode=3 for symmetric case."
              << endl;
 
-        auto test_poisson = libstats::PoissonDistribution::create(3.0).value;
+        auto test_poisson = stats::PoissonDistribution::create(3.0).value;
         int k = 3;
 
         StandardizedBasicTest::printProperty("PMF(3)", test_poisson.getProbability(k));
@@ -172,7 +172,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generatePoissonTestData();
-        auto fitted_dist = libstats::PoissonDistribution::create().value;
+        auto fitted_dist = stats::PoissonDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printProperty("Fitted Lambda", fitted_dist.getLambda());
 
@@ -196,7 +196,7 @@ int main() {
         cout << "Compares performance and verifies correctness against traditional batch methods."
              << endl;
 
-        auto test_dist = libstats::PoissonDistribution::create(3.0).value;
+        auto test_dist = stats::PoissonDistribution::create(3.0).value;
 
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {0, 1, 2, 3, 4, 5};
@@ -236,7 +236,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
                                              std::span<double>(small_pdf_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_pdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -244,7 +244,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                 std::span<double>(small_log_pdf_traditional),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_logpdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -252,7 +252,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                        std::span<double>(small_cdf_traditional),
-                                                       libstats::performance::Strategy::SCALAR);
+                                                       stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -315,7 +315,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
                                              std::span<double>(large_output_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -362,9 +362,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = libstats::PoissonDistribution::create(3.0).value;
-        auto dist2 = libstats::PoissonDistribution::create(3.0).value;
-        auto dist3 = libstats::PoissonDistribution::create(5.0).value;
+        auto dist1 = stats::PoissonDistribution::create(3.0).value;
+        auto dist2 = stats::PoissonDistribution::create(3.0).value;
+        auto dist3 = stats::PoissonDistribution::create(5.0).value;
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -377,7 +377,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = libstats::PoissonDistribution::create().value;
+        auto input_dist = stats::PoissonDistribution::create().value;
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -391,7 +391,7 @@ int main() {
 
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
-        // NOTE: Using ::create() here (not libstats::Poisson) to test exception-free error handling
+        // NOTE: Using ::create() here (not stats::Poisson) to test exception-free error handling
         // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = PoissonDistribution::create(-1.0);  // Invalid: negative lambda
         if (error_result.isError()) {

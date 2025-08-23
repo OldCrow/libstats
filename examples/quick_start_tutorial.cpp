@@ -23,10 +23,10 @@ int main() {
 
     // Step 1: Create distributions
     std::cout << "📝 Step 1: Creating Distributions" << std::endl;
-    auto normal = libstats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal N(0,1)
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal N(0,1)
     auto exponential =
-        libstats::ExponentialDistribution::create(1.5).value;  // Exponential with rate 1.5
-    auto uniform = libstats::UniformDistribution::create(0.0, 10.0).value;  // Uniform on [0, 10]
+        stats::ExponentialDistribution::create(1.5).value;  // Exponential with rate 1.5
+    auto uniform = stats::UniformDistribution::create(0.0, 10.0).value;  // Uniform on [0, 10]
     std::cout << "   ✓ Created Gaussian N(0,1), Exponential(1.5), and Uniform(0,10)\n" << std::endl;
 
     // Step 2: Basic properties
@@ -78,11 +78,11 @@ int main() {
     // Step 6: Parameter fitting
     std::cout << "🔧 Step 6: Parameter Fitting" << std::endl;
     // Create some sample data from a known distribution
-    auto true_dist = libstats::GaussianDistribution::create(5.0, 2.0).value;  // Mean=5, StdDev=2
+    auto true_dist = stats::GaussianDistribution::create(5.0, 2.0).value;  // Mean=5, StdDev=2
     auto sample_data = true_dist.sample(rng, 500);
 
     // Fit a new distribution to this data
-    libstats::Gaussian fitted_dist;
+    stats::Gaussian fitted_dist;
     fitted_dist.fit(sample_data);
 
     std::cout << "   Generated 500 samples from N(5.0, 2.0)" << std::endl;
@@ -110,7 +110,7 @@ int main() {
 
     // Summary
     std::cout << "🎉 Congratulations! You've learned the essentials:" << std::endl;
-    std::cout << "   ✓ Creating distributions: libstats::Gaussian(mean, stddev)" << std::endl;
+    std::cout << "   ✓ Creating distributions: stats::Gaussian(mean, stddev)" << std::endl;
     std::cout << "   ✓ Computing probabilities: getProbability(), getCumulativeProbability()"
               << std::endl;
     std::cout << "   ✓ Finding percentiles: getQuantile(probability)" << std::endl;

@@ -21,7 +21,7 @@
 #include <tuple>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Goodness-of-fit test utilities
@@ -238,4 +238,4 @@ class Bootstrap {
     }
 };
 
-}  // namespace libstats
+}  // namespace stats

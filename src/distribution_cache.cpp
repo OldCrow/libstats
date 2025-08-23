@@ -2,7 +2,7 @@
 
 #include <functional>
 
-namespace libstats {
+namespace stats {
 
 template <typename Func>
 auto ThreadSafeCacheManager::getCachedValue(Func&& accessor) const -> decltype(accessor()) {
@@ -41,4 +41,4 @@ template int ThreadSafeCacheManager::getCachedValue<std::function<int()>>(
 template size_t ThreadSafeCacheManager::getCachedValue<std::function<size_t()>>(
     std::function<size_t()>&&) const;
 
-}  // namespace libstats
+}  // namespace stats

@@ -13,7 +13,7 @@
 
 #include <unordered_map>
 
-namespace libstats {
+namespace stats {
 namespace parallel {
 
 /**
@@ -159,4 +159,4 @@ inline bool shouldUseDistributionParallel(const std::string& distribution,
 }
 
 }  // namespace parallel
-}  // namespace libstats
+}  // namespace stats

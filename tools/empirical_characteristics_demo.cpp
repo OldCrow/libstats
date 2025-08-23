@@ -12,11 +12,11 @@
 // Additional includes for empirical characteristics
 #include "../include/core/distribution_characteristics.h"
 
-using namespace libstats;
-using namespace libstats::performance;
-using namespace libstats::performance::characteristics;
-using namespace libstats::tools::display;
-using namespace libstats::tools::strings;
+using namespace stats;
+using namespace stats::performance;
+using namespace stats::performance::characteristics;
+using namespace stats::tools::display;
+using namespace stats::tools::strings;
 
 namespace {
 
@@ -200,7 +200,7 @@ void demonstrateAdaptiveLearning() {
 
 int main() {
     // Initialize performance systems
-    libstats::initialize_performance_systems();
+    stats::initialize_performance_systems();
 
     sectionHeader("Empirical Distribution Characteristics Demo");
     std::cout << "This demo shows how libstats now uses empirically-derived distribution\n";

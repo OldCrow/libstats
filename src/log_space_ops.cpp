@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-namespace libstats {
+namespace stats {
 
 // =============================================================================
 // STATIC MEMBER INITIALIZATION
@@ -264,4 +264,4 @@ double LogSpaceOps::logSumExpArrayScalar(const double* logValues, std::size_t si
 // rather than implementing its own platform-specific SIMD code.
 // This ensures consistency and leverages the well-tested SIMD implementations.
 
-}  // namespace libstats
+}  // namespace stats

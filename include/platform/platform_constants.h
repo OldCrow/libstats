@@ -10,13 +10,13 @@
 // Forward declaration for platform-specific tuning
 #include "cpu_detection.h"
 
-namespace libstats {
+namespace stats {
 namespace cpu {
 const Features& get_features();
 size_t optimal_double_width();
 size_t optimal_alignment();
 }  // namespace cpu
-}  // namespace libstats
+}  // namespace stats
 
 /**
  * @file platform/platform_constants.h
@@ -27,7 +27,7 @@ size_t optimal_alignment();
  * the target hardware architecture.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// SIMD optimization parameters and architectural constants
@@ -864,4 +864,4 @@ inline constexpr double MIXED_SIZE_MULTIPLIER = 1.1;
 }  // namespace cache
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

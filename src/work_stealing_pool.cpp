@@ -26,12 +26,12 @@
     #include <windows.h>
 #endif
 
-namespace libstats {
+namespace stats {
 
 // Level 0-2 Integration Enabling - use specific namespace qualifiers to avoid conflicts
-using namespace libstats::safety;
-using namespace libstats::constants;
-using namespace libstats::simd;
+using namespace stats::safety;
+using namespace stats::constants;
+using namespace stats::simd;
 
 // Alias the result_of_t helper to ensure compatibility
 #if defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L
@@ -460,4 +460,4 @@ void WorkStealingPool::setThreadAffinity([[maybe_unused]] std::thread& thread,
 #endif
 }
 
-}  // namespace libstats
+}  // namespace stats

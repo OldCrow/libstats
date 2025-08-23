@@ -11,7 +11,7 @@
  * @brief Implementation of the centralized SIMDPolicy class
  */
 
-namespace libstats {
+namespace stats {
 namespace simd {
 
 namespace {
@@ -211,4 +211,4 @@ std::string SIMDPolicy::levelToString(SIMDPolicy::Level level) noexcept {
 }
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats

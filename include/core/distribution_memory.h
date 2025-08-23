@@ -13,7 +13,7 @@
     #include <malloc.h>
 #endif
 
-namespace libstats {
+namespace stats {
 
 // =============================================================================
 // MEMORY POOL IMPLEMENTATION
@@ -434,4 +434,4 @@ inline MemoryPool& getThreadPool() noexcept {
     return thread_pool_;
 }
 
-}  // namespace libstats
+}  // namespace stats

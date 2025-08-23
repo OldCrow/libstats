@@ -8,7 +8,7 @@
  * for common statistical distributions used throughout the library.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Statistical critical values and commonly used constants
@@ -122,4 +122,4 @@ inline constexpr double F_99_DF_10_INF = 2.32;
 }  // namespace statistical
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

@@ -7,8 +7,8 @@
 #include <random>
 #include <vector>
 
-using namespace libstats;
-using namespace libstats::validation;
+using namespace stats;
+using namespace stats::validation;
 
 void test_enhanced_pvalues() {
     std::cout << "Testing Enhanced P-Value Calculations" << std::endl;
@@ -25,7 +25,7 @@ void test_enhanced_pvalues() {
     }
 
     // Create a Gaussian distribution for testing
-    libstats::GaussianDistribution test_gaussian(0.0, 1.0);
+    stats::GaussianDistribution test_gaussian(0.0, 1.0);
 
     // Test Kolmogorov-Smirnov
     std::cout << "\n1. Kolmogorov-Smirnov Test:" << std::endl;
@@ -131,7 +131,7 @@ void test_pvalue_accuracy() {
 
     // Create data that exactly matches the distribution
     std::vector<double> perfect_data;
-    libstats::GaussianDistribution perfect_gaussian(0.0, 1.0);
+    stats::GaussianDistribution perfect_gaussian(0.0, 1.0);
 
     // Generate quantiles that should give a good fit
     for (int i = 1; i <= 50; ++i) {
@@ -164,7 +164,7 @@ void test_bootstrap_methods() {
     }
 
     // Create a Gaussian distribution for testing
-    libstats::GaussianDistribution test_gaussian(0.0, 1.0);
+    stats::GaussianDistribution test_gaussian(0.0, 1.0);
 
     // Test Bootstrap Kolmogorov-Smirnov
     std::cout << "\n1. Bootstrap Kolmogorov-Smirnov Test:" << std::endl;

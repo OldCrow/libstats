@@ -8,9 +8,9 @@
 #include <set>
 #include <sstream>
 
-using namespace libstats;
-using namespace libstats::constants;
-using namespace libstats::constants::parallel;
+using namespace stats;
+using namespace stats::constants;
+using namespace stats::constants::parallel;
 // Platform-specific includes
 #ifdef __APPLE__
     #include <mach/mach.h>
@@ -27,7 +27,7 @@ using namespace libstats::constants::parallel;
     #include <windows.h>
 #endif
 
-namespace libstats {
+namespace stats {
 
 //========== ThreadPool Implementation ==========
 
@@ -143,4 +143,4 @@ ThreadPool& ParallelUtils::getGlobalThreadPool() {
     return globalPool;
 }
 
-}  // namespace libstats
+}  // namespace stats

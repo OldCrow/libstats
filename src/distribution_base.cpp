@@ -12,7 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace libstats {
+namespace stats {
 
 // =============================================================================
 // RULE OF FIVE IMPLEMENTATION
@@ -581,4 +581,4 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
     return h;
 }
 
-}  // namespace libstats
+}  // namespace stats

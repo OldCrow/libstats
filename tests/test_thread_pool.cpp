@@ -23,7 +23,7 @@
 // Include the enhanced thread_pool.h with Level 0-2 integration
 #include "../include/platform/thread_pool.h"
 
-using namespace libstats;
+using namespace stats;
 
 class ThreadPoolTest {
    private:

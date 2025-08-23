@@ -10,7 +10,7 @@
  * and algorithm thresholds throughout the library.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Benchmark and performance testing constants
@@ -65,4 +65,4 @@ inline constexpr double MIN_DISTRIBUTION_PARAMETER = 1.0e-6;
 }  // namespace thresholds
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

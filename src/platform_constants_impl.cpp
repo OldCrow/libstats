@@ -18,7 +18,7 @@
  * overhead for files that only need to access constant values.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// SIMD optimization parameters and architectural constants (implementation)
@@ -603,4 +603,4 @@ namespace sizing {
 // Note: Bridge functions declared in constants_bridge.h are implemented
 // by the functions above in this file via the forward declaration system.
 
-}  // namespace libstats
+}  // namespace stats

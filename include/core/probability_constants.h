@@ -10,7 +10,7 @@
  * used for safe probability calculations throughout the library.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Probability bounds and safety limits
@@ -35,4 +35,4 @@ inline constexpr double LOG_PROBABILITY_EPSILON = 1.0e-300;
 }  // namespace probability
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

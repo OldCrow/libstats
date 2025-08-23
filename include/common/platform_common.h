@@ -55,7 +55,7 @@
 #include "../platform/platform_constants.h"
 
 // Utility using declarations to avoid repetition across platform headers
-namespace libstats {
+namespace stats {
 namespace platform_utils {
 
 /**
@@ -99,4 +99,4 @@ constexpr bool has_steady_high_resolution_clock() noexcept {
 }
 
 }  // namespace platform_utils
-}  // namespace libstats
+}  // namespace stats

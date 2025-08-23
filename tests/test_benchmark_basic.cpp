@@ -1,7 +1,7 @@
 // Use focused header for benchmark infrastructure
 #include "../include/platform/benchmark.h"
 
-using namespace libstats;
+using namespace stats;
 
 int main() {
     std::cout << "=== Benchmark System Test ===\n\n";

@@ -8,7 +8,7 @@
  * numerical methods, and robustness checks throughout the library.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Threshold constants
@@ -140,4 +140,4 @@ inline constexpr double NORMAL_RANGE_MULTIPLIER = 3.0;
 }  // namespace thresholds
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

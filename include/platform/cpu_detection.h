@@ -20,7 +20,7 @@
  * - -march=native generates instructions for build machine, not target machine
  */
 
-namespace libstats {
+namespace stats {
 namespace cpu {
 
 /**
@@ -283,4 +283,4 @@ std::string detailed_cpu_info();
 bool validate_feature_consistency();
 
 }  // namespace cpu
-}  // namespace libstats
+}  // namespace stats

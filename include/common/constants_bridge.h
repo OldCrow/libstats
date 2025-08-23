@@ -2,7 +2,7 @@
 
 #include "platform_constants_fwd.h"
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 // Bridge parallel constants to match expected namespace structure
@@ -50,10 +50,10 @@ std::size_t get_optimal_alignment();
 
 std::size_t get_min_simd_size();
 
-libstats::constants::platform::CacheThresholds get_cache_thresholds();
+stats::constants::platform::CacheThresholds get_cache_thresholds();
 
 bool supports_fast_transcendental();
 }  // namespace platform
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

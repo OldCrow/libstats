@@ -3,7 +3,7 @@
 #include "basic_test_template.h"
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 using namespace BasicTestUtilities;
 
 int main() {
@@ -20,14 +20,14 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_discrete = libstats::DiscreteDistribution::create().value;
+        auto default_discrete = stats::DiscreteDistribution::create().value;
         StandardizedBasicTest::printPropertyInt("Default Lower bound",
                                                 default_discrete.getLowerBound());
         StandardizedBasicTest::printPropertyInt("Default Upper bound",
                                                 default_discrete.getUpperBound());
 
         // Parameterized constructor test
-        auto param_discrete = libstats::DiscreteDistribution::create(0, 1).value;
+        auto param_discrete = stats::DiscreteDistribution::create(0, 1).value;
         StandardizedBasicTest::printPropertyInt("Param Lower bound",
                                                 param_discrete.getLowerBound());
         StandardizedBasicTest::printPropertyInt("Param Upper bound",
@@ -39,7 +39,7 @@ int main() {
         StandardizedBasicTest::printPropertyInt("Copy Upper bound", copy_discrete.getUpperBound());
 
         // Move constructor test
-        auto temp_discrete = libstats::DiscreteDistribution::create(10, 15).value;
+        auto temp_discrete = stats::DiscreteDistribution::create(10, 15).value;
         auto move_discrete = std::move(temp_discrete);
         StandardizedBasicTest::printPropertyInt("Move Lower bound", move_discrete.getLowerBound());
         StandardizedBasicTest::printPropertyInt("Move Upper bound", move_discrete.getUpperBound());
@@ -69,7 +69,7 @@ int main() {
                 "variance=2.916)."
              << endl;
 
-        auto discrete_dist = libstats::DiscreteDistribution::create(1, 6).value;
+        auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
 
         // Test getters
         StandardizedBasicTest::printPropertyInt("Initial Lower bound",
@@ -129,7 +129,7 @@ int main() {
                 "standard die."
              << endl;
 
-        auto dice_dist = libstats::DiscreteDistribution::create(1, 6).value;
+        auto dice_dist = stats::DiscreteDistribution::create(1, 6).value;
         double x = 3.0;
 
         StandardizedBasicTest::printProperty("PMF(3.0)", dice_dist.getProbability(x));
@@ -195,7 +195,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generateDiscreteTestData();
-        auto fitted_dist = libstats::DiscreteDistribution::create().value;
+        auto fitted_dist = stats::DiscreteDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printPropertyInt("Fitted Lower bound", fitted_dist.getLowerBound());
         StandardizedBasicTest::printPropertyInt("Fitted Upper bound", fitted_dist.getUpperBound());
@@ -223,7 +223,7 @@ int main() {
         cout << "Compares performance and verifies correctness against traditional batch methods."
              << endl;
 
-        auto test_dist = libstats::DiscreteDistribution::create(1, 6).value;
+        auto test_dist = stats::DiscreteDistribution::create(1, 6).value;
 
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0};
@@ -263,7 +263,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
                                              std::span<double>(small_pdf_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_pdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -271,7 +271,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                 std::span<double>(small_log_pdf_traditional),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_logpdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -279,7 +279,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                        std::span<double>(small_cdf_traditional),
-                                                       libstats::performance::Strategy::SCALAR);
+                                                       stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -342,7 +342,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
                                              std::span<double>(large_output_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -389,9 +389,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = libstats::DiscreteDistribution::create(1, 6).value;
-        auto dist2 = libstats::DiscreteDistribution::create(1, 6).value;
-        auto dist3 = libstats::DiscreteDistribution::create(0, 10).value;
+        auto dist1 = stats::DiscreteDistribution::create(1, 6).value;
+        auto dist2 = stats::DiscreteDistribution::create(1, 6).value;
+        auto dist3 = stats::DiscreteDistribution::create(0, 10).value;
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -404,7 +404,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = libstats::DiscreteDistribution::create().value;
+        auto input_dist = stats::DiscreteDistribution::create().value;
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -419,7 +419,7 @@ int main() {
 
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
-        // NOTE: Using ::create() here (not libstats::Discrete) to test exception-free error
+        // NOTE: Using ::create() here (not stats::Discrete) to test exception-free error
         // handling
         // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = DiscreteDistribution::create(5, 3);  // Invalid: upper < lower

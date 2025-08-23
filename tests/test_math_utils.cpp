@@ -8,8 +8,8 @@
 
 #include <gtest/gtest.h>
 
-// Use libstats::math namespace but avoid conflicting standard library functions
-using namespace libstats::math;
+// Use stats::math namespace but avoid conflicting standard library functions
+using namespace stats::math;
 
 class MathUtilsTest : public ::testing::Test {
    protected:
@@ -33,29 +33,29 @@ class MathUtilsTest : public ::testing::Test {
 
 TEST_F(MathUtilsTest, ErfBasicValues) {
     // Test against known values
-    EXPECT_TRUE(near_equal(libstats::math::erf(0.0), 0.0));
-    EXPECT_TRUE(near_equal(libstats::math::erf(1.0), 0.8427007929, LOOSE_TOLERANCE));
-    EXPECT_TRUE(near_equal(libstats::math::erf(-1.0), -0.8427007929, LOOSE_TOLERANCE));
-    EXPECT_TRUE(near_equal(libstats::math::erf(2.0), 0.9953222650, LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::erf(0.0), 0.0));
+    EXPECT_TRUE(near_equal(stats::math::erf(1.0), 0.8427007929, LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::erf(-1.0), -0.8427007929, LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::erf(2.0), 0.9953222650, LOOSE_TOLERANCE));
 
     // Test symmetry
-    EXPECT_TRUE(near_equal(libstats::math::erf(-0.5), -libstats::math::erf(0.5)));
+    EXPECT_TRUE(near_equal(stats::math::erf(-0.5), -stats::math::erf(0.5)));
 
     // Test limits
-    EXPECT_TRUE(near_equal(libstats::math::erf(10.0), 1.0, LOOSE_TOLERANCE));
-    EXPECT_TRUE(near_equal(libstats::math::erf(-10.0), -1.0, LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::erf(10.0), 1.0, LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::erf(-10.0), -1.0, LOOSE_TOLERANCE));
 }
 
 TEST_F(MathUtilsTest, ErfcBasicValues) {
     // Test against known values
-    EXPECT_TRUE(near_equal(libstats::math::erfc(0.0), 1.0));
-    EXPECT_TRUE(near_equal(libstats::math::erfc(1.0), 0.1572992071, LOOSE_TOLERANCE));
-    EXPECT_TRUE(near_equal(libstats::math::erfc(-1.0), 1.8427007929, LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::erfc(0.0), 1.0));
+    EXPECT_TRUE(near_equal(stats::math::erfc(1.0), 0.1572992071, LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::erfc(-1.0), 1.8427007929, LOOSE_TOLERANCE));
 
     // Test relationship: erf(x) + erfc(x) = 1
     for (double x = -3.0; x <= 3.0; x += 0.5) {
         EXPECT_TRUE(
-            near_equal(libstats::math::erf(x) + libstats::math::erfc(x), 1.0, LOOSE_TOLERANCE));
+            near_equal(stats::math::erf(x) + stats::math::erfc(x), 1.0, LOOSE_TOLERANCE));
     }
 }
 
@@ -65,7 +65,7 @@ TEST_F(MathUtilsTest, ErfInvBasicValues) {
 
     // Test inverse property: erf_inv(erf(x)) ≈ x for small x
     for (double x = -1.5; x <= 1.5; x += 0.3) {
-        double erf_x = libstats::math::erf(x);
+        double erf_x = stats::math::erf(x);
         if (std::abs(erf_x) < 0.99) {  // Within valid range
             EXPECT_TRUE(near_equal(erf_inv(erf_x), x, VERY_LOOSE_TOLERANCE));
         }
@@ -84,16 +84,16 @@ TEST_F(MathUtilsTest, ErfInvBasicValues) {
 
 TEST_F(MathUtilsTest, LgammaBasicValues) {
     // Test against known values
-    EXPECT_TRUE(near_equal(libstats::math::lgamma(1.0), 0.0));            // Γ(1) = 1, ln(1) = 0
-    EXPECT_TRUE(near_equal(libstats::math::lgamma(2.0), 0.0));            // Γ(2) = 1, ln(1) = 0
-    EXPECT_TRUE(near_equal(libstats::math::lgamma(3.0), std::log(2.0)));  // Γ(3) = 2, ln(2)
-    EXPECT_TRUE(near_equal(libstats::math::lgamma(4.0), std::log(6.0)));  // Γ(4) = 6, ln(6)
+    EXPECT_TRUE(near_equal(stats::math::lgamma(1.0), 0.0));            // Γ(1) = 1, ln(1) = 0
+    EXPECT_TRUE(near_equal(stats::math::lgamma(2.0), 0.0));            // Γ(2) = 1, ln(1) = 0
+    EXPECT_TRUE(near_equal(stats::math::lgamma(3.0), std::log(2.0)));  // Γ(3) = 2, ln(2)
+    EXPECT_TRUE(near_equal(stats::math::lgamma(4.0), std::log(6.0)));  // Γ(4) = 6, ln(6)
 
     // Test half-integer values
     EXPECT_TRUE(
-        near_equal(libstats::math::lgamma(0.5), std::log(std::sqrt(M_PI)), LOOSE_TOLERANCE));
+        near_equal(stats::math::lgamma(0.5), std::log(std::sqrt(M_PI)), LOOSE_TOLERANCE));
     EXPECT_TRUE(
-        near_equal(libstats::math::lgamma(1.5), std::log(std::sqrt(M_PI) / 2.0), LOOSE_TOLERANCE));
+        near_equal(stats::math::lgamma(1.5), std::log(std::sqrt(M_PI) / 2.0), LOOSE_TOLERANCE));
 }
 
 TEST_F(MathUtilsTest, GammaPKnownValues) {

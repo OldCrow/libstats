@@ -3,7 +3,7 @@
 #include "basic_test_template.h"
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 using namespace BasicTestUtilities;
 
 int main() {
@@ -20,13 +20,13 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_gauss = libstats::GaussianDistribution::create().value;
+        auto default_gauss = stats::GaussianDistribution::create().value;
         StandardizedBasicTest::printProperty("Default Mean", default_gauss.getMean());
         StandardizedBasicTest::printProperty("Default Std Dev",
                                              default_gauss.getStandardDeviation());
 
         // Parameterized constructor test
-        auto param_gauss = libstats::GaussianDistribution::create(5.0, 2.0).value;
+        auto param_gauss = stats::GaussianDistribution::create(5.0, 2.0).value;
         StandardizedBasicTest::printProperty("Param Mean", param_gauss.getMean());
         StandardizedBasicTest::printProperty("Param Std Dev", param_gauss.getStandardDeviation());
 
@@ -36,7 +36,7 @@ int main() {
         StandardizedBasicTest::printProperty("Copy Std Dev", copy_gauss.getStandardDeviation());
 
         // Move constructor test
-        auto temp_gauss = libstats::GaussianDistribution::create(10.0, 3.0).value;
+        auto temp_gauss = stats::GaussianDistribution::create(10.0, 3.0).value;
         auto move_gauss = std::move(temp_gauss);
         StandardizedBasicTest::printProperty("Move Mean", move_gauss.getMean());
         StandardizedBasicTest::printProperty("Move Std Dev", move_gauss.getStandardDeviation());
@@ -64,7 +64,7 @@ int main() {
         cout << "Using a Standard Normal (0.0, 1.0) distribution as the results are well known."
              << endl;
 
-        auto gauss_dist = libstats::GaussianDistribution::create(0.0, 1.0).value;
+        auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).value;
 
         // Test getters
         StandardizedBasicTest::printProperty("Initial Mean", gauss_dist.getMean());
@@ -118,7 +118,7 @@ int main() {
                 "Normal (0, 1)."
              << endl;
 
-        auto std_normal = libstats::GaussianDistribution::create(0.0, 1.0).value;
+        auto std_normal = stats::GaussianDistribution::create(0.0, 1.0).value;
         double x = 1.0;
 
         StandardizedBasicTest::printProperty("PDF(1.0)", std_normal.getProbability(x));
@@ -186,7 +186,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = StandardizedBasicTest::generateGaussianTestData();
-        auto fitted_dist = libstats::GaussianDistribution::create().value;
+        auto fitted_dist = stats::GaussianDistribution::create().value;
         fitted_dist.fit(fit_data);
         StandardizedBasicTest::printProperty("Fitted Mean", fitted_dist.getMean());
         StandardizedBasicTest::printProperty("Fitted Std Dev", fitted_dist.getStandardDeviation());
@@ -213,7 +213,7 @@ int main() {
         cout << "Compares performance and verifies correctness against traditional batch methods."
              << endl;
 
-        auto test_dist = libstats::GaussianDistribution::create(0.0, 1.0).value;
+        auto test_dist = stats::GaussianDistribution::create(0.0, 1.0).value;
 
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {-2.5, -1.2, 0.3, 1.8, 2.1};
@@ -253,7 +253,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
                                              std::span<double>(small_pdf_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_pdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -261,7 +261,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                 std::span<double>(small_log_pdf_traditional),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_logpdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -269,7 +269,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                        std::span<double>(small_cdf_traditional),
-                                                       libstats::performance::Strategy::SCALAR);
+                                                       stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -332,7 +332,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
                                              std::span<double>(large_output_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::performance::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -379,9 +379,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = libstats::GaussianDistribution::create(0.0, 1.0).value;
-        auto dist2 = libstats::GaussianDistribution::create(0.0, 1.0).value;
-        auto dist3 = libstats::GaussianDistribution::create(1.0, 2.0).value;
+        auto dist1 = stats::GaussianDistribution::create(0.0, 1.0).value;
+        auto dist2 = stats::GaussianDistribution::create(0.0, 1.0).value;
+        auto dist3 = stats::GaussianDistribution::create(1.0, 2.0).value;
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -394,7 +394,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = libstats::GaussianDistribution::create().value;
+        auto input_dist = stats::GaussianDistribution::create().value;
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -409,7 +409,7 @@ int main() {
 
         // Test 8: Error Handling
         StandardizedBasicTest::printTestStart(8, "Error Handling");
-        // NOTE: Using ::create() here (not libstats::Gaussian) to test exception-free error
+        // NOTE: Using ::create() here (not stats::Gaussian) to test exception-free error
         // handling
         // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = GaussianDistribution::create(0.0, -1.0);

@@ -7,7 +7,7 @@
 // caching, etc.)
 #include "../common/distribution_platform_common.h"
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Thread-safe Gamma Distribution for modeling continuous positive-valued data.
@@ -1051,7 +1051,7 @@ class GammaDistribution : public DistributionBase {
      * @param dist Distribution to input
      * @return Reference to the input stream
      */
-    friend std::istream& operator>>(std::istream& is, libstats::GammaDistribution&);
+    friend std::istream& operator>>(std::istream& is, stats::GammaDistribution&);
 
     /**
      * @brief Stream output operator
@@ -1059,7 +1059,7 @@ class GammaDistribution : public DistributionBase {
      * @param dist Distribution to output
      * @return Reference to the output stream
      */
-    friend std::ostream& operator<<(std::ostream& os, const libstats::GammaDistribution&);
+    friend std::ostream& operator<<(std::ostream& os, const stats::GammaDistribution&);
 
    private:
     //==========================================================================
@@ -1286,4 +1286,4 @@ class GammaDistribution : public DistributionBase {
     // This section maintained for template compliance
 };
 
-}  // namespace libstats
+}  // namespace stats

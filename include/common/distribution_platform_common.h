@@ -23,7 +23,7 @@
 // Thread pool integration - used by distributions with heavy batch operations
 #include "../platform/thread_pool.h"  // Traditional thread pool (used by most)
 
-namespace libstats {
+namespace stats {
 namespace distributions {
 
 /**
@@ -37,4 +37,4 @@ using ParallelThreshold = std::size_t;
 }  // namespace platform_support
 
 }  // namespace distributions
-}  // namespace libstats
+}  // namespace stats

@@ -16,7 +16,7 @@
  * integration, and optimization routines.
  */
 
-namespace libstats {
+namespace stats {
 namespace math {
 
 // =============================================================================
@@ -371,14 +371,14 @@ template <MathFunction<double> F>
 // =============================================================================
 
 }  // namespace math
-}  // namespace libstats
+}  // namespace stats
 
 // Forward declaration
-namespace libstats {
+namespace stats {
 class DistributionBase;
 }
 
-namespace libstats {
+namespace stats {
 namespace math {
 
 /**
@@ -669,4 +669,4 @@ struct NumericalDiagnostics {
 }
 
 }  // namespace math
-}  // namespace libstats
+}  // namespace stats

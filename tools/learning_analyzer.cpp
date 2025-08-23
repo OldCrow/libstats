@@ -20,10 +20,10 @@
 #include <sstream>
 #include <thread>
 
-using namespace libstats;
-using namespace libstats::performance;
-using namespace libstats::constants;
-using namespace libstats::tools;
+using namespace stats;
+using namespace stats::performance;
+using namespace stats::constants;
+using namespace stats::tools;
 
 // Consolidated learning analysis constants
 namespace {
@@ -107,7 +107,7 @@ class LearningAnalyzer {
 
     void runDemo() {
         // Initialize performance systems for accurate threshold learning
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         std::cout << "=== THRESHOLD LEARNING DEMONSTRATION ===\n\n";
 
@@ -119,7 +119,7 @@ class LearningAnalyzer {
 
     void runAnalysis() {
         // Initialize performance systems for optimal measurement accuracy
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         std::cout << "============================================================\n";
         std::cout << "ADAPTIVE LEARNING ANALYSIS\n";
@@ -364,7 +364,7 @@ class LearningAnalyzer {
                     Strategy::SCALAR, dist_type, batch_size,
                     static_cast<std::uint64_t>(duration.count()));
 
-                std::cout << "  PDF (scalar): " << libstats::tools::time::formatDuration(duration)
+                std::cout << "  PDF (scalar): " << stats::tools::time::formatDuration(duration)
                           << " (" << (static_cast<std::uint64_t>(duration.count()) / batch_size)
                           << "ns/op)" << std::endl;
             }
@@ -386,7 +386,7 @@ class LearningAnalyzer {
                         Strategy::SIMD_BATCH, dist_type, batch_size,
                         static_cast<std::uint64_t>(simd_duration.count()));
                     std::cout << "  CDF (simd):   "
-                              << libstats::tools::time::formatDuration(simd_duration) << " ("
+                              << stats::tools::time::formatDuration(simd_duration) << " ("
                               << (static_cast<std::uint64_t>(simd_duration.count()) / batch_size)
                               << "ns/op)" << std::endl;
                 }
@@ -398,7 +398,7 @@ class LearningAnalyzer {
                         Strategy::PARALLEL_SIMD, dist_type, batch_size,
                         static_cast<std::uint64_t>(parallel_duration.count()));
                     std::cout << "  CDF (parallel): "
-                              << libstats::tools::time::formatDuration(parallel_duration) << " ("
+                              << stats::tools::time::formatDuration(parallel_duration) << " ("
                               << (static_cast<std::uint64_t>(parallel_duration.count()) /
                                   batch_size)
                               << "ns/op)" << std::endl;
@@ -407,7 +407,7 @@ class LearningAnalyzer {
                 PerformanceDispatcher::recordPerformance(
                     Strategy::SCALAR, dist_type, batch_size,
                     static_cast<std::uint64_t>(duration.count()));
-                std::cout << "  CDF (scalar): " << libstats::tools::time::formatDuration(duration)
+                std::cout << "  CDF (scalar): " << stats::tools::time::formatDuration(duration)
                           << " (" << (static_cast<std::uint64_t>(duration.count()) / batch_size)
                           << "ns/op)" << std::endl;
             }
@@ -430,7 +430,7 @@ class LearningAnalyzer {
                     Strategy::WORK_STEALING, dist_type, batch_size,
                     static_cast<std::uint64_t>(work_stealing_duration.count()));
                 std::cout << "  Mixed (work-stealing): "
-                          << libstats::tools::time::formatDuration(work_stealing_duration) << " ("
+                          << stats::tools::time::formatDuration(work_stealing_duration) << " ("
                           << (static_cast<std::uint64_t>(work_stealing_duration.count()) /
                               batch_size)
                           << "ns/op)" << std::endl;
@@ -442,7 +442,7 @@ class LearningAnalyzer {
                         Strategy::GPU_ACCELERATED, dist_type, batch_size,
                         static_cast<std::uint64_t>(gpu_accelerated_duration.count()));
                     std::cout << "  Mixed (gpu-accelerated): "
-                              << libstats::tools::time::formatDuration(gpu_accelerated_duration)
+                              << stats::tools::time::formatDuration(gpu_accelerated_duration)
                               << " ("
                               << (static_cast<std::uint64_t>(gpu_accelerated_duration.count()) /
                                   batch_size)
@@ -456,7 +456,7 @@ class LearningAnalyzer {
         // Exercise different distributions using safe factory methods
         {
             auto uniform_dist =
-                libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
+                stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
                                                       distribution_params::UNIFORM_MAX)
                     .value;
             exerciseDistribution("Uniform", DistributionType::UNIFORM, uniform_dist, batch_sizes);
@@ -464,7 +464,7 @@ class LearningAnalyzer {
 
         {
             auto gaussian_dist =
-                libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
+                stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
                                                        distribution_params::GAUSSIAN_STDDEV)
                     .value;
             exerciseDistribution("Gaussian", DistributionType::GAUSSIAN, gaussian_dist,
@@ -473,7 +473,7 @@ class LearningAnalyzer {
 
         {
             auto exp_dist =
-                libstats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
+                stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
                     .value;
             exerciseDistribution("Exponential", DistributionType::EXPONENTIAL, exp_dist,
                                  batch_sizes);
@@ -481,7 +481,7 @@ class LearningAnalyzer {
 
         {
             auto disc_dist =
-                libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
+                stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
                                                        distribution_params::DISCRETE_MAX)
                     .value;
             exerciseDistribution("Discrete", DistributionType::DISCRETE, disc_dist, batch_sizes);
@@ -489,12 +489,12 @@ class LearningAnalyzer {
 
         {
             auto poisson_dist =
-                libstats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA).value;
+                stats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA).value;
             exerciseDistribution("Poisson", DistributionType::POISSON, poisson_dist, batch_sizes);
         }
 
         {
-            auto gamma_dist = libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
+            auto gamma_dist = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
                                                                   distribution_params::GAMMA_BETA)
                                   .value;
             exerciseDistribution("Gamma", DistributionType::GAMMA, gamma_dist, batch_sizes);
@@ -607,7 +607,7 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Uniform Distribution..." << std::flush;
                 auto uniform_dist =
-                    libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
+                    stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
                                                           distribution_params::UNIFORM_MAX)
                         .value;
                 exerciseDistributionEnhanced("Uniform", DistributionType::UNIFORM, uniform_dist,
@@ -619,7 +619,7 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Gaussian Distribution..." << std::flush;
                 auto gaussian_dist =
-                    libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
+                    stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
                                                            distribution_params::GAUSSIAN_STDDEV)
                         .value;
                 exerciseDistributionEnhanced("Gaussian", DistributionType::GAUSSIAN, gaussian_dist,
@@ -630,7 +630,7 @@ class LearningAnalyzer {
 
             {
                 std::cout << "Testing Exponential Distribution..." << std::flush;
-                auto exp_dist = libstats::ExponentialDistribution::create(
+                auto exp_dist = stats::ExponentialDistribution::create(
                                     distribution_params::EXPONENTIAL_LAMBDA)
                                     .value;
                 exerciseDistributionEnhanced("Exponential", DistributionType::EXPONENTIAL, exp_dist,
@@ -642,7 +642,7 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Discrete Distribution..." << std::flush;
                 auto disc_dist =
-                    libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
+                    stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
                                                            distribution_params::DISCRETE_MAX)
                         .value;
                 exerciseDistributionEnhanced("Discrete", DistributionType::DISCRETE, disc_dist,
@@ -654,7 +654,7 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Poisson Distribution..." << std::flush;
                 auto poisson_dist =
-                    libstats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA)
+                    stats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA)
                         .value;
                 exerciseDistributionEnhanced("Poisson", DistributionType::POISSON, poisson_dist,
                                              batch_sizes);
@@ -665,7 +665,7 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Gamma Distribution..." << std::flush;
                 auto gamma_dist =
-                    libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
+                    stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
                                                         distribution_params::GAMMA_BETA)
                         .value;
                 exerciseDistributionEnhanced("Gamma", DistributionType::GAMMA, gamma_dist,

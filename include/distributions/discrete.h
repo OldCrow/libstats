@@ -7,7 +7,7 @@
 // caching, etc.)
 #include "../common/distribution_platform_common.h"
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Thread-safe Discrete Uniform Distribution for modeling equiprobable integer outcomes.
@@ -1043,7 +1043,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param dist Distribution to input
      * @return Reference to the input stream
      */
-    friend std::istream& operator>>(std::istream& is, libstats::DiscreteDistribution& dist);
+    friend std::istream& operator>>(std::istream& is, stats::DiscreteDistribution& dist);
 
     /**
      * @brief Stream output operator
@@ -1051,7 +1051,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param dist Distribution to output
      * @return Reference to the output stream
      */
-    friend std::ostream& operator<<(std::ostream& os, const libstats::DiscreteDistribution& dist);
+    friend std::ostream& operator<<(std::ostream& os, const stats::DiscreteDistribution& dist);
 
    private:
     //==========================================================================
@@ -1232,4 +1232,4 @@ class DiscreteDistribution : public DistributionBase {
     // This section maintained for template compliance
 };
 
-}  // namespace libstats
+}  // namespace stats

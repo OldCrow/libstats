@@ -29,7 +29,7 @@
 #include "../core/error_handling.h"       // Result types and validation
 #include "../core/essential_constants.h"  // Only essential constants
 
-namespace libstats {
+namespace stats {
 
 // Forward declarations to reduce compile-time dependencies
 class DistributionInterface;
@@ -40,4 +40,4 @@ class ThreadSafeCacheManager;
 struct ValidationResult;
 struct FitResults;
 
-}  // namespace libstats
+}  // namespace stats

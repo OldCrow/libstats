@@ -40,7 +40,7 @@
 #include <thread>
 #include <vector>
 
-using namespace libstats;
+using namespace stats;
 
 //==============================================================================
 // BENCHMARK CONFIGURATION
@@ -688,7 +688,7 @@ int main(int argc, char* argv[]) {
         BenchmarkConfig config = parseArguments(argc, argv);
 
         // Initialize libstats
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         ParallelBatchFittingBenchmark benchmark(config);
         auto summary = benchmark.run();

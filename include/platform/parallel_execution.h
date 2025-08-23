@@ -78,7 +78,7 @@
     #define LIBSTATS_HAS_PARALLEL_EXECUTION 0
 #endif
 
-namespace libstats {
+namespace stats {
 namespace parallel {
 
 /**
@@ -119,7 +119,7 @@ inline const char* execution_support_string() noexcept {
  */
 inline std::size_t get_optimal_parallel_threshold(const std::string& distribution,
                                                   const std::string& operation) noexcept {
-    return libstats::parallel::getGlobalThresholdCalculator().getThreshold(distribution, operation);
+    return stats::parallel::getGlobalThresholdCalculator().getThreshold(distribution, operation);
 }
 
 /**
@@ -1275,4 +1275,4 @@ typename std::iterator_traits<Iterator>::difference_type safe_count_if(Iterator 
 }
 
 }  // namespace parallel
-}  // namespace libstats
+}  // namespace stats

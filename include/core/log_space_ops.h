@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief High-performance log-space arithmetic operations
@@ -155,4 +155,4 @@ class LogSpaceInitializer {
 /// Global initializer - ensures tables are ready when library is loaded
 static LogSpaceInitializer globalLogSpaceInit;
 
-}  // namespace libstats
+}  // namespace stats

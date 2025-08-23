@@ -11,7 +11,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace libstats {
+namespace stats {
 namespace math {
 
 // Forward declarations
@@ -172,7 +172,7 @@ double gamma_p(double a, double x) noexcept {
 
     if (x > a + 1.0) {
         // For large x, use the complementary function for better convergence
-        return 1.0 - libstats::math::gamma_q(a, x);
+        return 1.0 - stats::math::gamma_q(a, x);
     }
 
     // Use the dedicated series function that has the correct formula
@@ -1101,4 +1101,4 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
 }
 
 }  // namespace math
-}  // namespace libstats
+}  // namespace stats

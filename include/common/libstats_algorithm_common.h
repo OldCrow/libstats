@@ -28,7 +28,7 @@
     #define LIBSTATS_HAS_EXECUTION_POLICY 0
 #endif
 
-namespace libstats {
+namespace stats {
 namespace common {
 
 /// Algorithm utilities optimized for statistical operations
@@ -339,4 +339,4 @@ inline auto percentile(Iterator first, Iterator last, double p) {
 }  // namespace algorithm_utils
 
 }  // namespace common
-}  // namespace libstats
+}  // namespace stats

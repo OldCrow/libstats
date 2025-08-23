@@ -17,7 +17,7 @@
 #include <sstream>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTORS
@@ -2524,4 +2524,4 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
 // Note: Specialized caches are declared in the header as private member variables
 // This section exists for standardization and documentation purposes
 
-}  // namespace libstats
+}  // namespace stats

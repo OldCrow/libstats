@@ -8,7 +8,7 @@
  * including M-estimator tuning constants and robust scale factors.
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Robust estimation constants
@@ -43,4 +43,4 @@ inline constexpr double MIN_ROBUST_SCALE = 1.0e-8;
 }  // namespace robust
 
 }  // namespace constants
-}  // namespace libstats
+}  // namespace stats

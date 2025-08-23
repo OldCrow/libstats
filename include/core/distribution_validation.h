@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 
 // =============================================================================
 // VALIDATION RESULT STRUCTURES
@@ -254,4 +254,4 @@ size_t getRecommendedSampleSize(int num_parameters, double confidence_level = 0.
 
 }  // namespace validation
 
-}  // namespace libstats
+}  // namespace stats

@@ -19,7 +19,7 @@
 #include <cmath>
 #include <immintrin.h>  // AVX2 intrinsics
 
-namespace libstats {
+namespace stats {
 namespace simd {
 
 // All AVX2 functions use double-precision (64-bit) values
@@ -169,7 +169,7 @@ void VectorOps::scalar_add_avx2(const double* a, double scalar, double* result,
 }
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats
 
 #ifdef __clang__
     #pragma clang attribute pop

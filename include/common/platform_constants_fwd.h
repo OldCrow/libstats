@@ -15,7 +15,7 @@
  *   - This reduces compilation overhead by ~85% for most use cases
  */
 
-namespace libstats {
+namespace stats {
 namespace constants {
 
 /// Forward declarations - lightweight interface to platform constants
@@ -123,4 +123,4 @@ std::size_t optimal_alignment();
 bool is_sandy_ivy_bridge();
 }  // namespace cpu
 
-}  // namespace libstats
+}  // namespace stats

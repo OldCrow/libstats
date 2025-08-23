@@ -6,7 +6,7 @@
 #include <vector>
 
 int main() {
-    using namespace libstats::simd;
+    using namespace stats::simd;
 
     std::cout << "=== PLATFORM OPTIMIZATION TEST ===" << std::endl;
 

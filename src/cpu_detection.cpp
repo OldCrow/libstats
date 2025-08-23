@@ -56,7 +56,7 @@
     #endif
 #endif
 
-namespace libstats {
+namespace stats {
 namespace cpu {
 
 namespace {
@@ -959,7 +959,7 @@ bool is_modern_intel() {
 }
 
 }  // namespace cpu
-}  // namespace libstats
+}  // namespace stats
 
 // Restore original compiler SIMD settings (only needed for GCC)
 #if defined(__GNUC__) && !defined(__clang__)

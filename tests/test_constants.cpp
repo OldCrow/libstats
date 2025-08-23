@@ -10,8 +10,8 @@
 #include <limits>
 
 void test_math_constants() {
-    using namespace libstats::constants::math;
-    using namespace libstats::constants::precision;
+    using namespace stats::constants::math;
+    using namespace stats::constants::precision;
 
     // Pi and related constants
     assert(std::abs(PI - 3.14159265358979323846) < HIGH_PRECISION_TOLERANCE);
@@ -52,7 +52,7 @@ void test_math_constants() {
 }
 
 void test_probability_constants() {
-    using namespace libstats::constants::probability;
+    using namespace stats::constants::probability;
 
     // Probability bounds
     assert(MIN_PROBABILITY > 0.0);
@@ -74,7 +74,7 @@ void test_probability_constants() {
 }
 
 void test_precision_constants() {
-    using namespace libstats::constants::precision;
+    using namespace stats::constants::precision;
 
     // Test precision hierarchy
     assert(DEFAULT_TOLERANCE > HIGH_PRECISION_TOLERANCE);
@@ -108,7 +108,7 @@ void test_precision_constants() {
 }
 
 void test_simd_constants() {
-    using namespace libstats::constants::simd;
+    using namespace stats::constants::simd;
 
     // Test SIMD parameters
     assert(DEFAULT_BLOCK_SIZE > 0);
@@ -124,7 +124,7 @@ void test_simd_constants() {
 }
 
 void test_platform_optimizations() {
-    using namespace libstats::constants::platform;
+    using namespace stats::constants::platform;
 
     [[maybe_unused]] size_t simd_block_size = get_optimal_simd_block_size();
     [[maybe_unused]] size_t alignment = get_optimal_alignment();
@@ -155,7 +155,7 @@ void test_platform_optimizations() {
 
     // Test transcendental support detection
     bool supports_fast_transcendental =
-        libstats::constants::platform::supports_fast_transcendental();
+        stats::constants::platform::supports_fast_transcendental();
     // This is platform-dependent, so we just test it doesn't crash
     (void)supports_fast_transcendental;  // Suppress unused variable warning
 
@@ -163,7 +163,7 @@ void test_platform_optimizations() {
 }
 
 void test_parallel_constants() {
-    using namespace libstats::constants::parallel;
+    using namespace stats::constants::parallel;
 
     // Test parallel processing constants (using accessor functions)
     assert(adaptive::min_elements_for_parallel() > 0);
@@ -197,8 +197,8 @@ void test_parallel_constants() {
 }
 
 void test_statistical_critical_values() {
-    using namespace libstats::constants::statistical;
-    using namespace libstats::constants;
+    using namespace stats::constants::statistical;
+    using namespace stats::constants;
 
     // Standard normal distribution critical values
     assert(std::abs(normal::Z_95 - 1.96) < 0.001);
@@ -263,7 +263,7 @@ void test_statistical_critical_values() {
 }
 
 void test_threshold_constants() {
-    using namespace libstats::constants::thresholds;
+    using namespace stats::constants::thresholds;
 
     // Test scale factor bounds
     assert(MIN_SCALE_FACTOR > 0.0);

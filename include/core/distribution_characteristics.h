@@ -14,7 +14,7 @@
 #include <array>
 #include <cstddef>
 
-namespace libstats {
+namespace stats {
 namespace performance {
 namespace characteristics {
 
@@ -271,4 +271,4 @@ constexpr DistributionComplexity applyRefinements(const DistributionComplexity& 
 
 }  // namespace characteristics
 }  // namespace performance
-}  // namespace libstats
+}  // namespace stats

@@ -7,7 +7,7 @@
 #include <optional>
 #include <shared_mutex>
 
-namespace libstats {
+namespace stats {
 
 // =============================================================================
 // THREAD-SAFE CACHE MANAGEMENT INTERFACE
@@ -93,4 +93,4 @@ class CachedProperty {
     bool isValid() const noexcept { return valid_; }
 };
 
-}  // namespace libstats
+}  // namespace stats

@@ -10,7 +10,7 @@
 #include "../platform/platform_constants.h"
 #include "distribution_cache.h"  // Needed for ThreadSafeCacheManager
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Base class for probability distributions with comprehensive functionality
@@ -314,4 +314,4 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
                                              double tolerance, int depth, int max_depth);
 };
 
-}  // namespace libstats
+}  // namespace stats

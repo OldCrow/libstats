@@ -4,7 +4,7 @@
 #include <iostream>
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 
 /**
  * @brief Comprehensive test for SIMD operations including AVX512 and FMA

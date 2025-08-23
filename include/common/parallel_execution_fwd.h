@@ -17,7 +17,7 @@
  *   - Provides clean API for parallel execution decisions
  */
 
-namespace libstats {
+namespace stats {
 namespace parallel {
 
 /// Compile-time and runtime parallel execution capability queries
@@ -118,18 +118,18 @@ std::size_t get_optimal_cache_chunk_size(std::size_t element_size = sizeof(doubl
 }  // namespace platform
 
 }  // namespace parallel
-}  // namespace libstats
+}  // namespace stats
 
 // Safe execution policy macros (simplified, platform-independent)
-#define LIBSTATS_PARALLEL_IF_AVAILABLE(size) (libstats::parallel::should_use_parallel(size))
+#define LIBSTATS_PARALLEL_IF_AVAILABLE(size) (stats::parallel::should_use_parallel(size))
 
 #define LIBSTATS_PARALLEL_FOR_EACH(first, last, func)                                              \
-    libstats::parallel::algorithms::for_each(first, last, func)
+    stats::parallel::algorithms::for_each(first, last, func)
 
 #define LIBSTATS_PARALLEL_TRANSFORM(first, last, out, op)                                          \
-    libstats::parallel::algorithms::transform(first, last, out, op)
+    stats::parallel::algorithms::transform(first, last, out, op)
 
 #define LIBSTATS_PARALLEL_REDUCE(first, last, init, op)                                            \
-    libstats::parallel::algorithms::reduce(first, last, init, op)
+    stats::parallel::algorithms::reduce(first, last, init, op)
 
-#define LIBSTATS_PARALLEL_SORT(first, last) libstats::parallel::algorithms::sort(first, last)
+#define LIBSTATS_PARALLEL_SORT(first, last) stats::parallel::algorithms::sort(first, last)

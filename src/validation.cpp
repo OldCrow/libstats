@@ -10,7 +10,7 @@
 #include <random>
 #include <sstream>
 
-namespace libstats {
+namespace stats {
 namespace validation {
 
 namespace {
@@ -911,4 +911,4 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(const std::vector
 }
 
 }  // namespace validation
-}  // namespace libstats
+}  // namespace stats

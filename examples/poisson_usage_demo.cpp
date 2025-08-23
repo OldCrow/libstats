@@ -45,9 +45,9 @@ void demonstrate_creation_and_properties() {
               << std::endl;
 
     // Create distributions with different parameters
-    auto low_rate = libstats::PoissonDistribution::create(2.0).value;       // Low rate
-    auto moderate_rate = libstats::PoissonDistribution::create(5.0).value;  // Moderate rate
-    auto high_rate = libstats::PoissonDistribution::create(10.0).value;     // Higher rate
+    auto low_rate = stats::PoissonDistribution::create(2.0).value;       // Low rate
+    auto moderate_rate = stats::PoissonDistribution::create(5.0).value;  // Moderate rate
+    auto high_rate = stats::PoissonDistribution::create(10.0).value;     // Higher rate
 
     std::cout << "✓ Low rate Poisson(λ=2) created" << std::endl;
     std::cout << "✓ Moderate rate Poisson(λ=5) created" << std::endl;
@@ -59,7 +59,7 @@ void demonstrate_creation_and_properties() {
               << "(For Poisson distributions: mean = variance = λ)\n"
               << std::endl;
 
-    auto display_properties = [](const libstats::Poisson& dist, const std::string& name,
+    auto display_properties = [](const stats::Poisson& dist, const std::string& name,
                                  double lambda) {
         std::cout << "📊 " << name << " properties:\n";
         std::cout << "     Rate parameter (λ): " << std::fixed << std::setprecision(4) << lambda
@@ -69,7 +69,7 @@ void demonstrate_creation_and_properties() {
         std::cout << "     Variance: " << std::fixed << std::setprecision(4) << dist.getVariance()
                   << " [Expected: " << lambda << "]" << std::endl;
         std::cout << "     Standard deviation: " << std::fixed << std::setprecision(4)
-                  << libstats::getStandardDeviation(dist) << " [Expected: " << std::sqrt(lambda)
+                  << stats::getStandardDeviation(dist) << " [Expected: " << std::sqrt(lambda)
                   << "]" << std::endl;
         std::cout << "     Skewness: " << std::fixed << std::setprecision(4) << dist.getSkewness()
                   << " [Expected: " << 1.0 / std::sqrt(lambda) << " - right-skewed]" << std::endl;
@@ -90,7 +90,7 @@ void demonstrate_pmf_evaluations() {
               << "(Poisson PMF: P(X = k) = (λ^k * e^(-λ)) / k!)\n"
               << std::endl;
 
-    auto dist = libstats::PoissonDistribution::create(3.0).value;  // λ = 3 for demonstration
+    auto dist = stats::PoissonDistribution::create(3.0).value;  // λ = 3 for demonstration
 
     std::cout << "🎯 Poisson(λ=3) PMF evaluations:\n";
     std::vector<int> test_values = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -125,7 +125,7 @@ void demonstrate_cdf_operations() {
               << "(Useful for finding probability of 'at most k events')\n"
               << std::endl;
 
-    auto dist = libstats::PoissonDistribution::create(4.0).value;  // λ = 4 for demonstration
+    auto dist = stats::PoissonDistribution::create(4.0).value;  // λ = 4 for demonstration
 
     std::cout << "📊 Poisson(λ=4) CDF evaluations:\n";
     std::vector<int> cdf_values = {0, 2, 4, 6, 8, 10, 12};
@@ -159,7 +159,7 @@ void demonstrate_quantiles() {
               << "(Useful for determining thresholds and confidence intervals)\n"
               << std::endl;
 
-    auto dist = libstats::PoissonDistribution::create(6.0).value;  // λ = 6 for demonstration
+    auto dist = stats::PoissonDistribution::create(6.0).value;  // λ = 6 for demonstration
 
     std::cout << "🎯 Poisson(λ=6) quantiles:\n";
     std::vector<double> percentiles = {0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99};
@@ -200,8 +200,8 @@ void demonstrate_sampling() {
               << std::endl;
 
     // Use libstats Poisson distributions for sampling
-    auto low_rate_dist = libstats::PoissonDistribution::create(1.5).value;
-    auto high_rate_dist = libstats::PoissonDistribution::create(8.0).value;
+    auto low_rate_dist = stats::PoissonDistribution::create(1.5).value;
+    auto high_rate_dist = stats::PoissonDistribution::create(8.0).value;
 
     std::mt19937 rng(42);
 
@@ -230,7 +230,7 @@ void demonstrate_parameter_estimation() {
 
     // Generate sample data from known Poisson distribution
     const double true_lambda = 7.5;
-    auto true_dist = libstats::PoissonDistribution::create(true_lambda).value;
+    auto true_dist = stats::PoissonDistribution::create(true_lambda).value;
 
     std::mt19937 rng(12345);
     auto sample_data = true_dist.sample(rng, 5000);
@@ -247,7 +247,7 @@ void demonstrate_parameter_estimation() {
               << estimated_lambda << " [Should be close to " << true_lambda << "]" << std::endl;
 
     // Create distribution with estimated parameter
-    auto estimated_dist = libstats::PoissonDistribution::create(estimated_lambda).value;
+    auto estimated_dist = stats::PoissonDistribution::create(estimated_lambda).value;
 
     std::cout << "     Estimated mean: " << std::fixed << std::setprecision(4)
               << estimated_dist.getMean() << " [Should be close to " << true_lambda << "]"
@@ -290,7 +290,7 @@ void demonstrate_batch_operations() {
               << "(Processing arrays of values efficiently with SIMD optimization)\n"
               << std::endl;
 
-    auto dist = libstats::PoissonDistribution::create(5.0).value;
+    auto dist = stats::PoissonDistribution::create(5.0).value;
 
     // Test batch PMF evaluation
     std::vector<double> input_values = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};

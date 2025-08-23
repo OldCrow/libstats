@@ -7,12 +7,12 @@
 #include <span>
 
 // Forward declarations for foundational layer dependencies
-namespace libstats {
+namespace stats {
 namespace simd {
 class SIMDPolicy;
 // We need the actual enum for the interface, so include the header
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats
 
 #include "../platform/simd_policy.h"
 
@@ -30,7 +30,7 @@ class SIMDPolicy;
  * - Maintains backward compatibility while simplifying usage
  */
 
-namespace libstats {
+namespace stats {
 namespace performance {
 
 /**
@@ -299,4 +299,4 @@ struct PerformanceHint {
 };
 
 }  // namespace performance
-}  // namespace libstats
+}  // namespace stats

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace libstats {
+namespace stats {
 namespace parallel {
 
 ArchitectureProfile AdaptiveThresholdCalculator::detectArchitectureProfile() const {
@@ -228,4 +228,4 @@ AdaptiveThresholdCalculator& getGlobalThresholdCalculator() {
 }
 
 }  // namespace parallel
-}  // namespace libstats
+}  // namespace stats

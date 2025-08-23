@@ -21,7 +21,7 @@
 #include <span>
 #include <vector>
 
-using namespace libstats;
+using namespace stats;
 
 // C++20 concept for testing
 template <typename T>

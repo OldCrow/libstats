@@ -12,7 +12,7 @@
 #include <vector>
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 
 /**
  * Test suite for performance system initialization
@@ -23,7 +23,7 @@ class PerformanceInitializationTest : public ::testing::Test {
         // Initialize performance systems once for all tests in this suite
         // This demonstrates the recommended usage pattern
         std::cout << "Initializing performance systems for test suite..." << std::endl;
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
         std::cout << "Performance systems initialized." << std::endl;
     }
 };
@@ -38,15 +38,15 @@ TEST_F(PerformanceInitializationTest, MultipleInitializationCallsAreSafe) {
     // measuring true first-time vs subsequent initialization performance.
 
     auto start1 = std::chrono::high_resolution_clock::now();
-    libstats::initialize_performance_systems();
+    stats::initialize_performance_systems();
     auto end1 = std::chrono::high_resolution_clock::now();
 
     auto start2 = std::chrono::high_resolution_clock::now();
-    libstats::initialize_performance_systems();
+    stats::initialize_performance_systems();
     auto end2 = std::chrono::high_resolution_clock::now();
 
     auto start3 = std::chrono::high_resolution_clock::now();
-    libstats::initialize_performance_systems();
+    stats::initialize_performance_systems();
     auto end3 = std::chrono::high_resolution_clock::now();
 
     auto duration1 = std::chrono::duration_cast<std::chrono::nanoseconds>(end1 - start1).count();
@@ -65,8 +65,8 @@ TEST_F(PerformanceInitializationTest, MultipleInitializationCallsAreSafe) {
     EXPECT_LT(duration3, 10000);  // Should complete in under 10μs
 
     // Verify the function doesn't crash when called multiple times (idempotent)
-    EXPECT_NO_THROW(libstats::initialize_performance_systems());
-    EXPECT_NO_THROW(libstats::initialize_performance_systems());
+    EXPECT_NO_THROW(stats::initialize_performance_systems());
+    EXPECT_NO_THROW(stats::initialize_performance_systems());
 }
 
 /**
@@ -144,11 +144,11 @@ TEST(PerformanceInitializationTestStandalone, WorksWithoutExplicitInitialization
  */
 TEST(PerformanceInitializationBasic, InitializationFunctionExists) {
     // Simply verify that the function can be called without crashing
-    EXPECT_NO_THROW(libstats::initialize_performance_systems());
+    EXPECT_NO_THROW(stats::initialize_performance_systems());
 
     // Verify it's idempotent (can be called multiple times safely)
-    EXPECT_NO_THROW(libstats::initialize_performance_systems());
-    EXPECT_NO_THROW(libstats::initialize_performance_systems());
+    EXPECT_NO_THROW(stats::initialize_performance_systems());
+    EXPECT_NO_THROW(stats::initialize_performance_systems());
 }
 
 /**
@@ -168,7 +168,7 @@ TEST(PerformanceInitializationBenchmark, InitializationImprovesColdStartPerforma
     }
 
     // Test with initialization
-    libstats::initialize_performance_systems();
+    stats::initialize_performance_systems();
 
     auto result = Uniform::create(0.0, 10.0);
     ASSERT_TRUE(result.isOk());

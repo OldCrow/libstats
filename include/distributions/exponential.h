@@ -6,7 +6,7 @@
 // Common platform headers for distributions (consolidates shared platform dependencies)
 #include "../common/distribution_platform_common.h"
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Thread-safe Exponential Distribution for modeling waiting times and decay processes.
@@ -939,7 +939,7 @@ class ExponentialDistribution : public DistributionBase {
      * @param dist Distribution to input
      * @return Reference to the input stream
      */
-    friend std::istream& operator>>(std::istream& is, libstats::ExponentialDistribution& dist);
+    friend std::istream& operator>>(std::istream& is, stats::ExponentialDistribution& dist);
 
     /**
      * @brief Stream output operator
@@ -948,7 +948,7 @@ class ExponentialDistribution : public DistributionBase {
      * @return Reference to the output stream
      */
     friend std::ostream& operator<<(std::ostream& os,
-                                    const libstats::ExponentialDistribution& dist);
+                                    const stats::ExponentialDistribution& dist);
 
    private:
     //==========================================================================
@@ -1100,4 +1100,4 @@ class ExponentialDistribution : public DistributionBase {
     // This section maintained for template compliance
 };
 
-}  // namespace libstats
+}  // namespace stats

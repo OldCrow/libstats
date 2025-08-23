@@ -19,7 +19,7 @@
  * based on historical performance data.
  */
 
-namespace libstats {
+namespace stats {
 namespace performance {
 
 /**
@@ -222,4 +222,4 @@ class PerformanceHistory {
 };
 
 }  // namespace performance
-}  // namespace libstats
+}  // namespace stats

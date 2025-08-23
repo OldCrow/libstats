@@ -22,7 +22,7 @@
 #include <random>
 #include <vector>
 
-using namespace libstats;
+using namespace stats;
 
 int main() {
     std::cout << "\n🔬 === GAUSSIAN DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===\n";
@@ -42,12 +42,12 @@ int main() {
     std::cout << "Testing all enhanced features with performance measurements\n" << std::endl;
 
     // Create Gaussian distributions for testing
-    auto stdNormal = libstats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
+    auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
     auto customGaussian =
-        libstats::GaussianDistribution::create(10.0, 2.5).value;  // Custom distribution
+        stats::GaussianDistribution::create(10.0, 2.5).value;  // Custom distribution
 
     // Benchmark setup
-    libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
+    stats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
 
     //==========================================================================
     // 1. BASIC OPERATIONS BENCHMARK
@@ -143,7 +143,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::performance::PerformanceHint::maximum_throughput();
                 stdNormal.getProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -153,7 +153,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::performance::PerformanceHint::maximum_throughput();
                 stdNormal.getLogProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -163,7 +163,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::performance::PerformanceHint::maximum_throughput();
                 stdNormal.getCumulativeProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -184,7 +184,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
-            auto hint = libstats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::performance::PerformanceHint::minimal_latency();
             stdNormal.getProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -194,7 +194,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
-            auto hint = libstats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::performance::PerformanceHint::minimal_latency();
             stdNormal.getLogProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -204,7 +204,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
-            auto hint = libstats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::performance::PerformanceHint::minimal_latency();
             stdNormal.getCumulativeProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -216,7 +216,7 @@ int main() {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
             stdNormal.getProbabilityWithStrategy(values_span, results_span,
-                                                 libstats::performance::Strategy::WORK_STEALING);
+                                                 stats::performance::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 
@@ -226,7 +226,7 @@ int main() {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
             stdNormal.getLogProbabilityWithStrategy(values_span, results_span,
-                                                    libstats::performance::Strategy::WORK_STEALING);
+                                                    stats::performance::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 
@@ -236,7 +236,7 @@ int main() {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
             stdNormal.getCumulativeProbabilityWithStrategy(
-                values_span, results_span, libstats::performance::Strategy::WORK_STEALING);
+                values_span, results_span, stats::performance::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 
@@ -278,7 +278,7 @@ int main() {
     bench.addTest(
         "Parameter Fitting Small Dataset",
         [&]() {
-            libstats::Gaussian temp_dist;
+            stats::Gaussian temp_dist;
             temp_dist.fit(fit_data_small);
         },
         0, static_cast<double>(fit_data_small.size()));
@@ -286,7 +286,7 @@ int main() {
     bench.addTest(
         "Parameter Fitting Large Dataset",
         [&]() {
-            libstats::Gaussian temp_dist;
+            stats::Gaussian temp_dist;
             temp_dist.fit(fit_data_large);
         },
         0, static_cast<double>(fit_data_large.size()));
@@ -307,7 +307,7 @@ int main() {
     bench.addTest(
         "Confidence Interval Mean",
         [&]() {
-            volatile auto result = libstats::Gaussian::confidenceIntervalMean(stats_data, 0.95);
+            volatile auto result = stats::Gaussian::confidenceIntervalMean(stats_data, 0.95);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -315,7 +315,7 @@ int main() {
     bench.addTest(
         "Confidence Interval Variance",
         [&]() {
-            volatile auto result = libstats::Gaussian::confidenceIntervalVariance(stats_data, 0.95);
+            volatile auto result = stats::Gaussian::confidenceIntervalVariance(stats_data, 0.95);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -323,7 +323,7 @@ int main() {
     bench.addTest(
         "One Sample T-Test",
         [&]() {
-            volatile auto result = libstats::Gaussian::oneSampleTTest(stats_data, 5.0, 0.05);
+            volatile auto result = stats::Gaussian::oneSampleTTest(stats_data, 5.0, 0.05);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -331,7 +331,7 @@ int main() {
     bench.addTest(
         "Method of Moments Estimation",
         [&]() {
-            volatile auto result = libstats::Gaussian::methodOfMomentsEstimation(stats_data);
+            volatile auto result = stats::Gaussian::methodOfMomentsEstimation(stats_data);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -340,7 +340,7 @@ int main() {
         "Bayesian Parameter Estimation",
         [&]() {
             volatile auto result =
-                libstats::Gaussian::bayesianEstimation(stats_data, 0.0, 0.001, 1.0, 1.0);
+                stats::Gaussian::bayesianEstimation(stats_data, 0.0, 0.001, 1.0, 1.0);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -348,7 +348,7 @@ int main() {
     bench.addTest(
         "Robust Parameter Estimation",
         [&]() {
-            volatile auto result = libstats::Gaussian::robustEstimation(stats_data, "huber", 1.345);
+            volatile auto result = stats::Gaussian::robustEstimation(stats_data, "huber", 1.345);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));

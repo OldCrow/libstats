@@ -18,7 +18,7 @@
 #include <cassert>
 #include <iostream>
 
-using namespace libstats;
+using namespace stats;
 
 /**
  * @brief Test basic atomic getter functionality for Exponential distribution

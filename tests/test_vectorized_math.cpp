@@ -8,7 +8,7 @@
 #include <vector>
 
 using namespace std;
-using namespace libstats::math;
+using namespace stats::math;
 
 // Helper function to check if two values are nearly equal
 bool is_nearly_equal(double a, double b, double tolerance = 1e-10) {

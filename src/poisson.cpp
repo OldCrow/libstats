@@ -20,7 +20,7 @@
 #include <sstream>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTORS
@@ -535,14 +535,14 @@ std::pair<double, double> PoissonDistribution::confidenceIntervalRate(
     double lower_bound;
     if (total_count > 0) {
         const double chi2_lower =
-            libstats::math::inverse_chi_squared_cdf(alpha_half, 2 * total_count);
+            stats::math::inverse_chi_squared_cdf(alpha_half, 2 * total_count);
         lower_bound = chi2_lower / (2.0 * static_cast<double>(n));
     } else {
         lower_bound = constants::math::ZERO_DOUBLE;
     }
 
     // Upper bound: chi2_upper/2n where chi2_upper has 2*(total_count+1) degrees of freedom
-    const double chi2_upper = libstats::math::inverse_chi_squared_cdf(
+    const double chi2_upper = stats::math::inverse_chi_squared_cdf(
         constants::math::ONE - alpha_half, 2 * (total_count + 1));
     const double upper_bound = chi2_upper / (constants::math::TWO * static_cast<double>(n));
 
@@ -597,7 +597,7 @@ std::tuple<double, double, bool> PoissonDistribution::likelihoodRatioTest(
         constants::math::TWO * (log_likelihood_unrestricted - log_likelihood_restricted);
 
     // Under H0, LR follows chi-squared distribution with 1 degree of freedom
-    const double p_value = constants::math::ONE - libstats::math::chi_squared_cdf(lr_statistic, 1);
+    const double p_value = constants::math::ONE - stats::math::chi_squared_cdf(lr_statistic, 1);
 
     const bool reject_null = p_value < significance_level;
 
@@ -700,9 +700,9 @@ std::pair<double, double> PoissonDistribution::bayesianCredibleInterval(
 
     // For Gamma distribution, the rate parameter λ follows Gamma distribution
     // Use gamma inverse CDF to find quantiles
-    const double lower_bound = libstats::math::gamma_inverse_cdf(
+    const double lower_bound = stats::math::gamma_inverse_cdf(
         lower_percentile, posterior_shape, constants::math::ONE / posterior_rate);
-    const double upper_bound = libstats::math::gamma_inverse_cdf(
+    const double upper_bound = stats::math::gamma_inverse_cdf(
         upper_percentile, posterior_shape, constants::math::ONE / posterior_rate);
 
     return {lower_bound, upper_bound};
@@ -857,7 +857,7 @@ std::tuple<double, double, bool> PoissonDistribution::overdispersionTest(
     // Two-sided test for overdispersion
     const double p_value =
         constants::math::TWO *
-        (constants::math::ONE - libstats::math::normal_cdf(std::abs(test_statistic)));
+        (constants::math::ONE - stats::math::normal_cdf(std::abs(test_statistic)));
 
     const bool is_overdispersed = p_value < significance_level;
 
@@ -907,7 +907,7 @@ std::tuple<double, double, bool> PoissonDistribution::excessZerosTest(
     // Two-sided p-value
     const double p_value =
         constants::math::TWO *
-        (constants::math::ONE - libstats::math::normal_cdf(std::abs(z_statistic)));
+        (constants::math::ONE - stats::math::normal_cdf(std::abs(z_statistic)));
 
     const bool has_excess_zeros = p_value < significance_level;
 
@@ -986,7 +986,7 @@ std::tuple<double, double, bool> PoissonDistribution::rateStabilityTest(
     const int df = static_cast<int>(n - 2);
     const double p_value =
         constants::math::TWO *
-        (constants::math::ONE - libstats::math::t_cdf(std::abs(t_statistic), df));
+        (constants::math::ONE - stats::math::t_cdf(std::abs(t_statistic), df));
 
     const bool rate_is_stable =
         p_value >= significance_level;  // Rate is stable if we fail to reject H0
@@ -1186,7 +1186,7 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
 
     // Calculate p-value
     const double p_value =
-        constants::math::ONE - libstats::math::chi_squared_cdf(chi_square_stat, df);
+        constants::math::ONE - stats::math::chi_squared_cdf(chi_square_stat, df);
 
     const bool reject_null = p_value < significance_level;
 
@@ -1241,7 +1241,7 @@ std::tuple<double, double, bool> PoissonDistribution::comprehensiveGoodnessOfFit
 
         // Combined p-value using chi-square distribution with 6 degrees of freedom (3 tests × 2)
         const double combined_p_value =
-            constants::math::ONE - libstats::math::chi_squared_cdf(fisher_statistic, 6);
+            constants::math::ONE - stats::math::chi_squared_cdf(fisher_statistic, 6);
 
         // Overall assessment: data follows Poisson if combined p-value >= significance_level
         const bool follows_poisson = combined_p_value >= significance_level;
@@ -2076,7 +2076,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                     }
 
                     // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                    res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                    res[i] = stats::math::gamma_q(k + 1, cached_lambda);
                 });
             } else {
                 // Serial processing for small datasets
@@ -2093,7 +2093,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                     }
 
                     // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                    res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                    res[i] = stats::math::gamma_q(k + 1, cached_lambda);
                 }
             }
         },
@@ -2138,7 +2138,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                 }
 
                 // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                res[i] = stats::math::gamma_q(k + 1, cached_lambda);
             });
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -2182,7 +2182,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                 }
 
                 // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                res[i] = stats::math::gamma_q(k + 1, cached_lambda);
             });
         });
 }
@@ -2624,7 +2624,7 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(
                 }
 
                 // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                res[i] = stats::math::gamma_q(k + 1, cached_lambda);
             });
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -2668,7 +2668,7 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(
                 }
 
                 // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                res[i] = stats::math::gamma_q(k + 1, cached_lambda);
             });
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -2712,7 +2712,7 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(
                 }
 
                 // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = libstats::math::gamma_q(k + 1, cached_lambda);
+                res[i] = stats::math::gamma_q(k + 1, cached_lambda);
             });
         });
 }
@@ -2917,7 +2917,7 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
                 continue;
             }
 
-            results[i] = libstats::math::gamma_q(k + 1, lambda);
+            results[i] = stats::math::gamma_q(k + 1, lambda);
         }
         return;
     }
@@ -2935,7 +2935,7 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             continue;
         }
 
-        results[i] = libstats::math::gamma_q(k + 1, lambda);
+        results[i] = stats::math::gamma_q(k + 1, lambda);
     }
 }
 
@@ -2976,7 +2976,7 @@ double PoissonDistribution::computeLogPMF(int k) const noexcept {
 double PoissonDistribution::computeCDF(int k) const noexcept {
     // Use regularized incomplete gamma function: P(X <= k) = Q(k+1, λ)
     // where Q(a,x) is the regularized upper incomplete gamma function
-    return libstats::math::gamma_q(k + 1, lambda_);
+    return stats::math::gamma_q(k + 1, lambda_);
 }
 
 double PoissonDistribution::factorial(int n) noexcept {
@@ -3046,4 +3046,4 @@ double PoissonDistribution::logFactorial(int n) noexcept {
 // Note: Specialized caches are declared in the header as private member variables
 // This section exists for standardization and documentation purposes
 
-}  // namespace libstats
+}  // namespace stats
