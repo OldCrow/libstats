@@ -397,7 +397,7 @@ class SystemInspector {
         auto start = high_resolution_clock::now();
         for (int i = 0; i < BASELINE_ITERATIONS; ++i) {
             stats::simd::VectorOps::vector_multiply(data.data(), data.data(), result.data(),
-                                                       test_size);
+                                                    test_size);
         }
         auto end = high_resolution_clock::now();
         double simd_time = static_cast<double>(duration_cast<microseconds>(end - start).count()) /

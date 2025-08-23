@@ -190,7 +190,7 @@ namespace stats::detail {
         static constexpr size_t DEFAULT_BLOCK_SIZE = 8;
         static constexpr size_t MAX_BLOCK_SIZE = 64;
     };
-    
+
     struct MatrixConstants {
         static constexpr size_t L1_BLOCK_SIZE = 64;
         static constexpr size_t L2_BLOCK_SIZE = 256;
@@ -285,7 +285,7 @@ grep -h "^[^/]*\w\+\s*\(" include/**/*.h | \
    - Start with include/libstats.h (main public header)
    - Refactor distribution headers (gaussian.h, exponential.h, etc.)
    - Update common headers
-   
+
 2. **Implementation Files**
    - Update corresponding .cpp files
    - Maintain consistency between headers and implementation
@@ -377,7 +377,7 @@ namespace detail {
 
 - **Week 1**: Preparation and planning
 - **Week 2-3**: Core refactoring
-- **Week 4**: Testing and tools update  
+- **Week 4**: Testing and tools update
 - **Week 5**: Documentation and final cleanup
 - **Week 6**: Review, testing, and merge preparation
 

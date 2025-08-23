@@ -157,7 +157,7 @@ void benchmark_parallel_operations() {
         auto start = std::chrono::high_resolution_clock::now();
 
         stats::parallel::safe_transform(data.begin(), data.end(), result.begin(),
-                                           [](double x) { return std::sqrt(x * x + 1.0); });
+                                        [](double x) { return std::sqrt(x * x + 1.0); });
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -183,7 +183,7 @@ void benchmark_parallel_operations() {
         auto start = std::chrono::high_resolution_clock::now();
 
         auto count = stats::parallel::safe_count_if(data.begin(), data.end(),
-                                                       [](double x) { return x > 50.0; });
+                                                    [](double x) { return x > 50.0; });
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);

@@ -154,8 +154,7 @@ void test_platform_optimizations() {
     assert(cache_thresholds.blocking_size > 0);
 
     // Test transcendental support detection
-    bool supports_fast_transcendental =
-        stats::constants::platform::supports_fast_transcendental();
+    bool supports_fast_transcendental = stats::constants::platform::supports_fast_transcendental();
     // This is platform-dependent, so we just test it doesn't crash
     (void)supports_fast_transcendental;  // Suppress unused variable warning
 

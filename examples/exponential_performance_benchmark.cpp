@@ -205,8 +205,8 @@ int main() {
         [&, large_test_mutable]() mutable {
             std::span<const double> values_span(large_test_mutable);
             std::span<double> results_span(large_results);
-            unitExponential.getProbabilityWithStrategy(
-                values_span, results_span, stats::performance::Strategy::WORK_STEALING);
+            unitExponential.getProbabilityWithStrategy(values_span, results_span,
+                                                       stats::performance::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 
@@ -294,8 +294,7 @@ int main() {
     bench.addTest(
         "Likelihood Ratio Test",
         [&]() {
-            volatile auto result =
-                stats::Exponential::likelihoodRatioTest(stats_data, 1.5, 0.05);
+            volatile auto result = stats::Exponential::likelihoodRatioTest(stats_data, 1.5, 0.05);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));

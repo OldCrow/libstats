@@ -947,8 +947,7 @@ class ExponentialDistribution : public DistributionBase {
      * @param dist Distribution to output
      * @return Reference to the output stream
      */
-    friend std::ostream& operator<<(std::ostream& os,
-                                    const stats::ExponentialDistribution& dist);
+    friend std::ostream& operator<<(std::ostream& os, const stats::ExponentialDistribution& dist);
 
    private:
     //==========================================================================

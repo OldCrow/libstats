@@ -69,8 +69,8 @@ void demonstrate_creation_and_properties() {
         std::cout << "     Variance: " << std::fixed << std::setprecision(4) << dist.getVariance()
                   << " [Expected: " << lambda << "]" << std::endl;
         std::cout << "     Standard deviation: " << std::fixed << std::setprecision(4)
-                  << stats::getStandardDeviation(dist) << " [Expected: " << std::sqrt(lambda)
-                  << "]" << std::endl;
+                  << stats::getStandardDeviation(dist) << " [Expected: " << std::sqrt(lambda) << "]"
+                  << std::endl;
         std::cout << "     Skewness: " << std::fixed << std::setprecision(4) << dist.getSkewness()
                   << " [Expected: " << 1.0 / std::sqrt(lambda) << " - right-skewed]" << std::endl;
         std::cout << "     Kurtosis: " << std::fixed << std::setprecision(4) << dist.getKurtosis()

@@ -529,9 +529,9 @@ TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
             uniform_dist.getCumulativeProbability(std::span<const double>(test_values),
                                                   std::span<double>(auto_cdf_results));
         } else {
-            uniform_dist.getCumulativeProbabilityWithStrategy(
-                std::span<const double>(test_values), std::span<double>(auto_cdf_results),
-                stats::performance::Strategy::SCALAR);
+            uniform_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                              std::span<double>(auto_cdf_results),
+                                                              stats::performance::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_cdf_time =
@@ -638,9 +638,9 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                      std::span<double>(log_pdf_results),
                                                      stats::performance::Strategy::SCALAR);
         } else if (op == "CDF") {
-            stdUniform.getCumulativeProbabilityWithStrategy(
-                std::span<const double>(test_values), std::span<double>(cdf_results),
-                stats::performance::Strategy::SCALAR);
+            stdUniform.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                            std::span<double>(cdf_results),
+                                                            stats::performance::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
@@ -657,8 +657,8 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                   input_span, output_span,
                                   stats::performance::Strategy::PARALLEL_SIMD);
                           }) {
-                stdUniform.getProbabilityWithStrategy(
-                    input_span, output_span, stats::performance::Strategy::PARALLEL_SIMD);
+                stdUniform.getProbabilityWithStrategy(input_span, output_span,
+                                                      stats::performance::Strategy::PARALLEL_SIMD);
             } else {
                 stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(pdf_results),
@@ -711,8 +711,8 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                   input_span, output_span,
                                   stats::performance::Strategy::WORK_STEALING);
                           }) {
-                stdUniform.getProbabilityWithStrategy(
-                    input_span, output_span, stats::performance::Strategy::WORK_STEALING);
+                stdUniform.getProbabilityWithStrategy(input_span, output_span,
+                                                      stats::performance::Strategy::WORK_STEALING);
             } else {
                 stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(pdf_results),

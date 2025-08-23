@@ -646,8 +646,8 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getLogProbabilityWithStrategy(
-                input_span, log_output_span, stats::performance::Strategy::GPU_ACCELERATED);
+            stdNormal.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                    stats::performance::Strategy::GPU_ACCELERATED);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);

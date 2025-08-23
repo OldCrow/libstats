@@ -43,9 +43,8 @@ int main() {
               << "  - Exponential(λ=2.0): Rate parameter controls decay speed\n"
               << std::endl;
 
-    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;  // Standard normal
-    auto exponential =
-        stats::ExponentialDistribution::create(2.0).value;  // Rate parameter = 2.0
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;     // Standard normal
+    auto exponential = stats::ExponentialDistribution::create(2.0).value;  // Rate parameter = 2.0
 
     std::cout << "✓ Gaussian N(0,1) created" << std::endl;
     std::cout << "✓ Exponential(λ=2.0) created" << std::endl;

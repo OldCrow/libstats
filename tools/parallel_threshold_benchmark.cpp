@@ -141,7 +141,7 @@ class ParallelThresholdBenchmark {
 
         display::subsectionHeader("Uniform Distribution Benchmark");
         auto uniform = stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
-                                                             distribution_params::UNIFORM_MAX)
+                                                          distribution_params::UNIFORM_MAX)
                            .value;
 
         for (auto size : test_sizes_) {
@@ -176,8 +176,7 @@ class ParallelThresholdBenchmark {
 
         display::subsectionHeader("Poisson Distribution Benchmark");
         auto poisson =
-            stats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA)
-                .value;
+            stats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA).value;
 
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -210,7 +209,7 @@ class ParallelThresholdBenchmark {
 
         display::subsectionHeader("Discrete Distribution Benchmark");
         auto discrete = stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
-                                                               distribution_params::DISCRETE_MAX)
+                                                            distribution_params::DISCRETE_MAX)
                             .value;
 
         for (auto size : test_sizes_) {
@@ -245,7 +244,7 @@ class ParallelThresholdBenchmark {
 
         display::subsectionHeader("Gaussian Distribution Benchmark");
         auto gaussian = stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
-                                                               distribution_params::GAUSSIAN_STDDEV)
+                                                            distribution_params::GAUSSIAN_STDDEV)
                             .value;
 
         for (auto size : test_sizes_) {
@@ -281,8 +280,7 @@ class ParallelThresholdBenchmark {
 
         display::subsectionHeader("Exponential Distribution Benchmark");
         auto exponential =
-            stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
-                .value;
+            stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA).value;
 
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -316,7 +314,7 @@ class ParallelThresholdBenchmark {
 
         display::subsectionHeader("Gamma Distribution Benchmark");
         auto gamma = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
-                                                         distribution_params::GAMMA_BETA)
+                                                      distribution_params::GAMMA_BETA)
                          .value;
 
         for (auto size : test_sizes_) {
@@ -433,8 +431,8 @@ class ParallelThresholdBenchmark {
                 dist.getLogProbabilityWithStrategy(input, output,
                                                    stats::performance::Strategy::SIMD_BATCH);
             } else if (operation == "CDF") {
-                dist.getCumulativeProbabilityWithStrategy(
-                    input, output, stats::performance::Strategy::SIMD_BATCH);
+                dist.getCumulativeProbabilityWithStrategy(input, output,
+                                                          stats::performance::Strategy::SIMD_BATCH);
             }
         } else if (method == "parallel") {
             // Parallel operations using explicit strategy to ensure parallel benchmarking

@@ -52,7 +52,7 @@ int main() {
     // Test parallel transform on large dataset
     std::vector<double> large_output(100000);
     stats::parallel::safe_transform(large_data.begin(), large_data.end(), large_output.begin(),
-                                       [](double x) { return x * x; });
+                                    [](double x) { return x * x; });
     assert(large_output[0] == 1.0 && large_output[999] == 1000000.0);
     std::cout << "  - Large dataset transform: PASSED" << std::endl;
 
@@ -81,9 +81,8 @@ int main() {
 
     // Parallel results
     std::vector<double> parallel_transform(5000);
-    stats::parallel::safe_transform(test_data.begin(), test_data.end(),
-                                       parallel_transform.begin(),
-                                       [](double x) { return std::sqrt(x); });
+    stats::parallel::safe_transform(test_data.begin(), test_data.end(), parallel_transform.begin(),
+                                    [](double x) { return std::sqrt(x); });
 
     // Compare results
     [[maybe_unused]] bool transforms_equal =
@@ -148,10 +147,9 @@ int main() {
     assert(base_grain_size > 0 && base_grain_size < 50000);  // Reasonable range
 
     // Test adaptive grain sizes for different operation types
-    auto memory_grain = stats::parallel::get_adaptive_grain_size(0, 10000);  // Memory-bound
-    auto compute_grain =
-        stats::parallel::get_adaptive_grain_size(1, 10000);                 // Computation-bound
-    auto mixed_grain = stats::parallel::get_adaptive_grain_size(2, 10000);  // Mixed
+    auto memory_grain = stats::parallel::get_adaptive_grain_size(0, 10000);   // Memory-bound
+    auto compute_grain = stats::parallel::get_adaptive_grain_size(1, 10000);  // Computation-bound
+    auto mixed_grain = stats::parallel::get_adaptive_grain_size(2, 10000);    // Mixed
 
     std::cout << "  - Memory-bound grain size: " << memory_grain << " elements" << std::endl;
     std::cout << "  - Computation-bound grain size: " << compute_grain << " elements" << std::endl;
@@ -205,14 +203,11 @@ int main() {
     std::cout << "    * 10 elements: "
               << (stats::parallel::should_use_parallel(10) ? "parallel" : "serial") << std::endl;
     std::cout << "    * 100 elements: "
-              << (stats::parallel::should_use_parallel(100) ? "parallel" : "serial")
-              << std::endl;
+              << (stats::parallel::should_use_parallel(100) ? "parallel" : "serial") << std::endl;
     std::cout << "    * 1000 elements: "
-              << (stats::parallel::should_use_parallel(1000) ? "parallel" : "serial")
-              << std::endl;
+              << (stats::parallel::should_use_parallel(1000) ? "parallel" : "serial") << std::endl;
     std::cout << "    * 10000 elements: "
-              << (stats::parallel::should_use_parallel(10000) ? "parallel" : "serial")
-              << std::endl;
+              << (stats::parallel::should_use_parallel(10000) ? "parallel" : "serial") << std::endl;
 
     // Test 8: Platform-specific optimizations validation
     std::cout << "Test 8: Platform-specific optimization validation" << std::endl;

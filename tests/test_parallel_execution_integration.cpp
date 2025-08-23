@@ -13,9 +13,8 @@ int main() {
 
     // Test 1: Basic header inclusion (compilation test)
     std::cout << "Test 1: Header inclusion - ";
-    std::cout << (stats::parallel::has_execution_policies()
-                      ? "C++20 parallel execution available"
-                      : "Fallback to serial execution");
+    std::cout << (stats::parallel::has_execution_policies() ? "C++20 parallel execution available"
+                                                            : "Fallback to serial execution");
     std::cout << std::endl;
 
     // Test 2: CPU-aware threshold detection
@@ -39,15 +38,14 @@ int main() {
     std::vector<double> output(1000);
     std::iota(input.begin(), input.end(), 1.0);
     stats::parallel::safe_transform(input.begin(), input.end(), output.begin(),
-                                       [](double x) { return x * 2.0; });
+                                    [](double x) { return x * 2.0; });
     assert(output[0] == 2.0 && output[999] == 2000.0);
     std::cout << "  - safe_transform: PASSED" << std::endl;
 
     // Test safe_reduce
     std::vector<double> values(100);
     std::fill(values.begin(), values.end(), 1.0);
-    [[maybe_unused]] double sum =
-        stats::parallel::safe_reduce(values.begin(), values.end(), 0.0);
+    [[maybe_unused]] double sum = stats::parallel::safe_reduce(values.begin(), values.end(), 0.0);
     assert(sum == 100.0);
     std::cout << "  - safe_reduce: PASSED" << std::endl;
 

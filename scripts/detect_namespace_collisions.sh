@@ -8,7 +8,7 @@ echo ""
 
 # Create temp directory for analysis
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+trap 'rm -rf $TEMP_DIR' EXIT
 
 # Find all constants
 echo "Analyzing constants..."

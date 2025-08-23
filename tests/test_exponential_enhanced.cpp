@@ -665,8 +665,8 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                   input_span, log_output_span,
                                   stats::performance::Strategy::PARALLEL_SIMD);
                           }) {
-                unitExp.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, stats::performance::Strategy::PARALLEL_SIMD);
+                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                      stats::performance::Strategy::PARALLEL_SIMD);
             } else {
                 unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(log_pdf_results),
@@ -684,9 +684,9 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
                 unitExp.getCumulativeProbabilityWithStrategy(
                     input_span, cdf_output_span, stats::performance::Strategy::PARALLEL_SIMD);
             } else {
-                unitExp.getCumulativeProbabilityWithStrategy(
-                    std::span<const double>(test_values), std::span<double>(cdf_results),
-                    stats::performance::Strategy::SCALAR);
+                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                             std::span<double>(cdf_results),
+                                                             stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -718,8 +718,8 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                   input_span, log_output_span,
                                   stats::performance::Strategy::WORK_STEALING);
                           }) {
-                unitExp.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, stats::performance::Strategy::WORK_STEALING);
+                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                      stats::performance::Strategy::WORK_STEALING);
             } else {
                 unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(log_pdf_results),
@@ -737,9 +737,9 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
                 unitExp.getCumulativeProbabilityWithStrategy(
                     input_span, cdf_output_span, stats::performance::Strategy::WORK_STEALING);
             } else {
-                unitExp.getCumulativeProbabilityWithStrategy(
-                    std::span<const double>(test_values), std::span<double>(cdf_results),
-                    stats::performance::Strategy::SCALAR);
+                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                             std::span<double>(cdf_results),
+                                                             stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -755,8 +755,8 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                   input_span, output_span,
                                   stats::performance::Strategy::GPU_ACCELERATED);
                           }) {
-                unitExp.getProbabilityWithStrategy(
-                    input_span, output_span, stats::performance::Strategy::GPU_ACCELERATED);
+                unitExp.getProbabilityWithStrategy(input_span, output_span,
+                                                   stats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(pdf_results),
@@ -790,9 +790,9 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
                 unitExp.getCumulativeProbabilityWithStrategy(
                     input_span, cdf_output_span, stats::performance::Strategy::GPU_ACCELERATED);
             } else {
-                unitExp.getCumulativeProbabilityWithStrategy(
-                    std::span<const double>(test_values), std::span<double>(cdf_results),
-                    stats::performance::Strategy::SCALAR);
+                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                             std::span<double>(cdf_results),
+                                                             stats::performance::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }

@@ -93,12 +93,10 @@ void demonstrate_simd_integration() {
               << std::endl;
     std::cout << "   Compile-time double width: " << stats::simd::double_vector_width()
               << std::endl;
-    std::cout << "   Compile-time float width: " << stats::simd::float_vector_width()
-              << std::endl;
+    std::cout << "   Compile-time float width: " << stats::simd::float_vector_width() << std::endl;
     std::cout << "   Compile-time alignment: " << stats::simd::optimal_alignment() << " bytes"
               << std::endl;
-    std::cout << "   Compile-time feature string: " << stats::simd::feature_string()
-              << std::endl;
+    std::cout << "   Compile-time feature string: " << stats::simd::feature_string() << std::endl;
 
     // 5. Show combined usage pattern
     std::cout << "\n5. SAFE SIMD USAGE PATTERN:" << std::endl;

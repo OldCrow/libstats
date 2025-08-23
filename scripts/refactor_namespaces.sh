@@ -20,22 +20,22 @@ fi
 refactor_file() {
     local file="$1"
     local changes_made=false
-    
+
     # Skip binary files and non-text files
     if ! file "$file" | grep -q "text"; then
         return
     fi
-    
+
     # Create temp file
     local temp_file="${file}.tmp"
     cp "$file" "$temp_file"
-    
+
     # Replace namespace libstats with namespace stats
     if grep -q "^namespace libstats" "$temp_file"; then
         sed -i '' 's/^namespace libstats/namespace stats/g' "$temp_file"
         changes_made=true
     fi
-    
+
     # Replace libstats:: with stats:: (but not in comments or strings)
     if grep -q "libstats::" "$temp_file"; then
         # This is more complex - need to be careful not to break things
@@ -44,7 +44,7 @@ refactor_file() {
         sed -i '' 's/^libstats::/stats::/g' "$temp_file"
         changes_made=true
     fi
-    
+
     # If changes were made, copy back
     if [ "$changes_made" = true ]; then
         mv "$temp_file" "$file"

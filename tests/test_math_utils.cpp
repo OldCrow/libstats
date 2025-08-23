@@ -54,8 +54,7 @@ TEST_F(MathUtilsTest, ErfcBasicValues) {
 
     // Test relationship: erf(x) + erfc(x) = 1
     for (double x = -3.0; x <= 3.0; x += 0.5) {
-        EXPECT_TRUE(
-            near_equal(stats::math::erf(x) + stats::math::erfc(x), 1.0, LOOSE_TOLERANCE));
+        EXPECT_TRUE(near_equal(stats::math::erf(x) + stats::math::erfc(x), 1.0, LOOSE_TOLERANCE));
     }
 }
 
@@ -90,8 +89,7 @@ TEST_F(MathUtilsTest, LgammaBasicValues) {
     EXPECT_TRUE(near_equal(stats::math::lgamma(4.0), std::log(6.0)));  // Γ(4) = 6, ln(6)
 
     // Test half-integer values
-    EXPECT_TRUE(
-        near_equal(stats::math::lgamma(0.5), std::log(std::sqrt(M_PI)), LOOSE_TOLERANCE));
+    EXPECT_TRUE(near_equal(stats::math::lgamma(0.5), std::log(std::sqrt(M_PI)), LOOSE_TOLERANCE));
     EXPECT_TRUE(
         near_equal(stats::math::lgamma(1.5), std::log(std::sqrt(M_PI) / 2.0), LOOSE_TOLERANCE));
 }

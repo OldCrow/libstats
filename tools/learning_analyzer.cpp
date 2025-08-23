@@ -455,17 +455,16 @@ class LearningAnalyzer {
     void exerciseAllDistributions(const std::vector<size_t>& batch_sizes) {
         // Exercise different distributions using safe factory methods
         {
-            auto uniform_dist =
-                stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
-                                                      distribution_params::UNIFORM_MAX)
-                    .value;
+            auto uniform_dist = stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
+                                                                   distribution_params::UNIFORM_MAX)
+                                    .value;
             exerciseDistribution("Uniform", DistributionType::UNIFORM, uniform_dist, batch_sizes);
         }
 
         {
             auto gaussian_dist =
                 stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
-                                                       distribution_params::GAUSSIAN_STDDEV)
+                                                    distribution_params::GAUSSIAN_STDDEV)
                     .value;
             exerciseDistribution("Gaussian", DistributionType::GAUSSIAN, gaussian_dist,
                                  batch_sizes);
@@ -480,10 +479,9 @@ class LearningAnalyzer {
         }
 
         {
-            auto disc_dist =
-                stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
-                                                       distribution_params::DISCRETE_MAX)
-                    .value;
+            auto disc_dist = stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
+                                                                 distribution_params::DISCRETE_MAX)
+                                 .value;
             exerciseDistribution("Discrete", DistributionType::DISCRETE, disc_dist, batch_sizes);
         }
 
@@ -495,7 +493,7 @@ class LearningAnalyzer {
 
         {
             auto gamma_dist = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
-                                                                  distribution_params::GAMMA_BETA)
+                                                               distribution_params::GAMMA_BETA)
                                   .value;
             exerciseDistribution("Gamma", DistributionType::GAMMA, gamma_dist, batch_sizes);
         }
@@ -608,7 +606,7 @@ class LearningAnalyzer {
                 std::cout << "Testing Uniform Distribution..." << std::flush;
                 auto uniform_dist =
                     stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
-                                                          distribution_params::UNIFORM_MAX)
+                                                       distribution_params::UNIFORM_MAX)
                         .value;
                 exerciseDistributionEnhanced("Uniform", DistributionType::UNIFORM, uniform_dist,
                                              batch_sizes);
@@ -620,7 +618,7 @@ class LearningAnalyzer {
                 std::cout << "Testing Gaussian Distribution..." << std::flush;
                 auto gaussian_dist =
                     stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
-                                                           distribution_params::GAUSSIAN_STDDEV)
+                                                        distribution_params::GAUSSIAN_STDDEV)
                         .value;
                 exerciseDistributionEnhanced("Gaussian", DistributionType::GAUSSIAN, gaussian_dist,
                                              batch_sizes);
@@ -630,9 +628,9 @@ class LearningAnalyzer {
 
             {
                 std::cout << "Testing Exponential Distribution..." << std::flush;
-                auto exp_dist = stats::ExponentialDistribution::create(
-                                    distribution_params::EXPONENTIAL_LAMBDA)
-                                    .value;
+                auto exp_dist =
+                    stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
+                        .value;
                 exerciseDistributionEnhanced("Exponential", DistributionType::EXPONENTIAL, exp_dist,
                                              batch_sizes);
                 std::cout << " ✓\n";
@@ -643,7 +641,7 @@ class LearningAnalyzer {
                 std::cout << "Testing Discrete Distribution..." << std::flush;
                 auto disc_dist =
                     stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
-                                                           distribution_params::DISCRETE_MAX)
+                                                        distribution_params::DISCRETE_MAX)
                         .value;
                 exerciseDistributionEnhanced("Discrete", DistributionType::DISCRETE, disc_dist,
                                              batch_sizes);
@@ -654,8 +652,7 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Poisson Distribution..." << std::flush;
                 auto poisson_dist =
-                    stats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA)
-                        .value;
+                    stats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA).value;
                 exerciseDistributionEnhanced("Poisson", DistributionType::POISSON, poisson_dist,
                                              batch_sizes);
                 std::cout << " ✓\n";
@@ -664,10 +661,9 @@ class LearningAnalyzer {
 
             {
                 std::cout << "Testing Gamma Distribution..." << std::flush;
-                auto gamma_dist =
-                    stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
-                                                        distribution_params::GAMMA_BETA)
-                        .value;
+                auto gamma_dist = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
+                                                                   distribution_params::GAMMA_BETA)
+                                      .value;
                 exerciseDistributionEnhanced("Gamma", DistributionType::GAMMA, gamma_dist,
                                              batch_sizes);
                 std::cout << " ✓\n";

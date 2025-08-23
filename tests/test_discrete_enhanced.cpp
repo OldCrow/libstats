@@ -773,8 +773,8 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                   input_span, log_output_span,
                                   stats::performance::Strategy::GPU_ACCELERATED);
                           }) {
-                dice.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, stats::performance::Strategy::GPU_ACCELERATED);
+                dice.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                   stats::performance::Strategy::GPU_ACCELERATED);
             } else {
                 dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(log_pmf_results),

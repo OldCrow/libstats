@@ -534,8 +534,7 @@ std::pair<double, double> PoissonDistribution::confidenceIntervalRate(
     // Lower bound: chi2_lower/2n where chi2_lower has 2*total_count degrees of freedom
     double lower_bound;
     if (total_count > 0) {
-        const double chi2_lower =
-            stats::math::inverse_chi_squared_cdf(alpha_half, 2 * total_count);
+        const double chi2_lower = stats::math::inverse_chi_squared_cdf(alpha_half, 2 * total_count);
         lower_bound = chi2_lower / (2.0 * static_cast<double>(n));
     } else {
         lower_bound = constants::math::ZERO_DOUBLE;
@@ -905,9 +904,8 @@ std::tuple<double, double, bool> PoissonDistribution::excessZerosTest(
         (static_cast<double>(observed_zeros) - expected_zeros) / std::sqrt(variance_zeros);
 
     // Two-sided p-value
-    const double p_value =
-        constants::math::TWO *
-        (constants::math::ONE - stats::math::normal_cdf(std::abs(z_statistic)));
+    const double p_value = constants::math::TWO *
+                           (constants::math::ONE - stats::math::normal_cdf(std::abs(z_statistic)));
 
     const bool has_excess_zeros = p_value < significance_level;
 
@@ -984,9 +982,8 @@ std::tuple<double, double, bool> PoissonDistribution::rateStabilityTest(
 
     // Two-sided p-value using t-distribution with (n-2) degrees of freedom
     const int df = static_cast<int>(n - 2);
-    const double p_value =
-        constants::math::TWO *
-        (constants::math::ONE - stats::math::t_cdf(std::abs(t_statistic), df));
+    const double p_value = constants::math::TWO *
+                           (constants::math::ONE - stats::math::t_cdf(std::abs(t_statistic), df));
 
     const bool rate_is_stable =
         p_value >= significance_level;  // Rate is stable if we fail to reject H0
@@ -1185,8 +1182,7 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
     }
 
     // Calculate p-value
-    const double p_value =
-        constants::math::ONE - stats::math::chi_squared_cdf(chi_square_stat, df);
+    const double p_value = constants::math::ONE - stats::math::chi_squared_cdf(chi_square_stat, df);
 
     const bool reject_null = p_value < significance_level;
 
