@@ -122,13 +122,8 @@ inline std::size_t get_optimal_parallel_threshold(const std::string& distributio
     return stats::arch::getGlobalThresholdCalculator().getThreshold(distribution, operation);
 }
 
-/**
- * @brief Get CPU-aware optimal grain size for parallel operations
- * @return Optimal grain size for work distribution based on CPU features
- */
-inline std::size_t get_optimal_grain_size() noexcept {
-    return stats::arch::parallel::detail::grain_size();
-}
+// Note: get_optimal_grain_size() is declared in platform_constants.h
+// and defined in platform_constants_impl.cpp to avoid multiple definitions
 
 /**
  * @brief Get platform-adaptive grain size for specific operation types
