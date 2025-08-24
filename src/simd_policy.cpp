@@ -27,22 +27,22 @@ struct SIMDState {
         SIMDPolicy::Level detected_level = SIMDPolicy::Level::None;
 
 #if defined(LIBSTATS_HAS_AVX512)
-        if (cpu::supports_avx512()) {
+        if (supports_avx512()) {
             detected_level = SIMDPolicy::Level::AVX512;
         } else
 #endif
 #if defined(LIBSTATS_HAS_AVX2)
-            if (cpu::supports_avx2()) {
+            if (supports_avx2()) {
             detected_level = SIMDPolicy::Level::AVX2;
         } else
 #endif
 #if defined(LIBSTATS_HAS_AVX)
-            if (cpu::supports_avx()) {
+            if (supports_avx()) {
             detected_level = SIMDPolicy::Level::AVX;
         } else
 #endif
 #if defined(LIBSTATS_HAS_SSE2)
-            if (cpu::supports_sse2()) {
+            if (supports_sse2()) {
             detected_level = SIMDPolicy::Level::SSE2;
         } else
 #endif
@@ -121,19 +121,19 @@ std::string SIMDPolicy::getCapabilityString() noexcept {
 
 SIMDPolicy::Level SIMDPolicy::detectBestLevel() noexcept {
 #if defined(LIBSTATS_HAS_AVX512)
-    if (cpu::supports_avx512())
+    if (supports_avx512())
         return SIMDPolicy::Level::AVX512;
 #endif
 #if defined(LIBSTATS_HAS_AVX2)
-    if (cpu::supports_avx2())
+    if (supports_avx2())
         return SIMDPolicy::Level::AVX2;
 #endif
 #if defined(LIBSTATS_HAS_AVX)
-    if (cpu::supports_avx())
+    if (supports_avx())
         return SIMDPolicy::Level::AVX;
 #endif
 #if defined(LIBSTATS_HAS_SSE2)
-    if (cpu::supports_sse2())
+    if (supports_sse2())
         return SIMDPolicy::Level::SSE2;
 #endif
 #if defined(LIBSTATS_HAS_NEON)
