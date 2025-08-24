@@ -523,7 +523,7 @@ std::size_t get_min_parallel_elements() {
     }
 }
 
-std::size_t get_optimal_grain_size() {
+std::size_t get_optimal_grain_size() noexcept {
     const auto& features = get_features();
     const std::size_t optimal_block = get_optimal_simd_block_size();
 

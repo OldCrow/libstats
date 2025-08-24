@@ -46,7 +46,7 @@ std::size_t get_neon_doubles();
 }  // namespace arch
 
 namespace arch {
-/// Get platform-optimized parallel processing thresholds
+/// Get optimized parallel processing thresholds
 std::size_t get_min_elements_for_parallel();
 std::size_t get_min_elements_for_distribution_parallel();
 std::size_t get_min_elements_for_simple_distribution_parallel();
@@ -100,7 +100,7 @@ std::size_t get_optimal_simd_block_size();
 std::size_t get_optimal_alignment();
 std::size_t get_min_simd_size();
 std::size_t get_min_parallel_elements();
-std::size_t get_optimal_grain_size();
+std::size_t get_optimal_grain_size() noexcept;
 
 /// Hardware capability queries
 bool supports_fast_transcendental();
