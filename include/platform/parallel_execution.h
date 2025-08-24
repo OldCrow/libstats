@@ -208,7 +208,7 @@ inline std::size_t get_optimal_thread_count(
     std::size_t optimal_threads = physical_cores;
 
     // Use hyperthreading for memory-bound workloads
-    if (workload_size > arch::MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL) {
+    if (workload_size > arch::parallel::MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL) {
         optimal_threads = logical_cores;
     }
 #else

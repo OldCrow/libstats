@@ -22,7 +22,6 @@ namespace stats {
 namespace arch {
 
 /// SIMD optimization parameters and architectural constants (implementation)
-namespace arch {
 namespace simd {
 // Static constant definitions
 static constexpr std::size_t DEFAULT_BLOCK_SIZE = 8;
@@ -92,10 +91,9 @@ std::size_t get_neon_doubles() {
 }
 }  // namespace registers
 }  // namespace simd
-}  // namespace arch
 
 /// Parallel processing optimization constants (implementation)
-namespace arch {
+namespace parallel {
 // Legacy constants for backward compatibility
 [[maybe_unused]] const std::size_t MIN_ELEMENTS_FOR_PARALLEL = 4096;
 [[maybe_unused]] const std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 2048;
@@ -324,12 +322,11 @@ std::size_t get_max_grain_size() {
         return fallback::MAX_GRAIN_SIZE;
     }
 }
-}  // namespace arch
+}  // namespace parallel
 
 /// Memory access and prefetching optimization constants (implementation)
 namespace memory {
 namespace prefetch {
-namespace arch {
 namespace apple_silicon {
 [[maybe_unused]] static constexpr std::size_t SEQUENTIAL_PREFETCH_DISTANCE = 256;
 [[maybe_unused]] static constexpr std::size_t RANDOM_PREFETCH_DISTANCE = 64;
@@ -357,24 +354,23 @@ namespace arm {
 [[maybe_unused]] static constexpr std::size_t MATRIX_PREFETCH_DISTANCE = 32;
 [[maybe_unused]] static constexpr std::size_t PREFETCH_STRIDE = 2;
 }  // namespace arm
-}  // namespace arch
 
 std::size_t get_sequential_prefetch_distance() {
     [[maybe_unused]] const auto& features = get_features();
 
 // Platform-specific prefetch distances based on architecture
 #if defined(__APPLE__) && defined(__aarch64__)
-    return arch::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
+    return apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return arch::intel::SEQUENTIAL_PREFETCH_DISTANCE;
+        return intel::SEQUENTIAL_PREFETCH_DISTANCE;
     } else if (features.vendor == "AuthenticAMD") {
-        return arch::amd::SEQUENTIAL_PREFETCH_DISTANCE;
+        return amd::SEQUENTIAL_PREFETCH_DISTANCE;
     } else {
-        return arch::intel::SEQUENTIAL_PREFETCH_DISTANCE;  // Default to Intel
+        return intel::SEQUENTIAL_PREFETCH_DISTANCE;  // Default to Intel
     }
 #else
-    return arch::arm::SEQUENTIAL_PREFETCH_DISTANCE;
+    return arm::SEQUENTIAL_PREFETCH_DISTANCE;
 #endif
 }
 
@@ -382,17 +378,17 @@ std::size_t get_random_prefetch_distance() {
     [[maybe_unused]] const auto& features = get_features();
 
 #if defined(__APPLE__) && defined(__aarch64__)
-    return arch::apple_silicon::RANDOM_PREFETCH_DISTANCE;
+    return apple_silicon::RANDOM_PREFETCH_DISTANCE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return arch::intel::RANDOM_PREFETCH_DISTANCE;
+        return intel::RANDOM_PREFETCH_DISTANCE;
     } else if (features.vendor == "AuthenticAMD") {
-        return arch::amd::RANDOM_PREFETCH_DISTANCE;
+        return amd::RANDOM_PREFETCH_DISTANCE;
     } else {
-        return arch::intel::RANDOM_PREFETCH_DISTANCE;
+        return intel::RANDOM_PREFETCH_DISTANCE;
     }
 #else
-    return arch::arm::RANDOM_PREFETCH_DISTANCE;
+    return arm::RANDOM_PREFETCH_DISTANCE;
 #endif
 }
 
@@ -400,17 +396,17 @@ std::size_t get_matrix_prefetch_distance() {
     [[maybe_unused]] const auto& features = get_features();
 
 #if defined(__APPLE__) && defined(__aarch64__)
-    return arch::apple_silicon::MATRIX_PREFETCH_DISTANCE;
+    return apple_silicon::MATRIX_PREFETCH_DISTANCE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return arch::intel::MATRIX_PREFETCH_DISTANCE;
+        return intel::MATRIX_PREFETCH_DISTANCE;
     } else if (features.vendor == "AuthenticAMD") {
-        return arch::amd::MATRIX_PREFETCH_DISTANCE;
+        return amd::MATRIX_PREFETCH_DISTANCE;
     } else {
-        return arch::intel::MATRIX_PREFETCH_DISTANCE;
+        return intel::MATRIX_PREFETCH_DISTANCE;
     }
 #else
-    return arch::arm::MATRIX_PREFETCH_DISTANCE;
+    return arm::MATRIX_PREFETCH_DISTANCE;
 #endif
 }
 
@@ -418,17 +414,17 @@ std::size_t get_prefetch_stride() {
     [[maybe_unused]] const auto& features = get_features();
 
 #if defined(__APPLE__) && defined(__aarch64__)
-    return arch::apple_silicon::PREFETCH_STRIDE;
+    return apple_silicon::PREFETCH_STRIDE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return arch::intel::PREFETCH_STRIDE;
+        return intel::PREFETCH_STRIDE;
     } else if (features.vendor == "AuthenticAMD") {
-        return arch::amd::PREFETCH_STRIDE;
+        return amd::PREFETCH_STRIDE;
     } else {
-        return arch::intel::PREFETCH_STRIDE;
+        return intel::PREFETCH_STRIDE;
     }
 #else
-    return arch::arm::PREFETCH_STRIDE;
+    return arm::PREFETCH_STRIDE;
 #endif
 }
 }  // namespace prefetch
@@ -441,9 +437,6 @@ namespace access {
 }  // namespace memory
 
 /// Platform-specific tuning functions (implementation)
-}  // namespace arch
-
-namespace arch {
 std::size_t get_optimal_simd_block_size() {
     const auto& features = get_features();
 

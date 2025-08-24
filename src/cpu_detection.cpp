@@ -99,7 +99,7 @@ struct FeaturesSingleton {
                     std::this_thread::sleep_for(std::chrono::nanoseconds(backoff));
                     backoff = std::min(
                         backoff * detail::TWO_INT,
-                        static_cast<int>(arch::MAX_BACKOFF_NANOSECONDS));  // Max 1μs backoff
+                        static_cast<int>(arch::simd::CPU_MAX_BACKOFF_NANOSECONDS));  // Max 1μs backoff
                 }
 #endif
             }
@@ -192,7 +192,7 @@ void detect_cache_info(Features& features) {
 
     // Set default cache line size if not detected
     if (features.l1_data_cache.line_size == 0) {
-        features.cache_line_size = arch::DEFAULT_CACHE_LINE_SIZE;  // Common default
+        features.cache_line_size = arch::simd::CPU_DEFAULT_CACHE_LINE_SIZE;  // Common default
     } else {
         features.cache_line_size = features.l1_data_cache.line_size;
     }
@@ -323,7 +323,7 @@ void detect_performance_info(Features& features) {
     // Estimate TSC frequency if RDTSC is available
     if (features.performance.has_rdtsc) {
         features.performance.tsc_frequency =
-            estimate_tsc_frequency_internal(arch::DEFAULT_TSC_SAMPLE_MS);  // Quick sample
+            estimate_tsc_frequency_internal(arch::simd::CPU_DEFAULT_TSC_SAMPLE_MS);  // Quick sample
     } else {
         features.performance.tsc_frequency = 0;
     }
