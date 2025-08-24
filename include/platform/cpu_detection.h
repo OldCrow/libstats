@@ -21,7 +21,7 @@
  */
 
 namespace stats {
-namespace cpu {
+namespace arch {
 
 /**
  * @brief Cache hierarchy information
@@ -282,5 +282,5 @@ std::string detailed_cpu_info();
  */
 bool validate_feature_consistency();
 
-}  // namespace cpu
+}  // namespace arch
 }  // namespace stats

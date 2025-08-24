@@ -112,6 +112,7 @@
 //==============================================================================
 
 namespace stats {
+namespace arch {
 namespace simd {
 
 /**
@@ -224,7 +225,7 @@ constexpr bool supports_vectorization() noexcept {
  * This constant adapts to the actual SIMD capabilities detected at compile time,
  * ensuring optimal memory alignment for the available instruction set.
  */
-static constexpr std::size_t SIMD_ALIGNMENT = optimal_alignment();
+inline constexpr std::size_t SIMD_ALIGNMENT = optimal_alignment();
 
 /**
  * @brief SIMD vector width for double precision based on detected platform
@@ -777,4 +778,5 @@ constexpr std::size_t align_size(std::size_t size,
 }
 
 }  // namespace simd
+}  // namespace arch
 }  // namespace stats

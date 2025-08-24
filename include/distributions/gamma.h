@@ -141,8 +141,7 @@ class GammaDistribution : public DistributionBase {
      *
      * Implementation in .cpp: Complex validation and cache initialization logic
      */
-    explicit GammaDistribution(double alpha = constants::math::ONE,
-                               double beta = constants::math::ONE);
+    explicit GammaDistribution(double alpha = detail::ONE, double beta = detail::ONE);
 
     /**
      * @brief Thread-safe copy constructor
@@ -937,7 +936,7 @@ class GammaDistribution : public DistributionBase {
      * @throws std::invalid_argument if spans have different sizes
      */
     void getProbability(std::span<const double> values, std::span<double> results,
-                        const performance::PerformanceHint& hint = {}) const;
+                        const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch log probability calculation with performance hints
@@ -952,7 +951,7 @@ class GammaDistribution : public DistributionBase {
      * @throws std::invalid_argument if spans have different sizes
      */
     void getLogProbability(std::span<const double> values, std::span<double> results,
-                           const performance::PerformanceHint& hint = {}) const;
+                           const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch cumulative probability calculation with performance hints
@@ -968,7 +967,7 @@ class GammaDistribution : public DistributionBase {
      * @throws std::invalid_argument if spans have different sizes
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                  const performance::PerformanceHint& hint = {}) const;
+                                  const detail::PerformanceHint& hint = {}) const;
 
     //==========================================================================
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS
@@ -988,7 +987,7 @@ class GammaDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    performance::Strategy strategy) const;
+                                    detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch log probability calculation for power users
@@ -1004,7 +1003,7 @@ class GammaDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       performance::Strategy strategy) const;
+                                       detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch cumulative probability calculation for power users
@@ -1021,7 +1020,7 @@ class GammaDistribution : public DistributionBase {
      */
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
-                                              performance::Strategy strategy) const;
+                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1144,10 +1143,10 @@ class GammaDistribution : public DistributionBase {
         logGammaAlpha_ = std::lgamma(alpha_);
         logBeta_ = std::log(beta_);
         alphaLogBeta_ = alpha_ * logBeta_;
-        alphaMinusOne_ = alpha_ - constants::math::ONE;
+        alphaMinusOne_ = alpha_ - detail::ONE;
 
         // Derived parameters
-        scale_ = constants::math::ONE / beta_;
+        scale_ = detail::ONE / beta_;
         mean_ = alpha_ * scale_;
         variance_ = mean_ * scale_;
 
@@ -1156,16 +1155,12 @@ class GammaDistribution : public DistributionBase {
         sqrtAlpha_ = std::sqrt(alpha_);
 
         // Optimization flags
-        isExponential_ =
-            (std::abs(alpha_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        isIntegerAlpha_ =
-            (std::abs(alpha_ - std::round(alpha_)) <= constants::precision::DEFAULT_TOLERANCE);
-        isSmallAlpha_ = (alpha_ < constants::math::ONE);
+        isExponential_ = (std::abs(alpha_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        isIntegerAlpha_ = (std::abs(alpha_ - std::round(alpha_)) <= detail::DEFAULT_TOLERANCE);
+        isSmallAlpha_ = (alpha_ < detail::ONE);
         isLargeAlpha_ = (alpha_ > 100.0);
-        isStandardGamma_ =
-            (std::abs(beta_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        isChiSquared_ =
-            (std::abs(beta_ - constants::math::HALF) <= constants::precision::DEFAULT_TOLERANCE);
+        isStandardGamma_ = (std::abs(beta_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        isChiSquared_ = (std::abs(beta_ - detail::HALF) <= detail::DEFAULT_TOLERANCE);
 
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
@@ -1183,10 +1178,10 @@ class GammaDistribution : public DistributionBase {
      * @throws std::invalid_argument if parameters are invalid
      */
     static void validateParameters(double alpha, double beta) {
-        if (std::isnan(alpha) || std::isinf(alpha) || alpha <= constants::math::ZERO_DOUBLE) {
+        if (std::isnan(alpha) || std::isinf(alpha) || alpha <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Alpha (shape parameter) must be a positive finite number");
         }
-        if (std::isnan(beta) || std::isinf(beta) || beta <= constants::math::ZERO_DOUBLE) {
+        if (std::isnan(beta) || std::isinf(beta) || beta <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Beta (rate parameter) must be a positive finite number");
         }
     }
@@ -1212,14 +1207,14 @@ class GammaDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Shape parameter α - must be positive */
-    double alpha_{constants::math::ONE};
+    double alpha_{detail::ONE};
 
     /** @brief Rate parameter β - must be positive (β = 1/scale) */
-    double beta_{constants::math::ONE};
+    double beta_{detail::ONE};
 
     /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<double> atomicAlpha_{constants::math::ONE};
-    mutable std::atomic<double> atomicBeta_{constants::math::ONE};
+    mutable std::atomic<double> atomicAlpha_{detail::ONE};
+    mutable std::atomic<double> atomicBeta_{detail::ONE};
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
@@ -1227,31 +1222,31 @@ class GammaDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Cached value of log(Γ(α)) for efficiency in PDF calculations */
-    mutable double logGammaAlpha_{constants::math::ZERO_DOUBLE};
+    mutable double logGammaAlpha_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of log(β) for efficiency in PDF calculations */
-    mutable double logBeta_{constants::math::ZERO_DOUBLE};
+    mutable double logBeta_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of α*log(β) for efficiency in PDF calculations */
-    mutable double alphaLogBeta_{constants::math::ZERO_DOUBLE};
+    mutable double alphaLogBeta_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of α-1 for efficiency in PDF calculations */
-    mutable double alphaMinusOne_{constants::math::ZERO_DOUBLE};
+    mutable double alphaMinusOne_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of 1/β (scale parameter θ) for efficiency */
-    mutable double scale_{constants::math::ONE};
+    mutable double scale_{detail::ONE};
 
     /** @brief Cached value of α/β (mean) for efficiency */
-    mutable double mean_{constants::math::ONE};
+    mutable double mean_{detail::ONE};
 
     /** @brief Cached value of α/β² (variance) for efficiency */
-    mutable double variance_{constants::math::ONE};
+    mutable double variance_{detail::ONE};
 
     /** @brief Cached value of digamma(α) for efficiency in various calculations */
-    mutable double digammaAlpha_{constants::math::ZERO_DOUBLE};
+    mutable double digammaAlpha_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of √α for efficiency in normal approximation */
-    mutable double sqrtAlpha_{constants::math::ONE};
+    mutable double sqrtAlpha_{detail::ONE};
 
     //==========================================================================
     // 23. OPTIMIZATION FLAGS

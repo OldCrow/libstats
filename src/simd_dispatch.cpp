@@ -12,6 +12,7 @@
 #include <cstring>
 
 namespace stats {
+namespace arch {
 namespace simd {
 
 //========== Public Interface Implementations ==========
@@ -52,7 +53,7 @@ double VectorOps::dot_product(const double* a, const double* b, std::size_t size
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (cpu::supports_neon()) {
+    if (arch::supports_neon()) {
         return dot_product_neon(a, b, size);
     }
 #endif
@@ -92,7 +93,7 @@ void VectorOps::vector_add(const double* a, const double* b, double* result,
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (cpu::supports_neon()) {
+    if (arch::supports_neon()) {
         return vector_add_neon(a, b, result, size);
     }
 #endif
@@ -131,7 +132,7 @@ void VectorOps::vector_subtract(const double* a, const double* b, double* result
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (cpu::supports_neon()) {
+    if (arch::supports_neon()) {
         return vector_subtract_neon(a, b, result, size);
     }
 #endif
@@ -170,7 +171,7 @@ void VectorOps::vector_multiply(const double* a, const double* b, double* result
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (cpu::supports_neon()) {
+    if (arch::supports_neon()) {
         return vector_multiply_neon(a, b, result, size);
     }
 #endif
@@ -209,7 +210,7 @@ void VectorOps::scalar_multiply(const double* a, double scalar, double* result,
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (cpu::supports_neon()) {
+    if (arch::supports_neon()) {
         return scalar_multiply_neon(a, scalar, result, size);
     }
 #endif
@@ -248,7 +249,7 @@ void VectorOps::scalar_add(const double* a, double scalar, double* result,
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (cpu::supports_neon()) {
+    if (arch::supports_neon()) {
         return scalar_add_neon(a, scalar, result, size);
     }
 #endif
@@ -308,7 +309,7 @@ std::string VectorOps::get_active_simd_level() noexcept {
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (cpu::supports_neon()) {
+    if (arch::supports_neon()) {
         return "NEON";
     }
 #endif
@@ -321,7 +322,7 @@ bool VectorOps::is_simd_available() noexcept {
 }
 
 std::size_t VectorOps::get_optimal_block_size() noexcept {
-    return constants::platform::get_optimal_simd_block_size();
+    return stats::arch::get_optimal_simd_block_size();
 }
 
 //========== Enhanced Platform-Aware Dispatch Utilities ==========
@@ -330,16 +331,14 @@ namespace {
 /// Internal utility: Check if memory alignment is beneficial for current platform
 inline bool is_alignment_beneficial(const void* ptr1, const void* ptr2 = nullptr,
                                     const void* ptr3 = nullptr) noexcept {
-    const std::size_t alignment = constants::platform::get_optimal_alignment();
+    const std::size_t alignment = stats::arch::get_optimal_alignment();
 
-    bool aligned = (reinterpret_cast<uintptr_t>(ptr1) % alignment) == constants::math::ZERO_INT;
+    bool aligned = (reinterpret_cast<uintptr_t>(ptr1) % alignment) == detail::ZERO_INT;
     if (ptr2) {
-        aligned = aligned &&
-                  ((reinterpret_cast<uintptr_t>(ptr2) % alignment) == constants::math::ZERO_INT);
+        aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr2) % alignment) == detail::ZERO_INT);
     }
     if (ptr3) {
-        aligned = aligned &&
-                  ((reinterpret_cast<uintptr_t>(ptr3) % alignment) == constants::math::ZERO_INT);
+        aligned = aligned && ((reinterpret_cast<uintptr_t>(ptr3) % alignment) == detail::ZERO_INT);
     }
 
     return aligned;
@@ -347,9 +346,8 @@ inline bool is_alignment_beneficial(const void* ptr1, const void* ptr2 = nullptr
 
 /// Internal utility: Get platform-specific cache optimization threshold
 inline std::size_t get_cache_optimization_threshold() noexcept {
-    const auto thresholds = constants::platform::get_cache_thresholds();
-    return thresholds.l1_optimal_size /
-           constants::math::FOUR_INT;  // Use quarter of L1 as threshold
+    const auto thresholds = stats::arch::get_cache_thresholds();
+    return thresholds.l1_optimal_size / detail::FOUR_INT;  // Use quarter of L1 as threshold
 }
 
 /// Internal utility: Choose optimal SIMD path based on data characteristics
@@ -368,14 +366,14 @@ inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const v
     }
 
     // For medium datasets, check alignment benefits
-    if (size >= constants::simd::optimization::MEDIUM_DATASET_MIN_SIZE &&
+    if (size >= stats::arch::simd::OPT_MEDIUM_DATASET_MIN_SIZE &&
         is_alignment_beneficial(ptr1, ptr2, ptr3)) {
         return true;
     }
 
 // For high-end SIMD (AVX-512), use for smaller aligned datasets
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512() && size >= constants::simd::optimization::AVX512_MIN_ALIGNED_SIZE &&
+    if (cpu::supports_avx512() && size >= arch::AVX512_MIN_ALIGNED_SIZE &&
         is_alignment_beneficial(ptr1, ptr2, ptr3)) {
         return true;
     }
@@ -383,12 +381,12 @@ inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const v
 
 // For Apple Silicon, be more aggressive with SIMD usage
 #if defined(LIBSTATS_APPLE_SILICON)
-    if (size >= constants::simd::optimization::APPLE_SILICON_AGGRESSIVE_THRESHOLD) {
+    if (size >= stats::arch::simd::OPT_APPLE_SILICON_AGGRESSIVE_THRESHOLD) {
         return true;
     }
 #endif
 
-    return size >= constants::platform::get_min_simd_size();
+    return size >= stats::arch::get_min_simd_size();
 }
 }  // namespace
 
@@ -400,7 +398,7 @@ bool VectorOps::should_use_vectorized_path(std::size_t size, const void* data1, 
 }
 
 std::string VectorOps::get_platform_optimization_info() noexcept {
-    const auto thresholds = constants::platform::get_cache_thresholds();
+    const auto thresholds = stats::arch::get_cache_thresholds();
 
     std::string info = "Platform: ";
 
@@ -425,4 +423,5 @@ std::string VectorOps::get_platform_optimization_info() noexcept {
 }
 
 }  // namespace simd
+}  // namespace arch
 }  // namespace stats

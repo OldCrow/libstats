@@ -9,10 +9,8 @@
  */
 
 namespace stats {
-namespace constants {
-
-/// Mathematical constants
-namespace math {
+namespace detail {
+// Mathematical constants
 /// High-precision value of π
 inline constexpr double PI = 3.141592653589793238462643383279502884;
 
@@ -132,7 +130,5 @@ inline constexpr double THREE_PI_OVER_2 = 3.0 * PI / 2.0;
 inline constexpr double FOUR_PI = 4.0 * PI;
 inline constexpr double NEG_HALF_LN_2PI = -0.5 * LN_2PI;
 
-}  // namespace math
-
-}  // namespace constants
+}  // namespace detail
 }  // namespace stats

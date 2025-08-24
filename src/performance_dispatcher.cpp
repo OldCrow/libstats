@@ -9,34 +9,34 @@
 #include <mutex>
 
 namespace stats {
-namespace performance {
+namespace detail {  // Performance utilities
 
 PerformanceDispatcher::PerformanceDispatcher()
     : PerformanceDispatcher(SystemCapabilities::current()) {}
 
 PerformanceDispatcher::PerformanceDispatcher(const SystemCapabilities& system) {
     // Use SIMDPolicy to get the best SIMD level and initialize thresholds accordingly
-    auto simd_level = simd::SIMDPolicy::getBestLevel();
+    auto simd_level = arch::simd::SIMDPolicy::getBestLevel();
     thresholds_ = Thresholds::createForSIMDLevel(simd_level, system);
 }
 
 PerformanceDispatcher::SIMDArchitecture PerformanceDispatcher::detectSIMDArchitecture(
     [[maybe_unused]] const SystemCapabilities& system) noexcept {
     // Delegate to SIMDPolicy instead of duplicating detection logic
-    auto level = simd::SIMDPolicy::getBestLevel();
+    auto level = arch::simd::SIMDPolicy::getBestLevel();
 
     switch (level) {
-        case simd::SIMDPolicy::Level::AVX512:
+        case arch::simd::SIMDPolicy::Level::AVX512:
             return SIMDArchitecture::AVX512;
-        case simd::SIMDPolicy::Level::AVX2:
+        case arch::simd::SIMDPolicy::Level::AVX2:
             return SIMDArchitecture::AVX2;
-        case simd::SIMDPolicy::Level::AVX:
+        case arch::simd::SIMDPolicy::Level::AVX:
             return SIMDArchitecture::AVX;
-        case simd::SIMDPolicy::Level::NEON:
+        case arch::simd::SIMDPolicy::Level::NEON:
             return SIMDArchitecture::NEON;
-        case simd::SIMDPolicy::Level::SSE2:
+        case arch::simd::SIMDPolicy::Level::SSE2:
             return SIMDArchitecture::SSE2;
-        case simd::SIMDPolicy::Level::None:
+        case arch::simd::SIMDPolicy::Level::None:
         default:
             return SIMDArchitecture::NONE;
     }
@@ -142,7 +142,7 @@ PerformanceHistory& PerformanceDispatcher::getPerformanceHistory() noexcept {
 Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     size_t batch_size, DistributionType dist_type, const SystemCapabilities& system) const {
     // Get empirical characteristics for this distribution
-    using namespace characteristics;
+    using namespace detail;
     const auto& dist_chars = getCharacteristics(dist_type);
 
     // Extract system capabilities
@@ -236,40 +236,40 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSIMDLevel(
-    simd::SIMDPolicy::Level level, const SystemCapabilities& system) {
+    arch::simd::SIMDPolicy::Level level, const SystemCapabilities& system) {
     Thresholds thresholds;
 
     // Use SIMDPolicy's thresholds as foundation
-    thresholds.simd_min = simd::SIMDPolicy::getMinThreshold();
+    thresholds.simd_min = arch::simd::SIMDPolicy::getMinThreshold();
 
     // Set base parallel thresholds based on SIMD level capability
     switch (level) {
-        case simd::SIMDPolicy::Level::AVX512:
+        case arch::simd::SIMDPolicy::Level::AVX512:
             thresholds.parallel_min = 500;  // Powerful SIMD reduces parallel threshold
             thresholds.work_stealing_min = 8000;
             thresholds.gpu_accelerated_min = 32000;
             break;
-        case simd::SIMDPolicy::Level::AVX2:
+        case arch::simd::SIMDPolicy::Level::AVX2:
             thresholds.parallel_min = 1000;  // Good SIMD efficiency
             thresholds.work_stealing_min = 10000;
             thresholds.gpu_accelerated_min = 50000;
             break;
-        case simd::SIMDPolicy::Level::AVX:
+        case arch::simd::SIMDPolicy::Level::AVX:
             thresholds.parallel_min = 5000;  // AVX often has limited efficiency
             thresholds.work_stealing_min = 50000;
             thresholds.gpu_accelerated_min = 200000;
             break;
-        case simd::SIMDPolicy::Level::SSE2:
+        case arch::simd::SIMDPolicy::Level::SSE2:
             thresholds.parallel_min = 2000;  // Older architecture, conservative
             thresholds.work_stealing_min = 20000;
             thresholds.gpu_accelerated_min = 100000;
             break;
-        case simd::SIMDPolicy::Level::NEON:
+        case arch::simd::SIMDPolicy::Level::NEON:
             thresholds.parallel_min = 1500;  // ARM characteristics
             thresholds.work_stealing_min = 15000;
             thresholds.gpu_accelerated_min = 75000;
             break;
-        case simd::SIMDPolicy::Level::None:
+        case arch::simd::SIMDPolicy::Level::None:
         default:
             thresholds.simd_min = SIZE_MAX;  // Disable SIMD entirely
             thresholds.parallel_min = 500;   // Lower threshold since SIMD unavailable
@@ -279,7 +279,7 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
     }
 
     // Set distribution-specific thresholds based on empirical characteristics
-    using namespace characteristics;
+    using namespace detail;
 
     // Calculate SIMD and parallel thresholds using empirical data
     for (size_t i = 0; i < 6; ++i) {
@@ -331,26 +331,26 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForArchitecture(
     SIMDArchitecture arch, const SystemCapabilities& system) {
     // Convert to SIMDPolicy level and delegate
-    simd::SIMDPolicy::Level level;
+    arch::simd::SIMDPolicy::Level level;
     switch (arch) {
         case SIMDArchitecture::AVX512:
-            level = simd::SIMDPolicy::Level::AVX512;
+            level = arch::simd::SIMDPolicy::Level::AVX512;
             break;
         case SIMDArchitecture::AVX2:
-            level = simd::SIMDPolicy::Level::AVX2;
+            level = arch::simd::SIMDPolicy::Level::AVX2;
             break;
         case SIMDArchitecture::AVX:
-            level = simd::SIMDPolicy::Level::AVX;
+            level = arch::simd::SIMDPolicy::Level::AVX;
             break;
         case SIMDArchitecture::SSE2:
-            level = simd::SIMDPolicy::Level::SSE2;
+            level = arch::simd::SIMDPolicy::Level::SSE2;
             break;
         case SIMDArchitecture::NEON:
-            level = simd::SIMDPolicy::Level::NEON;
+            level = arch::simd::SIMDPolicy::Level::NEON;
             break;
         case SIMDArchitecture::NONE:
         default:
-            level = simd::SIMDPolicy::Level::None;
+            level = arch::simd::SIMDPolicy::Level::None;
             break;
     }
 
@@ -360,27 +360,27 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForAr
 // Legacy profile methods kept for backward compatibility but now delegate to SIMDPolicy-based logic
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getSSE2Profile() {
-    return createForSIMDLevel(simd::SIMDPolicy::Level::SSE2, SystemCapabilities::current());
+    return createForSIMDLevel(arch::simd::SIMDPolicy::Level::SSE2, SystemCapabilities::current());
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getAVXProfile() {
-    return createForSIMDLevel(simd::SIMDPolicy::Level::AVX, SystemCapabilities::current());
+    return createForSIMDLevel(arch::simd::SIMDPolicy::Level::AVX, SystemCapabilities::current());
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getAVX2Profile() {
-    return createForSIMDLevel(simd::SIMDPolicy::Level::AVX2, SystemCapabilities::current());
+    return createForSIMDLevel(arch::simd::SIMDPolicy::Level::AVX2, SystemCapabilities::current());
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getAVX512Profile() {
-    return createForSIMDLevel(simd::SIMDPolicy::Level::AVX512, SystemCapabilities::current());
+    return createForSIMDLevel(arch::simd::SIMDPolicy::Level::AVX512, SystemCapabilities::current());
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getNEONProfile() {
-    return createForSIMDLevel(simd::SIMDPolicy::Level::NEON, SystemCapabilities::current());
+    return createForSIMDLevel(arch::simd::SIMDPolicy::Level::NEON, SystemCapabilities::current());
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getScalarProfile() {
-    return createForSIMDLevel(simd::SIMDPolicy::Level::None, SystemCapabilities::current());
+    return createForSIMDLevel(arch::simd::SIMDPolicy::Level::None, SystemCapabilities::current());
 }
 
 void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapabilities& system) {
@@ -490,5 +490,5 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
     gpu_accelerated_min = std::max(gpu_accelerated_min, static_cast<size_t>(10000));
 }
 
-}  // namespace performance
+}  // namespace detail
 }  // namespace stats

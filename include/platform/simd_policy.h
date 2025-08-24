@@ -20,6 +20,7 @@
  */
 
 namespace stats {
+namespace arch {
 namespace simd {
 
 /**
@@ -177,4 +178,5 @@ class SIMDPolicy {
 };
 
 }  // namespace simd
+}  // namespace arch
 }  // namespace stats

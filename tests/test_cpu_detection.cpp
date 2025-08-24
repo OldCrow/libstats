@@ -9,7 +9,7 @@ int main() {
         std::cout << "=== Comprehensive CPU Detection Test ===" << std::endl;
 
         // Get detected features
-        const auto& features = stats::cpu::get_features();
+        const auto& features = stats::arch::get_features();
 
         std::cout << "\n=== CPU Identification ===" << std::endl;
         std::cout << "CPU Vendor: " << features.vendor << std::endl;
@@ -77,50 +77,47 @@ int main() {
                   << std::endl;
 
         std::cout << "\n=== Summary Information ===" << std::endl;
-        std::cout << "Feature Summary: " << stats::cpu::features_string() << std::endl;
-        std::cout << "Best SIMD Level: " << stats::cpu::best_simd_level() << std::endl;
+        std::cout << "Feature Summary: " << stats::arch::features_string() << std::endl;
+        std::cout << "Best SIMD Level: " << stats::arch::best_simd_level() << std::endl;
 
         std::cout << "\n=== Optimal Configuration ===" << std::endl;
-        std::cout << "  Double Vector Width: " << stats::cpu::optimal_double_width() << std::endl;
-        std::cout << "  Float Vector Width: " << stats::cpu::optimal_float_width() << std::endl;
-        std::cout << "  Memory Alignment: " << stats::cpu::optimal_alignment() << " bytes"
+        std::cout << "  Double Vector Width: " << stats::arch::optimal_double_width() << std::endl;
+        std::cout << "  Float Vector Width: " << stats::arch::optimal_float_width() << std::endl;
+        std::cout << "  Memory Alignment: " << stats::arch::optimal_alignment() << " bytes"
                   << std::endl;
 
         std::cout << "\n=== CPU Generation Detection ===" << std::endl;
         std::cout << "  is_sandy_ivy_bridge(): "
-                  << (stats::cpu::is_sandy_ivy_bridge() ? "YES" : "NO") << std::endl;
+                  << (stats::arch::is_sandy_ivy_bridge() ? "YES" : "NO") << std::endl;
         std::cout << "  is_haswell_broadwell(): "
-                  << (stats::cpu::is_haswell_broadwell() ? "YES" : "NO") << std::endl;
+                  << (stats::arch::is_haswell_broadwell() ? "YES" : "NO") << std::endl;
         std::cout << "  is_skylake_generation(): "
-                  << (stats::cpu::is_skylake_generation() ? "YES" : "NO") << std::endl;
+                  << (stats::arch::is_skylake_generation() ? "YES" : "NO") << std::endl;
         std::cout << "  is_kaby_coffee_lake(): "
-                  << (stats::cpu::is_kaby_coffee_lake() ? "YES" : "NO") << std::endl;
-        std::cout << "  is_modern_intel(): " << (stats::cpu::is_modern_intel() ? "YES" : "NO")
+                  << (stats::arch::is_kaby_coffee_lake() ? "YES" : "NO") << std::endl;
+        std::cout << "  is_modern_intel(): " << (stats::arch::is_modern_intel() ? "YES" : "NO")
                   << std::endl;
 
         std::cout << "\n=== Adaptive Parallel Constants ===" << std::endl;
         std::cout << "  min_elements_for_parallel(): "
-                  << stats::constants::parallel::adaptive::min_elements_for_parallel() << std::endl;
+                  << stats::arch::parallel::detail::min_elements_for_parallel() << std::endl;
         std::cout << "  min_elements_for_distribution_parallel(): "
-                  << stats::constants::parallel::adaptive::min_elements_for_distribution_parallel()
+                  << stats::arch::parallel::detail::min_elements_for_distribution_parallel()
                   << std::endl;
-        std::cout
-            << "  min_elements_for_simple_distribution_parallel(): "
-            << stats::constants::parallel::adaptive::min_elements_for_simple_distribution_parallel()
-            << std::endl;
-        std::cout << "  grain_size(): " << stats::constants::parallel::adaptive::grain_size()
+        std::cout << "  min_elements_for_simple_distribution_parallel(): "
+                  << stats::arch::parallel::detail::min_elements_for_simple_distribution_parallel()
                   << std::endl;
+        std::cout << "  grain_size(): " << stats::arch::parallel::detail::grain_size() << std::endl;
 
         std::cout << "\n=== Direct Constants Comparison ===" << std::endl;
-        std::cout << "  avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL: "
-                  << stats::constants::parallel::avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL
-                  << std::endl;
         std::cout << "  avx::MIN_ELEMENTS_FOR_PARALLEL: "
-                  << stats::constants::parallel::avx::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
+                  << stats::arch::parallel::avx::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
+        std::cout << "  avx::LEGACY_INTEL_MAX_GRAIN_SIZE: "
+                  << stats::arch::parallel::avx::LEGACY_INTEL_MAX_GRAIN_SIZE << std::endl;
         std::cout << "  fallback::MIN_ELEMENTS_FOR_PARALLEL: "
-                  << stats::constants::parallel::fallback::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
+                  << stats::arch::parallel::fallback::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
         std::cout << "  Legacy constants (backward compat): "
-                  << stats::constants::parallel::adaptive::min_elements_for_parallel() << std::endl;
+                  << stats::arch::parallel::detail::min_elements_for_parallel() << std::endl;
 
         std::cout << "\n=== Test Results ===" << std::endl;
         std::cout << "✓ All CPU detection tests completed successfully!" << std::endl;

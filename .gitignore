@@ -334,3 +334,9 @@ libs/
 
 # Header optimization analysis reports
 tools/*.json
+
+# Backup files and directories
+backup_*/
+*.bak
+*.bak2
+*.bak3

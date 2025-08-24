@@ -78,7 +78,7 @@
  *   std::vector<double> output(10000);
  *
  *   // Automatically uses parallel execution if beneficial
- *   stats::parallel::safe_transform(input.begin(), input.end(), output.begin(),
+ *   stats::arch::safe_transform(input.begin(), input.end(), output.begin(),
  *       [](double x) { return x * x; });
  *
  * 3. AVAILABLE PARALLEL ALGORITHMS:

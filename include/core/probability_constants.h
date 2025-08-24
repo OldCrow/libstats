@@ -11,10 +11,7 @@
  */
 
 namespace stats {
-namespace constants {
-
-/// Probability bounds and safety limits
-namespace probability {
+namespace detail {
 /// Minimum probability value to prevent underflow
 inline constexpr double MIN_PROBABILITY = 1.0e-300;
 
@@ -32,7 +29,5 @@ inline constexpr double NEGATIVE_INFINITY = -std::numeric_limits<double>::infini
 
 /// Epsilon for safe log probability computations
 inline constexpr double LOG_PROBABILITY_EPSILON = 1.0e-300;
-}  // namespace probability
-
-}  // namespace constants
+}  // namespace detail
 }  // namespace stats

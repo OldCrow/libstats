@@ -12,6 +12,7 @@
  */
 
 namespace stats {
+namespace arch {
 namespace simd {
 
 namespace {
@@ -46,7 +47,7 @@ struct SIMDState {
         } else
 #endif
 #if defined(LIBSTATS_HAS_NEON)
-            if (cpu::supports_neon()) {
+            if (supports_neon()) {
             detected_level = SIMDPolicy::Level::NEON;
         } else
 #endif
@@ -136,7 +137,7 @@ SIMDPolicy::Level SIMDPolicy::detectBestLevel() noexcept {
         return SIMDPolicy::Level::SSE2;
 #endif
 #if defined(LIBSTATS_HAS_NEON)
-    if (cpu::supports_neon())
+    if (supports_neon())
         return SIMDPolicy::Level::NEON;
 #endif
     return SIMDPolicy::Level::None;
@@ -211,4 +212,5 @@ std::string SIMDPolicy::levelToString(SIMDPolicy::Level level) noexcept {
 }
 
 }  // namespace simd
+}  // namespace arch
 }  // namespace stats

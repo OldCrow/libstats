@@ -61,15 +61,15 @@ int main() {
 
     // 2. Show runtime CPU detection
     cout << "2. RUNTIME CPU DETECTION:" << endl;
-    cout << "   CPU supports SSE2: " << (cpu::supports_sse2() ? "YES" : "NO") << endl;
-    cout << "   CPU supports AVX: " << (cpu::supports_avx() ? "YES" : "NO") << endl;
-    cout << "   CPU supports AVX2: " << (cpu::supports_avx2() ? "YES" : "NO") << endl;
-    cout << "   CPU supports FMA: " << (cpu::supports_fma() ? "YES" : "NO") << endl;
-    cout << "   CPU supports AVX512: " << (cpu::supports_avx512() ? "YES" : "NO") << endl;
-    cout << "   Best SIMD level: " << cpu::best_simd_level() << endl;
-    cout << "   Optimal double vector width: " << cpu::optimal_double_width() << endl;
-    cout << "   Optimal float vector width: " << cpu::optimal_float_width() << endl;
-    cout << "   Optimal alignment: " << cpu::optimal_alignment() << " bytes" << endl;
+    cout << "   CPU supports SSE2: " << (arch::supports_sse2() ? "YES" : "NO") << endl;
+    cout << "   CPU supports AVX: " << (arch::supports_avx() ? "YES" : "NO") << endl;
+    cout << "   CPU supports AVX2: " << (arch::supports_avx2() ? "YES" : "NO") << endl;
+    cout << "   CPU supports FMA: " << (arch::supports_fma() ? "YES" : "NO") << endl;
+    cout << "   CPU supports AVX512: " << (arch::supports_avx512() ? "YES" : "NO") << endl;
+    cout << "   Best SIMD level: " << arch::best_simd_level() << endl;
+    cout << "   Optimal double vector width: " << arch::optimal_double_width() << endl;
+    cout << "   Optimal float vector width: " << arch::optimal_float_width() << endl;
+    cout << "   Optimal alignment: " << arch::optimal_alignment() << " bytes" << endl;
     cout << endl;
 
     // 3. Test Gaussian distribution (the only implemented one)
@@ -119,7 +119,7 @@ int main() {
 
     // Benchmark SIMD addition (if available)
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (arch::supports_avx2()) {
         start = chrono::high_resolution_clock::now();
 
         // Simple AVX2 vector addition

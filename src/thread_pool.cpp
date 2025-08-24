@@ -9,8 +9,8 @@
 #include <sstream>
 
 using namespace stats;
-using namespace stats::constants;
-using namespace stats::constants::parallel;
+using namespace stats::detail;
+using namespace stats::arch::parallel;
 // Platform-specific includes
 #ifdef __APPLE__
     #include <mach/mach.h>
@@ -118,22 +118,22 @@ void ThreadPool::workerLoop() {
 }
 
 std::size_t ThreadPool::getOptimalThreadCount() noexcept {
-    const auto& features = cpu::get_features();
+    const auto& features = arch::get_features();
     std::size_t threadCount = std::thread::hardware_concurrency();
 
-    if (threadCount == constants::math::ZERO_INT) {
-        return constants::math::FOUR_INT;  // Fallback default
+    if (threadCount == detail::ZERO_INT) {
+        return detail::FOUR_INT;  // Fallback default
     }
 
     // For CPU-intensive tasks, use physical cores if hyperthreading is available
     if (features.topology.hyperthreading) {
         const std::size_t physicalCores = features.topology.physical_cores;
-        if (physicalCores > constants::math::ZERO_INT) {
+        if (physicalCores > detail::ZERO_INT) {
             threadCount = physicalCores;
         }
     }
 
-    return std::max(threadCount, std::size_t{constants::math::ONE_INT});
+    return std::max(threadCount, std::size_t{detail::ONE_INT});
 }
 
 //========== ParallelUtils Implementation ==========

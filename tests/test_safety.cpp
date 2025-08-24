@@ -9,8 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace stats::safety;
-namespace prob = stats::constants::probability;
+using namespace stats::detail;
 
 // Test helper functions
 template <typename T>
@@ -39,9 +38,9 @@ void test_safe_log_basic() {
     test_assert(safe_log(10.0) > 0.0, "safe_log(10.0) > 0.0");
 
     // Edge cases
-    test_assert(safe_log(0.0) == prob::MIN_LOG_PROBABILITY, "safe_log(0.0) edge case");
-    test_assert(safe_log(-1.0) == prob::MIN_LOG_PROBABILITY, "safe_log(-1.0) edge case");
-    test_assert(safe_log(std::numeric_limits<double>::quiet_NaN()) == prob::MIN_LOG_PROBABILITY,
+    test_assert(safe_log(0.0) == MIN_LOG_PROBABILITY, "safe_log(0.0) edge case");
+    test_assert(safe_log(-1.0) == MIN_LOG_PROBABILITY, "safe_log(-1.0) edge case");
+    test_assert(safe_log(std::numeric_limits<double>::quiet_NaN()) == MIN_LOG_PROBABILITY,
                 "safe_log(NaN) edge case");
     test_assert(
         safe_log(std::numeric_limits<double>::infinity()) == std::numeric_limits<double>::max(),
@@ -61,7 +60,7 @@ void test_safe_exp_basic() {
                 "safe_exp(NaN) edge case");
 
     // Test underflow handling - should clamp to MIN_PROBABILITY
-    test_assert(safe_exp(-1000.0) == prob::MIN_PROBABILITY, "safe_exp(-1000.0) underflow case");
+    test_assert(safe_exp(-1000.0) == MIN_PROBABILITY, "safe_exp(-1000.0) underflow case");
 
     test_assert(safe_exp(800.0) == std::numeric_limits<double>::max(), "safe_exp(800.0) edge case");
 }
@@ -90,19 +89,16 @@ void test_clamp_probability_basic() {
 
     // Normal values
     test_assert(approx_equal(clamp_probability(0.5), 0.5, 1e-10), "clamp_probability(0.5) == 0.5");
-    test_assert(approx_equal(clamp_probability(0.0), prob::MIN_PROBABILITY, 1e-10),
+    test_assert(approx_equal(clamp_probability(0.0), MIN_PROBABILITY, 1e-10),
                 "clamp_probability(0.0) == MIN_PROBABILITY");
-    test_assert(approx_equal(clamp_probability(1.0), prob::MAX_PROBABILITY, 1e-10),
+    test_assert(approx_equal(clamp_probability(1.0), MAX_PROBABILITY, 1e-10),
                 "clamp_probability(1.0) == MAX_PROBABILITY");
 
     // Edge cases
-    test_assert(clamp_probability(-0.5) == prob::MIN_PROBABILITY,
-                "clamp_probability(-0.5) edge case");
-    test_assert(clamp_probability(1.5) == prob::MAX_PROBABILITY,
-                "clamp_probability(1.5) edge case");
-    test_assert(
-        clamp_probability(std::numeric_limits<double>::quiet_NaN()) == prob::MIN_PROBABILITY,
-        "clamp_probability(NaN) edge case");
+    test_assert(clamp_probability(-0.5) == MIN_PROBABILITY, "clamp_probability(-0.5) edge case");
+    test_assert(clamp_probability(1.5) == MAX_PROBABILITY, "clamp_probability(1.5) edge case");
+    test_assert(clamp_probability(std::numeric_limits<double>::quiet_NaN()) == MIN_PROBABILITY,
+                "clamp_probability(NaN) edge case");
 }
 
 void test_clamp_log_probability_basic() {
@@ -111,11 +107,11 @@ void test_clamp_log_probability_basic() {
     // Normal values
     test_assert(approx_equal(clamp_log_probability(-0.5), -0.5, 1e-10),
                 "clamp_log_probability(-0.5) == -0.5");
-    test_assert(approx_equal(clamp_log_probability(0.0), prob::MAX_LOG_PROBABILITY, 1e-10),
+    test_assert(approx_equal(clamp_log_probability(0.0), MAX_LOG_PROBABILITY, 1e-10),
                 "clamp_log_probability(0.0) == MAX_LOG_PROBABILITY");
 
     // Edge cases
-    test_assert(clamp_log_probability(0.5) == prob::MAX_LOG_PROBABILITY,
+    test_assert(clamp_log_probability(0.5) == MAX_LOG_PROBABILITY,
                 "clamp_log_probability(0.5) edge case");
 
     // -1000.0 is a valid log probability, should not be clamped
@@ -123,12 +119,12 @@ void test_clamp_log_probability_basic() {
                 "clamp_log_probability(-1000.0) should be unchanged");
 
     // Test with a value that should be clamped
-    test_assert(clamp_log_probability(prob::MIN_LOG_PROBABILITY - 1.0) == prob::MIN_LOG_PROBABILITY,
+    test_assert(clamp_log_probability(MIN_LOG_PROBABILITY - 1.0) == MIN_LOG_PROBABILITY,
                 "clamp_log_probability(MIN_LOG_PROBABILITY - 1) should be clamped");
 
-    test_assert(clamp_log_probability(std::numeric_limits<double>::quiet_NaN()) ==
-                    prob::MIN_LOG_PROBABILITY,
-                "clamp_log_probability(NaN) edge case");
+    test_assert(
+        clamp_log_probability(std::numeric_limits<double>::quiet_NaN()) == MIN_LOG_PROBABILITY,
+        "clamp_log_probability(NaN) edge case");
 }
 
 //==============================================================================
@@ -159,9 +155,9 @@ void test_vector_safe_log_small_array() {
     // Check results match scalar function
     test_assert(approx_equal(output[0], 0.0, 1e-10), "vector_safe_log[0] == 0.0");
     test_assert(approx_equal(output[1], 1.0, 1e-6), "vector_safe_log[1] == 1.0");
-    test_assert(output[2] == prob::MIN_LOG_PROBABILITY, "vector_safe_log[2] edge case");
-    test_assert(output[3] == prob::MIN_LOG_PROBABILITY, "vector_safe_log[3] edge case");
-    test_assert(output[4] == prob::MIN_LOG_PROBABILITY, "vector_safe_log[4] edge case");
+    test_assert(output[2] == MIN_LOG_PROBABILITY, "vector_safe_log[2] edge case");
+    test_assert(output[3] == MIN_LOG_PROBABILITY, "vector_safe_log[3] edge case");
+    test_assert(output[4] == MIN_LOG_PROBABILITY, "vector_safe_log[4] edge case");
 }
 
 void test_vector_safe_log_large_array() {
@@ -201,7 +197,7 @@ void test_vector_safe_exp_small_array() {
     // Check results match scalar function
     test_assert(approx_equal(output[0], 1.0, 1e-10), "vector_safe_exp[0] == 1.0");
     test_assert(approx_equal(output[1], 2.718281828, 1e-6), "vector_safe_exp[1] == e");
-    test_assert(output[2] == prob::MIN_PROBABILITY, "vector_safe_exp[2] edge case");
+    test_assert(output[2] == MIN_PROBABILITY, "vector_safe_exp[2] edge case");
     test_assert(output[3] == std::numeric_limits<double>::max(), "vector_safe_exp[3] edge case");
     test_assert(output[4] == 0.0, "vector_safe_exp[4] edge case");
 }
@@ -235,11 +231,11 @@ void test_vector_clamp_probability_small_array() {
 
     // Check results match scalar function
     test_assert(approx_equal(output[0], 0.5, 1e-10), "vector_clamp_probability[0] == 0.5");
-    test_assert(output[1] == prob::MIN_PROBABILITY, "vector_clamp_probability[1] edge case");
-    test_assert(output[2] == prob::MAX_PROBABILITY, "vector_clamp_probability[2] edge case");
-    test_assert(output[3] == prob::MIN_PROBABILITY, "vector_clamp_probability[3] edge case");
-    test_assert(output[4] == prob::MAX_PROBABILITY, "vector_clamp_probability[4] edge case");
-    test_assert(output[5] == prob::MIN_PROBABILITY, "vector_clamp_probability[5] edge case");
+    test_assert(output[1] == MIN_PROBABILITY, "vector_clamp_probability[1] edge case");
+    test_assert(output[2] == MAX_PROBABILITY, "vector_clamp_probability[2] edge case");
+    test_assert(output[3] == MIN_PROBABILITY, "vector_clamp_probability[3] edge case");
+    test_assert(output[4] == MAX_PROBABILITY, "vector_clamp_probability[4] edge case");
+    test_assert(output[5] == MIN_PROBABILITY, "vector_clamp_probability[5] edge case");
 }
 
 void test_vector_clamp_log_probability_small_array() {
@@ -252,13 +248,10 @@ void test_vector_clamp_log_probability_small_array() {
 
     // Check results match scalar function
     test_assert(approx_equal(output[0], -0.5, 1e-10), "vector_clamp_log_probability[0] == -0.5");
-    test_assert(output[1] == prob::MAX_LOG_PROBABILITY,
-                "vector_clamp_log_probability[1] edge case");
-    test_assert(output[2] == prob::MAX_LOG_PROBABILITY,
-                "vector_clamp_log_probability[2] edge case");
+    test_assert(output[1] == MAX_LOG_PROBABILITY, "vector_clamp_log_probability[1] edge case");
+    test_assert(output[2] == MAX_LOG_PROBABILITY, "vector_clamp_log_probability[2] edge case");
     test_assert(output[3] == -1000.0, "vector_clamp_log_probability[3] should be unchanged");
-    test_assert(output[4] == prob::MIN_LOG_PROBABILITY,
-                "vector_clamp_log_probability[4] edge case");
+    test_assert(output[4] == MIN_LOG_PROBABILITY, "vector_clamp_log_probability[4] edge case");
 }
 
 //==============================================================================

@@ -58,12 +58,12 @@ class ThreadPoolTest {
         std::cout << "\n=== Test 1: Level 0 Constants Integration ===" << std::endl;
 
         // Test that constants are properly used
-        auto parallelThreshold = constants::parallel::adaptive::min_elements_for_parallel();
+        auto parallelThreshold = arch::parallel::detail::min_elements_for_parallel();
         auto distributionThreshold =
-            constants::parallel::adaptive::min_elements_for_distribution_parallel();
-        auto defaultGrainSize = constants::parallel::adaptive::grain_size();
-        auto simdBlockSize = constants::platform::get_optimal_simd_block_size();
-        auto memoryAlignment = constants::platform::get_optimal_alignment();
+            arch::parallel::detail::min_elements_for_distribution_parallel();
+        auto defaultGrainSize = arch::parallel::detail::grain_size();
+        auto simdBlockSize = arch::get_optimal_simd_block_size();
+        auto memoryAlignment = arch::get_optimal_alignment();
 
         std::cout << "  Min parallel size: " << parallelThreshold << std::endl;
         std::cout << "  Min distribution parallel size: " << distributionThreshold << std::endl;
@@ -97,7 +97,7 @@ class ThreadPoolTest {
         std::cout << "\n=== Test 2: CPU Detection Integration ===" << std::endl;
 
         // Test that CPU detection is working
-        const auto& features = cpu::get_features();
+        const auto& features = arch::get_features();
         auto physicalCores = features.topology.physical_cores;
         auto logicalCores = features.topology.logical_cores;
         auto l1CacheSize = features.l1_cache_size;
@@ -117,7 +117,7 @@ class ThreadPoolTest {
                   << std::endl;
 
         // Print CPU info string
-        std::cout << "  " << cpu::features_string() << std::endl;
+        std::cout << "  " << arch::features_string() << std::endl;
 
         // Verify CPU detection is working (be lenient for CI/VM environments)
         if (physicalCores == 0) {
@@ -173,10 +173,10 @@ class ThreadPoolTest {
         std::cout << "\n=== Test 3: SIMD Awareness ===" << std::endl;
 
         // Test SIMD width detection
-        auto simdWidth = simd::double_vector_width();
-        auto floatWidth = simd::float_vector_width();
-        auto alignment = simd::optimal_alignment();
-        auto hasSIMD = simd::has_simd_support();
+        auto simdWidth = arch::simd::double_vector_width();
+        auto floatWidth = arch::simd::float_vector_width();
+        auto alignment = arch::simd::optimal_alignment();
+        auto hasSIMD = arch::simd::has_simd_support();
 
         std::cout << "  SIMD support: " << (hasSIMD ? "Yes" : "No") << std::endl;
         std::cout << "  SIMD double width: " << simdWidth << std::endl;
@@ -189,7 +189,7 @@ class ThreadPoolTest {
         assert(alignment > 0);
 
         // Test that grain size alignment considers SIMD width
-        auto grainSize = constants::parallel::adaptive::grain_size();
+        auto grainSize = arch::parallel::detail::grain_size();
         auto alignedGrainSize = ((grainSize + simdWidth - 1) / simdWidth) * simdWidth;
         std::cout << "  Base grain size: " << grainSize << std::endl;
         std::cout << "  SIMD-aligned grain size: " << alignedGrainSize << std::endl;
@@ -205,10 +205,10 @@ class ThreadPoolTest {
 
         try {
             // Test that safety functions are properly integrated
-            auto finiteValue = safety::safe_log(2.71828);
-            auto clampedProb = safety::clamp_probability(1.5);
-            auto safeExpValue = safety::safe_exp(-100.0);
-            auto safeSqrtValue = safety::safe_sqrt(-1.0);
+            auto finiteValue = detail::safe_log(2.71828);
+            auto clampedProb = detail::clamp_probability(1.5);
+            auto safeExpValue = detail::safe_exp(-100.0);
+            auto safeSqrtValue = detail::safe_sqrt(-1.0);
 
             std::cout << "  Safe log(e): " << finiteValue << std::endl;
             std::cout << "  Clamped probability (1.5): " << clampedProb << std::endl;
@@ -223,7 +223,7 @@ class ThreadPoolTest {
             assert(safeSqrtValue == 0.0);  // sqrt(-1) should return 0
 
             // Test finite value checking
-            safety::check_finite(finiteValue, "test value");
+            detail::check_finite(finiteValue, "test value");
 
             std::cout << "  ✓ Safety integration working correctly" << std::endl;
         } catch (const std::exception& e) {
@@ -366,7 +366,7 @@ class ThreadPoolTest {
         ParallelUtils::parallelTransform(input.data(), output.data(), size,
                                          [](const double* in, double* out, std::size_t count) {
                                              for (std::size_t i = 0; i < count; ++i) {
-                                                 out[i] = safety::safe_log(in[i]);
+                                                 out[i] = detail::safe_log(in[i]);
                                              }
                                          });
 
@@ -376,7 +376,7 @@ class ThreadPoolTest {
         // Verify results
         bool correct = true;
         for (std::size_t i = 0; i < size; ++i) {
-            double expected = safety::safe_log(input[i]);
+            double expected = detail::safe_log(input[i]);
             if (std::abs(output[i] - expected) > TOLERANCE) {
                 correct = false;
                 break;
@@ -393,14 +393,14 @@ class ThreadPoolTest {
         ParallelUtils::parallelTransform(input.data(), output.data(), size,
                                          [](const double* in, double* out, std::size_t count) {
                                              for (std::size_t i = 0; i < count; ++i) {
-                                                 out[i] = safety::safe_sqrt(in[i]);
+                                                 out[i] = detail::safe_sqrt(in[i]);
                                              }
                                          });
 
         // Verify sqrt results
         correct = true;
         for (std::size_t i = 0; i < size; ++i) {
-            double expected = safety::safe_sqrt(input[i]);
+            double expected = detail::safe_sqrt(input[i]);
             if (std::abs(output[i] - expected) > TOLERANCE) {
                 correct = false;
                 break;
@@ -534,7 +534,7 @@ class ThreadPoolTest {
         std::cout << "\n=== Test 11: Optimal Thread Count Calculation ===" << std::endl;
 
         auto optimalThreads = ThreadPool::getOptimalThreadCount();
-        const auto& features = cpu::get_features();
+        const auto& features = arch::get_features();
         auto physicalCores = features.topology.physical_cores;
         auto logicalCores = features.topology.logical_cores;
 
@@ -695,14 +695,14 @@ class ThreadPoolTest {
             ParallelUtils::parallelTransform(input.data(), output.data(), input.size(),
                                              [](const double* in, double* out, std::size_t size) {
                                                  for (std::size_t i = 0; i < size; ++i) {
-                                                     out[i] = safety::safe_log(in[i]);
+                                                     out[i] = detail::safe_log(in[i]);
                                                  }
                                              });
 
             // Verify first few results
             [[maybe_unused]] bool correct = true;
             for (std::size_t i = 0; i < 10; ++i) {
-                double expected = safety::safe_log(static_cast<double>(i + 1));
+                double expected = detail::safe_log(static_cast<double>(i + 1));
                 if (std::abs(output[i] - expected) > TOLERANCE) {
                     correct = false;
                     break;

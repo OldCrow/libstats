@@ -57,7 +57,7 @@
 #endif
 
 namespace stats {
-namespace cpu {
+namespace arch {
 
 namespace {
 // Thread-safe singleton for cached features with C++20 atomic enhancements
@@ -98,9 +98,8 @@ struct FeaturesSingleton {
                 while ((features = ptr.load(std::memory_order_acquire)) == nullptr) {
                     std::this_thread::sleep_for(std::chrono::nanoseconds(backoff));
                     backoff = std::min(
-                        backoff * constants::math::TWO_INT,
-                        static_cast<int>(
-                            constants::simd::cpu::MAX_BACKOFF_NANOSECONDS));  // Max 1μs backoff
+                        backoff * detail::TWO_INT,
+                        static_cast<int>(arch::MAX_BACKOFF_NANOSECONDS));  // Max 1μs backoff
                 }
 #endif
             }
@@ -193,7 +192,7 @@ void detect_cache_info(Features& features) {
 
     // Set default cache line size if not detected
     if (features.l1_data_cache.line_size == 0) {
-        features.cache_line_size = constants::simd::cpu::DEFAULT_CACHE_LINE_SIZE;  // Common default
+        features.cache_line_size = arch::DEFAULT_CACHE_LINE_SIZE;  // Common default
     } else {
         features.cache_line_size = features.l1_data_cache.line_size;
     }
@@ -237,15 +236,15 @@ void detect_topology_info(Features& features) {
     } else {
         // Fallback: use basic detection
         features.topology.physical_cores = logical_processors;
-        features.topology.threads_per_core = constants::math::ONE_INT;
-        features.topology.packages = constants::math::ONE_INT;
+        features.topology.threads_per_core = detail::ONE_INT;
+        features.topology.packages = detail::ONE_INT;
         features.topology.hyperthreading = false;
 
         // Check if hyperthreading is supported
-        if (edx & (constants::math::ONE_INT << 28)) {  // HTT bit
+        if (edx & (detail::ONE_INT << 28)) {  // HTT bit
             features.topology.hyperthreading = true;
-            features.topology.physical_cores = logical_processors / constants::math::TWO_INT;
-            features.topology.threads_per_core = constants::math::TWO_INT;
+            features.topology.physical_cores = logical_processors / detail::TWO_INT;
+            features.topology.threads_per_core = detail::TWO_INT;
         }
     }
 }
@@ -271,7 +270,7 @@ uint64_t estimate_tsc_frequency_internal(uint32_t duration_ms) {
     if (duration.count() > 0) {
         // Calculate frequency: cycles per nanosecond * conversion factor = Hz
         double freq = static_cast<double>(cycles) / static_cast<double>(duration.count()) *
-                      constants::simd::cpu::NANOSECONDS_TO_HZ;
+                      arch::simd::CPU_NANOSECONDS_TO_HZ;
         return static_cast<uint64_t>(freq);
     }
         #elif defined(_MSC_VER)
@@ -288,8 +287,8 @@ uint64_t estimate_tsc_frequency_internal(uint32_t duration_ms) {
 
     if (duration.count() > 0) {
         // Calculate frequency: cycles per nanosecond * conversion factor = Hz
-        double freq = static_cast<double>(cycles) / duration.count() *
-                      constants::simd::cpu::NANOSECONDS_TO_HZ;
+        double freq =
+            static_cast<double>(cycles) / duration.count() * arch::simd::CPU_NANOSECONDS_TO_HZ;
         return static_cast<uint64_t>(freq);
     }
         #endif
@@ -323,8 +322,8 @@ void detect_performance_info(Features& features) {
 
     // Estimate TSC frequency if RDTSC is available
     if (features.performance.has_rdtsc) {
-        features.performance.tsc_frequency = estimate_tsc_frequency_internal(
-            constants::simd::cpu::DEFAULT_TSC_SAMPLE_MS);  // Quick sample
+        features.performance.tsc_frequency =
+            estimate_tsc_frequency_internal(arch::DEFAULT_TSC_SAMPLE_MS);  // Quick sample
     } else {
         features.performance.tsc_frequency = 0;
     }
@@ -845,7 +844,7 @@ std::optional<uint64_t> estimate_cpu_frequency(uint32_t duration_ms) {
     if (duration.count() > 0) {
         // Calculate frequency: cycles per nanosecond * conversion factor = Hz
         double freq = static_cast<double>(cycles) / static_cast<double>(duration.count()) *
-                      constants::simd::cpu::NANOSECONDS_TO_HZ;
+                      arch::simd::CPU_NANOSECONDS_TO_HZ;
         return static_cast<uint64_t>(freq);
     }
 
@@ -958,7 +957,7 @@ bool is_modern_intel() {
             || (features.family == 6 && features.model >= 125));  // Ice Lake and newer models
 }
 
-}  // namespace cpu
+}  // namespace arch
 }  // namespace stats
 
 // Restore original compiler SIMD settings (only needed for GCC)

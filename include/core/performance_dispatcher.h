@@ -8,10 +8,12 @@
 
 // Forward declarations for foundational layer dependencies
 namespace stats {
+namespace arch {
 namespace simd {
 class SIMDPolicy;
 // We need the actual enum for the interface, so include the header
 }  // namespace simd
+}  // namespace arch
 }  // namespace stats
 
 #include "../platform/simd_policy.h"
@@ -31,7 +33,7 @@ class SIMDPolicy;
  */
 
 namespace stats {
-namespace performance {
+namespace detail {  // Performance utilities
 
 /**
  * @brief Execution strategies available for batch operations
@@ -153,7 +155,7 @@ class PerformanceDispatcher {
          * @param system System capabilities for refinement
          * @return Optimized thresholds for the SIMD level
          */
-        static Thresholds createForSIMDLevel(simd::SIMDPolicy::Level level,
+        static Thresholds createForSIMDLevel(arch::simd::SIMDPolicy::Level level,
                                              const SystemCapabilities& system);
 
         /**
@@ -298,5 +300,5 @@ struct PerformanceHint {
     }
 };
 
-}  // namespace performance
+}  // namespace detail
 }  // namespace stats

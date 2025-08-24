@@ -265,7 +265,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
                                              std::span<double>(small_pdf_traditional),
-                                             stats::performance::Strategy::SCALAR);
+                                             stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_pdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -273,7 +273,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                 std::span<double>(small_log_pdf_traditional),
-                                                stats::performance::Strategy::SCALAR);
+                                                stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_logpdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -281,7 +281,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                        std::span<double>(small_cdf_traditional),
-                                                       stats::performance::Strategy::SCALAR);
+                                                       stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -344,7 +344,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
                                              std::span<double>(large_output_traditional),
-                                             stats::performance::Strategy::SCALAR);
+                                             stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

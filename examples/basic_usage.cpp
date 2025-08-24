@@ -170,7 +170,7 @@ int main() {
     std::vector<double> results(test_values.size());
 
     // Use smart dispatch with performance hints and measure timing
-    auto hint = stats::performance::PerformanceHint::minimal_latency();
+    auto hint = stats::detail::PerformanceHint::minimal_latency();
     std::cout << "🚀 Computing batch Normal distribution PDFs with minimal_latency hint..."
               << std::endl;
     std::cout << "   Processing 16 input values: {-3.0 to 4.5 in 0.5 increments}" << std::endl;

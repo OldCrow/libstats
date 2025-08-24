@@ -11,11 +11,11 @@
 #include "cpu_detection.h"
 
 namespace stats {
-namespace cpu {
+namespace arch {
 const Features& get_features();
 size_t optimal_double_width();
 size_t optimal_alignment();
-}  // namespace cpu
+}  // namespace arch
 }  // namespace stats
 
 /**
@@ -28,8 +28,7 @@ size_t optimal_alignment();
  */
 
 namespace stats {
-namespace constants {
-
+namespace arch {
 /// SIMD optimization parameters and architectural constants
 namespace simd {
 /// Default SIMD block size for vectorized operations
@@ -42,10 +41,7 @@ inline constexpr std::size_t MIN_SIMD_SIZE = 4;
 inline constexpr std::size_t MAX_BLOCK_SIZE = 64;
 
 /// SIMD alignment requirement (bytes)
-inline constexpr std::size_t SIMD_ALIGNMENT = 32;
-
 /// Platform-specific SIMD alignment constants
-namespace alignment {
 /// AVX-512: 64-byte alignment for optimal performance
 inline constexpr std::size_t AVX512_ALIGNMENT = 64;
 
@@ -63,34 +59,30 @@ inline constexpr std::size_t CACHE_LINE_ALIGNMENT = 64;
 
 /// Minimum safe alignment for all platforms
 inline constexpr std::size_t MIN_SAFE_ALIGNMENT = 8;
-}  // namespace alignment
 
 /// Matrix operation block sizes for cache-friendly operations
-namespace matrix {
 /// Small matrix block size for L1 cache optimization
-inline constexpr std::size_t L1_BLOCK_SIZE = 64;
+inline constexpr std::size_t MATRIX_L1_BLOCK_SIZE = 64;
 
 /// Medium matrix block size for L2 cache optimization
-inline constexpr std::size_t L2_BLOCK_SIZE = 256;
+inline constexpr std::size_t MATRIX_L2_BLOCK_SIZE = 256;
 
 /// Large matrix block size for L3 cache optimization
-inline constexpr std::size_t L3_BLOCK_SIZE = 1024;
+inline constexpr std::size_t MATRIX_L3_BLOCK_SIZE = 1024;
 
 /// Step size for matrix traversal (optimized for cache lines)
-inline constexpr std::size_t STEP_SIZE = 8;
+inline constexpr std::size_t MATRIX_STEP_SIZE = 8;
 
 /// Panel width for matrix decomposition algorithms
-inline constexpr std::size_t PANEL_WIDTH = 64;
+inline constexpr std::size_t MATRIX_PANEL_WIDTH = 64;
 
 /// Minimum matrix size for blocking to be beneficial
-inline constexpr std::size_t MIN_BLOCK_SIZE = 32;
+inline constexpr std::size_t MATRIX_MIN_BLOCK_SIZE = 32;
 
 /// Maximum practical block size (memory constraint)
-inline constexpr std::size_t MAX_BLOCK_SIZE = 2048;
-}  // namespace matrix
+inline constexpr std::size_t MATRIX_MAX_BLOCK_SIZE = 2048;
 
 /// Platform-specific SIMD register widths (in number of doubles)
-namespace registers {
 /// AVX-512: 8 doubles per register
 inline constexpr std::size_t AVX512_DOUBLES = 8;
 
@@ -106,10 +98,8 @@ inline constexpr std::size_t NEON_DOUBLES = 2;
 
 /// Scalar: 1 double (no SIMD)
 inline constexpr std::size_t SCALAR_DOUBLES = 1;
-}  // namespace registers
 
 /// Loop unrolling factors for different architectures
-namespace unroll {
 /// Unroll factor for AVX-512 (can handle more parallel operations)
 inline constexpr std::size_t AVX512_UNROLL = 4;
 
@@ -124,40 +114,35 @@ inline constexpr std::size_t NEON_UNROLL = 2;
 
 /// Conservative unroll factor for scalar operations
 inline constexpr std::size_t SCALAR_UNROLL = 1;
-}  // namespace unroll
 
 /// CPU detection and runtime constants
-namespace cpu {
 /// Maximum backoff time during CPU feature detection (nanoseconds)
-inline constexpr uint64_t MAX_BACKOFF_NANOSECONDS = 1000;
+inline constexpr uint64_t CPU_MAX_BACKOFF_NANOSECONDS = 1000;
 
 /// Default cache line size fallback (bytes)
-inline constexpr uint32_t DEFAULT_CACHE_LINE_SIZE = 64;
+inline constexpr uint32_t CPU_DEFAULT_CACHE_LINE_SIZE = 64;
 
 /// Default TSC frequency measurement duration (milliseconds)
-inline constexpr uint32_t DEFAULT_TSC_SAMPLE_MS = 10;
+inline constexpr uint32_t CPU_DEFAULT_TSC_SAMPLE_MS = 10;
 
 /// Conversion factor from nanoseconds to Hertz
-inline constexpr double NANOSECONDS_TO_HZ = 1e9;
-}  // namespace cpu
+inline constexpr double CPU_NANOSECONDS_TO_HZ = 1e9;
 
 /// SIMD optimization thresholds and platform-specific constants
-namespace optimization {
 /// Medium dataset minimum size for alignment benefits
-inline constexpr std::size_t MEDIUM_DATASET_MIN_SIZE = 32;
+inline constexpr std::size_t OPT_MEDIUM_DATASET_MIN_SIZE = 32;
 
 /// Minimum threshold for alignment benefit checks
-inline constexpr std::size_t ALIGNMENT_BENEFIT_THRESHOLD = 32;
+inline constexpr std::size_t OPT_ALIGNMENT_BENEFIT_THRESHOLD = 32;
 
 /// Minimum size for AVX-512 aligned datasets
-inline constexpr std::size_t AVX512_MIN_ALIGNED_SIZE = 8;
+inline constexpr std::size_t OPT_AVX512_MIN_ALIGNED_SIZE = 8;
 
 /// Aggressive SIMD threshold for Apple Silicon
-inline constexpr std::size_t APPLE_SILICON_AGGRESSIVE_THRESHOLD = 6;
+inline constexpr std::size_t OPT_APPLE_SILICON_AGGRESSIVE_THRESHOLD = 6;
 
 /// Minimum size threshold for AVX-512 small benefit
-inline constexpr std::size_t AVX512_SMALL_BENEFIT_THRESHOLD = 4;
-}  // namespace optimization
+inline constexpr std::size_t OPT_AVX512_SMALL_BENEFIT_THRESHOLD = 4;
 }  // namespace simd
 
 /// Parallel processing optimization constants - Architecture-specific tuning
@@ -193,44 +178,44 @@ inline constexpr std::size_t MAX_GRAIN_SIZE = 4096;
 /// ===== Legacy Intel AVX (Ivy Bridge/Sandy Bridge) Specific Tuning =====
 /// Optimized for Intel Core i-series 3rd generation (Ivy Bridge) and similar
 /// Family 6, Model 58 - AVX without AVX2/FMA, mobile/desktop CPUs ~2012-2013
-namespace legacy_intel {
-// Parallel thresholds - confirmed suitable for legacy Intel AVX
-inline constexpr std::size_t MIN_ELEMENTS_FOR_PARALLEL = 4096;
-inline constexpr std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 2048;
-inline constexpr std::size_t MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL = 32768;
 
 // Operation-specific grain sizes optimized for legacy Intel AVX performance
 // Reduce operations: benefit from larger grain sizes due to memory bandwidth
-inline constexpr std::size_t REDUCE_GRAIN_SIZE_LARGE = 32768;  // Expect 8-15x speedup
-inline constexpr std::size_t REDUCE_GRAIN_SIZE_MEDIUM = 128;   // Expect 4-8x speedup
-inline constexpr std::size_t REDUCE_GRAIN_SIZE_SMALL = 64;     // Expect 2-4x speedup
+inline constexpr std::size_t LEGACY_INTEL_REDUCE_GRAIN_SIZE_LARGE = 32768;  // Expect 8-15x speedup
+inline constexpr std::size_t LEGACY_INTEL_REDUCE_GRAIN_SIZE_MEDIUM = 128;   // Expect 4-8x speedup
+inline constexpr std::size_t LEGACY_INTEL_REDUCE_GRAIN_SIZE_SMALL = 64;     // Expect 2-4x speedup
 
 // Transform complex: benefit from balanced grain sizes
-inline constexpr std::size_t TRANSFORM_COMPLEX_GRAIN_SIZE_LARGE = 32768;   // Expect 3-5x speedup
-inline constexpr std::size_t TRANSFORM_COMPLEX_GRAIN_SIZE_MEDIUM = 16384;  // Expect 3-4x speedup
-inline constexpr std::size_t TRANSFORM_COMPLEX_GRAIN_SIZE_SMALL = 1024;    // Expect 2-3x speedup
+inline constexpr std::size_t LEGACY_INTEL_TRANSFORM_COMPLEX_GRAIN_SIZE_LARGE =
+    32768;  // Expect 3-5x speedup
+inline constexpr std::size_t LEGACY_INTEL_TRANSFORM_COMPLEX_GRAIN_SIZE_MEDIUM =
+    16384;  // Expect 3-4x speedup
+inline constexpr std::size_t LEGACY_INTEL_TRANSFORM_COMPLEX_GRAIN_SIZE_SMALL =
+    1024;  // Expect 2-3x speedup
 
 // Count operations: lighter weight, smaller grain sizes work well
-inline constexpr std::size_t COUNT_IF_GRAIN_SIZE_LARGE = 256;    // Expect 2-4x speedup
-inline constexpr std::size_t COUNT_IF_GRAIN_SIZE_MEDIUM = 1024;  // Expect 1-2x speedup
+inline constexpr std::size_t LEGACY_INTEL_COUNT_IF_GRAIN_SIZE_LARGE = 256;    // Expect 2-4x speedup
+inline constexpr std::size_t LEGACY_INTEL_COUNT_IF_GRAIN_SIZE_MEDIUM = 1024;  // Expect 1-2x speedup
 
 // Transform simple: memory-bound, very small grain sizes optimal
-inline constexpr std::size_t TRANSFORM_SIMPLE_GRAIN_SIZE_LARGE = 8;      // Expect 1-2x speedup
-inline constexpr std::size_t TRANSFORM_SIMPLE_GRAIN_SIZE_MEDIUM = 8192;  // Expect 1-1.5x speedup
+inline constexpr std::size_t LEGACY_INTEL_TRANSFORM_SIMPLE_GRAIN_SIZE_LARGE =
+    8;  // Expect 1-2x speedup
+inline constexpr std::size_t LEGACY_INTEL_TRANSFORM_SIMPLE_GRAIN_SIZE_MEDIUM =
+    8192;  // Expect 1-1.5x speedup
 
 // Size thresholds for adaptive grain size selection (in elements)
-inline constexpr std::size_t SMALL_DATASET_THRESHOLD = 10000;
-inline constexpr std::size_t MEDIUM_DATASET_THRESHOLD = 100000;
-inline constexpr std::size_t LARGE_DATASET_THRESHOLD = 1000000;
+inline constexpr std::size_t LEGACY_INTEL_SMALL_DATASET_THRESHOLD = 10000;
+inline constexpr std::size_t LEGACY_INTEL_MEDIUM_DATASET_THRESHOLD = 100000;
+inline constexpr std::size_t LEGACY_INTEL_LARGE_DATASET_THRESHOLD = 1000000;
 
-// Conservative defaults for general use
-inline constexpr std::size_t DEFAULT_GRAIN_SIZE = 256;     // Balanced for mixed workloads
-inline constexpr std::size_t MONTE_CARLO_GRAIN_SIZE = 64;  // Conservative for MC simulations
-inline constexpr std::size_t MAX_GRAIN_SIZE = 32768;       // Upper limit based on cache efficiency
+// Conservative defaults for legacy Intel (already defined above as general AVX defaults)
+// DEFAULT_GRAIN_SIZE = 256 already defined
+// MONTE_CARLO_GRAIN_SIZE = 64 already defined
+inline constexpr std::size_t LEGACY_INTEL_MAX_GRAIN_SIZE =
+    32768;  // Upper limit based on cache efficiency
 
 // Distribution-specific parallel thresholds (based on empirical benchmarking)
 // These represent sizes where parallel processing becomes beneficial vs serial
-namespace distributions {
 // Exponential distribution - very efficient parallel processing
 inline constexpr std::size_t EXPONENTIAL_PDF_THRESHOLD = 64;     // Expect 2-4x speedup
 inline constexpr std::size_t EXPONENTIAL_CDF_THRESHOLD = 64;     // Expect 2-5x speedup
@@ -260,8 +245,6 @@ inline constexpr std::size_t DISCRETE_LOGPDF_THRESHOLD = 4096;  // Expect 2-3x s
 inline constexpr std::size_t GAMMA_PDF_THRESHOLD = 128;    // Expect 2-3x speedup
 inline constexpr std::size_t GAMMA_CDF_THRESHOLD = 256;    // Expect 2-4x speedup
 inline constexpr std::size_t GAMMA_LOGPDF_THRESHOLD = 64;  // Expect 2-3x speedup
-}  // namespace distributions
-}  // namespace legacy_intel
 }  // namespace avx
 
 /// ===== AVX2 Architecture Constants =====
@@ -376,17 +359,17 @@ inline constexpr std::size_t MAX_BATCH = 65536;
 
 /// Platform-optimized functions for runtime tuning
 /// These functions provide optimized values based on detected CPU features
-namespace adaptive {
+namespace detail {  // adaptive utilities
 /// Get platform-optimized minimum elements for parallel processing
 inline std::size_t min_elements_for_parallel() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.avx2) {
         return avx2::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.avx) {
         return avx::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.sse2) {
@@ -400,14 +383,14 @@ inline std::size_t min_elements_for_parallel() {
 
 /// Get platform-optimized minimum elements for distribution parallel processing
 inline std::size_t min_elements_for_distribution_parallel() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.avx2) {
         return avx2::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.avx) {
         return avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.sse2) {
@@ -421,14 +404,14 @@ inline std::size_t min_elements_for_distribution_parallel() {
 
 /// Get platform-optimized minimum elements for simple distribution parallel processing
 inline std::size_t min_elements_for_simple_distribution_parallel() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.avx2) {
         return avx2::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.avx) {
         return avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.sse2) {
@@ -442,14 +425,14 @@ inline std::size_t min_elements_for_simple_distribution_parallel() {
 
 /// Get platform-optimized grain size
 inline std::size_t grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::DEFAULT_GRAIN_SIZE;
     } else if (features.avx2) {
         return avx2::DEFAULT_GRAIN_SIZE;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::DEFAULT_GRAIN_SIZE;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::DEFAULT_GRAIN_SIZE;
     } else if (features.avx) {
         return avx::DEFAULT_GRAIN_SIZE;
     } else if (features.sse2) {
@@ -463,7 +446,7 @@ inline std::size_t grain_size() {
 
 /// Get platform-optimized simple operation grain size
 inline std::size_t simple_operation_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::SIMPLE_OPERATION_GRAIN_SIZE;
@@ -482,7 +465,7 @@ inline std::size_t simple_operation_grain_size() {
 
 /// Get platform-optimized complex operation grain size
 inline std::size_t complex_operation_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::COMPLEX_OPERATION_GRAIN_SIZE;
@@ -501,7 +484,7 @@ inline std::size_t complex_operation_grain_size() {
 
 /// Get platform-optimized Monte Carlo grain size
 inline std::size_t monte_carlo_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MONTE_CARLO_GRAIN_SIZE;
@@ -520,7 +503,7 @@ inline std::size_t monte_carlo_grain_size() {
 
 /// Get platform-optimized maximum grain size
 inline std::size_t max_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MAX_GRAIN_SIZE;
@@ -536,7 +519,7 @@ inline std::size_t max_grain_size() {
         return fallback::MAX_GRAIN_SIZE;
     }
 }
-}  // namespace adaptive
+}  // namespace detail
 
 /// Statistical performance tuning constants
 namespace tuning {
@@ -567,7 +550,7 @@ inline constexpr std::size_t ULTRA_AGGRESSIVE = 16;
 }  // namespace distance
 
 /// Platform-specific prefetch distances (in elements, not cache lines)
-namespace platform {
+// Consolidated into detail namespace (was: namespace platform)
 /// Apple Silicon prefetch tuning
 namespace apple_silicon {
 inline constexpr std::size_t SEQUENTIAL_PREFETCH_DISTANCE = 256;  // Elements ahead
@@ -599,7 +582,7 @@ inline constexpr std::size_t RANDOM_PREFETCH_DISTANCE = 16;
 inline constexpr std::size_t MATRIX_PREFETCH_DISTANCE = 32;
 inline constexpr std::size_t PREFETCH_STRIDE = 2;
 }  // namespace arm
-}  // namespace platform
+// End of consolidated platform constants
 
 /// Prefetch strategies based on access patterns
 namespace strategy {
@@ -696,7 +679,7 @@ inline constexpr std::size_t GROWTH_THRESHOLD = 1048576;  // Switch to linear ab
 }  // namespace memory
 
 /// Platform-specific tuning functions
-namespace platform {
+// Consolidated into detail namespace (was: namespace platform)
 /**
  * @brief Get optimized SIMD block size based on detected CPU features
  * @return Optimal block size for SIMD operations
@@ -725,7 +708,7 @@ std::size_t get_min_parallel_elements();
  * @brief Get platform-optimized grain size for parallel operations
  * @return Optimal grain size for work distribution
  */
-std::size_t get_optimal_grain_size();
+std::size_t get_optimal_grain_size() noexcept;
 
 /**
  * @brief Check if platform supports efficient transcendental functions
@@ -745,7 +728,7 @@ struct CacheThresholds {
 };
 
 CacheThresholds get_cache_thresholds();
-}  // namespace platform
+// End of consolidated platform constants
 
 /// Cache system optimization constants
 namespace cache {
@@ -795,7 +778,7 @@ inline constexpr std::size_t SSE_PREFETCH_MULTIPLIER = 1;
 }  // namespace tuning
 
 /// Platform-specific cache configurations
-namespace platform {
+// Consolidated into detail namespace (was: namespace platform)
 /// Apple Silicon (M1/M2/M3) cache tuning
 namespace apple_silicon {
 inline constexpr std::size_t DEFAULT_MAX_MEMORY_MB = 8;  // 8MB
@@ -843,7 +826,7 @@ inline constexpr std::chrono::milliseconds DEFAULT_TTL{8000};  // 8 seconds
 inline constexpr double HIT_RATE_TARGET = 0.80;
 inline constexpr double MEMORY_EFFICIENCY_TARGET = 0.65;
 }  // namespace arm
-}  // namespace platform
+// End of consolidated platform constants
 
 /// Access pattern analysis constants
 namespace patterns {
@@ -863,5 +846,5 @@ inline constexpr double MIXED_SIZE_MULTIPLIER = 1.1;
 }  // namespace patterns
 }  // namespace cache
 
-}  // namespace constants
+}  // namespace arch
 }  // namespace stats

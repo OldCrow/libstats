@@ -11,7 +11,7 @@
 #include <thread>
 #include <vector>
 
-using namespace stats::performance;
+using namespace stats::detail;
 
 class PerformanceDispatcherTest : public ::testing::Test {
    protected:

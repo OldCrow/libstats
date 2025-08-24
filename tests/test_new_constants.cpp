@@ -3,38 +3,38 @@
 #include <cassert>
 #include <iostream>
 
-using namespace stats::constants;
+using namespace stats::detail;
 
 void test_simd_constants() {
     std::cout << "Testing SIMD architectural constants..." << std::endl;
 
     // Test SIMD alignment constants
-    assert(simd::alignment::AVX512_ALIGNMENT == 64);
-    assert(simd::alignment::AVX_ALIGNMENT == 32);
-    assert(simd::alignment::SSE_ALIGNMENT == 16);
-    assert(simd::alignment::NEON_ALIGNMENT == 16);
-    assert(simd::alignment::CACHE_LINE_ALIGNMENT == 64);
+    assert(arch::simd::AVX512_ALIGNMENT == 64);
+    assert(arch::simd::AVX_ALIGNMENT == 32);
+    assert(arch::simd::SSE_ALIGNMENT == 16);
+    assert(arch::simd::NEON_ALIGNMENT == 16);
+    assert(arch::simd::CACHE_LINE_ALIGNMENT == 64);
 
     // Test matrix block sizes
-    assert(simd::matrix::L1_BLOCK_SIZE == 64);
-    assert(simd::matrix::L2_BLOCK_SIZE == 256);
-    assert(simd::matrix::L3_BLOCK_SIZE == 1024);
-    assert(simd::matrix::STEP_SIZE == 8);
-    assert(simd::matrix::PANEL_WIDTH == 64);
+    assert(arch::simd::matrix::L1_BLOCK_SIZE == 64);
+    assert(arch::simd::matrix::L2_BLOCK_SIZE == 256);
+    assert(arch::simd::matrix::L3_BLOCK_SIZE == 1024);
+    assert(arch::simd::matrix::STEP_SIZE == 8);
+    assert(arch::simd::matrix::PANEL_WIDTH == 64);
 
     // Test SIMD register widths
-    assert(simd::registers::AVX512_DOUBLES == 8);
-    assert(simd::registers::AVX_DOUBLES == 4);
-    assert(simd::registers::SSE_DOUBLES == 2);
-    assert(simd::registers::NEON_DOUBLES == 2);
-    assert(simd::registers::SCALAR_DOUBLES == 1);
+    assert(arch::simd::registers::AVX512_DOUBLES == 8);
+    assert(arch::simd::registers::AVX_DOUBLES == 4);
+    assert(arch::simd::registers::SSE_DOUBLES == 2);
+    assert(arch::simd::registers::NEON_DOUBLES == 2);
+    assert(arch::simd::registers::SCALAR_DOUBLES == 1);
 
     // Test unroll factors
-    assert(simd::unroll::AVX512_UNROLL == 4);
-    assert(simd::unroll::AVX_UNROLL == 2);
-    assert(simd::unroll::SSE_UNROLL == 2);
-    assert(simd::unroll::NEON_UNROLL == 2);
-    assert(simd::unroll::SCALAR_UNROLL == 1);
+    assert(arch::simd::unroll::AVX512_UNROLL == 4);
+    assert(arch::simd::unroll::AVX_UNROLL == 2);
+    assert(arch::simd::unroll::SSE_UNROLL == 2);
+    assert(arch::simd::unroll::NEON_UNROLL == 2);
+    assert(arch::simd::unroll::SCALAR_UNROLL == 1);
 
     std::cout << "✓ SIMD architectural constants test passed" << std::endl;
 }
@@ -105,21 +105,21 @@ void test_constant_relationships() {
     std::cout << "Testing architectural constant relationships..." << std::endl;
 
     // Test alignment hierarchy
-    assert(simd::alignment::AVX512_ALIGNMENT >= simd::alignment::AVX_ALIGNMENT);
-    assert(simd::alignment::AVX_ALIGNMENT >= simd::alignment::SSE_ALIGNMENT);
-    assert(simd::alignment::SSE_ALIGNMENT == simd::alignment::NEON_ALIGNMENT);
+    assert(arch::simd::AVX512_ALIGNMENT >= arch::simd::AVX_ALIGNMENT);
+    assert(arch::simd::AVX_ALIGNMENT >= arch::simd::SSE_ALIGNMENT);
+    assert(arch::simd::SSE_ALIGNMENT == arch::simd::NEON_ALIGNMENT);
 
     // Test matrix block size hierarchy
-    assert(simd::matrix::L3_BLOCK_SIZE >= simd::matrix::L2_BLOCK_SIZE);
-    assert(simd::matrix::L2_BLOCK_SIZE >= simd::matrix::L1_BLOCK_SIZE);
-    assert(simd::matrix::L1_BLOCK_SIZE >= simd::matrix::MIN_BLOCK_SIZE);
-    assert(simd::matrix::MAX_BLOCK_SIZE >= simd::matrix::L3_BLOCK_SIZE);
+    assert(arch::simd::matrix::L3_BLOCK_SIZE >= arch::simd::matrix::L2_BLOCK_SIZE);
+    assert(arch::simd::matrix::L2_BLOCK_SIZE >= arch::simd::matrix::L1_BLOCK_SIZE);
+    assert(arch::simd::matrix::L1_BLOCK_SIZE >= arch::simd::matrix::MIN_BLOCK_SIZE);
+    assert(arch::simd::matrix::MAX_BLOCK_SIZE >= arch::simd::matrix::L3_BLOCK_SIZE);
 
     // Test SIMD register width hierarchy
-    assert(simd::registers::AVX512_DOUBLES >= simd::registers::AVX_DOUBLES);
-    assert(simd::registers::AVX_DOUBLES >= simd::registers::SSE_DOUBLES);
-    assert(simd::registers::SSE_DOUBLES == simd::registers::NEON_DOUBLES);
-    assert(simd::registers::NEON_DOUBLES >= simd::registers::SCALAR_DOUBLES);
+    assert(arch::simd::registers::AVX512_DOUBLES >= arch::simd::registers::AVX_DOUBLES);
+    assert(arch::simd::registers::AVX_DOUBLES >= arch::simd::registers::SSE_DOUBLES);
+    assert(arch::simd::registers::SSE_DOUBLES == arch::simd::registers::NEON_DOUBLES);
+    assert(arch::simd::registers::NEON_DOUBLES >= arch::simd::registers::SCALAR_DOUBLES);
 
     // Test prefetch distance hierarchy
     assert(memory::prefetch::distance::ULTRA_AGGRESSIVE >= memory::prefetch::distance::AGGRESSIVE);
@@ -150,16 +150,16 @@ void print_summary() {
     std::cout << "\n=== Architectural Constants Summary ===" << std::endl;
 
     std::cout << "SIMD Alignments:" << std::endl;
-    std::cout << "  AVX-512: " << simd::alignment::AVX512_ALIGNMENT << " bytes" << std::endl;
-    std::cout << "  AVX/AVX2: " << simd::alignment::AVX_ALIGNMENT << " bytes" << std::endl;
-    std::cout << "  SSE: " << simd::alignment::SSE_ALIGNMENT << " bytes" << std::endl;
-    std::cout << "  ARM NEON: " << simd::alignment::NEON_ALIGNMENT << " bytes" << std::endl;
+    std::cout << "  AVX-512: " << arch::simd::AVX512_ALIGNMENT << " bytes" << std::endl;
+    std::cout << "  AVX/AVX2: " << arch::simd::AVX_ALIGNMENT << " bytes" << std::endl;
+    std::cout << "  SSE: " << arch::simd::SSE_ALIGNMENT << " bytes" << std::endl;
+    std::cout << "  ARM NEON: " << arch::simd::NEON_ALIGNMENT << " bytes" << std::endl;
 
     std::cout << "\nMatrix Block Sizes:" << std::endl;
-    std::cout << "  L1 optimized: " << simd::matrix::L1_BLOCK_SIZE << std::endl;
-    std::cout << "  L2 optimized: " << simd::matrix::L2_BLOCK_SIZE << std::endl;
-    std::cout << "  L3 optimized: " << simd::matrix::L3_BLOCK_SIZE << std::endl;
-    std::cout << "  Step size: " << simd::matrix::STEP_SIZE << std::endl;
+    std::cout << "  L1 optimized: " << arch::simd::matrix::L1_BLOCK_SIZE << std::endl;
+    std::cout << "  L2 optimized: " << arch::simd::matrix::L2_BLOCK_SIZE << std::endl;
+    std::cout << "  L3 optimized: " << arch::simd::matrix::L3_BLOCK_SIZE << std::endl;
+    std::cout << "  Step size: " << arch::simd::matrix::STEP_SIZE << std::endl;
 
     std::cout << "\nPrefetch Distances (elements):" << std::endl;
     std::cout << "  Apple Silicon: "

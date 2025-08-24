@@ -140,7 +140,7 @@ endif()
 
 project(
     libstats
-    VERSION 0.9.1
+    VERSION 0.10.0
     LANGUAGES CXX)
 
 # Set default build type if none was specified

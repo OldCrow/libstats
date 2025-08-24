@@ -164,7 +164,7 @@ class ParallelCorrectnessVerifier {
         dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
         dispatch_group_t group = dispatch_group_create();
 
-        size_t num_chunks = stats::parallel::get_optimal_thread_count(inputs.size());
+        size_t num_chunks = stats::arch::get_optimal_thread_count(inputs.size());
         size_t chunk_size = inputs.size() / num_chunks;
 
         // Capture pointers for modification in blocks
@@ -445,10 +445,10 @@ class ParallelCorrectnessVerifier {
         std::cout << "Validates parallel execution across different threading systems\n\n";
 
         // Display system information
-        const auto& cpu_features = stats::cpu::get_features();
+        const auto& cpu_features = stats::arch::get_features();
         std::cout << "System: " << cpu_features.topology.logical_cores << " logical cores, "
                   << cpu_features.topology.physical_cores << " physical cores\n";
-        std::cout << "Threading: " << stats::parallel::execution_support_string() << "\n";
+        std::cout << "Threading: " << stats::arch::execution_support_string() << "\n";
         std::cout << "Test size: " << config_.max_size << " elements\n";
         std::cout << "Tolerance: " << std::scientific << config_.tolerance << "\n";
         std::cout << "Runs per test: " << config_.num_runs << "\n";

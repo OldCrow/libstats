@@ -145,7 +145,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = stats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 unitExponential.getProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -155,7 +155,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = stats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 unitExponential.getLogProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -165,7 +165,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = stats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 unitExponential.getCumulativeProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -194,7 +194,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test_mutable);
             std::span<double> results_span(large_results);
-            auto hint = stats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::detail::PerformanceHint::minimal_latency();
             unitExponential.getProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -206,7 +206,7 @@ int main() {
             std::span<const double> values_span(large_test_mutable);
             std::span<double> results_span(large_results);
             unitExponential.getProbabilityWithStrategy(values_span, results_span,
-                                                       stats::performance::Strategy::WORK_STEALING);
+                                                       stats::detail::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 

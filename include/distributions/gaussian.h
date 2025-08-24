@@ -82,8 +82,8 @@ class GaussianDistribution : public DistributionBase {
      *
      * Implementation in .cpp: Complex validation and cache initialization logic
      */
-    explicit GaussianDistribution(double mean = constants::math::ZERO_DOUBLE,
-                                  double standardDeviation = constants::math::ONE);
+    explicit GaussianDistribution(double mean = detail::ZERO_DOUBLE,
+                                  double standardDeviation = detail::ONE);
 
     /**
      * @brief Thread-safe copy constructor
@@ -272,9 +272,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Skewness value (always 0)
      */
-    [[nodiscard]] double getSkewness() const noexcept override {
-        return constants::math::ZERO_DOUBLE;
-    }
+    [[nodiscard]] double getSkewness() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -283,9 +281,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (always 0)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override {
-        return constants::math::ZERO_DOUBLE;
-    }
+    [[nodiscard]] double getKurtosis() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /**
      * @brief Gets the distribution name.
@@ -831,9 +827,8 @@ class GaussianDistribution : public DistributionBase {
      */
     [[nodiscard]] bool isStandardNormal() const noexcept {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
-               (std::abs(standardDeviation_ - constants::math::ONE) <=
-                constants::precision::DEFAULT_TOLERANCE);
+        return (std::abs(mean_) <= detail::DEFAULT_TOLERANCE) &&
+               (std::abs(standardDeviation_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
     }
 
     /**
@@ -848,7 +843,7 @@ class GaussianDistribution : public DistributionBase {
     [[nodiscard]] double getEntropy() const noexcept override {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         // H(X) = 0.5 * (ln(2π) + 1 + 2*ln(σ))
-        return constants::math::HALF_LN_2PI + constants::math::HALF + std::log(standardDeviation_);
+        return detail::HALF_LN_2PI + detail::HALF + std::log(standardDeviation_);
     }
 
     /**
@@ -906,7 +901,7 @@ class GaussianDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getProbability(std::span<const double> values, std::span<double> results,
-                        const performance::PerformanceHint& hint = {}) const;
+                        const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch log probability calculation
@@ -918,7 +913,7 @@ class GaussianDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getLogProbability(std::span<const double> values, std::span<double> results,
-                           const performance::PerformanceHint& hint = {}) const;
+                           const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch cumulative probability calculation
@@ -930,7 +925,7 @@ class GaussianDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                  const performance::PerformanceHint& hint = {}) const;
+                                  const detail::PerformanceHint& hint = {}) const;
 
     //==========================================================================
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS
@@ -948,7 +943,7 @@ class GaussianDistribution : public DistributionBase {
      * @throws std::invalid_argument if strategy is not supported
      */
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    performance::Strategy strategy) const;
+                                    detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch log probability calculation for power users
@@ -962,7 +957,7 @@ class GaussianDistribution : public DistributionBase {
      * @throws std::invalid_argument if strategy is not supported
      */
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       performance::Strategy strategy) const;
+                                       detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch cumulative probability calculation for power users
@@ -977,7 +972,7 @@ class GaussianDistribution : public DistributionBase {
      */
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
-                                              performance::Strategy strategy) const;
+                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1095,14 +1090,14 @@ class GaussianDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mean parameter μ - can be any finite real number */
-    double mean_{constants::math::ZERO_DOUBLE};
+    double mean_{detail::ZERO_DOUBLE};
 
     /** @brief Standard deviation parameter σ - must be positive */
-    double standardDeviation_{constants::math::ONE};
+    double standardDeviation_{detail::ONE};
 
     /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<double> atomicMean_{constants::math::ZERO_DOUBLE};
-    mutable std::atomic<double> atomicStandardDeviation_{constants::math::ONE};
+    mutable std::atomic<double> atomicMean_{detail::ZERO_DOUBLE};
+    mutable std::atomic<double> atomicStandardDeviation_{detail::ONE};
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
@@ -1110,34 +1105,34 @@ class GaussianDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Cached normalization constant 1/(σ√(2π)) for PDF calculations */
-    mutable double normalizationConstant_{constants::math::ZERO_DOUBLE};
+    mutable double normalizationConstant_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value -1/(2σ²) for efficient exponent calculation */
-    mutable double negHalfSigmaSquaredInv_{constants::math::ZERO_DOUBLE};
+    mutable double negHalfSigmaSquaredInv_{detail::ZERO_DOUBLE};
 
     /** @brief Cached log(σ) for log-probability calculations */
-    mutable double logStandardDeviation_{constants::math::ZERO_DOUBLE};
+    mutable double logStandardDeviation_{detail::ZERO_DOUBLE};
 
     /** @brief Cached σ√2 for CDF calculations using error function */
-    mutable double sigmaSqrt2_{constants::math::ZERO_DOUBLE};
+    mutable double sigmaSqrt2_{detail::ZERO_DOUBLE};
 
     /** @brief Cached 1/σ for efficient reciprocal operations */
-    mutable double invStandardDeviation_{constants::math::ZERO_DOUBLE};
+    mutable double invStandardDeviation_{detail::ZERO_DOUBLE};
 
     /** @brief Cached σ² to avoid repeated multiplication */
-    mutable double cachedSigmaSquared_{constants::math::ONE};
+    mutable double cachedSigmaSquared_{detail::ONE};
 
     /** @brief Cached 2σ² for CDF optimizations */
-    mutable double cachedTwoSigmaSquared_{constants::math::TWO};
+    mutable double cachedTwoSigmaSquared_{detail::TWO};
 
     /** @brief Cached log(2σ²) for log-space operations */
-    mutable double cachedLogTwoSigmaSquared_{constants::math::ZERO_DOUBLE};
+    mutable double cachedLogTwoSigmaSquared_{detail::ZERO_DOUBLE};
 
     /** @brief Cached 1/σ² for direct exponent calculation */
-    mutable double cachedInvSigmaSquared_{constants::math::ONE};
+    mutable double cachedInvSigmaSquared_{detail::ONE};
 
     /** @brief Cached √(2π) constant for direct normalization */
-    mutable double cachedSqrtTwoPi_{constants::math::SQRT_2PI};
+    mutable double cachedSqrtTwoPi_{detail::SQRT_2PI};
 
     //==========================================================================
     // 23. OPTIMIZATION FLAGS

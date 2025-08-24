@@ -110,8 +110,8 @@ DiscreteDistribution::DiscreteDistribution(DiscreteDistribution&& other)
     std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
-    other.a_ = constants::math::ZERO_INT;
-    other.b_ = constants::math::ONE_INT;
+    other.a_ = detail::ZERO_INT;
+    other.b_ = detail::ONE_INT;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
     // Cache will be updated on first use
@@ -136,8 +136,8 @@ DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& oth
                 // Step 3: Move parameters
                 a_ = other.a_;
                 b_ = other.b_;
-                other.a_ = constants::math::ZERO_INT;
-                other.b_ = constants::math::ONE_INT;
+                other.a_ = detail::ZERO_INT;
+                other.b_ = detail::ONE_INT;
                 cache_valid_ = false;
                 other.cache_valid_ = false;
                 success = true;
@@ -157,8 +157,8 @@ DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& oth
             // Atomic-like exchange (single assignment is atomic for built-in types)
             a_ = other.a_;
             b_ = other.b_;
-            other.a_ = constants::math::ZERO_INT;
-            other.b_ = constants::math::ONE_INT;
+            other.a_ = detail::ZERO_INT;
+            other.b_ = detail::ONE_INT;
 
             // Cache invalidation was already done atomically above
             cache_valid_ = false;
@@ -367,12 +367,12 @@ VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
 double DiscreteDistribution::getProbability(double x) const {
     // For discrete distribution, check if x is an integer in range
     if (std::floor(x) != x) {
-        return constants::math::ZERO_DOUBLE;  // Not an integer
+        return detail::ZERO_DOUBLE;  // Not an integer
     }
 
     const int k = static_cast<int>(x);
     if (k < a_ || k > b_) {
-        return constants::math::ZERO_DOUBLE;  // Outside support
+        return detail::ZERO_DOUBLE;  // Outside support
     }
 
     // Ensure cache is valid
@@ -389,7 +389,7 @@ double DiscreteDistribution::getProbability(double x) const {
 
     // Fast path optimizations
     if (isBinary_) {
-        return constants::math::HALF;  // 0.5 for binary [0,1]
+        return detail::HALF;  // 0.5 for binary [0,1]
     }
 
     return probability_;  // 1/(b-a+1)
@@ -398,12 +398,12 @@ double DiscreteDistribution::getProbability(double x) const {
 double DiscreteDistribution::getLogProbability(double x) const noexcept {
     // For discrete distribution, check if x is an integer in range
     if (std::floor(x) != x) {
-        return constants::probability::NEGATIVE_INFINITY;  // Not an integer
+        return detail::NEGATIVE_INFINITY;  // Not an integer
     }
 
     const int k = static_cast<int>(x);
     if (k < a_ || k > b_) {
-        return constants::probability::NEGATIVE_INFINITY;  // Outside support
+        return detail::NEGATIVE_INFINITY;  // Outside support
     }
 
     // Ensure cache is valid
@@ -420,7 +420,7 @@ double DiscreteDistribution::getLogProbability(double x) const noexcept {
 
     // Fast path optimizations
     if (isBinary_) {
-        return -constants::math::LN2;  // log(0.5)
+        return -detail::LN2;  // log(0.5)
     }
 
     return logProbability_;  // -log(b-a+1)
@@ -428,10 +428,10 @@ double DiscreteDistribution::getLogProbability(double x) const noexcept {
 
 double DiscreteDistribution::getCumulativeProbability(double x) const {
     if (x < static_cast<double>(a_)) {
-        return constants::math::ZERO_DOUBLE;
+        return detail::ZERO_DOUBLE;
     }
     if (x >= static_cast<double>(b_)) {
-        return constants::math::ONE;
+        return detail::ONE;
     }
 
     // Ensure cache is valid
@@ -452,20 +452,20 @@ double DiscreteDistribution::getCumulativeProbability(double x) const {
 
     // Fast path optimizations
     if (isBinary_) {
-        return (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+        return (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
     }
 
     return static_cast<double>(numerator) / static_cast<double>(range_);
 }
 
 double DiscreteDistribution::getQuantile(double p) const {
-    if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == constants::math::ZERO_DOUBLE)
+    if (p == detail::ZERO_DOUBLE)
         return static_cast<double>(a_);
-    if (p == constants::math::ONE)
+    if (p == detail::ONE)
         return static_cast<double>(b_);
 
     // Ensure cache is valid
@@ -594,7 +594,7 @@ void DiscreteDistribution::parallelBatchFit(const std::vector<std::vector<double
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (parallel::shouldUseDistributionParallel("discrete", "batch_fit", num_datasets)) {
+    if (arch::shouldUseDistributionParallel("discrete", "batch_fit", num_datasets)) {
         // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
         ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
         const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
@@ -628,8 +628,8 @@ void DiscreteDistribution::parallelBatchFit(const std::vector<std::vector<double
 
 void DiscreteDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    a_ = constants::math::ZERO_INT;
-    b_ = constants::math::ONE_INT;
+    a_ = detail::ZERO_INT;
+    b_ = detail::ONE_INT;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
 }
@@ -1092,7 +1092,7 @@ std::tuple<double, double, bool> DiscreteDistribution::kolmogorovSmirnovTest(
     }
 
     // Use the centralized, overflow-safe KS statistic calculation from math_utils
-    double ks_statistic = math::calculate_ks_statistic(data, distribution);
+    double ks_statistic = detail::calculate_ks_statistic(data, distribution);
 
     const size_t n = data.size();
 
@@ -1136,7 +1136,7 @@ std::tuple<double, double, bool> DiscreteDistribution::andersonDarlingTest(
     }
 
     // Use the centralized, numerically stable AD statistic calculation from math_utils
-    double ad_statistic = math::calculate_ad_statistic(data, distribution);
+    double ad_statistic = detail::calculate_ad_statistic(data, distribution);
 
     // Critical values remain the same for discrete distributions
     double critical_value;
@@ -1618,11 +1618,10 @@ std::vector<int> DiscreteDistribution::getAllOutcomes() const {
 //==============================================================================
 
 void DiscreteDistribution::getProbability(std::span<const double> values, std::span<double> results,
-                                          const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<DiscreteDistribution>::distType(),
-        performance::DistributionTraits<DiscreteDistribution>::complexity(),
+                                          const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<DiscreteDistribution>::distType(),
+        detail::DistributionTraits<DiscreteDistribution>::complexity(),
         [](const DiscreteDistribution& dist, double value) { return dist.getProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1674,15 +1673,15 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (std::floor(vals[i]) == vals[i] &&
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
-                        res[i] = (k >= cached_a && k <= cached_b) ? cached_prob
-                                                                  : constants::math::ZERO_DOUBLE;
+                        res[i] =
+                            (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                     } else {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                        res[i] = detail::ZERO_DOUBLE;
                     }
                 });
             } else {
@@ -1691,10 +1690,10 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                     if (std::floor(vals[i]) == vals[i] &&
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
-                        res[i] = (k >= cached_a && k <= cached_b) ? cached_prob
-                                                                  : constants::math::ZERO_DOUBLE;
+                        res[i] =
+                            (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                     } else {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                        res[i] = detail::ZERO_DOUBLE;
                     }
                 }
             }
@@ -1732,10 +1731,9 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 if (std::floor(vals[i]) == vals[i] &&
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob
-                                                              : constants::math::ZERO_DOUBLE;
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                 } else {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 }
             });
         },
@@ -1773,10 +1771,9 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 const double x = vals[i];
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob
-                                                              : constants::math::ZERO_DOUBLE;
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                 } else {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 }
             });
         });
@@ -1784,11 +1781,10 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
 
 void DiscreteDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
-                                             const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<DiscreteDistribution>::distType(),
-        performance::DistributionTraits<DiscreteDistribution>::complexity(),
+                                             const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<DiscreteDistribution>::distType(),
+        detail::DistributionTraits<DiscreteDistribution>::complexity(),
         [](const DiscreteDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -1844,18 +1840,18 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (std::floor(vals[i]) == vals[i] &&
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
                         if (k >= cached_a && k <= cached_b) {
-                            res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                            res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                         } else {
-                            res[i] = constants::probability::NEGATIVE_INFINITY;
+                            res[i] = detail::NEGATIVE_INFINITY;
                         }
                     } else {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     }
                 });
             } else {
@@ -1865,12 +1861,12 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
                         if (k >= cached_a && k <= cached_b) {
-                            res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                            res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                         } else {
-                            res[i] = constants::probability::NEGATIVE_INFINITY;
+                            res[i] = detail::NEGATIVE_INFINITY;
                         }
                     } else {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     }
                 }
             }
@@ -1910,12 +1906,12 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
                     if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                     } else {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     }
                 } else {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 }
             });
         },
@@ -1955,24 +1951,23 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
                     if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                     } else {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     }
                 } else {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 }
             });
         });
 }
 
-void DiscreteDistribution::getCumulativeProbability(
-    std::span<const double> values, std::span<double> results,
-    const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<DiscreteDistribution>::distType(),
-        performance::DistributionTraits<DiscreteDistribution>::complexity(),
+void DiscreteDistribution::getCumulativeProbability(std::span<const double> values,
+                                                    std::span<double> results,
+                                                    const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<DiscreteDistribution>::distType(),
+        detail::DistributionTraits<DiscreteDistribution>::complexity(),
         [](const DiscreteDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -2028,16 +2023,16 @@ void DiscreteDistribution::getCumulativeProbability(
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (vals[i] < static_cast<double>(cached_a)) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (vals[i] >= static_cast<double>(cached_b)) {
-                        res[i] = constants::math::ONE;
+                        res[i] = detail::ONE;
                     } else {
                         const int k = static_cast<int>(std::floor(vals[i]));
                         if (cached_is_binary) {
-                            res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                            res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                         } else {
                             const int numerator = k - cached_a + 1;
                             res[i] =
@@ -2049,13 +2044,13 @@ void DiscreteDistribution::getCumulativeProbability(
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     if (vals[i] < static_cast<double>(cached_a)) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (vals[i] >= static_cast<double>(cached_b)) {
-                        res[i] = constants::math::ONE;
+                        res[i] = detail::ONE;
                     } else {
                         const int k = static_cast<int>(std::floor(vals[i]));
                         if (cached_is_binary) {
-                            res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                            res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                         } else {
                             const int numerator = k - cached_a + 1;
                             res[i] =
@@ -2097,13 +2092,13 @@ void DiscreteDistribution::getCumulativeProbability(
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < static_cast<double>(cached_a)) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (vals[i] >= static_cast<double>(cached_b)) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else {
                     const int k = static_cast<int>(std::floor(vals[i]));
                     if (cached_is_binary) {
-                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
                         const int numerator = k - cached_a + 1;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
@@ -2145,13 +2140,13 @@ void DiscreteDistribution::getCumulativeProbability(
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < static_cast<double>(cached_a)) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (x >= static_cast<double>(cached_b)) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else {
                     const int k = static_cast<int>(std::floor(x));
                     if (cached_is_binary) {
-                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
                         const int numerator = k - cached_a + 1;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
@@ -2167,13 +2162,13 @@ void DiscreteDistribution::getCumulativeProbability(
 
 void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                       std::span<double> results,
-                                                      performance::Strategy strategy) const {
+                                                      detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const DiscreteDistribution& dist, double value) { return dist.getProbability(value); },
         [](const DiscreteDistribution& dist, const double* vals, double* res, size_t count) {
@@ -2230,10 +2225,9 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 if (std::floor(vals[i]) == vals[i] &&
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob
-                                                              : constants::math::ZERO_DOUBLE;
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                 } else {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 }
             });
         },
@@ -2270,10 +2264,9 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 if (std::floor(vals[i]) == vals[i] &&
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob
-                                                              : constants::math::ZERO_DOUBLE;
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                 } else {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 }
             });
         },
@@ -2311,10 +2304,9 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 const double x = vals[i];
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob
-                                                              : constants::math::ZERO_DOUBLE;
+                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                 } else {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 }
             });
         });
@@ -2322,13 +2314,13 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
 
 void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                          std::span<double> results,
-                                                         performance::Strategy strategy) const {
+                                                         detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const DiscreteDistribution& dist, double value) {
             return dist.getLogProbability(value);
@@ -2390,12 +2382,12 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
                     if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                     } else {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     }
                 } else {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 }
             });
         },
@@ -2434,12 +2426,12 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
                     if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                     } else {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     }
                 } else {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 }
             });
         },
@@ -2479,26 +2471,26 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                 if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
                     const int k = static_cast<int>(x);
                     if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -constants::math::LN2 : cached_log_prob;
+                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                     } else {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     }
                 } else {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 }
             });
         });
 }
 
-void DiscreteDistribution::getCumulativeProbabilityWithStrategy(
-    std::span<const double> values, std::span<double> results,
-    performance::Strategy strategy) const {
+void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
+                                                                std::span<double> results,
+                                                                detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const DiscreteDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
@@ -2557,13 +2549,13 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < static_cast<double>(cached_a)) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (vals[i] >= static_cast<double>(cached_b)) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else {
                     const int k = static_cast<int>(std::floor(vals[i]));
                     if (cached_is_binary) {
-                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
                         const int numerator = k - cached_a + 1;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
@@ -2603,13 +2595,13 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < static_cast<double>(cached_a)) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (vals[i] >= static_cast<double>(cached_b)) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else {
                     const int k = static_cast<int>(std::floor(vals[i]));
                     if (cached_is_binary) {
-                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
                         const int numerator = k - cached_a + 1;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
@@ -2651,13 +2643,13 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < static_cast<double>(cached_a)) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (x >= static_cast<double>(cached_b)) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else {
                     const int k = static_cast<int>(std::floor(x));
                     if (cached_is_binary) {
-                        res[i] = (k >= 0) ? constants::math::ONE : constants::math::ZERO_DOUBLE;
+                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
                         const int numerator = k - cached_a + 1;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
@@ -2772,7 +2764,7 @@ void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
                                                          std::size_t count, int a, int b,
                                                          double probability) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
@@ -2781,9 +2773,9 @@ void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
         for (std::size_t i = 0; i < count; ++i) {
             if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
                 const int k = static_cast<int>(values[i]);
-                results[i] = (k >= a && k <= b) ? probability : constants::math::ZERO_DOUBLE;
+                results[i] = (k >= a && k <= b) ? probability : detail::ZERO_DOUBLE;
             } else {
-                results[i] = constants::math::ZERO_DOUBLE;
+                results[i] = detail::ZERO_DOUBLE;
             }
         }
         return;
@@ -2800,9 +2792,9 @@ void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
     for (std::size_t i = 0; i < count; ++i) {
         if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
-            results[i] = (k >= a && k <= b) ? probability : constants::math::ZERO_DOUBLE;
+            results[i] = (k >= a && k <= b) ? probability : detail::ZERO_DOUBLE;
         } else {
-            results[i] = constants::math::ZERO_DOUBLE;
+            results[i] = detail::ZERO_DOUBLE;
         }
     }
 }
@@ -2811,7 +2803,7 @@ void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
                                                             std::size_t count, int a, int b,
                                                             double log_probability) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
@@ -2820,10 +2812,9 @@ void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
         for (std::size_t i = 0; i < count; ++i) {
             if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
                 const int k = static_cast<int>(values[i]);
-                results[i] = (k >= a && k <= b) ? log_probability
-                                                : constants::probability::NEGATIVE_INFINITY;
+                results[i] = (k >= a && k <= b) ? log_probability : detail::NEGATIVE_INFINITY;
             } else {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
+                results[i] = detail::NEGATIVE_INFINITY;
             }
         }
         return;
@@ -2840,10 +2831,9 @@ void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
     for (std::size_t i = 0; i < count; ++i) {
         if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
-            results[i] =
-                (k >= a && k <= b) ? log_probability : constants::probability::NEGATIVE_INFINITY;
+            results[i] = (k >= a && k <= b) ? log_probability : detail::NEGATIVE_INFINITY;
         } else {
-            results[i] = constants::probability::NEGATIVE_INFINITY;
+            results[i] = detail::NEGATIVE_INFINITY;
         }
     }
 }
@@ -2852,7 +2842,7 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, int a, int b,
     double inv_range) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
@@ -2860,9 +2850,9 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
         // so SIMD rarely provides benefits for discrete distributions
         for (std::size_t i = 0; i < count; ++i) {
             if (values[i] < static_cast<double>(a)) {
-                results[i] = constants::math::ZERO_DOUBLE;
+                results[i] = detail::ZERO_DOUBLE;
             } else if (values[i] >= static_cast<double>(b)) {
-                results[i] = constants::math::ONE;
+                results[i] = detail::ONE;
             } else {
                 const int k = static_cast<int>(std::floor(values[i]));
                 const int numerator = k - a + 1;
@@ -2881,9 +2871,9 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // operations are not amenable to vectorization (primarily branching logic)
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < static_cast<double>(a)) {
-            results[i] = constants::math::ZERO_DOUBLE;
+            results[i] = detail::ZERO_DOUBLE;
         } else if (values[i] >= static_cast<double>(b)) {
-            results[i] = constants::math::ONE;
+            results[i] = detail::ONE;
         } else {
             const int k = static_cast<int>(std::floor(values[i]));
             const int numerator = k - a + 1;

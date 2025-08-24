@@ -19,9 +19,10 @@
  */
 
 namespace stats {
-namespace constants {
+namespace arch {
 
 /// SIMD optimization parameters and architectural constants (implementation)
+namespace arch {
 namespace simd {
 // Static constant definitions
 static constexpr std::size_t DEFAULT_BLOCK_SIZE = 8;
@@ -91,15 +92,16 @@ std::size_t get_neon_doubles() {
 }
 }  // namespace registers
 }  // namespace simd
+}  // namespace arch
 
 /// Parallel processing optimization constants (implementation)
-namespace parallel {
+namespace arch {
 // Legacy constants for backward compatibility
-const std::size_t MIN_ELEMENTS_FOR_PARALLEL = 4096;
-const std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 2048;
-const std::size_t MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL = 32768;
-const std::size_t SIMPLE_OPERATION_GRAIN_SIZE = 128;
-const std::size_t DEFAULT_GRAIN_SIZE = 256;
+[[maybe_unused]] const std::size_t MIN_ELEMENTS_FOR_PARALLEL = 4096;
+[[maybe_unused]] const std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 2048;
+[[maybe_unused]] const std::size_t MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL = 32768;
+[[maybe_unused]] const std::size_t SIMPLE_OPERATION_GRAIN_SIZE = 128;
+[[maybe_unused]] const std::size_t DEFAULT_GRAIN_SIZE = 256;
 
 // Architecture-specific constants
 namespace sse {
@@ -122,15 +124,8 @@ namespace avx {
 [[maybe_unused]] static constexpr std::size_t COMPLEX_OPERATION_GRAIN_SIZE = 512;
 [[maybe_unused]] static constexpr std::size_t MONTE_CARLO_GRAIN_SIZE = 64;
 [[maybe_unused]] static constexpr std::size_t MAX_GRAIN_SIZE = 4096;
-
-namespace legacy_intel {
-[[maybe_unused]] static constexpr std::size_t MIN_ELEMENTS_FOR_PARALLEL = 4096;
-[[maybe_unused]] static constexpr std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL = 2048;
-[[maybe_unused]] static constexpr std::size_t MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL = 32768;
-[[maybe_unused]] static constexpr std::size_t DEFAULT_GRAIN_SIZE = 256;
-[[maybe_unused]] static constexpr std::size_t MONTE_CARLO_GRAIN_SIZE = 64;
-[[maybe_unused]] static constexpr std::size_t MAX_GRAIN_SIZE = 32768;
-}  // namespace legacy_intel
+// Legacy Intel constants (now flattened)
+[[maybe_unused]] static constexpr std::size_t LEGACY_INTEL_MAX_GRAIN_SIZE = 32768;
 }  // namespace avx
 
 namespace avx2 {
@@ -179,14 +174,14 @@ namespace fallback {
 
 // Adaptive functions (runtime platform optimization)
 std::size_t get_min_elements_for_parallel() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.avx2) {
         return avx2::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::MIN_ELEMENTS_FOR_PARALLEL;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.avx) {
         return avx::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.sse2) {
@@ -199,14 +194,14 @@ std::size_t get_min_elements_for_parallel() {
 }
 
 std::size_t get_min_elements_for_distribution_parallel() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.avx2) {
         return avx2::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.avx) {
         return avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.sse2) {
@@ -219,14 +214,14 @@ std::size_t get_min_elements_for_distribution_parallel() {
 }
 
 std::size_t get_min_elements_for_simple_distribution_parallel() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.avx2) {
         return avx2::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.avx) {
         return avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.sse2) {
@@ -239,14 +234,14 @@ std::size_t get_min_elements_for_simple_distribution_parallel() {
 }
 
 std::size_t get_default_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::DEFAULT_GRAIN_SIZE;
     } else if (features.avx2) {
         return avx2::DEFAULT_GRAIN_SIZE;
-    } else if (cpu::is_sandy_ivy_bridge()) {
-        return avx::legacy_intel::DEFAULT_GRAIN_SIZE;
+    } else if (is_sandy_ivy_bridge()) {
+        return avx::DEFAULT_GRAIN_SIZE;
     } else if (features.avx) {
         return avx::DEFAULT_GRAIN_SIZE;
     } else if (features.sse2) {
@@ -259,7 +254,7 @@ std::size_t get_default_grain_size() {
 }
 
 std::size_t get_simple_operation_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::SIMPLE_OPERATION_GRAIN_SIZE;
@@ -277,7 +272,7 @@ std::size_t get_simple_operation_grain_size() {
 }
 
 std::size_t get_complex_operation_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::COMPLEX_OPERATION_GRAIN_SIZE;
@@ -295,7 +290,7 @@ std::size_t get_complex_operation_grain_size() {
 }
 
 std::size_t get_monte_carlo_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MONTE_CARLO_GRAIN_SIZE;
@@ -313,7 +308,7 @@ std::size_t get_monte_carlo_grain_size() {
 }
 
 std::size_t get_max_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     if (features.avx512f) {
         return avx512::MAX_GRAIN_SIZE;
@@ -329,12 +324,12 @@ std::size_t get_max_grain_size() {
         return fallback::MAX_GRAIN_SIZE;
     }
 }
-}  // namespace parallel
+}  // namespace arch
 
 /// Memory access and prefetching optimization constants (implementation)
 namespace memory {
 namespace prefetch {
-namespace platform {
+namespace arch {
 namespace apple_silicon {
 [[maybe_unused]] static constexpr std::size_t SEQUENTIAL_PREFETCH_DISTANCE = 256;
 [[maybe_unused]] static constexpr std::size_t RANDOM_PREFETCH_DISTANCE = 64;
@@ -362,93 +357,95 @@ namespace arm {
 [[maybe_unused]] static constexpr std::size_t MATRIX_PREFETCH_DISTANCE = 32;
 [[maybe_unused]] static constexpr std::size_t PREFETCH_STRIDE = 2;
 }  // namespace arm
-}  // namespace platform
+}  // namespace arch
 
 std::size_t get_sequential_prefetch_distance() {
-    [[maybe_unused]] const auto& features = cpu::get_features();
+    [[maybe_unused]] const auto& features = get_features();
 
 // Platform-specific prefetch distances based on architecture
 #if defined(__APPLE__) && defined(__aarch64__)
-    return platform::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
+    return arch::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return platform::intel::SEQUENTIAL_PREFETCH_DISTANCE;
+        return arch::intel::SEQUENTIAL_PREFETCH_DISTANCE;
     } else if (features.vendor == "AuthenticAMD") {
-        return platform::amd::SEQUENTIAL_PREFETCH_DISTANCE;
+        return arch::amd::SEQUENTIAL_PREFETCH_DISTANCE;
     } else {
-        return platform::intel::SEQUENTIAL_PREFETCH_DISTANCE;  // Default to Intel
+        return arch::intel::SEQUENTIAL_PREFETCH_DISTANCE;  // Default to Intel
     }
 #else
-    return platform::arm::SEQUENTIAL_PREFETCH_DISTANCE;
+    return arch::arm::SEQUENTIAL_PREFETCH_DISTANCE;
 #endif
 }
 
 std::size_t get_random_prefetch_distance() {
-    [[maybe_unused]] const auto& features = cpu::get_features();
+    [[maybe_unused]] const auto& features = get_features();
 
 #if defined(__APPLE__) && defined(__aarch64__)
-    return platform::apple_silicon::RANDOM_PREFETCH_DISTANCE;
+    return arch::apple_silicon::RANDOM_PREFETCH_DISTANCE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return platform::intel::RANDOM_PREFETCH_DISTANCE;
+        return arch::intel::RANDOM_PREFETCH_DISTANCE;
     } else if (features.vendor == "AuthenticAMD") {
-        return platform::amd::RANDOM_PREFETCH_DISTANCE;
+        return arch::amd::RANDOM_PREFETCH_DISTANCE;
     } else {
-        return platform::intel::RANDOM_PREFETCH_DISTANCE;
+        return arch::intel::RANDOM_PREFETCH_DISTANCE;
     }
 #else
-    return platform::arm::RANDOM_PREFETCH_DISTANCE;
+    return arch::arm::RANDOM_PREFETCH_DISTANCE;
 #endif
 }
 
 std::size_t get_matrix_prefetch_distance() {
-    [[maybe_unused]] const auto& features = cpu::get_features();
+    [[maybe_unused]] const auto& features = get_features();
 
 #if defined(__APPLE__) && defined(__aarch64__)
-    return platform::apple_silicon::MATRIX_PREFETCH_DISTANCE;
+    return arch::apple_silicon::MATRIX_PREFETCH_DISTANCE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return platform::intel::MATRIX_PREFETCH_DISTANCE;
+        return arch::intel::MATRIX_PREFETCH_DISTANCE;
     } else if (features.vendor == "AuthenticAMD") {
-        return platform::amd::MATRIX_PREFETCH_DISTANCE;
+        return arch::amd::MATRIX_PREFETCH_DISTANCE;
     } else {
-        return platform::intel::MATRIX_PREFETCH_DISTANCE;
+        return arch::intel::MATRIX_PREFETCH_DISTANCE;
     }
 #else
-    return platform::arm::MATRIX_PREFETCH_DISTANCE;
+    return arch::arm::MATRIX_PREFETCH_DISTANCE;
 #endif
 }
 
 std::size_t get_prefetch_stride() {
-    [[maybe_unused]] const auto& features = cpu::get_features();
+    [[maybe_unused]] const auto& features = get_features();
 
 #if defined(__APPLE__) && defined(__aarch64__)
-    return platform::apple_silicon::PREFETCH_STRIDE;
+    return arch::apple_silicon::PREFETCH_STRIDE;
 #elif defined(__x86_64__) || defined(_M_X64)
     if (features.vendor == "GenuineIntel") {
-        return platform::intel::PREFETCH_STRIDE;
+        return arch::intel::PREFETCH_STRIDE;
     } else if (features.vendor == "AuthenticAMD") {
-        return platform::amd::PREFETCH_STRIDE;
+        return arch::amd::PREFETCH_STRIDE;
     } else {
-        return platform::intel::PREFETCH_STRIDE;
+        return arch::intel::PREFETCH_STRIDE;
     }
 #else
-    return platform::arm::PREFETCH_STRIDE;
+    return arch::arm::PREFETCH_STRIDE;
 #endif
 }
 }  // namespace prefetch
 
 namespace access {
-const std::size_t CACHE_LINE_SIZE_BYTES = 64;
-const std::size_t DOUBLES_PER_CACHE_LINE = 8;
-const std::size_t CACHE_LINE_ALIGNMENT = 64;
+[[maybe_unused]] const std::size_t CACHE_LINE_SIZE_BYTES = 64;
+[[maybe_unused]] const std::size_t DOUBLES_PER_CACHE_LINE = 8;
+[[maybe_unused]] const std::size_t CACHE_LINE_ALIGNMENT = 64;
 }  // namespace access
 }  // namespace memory
 
 /// Platform-specific tuning functions (implementation)
-namespace platform {
+}  // namespace arch
+
+namespace arch {
 std::size_t get_optimal_simd_block_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     // AVX-512: 8 doubles per register
     if (features.avx512f) {
@@ -473,7 +470,7 @@ std::size_t get_optimal_simd_block_size() {
 }
 
 std::size_t get_optimal_alignment() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     // AVX-512: 64-byte alignment
     if (features.avx512f) {
@@ -498,7 +495,7 @@ std::size_t get_optimal_alignment() {
 }
 
 std::size_t get_min_simd_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     // Higher-end SIMD can handle smaller datasets efficiently
     if (features.avx512f) {
@@ -515,7 +512,7 @@ std::size_t get_min_simd_size() {
 }
 
 std::size_t get_min_parallel_elements() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
 
     // More powerful SIMD allows for lower parallel thresholds
     if (features.avx512f) {
@@ -534,7 +531,7 @@ std::size_t get_min_parallel_elements() {
 }
 
 std::size_t get_optimal_grain_size() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
     const std::size_t optimal_block = get_optimal_simd_block_size();
 
     // Grain size should be a multiple of SIMD block size
@@ -553,13 +550,13 @@ std::size_t get_optimal_grain_size() {
 }
 
 bool supports_fast_transcendental() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
     // FMA typically indicates more modern CPU with better transcendental support
     return features.fma || features.avx2 || features.avx512f;
 }
 
 CacheThresholds get_cache_thresholds() {
-    const auto& features = cpu::get_features();
+    const auto& features = get_features();
     CacheThresholds thresholds{};
 
     // Convert cache sizes from bytes to number of doubles
@@ -587,18 +584,7 @@ CacheThresholds get_cache_thresholds() {
 
     return thresholds;
 }
-}  // namespace platform
-
-/// Cache system optimization constants (implementation)
-namespace cache {
-namespace sizing {
-// Note: These constants are defined as inline constexpr in platform_constants.h
-// The extern declarations in platform_constants_fwd.h are for backward compatibility
-// No implementation needed here since inline constexpr definitions are used
-}
-}  // namespace cache
-
-}  // namespace constants
+}  // namespace arch
 
 // Note: Bridge functions declared in constants_bridge.h are implemented
 // by the functions above in this file via the forward declaration system.

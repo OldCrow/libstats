@@ -13,10 +13,10 @@
 #include "../include/core/distribution_characteristics.h"
 
 using namespace stats;
-using namespace stats::performance;
-using namespace stats::performance::characteristics;
-using namespace stats::tools::display;
-using namespace stats::tools::strings;
+using namespace stats::detail;
+using namespace stats::detail::detail;
+using namespace stats::detail::detail;
+using namespace stats::detail::detail;
 
 namespace {
 
@@ -84,14 +84,14 @@ void displayScalingFactors() {
         std::cout << std::left << std::setw(13) << name;
 
         // SIMD speedup
-        double simd_speedup = scaling::calculateSIMDSpeedup(chars);
+        double simd_speedup = calculateSIMDSpeedup(chars);
         std::ostringstream simd_stream;
         simd_stream << std::fixed << std::setprecision(2) << simd_speedup << "x";
         std::cout << std::setw(12) << simd_stream.str();
 
         // Parallel speedups for different thread counts
         for (size_t threads : thread_counts) {
-            double parallel_speedup = scaling::calculateParallelSpeedup(chars, threads);
+            double parallel_speedup = calculateParallelSpeedup(chars, threads);
             std::ostringstream parallel_stream;
             parallel_stream << std::fixed << std::setprecision(1) << parallel_speedup << "x";
             std::cout << std::setw(11) << parallel_stream.str();

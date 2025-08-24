@@ -10,7 +10,7 @@
 
 using namespace std;
 using namespace stats;
-using namespace stats::testing;
+using namespace stats::test;
 
 namespace stats {
 
@@ -381,7 +381,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdGamma.getProbabilityWithStrategy(std::span<const double>(test_values),
                                             std::span<double>(simd_results),
-                                            stats::performance::Strategy::SCALAR);
+                                            stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -392,7 +392,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdGamma.getProbabilityWithStrategy(input_span, output_span,
-                                            stats::performance::Strategy::PARALLEL_SIMD);
+                                            stats::detail::Strategy::PARALLEL_SIMD);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -406,14 +406,14 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
                           {
                               stdGamma.getProbabilityWithStrategy(
                                   input_span, std::span<double>(work_stealing_results),
-                                  stats::performance::Strategy::WORK_STEALING)
+                                  stats::detail::Strategy::WORK_STEALING)
                           };
                       }) {
             std::span<double> ws_output_span(work_stealing_results);
 
             start = std::chrono::high_resolution_clock::now();
             stdGamma.getProbabilityWithStrategy(input_span, ws_output_span,
-                                                stats::performance::Strategy::WORK_STEALING);
+                                                stats::detail::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
             work_stealing_time =
                 std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -422,7 +422,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
             std::span<double> ws_output_span(work_stealing_results);
             start = std::chrono::high_resolution_clock::now();
             stdGamma.getProbabilityWithStrategy(input_span, ws_output_span,
-                                                stats::performance::Strategy::PARALLEL_SIMD);
+                                                stats::detail::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
             work_stealing_time =
                 std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -516,7 +516,7 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
         start = std::chrono::high_resolution_clock::now();
         gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                               std::span<double>(traditional_results),
-                                              stats::performance::Strategy::SCALAR);
+                                              stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto traditional_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -655,15 +655,15 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                   std::span<double>(pdf_results),
-                                                  stats::performance::Strategy::SCALAR);
+                                                  stats::detail::Strategy::SCALAR);
         } else if (op == "LogPDF") {
             gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                      std::span<double>(log_pdf_results),
-                                                     stats::performance::Strategy::SCALAR);
+                                                     stats::detail::Strategy::SCALAR);
         } else if (op == "CDF") {
             gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                             std::span<double>(cdf_results),
-                                                            stats::performance::Strategy::SCALAR);
+                                                            stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
@@ -676,19 +676,19 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
             gamma_dist.getProbabilityWithStrategy(input_span, output_span,
-                                                  stats::performance::Strategy::PARALLEL_SIMD);
+                                                  stats::detail::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
             gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                     stats::performance::Strategy::PARALLEL_SIMD);
+                                                     stats::detail::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            gamma_dist.getCumulativeProbabilityWithStrategy(
-                input_span, cdf_output_span, stats::performance::Strategy::PARALLEL_SIMD);
+            gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
+                                                            stats::detail::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         }
         result.parallel_time_us = static_cast<long>(
@@ -700,26 +700,26 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                           {
                               gamma_dist.getProbabilityWithStrategy(
                                   input_span, std::span<double>(pdf_results),
-                                  stats::performance::Strategy::WORK_STEALING)
+                                  stats::detail::Strategy::WORK_STEALING)
                           };
                       }) {
             if (op == "PDF") {
                 std::span<double> output_span(pdf_results);
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getProbabilityWithStrategy(input_span, output_span,
-                                                      stats::performance::Strategy::WORK_STEALING);
+                                                      stats::detail::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 std::span<double> log_output_span(log_pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, stats::performance::Strategy::WORK_STEALING);
+                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                         stats::detail::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 std::span<double> cdf_output_span(cdf_results);
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::performance::Strategy::WORK_STEALING);
+                    input_span, cdf_output_span, stats::detail::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             }
         } else {
@@ -728,19 +728,19 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                 std::span<double> output_span(pdf_results);
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getProbabilityWithStrategy(input_span, output_span,
-                                                      stats::performance::Strategy::PARALLEL_SIMD);
+                                                      stats::detail::Strategy::PARALLEL_SIMD);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 std::span<double> log_output_span(log_pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, stats::performance::Strategy::PARALLEL_SIMD);
+                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                         stats::detail::Strategy::PARALLEL_SIMD);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 std::span<double> cdf_output_span(cdf_results);
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::performance::Strategy::PARALLEL_SIMD);
+                    input_span, cdf_output_span, stats::detail::Strategy::PARALLEL_SIMD);
                 end = std::chrono::high_resolution_clock::now();
             }
         }
@@ -752,26 +752,26 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                           {
                               gamma_dist.getProbabilityWithStrategy(
                                   input_span, std::span<double>(pdf_results),
-                                  stats::performance::Strategy::GPU_ACCELERATED)
+                                  stats::detail::Strategy::GPU_ACCELERATED)
                           };
                       }) {
             if (op == "PDF") {
                 std::span<double> output_span(pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(
-                    input_span, output_span, stats::performance::Strategy::GPU_ACCELERATED);
+                gamma_dist.getProbabilityWithStrategy(input_span, output_span,
+                                                      stats::detail::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 std::span<double> log_output_span(log_pdf_results);
                 start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, stats::performance::Strategy::GPU_ACCELERATED);
+                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                         stats::detail::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 std::span<double> cdf_output_span(cdf_results);
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::performance::Strategy::GPU_ACCELERATED);
+                    input_span, cdf_output_span, stats::detail::Strategy::GPU_ACCELERATED);
                 end = std::chrono::high_resolution_clock::now();
             }
         } else {
@@ -780,19 +780,19 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(pdf_results),
-                                                      stats::performance::Strategy::SCALAR);
+                                                      stats::detail::Strategy::SCALAR);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                          std::span<double>(log_pdf_results),
-                                                         stats::performance::Strategy::SCALAR);
+                                                         stats::detail::Strategy::SCALAR);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getCumulativeProbabilityWithStrategy(
                     std::span<const double>(test_values), std::span<double>(cdf_results),
-                    stats::performance::Strategy::SCALAR);
+                    stats::detail::Strategy::SCALAR);
                 end = std::chrono::high_resolution_clock::now();
             }
         }
@@ -1020,13 +1020,13 @@ TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     // These should not crash
     gamma_dist.getProbabilityWithStrategy(std::span<const double>(empty_input),
                                           std::span<double>(empty_output),
-                                          stats::performance::Strategy::SCALAR);
+                                          stats::detail::Strategy::SCALAR);
     gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(empty_input),
                                              std::span<double>(empty_output),
-                                             stats::performance::Strategy::SCALAR);
+                                             stats::detail::Strategy::SCALAR);
     gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_input),
                                                     std::span<double>(empty_output),
-                                                    stats::performance::Strategy::SCALAR);
+                                                    stats::detail::Strategy::SCALAR);
 
     // Test invalid parameter creation
     auto result_zero_alpha = GammaDistribution::create(0.0, 1.0);

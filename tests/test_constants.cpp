@@ -2,6 +2,7 @@
 // Add standard library includes that the headers depend on
 #include "../include/core/constants.h"
 #include "../include/platform/platform_constants.h"
+#include "../include/platform/simd.h"
 
 #include <cassert>
 #include <cmath>
@@ -10,8 +11,7 @@
 #include <limits>
 
 void test_math_constants() {
-    using namespace stats::constants::math;
-    using namespace stats::constants::precision;
+    using namespace stats::detail;
 
     // Pi and related constants
     assert(std::abs(PI - 3.14159265358979323846) < HIGH_PRECISION_TOLERANCE);
@@ -52,7 +52,7 @@ void test_math_constants() {
 }
 
 void test_probability_constants() {
-    using namespace stats::constants::probability;
+    using namespace stats::detail;
 
     // Probability bounds
     assert(MIN_PROBABILITY > 0.0);
@@ -74,7 +74,7 @@ void test_probability_constants() {
 }
 
 void test_precision_constants() {
-    using namespace stats::constants::precision;
+    using namespace stats::detail;
 
     // Test precision hierarchy
     assert(DEFAULT_TOLERANCE > HIGH_PRECISION_TOLERANCE);
@@ -108,23 +108,23 @@ void test_precision_constants() {
 }
 
 void test_simd_constants() {
-    using namespace stats::constants::simd;
+    using namespace stats::arch::simd;
 
     // Test SIMD parameters
     assert(DEFAULT_BLOCK_SIZE > 0);
     assert(MIN_SIMD_SIZE > 0);
     assert(MAX_BLOCK_SIZE >= DEFAULT_BLOCK_SIZE);
     assert(DEFAULT_BLOCK_SIZE >= MIN_SIMD_SIZE);
-    assert(SIMD_ALIGNMENT > 0);
+    assert(stats::arch::simd::SIMD_ALIGNMENT > 0);
 
     // Test power of 2 alignment
-    assert((SIMD_ALIGNMENT & (SIMD_ALIGNMENT - 1)) == 0);
+    assert((stats::arch::simd::SIMD_ALIGNMENT & (stats::arch::simd::SIMD_ALIGNMENT - 1)) == 0);
 
     std::cout << "   ✓ SIMD constants tests passed" << std::endl;
 }
 
 void test_platform_optimizations() {
-    using namespace stats::constants::platform;
+    using namespace stats::arch;
 
     [[maybe_unused]] size_t simd_block_size = get_optimal_simd_block_size();
     [[maybe_unused]] size_t alignment = get_optimal_alignment();
@@ -142,7 +142,7 @@ void test_platform_optimizations() {
     assert((alignment & (alignment - 1)) == 0);
 
     // Test platform-specific thresholds
-    [[maybe_unused]] CacheThresholds cache_thresholds = get_cache_thresholds();
+    [[maybe_unused]] auto cache_thresholds = get_cache_thresholds();
     assert(cache_thresholds.l1_optimal_size > 0);
     assert(cache_thresholds.l2_optimal_size > cache_thresholds.l1_optimal_size);
 #ifdef __APPLE__
@@ -154,7 +154,7 @@ void test_platform_optimizations() {
     assert(cache_thresholds.blocking_size > 0);
 
     // Test transcendental support detection
-    bool supports_fast_transcendental = stats::constants::platform::supports_fast_transcendental();
+    bool supports_fast_transcendental = stats::arch::supports_fast_transcendental();
     // This is platform-dependent, so we just test it doesn't crash
     (void)supports_fast_transcendental;  // Suppress unused variable warning
 
@@ -162,107 +162,108 @@ void test_platform_optimizations() {
 }
 
 void test_parallel_constants() {
-    using namespace stats::constants::parallel;
+    using namespace stats::arch::parallel;
 
     // Test parallel processing constants (using accessor functions)
-    assert(adaptive::min_elements_for_parallel() > 0);
-    assert(adaptive::min_elements_for_distribution_parallel() > 0);
-    assert(adaptive::grain_size() > 0);
-    assert(adaptive::simple_operation_grain_size() > 0);
+    assert(stats::arch::parallel::detail::min_elements_for_parallel() > 0);
+    assert(stats::arch::parallel::detail::min_elements_for_distribution_parallel() > 0);
+    assert(stats::arch::parallel::detail::grain_size() > 0);
+    assert(stats::arch::parallel::detail::simple_operation_grain_size() > 0);
     assert(MIN_DATASET_SIZE_FOR_PARALLEL > 0);
     assert(MIN_BOOTSTRAP_SAMPLES_FOR_PARALLEL > 0);
     assert(MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL > 0);
-    assert(adaptive::monte_carlo_grain_size() > 0);
-    assert(adaptive::max_grain_size() > 0);
+    assert(stats::arch::parallel::detail::monte_carlo_grain_size() > 0);
+    assert(stats::arch::parallel::detail::max_grain_size() > 0);
     assert(MIN_WORK_PER_THREAD > 0);
     assert(SAMPLE_BATCH_SIZE > 0);
     assert(MIN_MATRIX_SIZE_FOR_PARALLEL > 0);
     assert(MIN_ITERATIONS_FOR_PARALLEL > 0);
 
     // Test logical relationships (using accessor functions)
-    assert(adaptive::min_elements_for_distribution_parallel() <=
-           adaptive::min_elements_for_parallel());
-    assert(adaptive::simple_operation_grain_size() <= adaptive::grain_size());
-    assert(adaptive::monte_carlo_grain_size() <= adaptive::max_grain_size());
+    assert(stats::arch::parallel::detail::min_elements_for_distribution_parallel() <=
+           stats::arch::parallel::detail::min_elements_for_parallel());
+    assert(stats::arch::parallel::detail::simple_operation_grain_size() <=
+           stats::arch::parallel::detail::grain_size());
+    assert(stats::arch::parallel::detail::monte_carlo_grain_size() <=
+           stats::arch::parallel::detail::max_grain_size());
 
     // Test adaptive functions
-    assert(adaptive::min_elements_for_parallel() > 0);
-    assert(adaptive::grain_size() > 0);
+    assert(stats::arch::parallel::detail::min_elements_for_parallel() > 0);
+    assert(stats::arch::parallel::detail::grain_size() > 0);
     // Note: adaptive functions may not be available in current implementation
-    // assert(adaptive::simd_block_size() > 0);
-    // assert(adaptive::memory_alignment() > 0);
+    // assert(stats::arch::parallel::detail::simd_block_size() > 0);
+    // assert(stats::arch::parallel::detail::memory_alignment() > 0);
 
     std::cout << "   ✓ Parallel constants tests passed" << std::endl;
 }
 
 void test_statistical_critical_values() {
-    using namespace stats::constants::statistical;
-    using namespace stats::constants;
+    using namespace stats::detail;
 
     // Standard normal distribution critical values
-    assert(std::abs(normal::Z_95 - 1.96) < 0.001);
-    assert(std::abs(normal::Z_99 - 2.576) < 0.001);
-    assert(std::abs(normal::Z_90 - 1.645) < 0.001);
-    assert(std::abs(normal::Z_999 - 3.291) < 0.001);
-    assert(std::abs(normal::Z_95_ONE_TAIL - 1.645) < 0.001);
-    assert(std::abs(normal::Z_99_ONE_TAIL - 2.326) < 0.001);
+    assert(std::abs(Z_95 - 1.96) < 0.001);
+    assert(std::abs(Z_99 - 2.576) < 0.001);
+    assert(std::abs(Z_90 - 1.645) < 0.001);
+    assert(std::abs(Z_999 - 3.291) < 0.001);
+    assert(std::abs(Z_95_ONE_TAIL - 1.645) < 0.001);
+    assert(std::abs(Z_99_ONE_TAIL - 2.326) < 0.001);
 
     // Test ordering of critical values
-    assert(normal::Z_90 < normal::Z_95);
-    assert(normal::Z_95 < normal::Z_99);
-    assert(normal::Z_99 < normal::Z_999);
+    assert(Z_90 < Z_95);
+    assert(Z_95 < Z_99);
+    assert(Z_99 < Z_999);
 
     // Test t-distribution critical values
-    assert(t_distribution::T_95_DF_1 > t_distribution::T_95_DF_2);
-    assert(t_distribution::T_95_DF_2 > t_distribution::T_95_DF_3);
-    assert(t_distribution::T_95_DF_INF == normal::Z_95);
+    assert(T_95_DF_1 > T_95_DF_2);
+    assert(T_95_DF_2 > T_95_DF_3);
+    assert(T_95_DF_INF == Z_95);
 
     // Test chi-square critical values
-    assert(chi_square::CHI2_95_DF_1 < chi_square::CHI2_95_DF_2);
-    assert(chi_square::CHI2_95_DF_2 < chi_square::CHI2_95_DF_3);
-    assert(chi_square::CHI2_99_DF_1 > chi_square::CHI2_95_DF_1);
+    assert(CHI2_95_DF_1 < CHI2_95_DF_2);
+    assert(CHI2_95_DF_2 < CHI2_95_DF_3);
+    assert(CHI2_99_DF_1 > CHI2_95_DF_1);
 
     // Test F-distribution critical values
-    assert(f_distribution::F_95_DF_1_1 > f_distribution::F_95_DF_1_5);
-    assert(f_distribution::F_99_DF_1_1 > f_distribution::F_95_DF_1_1);
+    assert(F_95_DF_1_1 > F_95_DF_1_5);
+    assert(F_99_DF_1_1 > F_95_DF_1_1);
 
     // Test threshold values
-    assert(thresholds::ALPHA_001 < thresholds::ALPHA_01);
-    assert(thresholds::ALPHA_01 < thresholds::ALPHA_05);
-    assert(thresholds::ALPHA_05 < thresholds::ALPHA_10);
+    assert(ALPHA_001 < ALPHA_01);
+    assert(ALPHA_01 < ALPHA_05);
+    assert(ALPHA_05 < ALPHA_10);
 
-    assert(thresholds::CONFIDENCE_90 < thresholds::CONFIDENCE_95);
-    assert(thresholds::CONFIDENCE_95 < thresholds::CONFIDENCE_99);
-    assert(thresholds::CONFIDENCE_99 < thresholds::CONFIDENCE_999);
+    assert(CONFIDENCE_90 < CONFIDENCE_95);
+    assert(CONFIDENCE_95 < CONFIDENCE_99);
+    assert(CONFIDENCE_99 < CONFIDENCE_999);
 
     // Test effect size thresholds
-    assert(thresholds::SMALL_EFFECT < thresholds::MEDIUM_EFFECT);
-    assert(thresholds::MEDIUM_EFFECT < thresholds::LARGE_EFFECT);
+    assert(SMALL_EFFECT < MEDIUM_EFFECT);
+    assert(MEDIUM_EFFECT < LARGE_EFFECT);
 
     // Test correlation strength thresholds
-    assert(thresholds::WEAK_CORRELATION < thresholds::MODERATE_CORRELATION);
-    assert(thresholds::MODERATE_CORRELATION < thresholds::STRONG_CORRELATION);
+    assert(WEAK_CORRELATION < MODERATE_CORRELATION);
+    assert(MODERATE_CORRELATION < STRONG_CORRELATION);
 
     // Test Kolmogorov-Smirnov critical values
-    assert(kolmogorov_smirnov::KS_05_N_5 > kolmogorov_smirnov::KS_05_N_10);
-    assert(kolmogorov_smirnov::KS_05_N_10 > kolmogorov_smirnov::KS_05_N_20);
-    assert(kolmogorov_smirnov::KS_01_N_5 > kolmogorov_smirnov::KS_05_N_5);
+    assert(KS_05_N_5 > KS_05_N_10);
+    assert(KS_05_N_10 > KS_05_N_20);
+    assert(KS_01_N_5 > KS_05_N_5);
 
     // Test Anderson-Darling critical values
-    assert(anderson_darling::AD_01 > anderson_darling::AD_05);
-    assert(anderson_darling::AD_05 > anderson_darling::AD_10);
-    assert(anderson_darling::AD_10 > anderson_darling::AD_15);
+    assert(AD_01 > AD_05);
+    assert(AD_05 > AD_10);
+    assert(AD_10 > AD_15);
 
     // Test Shapiro-Wilk critical values
-    assert(shapiro_wilk::SW_05_N_10 < shapiro_wilk::SW_05_N_20);
-    assert(shapiro_wilk::SW_05_N_20 < shapiro_wilk::SW_05_N_30);
-    assert(shapiro_wilk::SW_01_N_10 < shapiro_wilk::SW_05_N_10);
+    assert(SW_05_N_10 < SW_05_N_20);
+    assert(SW_05_N_20 < SW_05_N_30);
+    assert(SW_01_N_10 < SW_05_N_10);
 
     std::cout << "   ✓ Statistical critical values tests passed" << std::endl;
 }
 
 void test_threshold_constants() {
-    using namespace stats::constants::thresholds;
+    using namespace stats::detail;
 
     // Test scale factor bounds
     assert(MIN_SCALE_FACTOR > 0.0);

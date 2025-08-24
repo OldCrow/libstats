@@ -21,6 +21,7 @@
 #include <emmintrin.h>  // SSE2 intrinsics
 
 namespace stats {
+namespace arch {
 namespace simd {
 
 // All SSE2 functions use double-precision (64-bit) values
@@ -33,7 +34,7 @@ double VectorOps::dot_product_sse2(const double* a, const double* b, std::size_t
     }
 
     __m128d sum = _mm_setzero_pd();
-    constexpr std::size_t SSE2_DOUBLE_WIDTH = constants::simd::registers::SSE_DOUBLES;
+    constexpr std::size_t SSE2_DOUBLE_WIDTH = arch::SSE_DOUBLES;
     const std::size_t simd_end = (size / SSE2_DOUBLE_WIDTH) * SSE2_DOUBLE_WIDTH;
 
     // Process pairs of doubles
@@ -63,7 +64,7 @@ void VectorOps::vector_add_sse2(const double* a, const double* b, double* result
         return vector_add_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t SSE2_DOUBLE_WIDTH = constants::simd::registers::SSE_DOUBLES;
+    constexpr std::size_t SSE2_DOUBLE_WIDTH = arch::SSE_DOUBLES;
     const std::size_t simd_end = (size / SSE2_DOUBLE_WIDTH) * SSE2_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += SSE2_DOUBLE_WIDTH) {
@@ -85,7 +86,7 @@ void VectorOps::vector_subtract_sse2(const double* a, const double* b, double* r
         return vector_subtract_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t SSE2_DOUBLE_WIDTH = constants::simd::registers::SSE_DOUBLES;
+    constexpr std::size_t SSE2_DOUBLE_WIDTH = arch::SSE_DOUBLES;
     const std::size_t simd_end = (size / SSE2_DOUBLE_WIDTH) * SSE2_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += SSE2_DOUBLE_WIDTH) {
@@ -106,7 +107,7 @@ void VectorOps::vector_multiply_sse2(const double* a, const double* b, double* r
         return vector_multiply_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t SSE2_DOUBLE_WIDTH = constants::simd::registers::SSE_DOUBLES;
+    constexpr std::size_t SSE2_DOUBLE_WIDTH = arch::SSE_DOUBLES;
     const std::size_t simd_end = (size / SSE2_DOUBLE_WIDTH) * SSE2_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += SSE2_DOUBLE_WIDTH) {
@@ -128,7 +129,7 @@ void VectorOps::scalar_multiply_sse2(const double* a, double scalar, double* res
     }
 
     __m128d vscalar = _mm_set1_pd(scalar);
-    constexpr std::size_t SSE2_DOUBLE_WIDTH = constants::simd::registers::SSE_DOUBLES;
+    constexpr std::size_t SSE2_DOUBLE_WIDTH = arch::SSE_DOUBLES;
     const std::size_t simd_end = (size / SSE2_DOUBLE_WIDTH) * SSE2_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += SSE2_DOUBLE_WIDTH) {
@@ -149,7 +150,7 @@ void VectorOps::scalar_add_sse2(const double* a, double scalar, double* result,
     }
 
     __m128d vscalar = _mm_set1_pd(scalar);
-    constexpr std::size_t SSE2_DOUBLE_WIDTH = constants::simd::registers::SSE_DOUBLES;
+    constexpr std::size_t SSE2_DOUBLE_WIDTH = arch::SSE_DOUBLES;
     const std::size_t simd_end = (size / SSE2_DOUBLE_WIDTH) * SSE2_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += SSE2_DOUBLE_WIDTH) {
@@ -164,6 +165,7 @@ void VectorOps::scalar_add_sse2(const double* a, double scalar, double* result,
 }
 
 }  // namespace simd
+}  // namespace arch
 }  // namespace stats
 
 #ifdef __clang__

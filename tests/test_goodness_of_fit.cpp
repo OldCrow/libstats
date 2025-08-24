@@ -62,8 +62,8 @@ int main() {
         }
 
         // Test the goodness-of-fit functions
-        double ks_statistic = stats::math::calculate_ks_statistic(data, normal);
-        double ad_statistic = stats::math::calculate_ad_statistic(data, normal);
+        double ks_statistic = stats::detail::calculate_ks_statistic(data, normal);
+        double ad_statistic = stats::detail::calculate_ad_statistic(data, normal);
 
         std::cout << "Goodness-of-fit tests:" << std::endl;
         std::cout << "KS statistic: " << ks_statistic << std::endl;

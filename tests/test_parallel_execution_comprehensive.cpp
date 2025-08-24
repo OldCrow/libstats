@@ -19,12 +19,12 @@ int main() {
     // Test safe_count with GCD
     std::vector<int> count_data = {1, 2, 3, 2, 4, 2, 5, 2};
     [[maybe_unused]] auto count_result =
-        stats::parallel::safe_count(count_data.begin(), count_data.end(), 2);
+        stats::arch::safe_count(count_data.begin(), count_data.end(), 2);
     assert(count_result == 4);
     std::cout << "  - safe_count (GCD): PASSED" << std::endl;
 
     // Test safe_count_if with GCD
-    [[maybe_unused]] auto count_if_result = stats::parallel::safe_count_if(
+    [[maybe_unused]] auto count_if_result = stats::arch::safe_count_if(
         count_data.begin(), count_data.end(), [](int x) { return x > 2; });
     assert(count_if_result == 3);
     std::cout << "  - safe_count_if (GCD): PASSED" << std::endl;
@@ -32,7 +32,7 @@ int main() {
     // Test safe_reduce (sum operation is the default)
     std::vector<double> reduce_data(1000, 2.0);
     [[maybe_unused]] auto sum_result =
-        stats::parallel::safe_reduce(reduce_data.begin(), reduce_data.end(), 0.0);
+        stats::arch::safe_reduce(reduce_data.begin(), reduce_data.end(), 0.0);
     assert(std::abs(sum_result - 2000.0) < 1e-10);
     std::cout << "  - safe_reduce with custom op (GCD): PASSED" << std::endl;
 
@@ -41,7 +41,7 @@ int main() {
 
     // Single element
     std::vector<int> single = {42};
-    stats::parallel::safe_fill(single.begin(), single.end(), 100);
+    stats::arch::safe_fill(single.begin(), single.end(), 100);
     assert(single[0] == 100);
     std::cout << "  - Single element fill: PASSED" << std::endl;
 
@@ -51,14 +51,14 @@ int main() {
 
     // Test parallel transform on large dataset
     std::vector<double> large_output(100000);
-    stats::parallel::safe_transform(large_data.begin(), large_data.end(), large_output.begin(),
-                                    [](double x) { return x * x; });
+    stats::arch::safe_transform(large_data.begin(), large_data.end(), large_output.begin(),
+                                [](double x) { return x * x; });
     assert(large_output[0] == 1.0 && large_output[999] == 1000000.0);
     std::cout << "  - Large dataset transform: PASSED" << std::endl;
 
     // Test parallel reduce on large dataset
     [[maybe_unused]] auto large_sum =
-        stats::parallel::safe_reduce(large_data.begin(), large_data.end(), 0.0);
+        stats::arch::safe_reduce(large_data.begin(), large_data.end(), 0.0);
     [[maybe_unused]] double expected_sum = (100000.0 * 100001.0) / 2.0;  // Sum of 1..100000
     assert(std::abs(large_sum - expected_sum) < 1.0);  // Allow small floating point error
     std::cout << "  - Large dataset reduce: PASSED" << std::endl;
@@ -81,8 +81,8 @@ int main() {
 
     // Parallel results
     std::vector<double> parallel_transform(5000);
-    stats::parallel::safe_transform(test_data.begin(), test_data.end(), parallel_transform.begin(),
-                                    [](double x) { return std::sqrt(x); });
+    stats::arch::safe_transform(test_data.begin(), test_data.end(), parallel_transform.begin(),
+                                [](double x) { return std::sqrt(x); });
 
     // Compare results
     [[maybe_unused]] bool transforms_equal =
@@ -99,7 +99,7 @@ int main() {
 
     auto start = std::chrono::high_resolution_clock::now();
     [[maybe_unused]] auto perf_sum_result =
-        stats::parallel::safe_reduce(perf_data.begin(), perf_data.end(), 0.0);
+        stats::arch::safe_reduce(perf_data.begin(), perf_data.end(), 0.0);
     auto end = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -116,15 +116,14 @@ int main() {
     try {
         // Test with empty containers
         std::vector<int> empty;
-        [[maybe_unused]] auto empty_count =
-            stats::parallel::safe_count(empty.begin(), empty.end(), 5);
+        [[maybe_unused]] auto empty_count = stats::arch::safe_count(empty.begin(), empty.end(), 5);
         assert(empty_count == 0);
         std::cout << "  - Empty container count: PASSED" << std::endl;
 
         // Test with null/default values
         std::vector<int*> ptr_vec(100, nullptr);
         [[maybe_unused]] auto null_count =
-            stats::parallel::safe_count(ptr_vec.begin(), ptr_vec.end(), nullptr);
+            stats::arch::safe_count(ptr_vec.begin(), ptr_vec.end(), nullptr);
         assert(null_count == 100);
         std::cout << "  - Null pointer handling: PASSED" << std::endl;
 
@@ -136,20 +135,20 @@ int main() {
     std::cout << "Test 6: Platform-aware adaptive features" << std::endl;
 
     // Test optimal parallel threshold
-    auto optimal_threshold = stats::parallel::get_optimal_parallel_threshold("gaussian", "pdf");
+    auto optimal_threshold = stats::arch::get_optimal_parallel_threshold("gaussian", "pdf");
     std::cout << "  - Optimal parallel threshold: " << optimal_threshold << " elements"
               << std::endl;
     assert(optimal_threshold > 0 && optimal_threshold < 100000);  // Reasonable range
 
     // Test base grain size
-    auto base_grain_size = stats::parallel::get_optimal_grain_size();
+    auto base_grain_size = stats::arch::get_optimal_grain_size();
     std::cout << "  - Base optimal grain size: " << base_grain_size << " elements" << std::endl;
     assert(base_grain_size > 0 && base_grain_size < 50000);  // Reasonable range
 
     // Test adaptive grain sizes for different operation types
-    auto memory_grain = stats::parallel::get_adaptive_grain_size(0, 10000);   // Memory-bound
-    auto compute_grain = stats::parallel::get_adaptive_grain_size(1, 10000);  // Computation-bound
-    auto mixed_grain = stats::parallel::get_adaptive_grain_size(2, 10000);    // Mixed
+    auto memory_grain = stats::arch::get_adaptive_grain_size(0, 10000);   // Memory-bound
+    auto compute_grain = stats::arch::get_adaptive_grain_size(1, 10000);  // Computation-bound
+    auto mixed_grain = stats::arch::get_adaptive_grain_size(2, 10000);    // Mixed
 
     std::cout << "  - Memory-bound grain size: " << memory_grain << " elements" << std::endl;
     std::cout << "  - Computation-bound grain size: " << compute_grain << " elements" << std::endl;
@@ -164,8 +163,8 @@ int main() {
     assert(compute_grain >= base_grain_size);
 
     // Test optimal thread count
-    auto optimal_threads_small = stats::parallel::get_optimal_thread_count(1000);
-    auto optimal_threads_large = stats::parallel::get_optimal_thread_count(100000);
+    auto optimal_threads_small = stats::arch::get_optimal_thread_count(1000);
+    auto optimal_threads_large = stats::arch::get_optimal_thread_count(100000);
 
     std::cout << "  - Optimal threads (small workload): " << optimal_threads_small << std::endl;
     std::cout << "  - Optimal threads (large workload): " << optimal_threads_large << std::endl;
@@ -180,11 +179,10 @@ int main() {
     // Test 7: Execution policy detection and fallback verification
     std::cout << "Test 7: Execution policy detection" << std::endl;
 
-    bool has_std_exec = stats::parallel::has_execution_policies();
+    bool has_std_exec = stats::arch::has_execution_policies();
     std::cout << "  - Standard execution policies available: " << (has_std_exec ? "YES" : "NO")
               << std::endl;
-    std::cout << "  - Execution support: " << stats::parallel::execution_support_string()
-              << std::endl;
+    std::cout << "  - Execution support: " << stats::arch::execution_support_string() << std::endl;
 
 #if defined(LIBSTATS_HAS_GCD)
     std::cout << "  - GCD fallback available: YES" << std::endl;
@@ -201,13 +199,13 @@ int main() {
     // Test threshold logic with various sizes
     std::cout << "  - Threshold decisions:" << std::endl;
     std::cout << "    * 10 elements: "
-              << (stats::parallel::should_use_parallel(10) ? "parallel" : "serial") << std::endl;
+              << (stats::arch::should_use_parallel(10) ? "parallel" : "serial") << std::endl;
     std::cout << "    * 100 elements: "
-              << (stats::parallel::should_use_parallel(100) ? "parallel" : "serial") << std::endl;
+              << (stats::arch::should_use_parallel(100) ? "parallel" : "serial") << std::endl;
     std::cout << "    * 1000 elements: "
-              << (stats::parallel::should_use_parallel(1000) ? "parallel" : "serial") << std::endl;
+              << (stats::arch::should_use_parallel(1000) ? "parallel" : "serial") << std::endl;
     std::cout << "    * 10000 elements: "
-              << (stats::parallel::should_use_parallel(10000) ? "parallel" : "serial") << std::endl;
+              << (stats::arch::should_use_parallel(10000) ? "parallel" : "serial") << std::endl;
 
     // Test 8: Platform-specific optimizations validation
     std::cout << "Test 8: Platform-specific optimization validation" << std::endl;
@@ -215,7 +213,7 @@ int main() {
     // Test different grain sizes with different data sizes
     std::vector<std::size_t> test_sizes = {1000, 10000, 100000};
     for (auto size : test_sizes) {
-        auto adaptive_grain = stats::parallel::get_adaptive_grain_size(0, size);
+        auto adaptive_grain = stats::arch::get_adaptive_grain_size(0, size);
         std::cout << "  - Data size " << size << ": adaptive grain = " << adaptive_grain
                   << std::endl;
 
@@ -225,14 +223,13 @@ int main() {
     }
 
     // Test GPU-accelerated grain sizing for memory operations
-    auto gpu_accelerated_grain =
-        stats::parallel::get_adaptive_grain_size(0, 1000000);  // 1M elements
+    auto gpu_accelerated_grain = stats::arch::get_adaptive_grain_size(0, 1000000);  // 1M elements
     std::cout << "  - GPU-accelerated grain (1M elements): " << gpu_accelerated_grain << std::endl;
     assert(gpu_accelerated_grain >= 64);
 
     // Test distribution parallel thresholds
-    bool should_parallel_small = stats::parallel::should_use_distribution_parallel(100);
-    bool should_parallel_large = stats::parallel::should_use_distribution_parallel(100000);
+    bool should_parallel_small = stats::arch::should_use_distribution_parallel(100);
+    bool should_parallel_large = stats::arch::should_use_distribution_parallel(100000);
 
     std::cout << "  - Distribution parallel (100 elements): "
               << (should_parallel_small ? "YES" : "NO") << std::endl;
@@ -240,7 +237,7 @@ int main() {
               << (should_parallel_large ? "YES" : "NO") << std::endl;
 
     // Large datasets should generally use parallel
-    if (stats::parallel::has_execution_policies()) {
+    if (stats::arch::has_execution_policies()) {
         assert(should_parallel_large);
     }
 

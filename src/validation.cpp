@@ -11,7 +11,7 @@
 #include <sstream>
 
 namespace stats {
-namespace validation {
+namespace detail {  // validation utilities
 
 namespace {
 // =============================================================================
@@ -60,11 +60,11 @@ namespace {
 [[maybe_unused]] double chi_squared_critical_value(int df, double alpha) {
     // Wilson-Hilferty approximation for chi-squared distribution
     if (df <= 0)
-        return constants::math::ZERO_DOUBLE;
+        return detail::ZERO_DOUBLE;
 
     // For common significance levels, use lookup tables
     // Critical values for α = 0.05 (5% significance level)
-    if (alpha == constants::thresholds::ALPHA_05) {
+    if (alpha == detail::ALPHA_05) {
         if (df == 1)
             return 3.841;  // χ²(1,0.05) = 3.841
         if (df == 2)
@@ -78,10 +78,10 @@ namespace {
     }
 
     // Wilson-Hilferty approximation for general case
-    const double h = constants::math::TWO / (9.0 * df);
+    const double h = detail::TWO / (9.0 * df);
     const double z_alpha =
-        (alpha == constants::thresholds::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile
-    const double term = constants::math::ONE - h + z_alpha * std::sqrt(h);
+        (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile
+    const double term = detail::ONE - h + z_alpha * std::sqrt(h);
     return df * std::pow(term, 3);
 }
 
@@ -157,21 +157,21 @@ double gamma_function(double z) {
  * @return Lower incomplete gamma function value
  */
 double lower_incomplete_gamma(double s, double x) {
-    if (s <= constants::math::ZERO_DOUBLE || x < constants::math::ZERO_DOUBLE)
-        return constants::math::ZERO_DOUBLE;
-    if (x == constants::math::ZERO_DOUBLE)
-        return constants::math::ZERO_DOUBLE;
+    if (s <= detail::ZERO_DOUBLE || x < detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    if (x == detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
 
     const double eps = 1e-12;
     const int max_iter = 1000;
 
-    if (x < s + constants::math::ONE) {
+    if (x < s + detail::ONE) {
         // Use series expansion
-        double sum = constants::math::ONE;
-        double term = constants::math::ONE;
+        double sum = detail::ONE;
+        double term = detail::ONE;
 
         for (int n = 1; n < max_iter; ++n) {
-            term *= x / (s + n - constants::math::ONE);
+            term *= x / (s + n - detail::ONE);
             sum += term;
             if (std::abs(term) < eps * std::abs(sum))
                 break;
@@ -433,11 +433,11 @@ ADTestResult anderson_darling_test(const std::vector<double>& data,
         // Clamp CDF values to avoid numerical issues with log(0) and log(negative)
         // Use threshold from constants to ensure consistency
         const double clamped_cdf =
-            std::max(constants::thresholds::ANDERSON_DARLING_MIN_PROB,
-                     std::min(1.0 - constants::thresholds::ANDERSON_DARLING_MIN_PROB, cdf_val));
-        const double clamped_complement = std::max(
-            constants::thresholds::ANDERSON_DARLING_MIN_PROB,
-            std::min(1.0 - constants::thresholds::ANDERSON_DARLING_MIN_PROB, cdf_complement));
+            std::max(detail::ANDERSON_DARLING_MIN_PROB,
+                     std::min(1.0 - detail::ANDERSON_DARLING_MIN_PROB, cdf_val));
+        const double clamped_complement =
+            std::max(detail::ANDERSON_DARLING_MIN_PROB,
+                     std::min(1.0 - detail::ANDERSON_DARLING_MIN_PROB, cdf_complement));
 
         // Calculate log terms with safe bounds
         const double log_cdf = std::log(clamped_cdf);
@@ -910,5 +910,5 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(const std::vector
     return intervals;
 }
 
-}  // namespace validation
+}  // namespace detail
 }  // namespace stats

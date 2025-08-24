@@ -18,10 +18,10 @@
 #include <sstream>
 
 namespace stats {
-namespace tools {
+namespace detail {  // tools utilities
 
 // Time formatting utilities
-namespace time {
+namespace detail {  // time utilities
 /**
  * @brief Formats a duration in nanoseconds to human-readable string
  * @param ns Duration in nanoseconds
@@ -62,26 +62,26 @@ inline std::string formatMicroseconds(double time_us) {
         return std::to_string(time_us / MICROSECONDS_TO_NANOSECONDS) + "ms";
     }
 }
-}  // namespace time
+}  // namespace detail
 
 // String conversion utilities for enums
-namespace strings {
+namespace detail {  // strings utilities
 /**
  * @brief Converts Strategy enum to string representation
  * @param strategy The strategy enum value
  * @return String representation of the strategy
  */
-inline std::string strategyToString(stats::performance::Strategy strategy) {
+inline std::string strategyToString(stats::detail::Strategy strategy) {
     switch (strategy) {
-        case stats::performance::Strategy::SCALAR:
+        case stats::detail::Strategy::SCALAR:
             return "SCALAR";
-        case stats::performance::Strategy::SIMD_BATCH:
+        case stats::detail::Strategy::SIMD_BATCH:
             return "SIMD_BATCH";
-        case stats::performance::Strategy::PARALLEL_SIMD:
+        case stats::detail::Strategy::PARALLEL_SIMD:
             return "PARALLEL_SIMD";
-        case stats::performance::Strategy::WORK_STEALING:
+        case stats::detail::Strategy::WORK_STEALING:
             return "WORK_STEALING";
-        case stats::performance::Strategy::GPU_ACCELERATED:
+        case stats::detail::Strategy::GPU_ACCELERATED:
             return "GPU_ACCELERATED";
         default:
             return "UNKNOWN";
@@ -93,17 +93,17 @@ inline std::string strategyToString(stats::performance::Strategy strategy) {
  * @param strategy The strategy enum value
  * @return Display-friendly string representation
  */
-inline std::string strategyToDisplayString(stats::performance::Strategy strategy) {
+inline std::string strategyToDisplayString(stats::detail::Strategy strategy) {
     switch (strategy) {
-        case stats::performance::Strategy::SCALAR:
+        case stats::detail::Strategy::SCALAR:
             return "Scalar";
-        case stats::performance::Strategy::SIMD_BATCH:
+        case stats::detail::Strategy::SIMD_BATCH:
             return "SIMD";
-        case stats::performance::Strategy::PARALLEL_SIMD:
+        case stats::detail::Strategy::PARALLEL_SIMD:
             return "Parallel+SIMD";
-        case stats::performance::Strategy::WORK_STEALING:
+        case stats::detail::Strategy::WORK_STEALING:
             return "Work-Stealing";
-        case stats::performance::Strategy::GPU_ACCELERATED:
+        case stats::detail::Strategy::GPU_ACCELERATED:
             return "GPU-Accelerated";
         default:
             return "Unknown";
@@ -115,19 +115,19 @@ inline std::string strategyToDisplayString(stats::performance::Strategy strategy
  * @param type The distribution type enum value
  * @return String representation of the distribution type
  */
-inline std::string distributionTypeToString(stats::performance::DistributionType type) {
+inline std::string distributionTypeToString(stats::detail::DistributionType type) {
     switch (type) {
-        case stats::performance::DistributionType::UNIFORM:
+        case stats::detail::DistributionType::UNIFORM:
             return "Uniform";
-        case stats::performance::DistributionType::GAUSSIAN:
+        case stats::detail::DistributionType::GAUSSIAN:
             return "Gaussian";
-        case stats::performance::DistributionType::POISSON:
+        case stats::detail::DistributionType::POISSON:
             return "Poisson";
-        case stats::performance::DistributionType::EXPONENTIAL:
+        case stats::detail::DistributionType::EXPONENTIAL:
             return "Exponential";
-        case stats::performance::DistributionType::DISCRETE:
+        case stats::detail::DistributionType::DISCRETE:
             return "Discrete";
-        case stats::performance::DistributionType::GAMMA:
+        case stats::detail::DistributionType::GAMMA:
             return "Gamma";
         default:
             return "Unknown";
@@ -139,22 +139,22 @@ inline std::string distributionTypeToString(stats::performance::DistributionType
  * @param complexity The computation complexity enum value
  * @return String representation of the complexity
  */
-inline std::string complexityToString(stats::performance::ComputationComplexity complexity) {
+inline std::string complexityToString(stats::detail::ComputationComplexity complexity) {
     switch (complexity) {
-        case stats::performance::ComputationComplexity::SIMPLE:
+        case stats::detail::ComputationComplexity::SIMPLE:
             return "Simple";
-        case stats::performance::ComputationComplexity::MODERATE:
+        case stats::detail::ComputationComplexity::MODERATE:
             return "Moderate";
-        case stats::performance::ComputationComplexity::COMPLEX:
+        case stats::detail::ComputationComplexity::COMPLEX:
             return "Complex";
         default:
             return "Unknown";
     }
 }
-}  // namespace strings
+}  // namespace detail
 
 // Formatting utilities
-namespace format {
+namespace detail {  // format utilities
 /**
  * @brief Formats confidence score as percentage string
  * @param confidence_score Confidence value between 0.0 and 1.0
@@ -210,10 +210,10 @@ inline std::string formatDouble(double value, int precision = 2) {
     oss << std::fixed << std::setprecision(precision) << value;
     return oss.str();
 }
-}  // namespace format
+}  // namespace detail
 
 // Table formatting utilities
-namespace table {
+namespace detail {  // table utilities
 /**
  * @brief Table column formatter for consistent output
  */
@@ -263,10 +263,10 @@ class ColumnFormatter {
    private:
     std::vector<int> widths_;
 };
-}  // namespace table
+}  // namespace detail
 
 // Performance recording utilities
-namespace perf_utils {
+namespace detail {  // perf_utils utilities
 /**
  * @brief Record performance data with automatic unit conversion
  * @param strategy Strategy used
@@ -274,18 +274,18 @@ namespace perf_utils {
  * @param data_size Size of data processed
  * @param time_microseconds Execution time in microseconds
  */
-inline void recordPerformanceMicroseconds(stats::performance::Strategy strategy,
-                                          stats::performance::DistributionType dist_type,
+inline void recordPerformanceMicroseconds(stats::detail::Strategy strategy,
+                                          stats::detail::DistributionType dist_type,
                                           size_t data_size, double time_microseconds) {
     constexpr double MICROSECONDS_TO_NANOSECONDS = 1000.0;
-    stats::performance::PerformanceDispatcher::recordPerformance(
+    stats::detail::PerformanceDispatcher::recordPerformance(
         strategy, dist_type, data_size,
         static_cast<uint64_t>(time_microseconds * MICROSECONDS_TO_NANOSECONDS));
 }
-}  // namespace perf_utils
+}  // namespace detail
 
 // Common display utilities
-namespace display {
+namespace detail {  // display utilities
 /**
  * @brief Display section header with consistent formatting
  * @param title Section title
@@ -306,18 +306,18 @@ inline void sectionHeader(const std::string& title, char separator_char = '=') {
 inline void subsectionHeader(const std::string& title) {
     std::cout << "\n--- " << title << " ---\n";
 }
-}  // namespace display
+}  // namespace detail
 
 // System information display utilities
-namespace system_info {
+namespace detail {  // system_info utilities
 /**
  * @brief Display CPU features in a consistent format
  */
 inline void displayCPUFeatures() {
-    const auto& features = stats::cpu::get_features();
-    display::subsectionHeader("CPU Features");
+    const auto& features = stats::arch::get_features();
+    detail::subsectionHeader("CPU Features");
 
-    table::ColumnFormatter formatter({20, 10, 30});
+    detail::ColumnFormatter formatter({20, 10, 30});
     std::cout << formatter.formatRow({"Feature", "Support", "Description"}) << "\n";
     std::cout << formatter.getSeparator() << "\n";
 
@@ -344,10 +344,10 @@ inline void displayCPUFeatures() {
  * @brief Display cache information in a consistent format
  */
 inline void displayCacheInfo() {
-    const auto& features = stats::cpu::get_features();
-    display::subsectionHeader("Cache Information");
+    const auto& features = stats::arch::get_features();
+    detail::subsectionHeader("Cache Information");
 
-    table::ColumnFormatter formatter({15, 12, 15});
+    detail::ColumnFormatter formatter({15, 12, 15});
     std::cout << formatter.formatRow({"Cache Level", "Size (KB)", "Line Size"}) << "\n";
     std::cout << formatter.getSeparator() << "\n";
 
@@ -368,8 +368,8 @@ inline void displayCacheInfo() {
  * @brief Display system capabilities in a consistent format
  */
 inline void displaySystemCapabilities() {
-    const auto& capabilities = stats::performance::SystemCapabilities::current();
-    display::subsectionHeader("System Capabilities");
+    const auto& capabilities = stats::detail::SystemCapabilities::current();
+    detail::subsectionHeader("System Capabilities");
 
     std::cout << std::left << std::setw(25) << "Logical Cores:" << capabilities.logical_cores()
               << "\n";
@@ -392,7 +392,7 @@ inline void displaySystemCapabilities() {
  * @brief Display active SIMD level
  */
 inline void displaySIMDLevel() {
-    const std::string simd_level = stats::simd::VectorOps::get_active_simd_level();
+    const std::string simd_level = stats::arch::simd::VectorOps::get_active_simd_level();
     std::cout << "Active SIMD Level: " << simd_level << "\n";
 }
 
@@ -400,12 +400,12 @@ inline void displaySIMDLevel() {
  * @brief Display compact system summary for tool headers
  */
 inline void displayCompactSystemInfo() {
-    const auto& features = stats::cpu::get_features();
-    const auto& capabilities = stats::performance::SystemCapabilities::current();
-    const std::string simd_level = stats::simd::VectorOps::get_active_simd_level();
+    const auto& features = stats::arch::get_features();
+    const auto& capabilities = stats::detail::SystemCapabilities::current();
+    const std::string simd_level = stats::arch::simd::VectorOps::get_active_simd_level();
 
     std::cout << "System: " << capabilities.logical_cores() << " logical cores, " << simd_level
-              << " SIMD, " << format::bytesToKB(features.l3_cache_size) << " L3 cache\n";
+              << " SIMD, " << detail::bytesToKB(features.l3_cache_size) << " L3 cache\n";
 }
 
 /**
@@ -414,7 +414,7 @@ inline void displayCompactSystemInfo() {
  * @param description Brief description of the tool
  */
 inline void displayToolHeader(const std::string& tool_name, const std::string& description = "") {
-    display::sectionHeader(tool_name);
+    detail::sectionHeader(tool_name);
     if (!description.empty()) {
         std::cout << description << "\n\n";
     }
@@ -427,7 +427,7 @@ inline void displayToolHeader(const std::string& tool_name, const std::string& d
  * @return String representing the active architecture
  */
 inline std::string getActiveArchitecture() {
-    const auto& features = stats::cpu::get_features();
+    const auto& features = stats::arch::get_features();
 
     if (features.avx512f)
         return "AVX-512";
@@ -446,31 +446,27 @@ inline std::string getActiveArchitecture() {
  * @brief Display adaptive constants information
  */
 inline void displayAdaptiveConstants() {
-    using namespace stats::constants;
-    display::subsectionHeader("Adaptive Constants");
+    using namespace stats::detail;
+    detail::subsectionHeader("Adaptive Constants");
 
-    table::ColumnFormatter formatter({35, 15});
+    detail::ColumnFormatter formatter({35, 15});
     std::cout << formatter.formatRow({"Constant", "Value"}) << "\n";
     std::cout << formatter.getSeparator() << "\n";
 
     std::cout << formatter.formatRow(
                      {"Min Elements for Parallel",
-                      std::to_string(
-                          stats::constants::parallel::adaptive::min_elements_for_parallel())})
+                      std::to_string(arch::parallel::detail::min_elements_for_parallel())})
               << "\n";
     std::cout << formatter.formatRow(
-                     {"Default Grain Size",
-                      std::to_string(stats::constants::parallel::adaptive::grain_size())})
+                     {"Default Grain Size", std::to_string(arch::parallel::detail::grain_size())})
               << "\n";
     std::cout << formatter.formatRow(
                      {"Simple Operation Grain Size",
-                      std::to_string(
-                          stats::constants::parallel::adaptive::simple_operation_grain_size())})
+                      std::to_string(arch::parallel::detail::simple_operation_grain_size())})
               << "\n";
     std::cout << formatter.formatRow(
                      {"Complex Operation Grain Size",
-                      std::to_string(
-                          stats::constants::parallel::adaptive::complex_operation_grain_size())})
+                      std::to_string(arch::parallel::detail::complex_operation_grain_size())})
               << "\n";
 
     std::cout << "\n";
@@ -480,37 +476,39 @@ inline void displayAdaptiveConstants() {
  * @brief Display platform constants information
  */
 inline void displayPlatformConstants() {
-    using namespace stats::constants;
-    display::subsectionHeader("Platform Constants");
+    using namespace stats::detail;
+    detail::subsectionHeader("Platform Constants");
 
-    table::ColumnFormatter formatter({35, 15});
+    detail::ColumnFormatter formatter({35, 15});
     std::cout << formatter.formatRow({"Constant", "Value"}) << "\n";
     std::cout << formatter.getSeparator() << "\n";
 
     std::cout << formatter.formatRow(
                      {"SIMD Block Size",
-                      std::to_string(platform::get_optimal_simd_block_size()) + " doubles"})
-              << "\n";
-    std::cout << formatter.formatRow({"Memory Alignment",
-                                      std::to_string(platform::get_optimal_alignment()) + " bytes"})
+                      std::to_string(stats::arch::get_optimal_simd_block_size()) + " doubles"})
               << "\n";
     std::cout << formatter.formatRow(
-                     {"Min SIMD Size", std::to_string(platform::get_min_simd_size()) + " elements"})
+                     {"Memory Alignment",
+                      std::to_string(stats::arch::get_optimal_alignment()) + " bytes"})
+              << "\n";
+    std::cout << formatter.formatRow(
+                     {"Min SIMD Size",
+                      std::to_string(stats::arch::get_min_simd_size()) + " elements"})
               << "\n";
     std::cout << formatter.formatRow(
                      {"Optimal Grain Size",
-                      std::to_string(platform::get_optimal_grain_size()) + " elements"})
+                      std::to_string(stats::arch::get_optimal_grain_size()) + " elements"})
               << "\n";
     std::cout << formatter.formatRow({"Fast Transcendental Support",
-                                      platform::supports_fast_transcendental() ? "Yes" : "No"})
+                                      stats::arch::supports_fast_transcendental() ? "Yes" : "No"})
               << "\n";
 
     std::cout << "\n";
 }
-}  // namespace system_info
+}  // namespace detail
 
 // Common tool utilities
-namespace tool_utils {
+namespace detail {  // tool_utils utilities
 /**
  * @brief Initialize libstats with error handling
  * @return true if initialization was successful, false otherwise
@@ -549,7 +547,7 @@ inline int runTool(const std::string& tool_name, Func&& func) {
  * @brief Validate CPU feature consistency and print warnings
  */
 inline void validateAndWarnFeatureConsistency() {
-    const auto& features = stats::cpu::get_features();
+    const auto& features = stats::arch::get_features();
 
     // Check for logical inconsistencies
     if (features.avx512f && !features.avx2) {
@@ -612,7 +610,7 @@ inline void printBenchmarkResults(const std::string& operation_name, double seri
               << "Parallel=" << static_cast<int>(parallel_time) << time_unit << ", "
               << "Speedup=" << speedup_str << std::endl;
 }
-}  // namespace tool_utils
+}  // namespace detail
 
-}  // namespace tools
+}  // namespace detail
 }  // namespace stats

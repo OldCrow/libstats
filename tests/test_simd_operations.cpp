@@ -64,7 +64,7 @@ void test_vector_operations() {
         }
 
         // Test dot product
-        double dot_result = simd::VectorOps::dot_product(a.data(), b.data(), size);
+        double dot_result = arch::simd::VectorOps::dot_product(a.data(), b.data(), size);
         double dot_expected = 0.0;
         for (size_t i = 0; i < size; ++i) {
             dot_expected += a[i] * b[i];
@@ -76,7 +76,7 @@ void test_vector_operations() {
         }
 
         // Test vector addition
-        simd::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
+        arch::simd::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = a[i] + b[i];
         }
@@ -87,7 +87,7 @@ void test_vector_operations() {
         }
 
         // Test vector subtraction
-        simd::VectorOps::vector_subtract(a.data(), b.data(), result.data(), size);
+        arch::simd::VectorOps::vector_subtract(a.data(), b.data(), result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = a[i] - b[i];
         }
@@ -98,7 +98,7 @@ void test_vector_operations() {
         }
 
         // Test vector multiplication
-        simd::VectorOps::vector_multiply(a.data(), b.data(), result.data(), size);
+        arch::simd::VectorOps::vector_multiply(a.data(), b.data(), result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = a[i] * b[i];
         }
@@ -110,7 +110,7 @@ void test_vector_operations() {
 
         // Test scalar multiplication
         double scalar = 3.14159;
-        simd::VectorOps::scalar_multiply(a.data(), scalar, result.data(), size);
+        arch::simd::VectorOps::scalar_multiply(a.data(), scalar, result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = a[i] * scalar;
         }
@@ -121,7 +121,7 @@ void test_vector_operations() {
         }
 
         // Test scalar addition
-        simd::VectorOps::scalar_add(a.data(), scalar, result.data(), size);
+        arch::simd::VectorOps::scalar_add(a.data(), scalar, result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = a[i] + scalar;
         }
@@ -152,7 +152,7 @@ void test_transcendental_functions() {
         }
 
         // Test vector_exp
-        simd::VectorOps::vector_exp(values.data(), result.data(), size);
+        arch::simd::VectorOps::vector_exp(values.data(), result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = std::exp(values[i]);
         }
@@ -163,7 +163,7 @@ void test_transcendental_functions() {
         }
 
         // Test vector_log
-        simd::VectorOps::vector_log(values.data(), result.data(), size);
+        arch::simd::VectorOps::vector_log(values.data(), result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = std::log(values[i]);
         }
@@ -175,7 +175,7 @@ void test_transcendental_functions() {
 
         // Test vector_pow
         double exponent = 2.5;
-        simd::VectorOps::vector_pow(values.data(), exponent, result.data(), size);
+        arch::simd::VectorOps::vector_pow(values.data(), exponent, result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = std::pow(values[i], exponent);
         }
@@ -195,7 +195,7 @@ void test_transcendental_functions() {
             }
         }
 
-        simd::VectorOps::vector_erf(erf_values.data(), result.data(), size);
+        arch::simd::VectorOps::vector_erf(erf_values.data(), result.data(), size);
         for (size_t i = 0; i < size; ++i) {
             expected[i] = std::erf(erf_values[i]);
         }
@@ -214,28 +214,28 @@ void test_simd_width_detection() {
     cout << "\n=== TESTING SIMD WIDTH DETECTION ===" << endl;
 
     cout << "Compile-time SIMD widths:" << endl;
-    cout << "  Double vector width: " << simd::double_vector_width() << endl;
-    cout << "  Float vector width: " << simd::float_vector_width() << endl;
-    cout << "  Optimal alignment: " << simd::optimal_alignment() << " bytes" << endl;
-    cout << "  Feature string: " << simd::feature_string() << endl;
+    cout << "  Double vector width: " << arch::simd::double_vector_width() << endl;
+    cout << "  Float vector width: " << arch::simd::float_vector_width() << endl;
+    cout << "  Optimal alignment: " << arch::simd::optimal_alignment() << " bytes" << endl;
+    cout << "  Feature string: " << arch::simd::feature_string() << endl;
 
     cout << "\nRuntime SIMD widths:" << endl;
-    cout << "  Double vector width: " << cpu::optimal_double_width() << endl;
-    cout << "  Float vector width: " << cpu::optimal_float_width() << endl;
-    cout << "  Optimal alignment: " << cpu::optimal_alignment() << " bytes" << endl;
-    cout << "  Best SIMD level: " << cpu::best_simd_level() << endl;
+    cout << "  Double vector width: " << arch::optimal_double_width() << endl;
+    cout << "  Float vector width: " << arch::optimal_float_width() << endl;
+    cout << "  Optimal alignment: " << arch::optimal_alignment() << " bytes" << endl;
+    cout << "  Best SIMD level: " << arch::best_simd_level() << endl;
 
     // Test minimum SIMD sizes
     cout << "\nMinimum SIMD sizes:" << endl;
-    cout << "  Min SIMD size: " << simd::VectorOps::min_simd_size() << endl;
-    cout << "  Should use SIMD (size 1): " << (simd::SIMDPolicy::shouldUseSIMD(1) ? "YES" : "NO")
-         << endl;
-    cout << "  Should use SIMD (size 8): " << (simd::SIMDPolicy::shouldUseSIMD(8) ? "YES" : "NO")
-         << endl;
-    cout << "  Should use SIMD (size 16): " << (simd::SIMDPolicy::shouldUseSIMD(16) ? "YES" : "NO")
-         << endl;
-    cout << "  Should use SIMD (size 32): " << (simd::SIMDPolicy::shouldUseSIMD(32) ? "YES" : "NO")
-         << endl;
+    cout << "  Min SIMD size: " << arch::simd::VectorOps::min_simd_size() << endl;
+    cout << "  Should use SIMD (size 1): "
+         << (arch::simd::SIMDPolicy::shouldUseSIMD(1) ? "YES" : "NO") << endl;
+    cout << "  Should use SIMD (size 8): "
+         << (arch::simd::SIMDPolicy::shouldUseSIMD(8) ? "YES" : "NO") << endl;
+    cout << "  Should use SIMD (size 16): "
+         << (arch::simd::SIMDPolicy::shouldUseSIMD(16) ? "YES" : "NO") << endl;
+    cout << "  Should use SIMD (size 32): "
+         << (arch::simd::SIMDPolicy::shouldUseSIMD(32) ? "YES" : "NO") << endl;
 }
 
 // Test compile-time instruction set detection
@@ -298,16 +298,16 @@ void test_runtime_detection() {
     cout << "\n=== TESTING RUNTIME INSTRUCTION SET DETECTION ===" << endl;
 
     cout << "Runtime instruction set support:" << endl;
-    cout << "  SSE2: " << (cpu::supports_sse2() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
-    cout << "  SSE4.1: " << (cpu::supports_sse4_1() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
-    cout << "  AVX: " << (cpu::supports_avx() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
-    cout << "  AVX2: " << (cpu::supports_avx2() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
-    cout << "  AVX512: " << (cpu::supports_avx512() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
-    cout << "  FMA: " << (cpu::supports_fma() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
-    cout << "  NEON: " << (cpu::supports_neon() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
+    cout << "  SSE2: " << (arch::supports_sse2() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
+    cout << "  SSE4.1: " << (arch::supports_sse4_1() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
+    cout << "  AVX: " << (arch::supports_avx() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
+    cout << "  AVX2: " << (arch::supports_avx2() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
+    cout << "  AVX512: " << (arch::supports_avx512() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
+    cout << "  FMA: " << (arch::supports_fma() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
+    cout << "  NEON: " << (arch::supports_neon() ? "SUPPORTED" : "NOT SUPPORTED") << endl;
 
     // Get detailed CPU information
-    const auto& features = cpu::get_features();
+    const auto& features = arch::get_features();
     cout << "\nCPU Information:" << endl;
     cout << "  Vendor: " << features.vendor << endl;
     cout << "  Brand: " << features.brand << endl;
@@ -329,7 +329,7 @@ void benchmark_performance() {
     // Benchmark vector addition
     auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; ++i) {
-        simd::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
+        arch::simd::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
     }
     auto end = chrono::high_resolution_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -341,7 +341,7 @@ void benchmark_performance() {
     start = chrono::high_resolution_clock::now();
     double dot_result = 0.0;
     for (int i = 0; i < iterations; ++i) {
-        dot_result += simd::VectorOps::dot_product(a.data(), b.data(), size);
+        dot_result += arch::simd::VectorOps::dot_product(a.data(), b.data(), size);
     }
     end = chrono::high_resolution_clock::now();
     duration = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -358,7 +358,7 @@ void benchmark_performance() {
 
     start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; ++i) {
-        simd::VectorOps::vector_exp(values.data(), result.data(), size);
+        arch::simd::VectorOps::vector_exp(values.data(), result.data(), size);
     }
     end = chrono::high_resolution_clock::now();
     duration = chrono::duration_cast<chrono::microseconds>(end - start);

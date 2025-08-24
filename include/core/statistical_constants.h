@@ -9,15 +9,13 @@
  */
 
 namespace stats {
-namespace constants {
-
+namespace detail {
 /// Statistical critical values and commonly used constants
-namespace statistical {
+// Consolidated into detail namespace (was: namespace statistical)
 /// Winitzki's approximation parameter for inverse error function
 inline constexpr double WINITZKI_A = 0.147;
 
 /// Standard normal distribution critical values
-namespace normal {
 /// 90% confidence interval (α = 0.10)
 inline constexpr double Z_90 = 1.645;
 
@@ -35,10 +33,8 @@ inline constexpr double Z_95_ONE_TAIL = 1.645;
 
 /// One-tailed 99% critical value
 inline constexpr double Z_99_ONE_TAIL = 2.326;
-}  // namespace normal
 
 /// Student's t-distribution critical values (selected degrees of freedom)
-namespace t_distribution {
 /// t-critical values for 95% confidence (two-tailed)
 inline constexpr double T_95_DF_1 = 12.706;
 inline constexpr double T_95_DF_2 = 4.303;
@@ -60,10 +56,8 @@ inline constexpr double T_99_DF_10 = 3.169;
 inline constexpr double T_99_DF_20 = 2.845;
 inline constexpr double T_99_DF_30 = 2.750;
 inline constexpr double T_99_DF_INF = 2.576;  // Approaches normal distribution
-}  // namespace t_distribution
 
 /// Chi-square distribution critical values
-namespace chi_square {
 /// 95% confidence critical values for common degrees of freedom
 inline constexpr double CHI2_95_DF_1 = 3.841;
 inline constexpr double CHI2_95_DF_2 = 5.991;
@@ -83,10 +77,8 @@ inline constexpr double CHI2_99_DF_5 = 15.086;
 inline constexpr double CHI2_99_DF_10 = 23.209;
 inline constexpr double CHI2_99_DF_20 = 37.566;
 inline constexpr double CHI2_99_DF_30 = 50.892;
-}  // namespace chi_square
 
 /// F-distribution critical values (selected numerator/denominator df)
-namespace f_distribution {
 /// F-critical values for 95% confidence (α = 0.05)
 inline constexpr double F_95_DF_1_1 = 161.4;
 inline constexpr double F_95_DF_1_5 = 6.61;
@@ -118,8 +110,7 @@ inline constexpr double F_99_DF_5_INF = 3.02;
 inline constexpr double F_99_DF_10_10 = 4.85;
 inline constexpr double F_99_DF_10_20 = 3.37;
 inline constexpr double F_99_DF_10_INF = 2.32;
-}  // namespace f_distribution
-}  // namespace statistical
+// End of consolidated statistical constants
 
-}  // namespace constants
+}  // namespace detail
 }  // namespace stats

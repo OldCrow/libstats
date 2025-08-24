@@ -61,7 +61,7 @@ ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other
     : DistributionBase(std::move(other)) {
     std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     lambda_ = other.lambda_;
-    other.lambda_ = constants::math::ONE;
+    other.lambda_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
     // Cache will be updated on first use
@@ -86,7 +86,7 @@ ExponentialDistribution& ExponentialDistribution::operator=(
             if (std::try_lock(lock1, lock2) == -1) {
                 // Step 3: Move parameters
                 lambda_ = other.lambda_;
-                other.lambda_ = constants::math::ONE;
+                other.lambda_ = detail::ONE;
                 cache_valid_ = false;
                 other.cache_valid_ = false;
                 success = true;
@@ -104,7 +104,7 @@ ExponentialDistribution& ExponentialDistribution::operator=(
 
             // Atomic-like exchange (single assignment is atomic for built-in types)
             lambda_ = other.lambda_;
-            other.lambda_ = constants::math::ONE;
+            other.lambda_ = detail::ONE;
 
             // Cache invalidation was already done atomically above
             cache_valid_ = false;
@@ -218,8 +218,8 @@ VoidResult ExponentialDistribution::trySetParameters(double lambda) noexcept {
 
 double ExponentialDistribution::getProbability(double x) const {
     // Return 0 for negative values
-    if (x < constants::math::ZERO_DOUBLE) {
-        return constants::math::ZERO_DOUBLE;
+    if (x < detail::ZERO_DOUBLE) {
+        return detail::ZERO_DOUBLE;
     }
 
     // Ensure cache is valid
@@ -245,8 +245,8 @@ double ExponentialDistribution::getProbability(double x) const {
 
 double ExponentialDistribution::getLogProbability(double x) const noexcept {
     // Return -∞ for negative values
-    if (x < constants::math::ZERO_DOUBLE) {
-        return constants::probability::NEGATIVE_INFINITY;
+    if (x < detail::ZERO_DOUBLE) {
+        return detail::NEGATIVE_INFINITY;
     }
 
     // Ensure cache is valid
@@ -272,8 +272,8 @@ double ExponentialDistribution::getLogProbability(double x) const noexcept {
 
 double ExponentialDistribution::getCumulativeProbability(double x) const {
     // Return 0 for negative values
-    if (x < constants::math::ZERO_DOUBLE) {
-        return constants::math::ZERO_DOUBLE;
+    if (x < detail::ZERO_DOUBLE) {
+        return detail::ZERO_DOUBLE;
     }
 
     // Ensure cache is valid
@@ -290,22 +290,22 @@ double ExponentialDistribution::getCumulativeProbability(double x) const {
 
     // Fast path for unit exponential (λ = 1)
     if (isUnitRate_) {
-        return constants::math::ONE - std::exp(-x);
+        return detail::ONE - std::exp(-x);
     }
 
     // General case: F(x) = 1 - exp(-λx)
-    return constants::math::ONE - std::exp(negLambda_ * x);
+    return detail::ONE - std::exp(negLambda_ * x);
 }
 
 double ExponentialDistribution::getQuantile(double p) const {
-    if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == constants::math::ZERO_DOUBLE) {
-        return constants::math::ZERO_DOUBLE;
+    if (p == detail::ZERO_DOUBLE) {
+        return detail::ZERO_DOUBLE;
     }
-    if (p == constants::math::ONE) {
+    if (p == detail::ONE) {
         return std::numeric_limits<double>::infinity();
     }
 
@@ -322,11 +322,11 @@ double ExponentialDistribution::getQuantile(double p) const {
 
     // Fast path for unit exponential (λ = 1)
     if (isUnitRate_) {
-        return -std::log(constants::math::ONE - p);
+        return -std::log(detail::ONE - p);
     }
 
     // General case: F^(-1)(p) = -ln(1-p)/λ
-    return -std::log(constants::math::ONE - p) * invLambda_;
+    return -std::log(detail::ONE - p) * invLambda_;
 }
 
 double ExponentialDistribution::sample(std::mt19937& rng) const {
@@ -342,8 +342,7 @@ double ExponentialDistribution::sample(std::mt19937& rng) const {
     }
 
     // Use high-quality uniform distribution
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
-                                                   constants::math::ONE);
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
 
     double u = uniform(rng);
 
@@ -379,8 +378,7 @@ std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n)
     lock.unlock();  // Release lock before generation
 
     // Use high-quality uniform distribution for batch generation
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
-                                                   constants::math::ONE);
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
 
     // Generate samples using inverse transform method: X = -ln(U)/λ
     for (size_t i = 0; i < n; ++i) {
@@ -409,21 +407,20 @@ void ExponentialDistribution::fit(const std::vector<double>& values) {
 
     // C++20 best practices: Use ranges and views for safe validation
     // Check for non-positive values using ranges algorithms
-    if (!std::ranges::all_of(values,
-                             [](double value) { return value > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(values, [](double value) { return value > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument("Exponential distribution requires positive values");
     }
 
     // Calculate mean using standard accumulate (following Gaussian pattern)
-    const double sum = std::accumulate(values.begin(), values.end(), constants::math::ZERO_DOUBLE);
+    const double sum = std::accumulate(values.begin(), values.end(), detail::ZERO_DOUBLE);
     const double sample_mean = sum / static_cast<double>(values.size());
 
-    if (sample_mean <= constants::math::ZERO_DOUBLE) {
+    if (sample_mean <= detail::ZERO_DOUBLE) {
         throw std::invalid_argument("Sample mean must be positive for exponential distribution");
     }
 
     // Set parameters (this will validate and invalidate cache)
-    setLambda(constants::math::ONE / sample_mean);
+    setLambda(detail::ONE / sample_mean);
 }
 
 void ExponentialDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
@@ -442,7 +439,7 @@ void ExponentialDistribution::parallelBatchFit(const std::vector<std::vector<dou
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (parallel::shouldUseDistributionParallel("exponential", "batch_fit", num_datasets)) {
+    if (arch::shouldUseDistributionParallel("exponential", "batch_fit", num_datasets)) {
         // Thread-safe parallel execution with proper exception handling
         // Use a static mutex to synchronize access to the global thread pool from multiple threads
         static std::mutex pool_access_mutex;
@@ -568,7 +565,7 @@ void ExponentialDistribution::parallelBatchFit(const std::vector<std::vector<dou
 
 void ExponentialDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    lambda_ = constants::math::ONE;
+    lambda_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
 }
@@ -590,37 +587,35 @@ std::pair<double, double> ExponentialDistribution::confidenceIntervalRate(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (confidence_level <= constants::math::ZERO_DOUBLE ||
-        confidence_level >= constants::math::ONE) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
 
     const std::size_t n = data.size();
-    const double sample_sum =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
 
     // For exponential distribution, confidence interval for λ using chi-squared distribution
     // The exact statistic is: 2n*X̄*λ ~ χ²(2n), where X̄ is the sample mean
     // Rearranging: λ ~ χ²(2n) / (2n*X̄) = χ²(2n) / (2*ΣXᵢ)
     // For confidence interval: P(χ²_{α/2,2n} < 2n*X̄*λ < χ²_{1-α/2,2n}) = confidence_level
-    const double alpha = constants::math::ONE - confidence_level;
-    const double dof = constants::math::TWO * static_cast<double>(n);
+    const double alpha = detail::ONE - confidence_level;
+    const double dof = detail::TWO * static_cast<double>(n);
 
     // Get chi-squared quantiles - note the order for proper bounds
-    const double chi_lower = math::inverse_chi_squared_cdf(alpha * constants::math::HALF, dof);
+    const double chi_lower = detail::inverse_chi_squared_cdf(alpha * detail::HALF, dof);
     const double chi_upper =
-        math::inverse_chi_squared_cdf(constants::math::ONE - alpha * constants::math::HALF, dof);
+        detail::inverse_chi_squared_cdf(detail::ONE - alpha * detail::HALF, dof);
 
     // Transform to rate parameter confidence interval
     // λ_lower = χ²{α/2,2n} / (2*ΣXᵢ), λ_upper = χ²{1-α/2,2n} / (2*ΣXᵢ)
-    const double lambda_lower = chi_lower / (constants::math::TWO * sample_sum);
-    const double lambda_upper = chi_upper / (constants::math::TWO * sample_sum);
+    const double lambda_lower = chi_lower / (detail::TWO * sample_sum);
+    const double lambda_upper = chi_upper / (detail::TWO * sample_sum);
 
     return {lambda_lower, lambda_upper};
 }
@@ -631,8 +626,8 @@ std::pair<double, double> ExponentialDistribution::confidenceIntervalScale(
     const auto [lambda_lower, lambda_upper] = confidenceIntervalRate(data, confidence_level);
 
     // Transform to scale parameter (reciprocal relationship)
-    const double scale_lower = constants::math::ONE / lambda_upper;
-    const double scale_upper = constants::math::ONE / lambda_lower;
+    const double scale_lower = detail::ONE / lambda_upper;
+    const double scale_upper = detail::ONE / lambda_lower;
 
     return {scale_lower, scale_upper};
 }
@@ -643,25 +638,24 @@ std::tuple<double, double, bool> ExponentialDistribution::likelihoodRatioTest(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (null_lambda <= constants::math::ZERO_DOUBLE) {
+    if (null_lambda <= detail::ZERO_DOUBLE) {
         throw std::invalid_argument("Null hypothesis lambda must be positive");
     }
 
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
 
     const std::size_t n = data.size();
-    const double sample_sum =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
     const double sample_mean = sample_sum / static_cast<double>(n);
-    const double mle_lambda = constants::math::ONE / sample_mean;
+    const double mle_lambda = detail::ONE / sample_mean;
 
     // Log-likelihood under null hypothesis: n*ln(λ₀) - λ₀*Σxᵢ
     const double log_likelihood_null =
@@ -672,11 +666,10 @@ std::tuple<double, double, bool> ExponentialDistribution::likelihoodRatioTest(
         static_cast<double>(n) * std::log(mle_lambda) - static_cast<double>(n);
 
     // Likelihood ratio statistic: -2ln(Λ) = 2(ℓ(λ̂) - ℓ(λ₀))
-    const double lr_statistic = constants::math::TWO * (log_likelihood_alt - log_likelihood_null);
+    const double lr_statistic = detail::TWO * (log_likelihood_alt - log_likelihood_null);
 
     // Under H₀: LR ~ χ²(1)
-    const double p_value =
-        constants::math::ONE - math::chi_squared_cdf(lr_statistic, constants::math::ONE);
+    const double p_value = detail::ONE - detail::chi_squared_cdf(lr_statistic, detail::ONE);
     const bool reject_null = p_value < alpha;
 
     return {lr_statistic, p_value, reject_null};
@@ -688,19 +681,18 @@ std::pair<double, double> ExponentialDistribution::bayesianEstimation(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (prior_shape <= constants::math::ZERO_DOUBLE || prior_rate <= constants::math::ZERO_DOUBLE) {
+    if (prior_shape <= detail::ZERO_DOUBLE || prior_rate <= detail::ZERO_DOUBLE) {
         throw std::invalid_argument("Prior parameters must be positive");
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
 
     const std::size_t n = data.size();
-    const double sample_sum =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
 
     // Posterior parameters for Gamma(α, β) conjugate prior
     // Prior: λ ~ Gamma(α, β)
@@ -715,8 +707,7 @@ std::pair<double, double> ExponentialDistribution::bayesianEstimation(
 std::pair<double, double> ExponentialDistribution::bayesianCredibleInterval(
     const std::vector<double>& data, double credibility_level, double prior_shape,
     double prior_rate) {
-    if (credibility_level <= constants::math::ZERO_DOUBLE ||
-        credibility_level >= constants::math::ONE) {
+    if (credibility_level <= detail::ZERO_DOUBLE || credibility_level >= detail::ONE) {
         throw std::invalid_argument("Credibility level must be between 0 and 1");
     }
 
@@ -725,11 +716,10 @@ std::pair<double, double> ExponentialDistribution::bayesianCredibleInterval(
 
     // Calculate credible interval from posterior Gamma distribution
     // For now, use a simple approximation - implement proper gamma quantile later
-    [[maybe_unused]] const double alpha = constants::math::ONE - credibility_level;
+    [[maybe_unused]] const double alpha = detail::ONE - credibility_level;
     const double mean = post_shape / post_rate;
     const double std_dev = std::sqrt(post_shape) / post_rate;
-    const double z_alpha_2 =
-        constants::math::ONE + constants::math::HALF;  // Approximate normal quantile
+    const double z_alpha_2 = detail::ONE + detail::HALF;  // Approximate normal quantile
     const double lower_quantile = mean - z_alpha_2 * std_dev;
     const double upper_quantile = mean + z_alpha_2 * std_dev;
 
@@ -743,13 +733,12 @@ double ExponentialDistribution::robustEstimation(const std::vector<double>& data
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (trim_proportion < constants::math::ZERO_DOUBLE ||
-        trim_proportion >= constants::math::HALF) {
+    if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion >= detail::HALF) {
         throw std::invalid_argument("Trim proportion must be between 0 and 0.5");
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -790,10 +779,10 @@ double ExponentialDistribution::robustEstimation(const std::vector<double>& data
 
     // Calculate robust mean
     const double robust_sum =
-        std::accumulate(sorted_data.begin(), sorted_data.end(), constants::math::ZERO_DOUBLE);
+        std::accumulate(sorted_data.begin(), sorted_data.end(), detail::ZERO_DOUBLE);
     const double robust_mean = robust_sum / static_cast<double>(sorted_data.size());
 
-    return constants::math::ONE / robust_mean;
+    return detail::ONE / robust_mean;
 }
 
 double ExponentialDistribution::methodOfMomentsEstimation(const std::vector<double>& data) {
@@ -802,17 +791,16 @@ double ExponentialDistribution::methodOfMomentsEstimation(const std::vector<doub
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
 
     // For exponential distribution: E[X] = 1/λ, so λ = 1/sample_mean
-    const double sample_sum =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
     const double sample_mean = sample_sum / static_cast<double>(data.size());
 
-    return constants::math::ONE / sample_mean;
+    return detail::ONE / sample_mean;
 }
 
 double ExponentialDistribution::lMomentsEstimation(const std::vector<double>& data) {
@@ -821,7 +809,7 @@ double ExponentialDistribution::lMomentsEstimation(const std::vector<double>& da
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -832,7 +820,7 @@ double ExponentialDistribution::lMomentsEstimation(const std::vector<double>& da
     std::ranges::sort(sorted_data);
 
     const std::size_t n = sorted_data.size();
-    double l1 = constants::math::ZERO_DOUBLE;  // First L-moment (mean)
+    double l1 = detail::ZERO_DOUBLE;  // First L-moment (mean)
 
     // Calculate L₁ using order statistics
     for (std::size_t i = 0; i < n; ++i) {
@@ -840,7 +828,7 @@ double ExponentialDistribution::lMomentsEstimation(const std::vector<double>& da
     }
     l1 /= static_cast<double>(n);
 
-    return constants::math::ONE / l1;
+    return detail::ONE / l1;
 }
 
 std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariationTest(
@@ -848,12 +836,12 @@ std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariation
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -865,11 +853,11 @@ std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariation
     }
 
     // Calculate sample mean and sample standard deviation
-    const double sum = std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE);
+    const double sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
     const double sample_mean = sum / static_cast<double>(n);
 
     // Calculate sample variance (unbiased estimator)
-    double sum_squared_deviations = constants::math::ZERO_DOUBLE;
+    double sum_squared_deviations = detail::ZERO_DOUBLE;
     for (double value : data) {
         const double deviation = value - sample_mean;
         sum_squared_deviations += deviation * deviation;
@@ -882,16 +870,15 @@ std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariation
 
     // For exponential distribution, the theoretical CV = 1
     // Test statistic: how far the observed CV is from 1
-    const double cv_statistic = std::abs(cv - constants::math::ONE);
+    const double cv_statistic = std::abs(cv - detail::ONE);
 
     // For large n, the CV of exponential follows approximately normal distribution
     // with mean = 1 and variance ≈ 1/n (asymptotic result)
-    const double cv_std_error = constants::math::ONE / std::sqrt(static_cast<double>(n));
+    const double cv_std_error = detail::ONE / std::sqrt(static_cast<double>(n));
     const double z_statistic = cv_statistic / cv_std_error;
 
     // Two-tailed test p-value using normal approximation
-    const double p_value =
-        constants::math::TWO * (constants::math::ONE - math::normal_cdf(z_statistic));
+    const double p_value = detail::TWO * (detail::ONE - detail::normal_cdf(z_statistic));
 
     const bool reject_null = p_value < alpha;
 
@@ -907,28 +894,27 @@ std::tuple<double, double, bool> ExponentialDistribution::kolmogorovSmirnovTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
 
     // Use the overflow-safe KS statistic calculation from math_utils
-    double ks_statistic = math::calculate_ks_statistic(data, distribution);
+    double ks_statistic = detail::calculate_ks_statistic(data, distribution);
 
     // Asymptotic p-value approximation for KS test
     // P-value ≈ 2 * exp(-2 * n * D²) for large n
     const double n_double = static_cast<double>(data.size());
-    const double p_value_approx = constants::math::TWO * std::exp(-constants::math::TWO * n_double *
-                                                                  ks_statistic * ks_statistic);
+    const double p_value_approx =
+        detail::TWO * std::exp(-detail::TWO * n_double * ks_statistic * ks_statistic);
 
     // Clamp p-value to [0, 1]
-    const double p_value =
-        std::min(constants::math::ONE, std::max(constants::math::ZERO_DOUBLE, p_value_approx));
+    const double p_value = std::min(detail::ONE, std::max(detail::ZERO_DOUBLE, p_value_approx));
 
     const bool reject_null = p_value < alpha;
 
@@ -940,34 +926,34 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
 
     // Use the overflow-safe AD statistic calculation from math_utils
-    double ad_statistic = math::calculate_ad_statistic(data, distribution);
+    double ad_statistic = detail::calculate_ad_statistic(data, distribution);
 
     // Adjust for exponential distribution (modification for known parameters)
     // For exponential distribution with estimated parameter, adjust the statistic
     const size_t n = data.size();
     const double n_double = static_cast<double>(n);
-    const double ad_adjusted = ad_statistic * (constants::math::ONE + 0.6 / n_double);
+    const double ad_adjusted = ad_statistic * (detail::ONE + 0.6 / n_double);
 
     // Improved p-value approximation for exponential distribution Anderson-Darling test
     // Based on D'Agostino and Stephens (1986) formulas for exponential distribution
     // with enhanced handling for large statistics
     double p_value;
     if (ad_adjusted < 0.2) {
-        p_value = constants::math::ONE -
+        p_value = detail::ONE -
                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
     } else if (ad_adjusted < 0.34) {
-        p_value = constants::math::ONE -
+        p_value = detail::ONE -
                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
     } else if (ad_adjusted < 0.6) {
         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
@@ -976,11 +962,11 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
     } else {
         // For very large AD statistics, p-value should be very small (close to 0)
         // Use asymptotic approximation for extreme values
-        p_value = std::exp(-ad_adjusted * constants::math::TWO);
+        p_value = std::exp(-ad_adjusted * detail::TWO);
     }
 
     // Clamp p-value to [0, 1]
-    p_value = std::min(constants::math::ONE, std::max(constants::math::ZERO_DOUBLE, p_value));
+    p_value = std::min(detail::ONE, std::max(detail::ZERO_DOUBLE, p_value));
 
     const bool reject_null = p_value < alpha;
 
@@ -1001,7 +987,7 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -1040,17 +1026,17 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
         }
 
         // Fit model on training data (MLE estimation)
-        const double training_sum = std::accumulate(training_data.begin(), training_data.end(),
-                                                    constants::math::ZERO_DOUBLE);
+        const double training_sum =
+            std::accumulate(training_data.begin(), training_data.end(), detail::ZERO_DOUBLE);
         const double training_mean = training_sum / static_cast<double>(training_data.size());
-        const double fitted_rate = constants::math::ONE / training_mean;
+        const double fitted_rate = detail::ONE / training_mean;
 
         ExponentialDistribution fitted_model(fitted_rate);
 
         // Evaluate on validation data
         std::vector<double> absolute_errors;
         std::vector<double> squared_errors;
-        double log_likelihood = constants::math::ZERO_DOUBLE;
+        double log_likelihood = detail::ZERO_DOUBLE;
 
         absolute_errors.reserve(validation_data.size());
         squared_errors.reserve(validation_data.size());
@@ -1058,7 +1044,7 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
         // Calculate prediction errors and log-likelihood
         for (double val : validation_data) {
             // For exponential distribution, the "prediction" is the mean (1/λ)
-            const double predicted_mean = constants::math::ONE / fitted_rate;
+            const double predicted_mean = detail::ONE / fitted_rate;
 
             const double absolute_error = std::abs(val - predicted_mean);
             const double squared_error = (val - predicted_mean) * (val - predicted_mean);
@@ -1070,12 +1056,12 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
         }
 
         // Calculate MAE and RMSE
-        const double mae = std::accumulate(absolute_errors.begin(), absolute_errors.end(),
-                                           constants::math::ZERO_DOUBLE) /
-                           static_cast<double>(absolute_errors.size());
-        const double mse = std::accumulate(squared_errors.begin(), squared_errors.end(),
-                                           constants::math::ZERO_DOUBLE) /
-                           static_cast<double>(squared_errors.size());
+        const double mae =
+            std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
+            static_cast<double>(absolute_errors.size());
+        const double mse =
+            std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
+            static_cast<double>(squared_errors.size());
         const double rmse = std::sqrt(mse);
 
         results.emplace_back(mae, rmse, log_likelihood);
@@ -1091,7 +1077,7 @@ std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossVali
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -1099,7 +1085,7 @@ std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossVali
     const size_t n = data.size();
     std::vector<double> absolute_errors;
     std::vector<double> squared_errors;
-    double total_log_likelihood = constants::math::ZERO_DOUBLE;
+    double total_log_likelihood = detail::ZERO_DOUBLE;
 
     absolute_errors.reserve(n);
     squared_errors.reserve(n);
@@ -1116,16 +1102,16 @@ std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossVali
         }
 
         // Fit model on training data (MLE estimation)
-        const double training_sum = std::accumulate(training_data.begin(), training_data.end(),
-                                                    constants::math::ZERO_DOUBLE);
+        const double training_sum =
+            std::accumulate(training_data.begin(), training_data.end(), detail::ZERO_DOUBLE);
         const double training_mean = training_sum / static_cast<double>(training_data.size());
-        const double fitted_rate = constants::math::ONE / training_mean;
+        const double fitted_rate = detail::ONE / training_mean;
 
         ExponentialDistribution fitted_model(fitted_rate);
 
         // Evaluate on left-out point
         // For exponential distribution, the "prediction" is the mean (1/λ)
-        const double predicted_mean = constants::math::ONE / fitted_rate;
+        const double predicted_mean = detail::ONE / fitted_rate;
         const double actual_value = data[i];
 
         const double absolute_error = std::abs(actual_value - predicted_mean);
@@ -1140,12 +1126,11 @@ std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossVali
 
     // Calculate summary statistics
     const double mean_absolute_error =
-        std::accumulate(absolute_errors.begin(), absolute_errors.end(),
-                        constants::math::ZERO_DOUBLE) /
+        std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
         static_cast<double>(n);
-    const double mean_squared_error = std::accumulate(squared_errors.begin(), squared_errors.end(),
-                                                      constants::math::ZERO_DOUBLE) /
-                                      static_cast<double>(n);
+    const double mean_squared_error =
+        std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
+        static_cast<double>(n);
     const double root_mean_squared_error = std::sqrt(mean_squared_error);
 
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
@@ -1162,7 +1147,7 @@ std::tuple<double, double, double, double> ExponentialDistribution::computeInfor
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -1171,22 +1156,21 @@ std::tuple<double, double, double, double> ExponentialDistribution::computeInfor
     const int k = 1;  // Exponential distribution has 1 parameter (λ)
 
     // Calculate log-likelihood
-    double log_likelihood = constants::math::ZERO_DOUBLE;
+    double log_likelihood = detail::ZERO_DOUBLE;
     for (double val : data) {
         log_likelihood += fitted_distribution.getLogProbability(val);
     }
 
     // Compute information criteria
-    const double aic =
-        constants::math::TWO * static_cast<double>(k) - constants::math::TWO * log_likelihood;
-    const double bic = std::log(n) * static_cast<double>(k) - constants::math::TWO * log_likelihood;
+    const double aic = detail::TWO * static_cast<double>(k) - detail::TWO * log_likelihood;
+    const double bic = std::log(n) * static_cast<double>(k) - detail::TWO * log_likelihood;
 
     // AICc (corrected AIC for small sample sizes)
     double aicc;
-    if (n - static_cast<double>(k) - constants::math::ONE > constants::math::ZERO_DOUBLE) {
-        aicc = aic + (constants::math::TWO * static_cast<double>(k) *
-                      (static_cast<double>(k) + constants::math::ONE)) /
-                         (n - static_cast<double>(k) - constants::math::ONE);
+    if (n - static_cast<double>(k) - detail::ONE > detail::ZERO_DOUBLE) {
+        aicc =
+            aic + (detail::TWO * static_cast<double>(k) * (static_cast<double>(k) + detail::ONE)) /
+                      (n - static_cast<double>(k) - detail::ONE);
     } else {
         aicc = std::numeric_limits<double>::infinity();  // Undefined for small samples
     }
@@ -1204,8 +1188,7 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (confidence_level <= constants::math::ZERO_DOUBLE ||
-        confidence_level >= constants::math::ONE) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
     if (n_bootstrap <= 0) {
@@ -1213,7 +1196,7 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > constants::math::ZERO_DOUBLE; })) {
+    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -1236,10 +1219,10 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
         }
 
         // Estimate rate parameter for bootstrap sample (MLE)
-        const double bootstrap_sum = std::accumulate(
-            bootstrap_sample.begin(), bootstrap_sample.end(), constants::math::ZERO_DOUBLE);
+        const double bootstrap_sum =
+            std::accumulate(bootstrap_sample.begin(), bootstrap_sample.end(), detail::ZERO_DOUBLE);
         const double bootstrap_mean = bootstrap_sum / static_cast<double>(bootstrap_sample.size());
-        const double bootstrap_rate = constants::math::ONE / bootstrap_mean;
+        const double bootstrap_rate = detail::ONE / bootstrap_mean;
 
         bootstrap_rates.push_back(bootstrap_rate);
     }
@@ -1248,9 +1231,9 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
     std::sort(bootstrap_rates.begin(), bootstrap_rates.end());
 
     // Calculate confidence intervals using percentile method
-    const double alpha = constants::math::ONE - confidence_level;
-    const double lower_percentile = alpha * constants::math::HALF;
-    const double upper_percentile = constants::math::ONE - alpha * constants::math::HALF;
+    const double alpha = detail::ONE - confidence_level;
+    const double lower_percentile = alpha * detail::HALF;
+    const double upper_percentile = detail::ONE - alpha * detail::HALF;
 
     const size_t lower_idx = static_cast<size_t>(lower_percentile * (n_bootstrap - 1));
     const size_t upper_idx = static_cast<size_t>(upper_percentile * (n_bootstrap - 1));
@@ -1271,11 +1254,11 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
 
 void ExponentialDistribution::getProbability(std::span<const double> values,
                                              std::span<double> results,
-                                             const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
+                                             const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        performance::DistributionTraits<ExponentialDistribution>::distType(),
-        performance::DistributionTraits<ExponentialDistribution>::complexity(),
+        detail::DistributionTraits<ExponentialDistribution>::distType(),
+        detail::DistributionTraits<ExponentialDistribution>::complexity(),
         [](const ExponentialDistribution& dist, double value) {
             return dist.getProbability(value);
         },
@@ -1330,11 +1313,11 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                    if (x < detail::ZERO_DOUBLE) {
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (cached_is_unit_rate) {
                         res[i] = std::exp(-x);
                     } else {
@@ -1345,8 +1328,8 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                    if (x < detail::ZERO_DOUBLE) {
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (cached_is_unit_rate) {
                         res[i] = std::exp(-x);
                     } else {
@@ -1387,8 +1370,8 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
                     res[i] = std::exp(-x);
                 } else {
@@ -1430,8 +1413,8 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
             // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
                     res[i] = std::exp(-x);
                 } else {
@@ -1443,11 +1426,11 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
 
 void ExponentialDistribution::getLogProbability(std::span<const double> values,
                                                 std::span<double> results,
-                                                const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
+                                                const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        performance::DistributionTraits<ExponentialDistribution>::distType(),
-        performance::DistributionTraits<ExponentialDistribution>::complexity(),
+        detail::DistributionTraits<ExponentialDistribution>::distType(),
+        detail::DistributionTraits<ExponentialDistribution>::complexity(),
         [](const ExponentialDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -1503,11 +1486,11 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    if (x < detail::ZERO_DOUBLE) {
+                        res[i] = detail::NEGATIVE_INFINITY;
                     } else if (cached_is_unit_rate) {
                         res[i] = -x;
                     } else {
@@ -1518,8 +1501,8 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                    if (x < detail::ZERO_DOUBLE) {
+                        res[i] = detail::NEGATIVE_INFINITY;
                     } else if (cached_is_unit_rate) {
                         res[i] = -x;
                     } else {
@@ -1560,8 +1543,8 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_rate) {
                     res[i] = -x;
                 } else {
@@ -1603,8 +1586,8 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_rate) {
                     res[i] = -x;
                 } else {
@@ -1614,13 +1597,13 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
         });
 }
 
-void ExponentialDistribution::getCumulativeProbability(
-    std::span<const double> values, std::span<double> results,
-    const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
+void ExponentialDistribution::getCumulativeProbability(std::span<const double> values,
+                                                       std::span<double> results,
+                                                       const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        performance::DistributionTraits<ExponentialDistribution>::distType(),
-        performance::DistributionTraits<ExponentialDistribution>::complexity(),
+        detail::DistributionTraits<ExponentialDistribution>::distType(),
+        detail::DistributionTraits<ExponentialDistribution>::complexity(),
         [](const ExponentialDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -1673,27 +1656,27 @@ void ExponentialDistribution::getCumulativeProbability(
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                    if (x < detail::ZERO_DOUBLE) {
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (cached_is_unit_rate) {
-                        res[i] = constants::math::ONE - std::exp(-x);
+                        res[i] = detail::ONE - std::exp(-x);
                     } else {
-                        res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                        res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                     }
                 });
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x < constants::math::ZERO_DOUBLE) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                    if (x < detail::ZERO_DOUBLE) {
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (cached_is_unit_rate) {
-                        res[i] = constants::math::ONE - std::exp(-x);
+                        res[i] = detail::ONE - std::exp(-x);
                     } else {
-                        res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                        res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                     }
                 }
             }
@@ -1729,12 +1712,12 @@ void ExponentialDistribution::getCumulativeProbability(
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
-                    res[i] = constants::math::ONE - std::exp(-x);
+                    res[i] = detail::ONE - std::exp(-x);
                 } else {
-                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
         },
@@ -1771,12 +1754,12 @@ void ExponentialDistribution::getCumulativeProbability(
             // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
-                    res[i] = constants::math::ONE - std::exp(-x);
+                    res[i] = detail::ONE - std::exp(-x);
                 } else {
-                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
         });
@@ -1788,13 +1771,13 @@ void ExponentialDistribution::getCumulativeProbability(
 
 void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                          std::span<double> results,
-                                                         performance::Strategy strategy) const {
+                                                         detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getProbability(value);
@@ -1852,8 +1835,8 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
                     res[i] = std::exp(-x);
                 } else {
@@ -1893,8 +1876,8 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
                     res[i] = std::exp(-x);
                 } else {
@@ -1936,8 +1919,8 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
             // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
                     res[i] = std::exp(-x);
                 } else {
@@ -1949,13 +1932,13 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
 
 void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                             std::span<double> results,
-                                                            performance::Strategy strategy) const {
+                                                            detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getLogProbability(value);
@@ -2014,8 +1997,8 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_rate) {
                     res[i] = -x;
                 } else {
@@ -2055,8 +2038,8 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_rate) {
                     res[i] = -x;
                 } else {
@@ -2098,8 +2081,8 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
             // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_rate) {
                     res[i] = -x;
                 } else {
@@ -2110,14 +2093,13 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
 }
 
 void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
-    std::span<const double> values, std::span<double> results,
-    performance::Strategy strategy) const {
+    std::span<const double> values, std::span<double> results, detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
@@ -2173,12 +2155,12 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
-                    res[i] = constants::math::ONE - std::exp(-x);
+                    res[i] = detail::ONE - std::exp(-x);
                 } else {
-                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
         },
@@ -2213,12 +2195,12 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
-                    res[i] = constants::math::ONE - std::exp(-x);
+                    res[i] = detail::ONE - std::exp(-x);
                 } else {
-                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
         },
@@ -2255,12 +2237,12 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
             // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                if (x < detail::ZERO_DOUBLE) {
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (cached_is_unit_rate) {
-                    res[i] = constants::math::ONE - std::exp(-x);
+                    res[i] = detail::ONE - std::exp(-x);
                 } else {
-                    res[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
         });
@@ -2275,7 +2257,7 @@ bool ExponentialDistribution::operator==(const ExponentialDistribution& other) c
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
 
-    return std::abs(lambda_ - other.lambda_) <= constants::precision::DEFAULT_TOLERANCE;
+    return std::abs(lambda_ - other.lambda_) <= detail::DEFAULT_TOLERANCE;
 }
 
 //==============================================================================
@@ -2346,12 +2328,11 @@ void ExponentialDistribution::getProbabilityBatchUnsafeImpl(
     double cached_neg_lambda) const noexcept {
     for (size_t i = 0; i < count; ++i) {
         const double x = values[i];
-        if (x < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::math::ZERO_DOUBLE;
+        if (x < detail::ZERO_DOUBLE) {
+            results[i] = detail::ZERO_DOUBLE;
         } else {
             // Fast path check for unit rate (λ = 1)
-            if (std::abs(cached_lambda - constants::math::ONE) <=
-                constants::precision::DEFAULT_TOLERANCE) {
+            if (std::abs(cached_lambda - detail::ONE) <= detail::DEFAULT_TOLERANCE) {
                 results[i] = std::exp(-x);
             } else {
                 results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
@@ -2365,12 +2346,11 @@ void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(
     double cached_neg_lambda) const noexcept {
     for (size_t i = 0; i < count; ++i) {
         const double x = values[i];
-        if (x < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::probability::NEGATIVE_INFINITY;
+        if (x < detail::ZERO_DOUBLE) {
+            results[i] = detail::NEGATIVE_INFINITY;
         } else {
             // Fast path check for unit rate (λ = 1)
-            if (std::abs(cached_log_lambda - constants::math::ZERO_DOUBLE) <=
-                constants::precision::DEFAULT_TOLERANCE) {
+            if (std::abs(cached_log_lambda - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) {
                 results[i] = -x;
             } else {
                 results[i] = cached_log_lambda + cached_neg_lambda * x;
@@ -2383,15 +2363,14 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, size_t count, double cached_neg_lambda) const noexcept {
     for (size_t i = 0; i < count; ++i) {
         const double x = values[i];
-        if (x < constants::math::ZERO_DOUBLE) {
-            results[i] = constants::math::ZERO_DOUBLE;
+        if (x < detail::ZERO_DOUBLE) {
+            results[i] = detail::ZERO_DOUBLE;
         } else {
             // Fast path check for unit rate (λ = 1)
-            if (std::abs(cached_neg_lambda + constants::math::ONE) <=
-                constants::precision::DEFAULT_TOLERANCE) {
-                results[i] = constants::math::ONE - std::exp(-x);
+            if (std::abs(cached_neg_lambda + detail::ONE) <= detail::DEFAULT_TOLERANCE) {
+                results[i] = detail::ONE - std::exp(-x);
             } else {
-                results[i] = constants::math::ONE - std::exp(cached_neg_lambda * x);
+                results[i] = detail::ONE - std::exp(cached_neg_lambda * x);
             }
         }
     }

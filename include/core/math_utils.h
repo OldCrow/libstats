@@ -17,7 +17,7 @@
  */
 
 namespace stats {
-namespace math {
+namespace detail {
 
 // =============================================================================
 // C++20 CONCEPTS FOR TYPE SAFETY (imported from utility_common.h)
@@ -126,7 +126,7 @@ void vector_gamma_p(double a, std::span<const double> x_values, std::span<double
  * @brief Vectorized regularized incomplete gamma function Q(a,x) using SIMD
  * @param a Shape parameter (constant for all x values)
  * @param x_values Input x values
- * @param output Output array for gamma_q(a, x_values[i])
+ * @param output Output array for math::gamma_q(a, x_values[i])
  */
 void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept;
 
@@ -185,7 +185,7 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
  */
 template <MathFunction<double> F>
 [[nodiscard]] double adaptive_simpson(F&& func, double lower_bound, double upper_bound,
-                                      double tolerance = constants::precision::DEFAULT_TOLERANCE,
+                                      double tolerance = detail::DEFAULT_TOLERANCE,
                                       int max_depth = 20) noexcept;
 
 /**
@@ -215,7 +215,7 @@ template <MathFunction<double> F>
  */
 template <MathFunction<double> F, MathFunction<double> DF>
 [[nodiscard]] double newton_raphson(F&& func, DF&& derivative, double initial_guess,
-                                    double tolerance = constants::precision::DEFAULT_TOLERANCE,
+                                    double tolerance = detail::DEFAULT_TOLERANCE,
                                     int max_iterations = 100) noexcept;
 
 /**
@@ -230,7 +230,7 @@ template <MathFunction<double> F, MathFunction<double> DF>
  */
 template <MathFunction<double> F>
 [[nodiscard]] double brent_root(F&& func, double lower_bound, double upper_bound,
-                                double tolerance = constants::precision::DEFAULT_TOLERANCE,
+                                double tolerance = detail::DEFAULT_TOLERANCE,
                                 int max_iterations = 100) noexcept;
 
 /**
@@ -242,9 +242,8 @@ template <MathFunction<double> F>
  * @return Minimum location
  */
 template <MathFunction<double> F>
-[[nodiscard]] double golden_section_search(
-    F&& func, double lower_bound, double upper_bound,
-    double tolerance = constants::precision::DEFAULT_TOLERANCE) noexcept;
+[[nodiscard]] double golden_section_search(F&& func, double lower_bound, double upper_bound,
+                                           double tolerance = detail::DEFAULT_TOLERANCE) noexcept;
 
 // =============================================================================
 // STATISTICAL DISTRIBUTION FUNCTIONS
@@ -370,7 +369,7 @@ template <MathFunction<double> F>
 // GOODNESS-OF-FIT TESTING
 // =============================================================================
 
-}  // namespace math
+}  // namespace detail
 }  // namespace stats
 
 // Forward declaration
@@ -379,7 +378,7 @@ class DistributionBase;
 }
 
 namespace stats {
-namespace math {
+namespace detail {
 
 /**
  * @brief Kolmogorov-Smirnov test statistic calculation
@@ -409,9 +408,9 @@ namespace math {
  * @return log(1 + exp(x))
  */
 [[nodiscard]] inline double log1pexp(double x) noexcept {
-    if (x > constants::thresholds::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+    if (x > detail::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
         return x;  // exp(x) dominates
-    } else if (x > constants::thresholds::LOG1PEXP_SMALL_THRESHOLD) {
+    } else if (x > detail::LOG1PEXP_SMALL_THRESHOLD) {
         return std::log1p(std::exp(x));
     } else [[unlikely]] {
         return std::exp(x);  // 1 + exp(x) ≈ 1
@@ -424,7 +423,7 @@ namespace math {
  * @return log(exp(x) - 1)
  */
 [[nodiscard]] inline double logexpm1(double x) noexcept {
-    if (x > constants::thresholds::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+    if (x > detail::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
         return x;  // exp(x) dominates
     } else {
         return std::log(std::expm1(x));
@@ -453,7 +452,7 @@ namespace math {
 template <typename T>
     requires FloatingPoint<T>
 [[nodiscard]] constexpr bool is_safe_float(T x) noexcept {
-    return std::isfinite(x) && std::abs(x) < constants::thresholds::MAX_DISTRIBUTION_PARAMETER;
+    return std::isfinite(x) && std::abs(x) < detail::MAX_DISTRIBUTION_PARAMETER;
 }
 
 /**
@@ -482,7 +481,7 @@ template <typename T>
 template <typename T>
     requires FloatingPoint<T>
 [[nodiscard]] constexpr T safe_divide(T numerator, T denominator, T default_value = T{0}) noexcept {
-    if (std::abs(denominator) < constants::precision::ZERO || std::isnan(denominator)) {
+    if (std::abs(denominator) < detail::ZERO || std::isnan(denominator)) {
         return default_value;
     }
     return numerator / denominator;
@@ -495,14 +494,14 @@ template <typename T>
  */
 [[nodiscard]] inline double log_sum_exp(std::span<const double> values) noexcept {
     if (values.empty())
-        return constants::probability::MIN_LOG_PROBABILITY;
+        return detail::MIN_LOG_PROBABILITY;
 
     // Find maximum value for numerical stability
     double max_val = *std::max_element(values.begin(), values.end());
 
     // Handle edge case where all values are -inf
     if (std::isinf(max_val) && max_val < 0) {
-        return constants::probability::MIN_LOG_PROBABILITY;
+        return detail::MIN_LOG_PROBABILITY;
     }
 
     // Compute log(sum(exp(x_i - max_val))) + max_val
@@ -513,7 +512,7 @@ template <typename T>
         }
     }
 
-    return safety::safe_log(sum_exp) + max_val;
+    return detail::safe_log(sum_exp) + max_val;
 }
 
 /**
@@ -525,7 +524,7 @@ template <typename T>
 [[nodiscard]] inline double log_weighted_average(std::span<const double> log_values,
                                                  std::span<const double> log_weights) noexcept {
     if (log_values.size() != log_weights.size() || log_values.empty()) {
-        return constants::probability::MIN_LOG_PROBABILITY;
+        return detail::MIN_LOG_PROBABILITY;
     }
 
     // Compute log(sum(w_i * v_i)) and log(sum(w_i))
@@ -559,7 +558,7 @@ template <typename T>
         [[maybe_unused]] auto _ = context;
         return false;
     }
-    if (std::abs(value) > constants::thresholds::MAX_DISTRIBUTION_PARAMETER) {
+    if (std::abs(value) > detail::MAX_DISTRIBUTION_PARAMETER) {
         [[maybe_unused]] auto _ = context;
         return false;
     }
@@ -576,12 +575,10 @@ template <typename T>
 [[nodiscard]] inline double adaptive_tolerance(double base_tolerance, double data_range,
                                                std::size_t problem_size) noexcept {
     // Scale tolerance based on data range
-    double range_factor =
-        std::max(constants::math::ONE, std::log10(std::max(constants::math::ONE, data_range)));
+    double range_factor = std::max(detail::ONE, std::log10(std::max(detail::ONE, data_range)));
 
     // Scale tolerance based on problem size
-    double size_factor =
-        std::max(constants::math::ONE, std::log10(static_cast<double>(problem_size)));
+    double size_factor = std::max(detail::ONE, std::log10(static_cast<double>(problem_size)));
 
     return base_tolerance * range_factor * size_factor;
 }
@@ -600,7 +597,7 @@ struct NumericalDiagnostics {
     bool has_overflow = false;
     double min_value = std::numeric_limits<double>::max();
     double max_value = std::numeric_limits<double>::lowest();
-    double condition_estimate = constants::math::ONE;
+    double condition_estimate = detail::ONE;
     std::size_t problem_size = 0;
     std::string recommendations;
 };
@@ -630,10 +627,10 @@ struct NumericalDiagnostics {
             diag.min_value = std::min(diag.min_value, value);
             diag.max_value = std::max(diag.max_value, value);
 
-            if (std::abs(value) < constants::precision::ZERO) {
+            if (std::abs(value) < detail::ZERO) {
                 diag.has_underflow = true;
             }
-            if (std::abs(value) > constants::thresholds::MAX_DISTRIBUTION_PARAMETER) {
+            if (std::abs(value) > detail::MAX_DISTRIBUTION_PARAMETER) {
                 diag.has_overflow = true;
             }
         }
@@ -651,7 +648,7 @@ struct NumericalDiagnostics {
     if (diag.has_inf) {
         diag.recommendations += "Infinite values detected - potential overflow; ";
     }
-    if (diag.condition_estimate > constants::thresholds::HIGH_CONDITION_NUMBER_THRESHOLD) {
+    if (diag.condition_estimate > detail::HIGH_CONDITION_NUMBER_THRESHOLD) {
         diag.recommendations += "High condition number - numerical instability likely; ";
     }
     if (diag.has_underflow) {
@@ -668,5 +665,5 @@ struct NumericalDiagnostics {
     return diag;
 }
 
-}  // namespace math
+}  // namespace detail
 }  // namespace stats

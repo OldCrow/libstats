@@ -57,8 +57,8 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
     std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
-    other.a_ = constants::math::ZERO_DOUBLE;
-    other.b_ = constants::math::ONE;
+    other.a_ = detail::ZERO_DOUBLE;
+    other.b_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
     // Cache will be updated on first use
@@ -83,8 +83,8 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
                 // Step 3: Move parameters
                 a_ = other.a_;
                 b_ = other.b_;
-                other.a_ = constants::math::ZERO_DOUBLE;
-                other.b_ = constants::math::ONE;
+                other.a_ = detail::ZERO_DOUBLE;
+                other.b_ = detail::ONE;
                 cache_valid_ = false;
                 other.cache_valid_ = false;
                 success = true;
@@ -104,8 +104,8 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
             // Atomic-like exchange (single assignment is atomic for built-in types)
             a_ = other.a_;
             b_ = other.b_;
-            other.a_ = constants::math::ZERO_DOUBLE;
-            other.b_ = constants::math::ONE;
+            other.a_ = detail::ZERO_DOUBLE;
+            other.b_ = detail::ONE;
 
             // Cache invalidation was already done atomically above
             cache_valid_ = false;
@@ -320,12 +320,12 @@ double UniformDistribution::getProbability(double x) const {
 
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
-        return constants::math::ZERO_DOUBLE;
+        return detail::ZERO_DOUBLE;
     }
 
     // Fast path for unit interval [0,1]
     if (isUnitInterval_) {
-        return constants::math::ONE;
+        return detail::ONE;
     }
 
     // General case: PDF = 1/(b-a) for x in [a,b]
@@ -347,12 +347,12 @@ double UniformDistribution::getLogProbability(double x) const noexcept {
 
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
-        return constants::probability::NEGATIVE_INFINITY;
+        return detail::NEGATIVE_INFINITY;
     }
 
     // Fast path for unit interval [0,1]
     if (isUnitInterval_) {
-        return constants::math::ZERO_DOUBLE;  // log(1) = 0
+        return detail::ZERO_DOUBLE;  // log(1) = 0
     }
 
     // General case: log(PDF) = log(1/(b-a)) = -log(b-a)
@@ -374,10 +374,10 @@ double UniformDistribution::getCumulativeProbability(double x) const {
 
     // CDF for uniform distribution
     if (x < a_) {
-        return constants::math::ZERO_DOUBLE;
+        return detail::ZERO_DOUBLE;
     }
     if (x > b_) {
-        return constants::math::ONE;
+        return detail::ONE;
     }
 
     // Fast path for unit interval [0,1]
@@ -390,14 +390,14 @@ double UniformDistribution::getCumulativeProbability(double x) const {
 }
 
 double UniformDistribution::getQuantile(double p) const {
-    if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == constants::math::ZERO_DOUBLE) {
+    if (p == detail::ZERO_DOUBLE) {
         return a_;
     }
-    if (p == constants::math::ONE) {
+    if (p == detail::ONE) {
         return b_;
     }
 
@@ -434,8 +434,7 @@ double UniformDistribution::sample(std::mt19937& rng) const {
     }
 
     // Use high-quality uniform distribution
-    std::uniform_real_distribution<double> uniform(constants::math::ZERO_DOUBLE,
-                                                   constants::math::ONE);
+    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
 
     double u = uniform(rng);
 
@@ -504,7 +503,7 @@ void UniformDistribution::fit(const std::vector<double>& values) {
     }
 
     // Add small margin to ensure all sample points are within bounds
-    const double margin = (sample_max - sample_min) * constants::precision::DEFAULT_TOLERANCE;
+    const double margin = (sample_max - sample_min) * detail::DEFAULT_TOLERANCE;
     const double fitted_a = sample_min - margin;
     const double fitted_b = sample_max + margin;
 
@@ -528,7 +527,7 @@ void UniformDistribution::parallelBatchFit(const std::vector<std::vector<double>
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (parallel::shouldUseDistributionParallel("uniform", "batch_fit", num_datasets)) {
+    if (arch::shouldUseDistributionParallel("uniform", "batch_fit", num_datasets)) {
         // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
         ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
         const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
@@ -562,8 +561,8 @@ void UniformDistribution::parallelBatchFit(const std::vector<std::vector<double>
 
 void UniformDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    a_ = constants::math::ZERO_DOUBLE;
-    b_ = constants::math::ONE;
+    a_ = detail::ZERO_DOUBLE;
+    b_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
 }
@@ -928,7 +927,7 @@ std::tuple<double, double, bool> UniformDistribution::kolmogorovSmirnovTest(
     }
 
     // Use the overflow-safe KS statistic calculation from math_utils
-    double ks_statistic = math::calculate_ks_statistic(data, distribution);
+    double ks_statistic = detail::calculate_ks_statistic(data, distribution);
 
     const size_t n = data.size();
 
@@ -956,7 +955,7 @@ std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
     }
 
     // Use the overflow-safe AD statistic calculation from math_utils
-    double ad_stat = math::calculate_ad_statistic(data, distribution);
+    double ad_stat = detail::calculate_ad_statistic(data, distribution);
 
     // Asymptotic critical values for Anderson-Darling test (approximate)
     double critical_value;
@@ -1281,11 +1280,10 @@ UniformDistribution::bootstrapParameterConfidenceIntervals(const std::vector<dou
 //==============================================================================
 
 void UniformDistribution::getProbability(std::span<const double> values, std::span<double> results,
-                                         const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<UniformDistribution>::distType(),
-        performance::DistributionTraits<UniformDistribution>::complexity(),
+                                         const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
+        detail::DistributionTraits<UniformDistribution>::complexity(),
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1335,18 +1333,18 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width
-                                                              : constants::math::ZERO_DOUBLE;
+                    res[i] =
+                        (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
                 });
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width
-                                                              : constants::math::ZERO_DOUBLE;
+                    res[i] =
+                        (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
                 }
             }
         },
@@ -1382,8 +1380,7 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width
-                                                          : constants::math::ZERO_DOUBLE;
+                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
             });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -1421,19 +1418,17 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             // This approach avoids the cache contention issues that caused performance regression
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width
-                                                          : constants::math::ZERO_DOUBLE;
+                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
             });
         });
 }
 
 void UniformDistribution::getLogProbability(std::span<const double> values,
                                             std::span<double> results,
-                                            const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<UniformDistribution>::distType(),
-        performance::DistributionTraits<UniformDistribution>::complexity(),
+                                            const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
+        detail::DistributionTraits<UniformDistribution>::complexity(),
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1484,13 +1479,13 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
                     if (x < cached_a || x > cached_b) {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     } else if (cached_is_unit_interval) {
-                        res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                        res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
                     } else {
                         res[i] = cached_log_inv_width;
                     }
@@ -1500,9 +1495,9 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
                     if (x < cached_a || x > cached_b) {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     } else if (cached_is_unit_interval) {
-                        res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                        res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
                     } else {
                         res[i] = cached_log_inv_width;
                     }
@@ -1543,9 +1538,9 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a || x > cached_b) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_interval) {
-                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
                 } else {
                     res[i] = cached_log_inv_width;
                 }
@@ -1585,9 +1580,9 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a || x > cached_b) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_interval) {
-                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
                 } else {
                     res[i] = cached_log_inv_width;
                 }
@@ -1597,11 +1592,10 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
 
 void UniformDistribution::getCumulativeProbability(std::span<const double> values,
                                                    std::span<double> results,
-                                                   const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<UniformDistribution>::distType(),
-        performance::DistributionTraits<UniformDistribution>::complexity(),
+                                                   const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
+        detail::DistributionTraits<UniformDistribution>::complexity(),
         [](const UniformDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -1654,13 +1648,13 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
                     if (x < cached_a) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (x > cached_b) {
-                        res[i] = constants::math::ONE;
+                        res[i] = detail::ONE;
                     } else if (cached_is_unit_interval) {
                         res[i] = x;  // CDF(x) = x for U(0,1)
                     } else {
@@ -1672,9 +1666,9 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
                     if (x < cached_a) {
-                        res[i] = constants::math::ZERO_DOUBLE;
+                        res[i] = detail::ZERO_DOUBLE;
                     } else if (x > cached_b) {
-                        res[i] = constants::math::ONE;
+                        res[i] = detail::ONE;
                     } else if (cached_is_unit_interval) {
                         res[i] = x;  // CDF(x) = x for U(0,1)
                     } else {
@@ -1717,9 +1711,9 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (x > cached_b) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else if (cached_is_unit_interval) {
                     res[i] = x;  // CDF(x) = x for U(0,1)
                 } else {
@@ -1761,9 +1755,9 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (x > cached_b) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else if (cached_is_unit_interval) {
                     res[i] = x;  // CDF(x) = x for U(0,1)
                 } else {
@@ -1779,13 +1773,13 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
 
 void UniformDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                      std::span<double> results,
-                                                     performance::Strategy strategy) const {
+                                                     detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
@@ -1836,9 +1830,8 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
 
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b)
-                             ? cached_inv_width
-                             : constants::math::ZERO_DOUBLE;
+                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width
+                                                                      : detail::ZERO_DOUBLE;
             });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -1871,9 +1864,8 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b)
-                             ? cached_inv_width
-                             : constants::math::ZERO_DOUBLE;
+                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width
+                                                                      : detail::ZERO_DOUBLE;
             });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -1907,22 +1899,21 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
 
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b)
-                             ? cached_inv_width
-                             : constants::math::ZERO_DOUBLE;
+                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width
+                                                                      : detail::ZERO_DOUBLE;
             });
         });
 }
 
 void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                         std::span<double> results,
-                                                        performance::Strategy strategy) const {
+                                                        detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
@@ -1975,9 +1966,9 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < cached_a || vals[i] > cached_b) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_interval) {
-                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
                 } else {
                     res[i] = cached_log_inv_width;
                 }
@@ -2015,9 +2006,9 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < cached_a || vals[i] > cached_b) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_interval) {
-                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
                 } else {
                     res[i] = cached_log_inv_width;
                 }
@@ -2056,9 +2047,9 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < cached_a || vals[i] > cached_b) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_interval) {
-                    res[i] = constants::math::ZERO_DOUBLE;  // log(1) = 0
+                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
                 } else {
                     res[i] = cached_log_inv_width;
                 }
@@ -2066,15 +2057,15 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
         });
 }
 
-void UniformDistribution::getCumulativeProbabilityWithStrategy(
-    std::span<const double> values, std::span<double> results,
-    performance::Strategy strategy) const {
+void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
+                                                               std::span<double> results,
+                                                               detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const UniformDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
@@ -2129,9 +2120,9 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < cached_a) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (vals[i] > cached_b) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else if (cached_is_unit_interval) {
                     res[i] = vals[i];  // CDF(x) = x for U(0,1)
                 } else {
@@ -2171,9 +2162,9 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < cached_a) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (vals[i] > cached_b) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else if (cached_is_unit_interval) {
                     res[i] = vals[i];  // CDF(x) = x for U(0,1)
                 } else {
@@ -2215,9 +2206,9 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a) {
-                    res[i] = constants::math::ZERO_DOUBLE;
+                    res[i] = detail::ZERO_DOUBLE;
                 } else if (x > cached_b) {
-                    res[i] = constants::math::ONE;
+                    res[i] = detail::ONE;
                 } else if (cached_is_unit_interval) {
                     res[i] = x;  // CDF(x) = x for U(0,1)
                 } else {
@@ -2236,8 +2227,8 @@ bool UniformDistribution::operator==(const UniformDistribution& other) const {
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
 
-    return std::abs(a_ - other.a_) <= constants::precision::DEFAULT_TOLERANCE &&
-           std::abs(b_ - other.b_) <= constants::precision::DEFAULT_TOLERANCE;
+    return std::abs(a_ - other.a_) <= detail::DEFAULT_TOLERANCE &&
+           std::abs(b_ - other.b_) <= detail::DEFAULT_TOLERANCE;
 }
 
 //==============================================================================
@@ -2328,7 +2319,7 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
                                                         std::size_t count, double a, double b,
                                                         double inv_width) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
@@ -2339,7 +2330,7 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             // Use exclusion check (x < a || x > b) for CPU efficiency:
             // - Short-circuits on first true condition (common for out-of-support values)
             // - Matches scalar implementation exactly for consistency
-            results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
+            results[i] = (x < a || x > b) ? detail::ZERO_DOUBLE : inv_width;
         }
         return;
     }
@@ -2356,7 +2347,7 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
         // Use exclusion check (x < a || x > b) for CPU efficiency:
         // - Short-circuits on first true condition (common for out-of-support values)
         // - Matches scalar implementation exactly for consistency
-        results[i] = (x < a || x > b) ? constants::math::ZERO_DOUBLE : inv_width;
+        results[i] = (x < a || x > b) ? detail::ZERO_DOUBLE : inv_width;
     }
 }
 
@@ -2364,7 +2355,7 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
                                                            std::size_t count, double a, double b,
                                                            double log_inv_width) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
@@ -2375,8 +2366,7 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
             // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
             // - Matches boundary conditions exactly
             // - Short-circuits efficiently for out-of-support values
-            results[i] =
-                (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
+            results[i] = (x < a || x > b) ? detail::NEGATIVE_INFINITY : log_inv_width;
         }
         return;
     }
@@ -2393,7 +2383,7 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
         // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
         // - Matches boundary conditions exactly
         // - Short-circuits efficiently for out-of-support values
-        results[i] = (x < a || x > b) ? constants::probability::NEGATIVE_INFINITY : log_inv_width;
+        results[i] = (x < a || x > b) ? detail::NEGATIVE_INFINITY : log_inv_width;
     }
 }
 
@@ -2403,7 +2393,7 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
                                                                   double b,
                                                                   double inv_width) const noexcept {
     // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
@@ -2411,18 +2401,17 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
         // interpolation) so SIMD rarely provides benefits, but we use centralized policy for
         // consistency
         const bool is_unit_interval =
-            (std::abs(a - constants::math::ZERO_DOUBLE) <=
-             constants::precision::DEFAULT_TOLERANCE) &&
-            (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+            (std::abs(a - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) &&
+            (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE);
 
         if (is_unit_interval) {
             // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
             for (std::size_t i = 0; i < count; ++i) {
                 const double x = values[i];
-                if (x < constants::math::ZERO_DOUBLE) {
-                    results[i] = constants::math::ZERO_DOUBLE;
-                } else if (x > constants::math::ONE) {
-                    results[i] = constants::math::ONE;
+                if (x < detail::ZERO_DOUBLE) {
+                    results[i] = detail::ZERO_DOUBLE;
+                } else if (x > detail::ONE) {
+                    results[i] = detail::ONE;
                 } else {
                     results[i] = x;
                 }
@@ -2432,9 +2421,9 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             for (std::size_t i = 0; i < count; ++i) {
                 const double x = values[i];
                 if (x < a) {
-                    results[i] = constants::math::ZERO_DOUBLE;
+                    results[i] = detail::ZERO_DOUBLE;
                 } else if (x > b) {
-                    results[i] = constants::math::ONE;
+                    results[i] = detail::ONE;
                 } else {
                     results[i] = (x - a) * inv_width;
                 }
@@ -2449,8 +2438,8 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
     // In practice, this will mostly fall back to scalar due to the nature of the operation
 
     const bool is_unit_interval =
-        (std::abs(a - constants::math::ZERO_DOUBLE) <= constants::precision::DEFAULT_TOLERANCE) &&
-        (std::abs(b - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        (std::abs(a - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) &&
+        (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE);
 
     // Use scalar implementation even when SIMD is available because uniform distribution
     // operations are not amenable to vectorization (primarily branching logic)
@@ -2458,10 +2447,10 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
         // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x < constants::math::ZERO_DOUBLE) {
-                results[i] = constants::math::ZERO_DOUBLE;
-            } else if (x > constants::math::ONE) {
-                results[i] = constants::math::ONE;
+            if (x < detail::ZERO_DOUBLE) {
+                results[i] = detail::ZERO_DOUBLE;
+            } else if (x > detail::ONE) {
+                results[i] = detail::ONE;
             } else {
                 results[i] = x;
             }
@@ -2471,9 +2460,9 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x < a) {
-                results[i] = constants::math::ZERO_DOUBLE;
+                results[i] = detail::ZERO_DOUBLE;
             } else if (x > b) {
-                results[i] = constants::math::ONE;
+                results[i] = detail::ONE;
             } else {
                 results[i] = (x - a) * inv_width;
             }

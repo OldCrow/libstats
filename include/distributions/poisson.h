@@ -138,7 +138,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * Implementation in .cpp: Complex validation and cache initialization logic
      */
-    explicit PoissonDistribution(double lambda = constants::math::ONE);
+    explicit PoissonDistribution(double lambda = detail::ONE);
 
     /**
      * @brief Thread-safe copy constructor
@@ -205,8 +205,7 @@ class PoissonDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<PoissonDistribution> create(
-        double lambda = constants::math::ONE) noexcept {
+    [[nodiscard]] static Result<PoissonDistribution> create(double lambda = detail::ONE) noexcept {
         auto validation = validatePoissonParameters(lambda);
         if (validation.isError()) {
             return Result<PoissonDistribution>::makeError(validation.error_code,
@@ -873,7 +872,7 @@ class PoissonDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getProbability(std::span<const double> values, std::span<double> results,
-                        const performance::PerformanceHint& hint = {}) const;
+                        const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch log probability calculation
@@ -885,7 +884,7 @@ class PoissonDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getLogProbability(std::span<const double> values, std::span<double> results,
-                           const performance::PerformanceHint& hint = {}) const;
+                           const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch cumulative probability calculation
@@ -897,7 +896,7 @@ class PoissonDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                  const performance::PerformanceHint& hint = {}) const;
+                                  const detail::PerformanceHint& hint = {}) const;
 
     //==========================================================================
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
@@ -917,7 +916,7 @@ class PoissonDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    performance::Strategy strategy) const;
+                                    detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch log probability calculation for power users
@@ -933,7 +932,7 @@ class PoissonDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       performance::Strategy strategy) const;
+                                       detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch cumulative probability calculation for power users
@@ -950,7 +949,7 @@ class PoissonDistribution : public DistributionBase {
      */
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
-                                              performance::Strategy strategy) const;
+                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1064,18 +1063,17 @@ class PoissonDistribution : public DistributionBase {
         logLambda_ = std::log(lambda_);
         expNegLambda_ = std::exp(-lambda_);
         sqrtLambda_ = std::sqrt(lambda_);
-        invLambda_ = constants::math::ONE / lambda_;
+        invLambda_ = detail::ONE / lambda_;
 
         // Stirling's approximation for log(Γ(λ+1)) = log(λ!)
-        logGammaLambdaPlus1_ = std::lgamma(lambda_ + constants::math::ONE);
+        logGammaLambdaPlus1_ = std::lgamma(lambda_ + detail::ONE);
 
         // Optimization flags
-        isSmallLambda_ = (lambda_ < constants::thresholds::poisson::SMALL_LAMBDA_THRESHOLD);
-        isLargeLambda_ = (lambda_ > constants::math::HUNDRED);
-        isVeryLargeLambda_ = (lambda_ > constants::math::THOUSAND);
-        isIntegerLambda_ =
-            (std::abs(lambda_ - std::round(lambda_)) <= constants::precision::DEFAULT_TOLERANCE);
-        isTinyLambda_ = (lambda_ < constants::math::TENTH);
+        isSmallLambda_ = (lambda_ < detail::SMALL_LAMBDA_THRESHOLD);
+        isLargeLambda_ = (lambda_ > detail::HUNDRED);
+        isVeryLargeLambda_ = (lambda_ > detail::THOUSAND);
+        isIntegerLambda_ = (std::abs(lambda_ - std::round(lambda_)) <= detail::DEFAULT_TOLERANCE);
+        isTinyLambda_ = (lambda_ < detail::TENTH);
 
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
@@ -1091,10 +1089,10 @@ class PoissonDistribution : public DistributionBase {
      * @throws std::invalid_argument if parameters are invalid
      */
     static void validateParameters(double lambda) {
-        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= constants::math::ZERO_DOUBLE) {
+        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
         }
-        if (lambda > constants::thresholds::poisson::MAX_POISSON_LAMBDA) {
+        if (lambda > detail::MAX_POISSON_LAMBDA) {
             throw std::invalid_argument("Lambda too large for accurate Poisson computation");
         }
     }
@@ -1120,10 +1118,10 @@ class PoissonDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Rate parameter λ (mean number of events) - must be positive */
-    double lambda_{constants::math::ONE};
+    double lambda_{detail::ONE};
 
     /** @brief C++20 atomic copy of parameter for lock-free access */
-    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
+    mutable std::atomic<double> atomicLambda_{detail::ONE};
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
@@ -1131,19 +1129,19 @@ class PoissonDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Cached value of log(λ) for efficiency in PMF calculations */
-    mutable double logLambda_{constants::math::ZERO_DOUBLE};
+    mutable double logLambda_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of e^(-λ) for efficiency in PMF calculations */
-    mutable double expNegLambda_{constants::math::E_INV};
+    mutable double expNegLambda_{detail::E_INV};
 
     /** @brief Cached value of √λ for efficiency in normal approximation */
-    mutable double sqrtLambda_{constants::math::ONE};
+    mutable double sqrtLambda_{detail::ONE};
 
     /** @brief Cached value of log(Γ(λ+1)) for Stirling's approximation */
-    mutable double logGammaLambdaPlus1_{constants::math::ZERO_DOUBLE};
+    mutable double logGammaLambdaPlus1_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of 1/λ for efficiency in various calculations */
-    mutable double invLambda_{constants::math::ONE};
+    mutable double invLambda_{detail::ONE};
 
     //==========================================================================
     // 23. OPTIMIZATION FLAGS

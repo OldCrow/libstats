@@ -124,8 +124,7 @@ class UniformDistribution : public DistributionBase {
      *
      * Implementation in .cpp: Complex validation and cache initialization logic
      */
-    explicit UniformDistribution(double a = constants::math::ZERO_DOUBLE,
-                                 double b = constants::math::ONE);
+    explicit UniformDistribution(double a = detail::ZERO_DOUBLE, double b = detail::ONE);
 
     /**
      * @brief Thread-safe copy constructor
@@ -831,9 +830,8 @@ class UniformDistribution : public DistributionBase {
      */
     [[nodiscard]] bool isUnitInterval() const noexcept {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (std::abs(a_ - constants::math::ZERO_DOUBLE) <=
-                constants::precision::DEFAULT_TOLERANCE) &&
-               (std::abs(b_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
+        return (std::abs(a_ - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) &&
+               (std::abs(b_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
     }
 
     /**
@@ -846,7 +844,7 @@ class UniformDistribution : public DistributionBase {
      */
     [[nodiscard]] bool isSymmetricAroundZero() const noexcept {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return std::abs(a_ + b_) <= constants::precision::DEFAULT_TOLERANCE;
+        return std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE;
     }
 
     /**
@@ -881,7 +879,7 @@ class UniformDistribution : public DistributionBase {
      */
     [[nodiscard]] double getMidpoint() const noexcept {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (a_ + b_) * constants::math::HALF;  // Multiplication is faster than division
+        return (a_ + b_) * detail::HALF;  // Multiplication is faster than division
     }
 
     //==========================================================================
@@ -903,7 +901,7 @@ class UniformDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getProbability(std::span<const double> values, std::span<double> results,
-                        const performance::PerformanceHint& hint = {}) const;
+                        const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch log probability calculation
@@ -915,7 +913,7 @@ class UniformDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getLogProbability(std::span<const double> values, std::span<double> results,
-                           const performance::PerformanceHint& hint = {}) const;
+                           const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch cumulative probability calculation
@@ -927,7 +925,7 @@ class UniformDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                  const performance::PerformanceHint& hint = {}) const;
+                                  const detail::PerformanceHint& hint = {}) const;
 
     //==========================================================================
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
@@ -947,7 +945,7 @@ class UniformDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    performance::Strategy strategy) const;
+                                    detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch log probability calculation for power users
@@ -963,7 +961,7 @@ class UniformDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       performance::Strategy strategy) const;
+                                       detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch cumulative probability calculation for power users
@@ -980,7 +978,7 @@ class UniformDistribution : public DistributionBase {
      */
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
-                                              performance::Strategy strategy) const;
+                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1076,22 +1074,20 @@ class UniformDistribution : public DistributionBase {
     void updateCacheUnsafe() const noexcept override {
         // Primary calculations - compute once, reuse multiple times
         width_ = b_ - a_;
-        invWidth_ = constants::math::ONE / width_;
+        invWidth_ = detail::ONE / width_;
         widthSquared_ = width_ * width_;
 
         // Core cached values
-        midpoint_ = (a_ + b_) * constants::math::HALF;
+        midpoint_ = (a_ + b_) * detail::HALF;
         variance_ = widthSquared_ / 12.0;
         logInvWidth_ = -std::log(width_);
 
         // Optimization flags
-        isUnitInterval_ =
-            (std::abs(a_ - constants::math::ZERO_DOUBLE) <=
-                 constants::precision::DEFAULT_TOLERANCE &&
-             std::abs(b_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        isSymmetric_ = (std::abs(a_ + b_) <= constants::precision::DEFAULT_TOLERANCE);
-        isNarrowInterval_ = (width_ < constants::precision::DEFAULT_TOLERANCE * 100.0);
-        isWideInterval_ = (width_ > constants::math::THOUSAND);
+        isUnitInterval_ = (std::abs(a_ - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE &&
+                           std::abs(b_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        isSymmetric_ = (std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE);
+        isNarrowInterval_ = (width_ < detail::DEFAULT_TOLERANCE * 100.0);
+        isWideInterval_ = (width_ > detail::THOUSAND);
 
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
@@ -1132,14 +1128,14 @@ class UniformDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Lower bound parameter a */
-    double a_{constants::math::ZERO_DOUBLE};
+    double a_{detail::ZERO_DOUBLE};
 
     /** @brief Upper bound parameter b */
-    double b_{constants::math::ONE};
+    double b_{detail::ONE};
 
     /** @brief C++20 atomic copies of parameters for lock-free access */
-    mutable std::atomic<double> atomicA_{constants::math::ZERO_DOUBLE};
-    mutable std::atomic<double> atomicB_{constants::math::ONE};
+    mutable std::atomic<double> atomicA_{detail::ZERO_DOUBLE};
+    mutable std::atomic<double> atomicB_{detail::ONE};
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
@@ -1147,22 +1143,22 @@ class UniformDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Cached value of (b - a) for efficiency */
-    mutable double width_{constants::math::ONE};
+    mutable double width_{detail::ONE};
 
     /** @brief Cached value of 1/(b - a) for efficiency in PDF calculations */
-    mutable double invWidth_{constants::math::ONE};
+    mutable double invWidth_{detail::ONE};
 
     /** @brief Cached value of (a + b)/2 for efficiency in mean calculations */
-    mutable double midpoint_{constants::math::HALF};
+    mutable double midpoint_{detail::HALF};
 
     /** @brief Cached value of (b - a)² for efficiency in variance calculations */
-    mutable double widthSquared_{constants::math::ONE};
+    mutable double widthSquared_{detail::ONE};
 
     /** @brief Cached value of (b - a)²/12 for efficiency in variance calculations */
-    mutable double variance_{constants::math::ONE / 12.0};
+    mutable double variance_{detail::ONE / 12.0};
 
     /** @brief Cached value of -ln(b - a) for efficiency in log-PDF calculations */
-    mutable double logInvWidth_{constants::math::ZERO_DOUBLE};
+    mutable double logInvWidth_{detail::ZERO_DOUBLE};
 
     //==========================================================================
     // 23. OPTIMIZATION FLAGS

@@ -10,7 +10,7 @@
 #include <gtest/gtest.h>
 #include <thread>
 
-using namespace stats::performance;
+using namespace stats::detail;
 
 class SystemCapabilitiesIntegrationTest : public ::testing::Test {
    protected:

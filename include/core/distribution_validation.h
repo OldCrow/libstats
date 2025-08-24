@@ -170,7 +170,7 @@ class DistributionValidator {
 /**
  * @brief Comprehensive data validation utilities
  */
-namespace validation {
+namespace detail {  // validation utilities
 
 /**
  * @brief Validate data for distribution fitting
@@ -252,6 +252,6 @@ bool isAdequateSampleSize(size_t data_size, int num_parameters) noexcept;
  */
 size_t getRecommendedSampleSize(int num_parameters, double confidence_level = 0.95) noexcept;
 
-}  // namespace validation
+}  // namespace detail
 
 }  // namespace stats

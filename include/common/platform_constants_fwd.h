@@ -19,6 +19,7 @@ namespace stats {
 namespace constants {
 
 /// Forward declarations - lightweight interface to platform constants
+namespace arch {
 namespace simd {
 /// Get optimal SIMD block size for the current platform
 std::size_t get_default_block_size();
@@ -42,8 +43,9 @@ std::size_t get_sse_doubles();
 std::size_t get_neon_doubles();
 }  // namespace registers
 }  // namespace simd
+}  // namespace arch
 
-namespace parallel {
+namespace arch {
 /// Get platform-optimized parallel processing thresholds
 std::size_t get_min_elements_for_parallel();
 std::size_t get_min_elements_for_distribution_parallel();
@@ -62,7 +64,7 @@ extern const std::size_t MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
 extern const std::size_t MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
 extern const std::size_t SIMPLE_OPERATION_GRAIN_SIZE;
 extern const std::size_t DEFAULT_GRAIN_SIZE;
-}  // namespace parallel
+}  // namespace arch
 
 namespace memory {
 namespace prefetch {
@@ -80,8 +82,19 @@ extern const std::size_t CACHE_LINE_ALIGNMENT;
 }  // namespace access
 }  // namespace memory
 
+namespace cache {
+namespace sizing {
+extern const std::size_t MIN_CACHE_SIZE_BYTES;
+extern const std::size_t MAX_CACHE_SIZE_BYTES;
+extern const std::size_t MIN_ENTRY_COUNT;
+extern const std::size_t MAX_ENTRY_COUNT;
+}  // namespace sizing
+}  // namespace cache
+
+}  // namespace constants
+
 /// Platform detection and optimization functions
-namespace platform {
+namespace arch {
 /// Get optimized parameters based on detected CPU features
 std::size_t get_optimal_simd_block_size();
 std::size_t get_optimal_alignment();
@@ -101,18 +114,7 @@ struct CacheThresholds {
 };
 
 CacheThresholds get_cache_thresholds();
-}  // namespace platform
-
-namespace cache {
-namespace sizing {
-extern const std::size_t MIN_CACHE_SIZE_BYTES;
-extern const std::size_t MAX_CACHE_SIZE_BYTES;
-extern const std::size_t MIN_ENTRY_COUNT;
-extern const std::size_t MAX_ENTRY_COUNT;
-}  // namespace sizing
-}  // namespace cache
-
-}  // namespace constants
+}  // namespace arch
 
 /// CPU detection functions (forward declarations)
 namespace cpu {

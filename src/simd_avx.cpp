@@ -20,6 +20,7 @@
 #include <immintrin.h>  // AVX intrinsics
 
 namespace stats {
+namespace arch {
 namespace simd {
 
 // All AVX functions use double-precision (64-bit) values
@@ -32,7 +33,7 @@ double VectorOps::dot_product_avx(const double* a, const double* b, std::size_t 
     }
 
     __m256d sum = _mm256_setzero_pd();
-    constexpr std::size_t AVX_DOUBLE_WIDTH = constants::simd::registers::AVX_DOUBLES;
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
 
     // Process quartets of doubles
@@ -62,7 +63,7 @@ void VectorOps::vector_add_avx(const double* a, const double* b, double* result,
         return vector_add_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t AVX_DOUBLE_WIDTH = constants::simd::registers::AVX_DOUBLES;
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
@@ -84,7 +85,7 @@ void VectorOps::vector_subtract_avx(const double* a, const double* b, double* re
         return vector_subtract_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t AVX_DOUBLE_WIDTH = constants::simd::registers::AVX_DOUBLES;
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
@@ -106,7 +107,7 @@ void VectorOps::vector_multiply_avx(const double* a, const double* b, double* re
         return vector_multiply_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t AVX_DOUBLE_WIDTH = constants::simd::registers::AVX_DOUBLES;
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
@@ -128,7 +129,7 @@ void VectorOps::scalar_multiply_avx(const double* a, double scalar, double* resu
     }
 
     __m256d vscalar = _mm256_set1_pd(scalar);
-    constexpr std::size_t AVX_DOUBLE_WIDTH = constants::simd::registers::AVX_DOUBLES;
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
@@ -150,7 +151,7 @@ void VectorOps::scalar_add_avx(const double* a, double scalar, double* result,
     }
 
     __m256d vscalar = _mm256_set1_pd(scalar);
-    constexpr std::size_t AVX_DOUBLE_WIDTH = constants::simd::registers::AVX_DOUBLES;
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
@@ -165,6 +166,7 @@ void VectorOps::scalar_add_avx(const double* a, double scalar, double* result,
 }
 
 }  // namespace simd
+}  // namespace arch
 }  // namespace stats
 
 #ifdef __clang__

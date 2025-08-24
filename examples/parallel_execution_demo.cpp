@@ -31,15 +31,14 @@ void demonstrate_platform_detection() {
               << "(libstats adapts algorithms based on your specific CPU features)\n"
               << std::endl;
 
-    std::cout << "🖥️  Execution support: " << stats::parallel::execution_support_string()
-              << std::endl;
+    std::cout << "🖥️  Execution support: " << stats::arch::execution_support_string() << std::endl;
 
     // CPU information
-    const auto& cpu_features = stats::cpu::get_features();
+    const auto& cpu_features = stats::arch::get_features();
     std::cout << "💻 CPU Configuration:" << std::endl;
-    std::cout << "    Physical cores: " << stats::cpu::get_physical_core_count()
+    std::cout << "    Physical cores: " << stats::arch::get_physical_core_count()
               << " [Available for heavy parallel work]" << std::endl;
-    std::cout << "    Logical cores: " << stats::cpu::get_logical_core_count()
+    std::cout << "    Logical cores: " << stats::arch::get_logical_core_count()
               << " [Total threading capacity with hyperthreading]" << std::endl;
 
     if (cpu_features.l3_cache_size > 0) {
@@ -81,17 +80,17 @@ void demonstrate_adaptive_grain_sizing() {
     for (auto size : data_sizes) {
         std::cout << std::setw(12) << size;
         for (int op_type = 0; op_type < 3; ++op_type) {
-            auto grain = stats::parallel::get_adaptive_grain_size(op_type, size);
+            auto grain = stats::arch::get_adaptive_grain_size(op_type, size);
             std::cout << std::setw(18) << grain;
         }
         std::cout << std::endl;
     }
 
     std::cout << "\n🔧 Configuration parameters:" << std::endl;
-    std::cout << "   Base grain size: " << stats::parallel::get_optimal_grain_size()
+    std::cout << "   Base grain size: " << stats::arch::get_optimal_grain_size()
               << " elements [Default work unit size]" << std::endl;
     std::cout << "   Parallel threshold: "
-              << stats::parallel::get_optimal_parallel_threshold("gaussian", "pdf")
+              << stats::arch::get_optimal_parallel_threshold("gaussian", "pdf")
               << " elements [Minimum size for parallel execution]" << std::endl;
     std::cout << "\n   ℹ️ Memory-bound: Larger grains reduce cache misses" << std::endl;
     std::cout << "   ℹ️ Computation-bound: Smaller grains improve load balancing" << std::endl;
@@ -112,15 +111,15 @@ void demonstrate_thread_optimization() {
     std::cout << std::string(65, '-') << std::endl;
 
     for (auto workload : workload_sizes) {
-        auto threads = stats::parallel::get_optimal_thread_count(workload);
-        bool should_parallel = stats::parallel::should_use_parallel(workload);
+        auto threads = stats::arch::get_optimal_thread_count(workload);
+        bool should_parallel = stats::arch::should_use_parallel(workload);
 
         std::string reasoning;
         if (!should_parallel) {
             reasoning = "Too small for parallel";
         } else if (threads == 1) {
             reasoning = "Single-threaded optimal";
-        } else if (threads < stats::cpu::get_logical_core_count()) {
+        } else if (threads < stats::arch::get_logical_core_count()) {
             reasoning = "Partial core utilization";
         } else {
             reasoning = "Full core utilization";
@@ -156,8 +155,8 @@ void benchmark_parallel_operations() {
         std::vector<double> result(data_size);
         auto start = std::chrono::high_resolution_clock::now();
 
-        stats::parallel::safe_transform(data.begin(), data.end(), result.begin(),
-                                        [](double x) { return std::sqrt(x * x + 1.0); });
+        stats::arch::safe_transform(data.begin(), data.end(), result.begin(),
+                                    [](double x) { return std::sqrt(x * x + 1.0); });
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -169,7 +168,7 @@ void benchmark_parallel_operations() {
     {
         auto start = std::chrono::high_resolution_clock::now();
 
-        auto sum = stats::parallel::safe_reduce(data.begin(), data.end(), 0.0);
+        auto sum = stats::arch::safe_reduce(data.begin(), data.end(), 0.0);
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -182,8 +181,8 @@ void benchmark_parallel_operations() {
     {
         auto start = std::chrono::high_resolution_clock::now();
 
-        auto count = stats::parallel::safe_count_if(data.begin(), data.end(),
-                                                    [](double x) { return x > 50.0; });
+        auto count =
+            stats::arch::safe_count_if(data.begin(), data.end(), [](double x) { return x > 50.0; });
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -196,7 +195,7 @@ void benchmark_parallel_operations() {
 void demonstrate_gpu_acceleration() {
     print_separator("GPU-Accelerated Optimization");
 
-    const auto& cpu_features = stats::cpu::get_features();
+    const auto& cpu_features = stats::arch::get_features();
 
     if (cpu_features.l3_cache_size > 0) {
         std::size_t cache_size_mb = cpu_features.l3_cache_size / (1024 * 1024);
@@ -216,7 +215,7 @@ void demonstrate_gpu_acceleration() {
 
         std::cout << "\nCache-aware grain sizing:" << std::endl;
         for (auto size : test_sizes) {
-            auto grain = stats::parallel::get_adaptive_grain_size(0, size);  // Memory-bound
+            auto grain = stats::arch::get_adaptive_grain_size(0, size);  // Memory-bound
             double cache_ratio = static_cast<double>(size) / static_cast<double>(elements_in_cache);
 
             std::cout << "  " << std::setw(10) << size << " elements (" << std::fixed

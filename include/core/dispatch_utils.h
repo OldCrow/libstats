@@ -8,7 +8,7 @@
 #include <span>
 
 namespace stats {
-namespace performance {
+namespace detail {  // Performance utilities
 
 /**
  * @brief Utility class for templated auto-dispatch of batch operations across distributions
@@ -247,7 +247,7 @@ class DispatchUtils {
             return;
 
         // Use ParallelUtils::parallelFor for Level 0-3 integration
-        if (parallel::should_use_parallel(count)) {
+        if (arch::should_use_parallel(count)) {
             ParallelUtils::parallelFor(std::size_t{0}, count,
                                        [&](std::size_t i) { computation_func(i); });
         } else {
@@ -285,9 +285,9 @@ class DispatchUtils {
 
         // Use WorkStealingPool for dynamic load balancing
         // Use same threshold as regular parallel operations to avoid inconsistency
-        if (WorkStealingUtils::shouldUseWorkStealing(
+        if (stats::shouldUseWorkStealing(
                 count,
-                constants::parallel::adaptive::min_elements_for_simple_distribution_parallel())) {
+                stats::arch::parallel::detail::min_elements_for_simple_distribution_parallel())) {
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) { computation_func(i); });
             pool.waitForAll();
         } else {
@@ -423,5 +423,5 @@ struct DistributionTraits<class GammaDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
 };
 
-}  // namespace performance
+}  // namespace detail
 }  // namespace stats

@@ -13,15 +13,14 @@ int main() {
 
     // Test 1: Basic header inclusion (compilation test)
     std::cout << "Test 1: Header inclusion - ";
-    std::cout << (stats::parallel::has_execution_policies() ? "C++20 parallel execution available"
-                                                            : "Fallback to serial execution");
+    std::cout << (stats::arch::has_execution_policies() ? "C++20 parallel execution available"
+                                                        : "Fallback to serial execution");
     std::cout << std::endl;
 
     // Test 2: CPU-aware threshold detection
     std::cout << "Test 2: CPU-aware threshold detection - ";
-    std::size_t optimal_threshold =
-        stats::parallel::get_optimal_parallel_threshold("gaussian", "pdf");
-    std::size_t optimal_grain = stats::parallel::get_optimal_grain_size();
+    std::size_t optimal_threshold = stats::arch::get_optimal_parallel_threshold("gaussian", "pdf");
+    std::size_t optimal_grain = stats::arch::get_optimal_grain_size();
     std::cout << "Threshold: " << optimal_threshold << ", Grain: " << optimal_grain << std::endl;
 
     // Test 3: Basic parallel algorithm functionality
@@ -29,7 +28,7 @@ int main() {
 
     // Test safe_fill
     std::vector<double> data(1000);
-    stats::parallel::safe_fill(data.begin(), data.end(), 42.0);
+    stats::arch::safe_fill(data.begin(), data.end(), 42.0);
     assert(std::all_of(data.begin(), data.end(), [](double x) { return x == 42.0; }));
     std::cout << "  - safe_fill: PASSED" << std::endl;
 
@@ -37,35 +36,35 @@ int main() {
     std::vector<double> input(1000);
     std::vector<double> output(1000);
     std::iota(input.begin(), input.end(), 1.0);
-    stats::parallel::safe_transform(input.begin(), input.end(), output.begin(),
-                                    [](double x) { return x * 2.0; });
+    stats::arch::safe_transform(input.begin(), input.end(), output.begin(),
+                                [](double x) { return x * 2.0; });
     assert(output[0] == 2.0 && output[999] == 2000.0);
     std::cout << "  - safe_transform: PASSED" << std::endl;
 
     // Test safe_reduce
     std::vector<double> values(100);
     std::fill(values.begin(), values.end(), 1.0);
-    [[maybe_unused]] double sum = stats::parallel::safe_reduce(values.begin(), values.end(), 0.0);
+    [[maybe_unused]] double sum = stats::arch::safe_reduce(values.begin(), values.end(), 0.0);
     assert(sum == 100.0);
     std::cout << "  - safe_reduce: PASSED" << std::endl;
 
     // Test safe_for_each
     std::vector<int> counters(10, 0);
-    stats::parallel::safe_for_each(counters.begin(), counters.end(), [](int& x) { x = 1; });
+    stats::arch::safe_for_each(counters.begin(), counters.end(), [](int& x) { x = 1; });
     assert(std::all_of(counters.begin(), counters.end(), [](int x) { return x == 1; }));
     std::cout << "  - safe_for_each: PASSED" << std::endl;
 
     // Test safe_sort
     std::vector<double> unsorted = {5.0, 2.0, 8.0, 1.0, 9.0, 3.0};
-    stats::parallel::safe_sort(unsorted.begin(), unsorted.end());
+    stats::arch::safe_sort(unsorted.begin(), unsorted.end());
     assert(std::is_sorted(unsorted.begin(), unsorted.end()));
     std::cout << "  - safe_sort: PASSED" << std::endl;
 
     // Test 4: Threshold decision logic
     std::cout << "Test 4: Threshold decision logic" << std::endl;
-    bool should_use_small = stats::parallel::should_use_parallel(10);
-    bool should_use_large = stats::parallel::should_use_parallel(10000);
-    bool should_use_dist = stats::parallel::should_use_distribution_parallel(1000);
+    bool should_use_small = stats::arch::should_use_parallel(10);
+    bool should_use_large = stats::arch::should_use_parallel(10000);
+    bool should_use_dist = stats::arch::should_use_distribution_parallel(1000);
 
     std::cout << "  - Small dataset (10 elements): " << (should_use_small ? "parallel" : "serial")
               << std::endl;
@@ -78,7 +77,7 @@ int main() {
     std::cout << "Test 5: Safety integration" << std::endl;
     try {
         std::vector<double> empty_data;
-        stats::parallel::safe_fill(empty_data.begin(), empty_data.end(), 1.0);
+        stats::arch::safe_fill(empty_data.begin(), empty_data.end(), 1.0);
         std::cout << "  - Empty container handling: PASSED" << std::endl;
     } catch (const std::exception&) {
         std::cout << "  - Empty container handling: PASSED (caught expected exception)"

@@ -8,7 +8,7 @@
 #include <vector>
 
 using namespace stats;
-using namespace stats::validation;
+using namespace stats::detail;
 
 void test_enhanced_pvalues() {
     std::cout << "Testing Enhanced P-Value Calculations" << std::endl;

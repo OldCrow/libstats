@@ -43,7 +43,7 @@ class SystemInspector {
     SystemInspector(InspectionMode mode) : mode_(mode) {}
 
     void runInspection() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
         // Display tool header with system information (shared across all modes)
         displayToolHeader();
@@ -66,7 +66,7 @@ class SystemInspector {
         }
 
         // Common validation (shared across all modes)
-        tool_utils::validateAndWarnFeatureConsistency();
+        stats::detail::detail::validateAndWarnFeatureConsistency();
 
         std::cout << "System inspection completed successfully.\n";
     }
@@ -75,7 +75,7 @@ class SystemInspector {
     InspectionMode mode_;
 
     void displayToolHeader() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
         std::string title;
         std::string description;
@@ -101,37 +101,37 @@ class SystemInspector {
                 break;
         }
 
-        system_info::displayToolHeader(title, description);
+        stats::detail::detail::displayToolHeader(title, description);
     }
 
     void runQuickInspection() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
         // Basic system overview
-        system_info::displaySystemCapabilities();
-        system_info::displayCPUFeatures();
-        system_info::displayCacheInfo();
+        stats::detail::detail::displaySystemCapabilities();
+        stats::detail::detail::displayCPUFeatures();
+        stats::detail::detail::displayCacheInfo();
 
         std::cout << "\nUse --constants, --performance, or --full for detailed analysis.\n\n";
     }
 
     void runConstantsInspection() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
         // Shared basic info
         displayBasicSystemInfo();
 
         // Constants-specific sections
         displaySelectedArchitecture();
-        system_info::displayAdaptiveConstants();
+        stats::detail::detail::displayAdaptiveConstants();
         displayAdditionalAdaptiveConstants();
-        system_info::displayPlatformConstants();
+        stats::detail::detail::displayPlatformConstants();
         displayCacheThresholds();
         displayArchitectureComparison();
     }
 
     void runPerformanceInspection() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
         // Shared basic info
         displayBasicSystemInfo();
@@ -141,42 +141,42 @@ class SystemInspector {
         displaySIMDCapabilitiesDetailed();
         displayPerformanceBaselines();
         displayDispatcherConfiguration();
-        system_info::displayPlatformConstants();
-        system_info::displayAdaptiveConstants();
+        stats::detail::detail::displayPlatformConstants();
+        stats::detail::detail::displayAdaptiveConstants();
     }
 
     void runFullInspection() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
-        display::sectionHeader("COMPLETE SYSTEM ANALYSIS", '=');
+        stats::detail::detail::sectionHeader("COMPLETE SYSTEM ANALYSIS", '=');
 
         // Part 1: System Overview
-        display::sectionHeader("System Overview", '-');
-        system_info::displaySystemCapabilities();
+        stats::detail::detail::sectionHeader("System Overview", '-');
+        stats::detail::detail::displaySystemCapabilities();
         displayCPUTopology();
 
         // Part 2: Hardware Details
-        display::sectionHeader("Hardware Analysis", '-');
-        system_info::displayCacheInfo();
-        system_info::displayCPUFeatures();
+        stats::detail::detail::sectionHeader("Hardware Analysis", '-');
+        stats::detail::detail::displayCacheInfo();
+        stats::detail::detail::displayCPUFeatures();
         displaySIMDCapabilitiesDetailed();
 
         // Part 3: Performance Analysis
-        display::sectionHeader("Performance Analysis", '-');
+        stats::detail::detail::sectionHeader("Performance Analysis", '-');
         displayPerformanceBaselines();
         displayDispatcherConfiguration();
 
         // Part 4: Constants Analysis
-        display::sectionHeader("Constants Analysis", '-');
+        stats::detail::detail::sectionHeader("Constants Analysis", '-');
         displaySelectedArchitecture();
-        system_info::displayAdaptiveConstants();
+        stats::detail::detail::displayAdaptiveConstants();
         displayAdditionalAdaptiveConstants();
-        system_info::displayPlatformConstants();
+        stats::detail::detail::displayPlatformConstants();
         displayCacheThresholds();
         displayArchitectureComparison();
 
         std::cout << "\n";
-        display::sectionHeader("Analysis Complete", '=');
+        stats::detail::detail::sectionHeader("Analysis Complete", '=');
     }
 
     // ========================================================================
@@ -184,9 +184,9 @@ class SystemInspector {
     // ========================================================================
 
     void displayBasicSystemInfo() {
-        using namespace stats::tools;
-        system_info::displayCPUFeatures();
-        system_info::displayCacheInfo();
+        using namespace stats::detail;
+        stats::detail::detail::displayCPUFeatures();
+        stats::detail::detail::displayCacheInfo();
     }
 
     // ========================================================================
@@ -194,54 +194,57 @@ class SystemInspector {
     // ========================================================================
 
     void displaySelectedArchitecture() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Selected Architecture");
-        std::cout << "Active Architecture: " << system_info::getActiveArchitecture() << "\n";
-        system_info::displaySIMDLevel();
+        stats::detail::detail::subsectionHeader("Selected Architecture");
+        std::cout << "Active Architecture: " << stats::detail::detail::getActiveArchitecture()
+                  << "\n";
+        stats::detail::detail::displaySIMDLevel();
         std::cout << "\n";
     }
 
     void displayAdditionalAdaptiveConstants() {
-        using namespace stats::tools;
-        using namespace stats::constants;
+        using namespace stats::detail;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Additional Adaptive Constants");
+        stats::detail::detail::subsectionHeader("Additional Adaptive Constants");
 
-        table::ColumnFormatter formatter({40, 15});
+        stats::detail::detail::ColumnFormatter formatter({40, 15});
         std::cout << formatter.formatRow({"Constant", "Value"}) << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
-        std::cout << formatter.formatRow(
-                         {"Min Elements for Distribution Parallel",
-                          std::to_string(
-                              parallel::adaptive::min_elements_for_distribution_parallel())})
-                  << "\n";
+        std::cout
+            << formatter.formatRow(
+                   {"Min Elements for Distribution Parallel",
+                    std::to_string(
+                        stats::arch::parallel::detail::min_elements_for_distribution_parallel())})
+            << "\n";
         std::cout << formatter.formatRow(
                          {"Min Elements for Simple Dist Parallel",
-                          std::to_string(
-                              parallel::adaptive::min_elements_for_simple_distribution_parallel())})
+                          std::to_string(stats::arch::parallel::detail::
+                                             min_elements_for_simple_distribution_parallel())})
                   << "\n";
         std::cout << formatter.formatRow(
                          {"Monte Carlo Grain Size",
-                          std::to_string(parallel::adaptive::monte_carlo_grain_size())})
+                          std::to_string(stats::arch::parallel::detail::monte_carlo_grain_size())})
                   << "\n";
         std::cout << formatter.formatRow(
-                         {"Max Grain Size", std::to_string(parallel::adaptive::max_grain_size())})
+                         {"Max Grain Size",
+                          std::to_string(stats::arch::parallel::detail::max_grain_size())})
                   << "\n";
 
         std::cout << "\n";
     }
 
     void displayCacheThresholds() {
-        using namespace stats::tools;
-        using namespace stats::constants;
+        using namespace stats::detail;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Cache Thresholds");
+        stats::detail::detail::subsectionHeader("Cache Thresholds");
 
-        auto cache_thresholds = platform::get_cache_thresholds();
+        auto cache_thresholds = stats::arch::get_cache_thresholds();
 
-        table::ColumnFormatter formatter({25, 15});
+        stats::detail::detail::ColumnFormatter formatter({25, 15});
         std::cout << formatter.formatRow({"Threshold", "Value"}) << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
@@ -266,12 +269,12 @@ class SystemInspector {
     }
 
     void displayArchitectureComparison() {
-        using namespace stats::tools;
-        using namespace stats::constants;
+        using namespace stats::detail;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Architecture-Specific Constants Comparison");
+        stats::detail::detail::subsectionHeader("Architecture-Specific Constants Comparison");
 
-        table::ColumnFormatter formatter({25, 15, 15, 15});
+        stats::detail::detail::ColumnFormatter formatter({25, 15, 15, 15});
         std::cout << formatter.formatRow(
                          {"Architecture", "Min Parallel", "Grain Size", "Simple Grain"})
                   << "\n";
@@ -279,50 +282,59 @@ class SystemInspector {
 
         // Display all architecture constants
         std::cout << formatter.formatRow(
-                         {"SSE", std::to_string(parallel::sse::MIN_ELEMENTS_FOR_PARALLEL),
-                          std::to_string(parallel::sse::DEFAULT_GRAIN_SIZE),
-                          std::to_string(parallel::sse::SIMPLE_OPERATION_GRAIN_SIZE)})
+                         {"SSE",
+                          std::to_string(stats::arch::parallel::sse::MIN_ELEMENTS_FOR_PARALLEL),
+                          std::to_string(stats::arch::parallel::sse::DEFAULT_GRAIN_SIZE),
+                          std::to_string(stats::arch::parallel::sse::SIMPLE_OPERATION_GRAIN_SIZE)})
                   << "\n";
 
         std::cout << formatter.formatRow(
-                         {"AVX", std::to_string(parallel::avx::MIN_ELEMENTS_FOR_PARALLEL),
-                          std::to_string(parallel::avx::DEFAULT_GRAIN_SIZE),
-                          std::to_string(parallel::avx::SIMPLE_OPERATION_GRAIN_SIZE)})
+                         {"AVX",
+                          std::to_string(stats::arch::parallel::avx::MIN_ELEMENTS_FOR_PARALLEL),
+                          std::to_string(stats::arch::parallel::avx::DEFAULT_GRAIN_SIZE),
+                          std::to_string(stats::arch::parallel::avx::SIMPLE_OPERATION_GRAIN_SIZE)})
                   << "\n";
 
         std::cout << formatter.formatRow(
-                         {"AVX2", std::to_string(parallel::avx2::MIN_ELEMENTS_FOR_PARALLEL),
-                          std::to_string(parallel::avx2::DEFAULT_GRAIN_SIZE),
-                          std::to_string(parallel::avx2::SIMPLE_OPERATION_GRAIN_SIZE)})
+                         {"AVX2",
+                          std::to_string(stats::arch::parallel::avx2::MIN_ELEMENTS_FOR_PARALLEL),
+                          std::to_string(stats::arch::parallel::avx2::DEFAULT_GRAIN_SIZE),
+                          std::to_string(stats::arch::parallel::avx2::SIMPLE_OPERATION_GRAIN_SIZE)})
                   << "\n";
 
         std::cout << formatter.formatRow(
-                         {"AVX-512", std::to_string(parallel::avx512::MIN_ELEMENTS_FOR_PARALLEL),
-                          std::to_string(parallel::avx512::DEFAULT_GRAIN_SIZE),
-                          std::to_string(parallel::avx512::SIMPLE_OPERATION_GRAIN_SIZE)})
+                         {"AVX-512",
+                          std::to_string(stats::arch::parallel::avx512::MIN_ELEMENTS_FOR_PARALLEL),
+                          std::to_string(stats::arch::parallel::avx512::DEFAULT_GRAIN_SIZE),
+                          std::to_string(
+                              stats::arch::parallel::avx512::SIMPLE_OPERATION_GRAIN_SIZE)})
                   << "\n";
 
         std::cout << formatter.formatRow(
-                         {"NEON", std::to_string(parallel::neon::MIN_ELEMENTS_FOR_PARALLEL),
-                          std::to_string(parallel::neon::DEFAULT_GRAIN_SIZE),
-                          std::to_string(parallel::neon::SIMPLE_OPERATION_GRAIN_SIZE)})
+                         {"NEON",
+                          std::to_string(stats::arch::parallel::neon::MIN_ELEMENTS_FOR_PARALLEL),
+                          std::to_string(stats::arch::parallel::neon::DEFAULT_GRAIN_SIZE),
+                          std::to_string(stats::arch::parallel::neon::SIMPLE_OPERATION_GRAIN_SIZE)})
                   << "\n";
 
-        std::cout << formatter.formatRow(
-                         {"Fallback", std::to_string(parallel::fallback::MIN_ELEMENTS_FOR_PARALLEL),
-                          std::to_string(parallel::fallback::DEFAULT_GRAIN_SIZE),
-                          std::to_string(parallel::fallback::SIMPLE_OPERATION_GRAIN_SIZE)})
-                  << "\n";
+        std::cout
+            << formatter.formatRow(
+                   {"Fallback",
+                    std::to_string(stats::arch::parallel::fallback::MIN_ELEMENTS_FOR_PARALLEL),
+                    std::to_string(stats::arch::parallel::fallback::DEFAULT_GRAIN_SIZE),
+                    std::to_string(stats::arch::parallel::fallback::SIMPLE_OPERATION_GRAIN_SIZE)})
+            << "\n";
 
         std::cout << formatter.getSeparator() << "\n";
 
         // Show selected (adaptive) constants
-        std::cout << formatter.formatRow(
-                         {"SELECTED (adaptive)",
-                          std::to_string(parallel::adaptive::min_elements_for_parallel()),
-                          std::to_string(parallel::adaptive::grain_size()),
-                          std::to_string(parallel::adaptive::simple_operation_grain_size())})
-                  << "\n";
+        std::cout
+            << formatter.formatRow(
+                   {"SELECTED (adaptive)",
+                    std::to_string(stats::arch::parallel::detail::min_elements_for_parallel()),
+                    std::to_string(stats::arch::parallel::detail::grain_size()),
+                    std::to_string(stats::arch::parallel::detail::simple_operation_grain_size())})
+            << "\n";
 
         std::cout << "\n";
     }
@@ -332,11 +344,11 @@ class SystemInspector {
     // ========================================================================
 
     void displayCPUTopology() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("CPU Topology");
+        stats::detail::detail::subsectionHeader("CPU Topology");
 
-        const auto& capabilities = stats::performance::SystemCapabilities::current();
+        const auto& capabilities = stats::detail::SystemCapabilities::current();
 
         std::cout << std::left << std::setw(25)
                   << "Hardware Threads:" << std::thread::hardware_concurrency() << "\n";
@@ -351,13 +363,13 @@ class SystemInspector {
     }
 
     void displaySIMDCapabilitiesDetailed() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("SIMD Capabilities");
+        stats::detail::detail::subsectionHeader("SIMD Capabilities");
 
-        const auto& capabilities = stats::performance::SystemCapabilities::current();
+        const auto& capabilities = stats::detail::SystemCapabilities::current();
 
-        table::ColumnFormatter formatter({12, 10, 15, 25});
+        stats::detail::detail::ColumnFormatter formatter({12, 10, 15, 25});
         std::cout << formatter.formatRow({"Instruction", "Support", "Vector Width", "Description"})
                   << "\n";
         std::cout << formatter.getSeparator() << "\n";
@@ -379,25 +391,25 @@ class SystemInspector {
                   << "\n";
 
         // Display active SIMD level
-        std::cout << "\nActive SIMD Level: " << stats::simd::VectorOps::get_active_simd_level()
-                  << "\n\n";
+        std::cout << "\nActive SIMD Level: "
+                  << stats::arch::simd::VectorOps::get_active_simd_level() << "\n\n";
     }
 
     void displayPerformanceBaselines() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Performance Baselines");
+        stats::detail::detail::subsectionHeader("Performance Baselines");
 
         // Simple arithmetic throughput test
         const size_t test_size = BASELINE_TEST_SIZE;
-        std::vector<double> data(test_size, stats::constants::math::ONE);
+        std::vector<double> data(test_size, stats::detail::ONE);
         std::vector<double> result(test_size);
 
         // SIMD throughput
         auto start = high_resolution_clock::now();
         for (int i = 0; i < BASELINE_ITERATIONS; ++i) {
-            stats::simd::VectorOps::vector_multiply(data.data(), data.data(), result.data(),
-                                                    test_size);
+            stats::arch::simd::VectorOps::vector_multiply(data.data(), data.data(), result.data(),
+                                                          test_size);
         }
         auto end = high_resolution_clock::now();
         double simd_time = static_cast<double>(duration_cast<microseconds>(end - start).count()) /
@@ -415,7 +427,7 @@ class SystemInspector {
                              static_cast<double>(BASELINE_ITERATIONS);
 
         // Display results using utility
-        table::ColumnFormatter formatter({25, 15, 20});
+        stats::detail::detail::ColumnFormatter formatter({25, 15, 20});
         std::cout << formatter.formatRow({"Operation Type", "Time (μs)", "Throughput (MOps/s)"})
                   << "\n";
         std::cout << formatter.getSeparator() << "\n";
@@ -435,43 +447,42 @@ class SystemInspector {
     }
 
     void displayDispatcherConfiguration() {
-        using namespace stats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Performance Dispatcher Configuration");
+        stats::detail::detail::subsectionHeader("Performance Dispatcher Configuration");
 
         // Show some example strategy selections
         std::cout << "Example Strategy Selections:\n";
 
-        table::ColumnFormatter formatter({20, 15, 15, 20});
+        stats::detail::detail::ColumnFormatter formatter({20, 15, 15, 20});
         std::cout << formatter.formatRow({"Batch Size", "Distribution", "Complexity", "Strategy"})
                   << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
-        const auto& capabilities = stats::performance::SystemCapabilities::current();
+        const auto& capabilities = stats::detail::SystemCapabilities::current();
         std::vector<size_t> test_sizes = {100, 1000, 10000, 100000};
-        std::vector<stats::performance::DistributionType> dist_types = {
-            stats::performance::DistributionType::UNIFORM,
-            stats::performance::DistributionType::GAUSSIAN,
-            stats::performance::DistributionType::EXPONENTIAL,
-            stats::performance::DistributionType::POISSON,
-            stats::performance::DistributionType::DISCRETE};
-        std::vector<stats::performance::ComputationComplexity> complexities = {
-            stats::performance::ComputationComplexity::SIMPLE,
-            stats::performance::ComputationComplexity::MODERATE,
-            stats::performance::ComputationComplexity::COMPLEX};
+        std::vector<stats::detail::DistributionType> dist_types = {
+            stats::detail::DistributionType::UNIFORM, stats::detail::DistributionType::GAUSSIAN,
+            stats::detail::DistributionType::EXPONENTIAL, stats::detail::DistributionType::POISSON,
+            stats::detail::DistributionType::DISCRETE};
+        std::vector<stats::detail::ComputationComplexity> complexities = {
+            stats::detail::ComputationComplexity::SIMPLE,
+            stats::detail::ComputationComplexity::MODERATE,
+            stats::detail::ComputationComplexity::COMPLEX};
 
         for (auto size : test_sizes) {
             for (auto dist : dist_types) {
                 int complexity_count = 0;
                 for (auto complexity : complexities) {
-                    stats::performance::PerformanceDispatcher dispatcher;
+                    stats::detail::PerformanceDispatcher dispatcher;
                     auto strategy =
                         dispatcher.selectOptimalStrategy(size, dist, complexity, capabilities);
 
-                    std::cout << formatter.formatRow({std::to_string(size),
-                                                      strings::distributionTypeToString(dist),
-                                                      strings::complexityToString(complexity),
-                                                      strings::strategyToDisplayString(strategy)})
+                    std::cout << formatter.formatRow(
+                                     {std::to_string(size),
+                                      stats::detail::detail::distributionTypeToString(dist),
+                                      stats::detail::detail::complexityToString(complexity),
+                                      stats::detail::detail::strategyToDisplayString(strategy)})
                               << "\n";
 
                     // Only show first complexity for brevity
@@ -520,7 +531,7 @@ InspectionMode parseMode(const std::string& arg) {
 }
 
 int main(int argc, char* argv[]) {
-    using namespace stats::tools;
+    using namespace stats::detail;
 
     // Parse command line arguments
     InspectionMode mode = InspectionMode::FULL;  // default
@@ -536,7 +547,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Use the standard tool runner pattern with initialization
-    return tool_utils::runTool("System Inspector Tool", [mode]() {
+    return stats::detail::detail::runTool("System Inspector Tool", [mode]() {
         // Initialize performance systems for accurate inspection
         stats::initialize_performance_systems();
 

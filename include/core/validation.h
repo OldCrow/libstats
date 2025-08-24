@@ -39,7 +39,7 @@ namespace stats {
 // Forward declaration
 class DistributionBase;
 
-namespace validation {
+namespace detail {  // validation utilities
 
 /**
  * @brief Kolmogorov-Smirnov test result
@@ -217,5 +217,5 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(const std::vector
                                                                double confidence_level = 0.95,
                                                                size_t num_bootstrap = 1000);
 
-}  // namespace validation
+}  // namespace detail
 }  // namespace stats

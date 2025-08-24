@@ -11,10 +11,9 @@
  */
 
 namespace stats {
-namespace constants {
-
+namespace detail {
 /// Benchmark and performance testing constants
-namespace benchmark {
+// Consolidated into detail namespace (was: namespace benchmark)
 /// Default number of benchmark iterations
 inline constexpr std::size_t DEFAULT_ITERATIONS = 100;
 
@@ -44,10 +43,10 @@ inline constexpr double PERFORMANCE_SIGNIFICANCE_THRESHOLD = 0.05;
 
 /// Coefficient of variation threshold for stable measurements
 inline constexpr double CV_THRESHOLD = 0.1;
-}  // namespace benchmark
+// End of consolidated benchmark constants
 
 /// Algorithm-specific thresholds
-namespace thresholds {
+// Consolidated into detail namespace (was: namespace thresholds)
 /// Minimum scale factor for scaled algorithms
 inline constexpr double MIN_SCALE_FACTOR = 1.0e-100;
 
@@ -62,7 +61,7 @@ inline constexpr double MAX_DISTRIBUTION_PARAMETER = 1.0e6;
 
 /// Minimum parameter value for distribution fitting
 inline constexpr double MIN_DISTRIBUTION_PARAMETER = 1.0e-6;
-}  // namespace thresholds
+// End of consolidated thresholds constants
 
-}  // namespace constants
+}  // namespace detail
 }  // namespace stats

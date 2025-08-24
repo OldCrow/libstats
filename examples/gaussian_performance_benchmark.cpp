@@ -143,7 +143,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = stats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 stdNormal.getProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -153,7 +153,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = stats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 stdNormal.getLogProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -163,7 +163,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = stats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 stdNormal.getCumulativeProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -184,7 +184,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
-            auto hint = stats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::detail::PerformanceHint::minimal_latency();
             stdNormal.getProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -194,7 +194,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
-            auto hint = stats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::detail::PerformanceHint::minimal_latency();
             stdNormal.getLogProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -204,7 +204,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
-            auto hint = stats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::detail::PerformanceHint::minimal_latency();
             stdNormal.getCumulativeProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -216,7 +216,7 @@ int main() {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
             stdNormal.getProbabilityWithStrategy(values_span, results_span,
-                                                 stats::performance::Strategy::WORK_STEALING);
+                                                 stats::detail::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 
@@ -226,7 +226,7 @@ int main() {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
             stdNormal.getLogProbabilityWithStrategy(values_span, results_span,
-                                                    stats::performance::Strategy::WORK_STEALING);
+                                                    stats::detail::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 
@@ -235,8 +235,8 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test);
             std::span<double> results_span(large_results);
-            stdNormal.getCumulativeProbabilityWithStrategy(
-                values_span, results_span, stats::performance::Strategy::WORK_STEALING);
+            stdNormal.getCumulativeProbabilityWithStrategy(values_span, results_span,
+                                                           stats::detail::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 

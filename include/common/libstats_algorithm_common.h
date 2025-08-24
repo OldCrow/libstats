@@ -117,7 +117,7 @@ inline void statistical_partial_sort(Iterator first, Iterator nth, Iterator last
 }
 
 /// Parallel algorithms with automatic fallback
-namespace parallel {
+namespace arch {
 
 /// Parallel transform with automatic policy selection
 template <typename InputIt, typename OutputIt, typename UnaryOperation>
@@ -206,7 +206,7 @@ template <typename Iterator>
 inline void sort(Iterator first, Iterator last) {
     sort(first, last, std::less<typename std::iterator_traits<Iterator>::value_type>{});
 }
-}  // namespace parallel
+}  // namespace arch
 
 /// SIMD-friendly algorithms
 namespace simd_friendly {
@@ -231,7 +231,7 @@ inline OutputIt simd_transform(InputIt first, InputIt last, OutputIt d_first, Un
         auto simd_end = std::next(first, simd_count);
 
         // Use parallel transform for the main portion
-        auto result = parallel::transform(first, simd_end, d_first, op);
+        auto result = arch::transform(first, simd_end, d_first, op);
 
         // Process remaining elements
         return std::transform(simd_end, last, result, op);
@@ -248,12 +248,13 @@ inline T simd_accumulate(Iterator first, Iterator last, T init, BinaryOperation 
 
     if (total_size >= SIMD_WIDTH) {
         // Use parallel reduce for SIMD-friendly portion
-        return parallel::reduce(first, last, init, op);
+        return arch::reduce(first, last, init, op);
     } else {
         return std::accumulate(first, last, init, op);
     }
 }
-}  // namespace simd_friendly
+}
+}  // namespace arch::simd_friendly
 
 /// Statistical algorithm helpers
 namespace statistical {

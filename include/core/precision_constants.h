@@ -4,8 +4,7 @@
 #include <limits>
 
 namespace stats {
-namespace constants {
-namespace precision {
+namespace detail {
 // Basic precision and tolerance values
 inline constexpr double ZERO = 1.0e-30;
 inline constexpr double DEFAULT_TOLERANCE = 1.0e-8;
@@ -50,6 +49,5 @@ inline constexpr double MONTE_CARLO_INTEGRATION_TOLERANCE = 1.0e-6;
 
 // Maximum recursion depth for adaptive Simpson's rule
 inline constexpr int MAX_ADAPTIVE_SIMPSON_DEPTH = 15;
-}  // namespace precision
-}  // namespace constants
+}  // namespace detail
 }  // namespace stats

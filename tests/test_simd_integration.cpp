@@ -62,41 +62,43 @@ void demonstrate_simd_integration() {
     // 2. Query runtime capabilities using cpu_detection.h
     std::cout << "\n2. RUNTIME CPU DETECTION:" << std::endl;
 
-    const auto& features = stats::cpu::get_features();
+    const auto& features = stats::arch::get_features();
     std::cout << "   CPU Vendor: " << features.vendor << std::endl;
     std::cout << "   CPU Brand: " << features.brand << std::endl;
     std::cout << "   CPU Family: " << features.family << ", Model: " << features.model
               << ", Stepping: " << features.stepping << std::endl;
 
     std::cout << "\n   x86 SIMD Support:" << std::endl;
-    std::cout << "   - SSE2: " << (stats::cpu::supports_sse2() ? "✓" : "✗") << std::endl;
-    std::cout << "   - SSE4.1: " << (stats::cpu::supports_sse4_1() ? "✓" : "✗") << std::endl;
-    std::cout << "   - AVX: " << (stats::cpu::supports_avx() ? "✓" : "✗") << std::endl;
-    std::cout << "   - AVX2: " << (stats::cpu::supports_avx2() ? "✓" : "✗") << std::endl;
-    std::cout << "   - FMA: " << (stats::cpu::supports_fma() ? "✓" : "✗") << std::endl;
-    std::cout << "   - AVX512: " << (stats::cpu::supports_avx512() ? "✓" : "✗") << std::endl;
+    std::cout << "   - SSE2: " << (stats::arch::supports_sse2() ? "✓" : "✗") << std::endl;
+    std::cout << "   - SSE4.1: " << (stats::arch::supports_sse4_1() ? "✓" : "✗") << std::endl;
+    std::cout << "   - AVX: " << (stats::arch::supports_avx() ? "✓" : "✗") << std::endl;
+    std::cout << "   - AVX2: " << (stats::arch::supports_avx2() ? "✓" : "✗") << std::endl;
+    std::cout << "   - FMA: " << (stats::arch::supports_fma() ? "✓" : "✗") << std::endl;
+    std::cout << "   - AVX512: " << (stats::arch::supports_avx512() ? "✓" : "✗") << std::endl;
 
     std::cout << "   ARM SIMD Support:" << std::endl;
-    std::cout << "   - NEON: " << (stats::cpu::supports_neon() ? "✓" : "✗") << std::endl;
+    std::cout << "   - NEON: " << (stats::arch::supports_neon() ? "✓" : "✗") << std::endl;
 
     // 3. Show optimal settings
     std::cout << "\n3. OPTIMAL SIMD CONFIGURATION:" << std::endl;
-    std::cout << "   Best SIMD level: " << stats::cpu::best_simd_level() << std::endl;
-    std::cout << "   Optimal double width: " << stats::cpu::optimal_double_width() << std::endl;
-    std::cout << "   Optimal float width: " << stats::cpu::optimal_float_width() << std::endl;
-    std::cout << "   Optimal alignment: " << stats::cpu::optimal_alignment() << " bytes"
+    std::cout << "   Best SIMD level: " << stats::arch::best_simd_level() << std::endl;
+    std::cout << "   Optimal double width: " << stats::arch::optimal_double_width() << std::endl;
+    std::cout << "   Optimal float width: " << stats::arch::optimal_float_width() << std::endl;
+    std::cout << "   Optimal alignment: " << stats::arch::optimal_alignment() << " bytes"
               << std::endl;
 
     // 4. Show compile-time constants from simd.h
     std::cout << "\n4. COMPILE-TIME SIMD CONSTANTS:" << std::endl;
-    std::cout << "   Has SIMD support: " << (stats::simd::has_simd_support() ? "✓" : "✗")
+    std::cout << "   Has SIMD support: " << (stats::arch::simd::has_simd_support() ? "✓" : "✗")
               << std::endl;
-    std::cout << "   Compile-time double width: " << stats::simd::double_vector_width()
+    std::cout << "   Compile-time double width: " << stats::arch::simd::double_vector_width()
               << std::endl;
-    std::cout << "   Compile-time float width: " << stats::simd::float_vector_width() << std::endl;
-    std::cout << "   Compile-time alignment: " << stats::simd::optimal_alignment() << " bytes"
+    std::cout << "   Compile-time float width: " << stats::arch::simd::float_vector_width()
               << std::endl;
-    std::cout << "   Compile-time feature string: " << stats::simd::feature_string() << std::endl;
+    std::cout << "   Compile-time alignment: " << stats::arch::simd::optimal_alignment() << " bytes"
+              << std::endl;
+    std::cout << "   Compile-time feature string: " << stats::arch::simd::feature_string()
+              << std::endl;
 
     // 5. Show combined usage pattern
     std::cout << "\n5. SAFE SIMD USAGE PATTERN:" << std::endl;
@@ -106,7 +108,7 @@ void demonstrate_simd_integration() {
 
     // This is the recommended pattern for safe SIMD usage
 #ifdef LIBSTATS_HAS_AVX2
-    if (stats::cpu::supports_avx2()) {
+    if (stats::arch::supports_avx2()) {
         std::cout << "   ✓ Using AVX2 code path (compiler can generate + CPU supports)"
                   << std::endl;
         has_simd = true;
@@ -116,13 +118,13 @@ void demonstrate_simd_integration() {
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (stats::cpu::supports_avx()) {
+    if (stats::arch::supports_avx()) {
         std::cout << "   ✓ Using AVX code path (compiler can generate + CPU supports)" << std::endl;
         has_simd = true;
     } else {
     #ifdef LIBSTATS_HAS_AVX2
         // Only show this warning if AVX2 is not available
-        if (!stats::cpu::supports_avx2()) {
+        if (!stats::arch::supports_avx2()) {
     #endif
             std::cout << "   ⚠ Compiler supports AVX but CPU does not - using fallback"
                       << std::endl;
@@ -133,7 +135,7 @@ void demonstrate_simd_integration() {
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (stats::cpu::supports_sse2()) {
+    if (stats::arch::supports_sse2()) {
         std::cout << "   ✓ Using SSE2 code path (compiler can generate + CPU supports)"
                   << std::endl;
         has_simd = true;
@@ -146,7 +148,7 @@ void demonstrate_simd_integration() {
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
-    if (stats::cpu::supports_neon()) {
+    if (stats::arch::supports_neon()) {
         std::cout << "   ✓ Using ARM NEON code path (compiler can generate + CPU supports)"
                   << std::endl;
         has_simd = true;
@@ -186,7 +188,7 @@ void safe_vectorized_add(const std::vector<double>& a, const std::vector<double>
 
     // Use libstats SIMD operations with automatic detection
     // This would use the VectorOps class from simd.h with runtime detection
-    stats::simd::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
+    stats::arch::simd::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
 }
 
 // Test Gaussian distribution SIMD batch operations
@@ -215,7 +217,7 @@ void benchmark_gaussian_simd() {
     for (int i = 0; i < 100; ++i) {
         gauss.getProbabilityWithStrategy(std::span<const double>(values),
                                          std::span<double>(pdf_results),
-                                         stats::performance::Strategy::SCALAR);
+                                         stats::detail::Strategy::SCALAR);
     }
 
     auto end_pdf = std::chrono::high_resolution_clock::now();
@@ -230,7 +232,7 @@ void benchmark_gaussian_simd() {
     for (int i = 0; i < 100; ++i) {
         gauss.getLogProbabilityWithStrategy(std::span<const double>(values),
                                             std::span<double>(log_pdf_results),
-                                            stats::performance::Strategy::SCALAR);
+                                            stats::detail::Strategy::SCALAR);
     }
 
     auto end_log = std::chrono::high_resolution_clock::now();

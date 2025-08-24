@@ -107,7 +107,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * Implementation in .cpp: Complex validation and cache initialization logic
      */
-    explicit ExponentialDistribution(double lambda = constants::math::ONE);
+    explicit ExponentialDistribution(double lambda = detail::ONE);
 
     /**
      * @brief Thread-safe copy constructor
@@ -749,7 +749,7 @@ class ExponentialDistribution : public DistributionBase {
      */
     [[nodiscard]] double getMedian() const noexcept {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return constants::math::LN2 / lambda_;  // Use precomputed ln(2)
+        return detail::LN2 / lambda_;  // Use precomputed ln(2)
     }
 
     /**
@@ -762,7 +762,7 @@ class ExponentialDistribution : public DistributionBase {
      */
     [[nodiscard]] double getEntropy() const noexcept override {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return constants::math::ONE - std::log(lambda_);
+        return detail::ONE - std::log(lambda_);
     }
 
     /**
@@ -773,7 +773,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Mode value (always 0.0)
      */
-    [[nodiscard]] constexpr double getMode() const noexcept { return constants::math::ZERO_DOUBLE; }
+    [[nodiscard]] constexpr double getMode() const noexcept { return detail::ZERO_DOUBLE; }
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
@@ -813,13 +813,13 @@ class ExponentialDistribution : public DistributionBase {
      * dist.getProbability(inputs, outputs);
      *
      * // Force specific strategy
-     * performance::PerformanceHint hint;
-     * hint.strategy = performance::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+     * detail::PerformanceHint hint;
+     * hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
      * dist.getProbability(inputs, outputs, hint);
      * @endcode
      */
     void getProbability(std::span<const double> values, std::span<double> results,
-                        const performance::PerformanceHint& hint = {}) const;
+                        const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch log probability calculation with performance hints
@@ -838,7 +838,7 @@ class ExponentialDistribution : public DistributionBase {
      *       at smaller batch sizes compared to getProbability().
      */
     void getLogProbability(std::span<const double> values, std::span<double> results,
-                           const performance::PerformanceHint& hint = {}) const;
+                           const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch cumulative probability calculation with performance hints
@@ -856,7 +856,7 @@ class ExponentialDistribution : public DistributionBase {
      *       benefit significantly from SIMD vectorization and parallel processing.
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                  const performance::PerformanceHint& hint = {}) const;
+                                  const detail::PerformanceHint& hint = {}) const;
 
     //==========================================================================
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS
@@ -876,7 +876,7 @@ class ExponentialDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    performance::Strategy strategy) const;
+                                    detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch log probability calculation for power users
@@ -892,7 +892,7 @@ class ExponentialDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       performance::Strategy strategy) const;
+                                       detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch cumulative probability calculation for power users
@@ -909,7 +909,7 @@ class ExponentialDistribution : public DistributionBase {
      */
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
-                                              performance::Strategy strategy) const;
+                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1009,7 +1009,7 @@ class ExponentialDistribution : public DistributionBase {
      */
     void updateCacheUnsafe() const noexcept override {
         // Primary calculations - compute once, reuse multiple times
-        invLambda_ = constants::math::ONE / lambda_;
+        invLambda_ = detail::ONE / lambda_;
         invLambdaSquared_ = invLambda_ * invLambda_;
 
         // Core cached values
@@ -1017,10 +1017,9 @@ class ExponentialDistribution : public DistributionBase {
         negLambda_ = -lambda_;
 
         // Optimization flags
-        isUnitRate_ =
-            (std::abs(lambda_ - constants::math::ONE) <= constants::precision::DEFAULT_TOLERANCE);
-        isHighRate_ = (lambda_ > constants::math::THOUSAND);
-        isLowRate_ = (lambda_ < constants::math::THOUSANDTH);
+        isUnitRate_ = (std::abs(lambda_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        isHighRate_ = (lambda_ > detail::THOUSAND);
+        isLowRate_ = (lambda_ < detail::THOUSANDTH);
 
         cache_valid_ = true;
         cacheValidAtomic_.store(true, std::memory_order_release);
@@ -1036,7 +1035,7 @@ class ExponentialDistribution : public DistributionBase {
      * @throws std::invalid_argument if parameters are invalid
      */
     static void validateParameters(double lambda) {
-        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= constants::math::ZERO_DOUBLE) {
+        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
         }
     }
@@ -1053,10 +1052,10 @@ class ExponentialDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Rate parameter λ - must be positive */
-    double lambda_{constants::math::ONE};
+    double lambda_{detail::ONE};
 
     /** @brief C++20 atomic copy of parameter for lock-free access */
-    mutable std::atomic<double> atomicLambda_{constants::math::ONE};
+    mutable std::atomic<double> atomicLambda_{detail::ONE};
     mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
@@ -1064,16 +1063,16 @@ class ExponentialDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Cached value of ln(λ) for efficiency in log probability calculations */
-    mutable double logLambda_{constants::math::ZERO_DOUBLE};
+    mutable double logLambda_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of 1/λ (mean and scale parameter) for efficiency */
-    mutable double invLambda_{constants::math::ONE};
+    mutable double invLambda_{detail::ONE};
 
     /** @brief Cached value of -λ for efficiency in PDF and log-PDF calculations */
-    mutable double negLambda_{-constants::math::ONE};
+    mutable double negLambda_{-detail::ONE};
 
     /** @brief Cached value of 1/λ² for variance calculation efficiency */
-    mutable double invLambdaSquared_{constants::math::ONE};
+    mutable double invLambdaSquared_{detail::ONE};
 
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
