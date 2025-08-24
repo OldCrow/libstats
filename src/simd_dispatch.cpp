@@ -29,25 +29,25 @@ double VectorOps::dot_product(const double* a, const double* b, std::size_t size
     // Each implementation includes its own runtime safety checks
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512()) {
+    if (supports_avx512()) {
         return dot_product_avx512(a, b, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (supports_avx2()) {
         return dot_product_avx2(a, b, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (cpu::supports_avx()) {
+    if (supports_avx()) {
         return dot_product_avx(a, b, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (cpu::supports_sse2()) {
+    if (supports_sse2()) {
         return dot_product_sse2(a, b, size);
     }
 #endif
@@ -69,25 +69,25 @@ void VectorOps::vector_add(const double* a, const double* b, double* result,
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512()) {
+    if (supports_avx512()) {
         return vector_add_avx512(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (supports_avx2()) {
         return vector_add_avx2(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (cpu::supports_avx()) {
+    if (supports_avx()) {
         return vector_add_avx(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (cpu::supports_sse2()) {
+    if (supports_sse2()) {
         return vector_add_sse2(a, b, result, size);
     }
 #endif
@@ -108,25 +108,25 @@ void VectorOps::vector_subtract(const double* a, const double* b, double* result
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512()) {
+    if (supports_avx512()) {
         return vector_subtract_avx512(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (supports_avx2()) {
         return vector_subtract_avx2(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (cpu::supports_avx()) {
+    if (supports_avx()) {
         return vector_subtract_avx(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (cpu::supports_sse2()) {
+    if (supports_sse2()) {
         return vector_subtract_sse2(a, b, result, size);
     }
 #endif
@@ -147,25 +147,25 @@ void VectorOps::vector_multiply(const double* a, const double* b, double* result
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512()) {
+    if (supports_avx512()) {
         return vector_multiply_avx512(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (supports_avx2()) {
         return vector_multiply_avx2(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (cpu::supports_avx()) {
+    if (supports_avx()) {
         return vector_multiply_avx(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (cpu::supports_sse2()) {
+    if (supports_sse2()) {
         return vector_multiply_sse2(a, b, result, size);
     }
 #endif
@@ -186,25 +186,25 @@ void VectorOps::scalar_multiply(const double* a, double scalar, double* result,
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512()) {
+    if (supports_avx512()) {
         return scalar_multiply_avx512(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (supports_avx2()) {
         return scalar_multiply_avx2(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (cpu::supports_avx()) {
+    if (supports_avx()) {
         return scalar_multiply_avx(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (cpu::supports_sse2()) {
+    if (supports_sse2()) {
         return scalar_multiply_sse2(a, scalar, result, size);
     }
 #endif
@@ -225,25 +225,25 @@ void VectorOps::scalar_add(const double* a, double scalar, double* result,
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512()) {
+    if (supports_avx512()) {
         return scalar_add_avx512(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (supports_avx2()) {
         return scalar_add_avx2(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (cpu::supports_avx()) {
+    if (supports_avx()) {
         return scalar_add_avx(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (cpu::supports_sse2()) {
+    if (supports_sse2()) {
         return scalar_add_sse2(a, scalar, result, size);
     }
 #endif
@@ -285,25 +285,25 @@ void VectorOps::vector_erf(const double* values, double* results, std::size_t si
 std::string VectorOps::get_active_simd_level() noexcept {
     // Return the highest SIMD level currently available at runtime
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512()) {
+    if (supports_avx512()) {
         return "AVX-512";
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (cpu::supports_avx2()) {
+    if (supports_avx2()) {
         return "AVX2";
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (cpu::supports_avx()) {
+    if (supports_avx()) {
         return "AVX";
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (cpu::supports_sse2()) {
+    if (supports_sse2()) {
         return "SSE2";
     }
 #endif
@@ -373,7 +373,7 @@ inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const v
 
 // For high-end SIMD (AVX-512), use for smaller aligned datasets
 #ifdef LIBSTATS_HAS_AVX512
-    if (cpu::supports_avx512() && size >= arch::AVX512_MIN_ALIGNED_SIZE &&
+    if (supports_avx512() && size >= arch::AVX512_MIN_ALIGNED_SIZE &&
         is_alignment_beneficial(ptr1, ptr2, ptr3)) {
         return true;
     }

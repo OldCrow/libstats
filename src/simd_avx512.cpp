@@ -28,12 +28,12 @@ namespace simd {
 double VectorOps::dot_product_avx512(const double* a, const double* b, std::size_t size) noexcept {
     // CRITICAL: Runtime safety check - bail out if AVX-512 not supported
     // This prevents illegal instruction crashes on CPUs without AVX-512
-    if (!cpu::supports_avx512()) {
+    if (!supports_avx512()) {
         return dot_product_fallback(a, b, size);
     }
 
     __m512d sum = _mm512_setzero_pd();
-    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::AVX512_DOUBLES;
+    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::simd::AVX512_DOUBLES;
     const std::size_t simd_end = (size / AVX512_DOUBLE_WIDTH) * AVX512_DOUBLE_WIDTH;
 
     // Process octets of doubles
@@ -60,11 +60,11 @@ double VectorOps::dot_product_avx512(const double* a, const double* b, std::size
 
 void VectorOps::vector_add_avx512(const double* a, const double* b, double* result,
                                   std::size_t size) noexcept {
-    if (!cpu::supports_avx512()) {
+    if (!supports_avx512()) {
         return vector_add_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::AVX512_DOUBLES;
+    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::simd::AVX512_DOUBLES;
     const std::size_t simd_end = (size / AVX512_DOUBLE_WIDTH) * AVX512_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX512_DOUBLE_WIDTH) {
@@ -82,11 +82,11 @@ void VectorOps::vector_add_avx512(const double* a, const double* b, double* resu
 
 void VectorOps::vector_subtract_avx512(const double* a, const double* b, double* result,
                                        std::size_t size) noexcept {
-    if (!cpu::supports_avx512()) {
+    if (!supports_avx512()) {
         return vector_subtract_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::AVX512_DOUBLES;
+    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::simd::AVX512_DOUBLES;
     const std::size_t simd_end = (size / AVX512_DOUBLE_WIDTH) * AVX512_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX512_DOUBLE_WIDTH) {
@@ -103,11 +103,11 @@ void VectorOps::vector_subtract_avx512(const double* a, const double* b, double*
 
 void VectorOps::vector_multiply_avx512(const double* a, const double* b, double* result,
                                        std::size_t size) noexcept {
-    if (!cpu::supports_avx512()) {
+    if (!supports_avx512()) {
         return vector_multiply_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::AVX512_DOUBLES;
+    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::simd::AVX512_DOUBLES;
     const std::size_t simd_end = (size / AVX512_DOUBLE_WIDTH) * AVX512_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX512_DOUBLE_WIDTH) {
@@ -124,12 +124,12 @@ void VectorOps::vector_multiply_avx512(const double* a, const double* b, double*
 
 void VectorOps::scalar_multiply_avx512(const double* a, double scalar, double* result,
                                        std::size_t size) noexcept {
-    if (!cpu::supports_avx512()) {
+    if (!supports_avx512()) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
 
     __m512d vscalar = _mm512_set1_pd(scalar);
-    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::AVX512_DOUBLES;
+    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::simd::AVX512_DOUBLES;
     const std::size_t simd_end = (size / AVX512_DOUBLE_WIDTH) * AVX512_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX512_DOUBLE_WIDTH) {
@@ -145,12 +145,12 @@ void VectorOps::scalar_multiply_avx512(const double* a, double scalar, double* r
 
 void VectorOps::scalar_add_avx512(const double* a, double scalar, double* result,
                                   std::size_t size) noexcept {
-    if (!cpu::supports_avx512()) {
+    if (!supports_avx512()) {
         return scalar_add_fallback(a, scalar, result, size);
     }
 
     __m512d vscalar = _mm512_set1_pd(scalar);
-    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::AVX512_DOUBLES;
+    constexpr std::size_t AVX512_DOUBLE_WIDTH = arch::simd::AVX512_DOUBLES;
     const std::size_t simd_end = (size / AVX512_DOUBLE_WIDTH) * AVX512_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX512_DOUBLE_WIDTH) {
