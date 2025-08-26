@@ -135,11 +135,11 @@ void SystemCapabilities::detectCapabilities() {
     l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3
 
     // SIMD capability detection using existing CPU detection
-    has_sse2_ = arch::supports_sse2();
-    has_avx_ = arch::supports_avx();
-    has_avx2_ = arch::supports_avx2();
-    has_avx512_ = arch::supports_avx512();
-    has_neon_ = arch::supports_neon();
+    has_sse2_ = stats::arch::supports_sse2();
+    has_avx_ = stats::arch::supports_avx();
+    has_avx2_ = stats::arch::supports_avx2();
+    has_avx512_ = stats::arch::supports_avx512();
+    has_neon_ = stats::arch::supports_neon();
 }
 
 void SystemCapabilities::benchmarkPerformance() {

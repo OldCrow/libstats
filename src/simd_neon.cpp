@@ -38,7 +38,7 @@ namespace ops {
 
 double VectorOps::dot_product_neon(const double* a, const double* b, std::size_t size) noexcept {
     // Runtime safety check - bail out if NEON not supported
-    if (!arch::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return dot_product_fallback(a, b, size);
     }
 
@@ -115,7 +115,7 @@ double VectorOps::dot_product_neon(const double* a, const double* b, std::size_t
 
 void VectorOps::vector_add_neon(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return vector_add_fallback(a, b, result, size);
     }
 
@@ -172,7 +172,7 @@ void VectorOps::vector_add_neon(const double* a, const double* b, double* result
 
 void VectorOps::vector_subtract_neon(const double* a, const double* b, double* result,
                                      std::size_t size) noexcept {
-    if (!arch::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return vector_subtract_fallback(a, b, result, size);
     }
 
@@ -193,7 +193,7 @@ void VectorOps::vector_subtract_neon(const double* a, const double* b, double* r
 
 void VectorOps::vector_multiply_neon(const double* a, const double* b, double* result,
                                      std::size_t size) noexcept {
-    if (!arch::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return vector_multiply_fallback(a, b, result, size);
     }
 
@@ -214,7 +214,7 @@ void VectorOps::vector_multiply_neon(const double* a, const double* b, double* r
 
 void VectorOps::scalar_multiply_neon(const double* a, double scalar, double* result,
                                      std::size_t size) noexcept {
-    if (!arch::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
 
@@ -235,7 +235,7 @@ void VectorOps::scalar_multiply_neon(const double* a, double scalar, double* res
 
 void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return scalar_add_fallback(a, scalar, result, size);
     }
 

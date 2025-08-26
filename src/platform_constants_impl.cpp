@@ -368,9 +368,9 @@ std::size_t get_optimal_alignment() {
     } else if (features.avx || features.avx2) {
         // For AVX/AVX2, use 32-byte SIMD alignment but consider cache lines
         if (features.vendor == "GenuineIntel") {
-            return std::max(32UL, stats::arch::cpu::intel::CACHE_LINE_SIZE / 2);
+            return std::max<std::size_t>(32, stats::arch::cpu::intel::CACHE_LINE_SIZE / 2);
         } else if (features.vendor == "AuthenticAMD") {
-            return std::max(32UL, stats::arch::cpu::amd::CACHE_LINE_SIZE / 2);
+            return std::max<std::size_t>(32, stats::arch::cpu::amd::CACHE_LINE_SIZE / 2);
         } else {
             return 32;  // Default AVX alignment
         }

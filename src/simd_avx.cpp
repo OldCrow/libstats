@@ -28,7 +28,7 @@ namespace ops {
 
 double VectorOps::dot_product_avx(const double* a, const double* b, std::size_t size) noexcept {
     // Runtime safety check - bail out if AVX not supported
-    if (!supports_avx()) {
+    if (!stats::arch::supports_avx()) {
         return dot_product_fallback(a, b, size);
     }
 
@@ -59,7 +59,7 @@ double VectorOps::dot_product_avx(const double* a, const double* b, std::size_t 
 
 void VectorOps::vector_add_avx(const double* a, const double* b, double* result,
                                std::size_t size) noexcept {
-    if (!supports_avx()) {
+    if (!stats::arch::supports_avx()) {
         return vector_add_fallback(a, b, result, size);
     }
 
@@ -81,7 +81,7 @@ void VectorOps::vector_add_avx(const double* a, const double* b, double* result,
 
 void VectorOps::vector_subtract_avx(const double* a, const double* b, double* result,
                                     std::size_t size) noexcept {
-    if (!supports_avx()) {
+    if (!stats::arch::supports_avx()) {
         return vector_subtract_fallback(a, b, result, size);
     }
 
@@ -103,7 +103,7 @@ void VectorOps::vector_subtract_avx(const double* a, const double* b, double* re
 
 void VectorOps::vector_multiply_avx(const double* a, const double* b, double* result,
                                     std::size_t size) noexcept {
-    if (!supports_avx()) {
+    if (!stats::arch::supports_avx()) {
         return vector_multiply_fallback(a, b, result, size);
     }
 
@@ -124,7 +124,7 @@ void VectorOps::vector_multiply_avx(const double* a, const double* b, double* re
 
 void VectorOps::scalar_multiply_avx(const double* a, double scalar, double* result,
                                     std::size_t size) noexcept {
-    if (!supports_avx()) {
+    if (!stats::arch::supports_avx()) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
 
@@ -146,7 +146,7 @@ void VectorOps::scalar_multiply_avx(const double* a, double scalar, double* resu
 
 void VectorOps::scalar_add_avx(const double* a, double scalar, double* result,
                                std::size_t size) noexcept {
-    if (!supports_avx()) {
+    if (!stats::arch::supports_avx()) {
         return scalar_add_fallback(a, scalar, result, size);
     }
 

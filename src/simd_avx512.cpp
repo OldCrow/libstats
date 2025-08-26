@@ -28,7 +28,7 @@ namespace ops {
 double VectorOps::dot_product_avx512(const double* a, const double* b, std::size_t size) noexcept {
     // CRITICAL: Runtime safety check - bail out if AVX-512 not supported
     // This prevents illegal instruction crashes on CPUs without AVX-512
-    if (!supports_avx512()) {
+    if (!stats::arch::supports_avx512f()) {
         return dot_product_fallback(a, b, size);
     }
 
@@ -60,7 +60,7 @@ double VectorOps::dot_product_avx512(const double* a, const double* b, std::size
 
 void VectorOps::vector_add_avx512(const double* a, const double* b, double* result,
                                   std::size_t size) noexcept {
-    if (!supports_avx512()) {
+    if (!stats::arch::supports_avx512f()) {
         return vector_add_fallback(a, b, result, size);
     }
 
@@ -82,7 +82,7 @@ void VectorOps::vector_add_avx512(const double* a, const double* b, double* resu
 
 void VectorOps::vector_subtract_avx512(const double* a, const double* b, double* result,
                                        std::size_t size) noexcept {
-    if (!supports_avx512()) {
+    if (!stats::arch::supports_avx512f()) {
         return vector_subtract_fallback(a, b, result, size);
     }
 
@@ -103,7 +103,7 @@ void VectorOps::vector_subtract_avx512(const double* a, const double* b, double*
 
 void VectorOps::vector_multiply_avx512(const double* a, const double* b, double* result,
                                        std::size_t size) noexcept {
-    if (!supports_avx512()) {
+    if (!stats::arch::supports_avx512f()) {
         return vector_multiply_fallback(a, b, result, size);
     }
 
@@ -124,7 +124,7 @@ void VectorOps::vector_multiply_avx512(const double* a, const double* b, double*
 
 void VectorOps::scalar_multiply_avx512(const double* a, double scalar, double* result,
                                        std::size_t size) noexcept {
-    if (!supports_avx512()) {
+    if (!stats::arch::supports_avx512f()) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
 
@@ -145,7 +145,7 @@ void VectorOps::scalar_multiply_avx512(const double* a, double scalar, double* r
 
 void VectorOps::scalar_add_avx512(const double* a, double scalar, double* result,
                                   std::size_t size) noexcept {
-    if (!supports_avx512()) {
+    if (!stats::arch::supports_avx512f()) {
         return scalar_add_fallback(a, scalar, result, size);
     }
 
