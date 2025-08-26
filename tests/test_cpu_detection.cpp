@@ -100,14 +100,12 @@ int main() {
 
         std::cout << "\n=== Adaptive Parallel Constants ===" << std::endl;
         std::cout << "  min_elements_for_parallel(): "
-                  << stats::arch::parallel::detail::min_elements_for_parallel() << std::endl;
+                  << stats::arch::get_min_elements_for_parallel() << std::endl;
         std::cout << "  min_elements_for_distribution_parallel(): "
-                  << stats::arch::parallel::detail::min_elements_for_distribution_parallel()
-                  << std::endl;
+                  << stats::arch::get_min_elements_for_distribution_parallel() << std::endl;
         std::cout << "  min_elements_for_simple_distribution_parallel(): "
-                  << stats::arch::parallel::detail::min_elements_for_simple_distribution_parallel()
-                  << std::endl;
-        std::cout << "  grain_size(): " << stats::arch::parallel::detail::grain_size() << std::endl;
+                  << stats::arch::get_min_elements_for_simple_distribution_parallel() << std::endl;
+        std::cout << "  grain_size(): " << stats::arch::get_default_grain_size() << std::endl;
 
         std::cout << "\n=== Direct Constants Comparison ===" << std::endl;
         std::cout << "  avx::MIN_ELEMENTS_FOR_PARALLEL: "
@@ -117,7 +115,7 @@ int main() {
         std::cout << "  fallback::MIN_ELEMENTS_FOR_PARALLEL: "
                   << stats::arch::parallel::fallback::MIN_ELEMENTS_FOR_PARALLEL << std::endl;
         std::cout << "  Legacy constants (backward compat): "
-                  << stats::arch::parallel::detail::min_elements_for_parallel() << std::endl;
+                  << stats::arch::get_min_elements_for_parallel() << std::endl;
 
         std::cout << "\n=== Test Results ===" << std::endl;
         std::cout << "✓ All CPU detection tests completed successfully!" << std::endl;

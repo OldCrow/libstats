@@ -140,10 +140,20 @@ int main() {
               << std::endl;
     assert(optimal_threshold > 0 && optimal_threshold < 100000);  // Reasonable range
 
-    // Test base grain size
-    auto base_grain_size = stats::arch::get_optimal_grain_size();
-    std::cout << "  - Base optimal grain size: " << base_grain_size << " elements" << std::endl;
-    assert(base_grain_size > 0 && base_grain_size < 50000);  // Reasonable range
+    // Test different grain size functions to understand their purposes
+    auto default_grain_size = stats::arch::get_default_grain_size();  // Vendor-specific baseline
+    auto optimal_grain_size = stats::arch::get_optimal_grain_size();  // Cache-optimized
+    auto simple_grain_size =
+        stats::arch::get_simple_operation_grain_size();  // Simple operations minimum
+
+    std::cout << "  - Default grain size: " << default_grain_size << " elements" << std::endl;
+    std::cout << "  - Optimal grain size: " << optimal_grain_size << " elements" << std::endl;
+    std::cout << "  - Simple operation grain size: " << simple_grain_size << " elements"
+              << std::endl;
+
+    assert(default_grain_size > 0 && default_grain_size < 50000);  // Reasonable range
+    assert(optimal_grain_size > 0 && optimal_grain_size < 50000);  // Reasonable range
+    assert(simple_grain_size > 0 && simple_grain_size < 50000);    // Reasonable range
 
     // Test adaptive grain sizes for different operation types
     auto memory_grain = stats::arch::get_adaptive_grain_size(0, 10000);   // Memory-bound
@@ -154,13 +164,14 @@ int main() {
     std::cout << "  - Computation-bound grain size: " << compute_grain << " elements" << std::endl;
     std::cout << "  - Mixed operation grain size: " << mixed_grain << " elements" << std::endl;
 
-    // Verify grain sizes are reasonable and different based on operation type
-    assert(memory_grain >= 64);   // Minimum grain size
-    assert(compute_grain >= 64);  // Minimum grain size
-    assert(mixed_grain >= 64);    // Minimum grain size
+    // Verify grain sizes are reasonable (all should be at least the minimum)
+    assert(memory_grain >= simple_grain_size);   // At least minimum
+    assert(compute_grain >= simple_grain_size);  // At least minimum
+    assert(mixed_grain >= simple_grain_size);    // At least minimum
 
-    // Computation-bound should generally have larger grains
-    assert(compute_grain >= base_grain_size);
+    // Verify basic relationships: computation-bound should be >= memory-bound
+    // (since computation-bound operations benefit from larger grains to amortize thread overhead)
+    assert(compute_grain >= memory_grain);
 
     // Test optimal thread count
     auto optimal_threads_small = stats::arch::get_optimal_thread_count(1000);

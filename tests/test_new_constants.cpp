@@ -42,11 +42,11 @@ void test_simd_constants() {
 void test_memory_constants() {
     std::cout << "Testing memory access and prefetching constants..." << std::endl;
 
-    // Test prefetch distance constants
-    assert(memory::prefetch::distance::CONSERVATIVE == 2);
-    assert(memory::prefetch::distance::STANDARD == 4);
-    assert(memory::prefetch::distance::AGGRESSIVE == 8);
-    assert(memory::prefetch::distance::ULTRA_AGGRESSIVE == 16);
+    // Test prefetch distance constants (Phase 3C: flattened namespaces)
+    assert(memory::prefetch::DISTANCE_CONSERVATIVE == 2);
+    assert(memory::prefetch::DISTANCE_STANDARD == 4);
+    assert(memory::prefetch::DISTANCE_AGGRESSIVE == 8);
+    assert(memory::prefetch::DISTANCE_ULTRA_AGGRESSIVE == 16);
 
     // Test platform-specific prefetch distances
     assert(memory::prefetch::platform::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE == 256);
@@ -54,36 +54,36 @@ void test_memory_constants() {
     assert(memory::prefetch::platform::amd::SEQUENTIAL_PREFETCH_DISTANCE == 128);
     assert(memory::prefetch::platform::arm::SEQUENTIAL_PREFETCH_DISTANCE == 64);
 
-    // Test prefetch strategy constants
-    assert(memory::prefetch::strategy::SEQUENTIAL_MULTIPLIER == 2.0);
-    assert(memory::prefetch::strategy::RANDOM_MULTIPLIER == 0.5);
-    assert(memory::prefetch::strategy::STRIDED_MULTIPLIER == 1.5);
-    assert(memory::prefetch::strategy::MIN_PREFETCH_SIZE == 32);
-    assert(memory::prefetch::strategy::MAX_PREFETCH_DISTANCE == 1024);
-    assert(memory::prefetch::strategy::PREFETCH_GRANULARITY == 8);
+    // Test prefetch strategy constants (Phase 3C: flattened namespaces)
+    assert(memory::prefetch::STRATEGY_SEQUENTIAL_MULTIPLIER == 2.0);
+    assert(memory::prefetch::STRATEGY_RANDOM_MULTIPLIER == 0.5);
+    assert(memory::prefetch::STRATEGY_STRIDED_MULTIPLIER == 1.5);
+    assert(memory::prefetch::STRATEGY_MIN_PREFETCH_SIZE == 32);
+    assert(memory::prefetch::STRATEGY_MAX_PREFETCH_DISTANCE == 1024);
+    assert(memory::prefetch::STRATEGY_PREFETCH_GRANULARITY == 8);
 
     // Test memory access constants
     assert(memory::access::CACHE_LINE_SIZE_BYTES == 64);
     assert(memory::access::DOUBLES_PER_CACHE_LINE == 8);
     assert(memory::access::CACHE_LINE_ALIGNMENT == 64);
 
-    // Test bandwidth optimization
-    assert(memory::access::bandwidth::DDR4_BURST_SIZE == 64);
-    assert(memory::access::bandwidth::DDR5_BURST_SIZE == 128);
-    assert(memory::access::bandwidth::HBM_BURST_SIZE == 256);
-    assert(memory::access::bandwidth::TARGET_BANDWIDTH_UTILIZATION == 0.8);
-    assert(memory::access::bandwidth::MAX_BANDWIDTH_UTILIZATION == 0.95);
+    // Test bandwidth optimization (Phase 3C: flattened namespaces)
+    assert(memory::access::BANDWIDTH_DDR4_BURST_SIZE == 64);
+    assert(memory::access::BANDWIDTH_DDR5_BURST_SIZE == 128);
+    assert(memory::access::BANDWIDTH_HBM_BURST_SIZE == 256);
+    assert(memory::access::BANDWIDTH_TARGET_UTILIZATION == 0.8);
+    assert(memory::access::BANDWIDTH_MAX_UTILIZATION == 0.95);
 
-    // Test memory layout constants
-    assert(memory::access::layout::AOS_TO_SOA_THRESHOLD == 1000);
-    assert(memory::access::layout::MEMORY_POOL_ALIGNMENT == 4096);
-    assert(memory::access::layout::SMALL_ALLOCATION_THRESHOLD == 256);
-    assert(memory::access::layout::LARGE_PAGE_THRESHOLD == 2097152);
+    // Test memory layout constants (Phase 3C: flattened namespaces)
+    assert(memory::access::LAYOUT_AOS_TO_SOA_THRESHOLD == 1000);
+    assert(memory::access::LAYOUT_MEMORY_POOL_ALIGNMENT == 4096);
+    assert(memory::access::LAYOUT_SMALL_ALLOCATION_THRESHOLD == 256);
+    assert(memory::access::LAYOUT_LARGE_PAGE_THRESHOLD == 2097152);
 
-    // Test NUMA constants
-    assert(memory::access::numa::NUMA_AWARE_THRESHOLD == 1048576);
-    assert(memory::access::numa::NUMA_LOCAL_THRESHOLD == 65536);
-    assert(memory::access::numa::NUMA_MIGRATION_COST == 0.1);
+    // Test NUMA constants (Phase 3C: flattened namespaces)
+    assert(memory::access::NUMA_AWARE_THRESHOLD == 1048576);
+    assert(memory::access::NUMA_LOCAL_THRESHOLD == 65536);
+    assert(memory::access::NUMA_MIGRATION_COST == 0.1);
 
     // Test memory allocation constants
     assert(memory::allocation::SMALL_POOL_SIZE == 4096);
@@ -93,10 +93,10 @@ void test_memory_constants() {
     assert(memory::allocation::SIMD_ALLOCATION_ALIGNMENT == 32);
     assert(memory::allocation::PAGE_ALLOCATION_ALIGNMENT == 4096);
 
-    // Test growth factors
-    assert(memory::allocation::growth::EXPONENTIAL_GROWTH_FACTOR == 1.5);
-    assert(memory::allocation::growth::LINEAR_GROWTH_FACTOR == 1.2);
-    assert(memory::allocation::growth::GROWTH_THRESHOLD == 1048576);
+    // Test growth factors (Phase 3C: flattened namespaces)
+    assert(memory::allocation::GROWTH_EXPONENTIAL_FACTOR == 1.5);
+    assert(memory::allocation::GROWTH_LINEAR_FACTOR == 1.2);
+    assert(memory::allocation::GROWTH_THRESHOLD == 1048576);
 
     std::cout << "✓ Memory access and prefetching constants test passed" << std::endl;
 }
@@ -121,10 +121,10 @@ void test_constant_relationships() {
     assert(arch::simd::registers::SSE_DOUBLES == arch::simd::registers::NEON_DOUBLES);
     assert(arch::simd::registers::NEON_DOUBLES >= arch::simd::registers::SCALAR_DOUBLES);
 
-    // Test prefetch distance hierarchy
-    assert(memory::prefetch::distance::ULTRA_AGGRESSIVE >= memory::prefetch::distance::AGGRESSIVE);
-    assert(memory::prefetch::distance::AGGRESSIVE >= memory::prefetch::distance::STANDARD);
-    assert(memory::prefetch::distance::STANDARD >= memory::prefetch::distance::CONSERVATIVE);
+    // Test prefetch distance hierarchy (Phase 3C: flattened namespaces)
+    assert(memory::prefetch::DISTANCE_ULTRA_AGGRESSIVE >= memory::prefetch::DISTANCE_AGGRESSIVE);
+    assert(memory::prefetch::DISTANCE_AGGRESSIVE >= memory::prefetch::DISTANCE_STANDARD);
+    assert(memory::prefetch::DISTANCE_STANDARD >= memory::prefetch::DISTANCE_CONSERVATIVE);
 
     // Test prefetch platform hierarchy (Apple Silicon should be most aggressive)
     assert(memory::prefetch::platform::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE >=
@@ -138,10 +138,9 @@ void test_constant_relationships() {
     assert(memory::allocation::LARGE_POOL_SIZE >= memory::allocation::MEDIUM_POOL_SIZE);
     assert(memory::allocation::MEDIUM_POOL_SIZE >= memory::allocation::SMALL_POOL_SIZE);
 
-    // Test memory bandwidth hierarchy
-    assert(memory::access::bandwidth::HBM_BURST_SIZE >= memory::access::bandwidth::DDR5_BURST_SIZE);
-    assert(memory::access::bandwidth::DDR5_BURST_SIZE >=
-           memory::access::bandwidth::DDR4_BURST_SIZE);
+    // Test memory bandwidth hierarchy (Phase 3C: flattened namespaces)
+    assert(memory::access::BANDWIDTH_HBM_BURST_SIZE >= memory::access::BANDWIDTH_DDR5_BURST_SIZE);
+    assert(memory::access::BANDWIDTH_DDR5_BURST_SIZE >= memory::access::BANDWIDTH_DDR4_BURST_SIZE);
 
     std::cout << "✓ Architectural constant relationships test passed" << std::endl;
 }
@@ -177,8 +176,8 @@ void print_summary() {
               << std::endl;
     std::cout << "  Doubles per cache line: " << memory::access::DOUBLES_PER_CACHE_LINE
               << std::endl;
-    std::cout << "  NUMA aware threshold: "
-              << (memory::access::numa::NUMA_AWARE_THRESHOLD / 1024 / 1024) << " MB" << std::endl;
+    std::cout << "  NUMA aware threshold: " << (memory::access::NUMA_AWARE_THRESHOLD / 1024 / 1024)
+              << " MB" << std::endl;
 }
 
 int main() {

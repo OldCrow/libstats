@@ -19,8 +19,8 @@
 #include <immintrin.h>  // AVX-512 intrinsics
 
 namespace stats {
-namespace arch {
 namespace simd {
+namespace ops {
 
 // All AVX-512 functions use double-precision (64-bit) values
 // AVX-512 processes 8 doubles per 512-bit register
@@ -164,8 +164,8 @@ void VectorOps::scalar_add_avx512(const double* a, double scalar, double* result
     }
 }
 
+}  // namespace ops
 }  // namespace simd
-}  // namespace arch
 }  // namespace stats
 
 #ifdef __clang__

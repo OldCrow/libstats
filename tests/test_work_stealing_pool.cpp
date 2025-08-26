@@ -178,10 +178,9 @@ int main() {
     std::cout << "Test 6: Level 0 Constants Integration\n";
     {
         // Test that constants are properly used
-        auto parallelThreshold = arch::parallel::detail::min_elements_for_parallel();
-        auto distributionThreshold =
-            arch::parallel::detail::min_elements_for_distribution_parallel();
-        auto defaultGrainSize = arch::parallel::detail::grain_size();
+        auto parallelThreshold = arch::get_min_elements_for_parallel();
+        auto distributionThreshold = arch::get_min_elements_for_distribution_parallel();
+        auto defaultGrainSize = arch::get_default_grain_size();
         auto simdBlockSize = arch::get_optimal_simd_block_size();
         auto memoryAlignment = arch::get_optimal_alignment();
 

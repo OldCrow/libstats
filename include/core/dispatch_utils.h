@@ -286,8 +286,7 @@ class DispatchUtils {
         // Use WorkStealingPool for dynamic load balancing
         // Use same threshold as regular parallel operations to avoid inconsistency
         if (stats::shouldUseWorkStealing(
-                count,
-                stats::arch::parallel::detail::min_elements_for_simple_distribution_parallel())) {
+                count, stats::arch::get_min_elements_for_simple_distribution_parallel())) {
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) { computation_func(i); });
             pool.waitForAll();
         } else {

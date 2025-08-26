@@ -221,7 +221,7 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     const std::size_t numWorkers = getThreadCount();
 
     // Use Level 0 constants for thresholds
-    if (totalWork < arch::parallel::detail::min_elements_for_parallel()) {
+    if (totalWork < arch::get_min_elements_for_parallel()) {
         // Execute sequentially for small workloads
         for (std::size_t i = start; i < end; ++i) {
             func(i);
@@ -232,7 +232,7 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     // Auto-calculate grain size if not specified using Level 0-2 integration
     if (grainSize == 0) {
         // Use adaptive grain size from Level 0 constants
-        const std::size_t baseGrainSize = arch::parallel::detail::grain_size();
+        const std::size_t baseGrainSize = arch::get_default_grain_size();
 
         // Aim for ~4x more tasks than threads for good load balancing
         const std::size_t targetTasks = numWorkers * 4;

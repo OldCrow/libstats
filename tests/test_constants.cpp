@@ -165,31 +165,29 @@ void test_parallel_constants() {
     using namespace stats::arch::parallel;
 
     // Test parallel processing constants (using accessor functions)
-    assert(stats::arch::parallel::detail::min_elements_for_parallel() > 0);
-    assert(stats::arch::parallel::detail::min_elements_for_distribution_parallel() > 0);
-    assert(stats::arch::parallel::detail::grain_size() > 0);
-    assert(stats::arch::parallel::detail::simple_operation_grain_size() > 0);
+    assert(stats::arch::get_min_elements_for_parallel() > 0);
+    assert(stats::arch::get_min_elements_for_distribution_parallel() > 0);
+    assert(stats::arch::get_default_grain_size() > 0);
+    assert(stats::arch::get_simple_operation_grain_size() > 0);
     assert(MIN_DATASET_SIZE_FOR_PARALLEL > 0);
     assert(MIN_BOOTSTRAP_SAMPLES_FOR_PARALLEL > 0);
     assert(MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL > 0);
-    assert(stats::arch::parallel::detail::monte_carlo_grain_size() > 0);
-    assert(stats::arch::parallel::detail::max_grain_size() > 0);
+    assert(stats::arch::get_monte_carlo_grain_size() > 0);
+    assert(stats::arch::get_max_grain_size() > 0);
     assert(MIN_WORK_PER_THREAD > 0);
     assert(SAMPLE_BATCH_SIZE > 0);
     assert(MIN_MATRIX_SIZE_FOR_PARALLEL > 0);
     assert(MIN_ITERATIONS_FOR_PARALLEL > 0);
 
     // Test logical relationships (using accessor functions)
-    assert(stats::arch::parallel::detail::min_elements_for_distribution_parallel() <=
-           stats::arch::parallel::detail::min_elements_for_parallel());
-    assert(stats::arch::parallel::detail::simple_operation_grain_size() <=
-           stats::arch::parallel::detail::grain_size());
-    assert(stats::arch::parallel::detail::monte_carlo_grain_size() <=
-           stats::arch::parallel::detail::max_grain_size());
+    assert(stats::arch::get_min_elements_for_distribution_parallel() <=
+           stats::arch::get_min_elements_for_parallel());
+    assert(stats::arch::get_simple_operation_grain_size() <= stats::arch::get_default_grain_size());
+    assert(stats::arch::get_monte_carlo_grain_size() <= stats::arch::get_max_grain_size());
 
     // Test adaptive functions
-    assert(stats::arch::parallel::detail::min_elements_for_parallel() > 0);
-    assert(stats::arch::parallel::detail::grain_size() > 0);
+    assert(stats::arch::get_min_elements_for_parallel() > 0);
+    assert(stats::arch::get_default_grain_size() > 0);
     // Note: adaptive functions may not be available in current implementation
     // assert(stats::arch::parallel::detail::simd_block_size() > 0);
     // assert(stats::arch::parallel::detail::memory_alignment() > 0);

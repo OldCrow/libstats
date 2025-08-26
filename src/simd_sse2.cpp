@@ -21,8 +21,8 @@
 #include <emmintrin.h>  // SSE2 intrinsics
 
 namespace stats {
-namespace arch {
 namespace simd {
+namespace ops {
 
 // All SSE2 functions use double-precision (64-bit) values
 // SSE2 processes 2 doubles per 128-bit register
@@ -164,8 +164,8 @@ void VectorOps::scalar_add_sse2(const double* a, double scalar, double* result,
     }
 }
 
+}  // namespace ops
 }  // namespace simd
-}  // namespace arch
 }  // namespace stats
 
 #ifdef __clang__

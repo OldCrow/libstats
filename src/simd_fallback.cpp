@@ -10,8 +10,8 @@
 #include <algorithm>
 
 namespace stats {
-namespace arch {
 namespace simd {
+namespace ops {
 
 //========== Fallback Implementations (Scalar) ==========
 
@@ -91,7 +91,7 @@ void VectorOps::vector_erf_fallback(const double* values, double* results,
 
 bool VectorOps::should_use_simd(std::size_t size) noexcept {
     // Delegate to the centralized SIMD policy
-    return SIMDPolicy::shouldUseSIMD(size);
+    return arch::simd::SIMDPolicy::shouldUseSIMD(size);
 }
 
 std::size_t VectorOps::min_simd_size() noexcept {
@@ -117,6 +117,6 @@ std::size_t VectorOps::double_vector_width() noexcept {
     return stats::arch::get_optimal_simd_block_size();
 }
 
+}  // namespace ops
 }  // namespace simd
-}  // namespace arch
 }  // namespace stats

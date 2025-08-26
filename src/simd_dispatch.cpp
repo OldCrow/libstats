@@ -12,8 +12,8 @@
 #include <cstring>
 
 namespace stats {
-namespace arch {
 namespace simd {
+namespace ops {
 
 //========== Public Interface Implementations ==========
 // These are the main entry points that users call
@@ -21,7 +21,7 @@ namespace simd {
 
 double VectorOps::dot_product(const double* a, const double* b, std::size_t size) noexcept {
     // Early exit for small arrays where SIMD overhead isn't worth it
-    if (!SIMDPolicy::shouldUseSIMD(size)) {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
         return dot_product_fallback(a, b, size);
     }
 
@@ -29,25 +29,25 @@ double VectorOps::dot_product(const double* a, const double* b, std::size_t size
     // Each implementation includes its own runtime safety checks
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512()) {
+    if (arch::supports_avx512()) {
         return dot_product_avx512(a, b, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (supports_avx2()) {
+    if (arch::supports_avx2()) {
         return dot_product_avx2(a, b, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (supports_avx()) {
+    if (arch::supports_avx()) {
         return dot_product_avx(a, b, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (supports_sse2()) {
+    if (arch::supports_sse2()) {
         return dot_product_sse2(a, b, size);
     }
 #endif
@@ -64,30 +64,30 @@ double VectorOps::dot_product(const double* a, const double* b, std::size_t size
 
 void VectorOps::vector_add(const double* a, const double* b, double* result,
                            std::size_t size) noexcept {
-    if (!SIMDPolicy::shouldUseSIMD(size)) {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
         return vector_add_fallback(a, b, result, size);
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512()) {
+    if (arch::supports_avx512()) {
         return vector_add_avx512(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (supports_avx2()) {
+    if (arch::supports_avx2()) {
         return vector_add_avx2(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (supports_avx()) {
+    if (arch::supports_avx()) {
         return vector_add_avx(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (supports_sse2()) {
+    if (arch::supports_sse2()) {
         return vector_add_sse2(a, b, result, size);
     }
 #endif
@@ -103,30 +103,30 @@ void VectorOps::vector_add(const double* a, const double* b, double* result,
 
 void VectorOps::vector_subtract(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!SIMDPolicy::shouldUseSIMD(size)) {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
         return vector_subtract_fallback(a, b, result, size);
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512()) {
+    if (arch::supports_avx512()) {
         return vector_subtract_avx512(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (supports_avx2()) {
+    if (arch::supports_avx2()) {
         return vector_subtract_avx2(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (supports_avx()) {
+    if (arch::supports_avx()) {
         return vector_subtract_avx(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (supports_sse2()) {
+    if (arch::supports_sse2()) {
         return vector_subtract_sse2(a, b, result, size);
     }
 #endif
@@ -142,30 +142,30 @@ void VectorOps::vector_subtract(const double* a, const double* b, double* result
 
 void VectorOps::vector_multiply(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!SIMDPolicy::shouldUseSIMD(size)) {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
         return vector_multiply_fallback(a, b, result, size);
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512()) {
+    if (arch::supports_avx512()) {
         return vector_multiply_avx512(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (supports_avx2()) {
+    if (arch::supports_avx2()) {
         return vector_multiply_avx2(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (supports_avx()) {
+    if (arch::supports_avx()) {
         return vector_multiply_avx(a, b, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (supports_sse2()) {
+    if (arch::supports_sse2()) {
         return vector_multiply_sse2(a, b, result, size);
     }
 #endif
@@ -181,30 +181,30 @@ void VectorOps::vector_multiply(const double* a, const double* b, double* result
 
 void VectorOps::scalar_multiply(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept {
-    if (!SIMDPolicy::shouldUseSIMD(size)) {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512()) {
+    if (arch::supports_avx512()) {
         return scalar_multiply_avx512(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (supports_avx2()) {
+    if (arch::supports_avx2()) {
         return scalar_multiply_avx2(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (supports_avx()) {
+    if (arch::supports_avx()) {
         return scalar_multiply_avx(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (supports_sse2()) {
+    if (arch::supports_sse2()) {
         return scalar_multiply_sse2(a, scalar, result, size);
     }
 #endif
@@ -220,30 +220,30 @@ void VectorOps::scalar_multiply(const double* a, double scalar, double* result,
 
 void VectorOps::scalar_add(const double* a, double scalar, double* result,
                            std::size_t size) noexcept {
-    if (!SIMDPolicy::shouldUseSIMD(size)) {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
         return scalar_add_fallback(a, scalar, result, size);
     }
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512()) {
+    if (arch::supports_avx512()) {
         return scalar_add_avx512(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (supports_avx2()) {
+    if (arch::supports_avx2()) {
         return scalar_add_avx2(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (supports_avx()) {
+    if (arch::supports_avx()) {
         return scalar_add_avx(a, scalar, result, size);
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (supports_sse2()) {
+    if (arch::supports_sse2()) {
         return scalar_add_sse2(a, scalar, result, size);
     }
 #endif
@@ -285,25 +285,25 @@ void VectorOps::vector_erf(const double* values, double* results, std::size_t si
 std::string VectorOps::get_active_simd_level() noexcept {
     // Return the highest SIMD level currently available at runtime
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512()) {
+    if (arch::supports_avx512()) {
         return "AVX-512";
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (supports_avx2()) {
+    if (arch::supports_avx2()) {
         return "AVX2";
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
-    if (supports_avx()) {
+    if (arch::supports_avx()) {
         return "AVX";
     }
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
-    if (supports_sse2()) {
+    if (arch::supports_sse2()) {
         return "SSE2";
     }
 #endif
@@ -355,7 +355,7 @@ template <typename Operation>
 inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const void* ptr2 = nullptr,
                                      const void* ptr3 = nullptr) noexcept {
     // Basic size check
-    if (!SIMDPolicy::shouldUseSIMD(size)) {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
         return false;
     }
 
@@ -373,7 +373,7 @@ inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const v
 
 // For high-end SIMD (AVX-512), use for smaller aligned datasets
 #ifdef LIBSTATS_HAS_AVX512
-    if (supports_avx512() && size >= arch::AVX512_MIN_ALIGNED_SIZE &&
+    if (arch::supports_avx512() && size >= arch::AVX512_MIN_ALIGNED_SIZE &&
         is_alignment_beneficial(ptr1, ptr2, ptr3)) {
         return true;
     }
@@ -422,6 +422,6 @@ std::string VectorOps::get_platform_optimization_info() noexcept {
     return info;
 }
 
+}  // namespace ops
 }  // namespace simd
-}  // namespace arch
 }  // namespace stats

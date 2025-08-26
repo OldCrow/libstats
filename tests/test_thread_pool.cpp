@@ -58,10 +58,9 @@ class ThreadPoolTest {
         std::cout << "\n=== Test 1: Level 0 Constants Integration ===" << std::endl;
 
         // Test that constants are properly used
-        auto parallelThreshold = arch::parallel::detail::min_elements_for_parallel();
-        auto distributionThreshold =
-            arch::parallel::detail::min_elements_for_distribution_parallel();
-        auto defaultGrainSize = arch::parallel::detail::grain_size();
+        auto parallelThreshold = arch::get_min_elements_for_parallel();
+        auto distributionThreshold = arch::get_min_elements_for_distribution_parallel();
+        auto defaultGrainSize = arch::get_default_grain_size();
         auto simdBlockSize = arch::get_optimal_simd_block_size();
         auto memoryAlignment = arch::get_optimal_alignment();
 
@@ -189,7 +188,7 @@ class ThreadPoolTest {
         assert(alignment > 0);
 
         // Test that grain size alignment considers SIMD width
-        auto grainSize = arch::parallel::detail::grain_size();
+        auto grainSize = arch::get_default_grain_size();
         auto alignedGrainSize = ((grainSize + simdWidth - 1) / simdWidth) * simdWidth;
         std::cout << "  Base grain size: " << grainSize << std::endl;
         std::cout << "  SIMD-aligned grain size: " << alignedGrainSize << std::endl;

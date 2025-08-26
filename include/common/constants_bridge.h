@@ -52,7 +52,7 @@ std::size_t get_optimal_alignment();
 
 std::size_t get_min_simd_size();
 
-stats::detail::CacheThresholds get_cache_thresholds();
+stats::arch::CacheThresholds get_cache_thresholds();
 
 bool supports_fast_transcendental();
 }  // namespace platform

@@ -223,7 +223,7 @@ class ParallelUtils {
             return;
 
         // Use constants from Level 0 for optimal thresholds
-        const std::size_t minParallelSize = arch::parallel::detail::min_elements_for_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_parallel();
         if (range < minParallelSize) {
             // Execute sequentially for small ranges
             for (std::size_t i = start; i < end; ++i) {
@@ -234,7 +234,7 @@ class ParallelUtils {
 
         // Calculate optimal grain size using Level 0 constants
         const std::size_t actualGrainSize =
-            (grainSize == 0) ? arch::parallel::detail::grain_size() : grainSize;
+            (grainSize == 0) ? arch::get_default_grain_size() : grainSize;
         const std::size_t numThreads = ThreadPool::getOptimalThreadCount();
         const std::size_t optimalGrainSize = std::max(actualGrainSize, range / (numThreads * 4));
 
@@ -331,7 +331,7 @@ class ParallelUtils {
         // Use safety checks from Level 1
         detail::check_finite(static_cast<double>(size), "array size");
 
-        const std::size_t minParallelSize = arch::parallel::detail::min_elements_for_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_parallel();
         if (size < minParallelSize) {
             // Execute sequentially for small arrays
             func(input, output, size);
@@ -341,7 +341,7 @@ class ParallelUtils {
         // Calculate SIMD-aware grain size
         const std::size_t simdWidth = arch::simd::double_vector_width();
         const std::size_t baseGrainSize =
-            (grainSize == 0) ? arch::parallel::detail::grain_size() : grainSize;
+            (grainSize == 0) ? arch::get_default_grain_size() : grainSize;
 
         // Align grain size to SIMD width for optimal performance
         const std::size_t alignedGrainSize =
@@ -368,8 +368,7 @@ class ParallelUtils {
         }
 
         const std::size_t size = data.size();
-        const std::size_t minParallelSize =
-            arch::parallel::detail::min_elements_for_distribution_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_distribution_parallel();
 
         if (size < minParallelSize) {
             // Sequential sum for small arrays
@@ -416,8 +415,7 @@ class ParallelUtils {
         const double actualMean = mean.value_or(parallelMean(data, grainSize));
 
         const std::size_t size = data.size();
-        const std::size_t minParallelSize =
-            arch::parallel::detail::min_elements_for_distribution_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_distribution_parallel();
 
         if (size < minParallelSize) {
             // Sequential variance for small arrays
@@ -455,8 +453,7 @@ class ParallelUtils {
         }
 
         const std::size_t size = data.size();
-        const std::size_t minParallelSize =
-            arch::parallel::detail::min_elements_for_distribution_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_distribution_parallel();
 
         if (size < minParallelSize) {
             return operation(data);
@@ -465,7 +462,7 @@ class ParallelUtils {
         // Use SIMD-aware chunking
         const std::size_t simdWidth = arch::simd::double_vector_width();
         const std::size_t baseGrainSize =
-            (grainSize == 0) ? arch::parallel::detail::grain_size() : grainSize;
+            (grainSize == 0) ? arch::get_default_grain_size() : grainSize;
         const std::size_t alignedGrainSize =
             ((baseGrainSize + simdWidth - 1) / simdWidth) * simdWidth;
 

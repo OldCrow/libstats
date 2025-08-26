@@ -453,20 +453,17 @@ inline void displayAdaptiveConstants() {
     std::cout << formatter.formatRow({"Constant", "Value"}) << "\n";
     std::cout << formatter.getSeparator() << "\n";
 
-    std::cout << formatter.formatRow(
-                     {"Min Elements for Parallel",
-                      std::to_string(arch::parallel::detail::min_elements_for_parallel())})
+    std::cout << formatter.formatRow({"Min Elements for Parallel",
+                                      std::to_string(arch::get_min_elements_for_parallel())})
               << "\n";
     std::cout << formatter.formatRow(
-                     {"Default Grain Size", std::to_string(arch::parallel::detail::grain_size())})
+                     {"Default Grain Size", std::to_string(arch::get_default_grain_size())})
               << "\n";
-    std::cout << formatter.formatRow(
-                     {"Simple Operation Grain Size",
-                      std::to_string(arch::parallel::detail::simple_operation_grain_size())})
+    std::cout << formatter.formatRow({"Simple Operation Grain Size",
+                                      std::to_string(arch::get_simple_operation_grain_size())})
               << "\n";
-    std::cout << formatter.formatRow(
-                     {"Complex Operation Grain Size",
-                      std::to_string(arch::parallel::detail::complex_operation_grain_size())})
+    std::cout << formatter.formatRow({"Complex Operation Grain Size",
+                                      std::to_string(arch::get_complex_operation_grain_size())})
               << "\n";
 
     std::cout << "\n";

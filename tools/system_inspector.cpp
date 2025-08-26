@@ -213,24 +213,22 @@ class SystemInspector {
         std::cout << formatter.formatRow({"Constant", "Value"}) << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
-        std::cout
-            << formatter.formatRow(
-                   {"Min Elements for Distribution Parallel",
-                    std::to_string(
-                        stats::arch::parallel::detail::min_elements_for_distribution_parallel())})
-            << "\n";
+        std::cout << formatter.formatRow(
+                         {"Min Elements for Distribution Parallel",
+                          std::to_string(
+                              stats::arch::get_min_elements_for_distribution_parallel())})
+                  << "\n";
         std::cout << formatter.formatRow(
                          {"Min Elements for Simple Dist Parallel",
-                          std::to_string(stats::arch::parallel::detail::
-                                             min_elements_for_simple_distribution_parallel())})
+                          std::to_string(
+                              stats::arch::get_min_elements_for_simple_distribution_parallel())})
                   << "\n";
         std::cout << formatter.formatRow(
                          {"Monte Carlo Grain Size",
-                          std::to_string(stats::arch::parallel::detail::monte_carlo_grain_size())})
+                          std::to_string(stats::arch::get_monte_carlo_grain_size())})
                   << "\n";
         std::cout << formatter.formatRow(
-                         {"Max Grain Size",
-                          std::to_string(stats::arch::parallel::detail::max_grain_size())})
+                         {"Max Grain Size", std::to_string(stats::arch::get_max_grain_size())})
                   << "\n";
 
         std::cout << "\n";
@@ -328,13 +326,12 @@ class SystemInspector {
         std::cout << formatter.getSeparator() << "\n";
 
         // Show selected (adaptive) constants
-        std::cout
-            << formatter.formatRow(
-                   {"SELECTED (adaptive)",
-                    std::to_string(stats::arch::parallel::detail::min_elements_for_parallel()),
-                    std::to_string(stats::arch::parallel::detail::grain_size()),
-                    std::to_string(stats::arch::parallel::detail::simple_operation_grain_size())})
-            << "\n";
+        std::cout << formatter.formatRow(
+                         {"SELECTED (adaptive)",
+                          std::to_string(stats::arch::get_min_elements_for_parallel()),
+                          std::to_string(stats::arch::get_default_grain_size()),
+                          std::to_string(stats::arch::get_simple_operation_grain_size())})
+                  << "\n";
 
         std::cout << "\n";
     }

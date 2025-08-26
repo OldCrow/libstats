@@ -20,8 +20,8 @@
 #include <immintrin.h>  // AVX2 intrinsics
 
 namespace stats {
-namespace arch {
 namespace simd {
+namespace ops {
 
 // All AVX2 functions use double-precision (64-bit) values
 // AVX2 processes 4 doubles per 256-bit register (same as AVX but with better integer support)
@@ -169,8 +169,8 @@ void VectorOps::scalar_add_avx2(const double* a, double scalar, double* result,
     }
 }
 
+}  // namespace ops
 }  // namespace simd
-}  // namespace arch
 }  // namespace stats
 
 #ifdef __clang__

@@ -9,14 +9,7 @@
 
 // Forward declaration for platform-specific tuning
 #include "cpu_detection.h"
-
-namespace stats {
-namespace arch {
-const Features& get_features();
-size_t optimal_double_width();
-size_t optimal_alignment();
-}  // namespace arch
-}  // namespace stats
+#include "cpu_vendor_constants.h"  // Phase 3D: CPU vendor-specific constants
 
 /**
  * @file platform/platform_constants.h
@@ -357,170 +350,6 @@ inline constexpr std::size_t XLARGE_BATCH = 1024;
 inline constexpr std::size_t MAX_BATCH = 65536;
 }  // namespace batch_sizes
 
-/// Platform-optimized functions for runtime tuning
-/// These functions provide optimized values based on detected CPU features
-namespace detail {  // adaptive utilities
-/// Get platform-optimized minimum elements for parallel processing
-inline std::size_t min_elements_for_parallel() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (features.avx2) {
-        return avx2::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (is_sandy_ivy_bridge()) {
-        return avx::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (features.avx) {
-        return avx::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (features.sse2) {
-        return sse::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (features.neon) {
-        return neon::MIN_ELEMENTS_FOR_PARALLEL;
-    } else {
-        return fallback::MIN_ELEMENTS_FOR_PARALLEL;
-    }
-}
-
-/// Get platform-optimized minimum elements for distribution parallel processing
-inline std::size_t min_elements_for_distribution_parallel() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (features.avx2) {
-        return avx2::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (is_sandy_ivy_bridge()) {
-        return avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (features.avx) {
-        return avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (features.sse2) {
-        return sse::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (features.neon) {
-        return neon::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else {
-        return fallback::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    }
-}
-
-/// Get platform-optimized minimum elements for simple distribution parallel processing
-inline std::size_t min_elements_for_simple_distribution_parallel() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (features.avx2) {
-        return avx2::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (is_sandy_ivy_bridge()) {
-        return avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (features.avx) {
-        return avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (features.sse2) {
-        return sse::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (features.neon) {
-        return neon::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else {
-        return fallback::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    }
-}
-
-/// Get platform-optimized grain size
-inline std::size_t grain_size() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::DEFAULT_GRAIN_SIZE;
-    } else if (features.avx2) {
-        return avx2::DEFAULT_GRAIN_SIZE;
-    } else if (is_sandy_ivy_bridge()) {
-        return avx::DEFAULT_GRAIN_SIZE;
-    } else if (features.avx) {
-        return avx::DEFAULT_GRAIN_SIZE;
-    } else if (features.sse2) {
-        return sse::DEFAULT_GRAIN_SIZE;
-    } else if (features.neon) {
-        return neon::DEFAULT_GRAIN_SIZE;
-    } else {
-        return fallback::DEFAULT_GRAIN_SIZE;
-    }
-}
-
-/// Get platform-optimized simple operation grain size
-inline std::size_t simple_operation_grain_size() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::SIMPLE_OPERATION_GRAIN_SIZE;
-    } else if (features.avx2) {
-        return avx2::SIMPLE_OPERATION_GRAIN_SIZE;
-    } else if (features.avx) {
-        return avx::SIMPLE_OPERATION_GRAIN_SIZE;
-    } else if (features.sse2) {
-        return sse::SIMPLE_OPERATION_GRAIN_SIZE;
-    } else if (features.neon) {
-        return neon::SIMPLE_OPERATION_GRAIN_SIZE;
-    } else {
-        return fallback::SIMPLE_OPERATION_GRAIN_SIZE;
-    }
-}
-
-/// Get platform-optimized complex operation grain size
-inline std::size_t complex_operation_grain_size() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::COMPLEX_OPERATION_GRAIN_SIZE;
-    } else if (features.avx2) {
-        return avx2::COMPLEX_OPERATION_GRAIN_SIZE;
-    } else if (features.avx) {
-        return avx::COMPLEX_OPERATION_GRAIN_SIZE;
-    } else if (features.sse2) {
-        return sse::COMPLEX_OPERATION_GRAIN_SIZE;
-    } else if (features.neon) {
-        return neon::COMPLEX_OPERATION_GRAIN_SIZE;
-    } else {
-        return fallback::COMPLEX_OPERATION_GRAIN_SIZE;
-    }
-}
-
-/// Get platform-optimized Monte Carlo grain size
-inline std::size_t monte_carlo_grain_size() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::MONTE_CARLO_GRAIN_SIZE;
-    } else if (features.avx2) {
-        return avx2::MONTE_CARLO_GRAIN_SIZE;
-    } else if (features.avx) {
-        return avx::MONTE_CARLO_GRAIN_SIZE;
-    } else if (features.sse2) {
-        return sse::MONTE_CARLO_GRAIN_SIZE;
-    } else if (features.neon) {
-        return neon::MONTE_CARLO_GRAIN_SIZE;
-    } else {
-        return fallback::MONTE_CARLO_GRAIN_SIZE;
-    }
-}
-
-/// Get platform-optimized maximum grain size
-inline std::size_t max_grain_size() {
-    const auto& features = get_features();
-
-    if (features.avx512f) {
-        return avx512::MAX_GRAIN_SIZE;
-    } else if (features.avx2) {
-        return avx2::MAX_GRAIN_SIZE;
-    } else if (features.avx) {
-        return avx::MAX_GRAIN_SIZE;
-    } else if (features.sse2) {
-        return sse::MAX_GRAIN_SIZE;
-    } else if (features.neon) {
-        return neon::MAX_GRAIN_SIZE;
-    } else {
-        return fallback::MAX_GRAIN_SIZE;
-    }
-}
-}  // namespace detail
-
 /// Statistical performance tuning constants
 namespace tuning {
 /// Minimum number of samples required before adaptive tuning kicks in
@@ -528,92 +357,85 @@ inline constexpr size_t MIN_SAMPLES_FOR_TUNING = 100;         // Minimum operati
 inline constexpr std::chrono::seconds TUNING_INTERVAL{30};    // How often to consider tuning
 inline constexpr double SIGNIFICANT_CHANGE_THRESHOLD = 0.05;  // 5% change triggers re-evaluation
 }  // namespace tuning
+
 }  // namespace parallel
+
+/// Runtime adaptive parallel optimization functions (forward declarations)
+/// These provide CPU feature-based optimization for parallel processing
+/// Implementation is in platform_constants_impl.cpp for PIMPL optimization
+
+/// Get platform-optimized minimum elements for parallel processing
+std::size_t get_min_elements_for_parallel();
+
+/// Get platform-optimized minimum elements for distribution parallel processing
+std::size_t get_min_elements_for_distribution_parallel();
+
+/// Get platform-optimized minimum elements for simple distribution parallel processing
+std::size_t get_min_elements_for_simple_distribution_parallel();
+
+/// Get platform-optimized grain size
+std::size_t get_default_grain_size();
+
+/// Get platform-optimized simple operation grain size
+std::size_t get_simple_operation_grain_size();
+
+/// Get platform-optimized complex operation grain size
+std::size_t get_complex_operation_grain_size();
+
+/// Get platform-optimized Monte Carlo grain size
+std::size_t get_monte_carlo_grain_size();
+
+/// Get platform-optimized maximum grain size
+std::size_t get_max_grain_size();
 
 /// Memory access and prefetching optimization constants
 namespace memory {
 /// Platform-specific prefetching distance tuning
 namespace prefetch {
-/// Base prefetch distance constants (in cache lines)
-namespace distance {
-/// Conservative prefetch distance for older/low-power CPUs
-inline constexpr std::size_t CONSERVATIVE = 2;
+// Phase 3C: Flattened from distance:: namespace
+/// Conservative prefetch distance for older/low-power CPUs (in cache lines)
+inline constexpr std::size_t DISTANCE_CONSERVATIVE = 2;
 
-/// Standard prefetch distance for most modern CPUs
-inline constexpr std::size_t STANDARD = 4;
+/// Standard prefetch distance for most modern CPUs (in cache lines)
+inline constexpr std::size_t DISTANCE_STANDARD = 4;
 
-/// Aggressive prefetch distance for high-end CPUs with large caches
-inline constexpr std::size_t AGGRESSIVE = 8;
+/// Aggressive prefetch distance for high-end CPUs with large caches (in cache lines)
+inline constexpr std::size_t DISTANCE_AGGRESSIVE = 8;
 
-/// Ultra-aggressive prefetch for specialized workloads
-inline constexpr std::size_t ULTRA_AGGRESSIVE = 16;
-}  // namespace distance
+/// Ultra-aggressive prefetch for specialized workloads (in cache lines)
+inline constexpr std::size_t DISTANCE_ULTRA_AGGRESSIVE = 16;
 
-/// Platform-specific prefetch distances (in elements, not cache lines)
-// Consolidated into detail namespace (was: namespace platform)
-/// Apple Silicon prefetch tuning
-namespace apple_silicon {
-inline constexpr std::size_t SEQUENTIAL_PREFETCH_DISTANCE = 256;  // Elements ahead
-inline constexpr std::size_t RANDOM_PREFETCH_DISTANCE = 64;       // Conservative for random access
-inline constexpr std::size_t MATRIX_PREFETCH_DISTANCE = 128;      // Matrix operations
-inline constexpr std::size_t PREFETCH_STRIDE = 8;                 // Stride for strided access
-}  // namespace apple_silicon
+/// Platform-specific prefetch distances are now provided by cpu_vendor_constants.h
+/// Access via
+/// stats::arch::cpu::{intel,amd,arm,apple_silicon}::{SEQUENTIAL,RANDOM,MATRIX}_PREFETCH_DISTANCE
 
-/// Intel prefetch tuning (Skylake+)
-namespace intel {
-inline constexpr std::size_t SEQUENTIAL_PREFETCH_DISTANCE = 192;
-inline constexpr std::size_t RANDOM_PREFETCH_DISTANCE = 48;
-inline constexpr std::size_t MATRIX_PREFETCH_DISTANCE = 96;
-inline constexpr std::size_t PREFETCH_STRIDE = 4;
-}  // namespace intel
-
-/// AMD prefetch tuning (Zen+)
-namespace amd {
-inline constexpr std::size_t SEQUENTIAL_PREFETCH_DISTANCE = 128;
-inline constexpr std::size_t RANDOM_PREFETCH_DISTANCE = 32;
-inline constexpr std::size_t MATRIX_PREFETCH_DISTANCE = 64;
-inline constexpr std::size_t PREFETCH_STRIDE = 4;
-}  // namespace amd
-
-/// ARM prefetch tuning
-namespace arm {
-inline constexpr std::size_t SEQUENTIAL_PREFETCH_DISTANCE = 64;
-inline constexpr std::size_t RANDOM_PREFETCH_DISTANCE = 16;
-inline constexpr std::size_t MATRIX_PREFETCH_DISTANCE = 32;
-inline constexpr std::size_t PREFETCH_STRIDE = 2;
-}  // namespace arm
-// End of consolidated platform constants
-
-/// Prefetch strategies based on access patterns
-namespace strategy {
+// Phase 3C: Flattened from strategy:: namespace
 /// Sequential access prefetch multipliers
-inline constexpr double SEQUENTIAL_MULTIPLIER = 2.0;  // More aggressive for sequential
-inline constexpr double RANDOM_MULTIPLIER = 0.5;      // Conservative for random
-inline constexpr double STRIDED_MULTIPLIER = 1.5;     // Moderate for strided access
+inline constexpr double STRATEGY_SEQUENTIAL_MULTIPLIER = 2.0;  // More aggressive for sequential
+inline constexpr double STRATEGY_RANDOM_MULTIPLIER = 0.5;      // Conservative for random
+inline constexpr double STRATEGY_STRIDED_MULTIPLIER = 1.5;     // Moderate for strided access
 
 /// Minimum elements before prefetching becomes beneficial
-inline constexpr std::size_t MIN_PREFETCH_SIZE = 32;
+inline constexpr std::size_t STRATEGY_MIN_PREFETCH_SIZE = 32;
 
 /// Maximum practical prefetch distance (memory bandwidth constraint)
-inline constexpr std::size_t MAX_PREFETCH_DISTANCE = 1024;
+inline constexpr std::size_t STRATEGY_MAX_PREFETCH_DISTANCE = 1024;
 
 /// Prefetch granularity (align prefetch to cache line boundaries)
-inline constexpr std::size_t PREFETCH_GRANULARITY = 8;  // 64-byte cache line / 8-byte double
-}  // namespace strategy
+inline constexpr std::size_t STRATEGY_PREFETCH_GRANULARITY =
+    8;  // 64-byte cache line / 8-byte double
 
-/// Software prefetch instruction timing
-namespace timing {
+// Phase 3C: Flattened from timing:: namespace
 /// Memory latency estimates for prefetch scheduling (in CPU cycles)
-inline constexpr std::size_t L1_LATENCY_CYCLES = 4;      // L1 cache hit
-inline constexpr std::size_t L2_LATENCY_CYCLES = 12;     // L2 cache hit
-inline constexpr std::size_t L3_LATENCY_CYCLES = 36;     // L3 cache hit
-inline constexpr std::size_t DRAM_LATENCY_CYCLES = 300;  // Main memory access
+inline constexpr std::size_t TIMING_L1_LATENCY_CYCLES = 4;      // L1 cache hit
+inline constexpr std::size_t TIMING_L2_LATENCY_CYCLES = 12;     // L2 cache hit
+inline constexpr std::size_t TIMING_L3_LATENCY_CYCLES = 36;     // L3 cache hit
+inline constexpr std::size_t TIMING_DRAM_LATENCY_CYCLES = 300;  // Main memory access
 
 /// Prefetch lead time (how far ahead to prefetch based on expected latency)
-inline constexpr std::size_t L2_PREFETCH_LEAD = 32;     // Elements ahead for L2 prefetch
-inline constexpr std::size_t L3_PREFETCH_LEAD = 128;    // Elements ahead for L3 prefetch
-inline constexpr std::size_t DRAM_PREFETCH_LEAD = 512;  // Elements ahead for DRAM prefetch
-}  // namespace timing
+inline constexpr std::size_t TIMING_L2_PREFETCH_LEAD = 32;     // Elements ahead for L2 prefetch
+inline constexpr std::size_t TIMING_L3_PREFETCH_LEAD = 128;    // Elements ahead for L3 prefetch
+inline constexpr std::size_t TIMING_DRAM_PREFETCH_LEAD = 512;  // Elements ahead for DRAM prefetch
 }  // namespace prefetch
 
 /// Memory access pattern optimization
@@ -623,38 +445,33 @@ inline constexpr std::size_t CACHE_LINE_SIZE_BYTES = 64;  // Standard cache line
 inline constexpr std::size_t DOUBLES_PER_CACHE_LINE = 8;  // 64 bytes / 8 bytes per double
 inline constexpr std::size_t CACHE_LINE_ALIGNMENT = 64;   // Alignment requirement
 
-/// Memory bandwidth optimization
-namespace bandwidth {
+// Phase 3C: Flattened from bandwidth:: namespace
 /// Optimal burst sizes for different memory types
-inline constexpr std::size_t DDR4_BURST_SIZE = 64;   // Optimal DDR4 burst
-inline constexpr std::size_t DDR5_BURST_SIZE = 128;  // Optimal DDR5 burst
-inline constexpr std::size_t HBM_BURST_SIZE = 256;   // High Bandwidth Memory burst
+inline constexpr std::size_t BANDWIDTH_DDR4_BURST_SIZE = 64;   // Optimal DDR4 burst
+inline constexpr std::size_t BANDWIDTH_DDR5_BURST_SIZE = 128;  // Optimal DDR5 burst
+inline constexpr std::size_t BANDWIDTH_HBM_BURST_SIZE = 256;   // High Bandwidth Memory burst
 
 /// Memory channel utilization targets
-inline constexpr double TARGET_BANDWIDTH_UTILIZATION = 0.8;  // Aim for 80% bandwidth usage
-inline constexpr double MAX_BANDWIDTH_UTILIZATION = 0.95;    // Maximum before thrashing
-}  // namespace bandwidth
+inline constexpr double BANDWIDTH_TARGET_UTILIZATION = 0.8;  // Aim for 80% bandwidth usage
+inline constexpr double BANDWIDTH_MAX_UTILIZATION = 0.95;    // Maximum before thrashing
 
-/// Memory layout optimization
-namespace layout {
+// Phase 3C: Flattened from layout:: namespace
 /// Array-of-Structures vs Structure-of-Arrays thresholds
-inline constexpr std::size_t AOS_TO_SOA_THRESHOLD = 1000;  // Switch to SOA for larger sizes
+inline constexpr std::size_t LAYOUT_AOS_TO_SOA_THRESHOLD = 1000;  // Switch to SOA for larger sizes
 
 /// Memory pool and alignment settings
-inline constexpr std::size_t MEMORY_POOL_ALIGNMENT = 4096;      // Page-aligned pools
-inline constexpr std::size_t SMALL_ALLOCATION_THRESHOLD = 256;  // Use pool for smaller allocations
-inline constexpr std::size_t LARGE_PAGE_THRESHOLD = 2097152;    // 2MB huge page threshold
-}  // namespace layout
+inline constexpr std::size_t LAYOUT_MEMORY_POOL_ALIGNMENT = 4096;  // Page-aligned pools
+inline constexpr std::size_t LAYOUT_SMALL_ALLOCATION_THRESHOLD =
+    256;  // Use pool for smaller allocations
+inline constexpr std::size_t LAYOUT_LARGE_PAGE_THRESHOLD = 2097152;  // 2MB huge page threshold
 
-/// Non-Uniform Memory Access (NUMA) optimization
-namespace numa {
+// Phase 3C: Flattened from numa:: namespace
 /// NUMA-aware allocation thresholds
 inline constexpr std::size_t NUMA_AWARE_THRESHOLD = 1048576;  // 1MB threshold for NUMA awareness
 
 /// Thread affinity and memory locality settings
 inline constexpr std::size_t NUMA_LOCAL_THRESHOLD = 65536;  // Prefer local memory below this size
 inline constexpr double NUMA_MIGRATION_COST = 0.1;          // Cost factor for NUMA migration
-}  // namespace numa
 }  // namespace access
 
 /// Memory allocation strategy constants
@@ -669,12 +486,11 @@ inline constexpr std::size_t MIN_ALLOCATION_ALIGNMENT = 8;      // Minimum 8-byt
 inline constexpr std::size_t SIMD_ALLOCATION_ALIGNMENT = 32;    // SIMD-friendly alignment
 inline constexpr std::size_t PAGE_ALLOCATION_ALIGNMENT = 4096;  // Page alignment
 
+// Phase 3C: Flattened from growth:: namespace
 /// Memory growth strategies
-namespace growth {
-inline constexpr double EXPONENTIAL_GROWTH_FACTOR = 1.5;  // 50% growth per expansion
-inline constexpr double LINEAR_GROWTH_FACTOR = 1.2;       // 20% growth for large allocations
+inline constexpr double GROWTH_EXPONENTIAL_FACTOR = 1.5;  // 50% growth per expansion
+inline constexpr double GROWTH_LINEAR_FACTOR = 1.2;       // 20% growth for large allocations
 inline constexpr std::size_t GROWTH_THRESHOLD = 1048576;  // Switch to linear above 1MB
-}  // namespace growth
 }  // namespace allocation
 }  // namespace memory
 
@@ -691,6 +507,12 @@ std::size_t get_optimal_simd_block_size();
  * @return Optimal memory alignment in bytes
  */
 std::size_t get_optimal_alignment();
+
+/**
+ * @brief Get cache line size based on detected CPU vendor
+ * @return Platform-specific cache line size in bytes
+ */
+std::size_t get_cache_line_size();
 
 /**
  * @brief Get optimized minimum size for SIMD operations
@@ -729,122 +551,7 @@ struct CacheThresholds {
 
 CacheThresholds get_cache_thresholds();
 // End of consolidated platform constants
-
-/// Cache system optimization constants
-namespace cache {
-/// Cache sizing constants
-namespace sizing {
-/// Minimum cache size in bytes
-inline constexpr std::size_t MIN_CACHE_SIZE_BYTES = 64 * 1024;  // 64KB
-
-/// Maximum cache size in bytes
-inline constexpr std::size_t MAX_CACHE_SIZE_BYTES = 64 * 1024 * 1024;  // 64MB
-
-/// Minimum number of cache entries
-inline constexpr std::size_t MIN_ENTRY_COUNT = 32;
-
-/// Maximum number of cache entries
-inline constexpr std::size_t MAX_ENTRY_COUNT = 65536;
-
-/// Estimated bytes per cache entry (for sizing calculations)
-inline constexpr std::size_t BYTES_PER_ENTRY_ESTIMATE = 256;
-
-/// Fraction of L3 cache to use for application caching
-inline constexpr double L3_CACHE_FRACTION = 0.1;  // 10%
-
-/// Fraction of L2 cache to use for application caching (when no L3)
-inline constexpr double L2_CACHE_FRACTION = 0.05;  // 5%
-}  // namespace sizing
-
-/// Cache tuning parameters
-namespace tuning {
-/// Base TTL for cache entries
-inline constexpr std::chrono::milliseconds BASE_TTL{10000};  // 10 seconds
-
-/// TTL for high frequency CPUs
-inline constexpr std::chrono::milliseconds HIGH_FREQ_TTL{8000};  // 8 seconds
-
-/// TTL for ultra-high frequency CPUs
-inline constexpr std::chrono::milliseconds ULTRA_HIGH_FREQ_TTL{6000};  // 6 seconds
-
-/// CPU frequency thresholds for TTL adjustment
-inline constexpr uint64_t HIGH_FREQ_THRESHOLD_HZ = 3000000000ULL;        // 3 GHz
-inline constexpr uint64_t ULTRA_HIGH_FREQ_THRESHOLD_HZ = 4000000000ULL;  // 4 GHz
-
-/// Prefetch multipliers for different SIMD capabilities
-inline constexpr std::size_t AVX512_PREFETCH_MULTIPLIER = 3;
-inline constexpr std::size_t AVX2_PREFETCH_MULTIPLIER = 2;
-inline constexpr std::size_t SSE_PREFETCH_MULTIPLIER = 1;
-}  // namespace tuning
-
-/// Platform-specific cache configurations
-// Consolidated into detail namespace (was: namespace platform)
-/// Apple Silicon (M1/M2/M3) cache tuning
-namespace apple_silicon {
-inline constexpr std::size_t DEFAULT_MAX_MEMORY_MB = 8;  // 8MB
-inline constexpr std::size_t DEFAULT_MAX_ENTRIES = 4096;
-inline constexpr std::size_t PREFETCH_QUEUE_SIZE = 64;
-inline constexpr double EVICTION_THRESHOLD = 0.75;
-inline constexpr std::size_t BATCH_EVICTION_SIZE = 16;
-inline constexpr std::chrono::milliseconds DEFAULT_TTL{12000};  // 12 seconds
-inline constexpr double HIT_RATE_TARGET = 0.88;
-inline constexpr double MEMORY_EFFICIENCY_TARGET = 0.75;
-}  // namespace apple_silicon
-
-/// Intel cache tuning
-namespace intel {
-inline constexpr std::size_t DEFAULT_MAX_MEMORY_MB = 6;  // 6MB
-inline constexpr std::size_t DEFAULT_MAX_ENTRIES = 3072;
-inline constexpr std::size_t PREFETCH_QUEUE_SIZE = 48;
-inline constexpr double EVICTION_THRESHOLD = 0.80;
-inline constexpr std::size_t BATCH_EVICTION_SIZE = 12;
-inline constexpr std::chrono::milliseconds DEFAULT_TTL{10000};  // 10 seconds
-inline constexpr double HIT_RATE_TARGET = 0.85;
-inline constexpr double MEMORY_EFFICIENCY_TARGET = 0.70;
-}  // namespace intel
-
-/// AMD cache tuning
-namespace amd {
-inline constexpr std::size_t DEFAULT_MAX_MEMORY_MB = 5;  // 5MB
-inline constexpr std::size_t DEFAULT_MAX_ENTRIES = 2560;
-inline constexpr std::size_t PREFETCH_QUEUE_SIZE = 40;
-inline constexpr double EVICTION_THRESHOLD = 0.82;
-inline constexpr std::size_t BATCH_EVICTION_SIZE = 10;
-inline constexpr std::chrono::milliseconds DEFAULT_TTL{9000};  // 9 seconds
-inline constexpr double HIT_RATE_TARGET = 0.83;
-inline constexpr double MEMORY_EFFICIENCY_TARGET = 0.68;
-}  // namespace amd
-
-/// ARM generic cache tuning
-namespace arm {
-inline constexpr std::size_t DEFAULT_MAX_MEMORY_MB = 3;  // 3MB
-inline constexpr std::size_t DEFAULT_MAX_ENTRIES = 1536;
-inline constexpr std::size_t PREFETCH_QUEUE_SIZE = 24;
-inline constexpr double EVICTION_THRESHOLD = 0.85;
-inline constexpr std::size_t BATCH_EVICTION_SIZE = 8;
-inline constexpr std::chrono::milliseconds DEFAULT_TTL{8000};  // 8 seconds
-inline constexpr double HIT_RATE_TARGET = 0.80;
-inline constexpr double MEMORY_EFFICIENCY_TARGET = 0.65;
-}  // namespace arm
-// End of consolidated platform constants
-
-/// Access pattern analysis constants
-namespace patterns {
-/// Maximum number of access patterns to keep in history
-inline constexpr std::size_t MAX_PATTERN_HISTORY = 1000;
-
-/// Threshold for detecting sequential access patterns
-inline constexpr double SEQUENTIAL_PATTERN_THRESHOLD = 0.7;
-
-/// Threshold for detecting random access patterns
-inline constexpr double RANDOM_PATTERN_THRESHOLD = 0.3;
-
-/// Size multipliers for different access patterns
-inline constexpr double SEQUENTIAL_SIZE_MULTIPLIER = 1.5;
-inline constexpr double RANDOM_SIZE_MULTIPLIER = 0.8;
-inline constexpr double MIXED_SIZE_MULTIPLIER = 1.1;
-}  // namespace patterns
-}  // namespace cache
+// Phase 3A: Removed unused cache namespaces and constants
 
 }  // namespace arch
 }  // namespace stats

@@ -89,15 +89,15 @@ void demonstrate_simd_integration() {
 
     // 4. Show compile-time constants from simd.h
     std::cout << "\n4. COMPILE-TIME SIMD CONSTANTS:" << std::endl;
-    std::cout << "   Has SIMD support: " << (stats::arch::simd::has_simd_support() ? "✓" : "✗")
+    std::cout << "   Has SIMD support: " << (stats::simd::utils::has_simd_support() ? "✓" : "✗")
               << std::endl;
-    std::cout << "   Compile-time double width: " << stats::arch::simd::double_vector_width()
+    std::cout << "   Compile-time double width: " << stats::simd::utils::double_vector_width()
               << std::endl;
-    std::cout << "   Compile-time float width: " << stats::arch::simd::float_vector_width()
+    std::cout << "   Compile-time float width: " << stats::simd::utils::float_vector_width()
               << std::endl;
-    std::cout << "   Compile-time alignment: " << stats::arch::simd::optimal_alignment() << " bytes"
-              << std::endl;
-    std::cout << "   Compile-time feature string: " << stats::arch::simd::feature_string()
+    std::cout << "   Compile-time alignment: " << stats::simd::utils::optimal_alignment()
+              << " bytes" << std::endl;
+    std::cout << "   Compile-time feature string: " << stats::simd::utils::feature_string()
               << std::endl;
 
     // 5. Show combined usage pattern
@@ -188,7 +188,7 @@ void safe_vectorized_add(const std::vector<double>& a, const std::vector<double>
 
     // Use libstats SIMD operations with automatic detection
     // This would use the VectorOps class from simd.h with runtime detection
-    stats::arch::simd::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
+    stats::simd::ops::VectorOps::vector_add(a.data(), b.data(), result.data(), size);
 }
 
 // Test Gaussian distribution SIMD batch operations
