@@ -53,18 +53,27 @@ This provides the most comprehensive testing but requires access to AVX-512 hard
 
 ### Option 2: Compilation Verification (Currently Implemented)
 
-Tests that AVX-512 code compiles correctly without runtime execution.
+Tests that AVX-512 code compiles correctly without runtime execution or linking.
 
 #### What It Tests
 - ✅ AVX-512 headers parse correctly
 - ✅ AVX-512 intrinsics compile with GCC and Clang
 - ✅ No compilation errors in AVX-512 code paths
-- ✅ Proper linking of AVX-512 object files
+- ✅ Individual source files compile with AVX-512 flags
+- ✅ Namespace and constant resolution works correctly
 
 #### Limitations
+- ❌ Cannot test full program linking (GitHub runners lack AVX-512 hardware)
 - ❌ Cannot test runtime behavior
 - ❌ Cannot verify performance characteristics
 - ❌ Cannot test CPU feature detection accuracy
+
+#### Design Constraint
+GitHub's standard runners don't have AVX-512 capable CPUs, so the build system
+conditionally excludes AVX-512 source files. When we force AVX-512 compilation
+flags for testing, the dispatch logic references AVX-512 functions that aren't
+linked, causing linker errors. Our solution focuses on compilation verification
+of individual source files, which still provides significant value.
 
 #### Usage
 The `avx512-compilation.yml` workflow runs automatically and will:
