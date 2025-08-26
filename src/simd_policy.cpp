@@ -27,7 +27,7 @@ struct SIMDState {
         SIMDPolicy::Level detected_level = SIMDPolicy::Level::None;
 
 #if defined(LIBSTATS_HAS_AVX512)
-        if (stats::arch::supports_avx512f()) {
+        if (stats::arch::supports_avx512()) {
             detected_level = SIMDPolicy::Level::AVX512;
         } else
 #endif
@@ -121,7 +121,7 @@ std::string SIMDPolicy::getCapabilityString() noexcept {
 
 SIMDPolicy::Level SIMDPolicy::detectBestLevel() noexcept {
 #if defined(LIBSTATS_HAS_AVX512)
-    if (stats::arch::supports_avx512f())
+    if (stats::arch::supports_avx512())
         return SIMDPolicy::Level::AVX512;
 #endif
 #if defined(LIBSTATS_HAS_AVX2)

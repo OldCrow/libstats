@@ -97,9 +97,10 @@ struct FeaturesSingleton {
                 int backoff = 1;
                 while ((features = ptr.load(std::memory_order_acquire)) == nullptr) {
                     std::this_thread::sleep_for(std::chrono::nanoseconds(backoff));
-                    backoff = std::min(
-                        backoff * detail::TWO_INT,
-                        static_cast<int>(arch::simd::CPU_MAX_BACKOFF_NANOSECONDS));  // Max 1μs backoff
+                    backoff =
+                        std::min(backoff * detail::TWO_INT,
+                                 static_cast<int>(
+                                     arch::simd::CPU_MAX_BACKOFF_NANOSECONDS));  // Max 1μs backoff
                 }
 #endif
             }
@@ -109,9 +110,6 @@ struct FeaturesSingleton {
 };
 
 static FeaturesSingleton g_features_manager;
-
-// Forward declarations
-void detect_macos_topology(Features& features);
 
 #ifdef LIBSTATS_X86_FAMILY
 /**
@@ -433,6 +431,9 @@ Features detect_x86_features() {
 #endif  // LIBSTATS_X86_FAMILY
 
 #if defined(__APPLE__)
+// Forward declaration for macOS-specific function
+void detect_macos_topology(Features& features);
+
 /**
  * @brief Detect macOS CPU topology using sysctl (works for both Intel and ARM)
  */
