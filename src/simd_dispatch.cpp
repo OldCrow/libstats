@@ -373,7 +373,7 @@ inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const v
 
 // For high-end SIMD (AVX-512), use for smaller aligned datasets
 #ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512() && size >= arch::AVX512_MIN_ALIGNED_SIZE &&
+    if (stats::arch::supports_avx512() && size >= stats::arch::simd::OPT_AVX512_MIN_ALIGNED_SIZE &&
         is_alignment_beneficial(ptr1, ptr2, ptr3)) {
         return true;
     }
