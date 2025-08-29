@@ -4,8 +4,8 @@
 #include <cmath>
 #include <vector>
 
-namespace libstats {
-namespace performance {
+namespace stats {
+namespace detail {  // Performance utilities
 
 void PerformanceHistory::recordPerformance(Strategy strategy, DistributionType distribution_type,
                                            std::size_t batch_size,
@@ -388,5 +388,5 @@ std::size_t PerformanceHistory::findOptimalThreshold(
     return fallback_threshold;
 }
 
-}  // namespace performance
-}  // namespace libstats
+}  // namespace detail
+}  // namespace stats

@@ -18,7 +18,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace libstats {
+namespace stats {
 
 //==========================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -138,7 +138,7 @@ double GammaDistribution::getSkewness() const noexcept {
         ulock.unlock();
         lock.lock();
     }
-    return constants::math::TWO / sqrtAlpha_;
+    return detail::TWO / sqrtAlpha_;
 }
 
 double GammaDistribution::getKurtosis() const noexcept {
@@ -310,7 +310,7 @@ double GammaDistribution::getProbability(double x) const {
 
 double GammaDistribution::getLogProbability(double x) const noexcept {
     if (x < 0.0) {
-        return constants::probability::NEGATIVE_INFINITY;
+        return detail::NEGATIVE_INFINITY;
     }
 
     // Ensure cache is valid
@@ -332,7 +332,7 @@ double GammaDistribution::getLogProbability(double x) const noexcept {
         } else if (alpha_ == 1.0) {
             return logBeta_;  // log(β)
         } else {
-            return constants::probability::MIN_LOG_PROBABILITY;
+            return detail::MIN_LOG_PROBABILITY;
         }
     }
 
@@ -358,7 +358,7 @@ double GammaDistribution::getCumulativeProbability(double x) const {
     }
 
     // Use regularized incomplete gamma function P(α, βx)
-    return math::gamma_p(alpha_, beta_ * x);
+    return detail::gamma_p(alpha_, beta_ * x);
 }
 
 double GammaDistribution::getQuantile(double p) const {
@@ -448,7 +448,7 @@ void GammaDistribution::parallelBatchFit(const std::vector<std::vector<double>>&
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (parallel::shouldUseDistributionParallel("gamma", "batch_fit", num_datasets)) {
+    if (arch::shouldUseDistributionParallel("gamma", "batch_fit", num_datasets)) {
         // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
         ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
         const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
@@ -482,8 +482,8 @@ void GammaDistribution::parallelBatchFit(const std::vector<std::vector<double>>&
 
 void GammaDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    alpha_ = constants::math::ONE;
-    beta_ = constants::math::ONE;
+    alpha_ = detail::ONE;
+    beta_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
 
@@ -651,7 +651,7 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
 
     // Approximate p-value using chi-square distribution
     // For a more accurate p-value, we would use the complementary gamma function
-    double p_value = 1.0 - math::gamma_p(1.0, lr_statistic / 2.0);  // Approximation
+    double p_value = 1.0 - detail::gamma_p(1.0, lr_statistic / 2.0);  // Approximation
 
     // Reject null hypothesis if LR statistic > critical value
     bool reject_null = (lr_statistic > chi2_critical);
@@ -865,14 +865,15 @@ GammaDistribution::bayesianCredibleInterval(const std::vector<double>& data,
     // For shape parameter α ~ Gamma(post_alpha_shape, post_alpha_rate)
     // Use gamma inverse CDF (quantile function)
     double alpha_lower =
-        math::gamma_inverse_cdf(alpha_tail, post_alpha_shape, 1.0 / post_alpha_rate);
+        detail::gamma_inverse_cdf(alpha_tail, post_alpha_shape, 1.0 / post_alpha_rate);
     double alpha_upper =
-        math::gamma_inverse_cdf(1.0 - alpha_tail, post_alpha_shape, 1.0 / post_alpha_rate);
+        detail::gamma_inverse_cdf(1.0 - alpha_tail, post_alpha_shape, 1.0 / post_alpha_rate);
 
     // For rate parameter β ~ Gamma(post_beta_shape, post_beta_rate)
-    double beta_lower = math::gamma_inverse_cdf(alpha_tail, post_beta_shape, 1.0 / post_beta_rate);
+    double beta_lower =
+        detail::gamma_inverse_cdf(alpha_tail, post_beta_shape, 1.0 / post_beta_rate);
     double beta_upper =
-        math::gamma_inverse_cdf(1.0 - alpha_tail, post_beta_shape, 1.0 / post_beta_rate);
+        detail::gamma_inverse_cdf(1.0 - alpha_tail, post_beta_shape, 1.0 / post_beta_rate);
 
     // Ensure bounds are positive and reasonable
     alpha_lower = std::max(alpha_lower, 1e-6);
@@ -954,7 +955,7 @@ std::tuple<double, double, bool> GammaDistribution::normalApproximationTest(
     double normal_var = alpha_hat / static_cast<double>(n);
     double normal_sd = std::sqrt(normal_var);
 
-    double threshold_z = math::inverse_normal_cdf(1.0 - significance_level / 2.0);
+    double threshold_z = detail::inverse_normal_cdf(1.0 - significance_level / 2.0);
     double lower_bound = normal_mean - threshold_z * normal_sd;
     double upper_bound = normal_mean + threshold_z * normal_sd;
 
@@ -980,7 +981,7 @@ std::tuple<double, double, bool> GammaDistribution::kolmogorovSmirnovTest(
     }
 
     // Use the overflow-safe KS statistic calculation from math_utils
-    double ks_statistic = math::calculate_ks_statistic(data, distribution);
+    double ks_statistic = detail::calculate_ks_statistic(data, distribution);
 
     const size_t n = data.size();
     double critical_value = 1.36 / std::sqrt(n);  // Approximation for KS test critical value
@@ -1020,7 +1021,7 @@ std::tuple<double, double, bool> GammaDistribution::andersonDarlingTest(
     }
 
     // Use the centralized AD statistic calculation from math_utils
-    double ad_statistic = math::calculate_ad_statistic(data, distribution);
+    double ad_statistic = detail::calculate_ad_statistic(data, distribution);
 
     // Use the same p-value approximation as Gaussian distribution for consistency
     const double n = static_cast<double>(data.size());
@@ -1355,11 +1356,10 @@ Result<GammaDistribution> GammaDistribution::createFromMoments(double mean,
 //==========================================================================
 
 void GammaDistribution::getProbability(std::span<const double> values, std::span<double> results,
-                                       const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<GammaDistribution>::distType(),
-        performance::DistributionTraits<GammaDistribution>::complexity(),
+                                       const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<GammaDistribution>::distType(),
+        detail::DistributionTraits<GammaDistribution>::complexity(),
         [](const GammaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1418,7 +1418,7 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
                     if (x <= 0.0) {
@@ -1532,11 +1532,10 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
 }
 
 void GammaDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
-                                          const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<GammaDistribution>::distType(),
-        performance::DistributionTraits<GammaDistribution>::complexity(),
+                                          const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<GammaDistribution>::distType(),
+        detail::DistributionTraits<GammaDistribution>::complexity(),
         [](const GammaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1593,11 +1592,11 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
                     if (x <= 0.0) {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     } else {
                         res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
                                  cached_alpha_minus_one * std::log(x) - cached_beta * x;
@@ -1608,7 +1607,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
                     if (x <= 0.0) {
-                        res[i] = constants::probability::NEGATIVE_INFINITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                     } else {
                         res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
                                  cached_alpha_minus_one * std::log(x) - cached_beta * x;
@@ -1650,7 +1649,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
                              cached_alpha_minus_one * std::log(x) - cached_beta * x;
@@ -1691,7 +1690,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
                              cached_alpha_minus_one * std::log(x) - cached_beta * x;
@@ -1702,11 +1701,10 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
 
 void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                                                  std::span<double> results,
-                                                 const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<GammaDistribution>::distType(),
-        performance::DistributionTraits<GammaDistribution>::complexity(),
+                                                 const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<GammaDistribution>::distType(),
+        detail::DistributionTraits<GammaDistribution>::complexity(),
         [](const GammaDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -1760,13 +1758,13 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
                     if (x <= 0.0) {
                         res[i] = 0.0;
                     } else {
-                        res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                     }
                 });
             } else {
@@ -1776,7 +1774,7 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                     if (x <= 0.0) {
                         res[i] = 0.0;
                     } else {
-                        res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                     }
                 }
             }
@@ -1815,7 +1813,7 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 if (x <= 0.0) {
                     res[i] = 0.0;
                 } else {
-                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
             });
         },
@@ -1853,7 +1851,7 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 if (x <= 0.0) {
                     res[i] = 0.0;
                 } else {
-                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
             });
         });
@@ -1865,13 +1863,13 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
 
 void GammaDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                    std::span<double> results,
-                                                   performance::Strategy strategy) const {
+                                                   detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GammaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
@@ -2029,13 +2027,13 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
 
 void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                       std::span<double> results,
-                                                      performance::Strategy strategy) const {
+                                                      detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GammaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
@@ -2098,7 +2096,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
                              cached_alpha_minus_one * std::log(x) - cached_beta * x;
@@ -2140,7 +2138,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
                              cached_alpha_minus_one * std::log(x) - cached_beta * x;
@@ -2182,7 +2180,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0) {
-                    res[i] = constants::probability::NEGATIVE_INFINITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
                              cached_alpha_minus_one * std::log(x) - cached_beta * x;
@@ -2193,13 +2191,13 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
 
 void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                                              std::span<double> results,
-                                                             performance::Strategy strategy) const {
+                                                             detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == performance::Strategy::GPU_ACCELERATED) {
-        strategy = performance::Strategy::WORK_STEALING;
+    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+        strategy = detail::Strategy::WORK_STEALING;
     }
 
-    performance::DispatchUtils::executeWithStrategy(
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GammaDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
@@ -2259,7 +2257,7 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
                 if (x <= 0.0) {
                     res[i] = 0.0;
                 } else {
-                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
             });
         },
@@ -2297,7 +2295,7 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
                 if (x <= 0.0) {
                     res[i] = 0.0;
                 } else {
-                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
             });
         },
@@ -2335,7 +2333,7 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
                 if (x <= 0.0) {
                     res[i] = 0.0;
                 } else {
-                    res[i] = math::gamma_p(cached_alpha, cached_beta * x);
+                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
             });
         });
@@ -2352,8 +2350,8 @@ bool GammaDistribution::operator==(const GammaDistribution& other) const {
     std::lock(lock1, lock2);
 
     // Compare parameters within tolerance
-    return (std::abs(alpha_ - other.alpha_) <= constants::precision::DEFAULT_TOLERANCE) &&
-           (std::abs(beta_ - other.beta_) <= constants::precision::DEFAULT_TOLERANCE);
+    return (std::abs(alpha_ - other.alpha_) <= detail::DEFAULT_TOLERANCE) &&
+           (std::abs(beta_ - other.beta_) <= detail::DEFAULT_TOLERANCE);
 }
 
 //==========================================================================
@@ -2428,7 +2426,7 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
                                                       double log_gamma_alpha, double alpha_log_beta,
                                                       double alpha_minus_one) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
@@ -2445,31 +2443,33 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
 
     // Runtime CPU detection passed - use vectorized implementation
     // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> log_values(count);
-    std::vector<double, simd::aligned_allocator<double>> exp_inputs(count);
+    std::vector<double, arch::simd::aligned_allocator<double>> log_values(count);
+    std::vector<double, arch::simd::aligned_allocator<double>> exp_inputs(count);
 
     // Step 1: Handle negative values and compute log(values)
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= 0.0) {
-            log_values[i] = constants::probability::MIN_LOG_PROBABILITY;  // Will be set to 0 later
+            log_values[i] = detail::MIN_LOG_PROBABILITY;  // Will be set to 0 later
         } else {
             log_values[i] = std::log(values[i]);
         }
     }
 
     // Step 2: Compute alpha_minus_one * log(values) using SIMD
-    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, exp_inputs.data(), count);
+    arch::simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, exp_inputs.data(),
+                                           count);
 
     // Step 3: Add alpha_log_beta - log_gamma_alpha
     const double log_constant = alpha_log_beta - log_gamma_alpha;
-    simd::VectorOps::scalar_add(exp_inputs.data(), log_constant, exp_inputs.data(), count);
+    arch::simd::VectorOps::scalar_add(exp_inputs.data(), log_constant, exp_inputs.data(), count);
 
     // Step 4: Subtract beta * values
-    simd::VectorOps::scalar_multiply(values, -beta, log_values.data(), count);
-    simd::VectorOps::vector_add(exp_inputs.data(), log_values.data(), exp_inputs.data(), count);
+    arch::simd::VectorOps::scalar_multiply(values, -beta, log_values.data(), count);
+    arch::simd::VectorOps::vector_add(exp_inputs.data(), log_values.data(), exp_inputs.data(),
+                                      count);
 
     // Step 5: Apply vectorized exponential
-    simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
+    arch::simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
 
     // Step 6: Handle negative input values (set to zero) - must be done after exp
     for (std::size_t i = 0; i < count; ++i) {
@@ -2486,13 +2486,13 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
                                                          double alpha_log_beta,
                                                          double alpha_minus_one) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
             if (values[i] <= 0.0) {
-                results[i] = constants::probability::NEGATIVE_INFINITY;
+                results[i] = detail::NEGATIVE_INFINITY;
             } else {
                 results[i] = alpha_log_beta - log_gamma_alpha +
                              alpha_minus_one * std::log(values[i]) - beta * values[i];
@@ -2503,8 +2503,8 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
 
     // Runtime CPU detection passed - use vectorized implementation
     // Create aligned temporary arrays for vectorized operations
-    std::vector<double, simd::aligned_allocator<double>> log_values(count);
-    std::vector<double, simd::aligned_allocator<double>> beta_scaled_values(count);
+    std::vector<double, arch::simd::aligned_allocator<double>> log_values(count);
+    std::vector<double, arch::simd::aligned_allocator<double>> beta_scaled_values(count);
 
     // Step 1: Handle negative values and compute log(values)
     for (std::size_t i = 0; i < count; ++i) {
@@ -2516,21 +2516,21 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
     }
 
     // Step 2: Compute alpha_minus_one * log(values) using SIMD
-    simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, results, count);
+    arch::simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, results, count);
 
     // Step 3: Add alpha_log_beta - log_gamma_alpha
     const double log_constant = alpha_log_beta - log_gamma_alpha;
-    simd::VectorOps::scalar_add(results, log_constant, results, count);
+    arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
 
     // Step 4: Subtract beta * values using SIMD
-    simd::VectorOps::scalar_multiply(values, -beta, beta_scaled_values.data(), count);
-    simd::VectorOps::vector_add(results, beta_scaled_values.data(), results, count);
+    arch::simd::VectorOps::scalar_multiply(values, -beta, beta_scaled_values.data(), count);
+    arch::simd::VectorOps::vector_add(results, beta_scaled_values.data(), results, count);
 
     // Step 5: Handle negative input values (set to MIN_LOG_PROBABILITY) - must be done after all
     // SIMD ops
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= 0.0) {
-            results[i] = constants::probability::MIN_LOG_PROBABILITY;
+            results[i] = detail::MIN_LOG_PROBABILITY;
         }
     }
 }
@@ -2540,7 +2540,7 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
                                                                 double alpha,
                                                                 double beta) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
@@ -2556,10 +2556,10 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
 
     // Runtime CPU detection passed - use vectorized implementation
     // Create aligned temporary array for beta * values
-    std::vector<double, simd::aligned_allocator<double>> scaled_values(count);
+    std::vector<double, arch::simd::aligned_allocator<double>> scaled_values(count);
 
     // Step 1: Compute beta * values using SIMD
-    simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
+    arch::simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
 
     // Step 2: Apply regularized incomplete gamma function to each scaled value
     // Note: This function is not easily vectorizable, so we still use scalar loop
@@ -2567,7 +2567,7 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
         if (values[i] <= 0.0) {
             results[i] = 0.0;
         } else {
-            results[i] = math::gamma_p(alpha, scaled_values[i]);
+            results[i] = detail::gamma_p(alpha, scaled_values[i]);
         }
     }
 }
@@ -2657,7 +2657,7 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
     double initial_guess;
     if (alpha_ > 1.0) {
         double h = 2.0 / (9.0 * alpha_);
-        double z = math::inverse_normal_cdf(p);
+        double z = detail::inverse_normal_cdf(p);
         initial_guess = alpha_ * std::pow(1.0 - h + z * std::sqrt(h), 3) / beta_;
     } else {
         // For small α, use exponential approximation
@@ -2730,7 +2730,7 @@ double GammaDistribution::sampleAhrensDieter(std::mt19937& rng) const noexcept {
     // Ahrens-Dieter acceptance-rejection method for α < 1
     std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
-    const double b = (constants::math::E + alpha_) / constants::math::E;
+    const double b = (detail::E + alpha_) / detail::E;
 
     while (true) {
         double u = uniform(rng);
@@ -2913,4 +2913,4 @@ double GammaDistribution::computeTrigamma(double x) noexcept {
 // Note: Specialized caches are declared in the header as private member variables
 // This section exists for standardization and documentation purposes
 
-}  // namespace libstats
+}  // namespace stats

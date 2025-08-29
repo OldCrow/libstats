@@ -27,8 +27,9 @@
 
 #include <cmath>
 
-namespace libstats {
+namespace stats {
 namespace simd {
+namespace ops {
 
 #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
 
@@ -37,25 +38,25 @@ namespace simd {
 
 double VectorOps::dot_product_neon(const double* a, const double* b, std::size_t size) noexcept {
     // Runtime safety check - bail out if NEON not supported
-    if (!cpu::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return dot_product_fallback(a, b, size);
     }
 
-    constexpr std::size_t NEON_DOUBLE_WIDTH = constants::simd::registers::NEON_DOUBLES;
+    constexpr std::size_t NEON_DOUBLE_WIDTH = stats::arch::simd::NEON_DOUBLES;
     const std::size_t simd_end = (size / NEON_DOUBLE_WIDTH) * NEON_DOUBLE_WIDTH;
 
     // Apple Silicon optimization: Use multiple accumulators to exploit
     // superscalar execution and out-of-order capabilities
     #if defined(LIBSTATS_APPLE_SILICON)
-    if (size >= constants::simd::optimization::APPLE_SILICON_AGGRESSIVE_THRESHOLD * 2) {
+    if (size >= stats::arch::simd::OPT_APPLE_SILICON_AGGRESSIVE_THRESHOLD * 2) {
         float64x2_t sum1 = vdupq_n_f64(0.0);
         float64x2_t sum2 = vdupq_n_f64(0.0);
 
-        const std::size_t unroll_end = (size / (constants::simd::unroll::NEON_UNROLL * 2)) *
-                                       (constants::simd::unroll::NEON_UNROLL * 2);
+        const std::size_t unroll_end =
+            (size / (stats::arch::simd::NEON_UNROLL * 2)) * (stats::arch::simd::NEON_UNROLL * 2);
 
         // Process 4 doubles per iteration (2 NEON registers)
-        for (std::size_t i = 0; i < unroll_end; i += constants::simd::unroll::NEON_UNROLL * 2) {
+        for (std::size_t i = 0; i < unroll_end; i += stats::arch::simd::NEON_UNROLL * 2) {
             // Load data
             float64x2_t va1 = vld1q_f64(&a[i]);
             float64x2_t vb1 = vld1q_f64(&b[i]);
@@ -114,21 +115,21 @@ double VectorOps::dot_product_neon(const double* a, const double* b, std::size_t
 
 void VectorOps::vector_add_neon(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!cpu::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return vector_add_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t NEON_DOUBLE_WIDTH = constants::simd::registers::NEON_DOUBLES;
+    constexpr std::size_t NEON_DOUBLE_WIDTH = stats::arch::simd::NEON_DOUBLES;
     const std::size_t simd_end = (size / NEON_DOUBLE_WIDTH) * NEON_DOUBLE_WIDTH;
 
     // Apple Silicon optimization: Loop unrolling for better throughput
     #if defined(LIBSTATS_APPLE_SILICON)
-    if (size >= constants::simd::optimization::APPLE_SILICON_AGGRESSIVE_THRESHOLD * 2) {
-        const std::size_t unroll_end = (size / (constants::simd::unroll::NEON_UNROLL * 2)) *
-                                       (constants::simd::unroll::NEON_UNROLL * 2);
+    if (size >= stats::arch::simd::OPT_APPLE_SILICON_AGGRESSIVE_THRESHOLD * 2) {
+        const std::size_t unroll_end =
+            (size / (stats::arch::simd::NEON_UNROLL * 2)) * (stats::arch::simd::NEON_UNROLL * 2);
 
         // Process 4 doubles per iteration
-        for (std::size_t i = 0; i < unroll_end; i += constants::simd::unroll::NEON_UNROLL * 2) {
+        for (std::size_t i = 0; i < unroll_end; i += stats::arch::simd::NEON_UNROLL * 2) {
             // Load and process 2 NEON registers worth of data
             float64x2_t va1 = vld1q_f64(&a[i]);
             float64x2_t vb1 = vld1q_f64(&b[i]);
@@ -171,11 +172,11 @@ void VectorOps::vector_add_neon(const double* a, const double* b, double* result
 
 void VectorOps::vector_subtract_neon(const double* a, const double* b, double* result,
                                      std::size_t size) noexcept {
-    if (!cpu::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return vector_subtract_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t NEON_DOUBLE_WIDTH = constants::simd::registers::NEON_DOUBLES;
+    constexpr std::size_t NEON_DOUBLE_WIDTH = stats::arch::simd::NEON_DOUBLES;
     const std::size_t simd_end = (size / NEON_DOUBLE_WIDTH) * NEON_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += NEON_DOUBLE_WIDTH) {
@@ -192,11 +193,11 @@ void VectorOps::vector_subtract_neon(const double* a, const double* b, double* r
 
 void VectorOps::vector_multiply_neon(const double* a, const double* b, double* result,
                                      std::size_t size) noexcept {
-    if (!cpu::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return vector_multiply_fallback(a, b, result, size);
     }
 
-    constexpr std::size_t NEON_DOUBLE_WIDTH = constants::simd::registers::NEON_DOUBLES;
+    constexpr std::size_t NEON_DOUBLE_WIDTH = stats::arch::simd::NEON_DOUBLES;
     const std::size_t simd_end = (size / NEON_DOUBLE_WIDTH) * NEON_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += NEON_DOUBLE_WIDTH) {
@@ -213,12 +214,12 @@ void VectorOps::vector_multiply_neon(const double* a, const double* b, double* r
 
 void VectorOps::scalar_multiply_neon(const double* a, double scalar, double* result,
                                      std::size_t size) noexcept {
-    if (!cpu::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return scalar_multiply_fallback(a, scalar, result, size);
     }
 
     float64x2_t vscalar = vdupq_n_f64(scalar);
-    constexpr std::size_t NEON_DOUBLE_WIDTH = constants::simd::registers::NEON_DOUBLES;
+    constexpr std::size_t NEON_DOUBLE_WIDTH = stats::arch::simd::NEON_DOUBLES;
     const std::size_t simd_end = (size / NEON_DOUBLE_WIDTH) * NEON_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += NEON_DOUBLE_WIDTH) {
@@ -234,12 +235,12 @@ void VectorOps::scalar_multiply_neon(const double* a, double scalar, double* res
 
 void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept {
-    if (!cpu::supports_neon()) {
+    if (!stats::arch::supports_neon()) {
         return scalar_add_fallback(a, scalar, result, size);
     }
 
     float64x2_t vscalar = vdupq_n_f64(scalar);
-    constexpr std::size_t NEON_DOUBLE_WIDTH = constants::simd::registers::NEON_DOUBLES;
+    constexpr std::size_t NEON_DOUBLE_WIDTH = stats::arch::simd::NEON_DOUBLES;
     const std::size_t simd_end = (size / NEON_DOUBLE_WIDTH) * NEON_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += NEON_DOUBLE_WIDTH) {
@@ -289,8 +290,9 @@ void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
 
 #endif  // ARM platform check
 
+}  // namespace ops
 }  // namespace simd
-}  // namespace libstats
+}  // namespace stats
 
 #ifdef __clang__
     #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)

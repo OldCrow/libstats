@@ -20,9 +20,9 @@
 #include <map>
 #include <sstream>
 
-using namespace libstats::performance;
+using namespace stats::detail;
 using namespace std::chrono;
-using namespace libstats::constants;
+using namespace stats::detail;
 
 // Tool-specific simulation constants
 namespace {
@@ -70,15 +70,15 @@ class PerformanceDispatcherTool {
     PerformanceDispatcherTool() : system_(SystemCapabilities::current()), rng_(DEMO_SEED) {}
 
     void run() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
         // Display tool header with system information
-        system_info::displayToolHeader(
+        stats::detail::detail::displayToolHeader(
             "Performance Dispatcher Tool",
             "Interactive analysis of performance optimization framework");
 
         // Display major sections
-        system_info::displaySystemCapabilities();
+        stats::detail::detail::displaySystemCapabilities();
         demonstrateStrategySelection();
         demonstratePerformanceLearning();
         runInteractiveMode();
@@ -88,9 +88,9 @@ class PerformanceDispatcherTool {
 
    private:
     void demonstrateStrategySelection() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::sectionHeader("Strategy Selection Demonstration");
+        stats::detail::detail::sectionHeader("Strategy Selection Demonstration");
 
         // Test different batch sizes and show strategy selection
         std::vector<size_t> test_sizes = {10, 100, 1000, 10000, 100000, 1000000};
@@ -98,7 +98,7 @@ class PerformanceDispatcherTool {
             DistributionType::UNIFORM, DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL,
             DistributionType::POISSON, DistributionType::DISCRETE, DistributionType::GAMMA};
 
-        table::ColumnFormatter formatter({12, 14, 15, 18});
+        stats::detail::detail::ColumnFormatter formatter({12, 14, 15, 18});
         std::cout << formatter.formatRow(
                          {"Batch Size", "Distribution", "Complexity", "Selected Strategy"})
                   << "\n";
@@ -111,10 +111,11 @@ class PerformanceDispatcherTool {
                     auto strategy =
                         dispatcher_.selectOptimalStrategy(size, dist, complexity, system_);
 
-                    std::cout << formatter.formatRow({std::to_string(size),
-                                                      strings::distributionTypeToString(dist),
-                                                      strings::complexityToString(complexity),
-                                                      strings::strategyToString(strategy)})
+                    std::cout << formatter.formatRow(
+                                     {std::to_string(size),
+                                      stats::detail::detail::distributionTypeToString(dist),
+                                      stats::detail::detail::complexityToString(complexity),
+                                      stats::detail::detail::strategyToString(strategy)})
                               << "\n";
                 }
             }
@@ -123,9 +124,9 @@ class PerformanceDispatcherTool {
     }
 
     void demonstratePerformanceLearning() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::sectionHeader("Performance Learning Demonstration");
+        stats::detail::detail::sectionHeader("Performance Learning Demonstration");
 
         auto& history = PerformanceDispatcher::getPerformanceHistory();
         history.clearHistory();  // Start fresh for demonstration
@@ -138,9 +139,9 @@ class PerformanceDispatcherTool {
         std::cout << "Total recorded executions: " << history.getTotalExecutions() << "\n\n";
 
         // Show learned thresholds
-        display::subsectionHeader("Learned Optimal Thresholds");
+        stats::detail::detail::subsectionHeader("Learned Optimal Thresholds");
 
-        table::ColumnFormatter threshold_formatter({15, 20, 20});
+        stats::detail::detail::ColumnFormatter threshold_formatter({15, 20, 20});
         std::cout << threshold_formatter.formatRow(
                          {"Distribution", "SIMD Threshold", "Parallel Threshold"})
                   << "\n";
@@ -151,22 +152,23 @@ class PerformanceDispatcherTool {
               DistributionType::DISCRETE, DistributionType::POISSON, DistributionType::GAMMA}) {
             auto thresholds = history.learnOptimalThresholds(dist);
             if (thresholds.has_value()) {
-                std::cout << threshold_formatter.formatRow({strings::distributionTypeToString(dist),
-                                                            std::to_string(thresholds->first),
-                                                            std::to_string(thresholds->second)})
+                std::cout << threshold_formatter.formatRow(
+                                 {stats::detail::detail::distributionTypeToString(dist),
+                                  std::to_string(thresholds->first),
+                                  std::to_string(thresholds->second)})
                           << "\n";
             } else {
-                std::cout << threshold_formatter.formatRow({strings::distributionTypeToString(dist),
-                                                            "Insufficient data",
-                                                            "Insufficient data"})
+                std::cout << threshold_formatter.formatRow(
+                                 {stats::detail::detail::distributionTypeToString(dist),
+                                  "Insufficient data", "Insufficient data"})
                           << "\n";
             }
         }
 
         // Show strategy recommendations
-        display::subsectionHeader("Strategy Recommendations (with confidence)");
+        stats::detail::detail::subsectionHeader("Strategy Recommendations (with confidence)");
 
-        table::ColumnFormatter rec_formatter({12, 15, 22, 12});
+        stats::detail::detail::ColumnFormatter rec_formatter({12, 15, 22, 12});
         std::cout << rec_formatter.formatRow(
                          {"Batch Size", "Distribution", "Recommended Strategy", "Confidence"})
                   << "\n";
@@ -181,13 +183,14 @@ class PerformanceDispatcherTool {
             for (auto dist : rec_distributions) {
                 auto recommendation = history.getBestStrategy(dist, size);
                 std::string confidence_str =
-                    format::confidenceToString(recommendation.confidence_score);
+                    stats::detail::detail::confidenceToString(recommendation.confidence_score);
 
-                std::cout << rec_formatter.formatRow({std::to_string(size),
-                                                      strings::distributionTypeToString(dist),
-                                                      strings::strategyToDisplayString(
-                                                          recommendation.recommended_strategy),
-                                                      confidence_str})
+                std::cout << rec_formatter.formatRow(
+                                 {std::to_string(size),
+                                  stats::detail::detail::distributionTypeToString(dist),
+                                  stats::detail::detail::strategyToDisplayString(
+                                      recommendation.recommended_strategy),
+                                  confidence_str})
                           << "\n";
             }
         }
@@ -281,17 +284,18 @@ class PerformanceDispatcherTool {
     }
 
     void runInteractiveMode() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::sectionHeader("Interactive Mode");
+        stats::detail::detail::sectionHeader("Interactive Mode");
 
         std::cout << "Enter batch sizes to test strategy selection (0 to exit):\n";
 
         size_t batch_size;
         while (std::cout << "> " && std::cin >> batch_size && batch_size != 0) {
-            display::subsectionHeader("Testing batch size: " + std::to_string(batch_size));
+            stats::detail::detail::subsectionHeader("Testing batch size: " +
+                                                    std::to_string(batch_size));
 
-            table::ColumnFormatter formatter({15, 12, 18});
+            stats::detail::detail::ColumnFormatter formatter({15, 12, 18});
             std::cout << formatter.formatRow({"Distribution", "Complexity", "Selected Strategy"})
                       << "\n";
             std::cout << formatter.getSeparator() << "\n";
@@ -303,9 +307,10 @@ class PerformanceDispatcherTool {
                      {ComputationComplexity::SIMPLE, ComputationComplexity::COMPLEX}) {
                     auto strategy =
                         dispatcher_.selectOptimalStrategy(batch_size, dist, complexity, system_);
-                    std::cout << formatter.formatRow({strings::distributionTypeToString(dist),
-                                                      strings::complexityToString(complexity),
-                                                      strings::strategyToDisplayString(strategy)})
+                    std::cout << formatter.formatRow(
+                                     {stats::detail::detail::distributionTypeToString(dist),
+                                      stats::detail::detail::complexityToString(complexity),
+                                      stats::detail::detail::strategyToDisplayString(strategy)})
                               << "\n";
                 }
             }
@@ -317,10 +322,10 @@ class PerformanceDispatcherTool {
 };
 
 int main() {
-    using namespace libstats::tools;
+    using namespace stats::detail;
 
     // Use the standard tool runner pattern
-    return tool_utils::runTool("Performance Dispatcher Tool", []() {
+    return stats::detail::detail::runTool("Performance Dispatcher Tool", []() {
         PerformanceDispatcherTool tool;
         tool.run();
     });

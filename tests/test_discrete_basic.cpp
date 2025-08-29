@@ -1,17 +1,17 @@
 // Focused unit test for discrete distribution
 #include "../include/distributions/discrete.h"
-#include "basic_test_template.h"
+#include "../include/tests/tests.h"
 
 using namespace std;
-using namespace libstats;
-using namespace BasicTestUtilities;
+using namespace stats;
+using namespace stats::tests::fixtures;
 
 int main() {
-    StandardizedBasicTest::printTestHeader("Discrete");
+    BasicTestFormatter::printTestHeader("Discrete");
 
     try {
         // Test 1: Constructors and Destructor
-        StandardizedBasicTest::printTestStart(1, "Constructors and Destructor");
+        BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "This test verifies all ways to create Discrete distributions: default (1,6), "
                 "parameterized (0,1),"
              << endl;
@@ -20,45 +20,43 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_discrete = libstats::DiscreteDistribution::create().value;
-        StandardizedBasicTest::printPropertyInt("Default Lower bound",
-                                                default_discrete.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("Default Upper bound",
-                                                default_discrete.getUpperBound());
+        auto default_discrete = stats::DiscreteDistribution::create().value;
+        BasicTestFormatter::printPropertyInt("Default Lower bound",
+                                             default_discrete.getLowerBound());
+        BasicTestFormatter::printPropertyInt("Default Upper bound",
+                                             default_discrete.getUpperBound());
 
         // Parameterized constructor test
-        auto param_discrete = libstats::DiscreteDistribution::create(0, 1).value;
-        StandardizedBasicTest::printPropertyInt("Param Lower bound",
-                                                param_discrete.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("Param Upper bound",
-                                                param_discrete.getUpperBound());
+        auto param_discrete = stats::DiscreteDistribution::create(0, 1).value;
+        BasicTestFormatter::printPropertyInt("Param Lower bound", param_discrete.getLowerBound());
+        BasicTestFormatter::printPropertyInt("Param Upper bound", param_discrete.getUpperBound());
 
         // Copy constructor test
         auto copy_discrete = param_discrete;
-        StandardizedBasicTest::printPropertyInt("Copy Lower bound", copy_discrete.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("Copy Upper bound", copy_discrete.getUpperBound());
+        BasicTestFormatter::printPropertyInt("Copy Lower bound", copy_discrete.getLowerBound());
+        BasicTestFormatter::printPropertyInt("Copy Upper bound", copy_discrete.getUpperBound());
 
         // Move constructor test
-        auto temp_discrete = libstats::DiscreteDistribution::create(10, 15).value;
+        auto temp_discrete = stats::DiscreteDistribution::create(10, 15).value;
         auto move_discrete = std::move(temp_discrete);
-        StandardizedBasicTest::printPropertyInt("Move Lower bound", move_discrete.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("Move Upper bound", move_discrete.getUpperBound());
+        BasicTestFormatter::printPropertyInt("Move Lower bound", move_discrete.getLowerBound());
+        BasicTestFormatter::printPropertyInt("Move Upper bound", move_discrete.getUpperBound());
 
         // Safe factory method test
         auto result = DiscreteDistribution::create(1, 6);
         if (result.isOk()) {
             auto factory_discrete = std::move(result.value);
-            StandardizedBasicTest::printPropertyInt("Factory Lower bound",
-                                                    factory_discrete.getLowerBound());
-            StandardizedBasicTest::printPropertyInt("Factory Upper bound",
-                                                    factory_discrete.getUpperBound());
+            BasicTestFormatter::printPropertyInt("Factory Lower bound",
+                                                 factory_discrete.getLowerBound());
+            BasicTestFormatter::printPropertyInt("Factory Upper bound",
+                                                 factory_discrete.getUpperBound());
         }
 
-        StandardizedBasicTest::printTestSuccess("All constructor and destructor tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All constructor and destructor tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 2: Parameter Getters and Setters
-        StandardizedBasicTest::printTestStart(2, "Parameter Getters and Setters");
+        BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
         cout << "This test verifies parameter access methods: normal getters, atomic (lock-free) "
                 "getters,"
              << endl;
@@ -69,59 +67,57 @@ int main() {
                 "variance=2.916)."
              << endl;
 
-        auto discrete_dist = libstats::DiscreteDistribution::create(1, 6).value;
+        auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
 
         // Test getters
-        StandardizedBasicTest::printPropertyInt("Initial Lower bound",
-                                                discrete_dist.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("Initial Upper bound",
-                                                discrete_dist.getUpperBound());
-        StandardizedBasicTest::printPropertyInt("Range", discrete_dist.getRange());
-        StandardizedBasicTest::printProperty("Mean", discrete_dist.getMean());
-        StandardizedBasicTest::printProperty("Variance", discrete_dist.getVariance());
-        StandardizedBasicTest::printProperty("Skewness", discrete_dist.getSkewness());
-        StandardizedBasicTest::printProperty("Kurtosis", discrete_dist.getKurtosis());
-        StandardizedBasicTest::printPropertyInt("Num Parameters", discrete_dist.getNumParameters());
+        BasicTestFormatter::printPropertyInt("Initial Lower bound", discrete_dist.getLowerBound());
+        BasicTestFormatter::printPropertyInt("Initial Upper bound", discrete_dist.getUpperBound());
+        BasicTestFormatter::printPropertyInt("Range", discrete_dist.getRange());
+        BasicTestFormatter::printProperty("Mean", discrete_dist.getMean());
+        BasicTestFormatter::printProperty("Variance", discrete_dist.getVariance());
+        BasicTestFormatter::printProperty("Skewness", discrete_dist.getSkewness());
+        BasicTestFormatter::printProperty("Kurtosis", discrete_dist.getKurtosis());
+        BasicTestFormatter::printPropertyInt("Num Parameters", discrete_dist.getNumParameters());
 
         // Test atomic getters (lock-free access)
-        StandardizedBasicTest::printPropertyInt("Atomic Lower bound",
-                                                discrete_dist.getLowerBoundAtomic());
-        StandardizedBasicTest::printPropertyInt("Atomic Upper bound",
-                                                discrete_dist.getUpperBoundAtomic());
+        BasicTestFormatter::printPropertyInt("Atomic Lower bound",
+                                             discrete_dist.getLowerBoundAtomic());
+        BasicTestFormatter::printPropertyInt("Atomic Upper bound",
+                                             discrete_dist.getUpperBoundAtomic());
 
         // Test setters
         discrete_dist.setLowerBound(0);
         discrete_dist.setUpperBound(10);
-        StandardizedBasicTest::printPropertyInt("After setting - Lower bound",
-                                                discrete_dist.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("After setting - Upper bound",
-                                                discrete_dist.getUpperBound());
+        BasicTestFormatter::printPropertyInt("After setting - Lower bound",
+                                             discrete_dist.getLowerBound());
+        BasicTestFormatter::printPropertyInt("After setting - Upper bound",
+                                             discrete_dist.getUpperBound());
 
         // Test simultaneous parameter setting
         discrete_dist.setParameters(2, 8);
-        StandardizedBasicTest::printPropertyInt("After setParameters - Lower bound",
-                                                discrete_dist.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("After setParameters - Upper bound",
-                                                discrete_dist.getUpperBound());
+        BasicTestFormatter::printPropertyInt("After setParameters - Lower bound",
+                                             discrete_dist.getLowerBound());
+        BasicTestFormatter::printPropertyInt("After setParameters - Upper bound",
+                                             discrete_dist.getUpperBound());
 
         // Test safe setters (no exceptions)
         auto set_result = discrete_dist.trySetLowerBound(1);
         if (set_result.isOk()) {
-            StandardizedBasicTest::printPropertyInt("Safe set lower bound - Lower bound",
-                                                    discrete_dist.getLowerBound());
+            BasicTestFormatter::printPropertyInt("Safe set lower bound - Lower bound",
+                                                 discrete_dist.getLowerBound());
         }
 
         set_result = discrete_dist.trySetUpperBound(6);
         if (set_result.isOk()) {
-            StandardizedBasicTest::printPropertyInt("Safe set upper bound - Upper bound",
-                                                    discrete_dist.getUpperBound());
+            BasicTestFormatter::printPropertyInt("Safe set upper bound - Upper bound",
+                                                 discrete_dist.getUpperBound());
         }
 
-        StandardizedBasicTest::printTestSuccess("All parameter getter/setter tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All parameter getter/setter tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 3: Core Probability Methods
-        StandardizedBasicTest::printTestStart(3, "Core Probability Methods");
+        BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "This test verifies the core statistical functions: PMF, log PMF, CDF, quantiles,"
              << endl;
         cout << "and Discrete-specific utilities like support checks and mode calculation." << endl;
@@ -129,24 +125,24 @@ int main() {
                 "standard die."
              << endl;
 
-        auto dice_dist = libstats::DiscreteDistribution::create(1, 6).value;
+        auto dice_dist = stats::DiscreteDistribution::create(1, 6).value;
         double x = 3.0;
 
-        StandardizedBasicTest::printProperty("PMF(3.0)", dice_dist.getProbability(x));
-        StandardizedBasicTest::printProperty("Log PMF(3.0)", dice_dist.getLogProbability(x));
-        StandardizedBasicTest::printProperty("CDF(3.0)", dice_dist.getCumulativeProbability(x));
-        StandardizedBasicTest::printProperty("Quantile(0.5)", dice_dist.getQuantile(0.5));
-        StandardizedBasicTest::printProperty("Quantile(0.8)", dice_dist.getQuantile(0.8));
+        BasicTestFormatter::printProperty("PMF(3.0)", dice_dist.getProbability(x));
+        BasicTestFormatter::printProperty("Log PMF(3.0)", dice_dist.getLogProbability(x));
+        BasicTestFormatter::printProperty("CDF(3.0)", dice_dist.getCumulativeProbability(x));
+        BasicTestFormatter::printProperty("Quantile(0.5)", dice_dist.getQuantile(0.5));
+        BasicTestFormatter::printProperty("Quantile(0.8)", dice_dist.getQuantile(0.8));
 
         // Test edge cases
-        StandardizedBasicTest::printProperty("PMF(0.0)", dice_dist.getProbability(0.0));
-        StandardizedBasicTest::printProperty("PMF(7.0)", dice_dist.getProbability(7.0));
+        BasicTestFormatter::printProperty("PMF(0.0)", dice_dist.getProbability(0.0));
+        BasicTestFormatter::printProperty("PMF(7.0)", dice_dist.getProbability(7.0));
 
         // Test Discrete-specific utility methods
-        StandardizedBasicTest::printProperty("Single outcome probability",
-                                             dice_dist.getSingleOutcomeProbability());
-        StandardizedBasicTest::printProperty("Mode", dice_dist.getMode());
-        StandardizedBasicTest::printProperty("Median", dice_dist.getMedian());
+        BasicTestFormatter::printProperty("Single outcome probability",
+                                          dice_dist.getSingleOutcomeProbability());
+        BasicTestFormatter::printProperty("Mode", dice_dist.getMode());
+        BasicTestFormatter::printProperty("Median", dice_dist.getMedian());
 
         // Test distribution properties
         cout << "Is 3.0 in support: " << (dice_dist.isInSupport(3.0) ? "YES" : "NO") << endl;
@@ -154,11 +150,11 @@ int main() {
         cout << "Is discrete: " << (dice_dist.isDiscrete() ? "YES" : "NO") << endl;
         cout << "Distribution name: " << dice_dist.getDistributionName() << endl;
 
-        StandardizedBasicTest::printTestSuccess("All core probability method tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All core probability method tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 4: Random Sampling
-        StandardizedBasicTest::printTestStart(4, "Random Sampling");
+        BasicTestFormatter::printTestStart(4, "Random Sampling");
         cout << "This test verifies random number generation using inverse transform method."
              << endl;
         cout << "Sample statistics should approximately match distribution parameters for large "
@@ -169,53 +165,53 @@ int main() {
 
         // Single sample
         double single_sample = dice_dist.sample(rng);
-        StandardizedBasicTest::printProperty("Single sample", single_sample);
+        BasicTestFormatter::printProperty("Single sample", single_sample);
 
         // Multiple samples
         vector<double> samples = dice_dist.sample(rng, 10);
-        StandardizedBasicTest::printSamples(samples, "10 random samples");
+        BasicTestFormatter::printSamples(samples, "10 random samples");
 
         // Verify sample statistics approximately match distribution
-        double sample_mean = StandardizedBasicTest::computeSampleMean(samples);
-        double sample_var = StandardizedBasicTest::computeSampleVariance(samples);
-        StandardizedBasicTest::printProperty("Sample mean", sample_mean);
-        StandardizedBasicTest::printProperty("Sample variance", sample_var);
-        StandardizedBasicTest::printProperty("Expected mean", dice_dist.getMean());
-        StandardizedBasicTest::printProperty("Expected variance", dice_dist.getVariance());
+        double sample_mean = TestDataGenerators::computeSampleMean(samples);
+        double sample_var = TestDataGenerators::computeSampleVariance(samples);
+        BasicTestFormatter::printProperty("Sample mean", sample_mean);
+        BasicTestFormatter::printProperty("Sample variance", sample_var);
+        BasicTestFormatter::printProperty("Expected mean", dice_dist.getMean());
+        BasicTestFormatter::printProperty("Expected variance", dice_dist.getVariance());
 
-        StandardizedBasicTest::printTestSuccess("All sampling tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All sampling tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 5: Distribution Management
-        StandardizedBasicTest::printTestStart(5, "Distribution Management");
+        BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "This test verifies parameter fitting using range estimation method," << endl;
         cout << "distribution reset to default (1, 6) parameters, and string representation "
                 "formatting."
              << endl;
 
         // Test fitting
-        vector<double> fit_data = StandardizedBasicTest::generateDiscreteTestData();
-        auto fitted_dist = libstats::DiscreteDistribution::create().value;
+        vector<double> fit_data = TestDataGenerators::generateDiscreteTestData();
+        auto fitted_dist = stats::DiscreteDistribution::create().value;
         fitted_dist.fit(fit_data);
-        StandardizedBasicTest::printPropertyInt("Fitted Lower bound", fitted_dist.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("Fitted Upper bound", fitted_dist.getUpperBound());
+        BasicTestFormatter::printPropertyInt("Fitted Lower bound", fitted_dist.getLowerBound());
+        BasicTestFormatter::printPropertyInt("Fitted Upper bound", fitted_dist.getUpperBound());
 
         // Test reset
         fitted_dist.reset();
-        StandardizedBasicTest::printPropertyInt("After reset - Lower bound",
-                                                fitted_dist.getLowerBound());
-        StandardizedBasicTest::printPropertyInt("After reset - Upper bound",
-                                                fitted_dist.getUpperBound());
+        BasicTestFormatter::printPropertyInt("After reset - Lower bound",
+                                             fitted_dist.getLowerBound());
+        BasicTestFormatter::printPropertyInt("After reset - Upper bound",
+                                             fitted_dist.getUpperBound());
 
         // Test toString
         string dist_str = fitted_dist.toString();
         cout << "String representation: " << dist_str << endl;
 
-        StandardizedBasicTest::printTestSuccess("All distribution management tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All distribution management tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 6: Auto-dispatch Parallel Processing with Timing and Strategy Report
-        StandardizedBasicTest::printTestStart(6, "Auto-dispatch Parallel Processing");
+        BasicTestFormatter::printTestStart(6, "Auto-dispatch Parallel Processing");
         cout << "This test verifies smart auto-dispatch that selects optimal execution strategy"
              << endl;
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large."
@@ -223,7 +219,7 @@ int main() {
         cout << "Compares performance and verifies correctness against traditional batch methods."
              << endl;
 
-        auto test_dist = libstats::DiscreteDistribution::create(1, 6).value;
+        auto test_dist = stats::DiscreteDistribution::create(1, 6).value;
 
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0};
@@ -263,7 +259,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
                                              std::span<double>(small_pdf_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_pdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -271,7 +267,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                 std::span<double>(small_log_pdf_traditional),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_logpdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -279,15 +275,15 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                        std::span<double>(small_cdf_traditional),
-                                                       libstats::performance::Strategy::SCALAR);
+                                                       stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        StandardizedBasicTest::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
-        StandardizedBasicTest::printBatchResults(small_log_pdf_results,
-                                                 "Auto-dispatch Log PDF results");
-        StandardizedBasicTest::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
+        BasicTestFormatter::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
+        BasicTestFormatter::printBatchResults(small_log_pdf_results,
+                                              "Auto-dispatch Log PDF results");
+        BasicTestFormatter::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
 
         cout << "Auto-dispatch PDF time: " << auto_pdf_time << "μs, Traditional: " << trad_pdf_time
              << "μs" << endl;
@@ -342,13 +338,13 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
                                              std::span<double>(large_output_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        StandardizedBasicTest::printLargeBatchValidation(large_output[0], large_output[4999],
-                                                         "Auto-dispatch PDF (diverse data)");
+        BasicTestFormatter::printLargeBatchValidation(large_output[0], large_output[4999],
+                                                      "Auto-dispatch PDF (diverse data)");
 
         cout << "Large batch auto-dispatch time: " << large_auto_time
              << "μs, Traditional: " << large_trad_time << "μs" << endl;
@@ -379,19 +375,18 @@ int main() {
             cout << "⚠️  Auto-dispatch performance may be affected by overhead" << endl;
         }
 
-        StandardizedBasicTest::printTestSuccess(
-            "All auto-dispatch parallel processing tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All auto-dispatch parallel processing tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 7: Comparison and Stream Operators
-        StandardizedBasicTest::printTestStart(7, "Comparison and Stream Operators");
+        BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = libstats::DiscreteDistribution::create(1, 6).value;
-        auto dist2 = libstats::DiscreteDistribution::create(1, 6).value;
-        auto dist3 = libstats::DiscreteDistribution::create(0, 10).value;
+        auto dist1 = stats::DiscreteDistribution::create(1, 6).value;
+        auto dist2 = stats::DiscreteDistribution::create(1, 6).value;
+        auto dist3 = stats::DiscreteDistribution::create(0, 10).value;
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -404,7 +399,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = libstats::DiscreteDistribution::create().value;
+        auto input_dist = stats::DiscreteDistribution::create().value;
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -414,36 +409,35 @@ int main() {
             cout << "Stream input failed" << endl;
         }
 
-        StandardizedBasicTest::printTestSuccess("All comparison and stream operator tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All comparison and stream operator tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 8: Error Handling
-        StandardizedBasicTest::printTestStart(8, "Error Handling");
-        // NOTE: Using ::create() here (not libstats::Discrete) to test exception-free error
+        BasicTestFormatter::printTestStart(8, "Error Handling");
+        // NOTE: Using ::create() here (not stats::Discrete) to test exception-free error
         // handling
         // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = DiscreteDistribution::create(5, 3);  // Invalid: upper < lower
         if (error_result.isError()) {
-            StandardizedBasicTest::printTestSuccess("Error handling works: " +
-                                                    error_result.message);
+            BasicTestFormatter::printTestSuccess("Error handling works: " + error_result.message);
         } else {
-            StandardizedBasicTest::printTestError("Error handling failed");
+            BasicTestFormatter::printTestError("Error handling failed");
             return 1;
         }
 
-        StandardizedBasicTest::printCompletionMessage("Discrete");
+        BasicTestFormatter::printCompletionMessage("Discrete");
 
-        StandardizedBasicTest::printSummaryHeader();
-        StandardizedBasicTest::printSummaryItem("Safe factory creation and error handling");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryHeader();
+        BasicTestFormatter::printSummaryItem("Safe factory creation and error handling");
+        BasicTestFormatter::printSummaryItem(
             "All distribution properties (bounds, mean, variance, skewness, kurtosis)");
-        StandardizedBasicTest::printSummaryItem("PMF, Log PMF, CDF, and quantile functions");
-        StandardizedBasicTest::printSummaryItem("Random sampling (single and batch)");
-        StandardizedBasicTest::printSummaryItem("Parameter fitting (range estimation)");
-        StandardizedBasicTest::printSummaryItem("Batch operations with SIMD optimization");
-        StandardizedBasicTest::printSummaryItem("Large batch SIMD validation");
-        StandardizedBasicTest::printSummaryItem("Discrete-specific utility methods");
-        StandardizedBasicTest::printSummaryItem("Special case handling (binary distribution)");
+        BasicTestFormatter::printSummaryItem("PMF, Log PMF, CDF, and quantile functions");
+        BasicTestFormatter::printSummaryItem("Random sampling (single and batch)");
+        BasicTestFormatter::printSummaryItem("Parameter fitting (range estimation)");
+        BasicTestFormatter::printSummaryItem("Batch operations with SIMD optimization");
+        BasicTestFormatter::printSummaryItem("Large batch SIMD validation");
+        BasicTestFormatter::printSummaryItem("Discrete-specific utility methods");
+        BasicTestFormatter::printSummaryItem("Special case handling (binary distribution)");
 
         return 0;
 

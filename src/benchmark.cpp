@@ -7,7 +7,7 @@
 #include <numeric>
 #include <random>
 
-namespace libstats {
+namespace stats {
 
 //========== BenchmarkStats Implementation ==========
 
@@ -583,11 +583,11 @@ bool RegressionTester::checkRegressions(const std::vector<BenchmarkResult>& curr
 
 std::pair<std::size_t, std::size_t> Benchmark::getOptimalBenchmarkParams() const {
     // Use CPU detection to optimize benchmark parameters
-    const auto& cpuFeatures = cpu::get_features();
+    const auto& cpuFeatures = arch::get_features();
 
     // Base parameters from constants
-    std::size_t iterations = constants::benchmark::DEFAULT_ITERATIONS;
-    std::size_t warmupRuns = constants::benchmark::DEFAULT_WARMUP_RUNS;
+    std::size_t iterations = detail::DEFAULT_ITERATIONS;
+    std::size_t warmupRuns = detail::DEFAULT_WARMUP_RUNS;
 
     // Adjust based on CPU characteristics
     if (cpuFeatures.topology.physical_cores >= 16) {
@@ -616,8 +616,8 @@ std::pair<std::size_t, std::size_t> Benchmark::getOptimalBenchmarkParams() const
     }
 
     // Ensure minimum values
-    iterations = std::max(iterations, constants::benchmark::MIN_ITERATIONS);
-    warmupRuns = std::max(warmupRuns, constants::benchmark::MIN_WARMUP_RUNS);
+    iterations = std::max(iterations, detail::MIN_ITERATIONS);
+    warmupRuns = std::max(warmupRuns, detail::MIN_WARMUP_RUNS);
 
     return {iterations, warmupRuns};
 }
@@ -686,7 +686,7 @@ BenchmarkStats Benchmark::calculateStatsRobust(const std::vector<double>& times,
     stats.max = sortedTimes.back();
 
     // Calculate throughput safely
-    if (std::isfinite(stats.mean) && stats.mean > constants::precision::MACHINE_EPSILON &&
+    if (std::isfinite(stats.mean) && stats.mean > detail::MACHINE_EPSILON &&
         std::isfinite(operationCount) && operationCount > 0.0) {
         stats.throughput = operationCount / stats.mean;
     } else {
@@ -696,4 +696,4 @@ BenchmarkStats Benchmark::calculateStatsRobust(const std::vector<double>& times,
     return stats;
 }
 
-}  // namespace libstats
+}  // namespace stats

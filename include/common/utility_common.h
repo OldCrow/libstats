@@ -33,13 +33,12 @@
 // Core constants - but only essential ones to avoid heavy dependencies
 #include "../core/essential_constants.h"
 
-namespace libstats {
+namespace stats {
 
 // Forward declarations for utility headers
 class DistributionBase;
 
-namespace math {
-// Forward declarations for mathematical utilities
+// C++20 concepts for type safety - moved to top level for broader access
 template <typename T>
 concept FloatingPoint = std::floating_point<T> && requires(T t) {
     std::isfinite(t);
@@ -50,7 +49,6 @@ concept FloatingPoint = std::floating_point<T> && requires(T t) {
 template <typename F, typename T>
 concept MathFunction =
     std::invocable<F, T> && std::convertible_to<std::invoke_result_t<F, T>, double>;
-}  // namespace math
 
 namespace safety {
 // Forward declarations for safety utilities
@@ -58,12 +56,12 @@ enum class RecoveryStrategy;
 class ConvergenceDetector;
 }  // namespace safety
 
-namespace validation {
+namespace detail {  // validation utilities
 // Forward declarations for validation utilities
 struct KSTestResult;
 struct ADTestResult;
 struct ChiSquaredResult;
 struct ModelDiagnostics;
-}  // namespace validation
+}  // namespace detail
 
-}  // namespace libstats
+}  // namespace stats

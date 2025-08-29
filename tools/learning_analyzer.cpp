@@ -20,10 +20,10 @@
 #include <sstream>
 #include <thread>
 
-using namespace libstats;
-using namespace libstats::performance;
-using namespace libstats::constants;
-using namespace libstats::tools;
+using namespace stats;
+using namespace stats::detail;
+using namespace stats::detail;
+using namespace stats::detail;
 
 // Consolidated learning analysis constants
 namespace {
@@ -107,7 +107,7 @@ class LearningAnalyzer {
 
     void runDemo() {
         // Initialize performance systems for accurate threshold learning
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         std::cout << "=== THRESHOLD LEARNING DEMONSTRATION ===\n\n";
 
@@ -119,7 +119,7 @@ class LearningAnalyzer {
 
     void runAnalysis() {
         // Initialize performance systems for optimal measurement accuracy
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         std::cout << "============================================================\n";
         std::cout << "ADAPTIVE LEARNING ANALYSIS\n";
@@ -178,8 +178,9 @@ class LearningAnalyzer {
                 size, DistributionType::GAUSSIAN, ComputationComplexity::MODERATE, capabilities);
 
             std::cout << std::setw(12) << size << std::setw(20)
-                      << strings::strategyToDisplayString(uniform_strategy) << std::setw(20)
-                      << strings::strategyToDisplayString(gaussian_strategy) << "\n";
+                      << stats::detail::detail::strategyToDisplayString(uniform_strategy)
+                      << std::setw(20)
+                      << stats::detail::detail::strategyToDisplayString(gaussian_strategy) << "\n";
         }
         std::cout << "\n";
     }
@@ -228,7 +229,8 @@ class LearningAnalyzer {
                                      5000, 7500, 10000, 15000, 25000, 50000};
 
         for (auto dist_type : distributions) {
-            std::cout << "\n  Simulating " << strings::distributionTypeToString(dist_type)
+            std::cout << "\n  Simulating "
+                      << stats::detail::detail::distributionTypeToString(dist_type)
                       << " distribution:\n";
 
             double complexity = complexity_factors[dist_type];
@@ -290,11 +292,14 @@ class LearningAnalyzer {
             auto recommendation = history.getBestStrategy(DistributionType::GAUSSIAN, size);
 
             std::cout << std::setw(12) << size << std::setw(20)
-                      << strings::strategyToDisplayString(recommendation.recommended_strategy)
+                      << stats::detail::detail::strategyToDisplayString(
+                             recommendation.recommended_strategy)
                       << std::setw(15)
-                      << format::confidenceToString(recommendation.confidence_score)
+                      << stats::detail::detail::confidenceToString(recommendation.confidence_score)
                       << std::setw(12)
-                      << format::nanosecondsToMicroseconds(recommendation.expected_time_ns) << "\n";
+                      << stats::detail::detail::nanosecondsToMicroseconds(
+                             recommendation.expected_time_ns)
+                      << "\n";
         }
         std::cout << "\n";
     }
@@ -318,11 +323,12 @@ class LearningAnalyzer {
               DistributionType::DISCRETE, DistributionType::POISSON, DistributionType::GAMMA}) {
             auto thresholds = history.learnOptimalThresholds(dist_type);
             if (thresholds.has_value()) {
-                std::cout << "  " << strings::distributionTypeToString(dist_type) << ":\n";
+                std::cout << "  " << stats::detail::detail::distributionTypeToString(dist_type)
+                          << ":\n";
                 std::cout << "    SIMD threshold: " << thresholds->first << " elements\n";
                 std::cout << "    Parallel threshold: " << thresholds->second << " elements\n";
             } else {
-                std::cout << "  " << strings::distributionTypeToString(dist_type)
+                std::cout << "  " << stats::detail::detail::distributionTypeToString(dist_type)
                           << ": Insufficient data\n";
             }
         }
@@ -364,7 +370,7 @@ class LearningAnalyzer {
                     Strategy::SCALAR, dist_type, batch_size,
                     static_cast<std::uint64_t>(duration.count()));
 
-                std::cout << "  PDF (scalar): " << libstats::tools::time::formatDuration(duration)
+                std::cout << "  PDF (scalar): " << stats::detail::detail::formatDuration(duration)
                           << " (" << (static_cast<std::uint64_t>(duration.count()) / batch_size)
                           << "ns/op)" << std::endl;
             }
@@ -386,7 +392,7 @@ class LearningAnalyzer {
                         Strategy::SIMD_BATCH, dist_type, batch_size,
                         static_cast<std::uint64_t>(simd_duration.count()));
                     std::cout << "  CDF (simd):   "
-                              << libstats::tools::time::formatDuration(simd_duration) << " ("
+                              << stats::detail::detail::formatDuration(simd_duration) << " ("
                               << (static_cast<std::uint64_t>(simd_duration.count()) / batch_size)
                               << "ns/op)" << std::endl;
                 }
@@ -398,7 +404,7 @@ class LearningAnalyzer {
                         Strategy::PARALLEL_SIMD, dist_type, batch_size,
                         static_cast<std::uint64_t>(parallel_duration.count()));
                     std::cout << "  CDF (parallel): "
-                              << libstats::tools::time::formatDuration(parallel_duration) << " ("
+                              << stats::detail::detail::formatDuration(parallel_duration) << " ("
                               << (static_cast<std::uint64_t>(parallel_duration.count()) /
                                   batch_size)
                               << "ns/op)" << std::endl;
@@ -407,7 +413,7 @@ class LearningAnalyzer {
                 PerformanceDispatcher::recordPerformance(
                     Strategy::SCALAR, dist_type, batch_size,
                     static_cast<std::uint64_t>(duration.count()));
-                std::cout << "  CDF (scalar): " << libstats::tools::time::formatDuration(duration)
+                std::cout << "  CDF (scalar): " << stats::detail::detail::formatDuration(duration)
                           << " (" << (static_cast<std::uint64_t>(duration.count()) / batch_size)
                           << "ns/op)" << std::endl;
             }
@@ -430,7 +436,7 @@ class LearningAnalyzer {
                     Strategy::WORK_STEALING, dist_type, batch_size,
                     static_cast<std::uint64_t>(work_stealing_duration.count()));
                 std::cout << "  Mixed (work-stealing): "
-                          << libstats::tools::time::formatDuration(work_stealing_duration) << " ("
+                          << stats::detail::detail::formatDuration(work_stealing_duration) << " ("
                           << (static_cast<std::uint64_t>(work_stealing_duration.count()) /
                               batch_size)
                           << "ns/op)" << std::endl;
@@ -442,7 +448,7 @@ class LearningAnalyzer {
                         Strategy::GPU_ACCELERATED, dist_type, batch_size,
                         static_cast<std::uint64_t>(gpu_accelerated_duration.count()));
                     std::cout << "  Mixed (gpu-accelerated): "
-                              << libstats::tools::time::formatDuration(gpu_accelerated_duration)
+                              << stats::detail::detail::formatDuration(gpu_accelerated_duration)
                               << " ("
                               << (static_cast<std::uint64_t>(gpu_accelerated_duration.count()) /
                                   batch_size)
@@ -455,17 +461,16 @@ class LearningAnalyzer {
     void exerciseAllDistributions(const std::vector<size_t>& batch_sizes) {
         // Exercise different distributions using safe factory methods
         {
-            auto uniform_dist =
-                libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
-                                                      distribution_params::UNIFORM_MAX)
-                    .value;
+            auto uniform_dist = stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
+                                                                   distribution_params::UNIFORM_MAX)
+                                    .value;
             exerciseDistribution("Uniform", DistributionType::UNIFORM, uniform_dist, batch_sizes);
         }
 
         {
             auto gaussian_dist =
-                libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
-                                                       distribution_params::GAUSSIAN_STDDEV)
+                stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
+                                                    distribution_params::GAUSSIAN_STDDEV)
                     .value;
             exerciseDistribution("Gaussian", DistributionType::GAUSSIAN, gaussian_dist,
                                  batch_sizes);
@@ -473,29 +478,28 @@ class LearningAnalyzer {
 
         {
             auto exp_dist =
-                libstats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
+                stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
                     .value;
             exerciseDistribution("Exponential", DistributionType::EXPONENTIAL, exp_dist,
                                  batch_sizes);
         }
 
         {
-            auto disc_dist =
-                libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
-                                                       distribution_params::DISCRETE_MAX)
-                    .value;
+            auto disc_dist = stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
+                                                                 distribution_params::DISCRETE_MAX)
+                                 .value;
             exerciseDistribution("Discrete", DistributionType::DISCRETE, disc_dist, batch_sizes);
         }
 
         {
             auto poisson_dist =
-                libstats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA).value;
+                stats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA).value;
             exerciseDistribution("Poisson", DistributionType::POISSON, poisson_dist, batch_sizes);
         }
 
         {
-            auto gamma_dist = libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
-                                                                  distribution_params::GAMMA_BETA)
+            auto gamma_dist = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
+                                                               distribution_params::GAMMA_BETA)
                                   .value;
             exerciseDistribution("Gamma", DistributionType::GAMMA, gamma_dist, batch_sizes);
         }
@@ -523,7 +527,7 @@ class LearningAnalyzer {
 
         for (auto dist_type : distributions) {
             std::cout << "\n"
-                      << strings::distributionTypeToString(dist_type)
+                      << stats::detail::detail::distributionTypeToString(dist_type)
                       << " Distribution:" << std::endl;
             std::cout << "  Size      Strategy        Confidence  Expected Time" << std::endl;
             std::cout << "  --------  --------------  ----------  -------------" << std::endl;
@@ -532,11 +536,14 @@ class LearningAnalyzer {
                 auto recommendation = history.getBestStrategy(dist_type, size);
 
                 std::cout << "  " << std::setw(8) << size << "  " << std::setw(14)
-                          << strings::strategyToDisplayString(recommendation.recommended_strategy)
+                          << stats::detail::detail::strategyToDisplayString(
+                                 recommendation.recommended_strategy)
                           << "  " << std::setw(10)
-                          << format::confidenceToString(recommendation.confidence_score) << "  "
-                          << std::setw(8)
-                          << format::nanosecondsToMicroseconds(recommendation.expected_time_ns)
+                          << stats::detail::detail::confidenceToString(
+                                 recommendation.confidence_score)
+                          << "  " << std::setw(8)
+                          << stats::detail::detail::nanosecondsToMicroseconds(
+                                 recommendation.expected_time_ns)
                           << (recommendation.has_sufficient_data ? "" : " (insufficient data)")
                           << std::endl;
             }
@@ -549,7 +556,7 @@ class LearningAnalyzer {
 
         for (auto dist_type : distributions) {
             auto thresholds = history.learnOptimalThresholds(dist_type);
-            std::cout << strings::distributionTypeToString(dist_type) << ": ";
+            std::cout << stats::detail::detail::distributionTypeToString(dist_type) << ": ";
             if (thresholds) {
                 std::cout << "SIMD >= " << thresholds->first
                           << ", Parallel >= " << thresholds->second << std::endl;
@@ -565,7 +572,7 @@ class LearningAnalyzer {
 
         for (auto dist_type : distributions) {
             std::cout << "\n"
-                      << strings::distributionTypeToString(dist_type)
+                      << stats::detail::detail::distributionTypeToString(dist_type)
                       << " Performance:" << std::endl;
 
             std::vector<Strategy> strategies = {Strategy::SCALAR, Strategy::SIMD_BATCH,
@@ -575,15 +582,20 @@ class LearningAnalyzer {
             for (auto strategy : strategies) {
                 auto stats = history.getPerformanceStats(strategy, dist_type);
                 if (stats) {
-                    std::cout << "  " << std::setw(14) << strings::strategyToDisplayString(strategy)
-                              << ": " << std::setw(6) << stats->execution_count << " runs, "
-                              << "avg: " << std::setw(8)
-                              << format::nanosecondsToMicroseconds(stats->getAverageTimeNs())
-                              << ", "
-                              << "min: " << std::setw(6)
-                              << format::nanosecondsToMicroseconds(stats->min_time_ns) << ", "
-                              << "max: " << std::setw(6)
-                              << format::nanosecondsToMicroseconds(stats->max_time_ns) << std::endl;
+                    std::cout
+                        << "  " << std::setw(14)
+                        << stats::detail::detail::strategyToDisplayString(strategy) << ": "
+                        << std::setw(6) << stats->execution_count << " runs, "
+                        << "avg: " << std::setw(8)
+                        << stats::detail::detail::nanosecondsToMicroseconds(
+                               stats->getAverageTimeNs())
+                        << ", "
+                        << "min: " << std::setw(6)
+                        << stats::detail::detail::nanosecondsToMicroseconds(stats->min_time_ns)
+                        << ", "
+                        << "max: " << std::setw(6)
+                        << stats::detail::detail::nanosecondsToMicroseconds(stats->max_time_ns)
+                        << std::endl;
                 }
             }
         }
@@ -607,8 +619,8 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Uniform Distribution..." << std::flush;
                 auto uniform_dist =
-                    libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
-                                                          distribution_params::UNIFORM_MAX)
+                    stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
+                                                       distribution_params::UNIFORM_MAX)
                         .value;
                 exerciseDistributionEnhanced("Uniform", DistributionType::UNIFORM, uniform_dist,
                                              batch_sizes);
@@ -619,8 +631,8 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Gaussian Distribution..." << std::flush;
                 auto gaussian_dist =
-                    libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
-                                                           distribution_params::GAUSSIAN_STDDEV)
+                    stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
+                                                        distribution_params::GAUSSIAN_STDDEV)
                         .value;
                 exerciseDistributionEnhanced("Gaussian", DistributionType::GAUSSIAN, gaussian_dist,
                                              batch_sizes);
@@ -630,9 +642,9 @@ class LearningAnalyzer {
 
             {
                 std::cout << "Testing Exponential Distribution..." << std::flush;
-                auto exp_dist = libstats::ExponentialDistribution::create(
-                                    distribution_params::EXPONENTIAL_LAMBDA)
-                                    .value;
+                auto exp_dist =
+                    stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
+                        .value;
                 exerciseDistributionEnhanced("Exponential", DistributionType::EXPONENTIAL, exp_dist,
                                              batch_sizes);
                 std::cout << " ✓\n";
@@ -642,8 +654,8 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Discrete Distribution..." << std::flush;
                 auto disc_dist =
-                    libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
-                                                           distribution_params::DISCRETE_MAX)
+                    stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
+                                                        distribution_params::DISCRETE_MAX)
                         .value;
                 exerciseDistributionEnhanced("Discrete", DistributionType::DISCRETE, disc_dist,
                                              batch_sizes);
@@ -654,8 +666,7 @@ class LearningAnalyzer {
             {
                 std::cout << "Testing Poisson Distribution..." << std::flush;
                 auto poisson_dist =
-                    libstats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA)
-                        .value;
+                    stats::PoissonDistribution::create(distribution_params::POISSON_LAMBDA).value;
                 exerciseDistributionEnhanced("Poisson", DistributionType::POISSON, poisson_dist,
                                              batch_sizes);
                 std::cout << " ✓\n";
@@ -664,10 +675,9 @@ class LearningAnalyzer {
 
             {
                 std::cout << "Testing Gamma Distribution..." << std::flush;
-                auto gamma_dist =
-                    libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
-                                                        distribution_params::GAMMA_BETA)
-                        .value;
+                auto gamma_dist = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
+                                                                   distribution_params::GAMMA_BETA)
+                                      .value;
                 exerciseDistributionEnhanced("Gamma", DistributionType::GAMMA, gamma_dist,
                                              batch_sizes);
                 std::cout << " ✓\n";
@@ -810,7 +820,7 @@ class LearningAnalyzer {
 
         for (auto dist_type : distributions) {
             std::cout << "\n"
-                      << strings::distributionTypeToString(dist_type)
+                      << stats::detail::detail::distributionTypeToString(dist_type)
                       << " Distribution:" << std::endl;
             std::cout << "  Size      Strategy        Confidence  Expected Time" << std::endl;
             std::cout << "  --------  --------------  ----------  -------------" << std::endl;
@@ -819,11 +829,14 @@ class LearningAnalyzer {
                 auto recommendation = history.getBestStrategy(dist_type, size);
 
                 std::cout << "  " << std::setw(8) << size << "  " << std::setw(14)
-                          << strings::strategyToDisplayString(recommendation.recommended_strategy)
+                          << stats::detail::detail::strategyToDisplayString(
+                                 recommendation.recommended_strategy)
                           << "  " << std::setw(10)
-                          << format::confidenceToString(recommendation.confidence_score) << "  "
-                          << std::setw(8)
-                          << format::nanosecondsToMicroseconds(recommendation.expected_time_ns)
+                          << stats::detail::detail::confidenceToString(
+                                 recommendation.confidence_score)
+                          << "  " << std::setw(8)
+                          << stats::detail::detail::nanosecondsToMicroseconds(
+                                 recommendation.expected_time_ns)
                           << (recommendation.has_sufficient_data ? "" : " (insufficient data)")
                           << std::endl;
             }
@@ -836,7 +849,7 @@ class LearningAnalyzer {
 
         for (auto dist_type : distributions) {
             auto thresholds = history.learnOptimalThresholds(dist_type);
-            std::cout << strings::distributionTypeToString(dist_type) << ": ";
+            std::cout << stats::detail::detail::distributionTypeToString(dist_type) << ": ";
             if (thresholds) {
                 std::cout << "SIMD >= " << thresholds->first
                           << ", Parallel >= " << thresholds->second << std::endl;
@@ -852,7 +865,7 @@ class LearningAnalyzer {
 
         for (auto dist_type : distributions) {
             std::cout << "\n"
-                      << strings::distributionTypeToString(dist_type)
+                      << stats::detail::detail::distributionTypeToString(dist_type)
                       << " Performance:" << std::endl;
 
             std::vector<Strategy> strategies = {Strategy::SCALAR, Strategy::SIMD_BATCH,
@@ -862,15 +875,20 @@ class LearningAnalyzer {
             for (auto strategy : strategies) {
                 auto stats = history.getPerformanceStats(strategy, dist_type);
                 if (stats) {
-                    std::cout << "  " << std::setw(14) << strings::strategyToDisplayString(strategy)
-                              << ": " << std::setw(6) << stats->execution_count << " runs, "
-                              << "avg: " << std::setw(8)
-                              << format::nanosecondsToMicroseconds(stats->getAverageTimeNs())
-                              << ", "
-                              << "min: " << std::setw(6)
-                              << format::nanosecondsToMicroseconds(stats->min_time_ns) << ", "
-                              << "max: " << std::setw(6)
-                              << format::nanosecondsToMicroseconds(stats->max_time_ns) << std::endl;
+                    std::cout
+                        << "  " << std::setw(14)
+                        << stats::detail::detail::strategyToDisplayString(strategy) << ": "
+                        << std::setw(6) << stats->execution_count << " runs, "
+                        << "avg: " << std::setw(8)
+                        << stats::detail::detail::nanosecondsToMicroseconds(
+                               stats->getAverageTimeNs())
+                        << ", "
+                        << "min: " << std::setw(6)
+                        << stats::detail::detail::nanosecondsToMicroseconds(stats->min_time_ns)
+                        << ", "
+                        << "max: " << std::setw(6)
+                        << stats::detail::detail::nanosecondsToMicroseconds(stats->max_time_ns)
+                        << std::endl;
                 }
             }
         }
@@ -903,8 +921,9 @@ class LearningAnalyzer {
 
         int rank = 1;
         for (const auto& [dist_type, avg_time] : efficiency_ranking) {
-            std::cout << "  " << rank++ << ". " << strings::distributionTypeToString(dist_type)
-                      << " (" << format::nanosecondsToMicroseconds(avg_time) << " avg)\n";
+            std::cout << "  " << rank++ << ". "
+                      << stats::detail::detail::distributionTypeToString(dist_type) << " ("
+                      << stats::detail::detail::nanosecondsToMicroseconds(avg_time) << " avg)\n";
         }
 
         // Strategy effectiveness analysis
@@ -930,10 +949,10 @@ class LearningAnalyzer {
             if (total_distributions > 0) {
                 double effectiveness = static_cast<double>(effective_distributions) /
                                        static_cast<double>(total_distributions) * 100.0;
-                std::cout << "  " << strings::strategyToDisplayString(strategy) << ": "
-                          << std::fixed << std::setprecision(1) << effectiveness << "% effective ("
-                          << effective_distributions << "/" << total_distributions
-                          << " distributions)\n";
+                std::cout << "  " << stats::detail::detail::strategyToDisplayString(strategy)
+                          << ": " << std::fixed << std::setprecision(1) << effectiveness
+                          << "% effective (" << effective_distributions << "/"
+                          << total_distributions << " distributions)\n";
             }
         }
 

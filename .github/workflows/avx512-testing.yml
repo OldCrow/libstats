@@ -1,0 +1,85 @@
+name: AVX-512 Testing
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ main, develop, 'release/*', 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  avx512-test:
+    name: AVX-512 Build and Test
+    # Use self-hosted runner with AVX-512 support
+    # runs-on: self-hosted-avx512
+    runs-on: ubuntu-latest  # Fallback for now
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'avx512-test'))
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check AVX-512 Support
+      run: |
+        echo "=== CPU Information ==="
+        cat /proc/cpuinfo | grep -E "(model name|flags)" | head -20
+        echo ""
+        echo "=== AVX-512 Feature Check ==="
+        if cat /proc/cpuinfo | grep -q "avx512f"; then
+          echo "✅ AVX-512F support detected"
+          echo "AVX512_SUPPORTED=true" >> $GITHUB_ENV
+        else
+          echo "❌ No AVX-512F support detected"
+          echo "AVX512_SUPPORTED=false" >> $GITHUB_ENV
+          echo "This runner does not support AVX-512. Skipping AVX-512 specific tests."
+        fi
+
+        # Check for specific AVX-512 extensions
+        echo ""
+        echo "=== AVX-512 Extensions ==="
+        grep -o 'avx512[a-z]*' /proc/cpuinfo | sort | uniq || echo "No AVX-512 extensions found"
+
+    - name: Install GCC-12 (for best AVX-512 support)
+      if: env.AVX512_SUPPORTED == 'true'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-12 g++-12
+        echo "CC=gcc-12" >> $GITHUB_ENV
+        echo "CXX=g++-12" >> $GITHUB_ENV
+
+    - name: Configure CMake with AVX-512
+      if: env.AVX512_SUPPORTED == 'true'
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_STANDARD=20 \
+          -DCMAKE_CXX_FLAGS="-march=native -mavx512f -mavx512dq -mavx512bw -mavx512vl" \
+          -DLIBSTATS_FORCE_AVX512=ON
+
+    - name: Build with AVX-512
+      if: env.AVX512_SUPPORTED == 'true'
+      run: cmake --build build --parallel
+
+    - name: Run AVX-512 Tests
+      if: env.AVX512_SUPPORTED == 'true'
+      working-directory: build
+      run: |
+        # Run all tests
+        ctest --output-on-failure --parallel
+
+        # Run specific SIMD verification tool
+        if [ -f "./tools/simd_verification" ]; then
+          echo "=== SIMD Verification Results ==="
+          ./tools/simd_verification --avx512-focus
+        fi
+
+        # Run system inspector to verify AVX-512 detection
+        if [ -f "./tools/system_inspector" ]; then
+          echo "=== System Capabilities ==="
+          ./tools/system_inspector
+        fi
+
+    - name: Conditional Skip Notice
+      if: env.AVX512_SUPPORTED != 'true'
+      run: |
+        echo "::notice title=AVX-512 Testing Skipped::This runner does not support AVX-512. Consider using a self-hosted runner with AVX-512 support for complete testing."

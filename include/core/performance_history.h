@@ -19,8 +19,8 @@
  * based on historical performance data.
  */
 
-namespace libstats {
-namespace performance {
+namespace stats {
+namespace detail {  // Performance utilities
 
 /**
  * @brief Learning system that tracks performance metrics for adaptive optimization
@@ -221,5 +221,5 @@ class PerformanceHistory {
     static constexpr std::uint32_t min_learning_threshold = 10;
 };
 
-}  // namespace performance
-}  // namespace libstats
+}  // namespace detail
+}  // namespace stats

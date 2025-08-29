@@ -7,7 +7,7 @@
 // caching, etc.)
 #include "../common/distribution_platform_common.h"
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Thread-safe Discrete Uniform Distribution for modeling equiprobable integer outcomes.
@@ -936,7 +936,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getProbability(std::span<const double> values, std::span<double> results,
-                        const performance::PerformanceHint& hint = {}) const;
+                        const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch log probability calculation
@@ -948,7 +948,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getLogProbability(std::span<const double> values, std::span<double> results,
-                           const performance::PerformanceHint& hint = {}) const;
+                           const detail::PerformanceHint& hint = {}) const;
 
     /**
      * @brief Smart auto-dispatch batch cumulative probability calculation
@@ -960,7 +960,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param hint Optional performance hints for advanced users
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                                  const performance::PerformanceHint& hint = {}) const;
+                                  const detail::PerformanceHint& hint = {}) const;
 
     //==========================================================================
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS
@@ -980,7 +980,7 @@ class DiscreteDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    performance::Strategy strategy) const;
+                                    detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch log probability calculation for power users
@@ -996,7 +996,7 @@ class DiscreteDistribution : public DistributionBase {
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       performance::Strategy strategy) const;
+                                       detail::Strategy strategy) const;
 
     /**
      * @brief Explicit strategy batch cumulative probability calculation for power users
@@ -1013,7 +1013,7 @@ class DiscreteDistribution : public DistributionBase {
      */
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
-                                              performance::Strategy strategy) const;
+                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1043,7 +1043,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param dist Distribution to input
      * @return Reference to the input stream
      */
-    friend std::istream& operator>>(std::istream& is, libstats::DiscreteDistribution& dist);
+    friend std::istream& operator>>(std::istream& is, stats::DiscreteDistribution& dist);
 
     /**
      * @brief Stream output operator
@@ -1051,7 +1051,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param dist Distribution to output
      * @return Reference to the output stream
      */
-    friend std::ostream& operator<<(std::ostream& os, const libstats::DiscreteDistribution& dist);
+    friend std::ostream& operator<<(std::ostream& os, const stats::DiscreteDistribution& dist);
 
    private:
     //==========================================================================
@@ -1200,7 +1200,7 @@ class DiscreteDistribution : public DistributionBase {
     mutable double variance_{0.25};
 
     /** @brief Cached value of log(probability_) for efficiency in log-PMF calculations */
-    mutable double logProbability_{-constants::math::LN2};
+    mutable double logProbability_{-detail::LN2};
 
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
@@ -1232,4 +1232,4 @@ class DiscreteDistribution : public DistributionBase {
     // This section maintained for template compliance
 };
 
-}  // namespace libstats
+}  // namespace stats

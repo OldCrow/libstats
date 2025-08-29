@@ -111,8 +111,11 @@
 // Feature Detection Utilities
 //==============================================================================
 
-namespace libstats {
+namespace stats {
+
+// Phase 3B: New SIMD namespace structure
 namespace simd {
+namespace utils {
 
 /**
  * @brief Compile-time SIMD capability detection
@@ -162,21 +165,47 @@ constexpr std::size_t float_vector_width() noexcept {
 #endif
 }
 
+// Forward declare cache line size for use in optimal_alignment
+static constexpr std::size_t PLATFORM_CACHE_LINE_SIZE =
+#if defined(__APPLE__) && defined(__aarch64__)
+    128;  // Apple Silicon: 128-byte cache lines
+#elif defined(__x86_64__) || defined(_M_X64)
+    64;  // Intel/AMD x86-64: 64-byte cache lines
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    64;  // ARM64 (non-Apple): typically 64-byte cache lines
+#else
+    64;  // Default cache line size for other architectures
+#endif
+
 /**
  * @brief Get the optimal memory alignment for SIMD operations
  * @return Alignment in bytes for optimal SIMD performance
+ *
+ * This function considers both SIMD register requirements and vendor-specific
+ * cache line characteristics for optimal performance.
  */
 constexpr std::size_t optimal_alignment() noexcept {
 #if defined(LIBSTATS_HAS_AVX512)
-    return 64;  // AVX-512 benefits from 64-byte alignment
+    // AVX-512: Use cache line alignment for best performance
+    return PLATFORM_CACHE_LINE_SIZE;  // 64 bytes on Intel/AMD, 128 bytes on Apple Silicon
 #elif defined(LIBSTATS_HAS_AVX) || defined(LIBSTATS_HAS_AVX2)
-    return 32;  // AVX requires 32-byte alignment
+    // AVX/AVX2: Use SIMD alignment but consider cache line boundaries
+    #if defined(__APPLE__) && defined(__aarch64__)
+    return PLATFORM_CACHE_LINE_SIZE;  // Apple Silicon: prefer cache line alignment
+    #else
+    return 32;  // x86-64: AVX requires 32-byte alignment
+    #endif
 #elif defined(LIBSTATS_HAS_SSE2)
     return 16;  // SSE2 requires 16-byte alignment
 #elif defined(LIBSTATS_HAS_NEON)
-    return 16;  // ARM NEON benefits from 16-byte alignment
+    // NEON: Prefer cache line alignment for better overall performance
+    #if defined(__APPLE__) && defined(__aarch64__)
+    return PLATFORM_CACHE_LINE_SIZE;  // Apple Silicon: use 128-byte cache lines
+    #else
+    return 16;  // Other ARM: use NEON register alignment
+    #endif
 #else
-    return 8;  // Basic double alignment
+    return 8;  // Basic double alignment for scalar operations
 #endif
 }
 
@@ -224,7 +253,7 @@ constexpr bool supports_vectorization() noexcept {
  * This constant adapts to the actual SIMD capabilities detected at compile time,
  * ensuring optimal memory alignment for the available instruction set.
  */
-static constexpr std::size_t SIMD_ALIGNMENT = optimal_alignment();
+inline constexpr std::size_t SIMD_ALIGNMENT = optimal_alignment();
 
 /**
  * @brief SIMD vector width for double precision based on detected platform
@@ -490,6 +519,11 @@ class aligned_allocator {
     }
 };
 
+}  // namespace utils
+
+// Phase 3B: VectorOps moved to ops namespace
+namespace ops {
+
 //==============================================================================
 // CORE SIMD VECTOR OPERATIONS
 //==============================================================================
@@ -733,6 +767,59 @@ class VectorOps {
 #endif
 };
 
+}  // namespace ops
+
+// Phase 3B: Runtime dispatch logic for selecting SIMD implementations
+namespace dispatch {
+
+/**
+ * @brief Runtime dispatch selector for SIMD implementations
+ *
+ * This class provides centralized logic for selecting the best SIMD
+ * implementation at runtime based on CPU capabilities and data characteristics.
+ */
+class SIMDDispatcher {
+   public:
+    /**
+     * @brief Determine if SIMD should be used for given data size
+     * @param size Number of elements to process
+     * @return true if SIMD implementation should be used
+     */
+    static bool should_use_simd(std::size_t size) noexcept;
+
+    /**
+     * @brief Get the best available SIMD level
+     * @return String describing the best available SIMD instruction set
+     */
+    static std::string get_best_simd_level() noexcept;
+
+    /**
+     * @brief Check if specific SIMD level is available
+     * @param level The SIMD level to check (e.g., "avx512", "avx2", "sse2", "neon")
+     * @return true if the specified SIMD level is available
+     */
+    static bool is_simd_level_available(const std::string& level) noexcept;
+
+    /**
+     * @brief Get minimum size threshold for SIMD operations
+     * @return Minimum number of elements where SIMD becomes beneficial
+     */
+    static std::size_t get_min_simd_threshold() noexcept;
+
+    /**
+     * @brief Advanced platform-aware dispatch decision
+     * @param size Number of elements to process
+     * @param alignment_check Check memory alignment of data
+     * @return true if SIMD path should be taken
+     */
+    static bool should_dispatch_to_simd(std::size_t size, bool alignment_check = false) noexcept;
+};
+
+}  // namespace dispatch
+
+// Phase 3B: Memory utilities stay in utils namespace
+namespace utils {
+
 //==============================================================================
 // MEMORY PREFETCHING AND CACHE OPTIMIZATION
 //==============================================================================
@@ -754,8 +841,9 @@ inline void prefetch_write(const void* addr) noexcept {
 #endif
 }
 
-/// Cache line size for modern processors
-static constexpr std::size_t CACHE_LINE_SIZE = 64;
+/// Cache line size adapted to target architecture
+/// Uses vendor-specific cache line sizes for optimal performance
+static constexpr std::size_t CACHE_LINE_SIZE = PLATFORM_CACHE_LINE_SIZE;
 
 /// Cache line alignment utility
 template <typename T>
@@ -776,5 +864,27 @@ constexpr std::size_t align_size(std::size_t size,
     return ((size + alignment - 1) / alignment) * alignment;
 }
 
+}  // namespace utils
 }  // namespace simd
-}  // namespace libstats
+
+// Phase 3B: Temporary compatibility aliases in arch::simd
+namespace arch {
+namespace simd {
+// Temporary aliases for backward compatibility during migration
+using namespace ::stats::simd::utils;
+using VectorOps = ::stats::simd::ops::VectorOps;
+
+// Keep the adaptive constants here temporarily
+inline constexpr std::size_t SIMD_ALIGNMENT = ::stats::simd::utils::SIMD_ALIGNMENT;
+static constexpr std::size_t DOUBLE_SIMD_WIDTH = ::stats::simd::utils::DOUBLE_SIMD_WIDTH;
+static constexpr std::size_t FLOAT_SIMD_WIDTH = ::stats::simd::utils::FLOAT_SIMD_WIDTH;
+
+// Temporary memory utility aliases
+using ::stats::simd::utils::align_size;
+using ::stats::simd::utils::cache_aligned_size;
+using ::stats::simd::utils::is_aligned;
+using ::stats::simd::utils::prefetch_read;
+using ::stats::simd::utils::prefetch_write;
+}  // namespace simd
+}  // namespace arch
+}  // namespace stats

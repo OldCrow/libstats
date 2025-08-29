@@ -8,41 +8,32 @@
  * including Bayesian estimation, bootstrap, and cross-validation.
  */
 
-namespace libstats {
-namespace constants {
-
+namespace stats {
+namespace detail {
 /// Bayesian estimation default priors
-namespace bayesian {
 /// Default prior parameters for normal-inverse-gamma conjugate prior
-namespace priors {
 /// Default prior mean
-inline constexpr double DEFAULT_PRIOR_MEAN = 0.0;
+inline constexpr double PRIOR_DEFAULT_MEAN = 0.0;
 
 /// Default prior precision (inverse variance)
-inline constexpr double DEFAULT_PRIOR_PRECISION = 0.001;
+inline constexpr double PRIOR_DEFAULT_PRECISION = 0.001;
 
 /// Default prior shape parameter
-inline constexpr double DEFAULT_PRIOR_SHAPE = 1.0;
+inline constexpr double PRIOR_DEFAULT_SHAPE = 1.0;
 
 /// Default prior rate parameter
-inline constexpr double DEFAULT_PRIOR_RATE = 1.0;
-}  // namespace priors
-}  // namespace bayesian
+inline constexpr double PRIOR_DEFAULT_RATE = 1.0;
 
 /// Default bootstrap parameters
-namespace bootstrap {
 /// Default number of bootstrap samples
-inline constexpr int DEFAULT_BOOTSTRAP_SAMPLES = 1000;
+inline constexpr int BOOTSTRAP_DEFAULT_SAMPLES = 1000;
 
 /// Default random seed for reproducible results
-inline constexpr unsigned int DEFAULT_RANDOM_SEED = 42;
-}  // namespace bootstrap
+inline constexpr unsigned int BOOTSTRAP_DEFAULT_RANDOM_SEED = 42;
 
 /// Cross-validation defaults
-namespace cross_validation {
 /// Default number of folds for k-fold cross-validation
-inline constexpr int DEFAULT_K_FOLDS = 5;
-}  // namespace cross_validation
+inline constexpr int CV_DEFAULT_K_FOLDS = 5;
 
-}  // namespace constants
-}  // namespace libstats
+}  // namespace detail
+}  // namespace stats

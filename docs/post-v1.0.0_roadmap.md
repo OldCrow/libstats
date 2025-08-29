@@ -340,6 +340,62 @@ Advanced profiling, performance analysis, and optimization guidance tools.
   - Configuration optimization recommendations
   - Workload-specific optimization advice
 
+#### **Task 2.2: CPU Performance Regression Testing**
+- [ ] **Implement baseline performance system**:
+  ```cpp
+  namespace libstats::testing {
+      class PerformanceBaselineManager {
+          // Store reference baselines per CPU architecture/model
+          // Load historical performance data
+          // Compare current performance vs expectations
+          // Flag performance regressions or improvements
+      };
+
+      struct CPUPerformanceBaseline {
+          std::string cpu_model;
+          std::string architecture;
+          std::map<std::string, double> operation_baselines;  // operation -> expected time
+          std::map<std::string, double> throughput_baselines; // operation -> ops/sec
+          double tolerance_percentage = 15.0;  // Acceptable deviation
+      };
+  }
+  ```
+
+- [ ] **Create regression testing framework**:
+  - Baseline storage and retrieval system for different CPU models
+  - Automated performance comparison against stored baselines
+  - Performance regression detection with configurable thresholds
+  - Integration with CI/CD for continuous performance validation
+  - Performance trend analysis and reporting
+
+#### **Task 2.3: Architecture-Specific Optimization Validation**
+- [ ] **Implement optimization parameter validation**:
+  ```cpp
+  namespace libstats::validation {
+      class ArchitectureOptimizationValidator {
+          // Validate SIMD vector widths match CPU capabilities
+          // Check parallel thresholds against core count
+          // Verify cache parameters align with CPU cache hierarchy
+          // Cross-validate optimization parameters
+      };
+
+      struct OptimizationValidationResult {
+          bool simd_widths_appropriate;
+          bool parallel_thresholds_reasonable;
+          bool cache_parameters_aligned;
+          std::vector<std::string> warnings;
+          std::vector<std::string> recommendations;
+      };
+  }
+  ```
+
+- [ ] **Create automated optimization validation**:
+  - SIMD vector width validation against CPU architectural limits
+  - Parallel threshold reasonableness checking based on core topology
+  - Cache optimization parameter validation against detected cache hierarchy
+  - Grain size appropriateness verification for detected CPU characteristics
+  - Cross-architecture optimization parameter consistency checking
+
 **Success Criteria:**
 - [ ] **Safety:** Configurable safety levels with minimal performance impact
 - [ ] **Observability:** Comprehensive performance monitoring and analysis

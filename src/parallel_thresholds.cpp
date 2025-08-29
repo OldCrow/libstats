@@ -3,14 +3,14 @@
 #include <algorithm>
 #include <cctype>
 
-namespace libstats {
-namespace parallel {
+namespace stats {
+namespace arch {
 
 ArchitectureProfile AdaptiveThresholdCalculator::detectArchitectureProfile() const {
     ArchitectureProfile profile;
 
     // Get CPU features
-    const auto& features = cpu::get_features();
+    const auto& features = arch::get_features();
 
 // Base architecture detection and configuration
 #if defined(__APPLE__) && defined(__aarch64__)
@@ -227,5 +227,5 @@ AdaptiveThresholdCalculator& getGlobalThresholdCalculator() {
     return instance;
 }
 
-}  // namespace parallel
-}  // namespace libstats
+}  // namespace arch
+}  // namespace stats

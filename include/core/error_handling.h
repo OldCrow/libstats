@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief Error codes for distribution parameter validation
@@ -221,4 +221,4 @@ inline VoidResult validateGammaParameters(double alpha, double beta) noexcept {
     return VoidResult::ok(true);
 }
 
-}  // namespace libstats
+}  // namespace stats

@@ -14,9 +14,8 @@
 #include <array>
 #include <cstddef>
 
-namespace libstats {
-namespace performance {
-namespace characteristics {
+namespace stats {
+namespace detail {  // Performance utilities
 
 /**
  * @brief Computational complexity characteristics for distribution families
@@ -176,7 +175,7 @@ constexpr const DistributionComplexity& getCharacteristics(DistributionType dist
  * These represent expected performance improvements from different strategies
  * based on algorithmic analysis and can be refined through adaptive learning.
  */
-namespace scaling {
+// scaling utilities
 /**
  * @brief Expected SIMD speedup factors by distribution complexity
  *
@@ -208,7 +207,7 @@ constexpr double calculateParallelSpeedup(const DistributionComplexity& chars,
 
     return std::min(thread_efficiency * overhead_factor, static_cast<double>(num_threads) * 0.85);
 }
-}  // namespace scaling
+}  // namespace detail
 
 /**
  * @brief Adaptive learning integration points
@@ -216,7 +215,7 @@ constexpr double calculateParallelSpeedup(const DistributionComplexity& chars,
  * These provide hooks for the performance learning system to refine
  * the empirical constants based on actual measured performance.
  */
-namespace adaptive {
+// adaptive utilities
 /**
  * @brief Refinement factors that can be learned and updated
  *
@@ -241,12 +240,13 @@ struct LearnedRefinements {
  * @param refinements Learned refinements from performance history
  * @return Refined characteristics combining empirical + learned data
  */
-constexpr DistributionComplexity applyRefinements(const DistributionComplexity& base_chars,
-                                                  const LearnedRefinements& refinements) noexcept {
+constexpr detail::DistributionComplexity applyRefinements(
+    const detail::DistributionComplexity& base_chars,
+    const LearnedRefinements& refinements) noexcept {
     // Blend empirical and learned values based on confidence
     double blend_factor = refinements.learning_confidence;
 
-    return DistributionComplexity{
+    return detail::DistributionComplexity{
         .base_complexity = base_chars.base_complexity *
                            (1.0 - blend_factor + blend_factor * refinements.complexity_adjustment),
         .vectorization_efficiency =
@@ -267,8 +267,5 @@ constexpr DistributionComplexity applyRefinements(const DistributionComplexity& 
         .memory_access_pattern = base_chars.memory_access_pattern,
         .branch_prediction_cost = base_chars.branch_prediction_cost};
 }
-}  // namespace adaptive
 
-}  // namespace characteristics
-}  // namespace performance
-}  // namespace libstats
+}  // namespace stats

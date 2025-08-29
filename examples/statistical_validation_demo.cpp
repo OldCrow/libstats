@@ -42,7 +42,7 @@ int main() {
         std::cout << "✓ Using fixed random seed (42) for reproducible results" << std::endl;
 
         // Create a Gaussian distribution to test against
-        auto test_dist = libstats::GaussianDistribution::create(5.0, 2.0).value;
+        auto test_dist = stats::GaussianDistribution::create(5.0, 2.0).value;
         std::cout << "✓ Created reference distribution for hypothesis testing" << std::endl;
 
         std::cout << "\n" << std::string(70, '=') << std::endl;
@@ -59,7 +59,7 @@ int main() {
                   << std::endl;
         std::cout << "   Null hypothesis (H₀): Data follows N(5.0, 2.0)\n" << std::endl;
         auto [ks_stat, ks_p, ks_reject] =
-            libstats::Gaussian::kolmogorovSmirnovTest(data, test_dist, 0.05);
+            stats::Gaussian::kolmogorovSmirnovTest(data, test_dist, 0.05);
         std::cout << "   KS statistic: " << ks_stat << std::endl;
         std::cout << "   p-value: " << ks_p << std::endl;
         std::cout << "   Reject normality: " << (ks_reject ? "Yes" : "No") << std::endl;
@@ -72,7 +72,7 @@ int main() {
         std::cout << "   Weights discrepancies at distribution extremes more heavily\n"
                   << std::endl;
         auto [ad_stat, ad_p, ad_reject] =
-            libstats::Gaussian::andersonDarlingTest(data, test_dist, 0.05);
+            stats::Gaussian::andersonDarlingTest(data, test_dist, 0.05);
         std::cout << "   AD statistic: " << ad_stat << std::endl;
         std::cout << "   p-value: " << ad_p << std::endl;
         std::cout << "   Reject normality: " << (ad_reject ? "Yes" : "No") << std::endl;
@@ -95,7 +95,7 @@ int main() {
         std::cout << "   Outputs: MAE (prediction error), StdErr (parameter uncertainty), LogLik "
                      "(fit quality)\n"
                   << std::endl;
-        auto cv_results = libstats::Gaussian::kFoldCrossValidation(data, 5, 42);
+        auto cv_results = stats::Gaussian::kFoldCrossValidation(data, 5, 42);
         std::cout << "   Results per fold (Mean Abs Error, Std Error, Log-Likelihood):"
                   << std::endl;
         double total_mae = 0.0, total_loglik = 0.0;
@@ -125,7 +125,7 @@ int main() {
         std::cout << "   Provides nearly unbiased but high-variance performance estimates\n"
                   << std::endl;
         auto [loocv_mae, loocv_rmse, loocv_loglik] =
-            libstats::Gaussian::leaveOneOutCrossValidation(small_data);
+            stats::Gaussian::leaveOneOutCrossValidation(small_data);
         std::cout << "   Mean Absolute Error: " << loocv_mae << std::endl;
         std::cout << "   Root Mean Squared Error: " << loocv_rmse << std::endl;
         std::cout << "   Total Log-Likelihood: " << loocv_loglik << std::endl;
@@ -145,7 +145,7 @@ int main() {
         std::cout << "   Fits distribution to each bootstrap sample" << std::endl;
         std::cout << "   Creates confidence intervals from parameter distributions\n" << std::endl;
         auto [mean_ci, std_ci] =
-            libstats::Gaussian::bootstrapParameterConfidenceIntervals(data, 0.95, 1000, 456);
+            stats::Gaussian::bootstrapParameterConfidenceIntervals(data, 0.95, 1000, 456);
         std::cout << "   95% CI for mean: [" << mean_ci.first << ", " << mean_ci.second << "]"
                   << std::endl;
         std::cout << "   95% CI for std dev: [" << std_ci.first << ", " << std_ci.second << "]"
@@ -162,10 +162,10 @@ int main() {
         std::cout << "   Balances model fit quality against complexity penalties" << std::endl;
         std::cout << "   Used to compare different models and prevent overfitting\n" << std::endl;
 
-        libstats::Gaussian fitted_dist;
+        stats::Gaussian fitted_dist;
         fitted_dist.fit(data);
         auto [aic, bic, aicc, loglik] =
-            libstats::Gaussian::computeInformationCriteria(data, fitted_dist);
+            stats::Gaussian::computeInformationCriteria(data, fitted_dist);
         std::cout << "   Fitted parameters: μ=" << fitted_dist.getMean()
                   << ", σ=" << fitted_dist.getStandardDeviation() << std::endl;
         std::cout << "   AIC:  " << aic << " (Akaike Information Criterion - general purpose)"
@@ -193,9 +193,9 @@ int main() {
                   << "(50 samples of quadratic sequence: 0², 1², 2², ..., 49²)\n"
                   << std::endl;
         auto [ks_nn_stat, ks_nn_p, ks_nn_reject] =
-            libstats::Gaussian::kolmogorovSmirnovTest(non_normal_data, test_dist, 0.05);
+            stats::Gaussian::kolmogorovSmirnovTest(non_normal_data, test_dist, 0.05);
         auto [ad_nn_stat, ad_nn_p, ad_nn_reject] =
-            libstats::Gaussian::andersonDarlingTest(non_normal_data, test_dist, 0.05);
+            stats::Gaussian::andersonDarlingTest(non_normal_data, test_dist, 0.05);
 
         std::cout << "KS Test - Reject normality: " << (ks_nn_reject ? "Yes ✓" : "No ✗")
                   << " (p=" << ks_nn_p << ")" << std::endl;

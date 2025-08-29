@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-namespace libstats {
+namespace stats {
 
 // =============================================================================
 // STATIC MEMBER INITIALIZATION
@@ -83,8 +83,8 @@ double LogSpaceOps::logSumExpArray(const double* logValues, std::size_t size) no
     }
 
     // Use SIMD implementation if available and size is large enough
-    if constexpr (simd::has_simd_support()) {
-        if (simd::SIMDPolicy::shouldUseSIMD(size)) {
+    if constexpr (arch::simd::has_simd_support()) {
+        if (arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
             return logSumExpArraySIMD(logValues, size);
         }
     }
@@ -97,9 +97,9 @@ void LogSpaceOps::precomputeLogMatrix(const double* probMatrix, double* logMatri
     const std::size_t total_size = rows * cols;
 
     // Use SIMD for large matrices
-    if constexpr (simd::has_simd_support()) {
-        if (simd::SIMDPolicy::shouldUseSIMD(total_size)) {
-            simd::VectorOps::vector_log(probMatrix, logMatrix, total_size);
+    if constexpr (arch::simd::has_simd_support()) {
+        if (arch::simd::SIMDPolicy::shouldUseSIMD(total_size)) {
+            arch::simd::VectorOps::vector_log(probMatrix, logMatrix, total_size);
             return;
         }
     }
@@ -204,7 +204,7 @@ double LogSpaceOps::logSumExpArraySIMD(const double* logValues, std::size_t size
     double sum_exp = 0.0;
 
     // Process SIMD blocks
-    const std::size_t simd_width = simd::double_vector_width();
+    const std::size_t simd_width = arch::simd::double_vector_width();
     const std::size_t simd_blocks = size / simd_width;
 
     for (std::size_t block = 0; block < simd_blocks; ++block) {
@@ -227,7 +227,7 @@ double LogSpaceOps::logSumExpArraySIMD(const double* logValues, std::size_t size
         }
     }
 
-    return safety::safe_log(sum_exp) + max_val;
+    return detail::safe_log(sum_exp) + max_val;
 }
 
 double LogSpaceOps::logSumExpArrayScalar(const double* logValues, std::size_t size) noexcept {
@@ -253,15 +253,15 @@ double LogSpaceOps::logSumExpArrayScalar(const double* logValues, std::size_t si
         }
     }
 
-    return safety::safe_log(sum_exp) + max_val;
+    return detail::safe_log(sum_exp) + max_val;
 }
 
 // =============================================================================
 // INTEGRATION WITH EXISTING SIMD INFRASTRUCTURE
 // =============================================================================
 //
-// LogSpaceOps integrates with the existing simd::VectorOps infrastructure
+// LogSpaceOps integrates with the existing arch::simd::VectorOps infrastructure
 // rather than implementing its own platform-specific SIMD code.
 // This ensures consistency and leverages the well-tested SIMD implementations.
 
-}  // namespace libstats
+}  // namespace stats

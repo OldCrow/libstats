@@ -6,7 +6,7 @@
 #include <iostream>
 #include <limits>
 
-using namespace libstats;
+using namespace stats;
 
 void testGaussianDualAPI() {
     std::cout << "Testing GaussianDistribution dual API:\n";

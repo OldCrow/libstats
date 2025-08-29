@@ -21,7 +21,7 @@
 #include <span>
 #include <vector>
 
-using namespace libstats;
+using namespace stats;
 
 // C++20 concept for testing
 template <typename T>
@@ -166,10 +166,10 @@ int main() {
         std::ranges::copy(range, std::back_inserter(task_indices));
 
         for ([[maybe_unused]] auto i : task_indices) {
-            WorkStealingUtils::submit([&counter]() { counter.fetch_add(1); });
+            stats::workStealingSubmit([&counter]() { counter.fetch_add(1); });
         }
 
-        WorkStealingUtils::waitForAll();
+        stats::workStealingWaitForAll();
         assert(counter.load() == 50);
         std::cout << "  ✓ Global utilities executed " << counter.load() << " tasks\n\n";
     }
@@ -178,12 +178,11 @@ int main() {
     std::cout << "Test 6: Level 0 Constants Integration\n";
     {
         // Test that constants are properly used
-        auto parallelThreshold = constants::parallel::adaptive::min_elements_for_parallel();
-        auto distributionThreshold =
-            constants::parallel::adaptive::min_elements_for_distribution_parallel();
-        auto defaultGrainSize = constants::parallel::adaptive::grain_size();
-        auto simdBlockSize = constants::platform::get_optimal_simd_block_size();
-        auto memoryAlignment = constants::platform::get_optimal_alignment();
+        auto parallelThreshold = arch::get_min_elements_for_parallel();
+        auto distributionThreshold = arch::get_min_elements_for_distribution_parallel();
+        auto defaultGrainSize = arch::get_default_grain_size();
+        auto simdBlockSize = arch::get_optimal_simd_block_size();
+        auto memoryAlignment = arch::get_optimal_alignment();
 
         std::cout << "  Min parallel size: " << parallelThreshold << std::endl;
         std::cout << "  Min distribution parallel size: " << distributionThreshold << std::endl;
@@ -204,7 +203,7 @@ int main() {
     // Test 7: CPU Detection Integration
     std::cout << "Test 7: CPU Detection Integration\n";
     {
-        const auto& features = cpu::get_features();
+        const auto& features = arch::get_features();
         auto physicalCores = features.topology.physical_cores;
         auto logicalCores = features.topology.logical_cores;
         auto l1CacheSize = features.l1_cache_size;

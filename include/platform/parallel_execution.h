@@ -78,8 +78,8 @@
     #define LIBSTATS_HAS_PARALLEL_EXECUTION 0
 #endif
 
-namespace libstats {
-namespace parallel {
+namespace stats {
+namespace arch {
 
 /**
  * @brief Compile-time check for parallel execution policy support
@@ -119,16 +119,11 @@ inline const char* execution_support_string() noexcept {
  */
 inline std::size_t get_optimal_parallel_threshold(const std::string& distribution,
                                                   const std::string& operation) noexcept {
-    return libstats::parallel::getGlobalThresholdCalculator().getThreshold(distribution, operation);
+    return stats::arch::getGlobalThresholdCalculator().getThreshold(distribution, operation);
 }
 
-/**
- * @brief Get CPU-aware optimal grain size for parallel operations
- * @return Optimal grain size for work distribution based on CPU features
- */
-inline std::size_t get_optimal_grain_size() noexcept {
-    return constants::parallel::adaptive::grain_size();
-}
+// Note: get_optimal_grain_size() is declared in platform_constants.h
+// and defined in platform_constants_impl.cpp to avoid multiple definitions
 
 /**
  * @brief Get platform-adaptive grain size for specific operation types
@@ -138,8 +133,8 @@ inline std::size_t get_optimal_grain_size() noexcept {
  */
 inline std::size_t get_adaptive_grain_size(int operation_type = 0,
                                            std::size_t data_size = 0) noexcept {
-    const auto& features = cpu::get_features();
-    const auto base_grain = constants::parallel::adaptive::grain_size();
+    const auto& features = get_features();
+    const auto base_grain = stats::arch::get_default_grain_size();
 
     // Adjust grain size based on operation type and platform capabilities
     std::size_t adjusted_grain = base_grain;
@@ -147,10 +142,10 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0,
 // Platform-specific adjustments
 #if defined(__APPLE__) && defined(__aarch64__)
     // Apple Silicon: Fast thread creation, can handle smaller grains
-    adjusted_grain = static_cast<std::size_t>(base_grain / constants::math::TWO);
+    adjusted_grain = static_cast<std::size_t>(base_grain / detail::TWO);
 #elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
     // High-end x86_64: Larger grains for better SIMD utilization
-    adjusted_grain = static_cast<std::size_t>(base_grain * constants::math::TWO);
+    adjusted_grain = static_cast<std::size_t>(base_grain * detail::TWO);
 #endif
 
     // Operation type adjustments
@@ -159,17 +154,17 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0,
             if (features.l3_cache_size > 0 && data_size > 0) {
                 // Adjust grain to fit well in cache hierarchy
                 const std::size_t cache_elements = static_cast<std::size_t>(
-                    std::round(features.l3_cache_size / (sizeof(double) * constants::math::FOUR)));
+                    std::round(features.l3_cache_size / (sizeof(double) * detail::FOUR)));
                 if (data_size > cache_elements) {
                     adjusted_grain =
-                        std::max(adjusted_grain, cache_elements / cpu::get_logical_core_count());
+                        std::max(adjusted_grain, cache_elements / get_logical_core_count());
                 }
             }
             break;
         case 1:  // Computation-bound operations
             // Larger grains for computation to amortize thread overhead
-            adjusted_grain = static_cast<std::size_t>(static_cast<double>(adjusted_grain) *
-                                                      constants::math::TWO);
+            adjusted_grain =
+                static_cast<std::size_t>(static_cast<double>(adjusted_grain) * detail::TWO);
             break;
         case 2:  // Mixed operations (default)
         default:
@@ -177,9 +172,8 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0,
             break;
     }
 
-    return std::max(
-        adjusted_grain,
-        constants::parallel::adaptive::simple_operation_grain_size());  // Minimum grain size
+    return std::max(adjusted_grain,
+                    stats::arch::get_simple_operation_grain_size());  // Minimum grain size
 }
 
 /**
@@ -189,8 +183,8 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0,
  */
 inline std::size_t get_optimal_thread_count(
     [[maybe_unused]] std::size_t workload_size = 0) noexcept {
-    [[maybe_unused]] const std::size_t logical_cores = cpu::get_logical_core_count();
-    [[maybe_unused]] const std::size_t physical_cores = cpu::get_physical_core_count();
+    [[maybe_unused]] const std::size_t logical_cores = get_logical_core_count();
+    [[maybe_unused]] const std::size_t physical_cores = get_physical_core_count();
 
 // Platform-specific thread count optimization
 #if defined(__APPLE__) && defined(__aarch64__)
@@ -198,17 +192,17 @@ inline std::size_t get_optimal_thread_count(
     std::size_t optimal_threads = logical_cores;
 
     // For very large workloads, consider using more threads
-    if (workload_size > constants::benchmark::MAX_ITERATIONS) {
-        optimal_threads = std::min(static_cast<std::size_t>(logical_cores + constants::math::TWO),
-                                   static_cast<std::size_t>(logical_cores * constants::math::THREE /
-                                                            constants::math::TWO));
+    if (workload_size > detail::MAX_ITERATIONS) {
+        optimal_threads =
+            std::min(static_cast<std::size_t>(logical_cores + detail::TWO),
+                     static_cast<std::size_t>(logical_cores * detail::THREE / detail::TWO));
     }
 #elif defined(__x86_64__)
     // x86_64: Balance between physical and logical cores
     std::size_t optimal_threads = physical_cores;
 
     // Use hyperthreading for memory-bound workloads
-    if (workload_size > constants::parallel::MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL) {
+    if (workload_size > arch::parallel::MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL) {
         optimal_threads = logical_cores;
     }
 #else
@@ -248,8 +242,7 @@ inline bool should_use_parallel(std::size_t problem_size) noexcept {
  */
 inline bool should_use_distribution_parallel(std::size_t problem_size) noexcept {
     return has_execution_policies() &&
-           (problem_size >=
-            constants::parallel::adaptive::min_elements_for_distribution_parallel());
+           (problem_size >= stats::arch::get_min_elements_for_distribution_parallel());
 }
 
 //==============================================================================
@@ -284,7 +277,7 @@ namespace detail {
 
 /// Helper function to determine optimal chunk size for GCD
 inline size_t get_gcd_chunk_size(size_t total_elements) noexcept {
-    const size_t num_cores = cpu::get_logical_core_count();
+    const size_t num_cores = get_logical_core_count();
     const size_t min_chunk = get_optimal_grain_size();
     const size_t chunk_size = std::max(min_chunk, total_elements / (num_cores * 4));
     return chunk_size;
@@ -512,7 +505,7 @@ VOID CALLBACK ThreadPoolWorkCallback(PTP_CALLBACK_INSTANCE Instance, PVOID Conte
 
 /// Helper function to determine optimal chunk size for Windows Thread Pool
 inline size_t get_wintp_chunk_size(size_t total_elements) noexcept {
-    const size_t num_cores = cpu::get_logical_core_count();
+    const size_t num_cores = get_logical_core_count();
     const size_t min_chunk = get_optimal_grain_size();
     const size_t chunk_size = std::max(min_chunk, total_elements / (num_cores * 2));
     return chunk_size;
@@ -845,7 +838,7 @@ inline void* pthread_worker(void* arg) {
 
 /// Helper function to determine optimal chunk size for pthreads
 inline size_t get_pthread_chunk_size(size_t total_elements) noexcept {
-    const size_t num_cores = cpu::get_logical_core_count();
+    const size_t num_cores = get_logical_core_count();
     const size_t min_chunk = get_optimal_grain_size();
     const size_t chunk_size = std::max(min_chunk, total_elements / num_cores);
     return chunk_size;
@@ -857,8 +850,7 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t chunk_size = get_pthread_chunk_size(total_elements);
     const size_t num_chunks = calculate_num_chunks(total_elements, chunk_size);
-    const size_t max_threads =
-        std::min(num_chunks, static_cast<size_t>(cpu::get_logical_core_count()));
+    const size_t max_threads = std::min(num_chunks, static_cast<size_t>(get_logical_core_count()));
 
     if (total_elements < get_optimal_parallel_threshold("generic", "operation") ||
         max_threads <= 1) {
@@ -908,7 +900,7 @@ template <typename Iterator1, typename Iterator2, typename UnaryOp>
 void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first1, last1));
     const size_t max_threads = std::min(total_elements / get_optimal_grain_size(),
-                                        static_cast<size_t>(cpu::get_logical_core_count()));
+                                        static_cast<size_t>(get_logical_core_count()));
 
     if (total_elements < get_optimal_parallel_threshold("generic", "operation") ||
         max_threads <= 1) {
@@ -961,7 +953,7 @@ template <typename Iterator, typename T, typename BinaryOp>
 T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
     const size_t max_threads = std::min(total_elements / get_optimal_grain_size(),
-                                        static_cast<size_t>(cpu::get_logical_core_count()));
+                                        static_cast<size_t>(get_logical_core_count()));
 
     if (total_elements < get_optimal_parallel_threshold("generic", "operation") ||
         max_threads <= 1) {
@@ -1027,7 +1019,7 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
 template <typename Iterator, typename T>
 void safe_fill(Iterator first, Iterator last, const T& value) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "fill", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1054,7 +1046,7 @@ void safe_fill(Iterator first, Iterator last, const T& value) {
 template <typename Iterator1, typename Iterator2, typename UnaryOp>
 void safe_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp op) {
     const auto count = std::distance(first1, last1);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "transform", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1073,7 +1065,7 @@ void safe_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp
 template <typename Iterator, typename T>
 T safe_reduce(Iterator first, Iterator last, T init) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "reduce", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1092,7 +1084,7 @@ T safe_reduce(Iterator first, Iterator last, T init) {
 template <typename Iterator, typename UnaryFunction>
 void safe_for_each(Iterator first, Iterator last, UnaryFunction f) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "for_each", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1111,7 +1103,7 @@ void safe_for_each(Iterator first, Iterator last, UnaryFunction f) {
 template <typename Iterator>
 void safe_sort(Iterator first, Iterator last) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1129,7 +1121,7 @@ void safe_sort(Iterator first, Iterator last) {
 template <typename Iterator, typename Compare>
 void safe_sort(Iterator first, Iterator last, Compare comp) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1147,7 +1139,7 @@ void safe_sort(Iterator first, Iterator last, Compare comp) {
 template <typename Iterator>
 void safe_partial_sort(Iterator first, Iterator middle, Iterator last) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "partial_sort", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1165,7 +1157,7 @@ void safe_partial_sort(Iterator first, Iterator middle, Iterator last) {
 template <typename Iterator1, typename Iterator2>
 void safe_inclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "scan", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1183,7 +1175,7 @@ void safe_inclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result) {
 template <typename Iterator1, typename Iterator2, typename T>
 void safe_exclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result, T init) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "scan", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1201,7 +1193,7 @@ void safe_exclusive_scan(Iterator1 first, Iterator1 last, Iterator2 result, T in
 template <typename Iterator, typename T>
 Iterator safe_find(Iterator first, Iterator last, const T& value) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "search", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1219,7 +1211,7 @@ Iterator safe_find(Iterator first, Iterator last, const T& value) {
 template <typename Iterator, typename UnaryPredicate>
 Iterator safe_find_if(Iterator first, Iterator last, UnaryPredicate pred) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "search", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1238,7 +1230,7 @@ template <typename Iterator, typename T>
 typename std::iterator_traits<Iterator>::difference_type safe_count(Iterator first, Iterator last,
                                                                     const T& value) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "count", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1259,7 +1251,7 @@ typename std::iterator_traits<Iterator>::difference_type safe_count_if(Iterator 
                                                                        Iterator last,
                                                                        UnaryPredicate pred) {
     const auto count = std::distance(first, last);
-    safety::check_finite(static_cast<double>(count), "element count");
+    ::stats::detail::check_finite(static_cast<double>(count), "element count");
 
     if (should_use_parallel("generic", "count", static_cast<std::size_t>(count))) {
 #if defined(LIBSTATS_HAS_STD_EXECUTION)
@@ -1274,5 +1266,5 @@ typename std::iterator_traits<Iterator>::difference_type safe_count_if(Iterator 
     }
 }
 
-}  // namespace parallel
-}  // namespace libstats
+}  // namespace arch
+}  // namespace stats

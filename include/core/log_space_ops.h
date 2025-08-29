@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-namespace libstats {
+namespace stats {
 
 /**
  * @brief High-performance log-space arithmetic operations
@@ -32,11 +32,10 @@ class LogSpaceOps {
     static constexpr double LOG_ZERO = -std::numeric_limits<double>::infinity();
 
     /// Threshold below which exp() terms are considered negligible
-    static constexpr double LOG_SUM_THRESHOLD = constants::thresholds::LOG_SUM_EXP_THRESHOLD;
+    static constexpr double LOG_SUM_THRESHOLD = detail::LOG_SUM_EXP_THRESHOLD;
 
     /// Size of precomputed lookup tables
-    static constexpr std::size_t LOOKUP_TABLE_SIZE =
-        constants::thresholds::LOG_SPACE_LOOKUP_TABLE_SIZE;
+    static constexpr std::size_t LOOKUP_TABLE_SIZE = detail::LOG_SPACE_LOOKUP_TABLE_SIZE;
 
     /**
      * @brief Initialize precomputed lookup tables
@@ -155,4 +154,4 @@ class LogSpaceInitializer {
 /// Global initializer - ensures tables are ready when library is loaded
 static LogSpaceInitializer globalLogSpaceInit;
 
-}  // namespace libstats
+}  // namespace stats

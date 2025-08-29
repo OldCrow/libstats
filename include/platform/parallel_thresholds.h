@@ -13,8 +13,8 @@
 
 #include <unordered_map>
 
-namespace libstats {
-namespace parallel {
+namespace stats {
+namespace arch {
 
 /**
  * @brief Operation complexity categories for threshold determination
@@ -158,5 +158,5 @@ inline bool shouldUseDistributionParallel(const std::string& distribution,
     return getGlobalThresholdCalculator().shouldUseParallel(distribution, operation, data_size);
 }
 
-}  // namespace parallel
-}  // namespace libstats
+}  // namespace arch
+}  // namespace stats

@@ -138,16 +138,16 @@ The testing infrastructure was successfully consolidated from 30 to 27 tests:
 - Clear separation of concerns between basic and advanced functionality
 - Modern C++20 practices with proper GTest integration
 
-## Standardized Test Frameworks
+## Unified Test Infrastructure (Phase 3E)
 
-### Basic Test Framework (`basic_test_template.h`)
+### Test Infrastructure Namespace (`stats::tests::`)
 
 #### Overview
-All basic distribution tests use a unified template system ensuring consistent coverage, output formatting, and user experience across all distributions.
+All tests now use a unified namespace-organized infrastructure that supports both standalone tests and GTest-based enhanced tests, providing consistent coverage, output formatting, and user experience across all distributions.
 
-#### Framework Components
+#### Framework Components (stats::tests::fixtures)
 
-**StandardizedBasicTest Class Provides:**
+**BasicTestFormatter Class Provides:**
 - **Consistent Output Formatting**: Uniform headers, test start/success messages, completion messages
 - **Property Display**: Standardized formatting for numerical properties and results
 - **Sample Display**: Consistent formatting for random samples and batch results

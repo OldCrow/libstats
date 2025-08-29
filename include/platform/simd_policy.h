@@ -19,7 +19,8 @@
  * - Centralized performance tuning
  */
 
-namespace libstats {
+namespace stats {
+namespace arch {
 namespace simd {
 
 /**
@@ -177,4 +178,5 @@ class SIMDPolicy {
 };
 
 }  // namespace simd
-}  // namespace libstats
+}  // namespace arch
+}  // namespace stats

@@ -13,7 +13,7 @@
 // Level 1 infrastructure
 #include "../core/math_utils.h"
 
-namespace libstats {
+namespace stats {
 
 // Compatibility helper for different C++ standard library implementations
 #if defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L
@@ -200,7 +200,7 @@ class WorkStealingPool {
  * automatic grain size calculation and work stealing support.
  *
  * **Level 0 Integration:**
- * - Uses constants::parallel::* for thresholds and grain size calculation
+ * - Uses arch::* for thresholds and grain size calculation
  * - Integrates with cpu_detection for optimal task distribution
  *
  * **Level 1 Integration:**
@@ -221,7 +221,7 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     const std::size_t numWorkers = getThreadCount();
 
     // Use Level 0 constants for thresholds
-    if (totalWork < constants::parallel::adaptive::min_elements_for_parallel()) {
+    if (totalWork < arch::get_min_elements_for_parallel()) {
         // Execute sequentially for small workloads
         for (std::size_t i = start; i < end; ++i) {
             func(i);
@@ -232,14 +232,14 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     // Auto-calculate grain size if not specified using Level 0-2 integration
     if (grainSize == 0) {
         // Use adaptive grain size from Level 0 constants
-        const std::size_t baseGrainSize = constants::parallel::adaptive::grain_size();
+        const std::size_t baseGrainSize = arch::get_default_grain_size();
 
         // Aim for ~4x more tasks than threads for good load balancing
         const std::size_t targetTasks = numWorkers * 4;
         grainSize = std::max(baseGrainSize, totalWork / targetTasks);
 
         // Align grain size to SIMD boundaries for optimal performance
-        const std::size_t simdWidth = simd::double_vector_width();
+        const std::size_t simdWidth = arch::simd::double_vector_width();
         grainSize = ((grainSize + simdWidth - 1) / simdWidth) * simdWidth;
 
         // Ensure grain size is reasonable (not too small or too large)
@@ -286,28 +286,29 @@ class GlobalWorkStealingPool {
 
 /**
  * @brief Utility functions for work-stealing parallel operations
+ * These functions are now directly in the stats::arch namespace
  */
-namespace WorkStealingUtils {
 
 /**
  * @brief Execute a parallel for loop using the global work-stealing pool
  */
 template <typename Func>
-inline void parallelFor(std::size_t start, std::size_t end, Func func, std::size_t grainSize = 0) {
+inline void workStealingParallelFor(std::size_t start, std::size_t end, Func func,
+                                    std::size_t grainSize = 0) {
     GlobalWorkStealingPool::getInstance().parallelFor(start, end, func, grainSize);
 }
 
 /**
  * @brief Submit a task to the global work-stealing pool
  */
-inline void submit(WorkStealingPool::Task task) {
+inline void workStealingSubmit(WorkStealingPool::Task task) {
     GlobalWorkStealingPool::getInstance().submit(std::move(task));
 }
 
 /**
  * @brief Wait for all tasks in the global pool to complete
  */
-inline void waitForAll() {
+inline void workStealingWaitForAll() {
     GlobalWorkStealingPool::getInstance().waitForAll();
 }
 
@@ -325,16 +326,15 @@ inline bool shouldUseWorkStealing(std::size_t problemSize, std::size_t threshold
 /**
  * @brief Get statistics for the global work-stealing pool
  */
-inline WorkStealingPool::Statistics getStatistics() {
+inline WorkStealingPool::Statistics getWorkStealingStatistics() {
     return GlobalWorkStealingPool::getInstance().getStatistics();
 }
 
 /**
  * @brief Reset statistics for the global work-stealing pool
  */
-inline void resetStatistics() {
+inline void resetWorkStealingStatistics() {
     GlobalWorkStealingPool::getInstance().resetStatistics();
 }
-}  // namespace WorkStealingUtils
 
-}  // namespace libstats
+}  // namespace stats

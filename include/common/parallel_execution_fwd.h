@@ -17,8 +17,8 @@
  *   - Provides clean API for parallel execution decisions
  */
 
-namespace libstats {
-namespace parallel {
+namespace stats {
+namespace arch {
 
 /// Compile-time and runtime parallel execution capability queries
 bool has_execution_policies() noexcept;
@@ -117,19 +117,19 @@ bool should_use_cache_friendly_chunking(std::size_t data_size) noexcept;
 std::size_t get_optimal_cache_chunk_size(std::size_t element_size = sizeof(double)) noexcept;
 }  // namespace platform
 
-}  // namespace parallel
-}  // namespace libstats
+}  // namespace arch
+}  // namespace stats
 
 // Safe execution policy macros (simplified, platform-independent)
-#define LIBSTATS_PARALLEL_IF_AVAILABLE(size) (libstats::parallel::should_use_parallel(size))
+#define LIBSTATS_PARALLEL_IF_AVAILABLE(size) (stats::arch::should_use_parallel(size))
 
 #define LIBSTATS_PARALLEL_FOR_EACH(first, last, func)                                              \
-    libstats::parallel::algorithms::for_each(first, last, func)
+    stats::arch::algorithms::for_each(first, last, func)
 
 #define LIBSTATS_PARALLEL_TRANSFORM(first, last, out, op)                                          \
-    libstats::parallel::algorithms::transform(first, last, out, op)
+    stats::arch::algorithms::transform(first, last, out, op)
 
 #define LIBSTATS_PARALLEL_REDUCE(first, last, init, op)                                            \
-    libstats::parallel::algorithms::reduce(first, last, init, op)
+    stats::arch::algorithms::reduce(first, last, init, op)
 
-#define LIBSTATS_PARALLEL_SORT(first, last) libstats::parallel::algorithms::sort(first, last)
+#define LIBSTATS_PARALLEL_SORT(first, last) stats::arch::algorithms::sort(first, last)

@@ -34,7 +34,7 @@
  *
  *   // Example: Safe AVX usage
  *   #ifdef LIBSTATS_HAS_AVX  // Compiler can generate AVX
- *   if (libstats::cpu::supports_avx()) {  // CPU actually supports AVX
+ *   if (stats::cpu::supports_avx()) {  // CPU actually supports AVX
  *       // Execute AVX-optimized code path
  *       vectorized_computation_avx(data, results, size);
  *   } else {
@@ -57,8 +57,8 @@
  * The library handles SIMD selection transparently, but you can query
  * the detected capabilities:
  *
- *   std::cout << "SIMD level: " << libstats::cpu::best_simd_level() << std::endl;
- *   std::cout << "Vector width: " << libstats::cpu::optimal_double_width() << std::endl;
+ *   std::cout << "SIMD level: " << stats::cpu::best_simd_level() << std::endl;
+ *   std::cout << "Vector width: " << stats::cpu::optimal_double_width() << std::endl;
  *
  * PARALLEL EXECUTION GUIDE:
  *
@@ -78,7 +78,7 @@
  *   std::vector<double> output(10000);
  *
  *   // Automatically uses parallel execution if beneficial
- *   libstats::parallel::safe_transform(input.begin(), input.end(), output.begin(),
+ *   stats::arch::safe_transform(input.begin(), input.end(), output.begin(),
  *       [](double x) { return x * x; });
  *
  * 3. AVAILABLE PARALLEL ALGORITHMS:
@@ -113,7 +113,7 @@
  *   #include "libstats.h"  // Just forward declarations, minimal overhead
  *
  *   class MyClass {
- *       libstats::Gaussian* gaussian_;  // Pointer/reference works with forward declaration
+ *       stats::Gaussian* gaussian_;  // Pointer/reference works with forward declaration
  *   };
  *
  * Implementation files (.cpp):
@@ -121,7 +121,7 @@
  *   #include "libstats.h"             // Get complete implementation
  *
  *   void MyClass::compute() {
- *       auto dist = libstats::Gaussian::create(0.0, 1.0);  // Full implementation available
+ *       auto dist = stats::Gaussian::create(0.0, 1.0);  // Full implementation available
  *   }
  */
 
@@ -161,8 +161,8 @@
     #include "distributions/uniform.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
-// Convenience namespace
-namespace libstats {
+// Main namespace for the statistical library
+namespace stats {
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
 using Normal = GaussianDistribution;
@@ -174,9 +174,9 @@ using Discrete = DiscreteDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;
-constexpr int LIBSTATS_VERSION_MINOR = 9;
-constexpr int LIBSTATS_VERSION_PATCH = 1;
-constexpr const char* VERSION_STRING = "0.9.1";
+constexpr int LIBSTATS_VERSION_MINOR = 11;
+constexpr int LIBSTATS_VERSION_PATCH = 0;
+constexpr const char* VERSION_STRING = "0.11.0";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays
@@ -211,10 +211,10 @@ constexpr const char* VERSION_STRING = "0.9.1";
  *
  * int main() {
  *     // Initialize performance systems once at startup
- *     libstats::initialize_performance_systems();
+ *     stats::initialize_performance_systems();
  *
  *     // Now batch operations will have optimal performance from the start
- *     auto dist = libstats::Gaussian::create(0.0, 1.0);
+ *     auto dist = stats::Gaussian::create(0.0, 1.0);
  *     if (dist.isOk()) {
  *         std::vector<double> values(10000);
  *         std::vector<double> results(10000);
@@ -230,7 +230,7 @@ constexpr const char* VERSION_STRING = "0.9.1";
  * protected:
  *     static void SetUpTestSuite() {
  *         // Initialize once for all tests in this suite
- *         libstats::initialize_performance_systems();
+ *         stats::initialize_performance_systems();
  *     }
  * };
  * @endcode
@@ -242,4 +242,9 @@ constexpr const char* VERSION_STRING = "0.9.1";
  * @since 0.7.2
  */
 void initialize_performance_systems();
-}  // namespace libstats
+}  // namespace stats
+
+// Backward compatibility: alias libstats to stats
+// This allows existing code using libstats:: to continue working
+// Will be deprecated in v1.0.0
+namespace libstats = stats;

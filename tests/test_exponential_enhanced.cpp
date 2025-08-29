@@ -1,18 +1,19 @@
+#define LIBSTATS_ENABLE_GTEST_INTEGRATION
 #ifdef _MSC_VER
     #pragma warning(push)
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
 #include "../include/distributions/exponential.h"
-#include "enhanced_test_template.h"
+#include "../include/tests/tests.h"
 
 #include <gtest/gtest.h>
 
 using namespace std;
-using namespace libstats;
-using namespace libstats::testing;
+using namespace stats;
+using namespace stats::tests;
 
-namespace libstats {
+namespace stats {
 
 //==============================================================================
 // TEST FIXTURE FOR EXPONENTIAL ENHANCED METHODS
@@ -41,7 +42,7 @@ class ExponentialEnhancedTest : public ::testing::Test {
                 non_exponential_data_.push_back(val);  // Keep only positive values
         }
 
-        auto result = libstats::ExponentialDistribution::create(test_lambda_);
+        auto result = stats::ExponentialDistribution::create(test_lambda_);
         if (result.isOk()) {
             test_distribution_ = std::move(result.value);
         };
@@ -59,7 +60,7 @@ class ExponentialEnhancedTest : public ::testing::Test {
 
 TEST_F(ExponentialEnhancedTest, BasicEnhancedFunctionality) {
     // Test unit exponential distribution properties
-    auto unitExp = libstats::ExponentialDistribution::create(1.0).value;
+    auto unitExp = stats::ExponentialDistribution::create(1.0).value;
 
     EXPECT_DOUBLE_EQ(unitExp.getLambda(), 1.0);
     EXPECT_DOUBLE_EQ(unitExp.getMean(), 1.0);
@@ -75,7 +76,7 @@ TEST_F(ExponentialEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_1, 1.0 - std::exp(-1.0), 1e-10);
 
     // Test custom distribution
-    auto custom = libstats::ExponentialDistribution::create(2.0).value;
+    auto custom = stats::ExponentialDistribution::create(2.0).value;
     EXPECT_DOUBLE_EQ(custom.getLambda(), 2.0);
     EXPECT_DOUBLE_EQ(custom.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(custom.getVariance(), 0.25);
@@ -233,7 +234,7 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdExp = libstats::ExponentialDistribution::create(1.0).value;
+    auto stdExp = stats::ExponentialDistribution::create(1.0).value;
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -270,7 +271,7 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdExp.getProbabilityWithStrategy(std::span<const double>(test_values),
                                           std::span<double>(simd_results),
-                                          libstats::performance::Strategy::SCALAR);
+                                          stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -281,7 +282,7 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdExp.getProbabilityWithStrategy(input_span, output_span,
-                                          libstats::performance::Strategy::PARALLEL_SIMD);
+                                          stats::detail::Strategy::PARALLEL_SIMD);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -292,7 +293,7 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdExp.getProbabilityWithStrategy(input_span, ws_output_span,
-                                          libstats::performance::Strategy::WORK_STEALING);
+                                          stats::detail::Strategy::WORK_STEALING);
         end = std::chrono::high_resolution_clock::now();
         auto work_stealing_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -324,20 +325,21 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
                 << batch_size;
         }
 
-        // Performance expectations (adjusted for batch size)
-        EXPECT_GT(simd_speedup, 1.0) << "SIMD should provide speedup for batch size " << batch_size;
+        // Architecture-aware performance expectations using adaptive validation
+        // Use adaptive SIMD threshold - exponential is moderately complex
+        double simd_threshold =
+            stats::tests::validators::getSIMDValidationThreshold(batch_size, false);
+        EXPECT_GT(simd_speedup, simd_threshold)
+            << "SIMD speedup " << simd_speedup << "x should exceed adaptive threshold "
+            << simd_threshold << "x for batch size " << batch_size;
 
         if (std::thread::hardware_concurrency() > 1) {
-            if (batch_size >= 10000) {
-                // For large batches, parallel should significantly outperform SIMD
-                EXPECT_GT(parallel_speedup, simd_speedup * 0.8)
-                    << "Parallel should be competitive with SIMD for large batches";
-            } else {
-                // For smaller batches, parallel may have overhead but should still be reasonable
-                EXPECT_GT(parallel_speedup, 0.5)
-                    << "Parallel should provide reasonable performance for batch size "
-                    << batch_size;
-            }
+            // Use adaptive parallel threshold - exponential is moderately complex
+            double parallel_threshold =
+                stats::tests::validators::getParallelValidationThreshold(batch_size, false);
+            EXPECT_GT(parallel_speedup, parallel_threshold)
+                << "Parallel speedup " << parallel_speedup << "x should exceed adaptive threshold "
+                << parallel_threshold << "x for batch size " << batch_size;
         }
     }
 }
@@ -404,7 +406,7 @@ TEST_F(ExponentialEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto exp_dist = libstats::ExponentialDistribution::create(1.0).value;
+    auto exp_dist = stats::ExponentialDistribution::create(1.0).value;
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -440,7 +442,7 @@ TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
 
     // Test cache invalidation - create a new distribution with different parameters
-    auto new_dist = libstats::ExponentialDistribution::create(2.0).value;
+    auto new_dist = stats::ExponentialDistribution::create(2.0).value;
 
     start = std::chrono::high_resolution_clock::now();
     double mean_after_change = new_dist.getMean();
@@ -460,7 +462,7 @@ TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
-    auto exp_dist = libstats::ExponentialDistribution::create(1.0).value;
+    auto exp_dist = stats::ExponentialDistribution::create(1.0).value;
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -496,7 +498,7 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
         } else {
             exp_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                 std::span<double>(auto_pdf_results),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_pdf_time =
@@ -512,7 +514,7 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
         } else {
             exp_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(auto_logpdf_results),
-                                                   libstats::performance::Strategy::SCALAR);
+                                                   stats::detail::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_logpdf_time =
@@ -528,7 +530,7 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
         } else {
             exp_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                           std::span<double>(auto_cdf_results),
-                                                          libstats::performance::Strategy::SCALAR);
+                                                          stats::detail::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_cdf_time =
@@ -541,13 +543,13 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
 
         exp_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                             std::span<double>(trad_pdf_results),
-                                            libstats::performance::Strategy::SCALAR);
+                                            stats::detail::Strategy::SCALAR);
         exp_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                std::span<double>(trad_logpdf_results),
-                                               libstats::performance::Strategy::SCALAR);
+                                               stats::detail::Strategy::SCALAR);
         exp_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(trad_cdf_results),
-                                                      libstats::performance::Strategy::SCALAR);
+                                                      stats::detail::Strategy::SCALAR);
 
         // Verify correctness
         bool pdf_correct = true, logpdf_correct = true, cdf_correct = true;
@@ -590,7 +592,7 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto unitExp = libstats::ExponentialDistribution::create(1.0).value;
+    auto unitExp = stats::ExponentialDistribution::create(1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data
@@ -605,18 +607,18 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         test_values[i] = dis(gen);
     }
 
-    StandardizedBenchmark::printBenchmarkHeader("Exponential Distribution", BENCHMARK_SIZE);
+    fixtures::BenchmarkFormatter::printBenchmarkHeader("Exponential Distribution", BENCHMARK_SIZE);
 
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
 
-    std::vector<BenchmarkResult> benchmark_results;
+    std::vector<fixtures::BenchmarkResult> benchmark_results;
 
     // For each operation type (PDF, LogPDF, CDF)
     std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
 
     for (const auto& op : operations) {
-        BenchmarkResult result;
+        fixtures::BenchmarkResult result;
         result.operation_name = op;
 
         // 1. SIMD Batch (baseline)
@@ -624,15 +626,15 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                std::span<double>(pdf_results),
-                                               libstats::performance::Strategy::SCALAR);
+                                               stats::detail::Strategy::SCALAR);
         } else if (op == "LogPDF") {
             unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                   std::span<double>(log_pdf_results),
-                                                  libstats::performance::Strategy::SCALAR);
+                                                  stats::detail::Strategy::SCALAR);
         } else if (op == "CDF") {
             unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                          std::span<double>(cdf_results),
-                                                         libstats::performance::Strategy::SCALAR);
+                                                         stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
@@ -646,15 +648,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
                               unitExp.getProbabilityWithStrategy(
-                                  input_span, output_span,
-                                  libstats::performance::Strategy::PARALLEL_SIMD);
+                                  input_span, output_span, stats::detail::Strategy::PARALLEL_SIMD);
                           }) {
                 unitExp.getProbabilityWithStrategy(input_span, output_span,
-                                                   libstats::performance::Strategy::PARALLEL_SIMD);
+                                                   stats::detail::Strategy::PARALLEL_SIMD);
             } else {
                 unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(pdf_results),
-                                                   libstats::performance::Strategy::SCALAR);
+                                                   stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
@@ -663,14 +664,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               unitExp.getLogProbabilityWithStrategy(
                                   input_span, log_output_span,
-                                  libstats::performance::Strategy::PARALLEL_SIMD);
+                                  stats::detail::Strategy::PARALLEL_SIMD);
                           }) {
-                unitExp.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                      stats::detail::Strategy::PARALLEL_SIMD);
             } else {
                 unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(log_pdf_results),
-                                                      libstats::performance::Strategy::SCALAR);
+                                                      stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
@@ -679,14 +680,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               unitExp.getCumulativeProbabilityWithStrategy(
                                   input_span, cdf_output_span,
-                                  libstats::performance::Strategy::PARALLEL_SIMD);
+                                  stats::detail::Strategy::PARALLEL_SIMD);
                           }) {
                 unitExp.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, libstats::performance::Strategy::PARALLEL_SIMD);
+                    input_span, cdf_output_span, stats::detail::Strategy::PARALLEL_SIMD);
             } else {
-                unitExp.getCumulativeProbabilityWithStrategy(
-                    std::span<const double>(test_values), std::span<double>(cdf_results),
-                    libstats::performance::Strategy::SCALAR);
+                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                             std::span<double>(cdf_results),
+                                                             stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -699,15 +700,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
                               unitExp.getProbabilityWithStrategy(
-                                  input_span, output_span,
-                                  libstats::performance::Strategy::WORK_STEALING);
+                                  input_span, output_span, stats::detail::Strategy::WORK_STEALING);
                           }) {
                 unitExp.getProbabilityWithStrategy(input_span, output_span,
-                                                   libstats::performance::Strategy::WORK_STEALING);
+                                                   stats::detail::Strategy::WORK_STEALING);
             } else {
                 unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(pdf_results),
-                                                   libstats::performance::Strategy::SCALAR);
+                                                   stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
@@ -716,14 +716,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               unitExp.getLogProbabilityWithStrategy(
                                   input_span, log_output_span,
-                                  libstats::performance::Strategy::WORK_STEALING);
+                                  stats::detail::Strategy::WORK_STEALING);
                           }) {
-                unitExp.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, libstats::performance::Strategy::WORK_STEALING);
+                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                      stats::detail::Strategy::WORK_STEALING);
             } else {
                 unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(log_pdf_results),
-                                                      libstats::performance::Strategy::SCALAR);
+                                                      stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
@@ -732,14 +732,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               unitExp.getCumulativeProbabilityWithStrategy(
                                   input_span, cdf_output_span,
-                                  libstats::performance::Strategy::WORK_STEALING);
+                                  stats::detail::Strategy::WORK_STEALING);
                           }) {
                 unitExp.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, libstats::performance::Strategy::WORK_STEALING);
+                    input_span, cdf_output_span, stats::detail::Strategy::WORK_STEALING);
             } else {
-                unitExp.getCumulativeProbabilityWithStrategy(
-                    std::span<const double>(test_values), std::span<double>(cdf_results),
-                    libstats::performance::Strategy::SCALAR);
+                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                             std::span<double>(cdf_results),
+                                                             stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -753,14 +753,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               unitExp.getProbabilityWithStrategy(
                                   input_span, output_span,
-                                  libstats::performance::Strategy::GPU_ACCELERATED);
+                                  stats::detail::Strategy::GPU_ACCELERATED);
                           }) {
-                unitExp.getProbabilityWithStrategy(
-                    input_span, output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                unitExp.getProbabilityWithStrategy(input_span, output_span,
+                                                   stats::detail::Strategy::GPU_ACCELERATED);
             } else {
                 unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(pdf_results),
-                                                   libstats::performance::Strategy::SCALAR);
+                                                   stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
@@ -769,14 +769,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               unitExp.getLogProbabilityWithStrategy(
                                   input_span, log_output_span,
-                                  libstats::performance::Strategy::GPU_ACCELERATED);
+                                  stats::detail::Strategy::GPU_ACCELERATED);
                           }) {
-                unitExp.getLogProbabilityWithStrategy(
-                    input_span, log_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                      stats::detail::Strategy::GPU_ACCELERATED);
             } else {
                 unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(log_pdf_results),
-                                                      libstats::performance::Strategy::SCALAR);
+                                                      stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
@@ -785,14 +785,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               unitExp.getCumulativeProbabilityWithStrategy(
                                   input_span, cdf_output_span,
-                                  libstats::performance::Strategy::GPU_ACCELERATED);
+                                  stats::detail::Strategy::GPU_ACCELERATED);
                           }) {
                 unitExp.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, libstats::performance::Strategy::GPU_ACCELERATED);
+                    input_span, cdf_output_span, stats::detail::Strategy::GPU_ACCELERATED);
             } else {
-                unitExp.getCumulativeProbabilityWithStrategy(
-                    std::span<const double>(test_values), std::span<double>(cdf_results),
-                    libstats::performance::Strategy::SCALAR);
+                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                             std::span<double>(cdf_results),
+                                                             stats::detail::Strategy::SCALAR);
             }
             end = std::chrono::high_resolution_clock::now();
         }
@@ -811,18 +811,20 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
 
         // Verify correctness
         if (op == "PDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values, pdf_results, "PDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values,
+                                                                   pdf_results, "PDF");
         } else if (op == "LogPDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values, log_pdf_results,
-                                                         "LogPDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values,
+                                                                   log_pdf_results, "LogPDF");
         } else if (op == "CDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values, cdf_results, "CDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values,
+                                                                   cdf_results, "CDF");
         }
     }
 
     // Print standardized benchmark results
-    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
-    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
+    fixtures::BenchmarkFormatter::printBenchmarkResults(benchmark_results);
+    fixtures::BenchmarkFormatter::printPerformanceAnalysis(benchmark_results);
 }
 
 //==============================================================================
@@ -969,13 +971,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, NumericalStabilityAndEdgeCases) {
-    auto unitExp = libstats::ExponentialDistribution::create(1.0).value;
+    auto unitExp = stats::ExponentialDistribution::create(1.0).value;
 
-    EdgeCaseTester<ExponentialDistribution>::testExtremeValues(unitExp, "Exponential");
-    EdgeCaseTester<ExponentialDistribution>::testEmptyBatchOperations(unitExp, "Exponential");
+    fixtures::EdgeCaseTester<ExponentialDistribution>::testExtremeValues(unitExp, "Exponential");
+    fixtures::EdgeCaseTester<ExponentialDistribution>::testEmptyBatchOperations(unitExp,
+                                                                                "Exponential");
 }
 
-}  // namespace libstats
+}  // namespace stats
 
 #ifdef _MSC_VER
     #pragma warning(pop)

@@ -22,7 +22,7 @@
 #include <random>
 #include <vector>
 
-using namespace libstats;
+using namespace stats;
 
 int main() {
     std::cout << "\n🔬 === EXPONENTIAL DISTRIBUTION COMPREHENSIVE PERFORMANCE BENCHMARK ===\n";
@@ -43,12 +43,12 @@ int main() {
 
     // Create Exponential distributions for testing
     auto unitExponential =
-        libstats::ExponentialDistribution::create(1.0).value;  // Unit exponential (λ = 1)
+        stats::ExponentialDistribution::create(1.0).value;  // Unit exponential (λ = 1)
     auto customExponential =
-        libstats::ExponentialDistribution::create(2.5).value;  // Custom distribution (λ = 2.5)
+        stats::ExponentialDistribution::create(2.5).value;  // Custom distribution (λ = 2.5)
 
     // Benchmark setup
-    libstats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
+    stats::Benchmark bench(true, 10, 3);  // Warmup enabled, 10 iterations, 3 warmup runs
 
     //==========================================================================
     // 1. BASIC OPERATIONS BENCHMARK
@@ -145,7 +145,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 unitExponential.getProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -155,7 +155,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 unitExponential.getLogProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -165,7 +165,7 @@ int main() {
             [&, test_values, results]() mutable {
                 std::span<const double> values_span(test_values);
                 std::span<double> results_span(results);
-                auto hint = libstats::performance::PerformanceHint::maximum_throughput();
+                auto hint = stats::detail::PerformanceHint::maximum_throughput();
                 unitExponential.getCumulativeProbability(values_span, results_span, hint);
             },
             0, static_cast<double>(size));
@@ -194,7 +194,7 @@ int main() {
         [&]() mutable {
             std::span<const double> values_span(large_test_mutable);
             std::span<double> results_span(large_results);
-            auto hint = libstats::performance::PerformanceHint::minimal_latency();
+            auto hint = stats::detail::PerformanceHint::minimal_latency();
             unitExponential.getProbability(values_span, results_span, hint);
         },
         0, static_cast<double>(large_test.size()));
@@ -205,8 +205,8 @@ int main() {
         [&, large_test_mutable]() mutable {
             std::span<const double> values_span(large_test_mutable);
             std::span<double> results_span(large_results);
-            unitExponential.getProbabilityWithStrategy(
-                values_span, results_span, libstats::performance::Strategy::WORK_STEALING);
+            unitExponential.getProbabilityWithStrategy(values_span, results_span,
+                                                       stats::detail::Strategy::WORK_STEALING);
         },
         0, static_cast<double>(large_test.size()));
 
@@ -257,7 +257,7 @@ int main() {
     bench.addTest(
         "Parameter Fitting Small Dataset",
         [&]() {
-            auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
+            auto temp_dist = stats::ExponentialDistribution::create(1.0).value;
             temp_dist.fit(fit_data_small);
         },
         0, static_cast<double>(fit_data_small.size()));
@@ -265,7 +265,7 @@ int main() {
     bench.addTest(
         "Parameter Fitting Large Dataset",
         [&]() {
-            auto temp_dist = libstats::ExponentialDistribution::create(1.0).value;
+            auto temp_dist = stats::ExponentialDistribution::create(1.0).value;
             temp_dist.fit(fit_data_large);
         },
         0, static_cast<double>(fit_data_large.size()));
@@ -286,7 +286,7 @@ int main() {
     bench.addTest(
         "Confidence Interval Rate",
         [&]() {
-            volatile auto result = libstats::Exponential::confidenceIntervalRate(stats_data, 0.95);
+            volatile auto result = stats::Exponential::confidenceIntervalRate(stats_data, 0.95);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -294,8 +294,7 @@ int main() {
     bench.addTest(
         "Likelihood Ratio Test",
         [&]() {
-            volatile auto result =
-                libstats::Exponential::likelihoodRatioTest(stats_data, 1.5, 0.05);
+            volatile auto result = stats::Exponential::likelihoodRatioTest(stats_data, 1.5, 0.05);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -303,7 +302,7 @@ int main() {
     bench.addTest(
         "Bayesian Estimation",
         [&]() {
-            volatile auto result = libstats::Exponential::bayesianEstimation(stats_data, 1.0, 1.0);
+            volatile auto result = stats::Exponential::bayesianEstimation(stats_data, 1.0, 1.0);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -311,7 +310,7 @@ int main() {
     bench.addTest(
         "Method of Moments Estimation",
         [&]() {
-            volatile double result = libstats::Exponential::methodOfMomentsEstimation(stats_data);
+            volatile double result = stats::Exponential::methodOfMomentsEstimation(stats_data);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));
@@ -320,7 +319,7 @@ int main() {
         "Robust Estimation (Winsorized)",
         [&]() {
             volatile double result =
-                libstats::Exponential::robustEstimation(stats_data, "winsorized", 0.1);
+                stats::Exponential::robustEstimation(stats_data, "winsorized", 0.1);
             (void)result;
         },
         0, static_cast<double>(stats_data.size()));

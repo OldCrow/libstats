@@ -27,8 +27,8 @@
 #include "tool_utils.h"
 
 using namespace std::chrono;
-using namespace libstats;
-using namespace libstats::constants;
+using namespace stats;
+using namespace stats::detail;
 
 // Tool-specific benchmark constants
 namespace {
@@ -114,13 +114,13 @@ class ParallelThresholdBenchmark {
     }
 
     void runAllBenchmarks() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
         // Initialize performance systems for accurate threshold determination
-        libstats::initialize_performance_systems();
+        stats::initialize_performance_systems();
 
         // Display tool header with system information
-        system_info::displayToolHeader(
+        stats::detail::detail::displayToolHeader(
             "Parallel Threshold Benchmark",
             "Distribution-specific threshold optimization with adaptive learning");
 
@@ -137,11 +137,11 @@ class ParallelThresholdBenchmark {
 
    private:
     void benchmarkUniformDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Uniform Distribution Benchmark");
-        auto uniform = libstats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
-                                                             distribution_params::UNIFORM_MAX)
+        stats::detail::detail::subsectionHeader("Uniform Distribution Benchmark");
+        auto uniform = stats::UniformDistribution::create(distribution_params::UNIFORM_MIN,
+                                                          distribution_params::UNIFORM_MAX)
                            .value;
 
         for (auto size : test_sizes_) {
@@ -172,12 +172,11 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkPoissonDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Poisson Distribution Benchmark");
+        stats::detail::detail::subsectionHeader("Poisson Distribution Benchmark");
         auto poisson =
-            libstats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA)
-                .value;
+            stats::PoissonDistribution::create(distribution_params::DEFAULT_POISSON_LAMBDA).value;
 
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -206,11 +205,11 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkDiscreteDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Discrete Distribution Benchmark");
-        auto discrete = libstats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
-                                                               distribution_params::DISCRETE_MAX)
+        stats::detail::detail::subsectionHeader("Discrete Distribution Benchmark");
+        auto discrete = stats::DiscreteDistribution::create(distribution_params::DISCRETE_MIN,
+                                                            distribution_params::DISCRETE_MAX)
                             .value;
 
         for (auto size : test_sizes_) {
@@ -241,11 +240,11 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkGaussianDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Gaussian Distribution Benchmark");
-        auto gaussian = libstats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
-                                                               distribution_params::GAUSSIAN_STDDEV)
+        stats::detail::detail::subsectionHeader("Gaussian Distribution Benchmark");
+        auto gaussian = stats::GaussianDistribution::create(distribution_params::GAUSSIAN_MEAN,
+                                                            distribution_params::GAUSSIAN_STDDEV)
                             .value;
 
         for (auto size : test_sizes_) {
@@ -277,12 +276,11 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkExponentialDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Exponential Distribution Benchmark");
+        stats::detail::detail::subsectionHeader("Exponential Distribution Benchmark");
         auto exponential =
-            libstats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA)
-                .value;
+            stats::ExponentialDistribution::create(distribution_params::EXPONENTIAL_LAMBDA).value;
 
         for (auto size : test_sizes_) {
             std::cout << "  Testing size: " << size << std::flush;
@@ -312,11 +310,11 @@ class ParallelThresholdBenchmark {
     }
 
     void benchmarkGammaDistribution() {
-        using namespace libstats::tools;
+        using namespace stats::detail;
 
-        display::subsectionHeader("Gamma Distribution Benchmark");
-        auto gamma = libstats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
-                                                         distribution_params::GAMMA_BETA)
+        stats::detail::detail::subsectionHeader("Gamma Distribution Benchmark");
+        auto gamma = stats::GammaDistribution::create(distribution_params::GAMMA_ALPHA,
+                                                      distribution_params::GAMMA_BETA)
                          .value;
 
         for (auto size : test_sizes_) {
@@ -427,26 +425,25 @@ class ParallelThresholdBenchmark {
         } else if (method == "simd") {
             // SIMD batch operations using explicit strategy to ensure SIMD benchmarking
             if (operation == "PDF") {
-                dist.getProbabilityWithStrategy(input, output,
-                                                libstats::performance::Strategy::SIMD_BATCH);
+                dist.getProbabilityWithStrategy(input, output, stats::detail::Strategy::SIMD_BATCH);
             } else if (operation == "LogPDF") {
                 dist.getLogProbabilityWithStrategy(input, output,
-                                                   libstats::performance::Strategy::SIMD_BATCH);
+                                                   stats::detail::Strategy::SIMD_BATCH);
             } else if (operation == "CDF") {
-                dist.getCumulativeProbabilityWithStrategy(
-                    input, output, libstats::performance::Strategy::SIMD_BATCH);
+                dist.getCumulativeProbabilityWithStrategy(input, output,
+                                                          stats::detail::Strategy::SIMD_BATCH);
             }
         } else if (method == "parallel") {
             // Parallel operations using explicit strategy to ensure parallel benchmarking
             if (operation == "PDF") {
                 dist.getProbabilityWithStrategy(input, output,
-                                                libstats::performance::Strategy::PARALLEL_SIMD);
+                                                stats::detail::Strategy::PARALLEL_SIMD);
             } else if (operation == "LogPDF") {
                 dist.getLogProbabilityWithStrategy(input, output,
-                                                   libstats::performance::Strategy::PARALLEL_SIMD);
+                                                   stats::detail::Strategy::PARALLEL_SIMD);
             } else if (operation == "CDF") {
-                dist.getCumulativeProbabilityWithStrategy(
-                    input, output, libstats::performance::Strategy::PARALLEL_SIMD);
+                dist.getCumulativeProbabilityWithStrategy(input, output,
+                                                          stats::detail::Strategy::PARALLEL_SIMD);
             }
         }
     }

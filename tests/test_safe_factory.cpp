@@ -3,7 +3,7 @@
 #include <cassert>
 #include <iostream>
 
-using namespace libstats;
+using namespace stats;
 
 void testSafeFactory() {
     std::cout << "=== Testing Safe Factory Methods ===" << std::endl;

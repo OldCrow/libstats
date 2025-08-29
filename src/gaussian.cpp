@@ -18,7 +18,7 @@
 #include <vector>
 #include <version>  // C++20 feature detection
 
-namespace libstats {
+namespace stats {
 
 //==============================================================================
 // COMPLEX METHODS (Implementation in .cpp per C++20 best practices)
@@ -66,8 +66,8 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other)
     std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     mean_ = other.mean_;
     standardDeviation_ = other.standardDeviation_;
-    other.mean_ = constants::math::ZERO_DOUBLE;
-    other.standardDeviation_ = constants::math::ONE;
+    other.mean_ = detail::ZERO_DOUBLE;
+    other.standardDeviation_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
 }
@@ -91,8 +91,8 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
                 // Step 3: Move parameters
                 mean_ = other.mean_;
                 standardDeviation_ = other.standardDeviation_;
-                other.mean_ = constants::math::ZERO_DOUBLE;
-                other.standardDeviation_ = constants::math::ONE;
+                other.mean_ = detail::ZERO_DOUBLE;
+                other.standardDeviation_ = detail::ONE;
                 cache_valid_ = false;
                 other.cache_valid_ = false;
                 success = true;
@@ -112,8 +112,8 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
             // Atomic-like exchange (single assignment is atomic for built-in types)
             mean_ = other.mean_;
             standardDeviation_ = other.standardDeviation_;
-            other.mean_ = constants::math::ZERO_DOUBLE;
-            other.standardDeviation_ = constants::math::ONE;
+            other.mean_ = detail::ZERO_DOUBLE;
+            other.standardDeviation_ = detail::ONE;
 
             // Cache invalidation was already done atomically above
             cache_valid_ = false;
@@ -286,7 +286,7 @@ double GaussianDistribution::getProbability(double x) const {
     // Fast path for standard normal
     if (isStandardNormal_) {
         const double sq_diff = x * x;
-        return constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+        return detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
     }
 
     // General case
@@ -311,14 +311,13 @@ double GaussianDistribution::getLogProbability(double x) const noexcept {
     // Fast path for standard normal - direct computation (no log-sum-exp needed here)
     if (isStandardNormal_) {
         const double sq_diff = x * x;
-        return constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+        return detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
     }
 
     // General case - direct computation for Gaussian log-PDF
     const double diff = x - mean_;
     const double sq_diff = diff * diff;
-    return constants::math::NEG_HALF_LN_2PI - logStandardDeviation_ +
-           negHalfSigmaSquaredInv_ * sq_diff;
+    return detail::NEG_HALF_LN_2PI - logStandardDeviation_ + negHalfSigmaSquaredInv_ * sq_diff;
 }
 
 double GaussianDistribution::getCumulativeProbability(double x) const {
@@ -336,28 +335,27 @@ double GaussianDistribution::getCumulativeProbability(double x) const {
 
     // Fast path for standard normal
     if (isStandardNormal_) {
-        return constants::math::HALF *
-               (constants::math::ONE + std::erf(x * constants::math::INV_SQRT_2));
+        return detail::HALF * (detail::ONE + std::erf(x * detail::INV_SQRT_2));
     }
 
     // General case
     const double normalized = (x - mean_) / sigmaSqrt2_;
-    return constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+    return detail::HALF * (detail::ONE + std::erf(normalized));
 }
 
 double GaussianDistribution::getQuantile(double p) const {
-    if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == constants::math::ZERO_DOUBLE)
+    if (p == detail::ZERO_DOUBLE)
         return -std::numeric_limits<double>::infinity();
-    if (p == constants::math::ONE)
+    if (p == detail::ONE)
         return std::numeric_limits<double>::infinity();
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
 
-    if (p == constants::math::HALF) {
+    if (p == detail::HALF) {
         return mean_;  // Median equals mean for normal distribution
     }
 
@@ -365,9 +363,9 @@ double GaussianDistribution::getQuantile(double p) const {
     // For standard normal: quantile = sqrt(2) * erfinv(2p - 1)
     // For general normal: quantile = mean + sigma * sqrt(2) * erfinv(2p - 1)
 
-    const double erf_input = constants::math::TWO * p - constants::math::ONE;
-    double z = math::erf_inv(erf_input);
-    return mean_ + standardDeviation_ * constants::math::SQRT_2 * z;
+    const double erf_input = detail::TWO * p - detail::ONE;
+    double z = detail::erf_inv(erf_input);
+    return mean_ + standardDeviation_ * detail::SQRT_2 * z;
 }
 
 double GaussianDistribution::sample(std::mt19937& rng) const {
@@ -394,8 +392,7 @@ double GaussianDistribution::sample(std::mt19937& rng) const {
     has_spare = true;
 
     // Use high-quality uniform distribution
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
-                                                   constants::math::ONE);
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
 
     double u1, u2;
     double magnitude, angle;
@@ -405,8 +402,8 @@ double GaussianDistribution::sample(std::mt19937& rng) const {
         u2 = uniform(rng);
 
         // Box-Muller transformation
-        magnitude = std::sqrt(constants::math::NEG_TWO * std::log(u1));
-        angle = constants::math::TWO_PI * u2;
+        magnitude = std::sqrt(detail::NEG_TWO * std::log(u1));
+        angle = detail::TWO_PI * u2;
 
         // Check for numerical validity
         if (std::isfinite(magnitude) && std::isfinite(angle)) {
@@ -442,8 +439,7 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
 
     lock.unlock();  // Release lock before generation
 
-    std::uniform_real_distribution<double> uniform(constants::math::ZERO_DOUBLE,
-                                                   constants::math::ONE);
+    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
 
     // Efficient batch Box-Muller: generate samples in pairs
     const size_t pairs = n / 2;
@@ -460,8 +456,8 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
         }
 
         // Box-Muller transformation
-        const double magnitude = std::sqrt(constants::math::NEG_TWO * std::log(u1));
-        const double angle = constants::math::TWO_PI * u2;
+        const double magnitude = std::sqrt(detail::NEG_TWO * std::log(u1));
+        const double angle = detail::TWO_PI * u2;
 
         const double z1 = magnitude * std::cos(angle);
         const double z2 = magnitude * std::sin(angle);
@@ -485,8 +481,8 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
             u1 = uniform(rng);
         }
 
-        const double magnitude = std::sqrt(constants::math::NEG_TWO * std::log(u1));
-        const double angle = constants::math::TWO_PI * u2;
+        const double magnitude = std::sqrt(detail::NEG_TWO * std::log(u1));
+        const double angle = detail::TWO_PI * u2;
         const double z = magnitude * std::cos(angle);
 
         if (cached_is_standard) {
@@ -509,7 +505,7 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
     }
 
     // Check minimum data points for reliable fitting
-    if (values.size() < constants::thresholds::MIN_DATA_POINTS_FOR_FITTING) {
+    if (values.size() < detail::MIN_DATA_POINTS_FOR_FITTING) {
         throw std::invalid_argument("Insufficient data points for reliable Gaussian fitting");
     }
 
@@ -518,9 +514,9 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
     // Use parallel execution for large datasets
     double running_mean, sample_variance;
 
-    if (parallel::should_use_distribution_parallel(n)) {
+    if (arch::should_use_distribution_parallel(n)) {
         // Parallel Welford's algorithm using chunked computation
-        const std::size_t grain_size = parallel::get_adaptive_grain_size(2, n);  // Mixed operations
+        const std::size_t grain_size = arch::get_adaptive_grain_size(2, n);  // Mixed operations
         const std::size_t num_chunks = (n + grain_size - 1) / grain_size;
 
         // Storage for partial results from each chunk
@@ -533,37 +529,34 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
         std::vector<std::size_t> chunk_indices(num_chunks);
         std::iota(chunk_indices.begin(), chunk_indices.end(), 0);
 
-        parallel::safe_for_each(
-            chunk_indices.begin(), chunk_indices.end(), [&](std::size_t chunk_idx) {
-                const std::size_t start_idx = chunk_idx * grain_size;
-                const std::size_t end_idx = std::min(start_idx + grain_size, n);
-                const std::size_t chunk_size = end_idx - start_idx;
+        arch::safe_for_each(chunk_indices.begin(), chunk_indices.end(), [&](std::size_t chunk_idx) {
+            const std::size_t start_idx = chunk_idx * grain_size;
+            const std::size_t end_idx = std::min(start_idx + grain_size, n);
+            const std::size_t chunk_size = end_idx - start_idx;
 
-                double chunk_mean = constants::math::ZERO_DOUBLE;
-                double chunk_m2 = constants::math::ZERO_DOUBLE;
+            double chunk_mean = detail::ZERO_DOUBLE;
+            double chunk_m2 = detail::ZERO_DOUBLE;
 
-                // Welford's algorithm on chunk - C++20 safe iteration
-                auto chunk_range =
-                    values | std::views::drop(start_idx) | std::views::take(chunk_size);
-                std::size_t local_count = 0;
-                for (const double value : chunk_range) {
-                    ++local_count;
-                    const double delta = value - chunk_mean;
-                    const double count_inv =
-                        constants::math::ONE / static_cast<double>(local_count);
-                    chunk_mean += delta * count_inv;
-                    const double delta2 = value - chunk_mean;
-                    chunk_m2 += delta * delta2;
-                }
+            // Welford's algorithm on chunk - C++20 safe iteration
+            auto chunk_range = values | std::views::drop(start_idx) | std::views::take(chunk_size);
+            std::size_t local_count = 0;
+            for (const double value : chunk_range) {
+                ++local_count;
+                const double delta = value - chunk_mean;
+                const double count_inv = detail::ONE / static_cast<double>(local_count);
+                chunk_mean += delta * count_inv;
+                const double delta2 = value - chunk_mean;
+                chunk_m2 += delta * delta2;
+            }
 
-                chunk_means[chunk_idx] = chunk_mean;
-                chunk_m2s[chunk_idx] = chunk_m2;
-                chunk_counts[chunk_idx] = chunk_size;
-            });
+            chunk_means[chunk_idx] = chunk_mean;
+            chunk_m2s[chunk_idx] = chunk_m2;
+            chunk_counts[chunk_idx] = chunk_size;
+        });
 
         // Phase 2: Combine partial results using Chan's parallel algorithm
-        running_mean = constants::math::ZERO_DOUBLE;
-        double combined_m2 = constants::math::ZERO_DOUBLE;
+        running_mean = detail::ZERO_DOUBLE;
+        double combined_m2 = detail::ZERO_DOUBLE;
         std::size_t combined_count = 0;
 
         for (std::size_t i = 0; i < num_chunks; ++i) {
@@ -587,8 +580,8 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
 
     } else {
         // Serial Welford's algorithm for smaller datasets - C++20 safe iteration
-        running_mean = constants::math::ZERO_DOUBLE;
-        double running_m2 = constants::math::ZERO_DOUBLE;
+        running_mean = detail::ZERO_DOUBLE;
+        double running_m2 = detail::ZERO_DOUBLE;
 
         std::size_t count = 0;
         for (const double value : values) {
@@ -605,7 +598,7 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
     const double sample_std = std::sqrt(sample_variance);
 
     // Validate computed statistics
-    if (sample_std <= constants::precision::HIGH_PRECISION_TOLERANCE) {
+    if (sample_std <= detail::HIGH_PRECISION_TOLERANCE) {
         throw std::invalid_argument("Data has zero or near-zero variance - cannot fit Gaussian");
     }
 
@@ -629,7 +622,7 @@ void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (parallel::shouldUseDistributionParallel("gaussian", "batch_fit", num_datasets)) {
+    if (arch::shouldUseDistributionParallel("gaussian", "batch_fit", num_datasets)) {
         // Thread-safe parallel execution with proper exception handling
         // Use a static mutex to synchronize access to the global thread pool from multiple threads
         static std::mutex pool_access_mutex;
@@ -755,8 +748,8 @@ void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double
 
 void GaussianDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mean_ = constants::math::ZERO_DOUBLE;
-    standardDeviation_ = constants::math::ONE;
+    mean_ = detail::ZERO_DOUBLE;
+    standardDeviation_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
 }
@@ -777,42 +770,39 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalMean(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (confidence_level <= constants::math::ZERO_DOUBLE ||
-        confidence_level >= constants::math::ONE) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
     const size_t n = data.size();
     const double sample_mean =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) /
-        static_cast<double>(n);
+        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
 
     double margin_of_error;
 
     if (population_variance_known || n >= 30) {
         // Use normal distribution (z-score)
-        const double sample_var = std::inner_product(data.begin(), data.end(), data.begin(),
-                                                     constants::math::ZERO_DOUBLE) /
-                                      static_cast<double>(n) -
-                                  sample_mean * sample_mean;
+        const double sample_var =
+            std::inner_product(data.begin(), data.end(), data.begin(), detail::ZERO_DOUBLE) /
+                static_cast<double>(n) -
+            sample_mean * sample_mean;
         const double sample_std = std::sqrt(sample_var);
-        const double alpha = constants::math::ONE - confidence_level;
-        const double z_alpha_2 =
-            math::inverse_normal_cdf(constants::math::ONE - alpha * constants::math::HALF);
+        const double alpha = detail::ONE - confidence_level;
+        const double z_alpha_2 = detail::inverse_normal_cdf(detail::ONE - alpha * detail::HALF);
         margin_of_error = z_alpha_2 * sample_std / std::sqrt(static_cast<double>(n));
     } else {
         // Use t-distribution
         const double sample_var =
-            std::inner_product(data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE,
+            std::inner_product(data.begin(), data.end(), data.begin(), detail::ZERO_DOUBLE,
                                std::plus<>(),
                                [sample_mean](double x, double y) {
                                    return (x - sample_mean) * (y - sample_mean);
                                }) /
             static_cast<double>(n - 1);
         const double sample_std = std::sqrt(sample_var);
-        const double alpha = constants::math::ONE - confidence_level;
-        const double t_alpha_2 = math::inverse_t_cdf(
-            constants::math::ONE - alpha * constants::math::HALF, static_cast<double>(n - 1));
+        const double alpha = detail::ONE - confidence_level;
+        const double t_alpha_2 =
+            detail::inverse_t_cdf(detail::ONE - alpha * detail::HALF, static_cast<double>(n - 1));
         margin_of_error = t_alpha_2 * sample_std / std::sqrt(static_cast<double>(n));
     }
 
@@ -825,30 +815,28 @@ std::pair<double, double> GaussianDistribution::confidenceIntervalVariance(
         throw std::invalid_argument(
             "At least 2 data points required for variance confidence interval");
     }
-    if (confidence_level <= constants::math::ZERO_DOUBLE ||
-        confidence_level >= constants::math::ONE) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
     const size_t n = data.size();
     const double sample_mean =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) /
-        static_cast<double>(n);
+        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
 
     // Calculate sample variance
     const double sample_var =
         std::inner_product(
-            data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE, std::plus<>(),
+            data.begin(), data.end(), data.begin(), detail::ZERO_DOUBLE, std::plus<>(),
             [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }) /
         static_cast<double>(n - 1);
 
-    const double alpha = constants::math::ONE - confidence_level;
+    const double alpha = detail::ONE - confidence_level;
     const double df = static_cast<double>(n - 1);
 
     // Chi-squared critical values
-    const double alpha_half = alpha * constants::math::HALF;
-    const double chi2_lower = math::inverse_chi_squared_cdf(alpha_half, df);
-    const double chi2_upper = math::inverse_chi_squared_cdf(constants::math::ONE - alpha_half, df);
+    const double alpha_half = alpha * detail::HALF;
+    const double chi2_lower = detail::inverse_chi_squared_cdf(alpha_half, df);
+    const double chi2_upper = detail::inverse_chi_squared_cdf(detail::ONE - alpha_half, df);
 
     const double lower_bound = (df * sample_var) / chi2_upper;
     const double upper_bound = (df * sample_var) / chi2_lower;
@@ -861,19 +849,18 @@ std::tuple<double, double, bool> GaussianDistribution::oneSampleTTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     const size_t n = data.size();
     const double sample_mean =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) /
-        static_cast<double>(n);
+        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
 
     // Calculate sample standard deviation
     const double sample_var =
         std::inner_product(
-            data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE, std::plus<>(),
+            data.begin(), data.end(), data.begin(), detail::ZERO_DOUBLE, std::plus<>(),
             [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }) /
         static_cast<double>(n - 1);
     const double sample_std = std::sqrt(sample_var);
@@ -883,9 +870,8 @@ std::tuple<double, double, bool> GaussianDistribution::oneSampleTTest(
         (sample_mean - hypothesized_mean) / (sample_std / std::sqrt(static_cast<double>(n)));
 
     // Calculate p-value (two-tailed) using constants for 2.0 and 1.0
-    const double p_value =
-        constants::math::TWO *
-        (constants::math::ONE - math::t_cdf(std::abs(t_statistic), static_cast<double>(n - 1)));
+    const double p_value = detail::TWO * (detail::ONE - detail::t_cdf(std::abs(t_statistic),
+                                                                      static_cast<double>(n - 1)));
 
     const bool reject_null = p_value < alpha;
 
@@ -898,7 +884,7 @@ std::tuple<double, double, bool> GaussianDistribution::twoSampleTTest(
     if (data1.empty() || data2.empty()) {
         throw std::invalid_argument("Both data vectors must be non-empty");
     }
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -906,20 +892,20 @@ std::tuple<double, double, bool> GaussianDistribution::twoSampleTTest(
     const size_t n2 = data2.size();
 
     // Sample means
-    const double mean1 = std::accumulate(data1.begin(), data1.end(), constants::math::ZERO_DOUBLE) /
-                         static_cast<double>(n1);
-    const double mean2 = std::accumulate(data2.begin(), data2.end(), constants::math::ZERO_DOUBLE) /
-                         static_cast<double>(n2);
+    const double mean1 =
+        std::accumulate(data1.begin(), data1.end(), detail::ZERO_DOUBLE) / static_cast<double>(n1);
+    const double mean2 =
+        std::accumulate(data2.begin(), data2.end(), detail::ZERO_DOUBLE) / static_cast<double>(n2);
 
     // Sample variances
     const double var1 =
-        std::inner_product(data1.begin(), data1.end(), data1.begin(), constants::math::ZERO_DOUBLE,
+        std::inner_product(data1.begin(), data1.end(), data1.begin(), detail::ZERO_DOUBLE,
                            std::plus<>(),
                            [mean1](double x, double y) { return (x - mean1) * (y - mean1); }) /
         static_cast<double>(n1 - 1);
 
     const double var2 =
-        std::inner_product(data2.begin(), data2.end(), data2.begin(), constants::math::ZERO_DOUBLE,
+        std::inner_product(data2.begin(), data2.end(), data2.begin(), detail::ZERO_DOUBLE,
                            std::plus<>(),
                            [mean2](double x, double y) { return (x - mean2) * (y - mean2); }) /
         static_cast<double>(n2 - 1);
@@ -931,9 +917,8 @@ std::tuple<double, double, bool> GaussianDistribution::twoSampleTTest(
         const double pooled_var =
             (static_cast<double>(n1 - 1) * var1 + static_cast<double>(n2 - 1) * var2) /
             static_cast<double>(n1 + n2 - 2);
-        const double pooled_std =
-            std::sqrt(pooled_var * (constants::math::ONE / static_cast<double>(n1) +
-                                    constants::math::ONE / static_cast<double>(n2)));
+        const double pooled_std = std::sqrt(pooled_var * (detail::ONE / static_cast<double>(n1) +
+                                                          detail::ONE / static_cast<double>(n2)));
         t_statistic = (mean1 - mean2) / pooled_std;
         degrees_of_freedom = static_cast<double>(n1 + n2 - 2);
     } else {
@@ -943,19 +928,17 @@ std::tuple<double, double, bool> GaussianDistribution::twoSampleTTest(
         t_statistic = (mean1 - mean2) / se;
 
         // Welch-Satterthwaite equation for degrees of freedom
-        const double numerator = std::pow(
-            var1 / static_cast<double>(n1) + var2 / static_cast<double>(n2), constants::math::TWO);
-        const double denominator = std::pow(var1 / static_cast<double>(n1), constants::math::TWO) /
-                                       static_cast<double>(n1 - 1) +
-                                   std::pow(var2 / static_cast<double>(n2), constants::math::TWO) /
-                                       static_cast<double>(n2 - 1);
+        const double numerator =
+            std::pow(var1 / static_cast<double>(n1) + var2 / static_cast<double>(n2), detail::TWO);
+        const double denominator =
+            std::pow(var1 / static_cast<double>(n1), detail::TWO) / static_cast<double>(n1 - 1) +
+            std::pow(var2 / static_cast<double>(n2), detail::TWO) / static_cast<double>(n2 - 1);
         degrees_of_freedom = numerator / denominator;
     }
 
     // Calculate p-value (two-tailed)
     const double p_value =
-        constants::math::TWO *
-        (constants::math::ONE - math::t_cdf(std::abs(t_statistic), degrees_of_freedom));
+        detail::TWO * (detail::ONE - detail::t_cdf(std::abs(t_statistic), degrees_of_freedom));
 
     const bool reject_null = p_value < alpha;
 
@@ -971,7 +954,7 @@ std::tuple<double, double, bool> GaussianDistribution::pairedTTest(const std::ve
     if (data1.empty()) {
         throw std::invalid_argument("Data vectors cannot be empty");
     }
-    if (alpha <= constants::math::ZERO_DOUBLE || alpha >= constants::math::ONE) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -983,7 +966,7 @@ std::tuple<double, double, bool> GaussianDistribution::pairedTTest(const std::ve
                    [](double a, double b) { return a - b; });
 
     // Perform one-sample t-test on differences against mean = 0
-    return oneSampleTTest(differences, constants::math::ZERO_DOUBLE, alpha);
+    return oneSampleTTest(differences, detail::ZERO_DOUBLE, alpha);
 }
 
 std::tuple<double, double, double, double> GaussianDistribution::bayesianEstimation(
@@ -995,23 +978,22 @@ std::tuple<double, double, double, double> GaussianDistribution::bayesianEstimat
 
     const size_t n = data.size();
     const double sample_mean =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) /
-        static_cast<double>(n);
+        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
     const double sample_sum_sq =
-        std::inner_product(data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE);
+        std::inner_product(data.begin(), data.end(), data.begin(), detail::ZERO_DOUBLE);
 
     // Normal-Inverse-Gamma conjugate prior update
     const double posterior_precision = prior_precision + static_cast<double>(n);
     const double posterior_mean =
         (prior_precision * prior_mean + static_cast<double>(n) * sample_mean) / posterior_precision;
-    const double posterior_shape = prior_shape + static_cast<double>(n) / constants::math::TWO;
+    const double posterior_shape = prior_shape + static_cast<double>(n) / detail::TWO;
 
     const double sum_sq_deviations =
         sample_sum_sq - static_cast<double>(n) * sample_mean * sample_mean;
     const double prior_mean_diff = sample_mean - prior_mean;
     const double posterior_rate =
-        prior_rate + constants::math::HALF * sum_sq_deviations +
-        constants::math::HALF *
+        prior_rate + detail::HALF * sum_sq_deviations +
+        detail::HALF *
             (prior_precision * static_cast<double>(n) * prior_mean_diff * prior_mean_diff) /
             posterior_precision;
 
@@ -1026,12 +1008,11 @@ std::pair<double, double> GaussianDistribution::bayesianCredibleInterval(
         bayesianEstimation(data, prior_mean, prior_precision, prior_shape, prior_rate);
 
     // Posterior marginal for mean follows t-distribution
-    const double df = constants::math::TWO * post_shape;
+    const double df = detail::TWO * post_shape;
     const double scale = std::sqrt(post_rate / (post_precision * post_shape));
 
-    const double alpha = constants::math::ONE - credibility_level;
-    const double t_critical =
-        math::inverse_t_cdf(constants::math::ONE - alpha * constants::math::HALF, df);
+    const double alpha = detail::ONE - credibility_level;
+    const double t_critical = detail::inverse_t_cdf(detail::ONE - alpha * detail::HALF, df);
 
     const double margin_of_error = t_critical * scale;
 
@@ -1052,7 +1033,7 @@ std::pair<double, double> GaussianDistribution::robustEstimation(const std::vect
     const double median = (sorted_data.size() % 2 == 0)
                               ? (sorted_data.at(sorted_data.size() / 2 - 1) +
                                  sorted_data.at(sorted_data.size() / 2)) /
-                                    constants::math::TWO
+                                    detail::TWO
                               : sorted_data.at(sorted_data.size() / 2);
 
     // Median Absolute Deviation (MAD)
@@ -1064,49 +1045,47 @@ std::pair<double, double> GaussianDistribution::robustEstimation(const std::vect
     const double mad = (abs_deviations.size() % 2 == 0)
                            ? (abs_deviations.at(abs_deviations.size() / 2 - 1) +
                               abs_deviations.at(abs_deviations.size() / 2)) /
-                                 constants::math::TWO
+                                 detail::TWO
                            : abs_deviations.at(abs_deviations.size() / 2);
 
     // Convert MAD to robust scale estimate
     double robust_location = median;
-    double robust_scale =
-        mad * constants::robust::MAD_SCALING_FACTOR;  // Use named constant instead of 1.4826
+    double robust_scale = mad * detail::MAD_SCALING_FACTOR;  // Use named constant instead of 1.4826
 
     // Iterative M-estimation
     const int max_iterations = 50;
     const double convergence_tol = 1e-6;
 
     for (int iter = 0; iter < max_iterations; ++iter) {
-        double sum_weights = constants::math::ZERO_DOUBLE;
-        double weighted_sum = constants::math::ZERO_DOUBLE;
+        double sum_weights = detail::ZERO_DOUBLE;
+        double weighted_sum = detail::ZERO_DOUBLE;
 
         for (double x : data) {
             const double standardized_residual = (x - robust_location) / robust_scale;
-            double weight = constants::math::ONE;
+            double weight = detail::ONE;
 
             if (estimator_type == "huber") {
                 weight = (std::abs(standardized_residual) <= tuning_constant)
-                             ? constants::math::ONE
+                             ? detail::ONE
                              : tuning_constant / std::abs(standardized_residual);
             } else if (estimator_type == "tukey") {
-                weight = (std::abs(standardized_residual) <= tuning_constant)
-                             ? std::pow(constants::math::ONE -
-                                            std::pow(standardized_residual / tuning_constant,
-                                                     constants::math::TWO),
-                                        constants::math::TWO)
-                             : constants::math::ZERO_DOUBLE;
+                weight =
+                    (std::abs(standardized_residual) <= tuning_constant)
+                        ? std::pow(detail::ONE - std::pow(standardized_residual / tuning_constant,
+                                                          detail::TWO),
+                                   detail::TWO)
+                        : detail::ZERO_DOUBLE;
             } else if (estimator_type == "hampel") {
                 const double abs_res = std::abs(standardized_residual);
                 if (abs_res <= tuning_constant) {
-                    weight = constants::math::ONE;
-                } else if (abs_res <= constants::math::TWO * tuning_constant) {
+                    weight = detail::ONE;
+                } else if (abs_res <= detail::TWO * tuning_constant) {
                     weight = tuning_constant / abs_res;
-                } else if (abs_res <= constants::math::THREE * tuning_constant) {
-                    weight = tuning_constant *
-                             (constants::math::THREE - abs_res / tuning_constant) /
-                             (constants::math::TWO * abs_res);
+                } else if (abs_res <= detail::THREE * tuning_constant) {
+                    weight = tuning_constant * (detail::THREE - abs_res / tuning_constant) /
+                             (detail::TWO * abs_res);
                 } else {
-                    weight = constants::math::ZERO_DOUBLE;
+                    weight = detail::ZERO_DOUBLE;
                 }
             } else {
                 throw std::invalid_argument(
@@ -1120,23 +1099,23 @@ std::pair<double, double> GaussianDistribution::robustEstimation(const std::vect
         const double new_location = weighted_sum / sum_weights;
 
         // Update scale estimate
-        double weighted_scale_sum = constants::math::ZERO_DOUBLE;
+        double weighted_scale_sum = detail::ZERO_DOUBLE;
         for (double x : data) {
             const double residual = x - new_location;
             const double standardized_residual = residual / robust_scale;
-            double weight = constants::math::ONE;
+            double weight = detail::ONE;
 
             if (estimator_type == "huber") {
                 weight = (std::abs(standardized_residual) <= tuning_constant)
-                             ? constants::math::ONE
+                             ? detail::ONE
                              : tuning_constant / std::abs(standardized_residual);
             } else if (estimator_type == "tukey") {
-                weight = (std::abs(standardized_residual) <= tuning_constant)
-                             ? std::pow(constants::math::ONE -
-                                            std::pow(standardized_residual / tuning_constant,
-                                                     constants::math::TWO),
-                                        constants::math::TWO)
-                             : constants::math::ZERO_DOUBLE;
+                weight =
+                    (std::abs(standardized_residual) <= tuning_constant)
+                        ? std::pow(detail::ONE - std::pow(standardized_residual / tuning_constant,
+                                                          detail::TWO),
+                                   detail::TWO)
+                        : detail::ZERO_DOUBLE;
             }
 
             weighted_scale_sum += weight * residual * residual;
@@ -1167,13 +1146,12 @@ std::pair<double, double> GaussianDistribution::methodOfMomentsEstimation(
 
     // First moment (mean)
     const double sample_mean =
-        std::accumulate(data.begin(), data.end(), constants::math::ZERO_DOUBLE) /
-        static_cast<double>(n);
+        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
 
     // Second central moment (variance)
     const double sample_variance =
         std::inner_product(
-            data.begin(), data.end(), data.begin(), constants::math::ZERO_DOUBLE, std::plus<>(),
+            data.begin(), data.end(), data.begin(), detail::ZERO_DOUBLE, std::plus<>(),
             [sample_mean](double x, double y) { return (x - sample_mean) * (y - sample_mean); }) /
         static_cast<double>(n);  // Population variance (divide by n, not n-1)
 
@@ -1194,27 +1172,27 @@ std::pair<double, double> GaussianDistribution::lMomentsEstimation(
     const size_t n = sorted_data.size();
 
     // Calculate L-moments
-    double l1 = constants::math::ZERO_DOUBLE;  // L-mean
-    double l2 = constants::math::ZERO_DOUBLE;  // L-scale
+    double l1 = detail::ZERO_DOUBLE;  // L-mean
+    double l2 = detail::ZERO_DOUBLE;  // L-scale
 
     // L1 (L-mean) = mean of order statistics
-    l1 = std::accumulate(sorted_data.begin(), sorted_data.end(), constants::math::ZERO_DOUBLE) /
+    l1 = std::accumulate(sorted_data.begin(), sorted_data.end(), detail::ZERO_DOUBLE) /
          static_cast<double>(n);
 
     // L2 (L-scale) = 0.5 * E[X_{2:2} - X_{1:2}]
     for (size_t i = 0; i < n; ++i) {
-        const double weight = (constants::math::TWO * static_cast<double>(i) +
-                               constants::math::ONE - static_cast<double>(n)) /
-                              static_cast<double>(n);
+        const double weight =
+            (detail::TWO * static_cast<double>(i) + detail::ONE - static_cast<double>(n)) /
+            static_cast<double>(n);
         l2 += weight * sorted_data[i];
     }
-    l2 = constants::math::HALF * l2;
+    l2 = detail::HALF * l2;
 
     // For Gaussian distribution:
     // L1 = μ (location parameter)
     // L2 = σ/√π (scale parameter relationship)
     const double location_param = l1;
-    const double scale_param = l2 * std::sqrt(constants::math::PI);
+    const double scale_param = l2 * std::sqrt(detail::PI);
 
     return {location_param, scale_param};
 }
@@ -1285,17 +1263,15 @@ std::tuple<double, double, bool> GaussianDistribution::jarqueBeraTest(
     m4 /= static_cast<double>(n);
 
     const double skewness = m3 / std::pow(m2, 1.5);
-    const double kurtosis =
-        m4 / (m2 * m2) - constants::thresholds::EXCESS_KURTOSIS_OFFSET;  // Excess kurtosis
+    const double kurtosis = m4 / (m2 * m2) - detail::EXCESS_KURTOSIS_OFFSET;  // Excess kurtosis
 
     // Jarque-Bera statistic
     const double jb_statistic =
-        static_cast<double>(n) * (skewness * skewness / constants::math::SIX +
-                                  kurtosis * kurtosis / constants::math::TWO_TWENTY_FIVE);
+        static_cast<double>(n) *
+        (skewness * skewness / detail::SIX + kurtosis * kurtosis / detail::TWO_TWENTY_FIVE);
 
     // P-value from chi-squared distribution with 2 degrees of freedom
-    const double p_value =
-        constants::math::ONE - math::chi_squared_cdf(jb_statistic, constants::math::TWO);
+    const double p_value = detail::ONE - detail::chi_squared_cdf(jb_statistic, detail::TWO);
 
     const bool reject_null = p_value < alpha;
 
@@ -1332,8 +1308,8 @@ std::tuple<double, double, bool> GaussianDistribution::shapiroWilkTest(
     double numerator = 0.0;
     for (size_t i = 0; i < n / 2; ++i) {
         const double coeff =
-            math::inverse_normal_cdf((static_cast<double>(i) + constants::math::THREE_QUARTERS) /
-                                     (static_cast<double>(n) + constants::math::HALF));
+            detail::inverse_normal_cdf((static_cast<double>(i) + detail::THREE_QUARTERS) /
+                                       (static_cast<double>(n) + detail::HALF));
         numerator += coeff * (sorted_data[n - 1 - i] - sorted_data[i]);
     }
 
@@ -1341,13 +1317,13 @@ std::tuple<double, double, bool> GaussianDistribution::shapiroWilkTest(
 
     // Approximate p-value (simplified)
     // Full implementation would use proper lookup tables or approximations
-    const double log_p = constants::math::NEG_HALF * std::log(w_statistic) -
-                         constants::math::ONE_POINT_FIVE * std::log(n) + constants::math::TWO;
+    const double log_p = detail::NEG_HALF * std::log(w_statistic) -
+                         detail::ONE_POINT_FIVE * std::log(n) + detail::TWO;
     const double p_value = std::exp(log_p);
 
     const bool reject_null = p_value < alpha;
 
-    return {w_statistic, std::min(p_value, constants::math::ONE), reject_null};
+    return {w_statistic, std::min(p_value, detail::ONE), reject_null};
 }
 
 std::tuple<double, double, bool> GaussianDistribution::likelihoodRatioTest(
@@ -1371,7 +1347,7 @@ std::tuple<double, double, bool> GaussianDistribution::likelihoodRatioTest(
 
     // Likelihood ratio statistic
     const double lr_statistic =
-        constants::math::TWO * (log_likelihood_unrestricted - log_likelihood_restricted);
+        detail::TWO * (log_likelihood_unrestricted - log_likelihood_restricted);
 
     // Degrees of freedom = difference in number of parameters
     const int df = unrestricted_model.getNumParameters() - restricted_model.getNumParameters();
@@ -1382,7 +1358,7 @@ std::tuple<double, double, bool> GaussianDistribution::likelihoodRatioTest(
     }
 
     // P-value from chi-squared distribution
-    const double p_value = constants::math::ONE - math::chi_squared_cdf(lr_statistic, df);
+    const double p_value = detail::ONE - detail::chi_squared_cdf(lr_statistic, df);
 
     const bool reject_null = p_value < alpha;
 
@@ -1403,17 +1379,16 @@ std::tuple<double, double, bool> GaussianDistribution::kolmogorovSmirnovTest(
     }
 
     // Use the KS statistic calculation from math_utils
-    double ks_statistic = math::calculate_ks_statistic(data, distribution);
+    double ks_statistic = detail::calculate_ks_statistic(data, distribution);
 
     // Asymptotic p-value approximation for KS test
     // P-value ≈ 2 * exp(-2 * n * D²) for large n
     const double n = static_cast<double>(data.size());
     const double p_value_approx =
-        constants::math::TWO * std::exp(-constants::math::TWO * n * ks_statistic * ks_statistic);
+        detail::TWO * std::exp(-detail::TWO * n * ks_statistic * ks_statistic);
 
     // Clamp p-value to [0, 1]
-    const double p_value =
-        std::min(constants::math::ONE, std::max(constants::precision::ZERO, p_value_approx));
+    const double p_value = std::min(detail::ONE, std::max(detail::ZERO, p_value_approx));
 
     const bool reject_null = p_value < alpha;
 
@@ -1430,29 +1405,27 @@ std::tuple<double, double, bool> GaussianDistribution::andersonDarlingTest(
     }
 
     // Use the AD statistic calculation from math_utils
-    double ad_statistic = math::calculate_ad_statistic(data, distribution);
+    double ad_statistic = detail::calculate_ad_statistic(data, distribution);
 
     // Asymptotic p-value approximation for AD test with Gaussian distribution
     // This is a simplified approximation - full implementation would use
     // more sophisticated lookup tables or better approximation formulas
     const double n = static_cast<double>(data.size());
-    const double modified_stat =
-        ad_statistic * (constants::math::ONE + constants::math::THREE_QUARTERS / n +
-                        constants::math::TWO_TWENTY_FIVE / (n * n));
+    const double modified_stat = ad_statistic * (detail::ONE + detail::THREE_QUARTERS / n +
+                                                 detail::TWO_TWENTY_FIVE / (n * n));
 
     // Approximate p-value using exponential approximation
     double p_value;
-    if (modified_stat >= constants::math::THIRTEEN) {
-        p_value = constants::precision::ZERO;
-    } else if (modified_stat >= constants::math::SIX) {
-        p_value = std::exp(-constants::math::ONE_POINT_TWO_EIGHT * modified_stat);
+    if (modified_stat >= detail::THIRTEEN) {
+        p_value = detail::ZERO;
+    } else if (modified_stat >= detail::SIX) {
+        p_value = std::exp(-detail::ONE_POINT_TWO_EIGHT * modified_stat);
     } else {
-        p_value = std::exp(-constants::math::ONE_POINT_EIGHT * modified_stat +
-                           constants::math::ONE_POINT_FIVE);
+        p_value = std::exp(-detail::ONE_POINT_EIGHT * modified_stat + detail::ONE_POINT_FIVE);
     }
 
     // Clamp p-value to [0, 1]
-    p_value = std::min(constants::math::ONE, std::max(constants::precision::ZERO, p_value));
+    p_value = std::min(detail::ONE, std::max(detail::ZERO, p_value));
 
     const bool reject_null = p_value < alpha;
 
@@ -1617,13 +1590,13 @@ std::tuple<double, double, double, double> GaussianDistribution::computeInformat
     }
 
     // Compute information criteria
-    const double aic = constants::math::TWO * k - constants::math::TWO * log_likelihood;
-    const double bic = std::log(n) * k - constants::math::TWO * log_likelihood;
+    const double aic = detail::TWO * k - detail::TWO * log_likelihood;
+    const double bic = std::log(n) * k - detail::TWO * log_likelihood;
 
     // AICc (corrected AIC for small sample sizes)
     double aicc;
     if (n - k - 1 > 0) {
-        aicc = aic + (constants::math::TWO * k * (k + 1)) / (n - k - 1);
+        aicc = aic + (detail::TWO * k * (k + 1)) / (n - k - 1);
     } else {
         aicc = std::numeric_limits<double>::infinity();  // Undefined for small samples
     }
@@ -1682,9 +1655,9 @@ GaussianDistribution::bootstrapParameterConfidenceIntervals(const std::vector<do
     std::sort(bootstrap_stds.begin(), bootstrap_stds.end());
 
     // Calculate confidence intervals using percentile method
-    const double alpha = constants::math::ONE - confidence_level;
-    const double lower_percentile = alpha * constants::math::HALF;
-    const double upper_percentile = constants::math::ONE - alpha * constants::math::HALF;
+    const double alpha = detail::ONE - confidence_level;
+    const double lower_percentile = alpha * detail::HALF;
+    const double upper_percentile = detail::ONE - alpha * detail::HALF;
 
     const size_t lower_idx = static_cast<size_t>(lower_percentile * (n_bootstrap - 1));
     const size_t upper_idx = static_cast<size_t>(upper_percentile * (n_bootstrap - 1));
@@ -1724,11 +1697,10 @@ bool GaussianDistribution::isUsingStandardNormalOptimization() const {
 //==============================================================================
 
 void GaussianDistribution::getProbability(std::span<const double> values, std::span<double> results,
-                                          const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<GaussianDistribution>::distType(),
-        performance::DistributionTraits<GaussianDistribution>::complexity(),
+                                          const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
+        detail::DistributionTraits<GaussianDistribution>::complexity(),
         [](const GaussianDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1784,12 +1756,11 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (cached_is_standard_normal) {
                         const double sq_diff = vals[i] * vals[i];
-                        res[i] = constants::math::INV_SQRT_2PI *
-                                 std::exp(constants::math::NEG_HALF * sq_diff);
+                        res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
                     } else {
                         const double diff = vals[i] - cached_mean;
                         const double sq_diff = diff * diff;
@@ -1801,8 +1772,7 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                 for (std::size_t i = 0; i < count; ++i) {
                     if (cached_is_standard_normal) {
                         const double sq_diff = vals[i] * vals[i];
-                        res[i] = constants::math::INV_SQRT_2PI *
-                                 std::exp(constants::math::NEG_HALF * sq_diff);
+                        res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
                     } else {
                         const double diff = vals[i] - cached_mean;
                         const double sq_diff = diff * diff;
@@ -1845,8 +1815,7 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::INV_SQRT_2PI *
-                             std::exp(constants::math::NEG_HALF * sq_diff);
+                    res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
@@ -1888,8 +1857,7 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::INV_SQRT_2PI *
-                             std::exp(constants::math::NEG_HALF * sq_diff);
+                    res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
@@ -1901,11 +1869,10 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
 
 void GaussianDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
-                                             const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<GaussianDistribution>::distType(),
-        performance::DistributionTraits<GaussianDistribution>::complexity(),
+                                             const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
+        detail::DistributionTraits<GaussianDistribution>::complexity(),
         [](const GaussianDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -1964,16 +1931,15 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (cached_is_standard_normal) {
                         const double sq_diff = vals[i] * vals[i];
-                        res[i] =
-                            constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                        res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                     } else {
                         const double diff = vals[i] - cached_mean;
                         const double sq_diff = diff * diff;
-                        res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                        res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                                  cached_neg_half_inv_var * sq_diff;
                     }
                 });
@@ -1982,12 +1948,11 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                 for (std::size_t i = 0; i < count; ++i) {
                     if (cached_is_standard_normal) {
                         const double sq_diff = vals[i] * vals[i];
-                        res[i] =
-                            constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                        res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                     } else {
                         const double diff = vals[i] - cached_mean;
                         const double sq_diff = diff * diff;
-                        res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                        res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                                  cached_neg_half_inv_var * sq_diff;
                     }
                 }
@@ -2027,11 +1992,11 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
-                    res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
@@ -2070,24 +2035,23 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
-                    res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
         });
 }
 
-void GaussianDistribution::getCumulativeProbability(
-    std::span<const double> values, std::span<double> results,
-    const performance::PerformanceHint& hint) const {
-    performance::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        performance::DistributionTraits<GaussianDistribution>::distType(),
-        performance::DistributionTraits<GaussianDistribution>::complexity(),
+void GaussianDistribution::getCumulativeProbability(std::span<const double> values,
+                                                    std::span<double> results,
+                                                    const detail::PerformanceHint& hint) const {
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
+        detail::DistributionTraits<GaussianDistribution>::complexity(),
         [](const GaussianDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -2143,29 +2107,25 @@ void GaussianDistribution::getCumulativeProbability(
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (parallel::should_use_parallel(count)) {
+            if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (cached_is_standard_normal) {
-                        res[i] = constants::math::HALF *
-                                 (constants::math::ONE +
-                                  std::erf(vals[i] * constants::math::INV_SQRT_2));
+                        res[i] =
+                            detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
                     } else {
                         const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                        res[i] =
-                            constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                        res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                     }
                 });
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     if (cached_is_standard_normal) {
-                        res[i] = constants::math::HALF *
-                                 (constants::math::ONE +
-                                  std::erf(vals[i] * constants::math::INV_SQRT_2));
+                        res[i] =
+                            detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
                     } else {
                         const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                        res[i] =
-                            constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                        res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                     }
                 }
             }
@@ -2202,12 +2162,10 @@ void GaussianDistribution::getCumulativeProbability(
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
-                    res[i] =
-                        constants::math::HALF *
-                        (constants::math::ONE + std::erf(vals[i] * constants::math::INV_SQRT_2));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
                 } else {
                     const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                 }
             });
         },
@@ -2243,12 +2201,10 @@ void GaussianDistribution::getCumulativeProbability(
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
-                    res[i] =
-                        constants::math::HALF *
-                        (constants::math::ONE + std::erf(vals[i] * constants::math::INV_SQRT_2));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
                 } else {
                     const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                 }
             });
         });
@@ -2260,8 +2216,8 @@ void GaussianDistribution::getCumulativeProbability(
 
 void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                       std::span<double> results,
-                                                      performance::Strategy strategy) const {
-    performance::DispatchUtils::executeWithStrategy(
+                                                      detail::Strategy strategy) const {
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GaussianDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
@@ -2321,8 +2277,7 @@ void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> va
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::INV_SQRT_2PI *
-                             std::exp(constants::math::NEG_HALF * sq_diff);
+                    res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
@@ -2364,8 +2319,7 @@ void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> va
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::INV_SQRT_2PI *
-                             std::exp(constants::math::NEG_HALF * sq_diff);
+                    res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
@@ -2407,11 +2361,11 @@ void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> va
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
-                    res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
@@ -2420,8 +2374,8 @@ void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> va
 
 void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                          std::span<double> results,
-                                                         performance::Strategy strategy) const {
-    performance::DispatchUtils::executeWithStrategy(
+                                                         detail::Strategy strategy) const {
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GaussianDistribution& dist, double value) {
             return dist.getLogProbability(value);
@@ -2484,11 +2438,11 @@ void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double>
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
-                    res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
@@ -2527,11 +2481,11 @@ void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double>
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
-                    res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
@@ -2570,21 +2524,21 @@ void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double>
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     const double sq_diff = vals[i] * vals[i];
-                    res[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
                 } else {
                     const double diff = vals[i] - cached_mean;
                     const double sq_diff = diff * diff;
-                    res[i] = constants::math::NEG_HALF_LN_2PI - cached_log_std +
+                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
         });
 }
 
-void GaussianDistribution::getCumulativeProbabilityWithStrategy(
-    std::span<const double> values, std::span<double> results,
-    performance::Strategy strategy) const {
-    performance::DispatchUtils::executeWithStrategy(
+void GaussianDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
+                                                                std::span<double> results,
+                                                                detail::Strategy strategy) const {
+    detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GaussianDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
@@ -2643,12 +2597,10 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
-                    res[i] =
-                        constants::math::HALF *
-                        (constants::math::ONE + std::erf(vals[i] * constants::math::INV_SQRT_2));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
                 } else {
                     const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                 }
             });
         },
@@ -2684,12 +2636,10 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
-                    res[i] =
-                        constants::math::HALF *
-                        (constants::math::ONE + std::erf(vals[i] * constants::math::INV_SQRT_2));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
                 } else {
                     const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                 }
             });
         },
@@ -2725,12 +2675,10 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
-                    res[i] =
-                        constants::math::HALF *
-                        (constants::math::ONE + std::erf(vals[i] * constants::math::INV_SQRT_2));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
                 } else {
                     const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                 }
             });
         });
@@ -2745,9 +2693,8 @@ bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
 
-    return std::abs(mean_ - other.mean_) <= constants::precision::DEFAULT_TOLERANCE &&
-           std::abs(standardDeviation_ - other.standardDeviation_) <=
-               constants::precision::DEFAULT_TOLERANCE;
+    return std::abs(mean_ - other.mean_) <= detail::DEFAULT_TOLERANCE &&
+           std::abs(standardDeviation_ - other.standardDeviation_) <= detail::DEFAULT_TOLERANCE;
 }
 
 //==============================================================================
@@ -2862,12 +2809,12 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
 // SAFETY PRECAUTIONS ENFORCED:
 // 1. ✅ These methods are private - only callable from validated public interfaces
 // 2. ✅ All callers perform bounds checking before invoking these methods
-// 3. ✅ Memory alignment is handled by simd::aligned_allocator
+// 3. ✅ Memory alignment is handled by arch::simd::aligned_allocator
 // 4. ✅ CPU feature detection prevents crashes on unsupported hardware
 // 5. ✅ Scalar fallback path for small arrays or SIMD-unsupported systems
 //
 // SIMD OPERATION SAFETY GUARANTEES:
-// - simd::VectorOps methods internally validate pointer alignment
+// - arch::simd::VectorOps methods internally validate pointer alignment
 // - Vector operations are bounds-checked at the SIMD library level
 // - Aligned memory allocation ensures optimal cache performance
 // - Runtime CPU detection prevents using unsupported instructions
@@ -2892,15 +2839,14 @@ void GaussianDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
                                                          double neg_half_inv_var,
                                                          bool is_standard_normal) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
             if (is_standard_normal) {
                 const double sq_diff = values[i] * values[i];
-                results[i] =
-                    constants::math::INV_SQRT_2PI * std::exp(constants::math::NEG_HALF * sq_diff);
+                results[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
             } else {
                 const double diff = values[i] - mean;
                 const double sq_diff = diff * diff;
@@ -2916,25 +2862,25 @@ void GaussianDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
     if (is_standard_normal) {
         // Standard normal: exp(-0.5 * x²) / sqrt(2π)
         // Step 1: results = x²
-        simd::VectorOps::vector_multiply(values, values, results, count);
+        arch::simd::VectorOps::vector_multiply(values, values, results, count);
         // Step 2: results = -0.5 * x²
-        simd::VectorOps::scalar_multiply(results, constants::math::NEG_HALF, results, count);
+        arch::simd::VectorOps::scalar_multiply(results, detail::NEG_HALF, results, count);
         // Step 3: results = exp(-0.5 * x²)
-        simd::VectorOps::vector_exp(results, results, count);
+        arch::simd::VectorOps::vector_exp(results, results, count);
         // Step 4: results = exp(-0.5 * x²) / sqrt(2π)
-        simd::VectorOps::scalar_multiply(results, constants::math::INV_SQRT_2PI, results, count);
+        arch::simd::VectorOps::scalar_multiply(results, detail::INV_SQRT_2PI, results, count);
     } else {
         // General case: exp(-0.5 * ((x-μ)/σ)²) / (σ√(2π))
         // Step 1: results = x - μ (difference from mean)
-        simd::VectorOps::scalar_add(values, -mean, results, count);
+        arch::simd::VectorOps::scalar_add(values, -mean, results, count);
         // Step 2: results = (x - μ)²
-        simd::VectorOps::vector_multiply(results, results, results, count);
+        arch::simd::VectorOps::vector_multiply(results, results, results, count);
         // Step 3: results = -0.5 * (x - μ)² / σ²
-        simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
+        arch::simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
         // Step 4: results = exp(-0.5 * (x - μ)² / σ²)
-        simd::VectorOps::vector_exp(results, results, count);
+        arch::simd::VectorOps::vector_exp(results, results, count);
         // Step 5: results = exp(-0.5 * (x - μ)² / σ²) / (σ√(2π))
-        simd::VectorOps::scalar_multiply(results, norm_constant, results, count);
+        arch::simd::VectorOps::scalar_multiply(results, norm_constant, results, count);
     }
 }
 
@@ -2942,19 +2888,18 @@ void GaussianDistribution::getLogProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double mean, double log_std,
     double neg_half_inv_var, bool is_standard_normal) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
             if (is_standard_normal) {
                 const double sq_diff = values[i] * values[i];
-                results[i] = constants::math::NEG_HALF_LN_2PI + constants::math::NEG_HALF * sq_diff;
+                results[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
             } else {
                 const double diff = values[i] - mean;
                 const double sq_diff = diff * diff;
-                results[i] =
-                    constants::math::NEG_HALF_LN_2PI - log_std + neg_half_inv_var * sq_diff;
+                results[i] = detail::NEG_HALF_LN_2PI - log_std + neg_half_inv_var * sq_diff;
             }
         }
         return;
@@ -2966,22 +2911,22 @@ void GaussianDistribution::getLogProbabilityBatchUnsafeImpl(
     if (is_standard_normal) {
         // Standard normal: -0.5 * ln(2π) - 0.5 * x²
         // Step 1: results = x²
-        simd::VectorOps::vector_multiply(values, values, results, count);
+        arch::simd::VectorOps::vector_multiply(values, values, results, count);
         // Step 2: results = -0.5 * x²
-        simd::VectorOps::scalar_multiply(results, constants::math::NEG_HALF, results, count);
+        arch::simd::VectorOps::scalar_multiply(results, detail::NEG_HALF, results, count);
         // Step 3: results = -0.5 * ln(2π) - 0.5 * x²
-        simd::VectorOps::scalar_add(results, constants::math::NEG_HALF_LN_2PI, results, count);
+        arch::simd::VectorOps::scalar_add(results, detail::NEG_HALF_LN_2PI, results, count);
     } else {
         // General case: -0.5 * ln(2π) - ln(σ) - 0.5 * ((x-μ)/σ)²
         // Step 1: results = x - μ (difference from mean)
-        simd::VectorOps::scalar_add(values, -mean, results, count);
+        arch::simd::VectorOps::scalar_add(values, -mean, results, count);
         // Step 2: results = (x - μ)²
-        simd::VectorOps::vector_multiply(results, results, results, count);
+        arch::simd::VectorOps::vector_multiply(results, results, results, count);
         // Step 3: results = -0.5 * (x - μ)² / σ²
-        simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
+        arch::simd::VectorOps::scalar_multiply(results, neg_half_inv_var, results, count);
         // Step 4: results = -0.5 * ln(2π) - ln(σ) - 0.5 * (x - μ)² / σ²
-        const double log_norm_constant = constants::math::NEG_HALF_LN_2PI - log_std;
-        simd::VectorOps::scalar_add(results, log_norm_constant, results, count);
+        const double log_norm_constant = detail::NEG_HALF_LN_2PI - log_std;
+        arch::simd::VectorOps::scalar_add(results, log_norm_constant, results, count);
     }
 }
 
@@ -2989,18 +2934,17 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double mean, double sigma_sqrt2,
     bool is_standard_normal) const noexcept {
     // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
             if (is_standard_normal) {
                 results[i] =
-                    constants::math::HALF *
-                    (constants::math::ONE + std::erf(values[i] * constants::math::INV_SQRT_2));
+                    detail::HALF * (detail::ONE + std::erf(values[i] * detail::INV_SQRT_2));
             } else {
                 const double normalized = (values[i] - mean) / sigma_sqrt2;
-                results[i] = constants::math::HALF * (constants::math::ONE + std::erf(normalized));
+                results[i] = detail::HALF * (detail::ONE + std::erf(normalized));
             }
         }
         return;
@@ -3012,31 +2956,31 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     if (is_standard_normal) {
         // Standard normal case: normalized = values * INV_SQRT_2
         // Step 1: results = values * INV_SQRT_2 (normalized values)
-        simd::VectorOps::scalar_multiply(values, constants::math::INV_SQRT_2, results, count);
+        arch::simd::VectorOps::scalar_multiply(values, detail::INV_SQRT_2, results, count);
     } else {
         // General case: normalized = (values - mean) / sigma_sqrt2
         // Step 1: results = values - mean
-        simd::VectorOps::scalar_add(values, -mean, results, count);
+        arch::simd::VectorOps::scalar_add(values, -mean, results, count);
         // Step 2: results = (values - mean) / sigma_sqrt2
-        const double reciprocal_sigma_sqrt2 = constants::math::ONE / sigma_sqrt2;
-        simd::VectorOps::scalar_multiply(results, reciprocal_sigma_sqrt2, results, count);
+        const double reciprocal_sigma_sqrt2 = detail::ONE / sigma_sqrt2;
+        arch::simd::VectorOps::scalar_multiply(results, reciprocal_sigma_sqrt2, results, count);
     }
 
-    // Note: We need to use a temporary for erf since simd::VectorOps::vector_erf
+    // Note: We need to use a temporary for erf since arch::simd::VectorOps::vector_erf
     // may not support in-place operation. This is unavoidable for the erf function.
     // However, we minimize allocations by reusing the results array for intermediate steps.
 
     // For systems where vector_erf supports in-place operations, this could be:
-    // simd::VectorOps::vector_erf(results, results, count);
+    // arch::simd::VectorOps::vector_erf(results, results, count);
     // But for safety, we allocate only one temporary array:
-    std::vector<double, simd::aligned_allocator<double>> erf_values(count);
-    simd::VectorOps::vector_erf(results, erf_values.data(), count);
+    std::vector<double, arch::simd::aligned_allocator<double>> erf_values(count);
+    arch::simd::VectorOps::vector_erf(results, erf_values.data(), count);
 
     // Final computation: results = 0.5 * (1 + erf_values)
     // Step 1: results = 1 + erf_values
-    simd::VectorOps::scalar_add(erf_values.data(), constants::math::ONE, results, count);
+    arch::simd::VectorOps::scalar_add(erf_values.data(), detail::ONE, results, count);
     // Step 2: results = 0.5 * (1 + erf_values)
-    simd::VectorOps::scalar_multiply(results, constants::math::HALF, results, count);
+    arch::simd::VectorOps::scalar_multiply(results, detail::HALF, results, count);
 }
 
 //==============================================================================
@@ -3045,29 +2989,26 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 
 void GaussianDistribution::updateCacheUnsafe() const noexcept {
     // Core mathematical functions - primary cache
-    normalizationConstant_ =
-        constants::math::ONE / (standardDeviation_ * constants::math::SQRT_2PI);
-    negHalfSigmaSquaredInv_ = constants::math::NEG_HALF / (standardDeviation_ * standardDeviation_);
+    normalizationConstant_ = detail::ONE / (standardDeviation_ * detail::SQRT_2PI);
+    negHalfSigmaSquaredInv_ = detail::NEG_HALF / (standardDeviation_ * standardDeviation_);
     logStandardDeviation_ = std::log(standardDeviation_);
-    sigmaSqrt2_ = standardDeviation_ * constants::math::SQRT_2;
-    invStandardDeviation_ = constants::math::ONE / standardDeviation_;
+    sigmaSqrt2_ = standardDeviation_ * detail::SQRT_2;
+    invStandardDeviation_ = detail::ONE / standardDeviation_;
 
     // Secondary cache values - performance optimizations
     cachedSigmaSquared_ = standardDeviation_ * standardDeviation_;
-    cachedTwoSigmaSquared_ = constants::math::TWO * cachedSigmaSquared_;
+    cachedTwoSigmaSquared_ = detail::TWO * cachedSigmaSquared_;
     cachedLogTwoSigmaSquared_ = std::log(cachedTwoSigmaSquared_);
-    cachedInvSigmaSquared_ = constants::math::ONE / cachedSigmaSquared_;
-    cachedSqrtTwoPi_ = constants::math::SQRT_2PI;
+    cachedInvSigmaSquared_ = detail::ONE / cachedSigmaSquared_;
+    cachedSqrtTwoPi_ = detail::SQRT_2PI;
 
     // Optimization flags - fast path detection
-    isStandardNormal_ = (std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE) &&
-                        (std::abs(standardDeviation_ - constants::math::ONE) <=
-                         constants::precision::DEFAULT_TOLERANCE);
-    isUnitVariance_ = std::abs(cachedSigmaSquared_ - constants::math::ONE) <=
-                      constants::precision::DEFAULT_TOLERANCE;
-    isZeroMean_ = std::abs(mean_) <= constants::precision::DEFAULT_TOLERANCE;
-    isHighPrecision_ = standardDeviation_ < constants::precision::HIGH_PRECISION_TOLERANCE ||
-                       standardDeviation_ > constants::precision::HIGH_PRECISION_UPPER_BOUND;
+    isStandardNormal_ = (std::abs(mean_) <= detail::DEFAULT_TOLERANCE) &&
+                        (std::abs(standardDeviation_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+    isUnitVariance_ = std::abs(cachedSigmaSquared_ - detail::ONE) <= detail::DEFAULT_TOLERANCE;
+    isZeroMean_ = std::abs(mean_) <= detail::DEFAULT_TOLERANCE;
+    isHighPrecision_ = standardDeviation_ < detail::HIGH_PRECISION_TOLERANCE ||
+                       standardDeviation_ > detail::HIGH_PRECISION_UPPER_BOUND;
     isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
 
     // Update atomic parameters for lock-free access
@@ -3084,10 +3025,10 @@ void GaussianDistribution::validateParameters(double mean, double stdDev) {
     if (!std::isfinite(mean)) {
         throw std::invalid_argument("Mean must be finite");
     }
-    if (!std::isfinite(stdDev) || stdDev <= constants::math::ZERO_DOUBLE) {
+    if (!std::isfinite(stdDev) || stdDev <= detail::ZERO_DOUBLE) {
         throw std::invalid_argument("Standard deviation must be positive and finite");
     }
-    if (stdDev > constants::precision::MAX_STANDARD_DEVIATION) {
+    if (stdDev > detail::MAX_STANDARD_DEVIATION) {
         throw std::invalid_argument("Standard deviation is too large for numerical stability");
     }
 }
@@ -3127,4 +3068,4 @@ void GaussianDistribution::validateParameters(double mean, double stdDev) {
 // Note: Specialized caches are declared in the header as private member variables
 // This section exists for standardization and documentation purposes
 
-}  // namespace libstats
+}  // namespace stats

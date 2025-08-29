@@ -13,7 +13,7 @@
 // Level 1 infrastructure
 #include "../core/math_utils.h"
 
-namespace libstats {
+namespace stats {
 
 // Compatibility helper for different C++ standard library implementations
 // Uses std::invoke_result_t when available (C++20), falls back to std::result_of for older
@@ -34,18 +34,18 @@ using result_of_t = typename std::result_of<F(Args...)>::type;
  * Level 0-2 infrastructure for optimal performance:
  *
  * **Level 0 Integration (Constants & CPU Detection):**
- * - Uses constants::parallel::* for optimal thread counts and grain sizes
+ * - Uses arch::* for optimal thread counts and grain sizes
  * - Integrates with cpu_detection.h for runtime CPU feature detection
  * - Adapts thread count based on hyperthreading detection
  * - Uses platform-specific cache-aware optimization thresholds
  *
  * **Level 1 Integration (Safety & Math Utils):**
- * - Employs safety::* functions for numerical stability checks
+ * - Employs detail::* functions for numerical stability checks
  * - Uses math_utils.h for statistical computations within parallel tasks
  * - Provides bounds checking and finite value validation
  *
  * **Level 2 Integration (SIMD & Error Handling):**
- * - SIMD-aware work distribution with simd::double_vector_width()
+ * - SIMD-aware work distribution with arch::simd::double_vector_width()
  * - Uses error_handling.h Result<T> pattern for robust error management
  * - Aligns memory operations to SIMD boundaries for optimal performance
  *
@@ -172,12 +172,12 @@ class ThreadPool {
  * - Runtime CPU feature detection for optimization
  *
  * **Safety Features:**
- * - Numerical stability checks using safety::* functions
+ * - Numerical stability checks using detail::* functions
  * - Bounds checking for array operations
  * - Finite value validation for statistical computations
  *
  * **Integration Features:**
- * - Uses constants::parallel::* for optimal thresholds
+ * - Uses arch::* for optimal thresholds
  * - Leverages simd::* for vectorization opportunities
  * - Employs error_handling.h for robust error management
  * - Integrates with cpu_detection.h for runtime optimization
@@ -203,7 +203,7 @@ class ThreadPool {
  *     [](const double* in, double* out, std::size_t size) {
  *         // Automatically uses SIMD when beneficial
  *         for (std::size_t i = 0; i < size; ++i) {
- *             out[i] = safety::safe_log(in[i]);
+ *             out[i] = detail::safe_log(in[i]);
  *         }
  *     });
  * @endcode
@@ -223,8 +223,7 @@ class ParallelUtils {
             return;
 
         // Use constants from Level 0 for optimal thresholds
-        const std::size_t minParallelSize =
-            constants::parallel::adaptive::min_elements_for_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_parallel();
         if (range < minParallelSize) {
             // Execute sequentially for small ranges
             for (std::size_t i = start; i < end; ++i) {
@@ -235,7 +234,7 @@ class ParallelUtils {
 
         // Calculate optimal grain size using Level 0 constants
         const std::size_t actualGrainSize =
-            (grainSize == 0) ? constants::parallel::adaptive::grain_size() : grainSize;
+            (grainSize == 0) ? arch::get_default_grain_size() : grainSize;
         const std::size_t numThreads = ThreadPool::getOptimalThreadCount();
         const std::size_t optimalGrainSize = std::max(actualGrainSize, range / (numThreads * 4));
 
@@ -330,10 +329,9 @@ class ParallelUtils {
     static void parallelTransform(const T* input, T* output, std::size_t size, Func&& func,
                                   std::size_t grainSize = 0) {
         // Use safety checks from Level 1
-        safety::check_finite(static_cast<double>(size), "array size");
+        detail::check_finite(static_cast<double>(size), "array size");
 
-        const std::size_t minParallelSize =
-            constants::parallel::adaptive::min_elements_for_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_parallel();
         if (size < minParallelSize) {
             // Execute sequentially for small arrays
             func(input, output, size);
@@ -341,9 +339,9 @@ class ParallelUtils {
         }
 
         // Calculate SIMD-aware grain size
-        const std::size_t simdWidth = simd::double_vector_width();
+        const std::size_t simdWidth = arch::simd::double_vector_width();
         const std::size_t baseGrainSize =
-            (grainSize == 0) ? constants::parallel::adaptive::grain_size() : grainSize;
+            (grainSize == 0) ? arch::get_default_grain_size() : grainSize;
 
         // Align grain size to SIMD width for optimal performance
         const std::size_t alignedGrainSize =
@@ -370,8 +368,7 @@ class ParallelUtils {
         }
 
         const std::size_t size = data.size();
-        const std::size_t minParallelSize =
-            constants::parallel::adaptive::min_elements_for_distribution_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_distribution_parallel();
 
         if (size < minParallelSize) {
             // Sequential sum for small arrays
@@ -418,8 +415,7 @@ class ParallelUtils {
         const double actualMean = mean.value_or(parallelMean(data, grainSize));
 
         const std::size_t size = data.size();
-        const std::size_t minParallelSize =
-            constants::parallel::adaptive::min_elements_for_distribution_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_distribution_parallel();
 
         if (size < minParallelSize) {
             // Sequential variance for small arrays
@@ -457,17 +453,16 @@ class ParallelUtils {
         }
 
         const std::size_t size = data.size();
-        const std::size_t minParallelSize =
-            constants::parallel::adaptive::min_elements_for_distribution_parallel();
+        const std::size_t minParallelSize = arch::get_min_elements_for_distribution_parallel();
 
         if (size < minParallelSize) {
             return operation(data);
         }
 
         // Use SIMD-aware chunking
-        const std::size_t simdWidth = simd::double_vector_width();
+        const std::size_t simdWidth = arch::simd::double_vector_width();
         const std::size_t baseGrainSize =
-            (grainSize == 0) ? constants::parallel::adaptive::grain_size() : grainSize;
+            (grainSize == 0) ? arch::get_default_grain_size() : grainSize;
         const std::size_t alignedGrainSize =
             ((baseGrainSize + simdWidth - 1) / simdWidth) * simdWidth;
 
@@ -502,4 +497,4 @@ class ParallelUtils {
     }
 };
 
-}  // namespace libstats
+}  // namespace stats

@@ -3,7 +3,7 @@
 #include "../include/platform/simd_policy.h"
 #include "../include/platform/thread_pool.h"
 
-namespace libstats {
+namespace stats {
 
 void initialize_performance_systems() {
     // Thread-safe one-time initialization using static local variable
@@ -26,21 +26,20 @@ void initialize_performance_systems() {
     try {
         // 1. Initialize system capabilities (triggers CPU detection and benchmarking)
         // This is the most expensive operation (~10-30ms)
-        [[maybe_unused]] const auto& system_capabilities =
-            performance::SystemCapabilities::current();
+        [[maybe_unused]] const auto& system_capabilities = detail::SystemCapabilities::current();
 
         // 2. Initialize SIMD policy (triggers SIMD feature detection)
         // Moderate cost (~1-5ms)
-        [[maybe_unused]] auto simd_level = simd::SIMDPolicy::getBestLevel();
+        [[maybe_unused]] auto simd_level = arch::simd::SIMDPolicy::getBestLevel();
 
         // 3. Initialize performance dispatcher with detected capabilities
         // Creates optimized thresholds based on system characteristics (~1-2ms)
-        [[maybe_unused]] performance::PerformanceDispatcher dispatcher(system_capabilities);
+        [[maybe_unused]] detail::PerformanceDispatcher dispatcher(system_capabilities);
 
         // 4. Initialize performance history singleton
         // Creates the global performance history instance (~0.1ms)
         [[maybe_unused]] auto& perf_history =
-            performance::PerformanceDispatcher::getPerformanceHistory();
+            detail::PerformanceDispatcher::getPerformanceHistory();
 
         // 5. Initialize thread pool infrastructure
         // Creates optimal thread pool for parallel operations (~1-3ms)
@@ -57,4 +56,4 @@ void initialize_performance_systems() {
     }
 }
 
-}  // namespace libstats
+}  // namespace stats

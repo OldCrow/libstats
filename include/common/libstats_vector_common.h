@@ -19,7 +19,7 @@
 #include <thread>
 #include <vector>
 
-namespace libstats {
+namespace stats {
 namespace common {
 
 /// Common vector type aliases for statistical data
@@ -145,4 +145,4 @@ inline std::size_t get_optimal_chunk_size(std::size_t total_size, std::size_t nu
 }  // namespace vector_utils
 
 }  // namespace common
-}  // namespace libstats
+}  // namespace stats

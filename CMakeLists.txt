@@ -140,7 +140,7 @@ endif()
 
 project(
     libstats
-    VERSION 0.9.1
+    VERSION 0.10.0
     LANGUAGES CXX)
 
 # Set default build type if none was specified
@@ -1211,6 +1211,7 @@ endif()
 # Level 0-1: Platform Foundation and Constants (No internal dependencies)
 set(LIBSTATS_FOUNDATION_SOURCES
     src/cpu_detection.cpp # Runtime CPU feature detection
+    src/cpu_vendor_detection.cpp # Phase 3D: CPU vendor-specific detection
     src/simd_policy.cpp # SIMD policy and feature detection
     src/platform_constants_impl.cpp # Platform constants PIMPL implementation (Phase 2)
 )
@@ -1572,11 +1573,12 @@ if(LIBSTATS_BUILD_TESTS)
     # cpu_detection.h - Runtime CPU feature detection
     create_libstats_test(test_cpu_detection tests/test_cpu_detection.cpp)
 
-    # simd.h - SIMD compile-time detection and basic operations
-    create_libstats_test(test_simd_integration_simple tests/test_simd_integration_simple.cpp)
-    create_libstats_test(test_simd_integration tests/test_simd_integration.cpp)
-    create_libstats_test(test_simd_operations tests/test_simd_operations.cpp)
+    # simd.h - SIMD compile-time detection and basic operations (CONSOLIDATED)
+    create_libstats_test(test_simd_comprehensive tests/test_simd_comprehensive.cpp)
     create_libstats_test(test_platform_optimizations tests/test_platform_optimizations.cpp)
+
+    # simd_policy.h - Centralized SIMD decision making and policy abstraction
+    create_libstats_test(test_simd_policy tests/test_simd_policy.cpp)
 
     # =======================================================================
     # LEVEL 2 TESTS: Core Utilities and Platform Capabilities
@@ -1618,6 +1620,9 @@ if(LIBSTATS_BUILD_TESTS)
 
     # benchmark.h - Performance measurement utilities
     create_libstats_test(test_benchmark_basic tests/test_benchmark_basic.cpp)
+
+    # benchmark.h - Comprehensive benchmark infrastructure testing
+    create_libstats_test(test_benchmark tests/test_benchmark.cpp)
 
     # PHASE 3 PERFORMANCE OPTIMIZATION FRAMEWORK (NEW TESTS) performance_history.h - Performance
     # data collection and analysis
@@ -1693,9 +1698,8 @@ if(LIBSTATS_BUILD_TESTS)
     # Dynamic library linking tests
     create_libstats_test_dynamic(test_dynamic_linking tests/test_dynamic_linking.cpp)
 
-    # Dynamic versions of all _simple tests
-    create_libstats_test_dynamic(test_simd_integration_simple_dynamic
-                                 tests/test_simd_integration_simple.cpp)
+    # Dynamic versions of all _simple tests Note: SIMD tests consolidated into
+    # test_simd_comprehensive
     create_libstats_test_dynamic(test_gaussian_basic_dynamic tests/test_gaussian_basic.cpp)
     create_libstats_test_dynamic(test_exponential_basic_dynamic tests/test_exponential_basic.cpp)
     # create_libstats_test_dynamic(test_uniform_simple_dynamic tests/test_uniform_simple.cpp)  #
@@ -1716,10 +1720,9 @@ if(LIBSTATS_BUILD_TESTS)
         DEPENDS # Level 0: Foundational tests (most critical)
                 test_constants
                 test_cpu_detection
-                test_simd_integration_simple
-                test_simd_integration
-                test_simd_operations
+                test_simd_comprehensive
                 test_platform_optimizations
+                test_simd_policy
                 test_safe_factory
                 # Level 1: Core infrastructure tests
                 test_dual_api
@@ -1735,6 +1738,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_parallel_execution_integration
                 test_parallel_execution_comprehensive
                 test_benchmark_basic
+                test_benchmark
                 # Level 4: Distribution implementation tests (CONSOLIDATED)
                 test_gaussian_basic
                 test_gaussian_enhanced
@@ -1751,7 +1755,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_gamma_enhanced
                 # Additional tests: Cross-cutting concerns
                 test_dynamic_linking
-                test_simd_integration_simple_dynamic
+                # Note: SIMD integration tests consolidated into test_simd_comprehensive
                 test_gaussian_basic_dynamic
                 test_exponential_basic_dynamic
                 # test_uniform_simple_dynamic      # TODO: uncomment after fixing uniform.cpp

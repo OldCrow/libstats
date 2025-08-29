@@ -1,17 +1,17 @@
 // Focused unit test for exponential distribution
 #include "../include/distributions/exponential.h"
-#include "basic_test_template.h"
+#include "../include/tests/tests.h"
 
 using namespace std;
-using namespace libstats;
-using namespace BasicTestUtilities;
+using namespace stats;
+using namespace stats::tests::fixtures;
 
 int main() {
-    StandardizedBasicTest::printTestHeader("Exponential");
+    BasicTestFormatter::printTestHeader("Exponential");
 
     try {
         // Test 1: Constructors and Destructor
-        StandardizedBasicTest::printTestStart(1, "Constructors and Destructor");
+        BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "This test verifies all ways to create Exponential distributions: default (1.0), "
                 "parameterized (2.0),"
              << endl;
@@ -20,34 +20,34 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_exp = libstats::ExponentialDistribution::create().value;
-        StandardizedBasicTest::printProperty("Default Lambda", default_exp.getLambda());
+        auto default_exp = stats::ExponentialDistribution::create().value;
+        BasicTestFormatter::printProperty("Default Lambda", default_exp.getLambda());
 
         // Parameterized constructor test
-        auto param_exp = libstats::ExponentialDistribution::create(2.0).value;
-        StandardizedBasicTest::printProperty("Param Lambda", param_exp.getLambda());
+        auto param_exp = stats::ExponentialDistribution::create(2.0).value;
+        BasicTestFormatter::printProperty("Param Lambda", param_exp.getLambda());
 
         // Copy constructor test
         auto copy_exp = param_exp;
-        StandardizedBasicTest::printProperty("Copy Lambda", copy_exp.getLambda());
+        BasicTestFormatter::printProperty("Copy Lambda", copy_exp.getLambda());
 
         // Move constructor test
-        auto temp_exp = libstats::ExponentialDistribution::create(0.5).value;
+        auto temp_exp = stats::ExponentialDistribution::create(0.5).value;
         auto move_exp = std::move(temp_exp);
-        StandardizedBasicTest::printProperty("Move Lambda", move_exp.getLambda());
+        BasicTestFormatter::printProperty("Move Lambda", move_exp.getLambda());
 
         // Safe factory method test
         auto result = ExponentialDistribution::create(1.0);
         if (result.isOk()) {
             auto factory_exp = std::move(result.value);
-            StandardizedBasicTest::printProperty("Factory Lambda", factory_exp.getLambda());
+            BasicTestFormatter::printProperty("Factory Lambda", factory_exp.getLambda());
         }
 
-        StandardizedBasicTest::printTestSuccess("All constructor and destructor tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All constructor and destructor tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 2: Parameter Getters and Setters
-        StandardizedBasicTest::printTestStart(2, "Parameter Getters and Setters");
+        BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
         cout << "This test verifies parameter access methods: normal getters, atomic (lock-free) "
                 "getters,"
              << endl;
@@ -58,34 +58,34 @@ int main() {
                 "variance=1)."
              << endl;
 
-        auto exp_dist = libstats::ExponentialDistribution::create(1.0).value;
+        auto exp_dist = stats::ExponentialDistribution::create(1.0).value;
 
         // Test getters
-        StandardizedBasicTest::printProperty("Initial Lambda", exp_dist.getLambda());
-        StandardizedBasicTest::printProperty("Mean", exp_dist.getMean());
-        StandardizedBasicTest::printProperty("Variance", exp_dist.getVariance());
-        StandardizedBasicTest::printProperty("Skewness", exp_dist.getSkewness());
-        StandardizedBasicTest::printProperty("Kurtosis", exp_dist.getKurtosis());
-        StandardizedBasicTest::printPropertyInt("Num Parameters", exp_dist.getNumParameters());
+        BasicTestFormatter::printProperty("Initial Lambda", exp_dist.getLambda());
+        BasicTestFormatter::printProperty("Mean", exp_dist.getMean());
+        BasicTestFormatter::printProperty("Variance", exp_dist.getVariance());
+        BasicTestFormatter::printProperty("Skewness", exp_dist.getSkewness());
+        BasicTestFormatter::printProperty("Kurtosis", exp_dist.getKurtosis());
+        BasicTestFormatter::printPropertyInt("Num Parameters", exp_dist.getNumParameters());
 
         // Test atomic getters (lock-free access)
-        StandardizedBasicTest::printProperty("Atomic Lambda", exp_dist.getLambdaAtomic());
+        BasicTestFormatter::printProperty("Atomic Lambda", exp_dist.getLambdaAtomic());
 
         // Test setters
         exp_dist.setLambda(2.0);
-        StandardizedBasicTest::printProperty("After setting - Lambda", exp_dist.getLambda());
+        BasicTestFormatter::printProperty("After setting - Lambda", exp_dist.getLambda());
 
         // Test safe setters (no exceptions)
         auto set_result = exp_dist.trySetLambda(0.5);
         if (set_result.isOk()) {
-            StandardizedBasicTest::printProperty("Safe set lambda - Lambda", exp_dist.getLambda());
+            BasicTestFormatter::printProperty("Safe set lambda - Lambda", exp_dist.getLambda());
         }
 
-        StandardizedBasicTest::printTestSuccess("All parameter getter/setter tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All parameter getter/setter tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 3: Core Probability Methods
-        StandardizedBasicTest::printTestStart(3, "Core Probability Methods");
+        BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "This test verifies the core statistical functions: PDF, log PDF, CDF, quantiles,"
              << endl;
         cout << "and Exponential-specific utilities like mode and entropy for different parameter "
@@ -94,37 +94,35 @@ int main() {
         cout << "Expected: For Exponential(1.0): PDF(1)≈0.368, CDF(1)≈0.632, quantile(0.5)≈0.693."
              << endl;
 
-        auto test_exp = libstats::ExponentialDistribution::create(1.0).value;
+        auto test_exp = stats::ExponentialDistribution::create(1.0).value;
         double x = 1.0;
 
-        StandardizedBasicTest::printProperty("PDF(1.0)", test_exp.getProbability(x));
-        StandardizedBasicTest::printProperty("Log PDF(1.0)", test_exp.getLogProbability(x));
-        StandardizedBasicTest::printProperty("CDF(1.0)", test_exp.getCumulativeProbability(x));
-        StandardizedBasicTest::printProperty("Quantile(0.5)", test_exp.getQuantile(0.5));
-        StandardizedBasicTest::printProperty("Quantile(0.9)", test_exp.getQuantile(0.9));
+        BasicTestFormatter::printProperty("PDF(1.0)", test_exp.getProbability(x));
+        BasicTestFormatter::printProperty("Log PDF(1.0)", test_exp.getLogProbability(x));
+        BasicTestFormatter::printProperty("CDF(1.0)", test_exp.getCumulativeProbability(x));
+        BasicTestFormatter::printProperty("Quantile(0.5)", test_exp.getQuantile(0.5));
+        BasicTestFormatter::printProperty("Quantile(0.9)", test_exp.getQuantile(0.9));
 
         // Test edge cases
-        StandardizedBasicTest::printProperty("PDF(0.1)", test_exp.getProbability(0.1));
-        StandardizedBasicTest::printProperty("CDF(0.1)", test_exp.getCumulativeProbability(0.1));
+        BasicTestFormatter::printProperty("PDF(0.1)", test_exp.getProbability(0.1));
+        BasicTestFormatter::printProperty("CDF(0.1)", test_exp.getCumulativeProbability(0.1));
 
         // Test Exponential-specific utility methods
-        StandardizedBasicTest::printProperty("Mode", test_exp.getMode());
-        StandardizedBasicTest::printProperty("Entropy", test_exp.getEntropy());
-        StandardizedBasicTest::printProperty("Median", test_exp.getMedian());
+        BasicTestFormatter::printProperty("Mode", test_exp.getMode());
+        BasicTestFormatter::printProperty("Entropy", test_exp.getEntropy());
+        BasicTestFormatter::printProperty("Median", test_exp.getMedian());
 
         // Test distribution properties
         cout << "Is discrete: " << (test_exp.isDiscrete() ? "YES" : "NO") << endl;
         cout << "Distribution name: " << test_exp.getDistributionName() << endl;
-        StandardizedBasicTest::printProperty("Support lower bound",
-                                             test_exp.getSupportLowerBound());
-        StandardizedBasicTest::printProperty("Support upper bound",
-                                             test_exp.getSupportUpperBound());
+        BasicTestFormatter::printProperty("Support lower bound", test_exp.getSupportLowerBound());
+        BasicTestFormatter::printProperty("Support upper bound", test_exp.getSupportUpperBound());
 
-        StandardizedBasicTest::printTestSuccess("All core probability method tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All core probability method tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 4: Random Sampling
-        StandardizedBasicTest::printTestStart(4, "Random Sampling");
+        BasicTestFormatter::printTestStart(4, "Random Sampling");
         cout << "This test verifies random number generation using inverse transform method."
              << endl;
         cout << "Sample statistics should approximately match distribution parameters for large "
@@ -135,25 +133,25 @@ int main() {
 
         // Single sample
         double single_sample = test_exp.sample(rng);
-        StandardizedBasicTest::printProperty("Single sample", single_sample);
+        BasicTestFormatter::printProperty("Single sample", single_sample);
 
         // Multiple samples
         vector<double> samples = test_exp.sample(rng, 10);
-        StandardizedBasicTest::printSamples(samples, "10 random samples");
+        BasicTestFormatter::printSamples(samples, "10 random samples");
 
         // Verify sample statistics approximately match distribution
-        double sample_mean = StandardizedBasicTest::computeSampleMean(samples);
-        double sample_var = StandardizedBasicTest::computeSampleVariance(samples);
-        StandardizedBasicTest::printProperty("Sample mean", sample_mean);
-        StandardizedBasicTest::printProperty("Sample variance", sample_var);
-        StandardizedBasicTest::printProperty("Expected mean (1/λ)", test_exp.getMean());
-        StandardizedBasicTest::printProperty("Expected variance (1/λ²)", test_exp.getVariance());
+        double sample_mean = TestDataGenerators::computeSampleMean(samples);
+        double sample_var = TestDataGenerators::computeSampleVariance(samples);
+        BasicTestFormatter::printProperty("Sample mean", sample_mean);
+        BasicTestFormatter::printProperty("Sample variance", sample_var);
+        BasicTestFormatter::printProperty("Expected mean (1/λ)", test_exp.getMean());
+        BasicTestFormatter::printProperty("Expected variance (1/λ²)", test_exp.getVariance());
 
-        StandardizedBasicTest::printTestSuccess("All sampling tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All sampling tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 5: Distribution Management
-        StandardizedBasicTest::printTestStart(5, "Distribution Management");
+        BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "This test verifies parameter fitting using Maximum Likelihood Estimation (MLE),"
              << endl;
         cout << "distribution reset to default (1.0) parameter, and string representation "
@@ -161,24 +159,24 @@ int main() {
              << endl;
 
         // Test fitting
-        vector<double> fit_data = StandardizedBasicTest::generateExponentialTestData();
-        auto fitted_dist = libstats::ExponentialDistribution::create().value;
+        vector<double> fit_data = TestDataGenerators::generateExponentialTestData();
+        auto fitted_dist = stats::ExponentialDistribution::create().value;
         fitted_dist.fit(fit_data);
-        StandardizedBasicTest::printProperty("Fitted Lambda", fitted_dist.getLambda());
+        BasicTestFormatter::printProperty("Fitted Lambda", fitted_dist.getLambda());
 
         // Test reset
         fitted_dist.reset();
-        StandardizedBasicTest::printProperty("After reset - Lambda", fitted_dist.getLambda());
+        BasicTestFormatter::printProperty("After reset - Lambda", fitted_dist.getLambda());
 
         // Test toString
         string dist_str = fitted_dist.toString();
         cout << "String representation: " << dist_str << endl;
 
-        StandardizedBasicTest::printTestSuccess("All distribution management tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All distribution management tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 6: Auto-dispatch Parallel Processing with Timing and Strategy Report
-        StandardizedBasicTest::printTestStart(6, "Auto-dispatch Parallel Processing");
+        BasicTestFormatter::printTestStart(6, "Auto-dispatch Parallel Processing");
         cout << "This test verifies smart auto-dispatch that selects optimal execution strategy"
              << endl;
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large."
@@ -186,7 +184,7 @@ int main() {
         cout << "Compares performance and verifies correctness against traditional batch methods."
              << endl;
 
-        auto test_dist = libstats::ExponentialDistribution::create(1.0).value;
+        auto test_dist = stats::ExponentialDistribution::create(1.0).value;
 
         // Test small batch (should use SCALAR strategy) - using diverse realistic data
         vector<double> small_test_values = {0.1, 0.5, 1.0, 2.0, 5.0};
@@ -226,7 +224,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
                                              std::span<double>(small_pdf_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_pdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -234,7 +232,7 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                 std::span<double>(small_log_pdf_traditional),
-                                                libstats::performance::Strategy::SCALAR);
+                                                stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_logpdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -242,15 +240,15 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
                                                        std::span<double>(small_cdf_traditional),
-                                                       libstats::performance::Strategy::SCALAR);
+                                                       stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        StandardizedBasicTest::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
-        StandardizedBasicTest::printBatchResults(small_log_pdf_results,
-                                                 "Auto-dispatch Log PDF results");
-        StandardizedBasicTest::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
+        BasicTestFormatter::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
+        BasicTestFormatter::printBatchResults(small_log_pdf_results,
+                                              "Auto-dispatch Log PDF results");
+        BasicTestFormatter::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
 
         cout << "Auto-dispatch PDF time: " << auto_pdf_time << "μs, Traditional: " << trad_pdf_time
              << "μs" << endl;
@@ -305,13 +303,13 @@ int main() {
         start = std::chrono::high_resolution_clock::now();
         test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
                                              std::span<double>(large_output_traditional),
-                                             libstats::performance::Strategy::SCALAR);
+                                             stats::detail::Strategy::SCALAR);
         end = std::chrono::high_resolution_clock::now();
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        StandardizedBasicTest::printLargeBatchValidation(large_output[0], large_output[4999],
-                                                         "Auto-dispatch PDF (diverse data)");
+        BasicTestFormatter::printLargeBatchValidation(large_output[0], large_output[4999],
+                                                      "Auto-dispatch PDF (diverse data)");
 
         cout << "Large batch auto-dispatch time: " << large_auto_time
              << "μs, Traditional: " << large_trad_time << "μs" << endl;
@@ -342,19 +340,18 @@ int main() {
             cout << "⚠️  Auto-dispatch performance may be affected by overhead" << endl;
         }
 
-        StandardizedBasicTest::printTestSuccess(
-            "All auto-dispatch parallel processing tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All auto-dispatch parallel processing tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 7: Comparison and Stream Operators
-        StandardizedBasicTest::printTestStart(7, "Comparison and Stream Operators");
+        BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = libstats::ExponentialDistribution::create(1.0).value;
-        auto dist2 = libstats::ExponentialDistribution::create(1.0).value;
-        auto dist3 = libstats::ExponentialDistribution::create(2.0).value;
+        auto dist1 = stats::ExponentialDistribution::create(1.0).value;
+        auto dist2 = stats::ExponentialDistribution::create(1.0).value;
+        auto dist3 = stats::ExponentialDistribution::create(2.0).value;
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -367,7 +364,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = libstats::ExponentialDistribution::create().value;
+        auto input_dist = stats::ExponentialDistribution::create().value;
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -376,35 +373,34 @@ int main() {
             cout << "Stream input failed" << endl;
         }
 
-        StandardizedBasicTest::printTestSuccess("All comparison and stream operator tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All comparison and stream operator tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 8: Error Handling
-        StandardizedBasicTest::printTestStart(8, "Error Handling");
-        // NOTE: Using ::create() here (not libstats::Exponential) to test exception-free error
+        BasicTestFormatter::printTestStart(8, "Error Handling");
+        // NOTE: Using ::create() here (not stats::Exponential) to test exception-free error
         // handling
         // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = ExponentialDistribution::create(-1.0);
         if (error_result.isError()) {
-            StandardizedBasicTest::printTestSuccess("Error handling works: " +
-                                                    error_result.message);
+            BasicTestFormatter::printTestSuccess("Error handling works: " + error_result.message);
         } else {
-            StandardizedBasicTest::printTestError("Error handling failed");
+            BasicTestFormatter::printTestError("Error handling failed");
             return 1;
         }
 
-        StandardizedBasicTest::printCompletionMessage("Exponential");
+        BasicTestFormatter::printCompletionMessage("Exponential");
 
-        StandardizedBasicTest::printSummaryHeader();
-        StandardizedBasicTest::printSummaryItem("Safe factory creation and error handling");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryHeader();
+        BasicTestFormatter::printSummaryItem("Safe factory creation and error handling");
+        BasicTestFormatter::printSummaryItem(
             "All distribution properties (lambda, mean, variance, skewness, kurtosis)");
-        StandardizedBasicTest::printSummaryItem("PDF, Log PDF, CDF, and quantile functions");
-        StandardizedBasicTest::printSummaryItem("Random sampling (inverse transform method)");
-        StandardizedBasicTest::printSummaryItem("Parameter fitting (MLE)");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryItem("PDF, Log PDF, CDF, and quantile functions");
+        BasicTestFormatter::printSummaryItem("Random sampling (inverse transform method)");
+        BasicTestFormatter::printSummaryItem("Parameter fitting (MLE)");
+        BasicTestFormatter::printSummaryItem(
             "Smart auto-dispatch batch operations with strategy selection");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryItem(
             "Large batch auto-dispatch validation and correctness");
 
         return 0;

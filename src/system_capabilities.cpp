@@ -8,8 +8,8 @@
 #include <thread>
 #include <vector>
 
-namespace libstats {
-namespace performance {
+namespace stats {
+namespace detail {  // Performance utilities
 
 namespace {
 // Benchmark configuration
@@ -135,11 +135,11 @@ void SystemCapabilities::detectCapabilities() {
     l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3
 
     // SIMD capability detection using existing CPU detection
-    has_sse2_ = cpu::supports_sse2();
-    has_avx_ = cpu::supports_avx();
-    has_avx2_ = cpu::supports_avx2();
-    has_avx512_ = cpu::supports_avx512();
-    has_neon_ = cpu::supports_neon();
+    has_sse2_ = stats::arch::supports_sse2();
+    has_avx_ = stats::arch::supports_avx();
+    has_avx2_ = stats::arch::supports_avx2();
+    has_avx512_ = stats::arch::supports_avx512();
+    has_neon_ = stats::arch::supports_neon();
 }
 
 void SystemCapabilities::benchmarkPerformance() {
@@ -153,5 +153,5 @@ void SystemCapabilities::benchmarkPerformance() {
     memory_bandwidth_gb_s_ = estimateMemoryBandwidth();
 }
 
-}  // namespace performance
-}  // namespace libstats
+}  // namespace detail
+}  // namespace stats

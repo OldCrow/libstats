@@ -3,15 +3,14 @@
 #include <cstddef>
 #include <limits>
 
-namespace libstats {
-namespace constants {
-namespace precision {
+namespace stats {
+namespace detail {
 // Basic precision and tolerance values
 inline constexpr double ZERO = 1.0e-30;
 inline constexpr double DEFAULT_TOLERANCE = 1.0e-8;
 inline constexpr double HIGH_PRECISION_TOLERANCE = 1.0e-12;
 inline constexpr double ULTRA_HIGH_PRECISION_TOLERANCE = 1.0e-15;
-inline constexpr double LOG_PROBABILITY_EPSILON = 1.0e-300;
+inline constexpr double LOG_PROBABILITY_EPSILON_PRECISION = 1.0e-300;  // Renamed to avoid collision
 inline constexpr double MIN_STD_DEV = 1.0e-6;
 inline constexpr double HIGH_PRECISION_UPPER_BOUND = 1.0e12;
 inline constexpr double MAX_STANDARD_DEVIATION = 1.0e10;
@@ -50,6 +49,5 @@ inline constexpr double MONTE_CARLO_INTEGRATION_TOLERANCE = 1.0e-6;
 
 // Maximum recursion depth for adaptive Simpson's rule
 inline constexpr int MAX_ADAPTIVE_SIMPSON_DEPTH = 15;
-}  // namespace precision
-}  // namespace constants
-}  // namespace libstats
+}  // namespace detail
+}  // namespace stats

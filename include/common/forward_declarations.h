@@ -1,6 +1,6 @@
 #pragma once
 
-namespace libstats {
+namespace stats {
 // Core classes - forward declarations only
 class DistributionBase;
 class DistributionInterface;
@@ -37,4 +37,4 @@ class DistributionParameter;
 enum class LibDistributionType { Gaussian, Exponential, Uniform, Poisson, Gamma, Discrete };
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };
-}  // namespace libstats
+}  // namespace stats

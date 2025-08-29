@@ -8,11 +8,10 @@
  * numerical methods, and robustness checks throughout the library.
  */
 
-namespace libstats {
-namespace constants {
-
+namespace stats {
+namespace detail {
 /// Threshold constants
-namespace thresholds {
+// Consolidated into detail namespace (was: namespace thresholds)
 /// Common significance levels
 inline constexpr double ALPHA_001 = 0.001;
 inline constexpr double ALPHA_01 = 0.01;
@@ -112,7 +111,7 @@ inline constexpr size_t MAX_DATA_POINTS_FOR_SW_TEST = 5000;
 inline constexpr size_t MIN_DATA_POINTS_FOR_LOOCV = 3;
 
 /// Poisson distribution specific constants
-namespace poisson {
+// Consolidated into detail namespace (was: namespace poisson)
 /// Maximum lambda value for Poisson distribution (numerical stability)
 inline constexpr double MAX_POISSON_LAMBDA = 1.0e6;
 
@@ -136,8 +135,8 @@ inline constexpr double CONTINUITY_CORRECTION = 0.5;
 
 /// Normal approximation standard deviation multiplier for range checking
 inline constexpr double NORMAL_RANGE_MULTIPLIER = 3.0;
-}  // namespace poisson
-}  // namespace thresholds
+// End of consolidated poisson constants
+// End of consolidated thresholds constants
 
-}  // namespace constants
-}  // namespace libstats
+}  // namespace detail
+}  // namespace stats

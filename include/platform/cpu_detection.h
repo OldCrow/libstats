@@ -20,8 +20,8 @@
  * - -march=native generates instructions for build machine, not target machine
  */
 
-namespace libstats {
-namespace cpu {
+namespace stats {
+namespace arch {
 
 /**
  * @brief Cache hierarchy information
@@ -282,5 +282,5 @@ std::string detailed_cpu_info();
  */
 bool validate_feature_consistency();
 
-}  // namespace cpu
-}  // namespace libstats
+}  // namespace arch
+}  // namespace stats

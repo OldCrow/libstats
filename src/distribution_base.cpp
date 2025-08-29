@@ -12,7 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace libstats {
+namespace stats {
 
 // =============================================================================
 // RULE OF FIVE IMPLEMENTATION
@@ -24,15 +24,15 @@ DistributionBase::DistributionBase() {
     // not during the first method call, providing predictable performance.
 
     // Initialize SystemCapabilities (thread_local singleton)
-    performance::SystemCapabilities::current();
+    detail::SystemCapabilities::current();
 
     // Initialize PerformanceDispatcher (static thread_local)
     // This triggers SIMD level detection and threshold initialization
-    static thread_local performance::PerformanceDispatcher dispatcher;
+    static thread_local detail::PerformanceDispatcher dispatcher;
 
     // Initialize PerformanceHistory (static global singleton)
     // This ensures the performance tracking system is ready
-    [[maybe_unused]] auto& history = performance::PerformanceDispatcher::getPerformanceHistory();
+    [[maybe_unused]] auto& history = detail::PerformanceDispatcher::getPerformanceHistory();
 }
 
 DistributionBase::DistributionBase(const DistributionBase& /* other */) {
@@ -72,8 +72,8 @@ std::vector<double> DistributionBase::getBatchProbabilities(
     std::vector<double> results(x_values.size());
 
     // Use parallel transform for large datasets
-    parallel::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                             [this](double x) { return this->getProbability(x); });
+    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
+                         [this](double x) { return this->getProbability(x); });
 
     return results;
 }
@@ -83,8 +83,8 @@ std::vector<double> DistributionBase::getBatchLogProbabilities(
     std::vector<double> results(x_values.size());
 
     // Use parallel transform for large datasets
-    parallel::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                             [this](double x) { return this->getLogProbability(x); });
+    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
+                         [this](double x) { return this->getLogProbability(x); });
 
     return results;
 }
@@ -94,8 +94,8 @@ std::vector<double> DistributionBase::getBatchCumulativeProbabilities(
     std::vector<double> results(x_values.size());
 
     // Use parallel transform for large datasets
-    parallel::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                             [this](double x) { return this->getCumulativeProbability(x); });
+    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
+                         [this](double x) { return this->getCumulativeProbability(x); });
 
     return results;
 }
@@ -103,7 +103,7 @@ std::vector<double> DistributionBase::getBatchCumulativeProbabilities(
 std::vector<double> DistributionBase::getBatchQuantiles(const std::vector<double>& p_values) const {
     // Validate input probabilities first
     for (double p : p_values) {
-        if (p < constants::math::ZERO_DOUBLE || p > constants::math::ONE) {
+        if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
             throw std::invalid_argument("Quantile probability must be in [0,1], got: " +
                                         std::to_string(p));
         }
@@ -112,8 +112,8 @@ std::vector<double> DistributionBase::getBatchQuantiles(const std::vector<double
     std::vector<double> results(p_values.size());
 
     // Use parallel transform for large datasets after validation
-    parallel::safe_transform(p_values.begin(), p_values.end(), results.begin(),
-                             [this](double p) { return this->getQuantile(p); });
+    arch::safe_transform(p_values.begin(), p_values.end(), results.begin(),
+                         [this](double p) { return this->getQuantile(p); });
 
     return results;
 }
@@ -135,7 +135,7 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
         results.fit_diagnostics = "Fit completed successfully";
 
         // Calculate log-likelihood
-        results.log_likelihood = constants::math::ZERO_DOUBLE;
+        results.log_likelihood = detail::ZERO_DOUBLE;
         for (double x : data) {
             double log_prob = getLogProbability(x);
             if (std::isfinite(log_prob)) {
@@ -146,8 +146,8 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
         // Calculate AIC and BIC
         int k = getNumParameters();
         int n = static_cast<int>(data.size());
-        results.aic = constants::math::TWO * k - constants::math::TWO * results.log_likelihood;
-        results.bic = k * std::log(n) - constants::math::TWO * results.log_likelihood;
+        results.aic = detail::TWO * k - detail::TWO * results.log_likelihood;
+        results.bic = k * std::log(n) - detail::TWO * results.log_likelihood;
 
         // Calculate residuals
         std::vector<double> sorted_data = data;
@@ -155,8 +155,8 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
 
         results.residuals.reserve(data.size());
         for (size_t i = 0; i < sorted_data.size(); ++i) {
-            double empirical_cdf = (static_cast<double>(i) + constants::math::ONE) /
-                                   (static_cast<double>(data.size()) + constants::math::ONE);
+            double empirical_cdf = (static_cast<double>(i) + detail::ONE) /
+                                   (static_cast<double>(data.size()) + detail::ONE);
             double theoretical_cdf = getCumulativeProbability(sorted_data[i]);
             double residual = empirical_cdf - theoretical_cdf;
             results.residuals.push_back(residual);
@@ -174,9 +174,9 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
 
         // Set default validation results
         results.validation.ks_statistic = std::numeric_limits<double>::quiet_NaN();
-        results.validation.ks_p_value = constants::math::ZERO_DOUBLE;
+        results.validation.ks_p_value = detail::ZERO_DOUBLE;
         results.validation.ad_statistic = std::numeric_limits<double>::quiet_NaN();
-        results.validation.ad_p_value = constants::math::ZERO_DOUBLE;
+        results.validation.ad_p_value = detail::ZERO_DOUBLE;
         results.validation.distribution_adequate = false;
         results.validation.recommendations = "Unable to validate due to fit failure";
     }
@@ -191,44 +191,43 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
         validateFittingData(data);
 
         // Kolmogorov-Smirnov test
-        result.ks_statistic = math::calculate_ks_statistic(data, *this);
+        result.ks_statistic = detail::calculate_ks_statistic(data, *this);
 
         // Simple p-value approximation for KS test
         double n = static_cast<double>(data.size());
-        double lambda = (std::sqrt(n) + constants::thresholds::KS_APPROX_COEFF_1 +
-                         constants::thresholds::KS_APPROX_COEFF_2 / std::sqrt(n)) *
-                        result.ks_statistic;
-        result.ks_p_value =
-            constants::math::TWO * std::exp(constants::math::NEG_TWO * lambda * lambda);
-        result.ks_p_value = safety::clamp_probability(result.ks_p_value);
+        double lambda =
+            (std::sqrt(n) + detail::KS_APPROX_COEFF_1 + detail::KS_APPROX_COEFF_2 / std::sqrt(n)) *
+            result.ks_statistic;
+        result.ks_p_value = detail::TWO * std::exp(detail::NEG_TWO * lambda * lambda);
+        result.ks_p_value = detail::clamp_probability(result.ks_p_value);
 
         // Anderson-Darling test
-        result.ad_statistic = math::calculate_ad_statistic(data, *this);
+        result.ad_statistic = detail::calculate_ad_statistic(data, *this);
 
         // Simple p-value approximation for AD test
         // This is a simplified approximation - in practice, you'd use lookup tables
-        if (result.ad_statistic < constants::thresholds::AD_THRESHOLD_1) {
-            result.ad_p_value = constants::thresholds::AD_P_VALUE_HIGH;
-        } else if (result.ad_statistic < constants::math::ONE) {
-            result.ad_p_value = constants::thresholds::AD_P_VALUE_MEDIUM;
-        } else if (result.ad_statistic < constants::math::TWO) {
-            result.ad_p_value = constants::thresholds::ALPHA_10;
+        if (result.ad_statistic < detail::AD_THRESHOLD_1) {
+            result.ad_p_value = detail::AD_P_VALUE_HIGH;
+        } else if (result.ad_statistic < detail::ONE) {
+            result.ad_p_value = detail::AD_P_VALUE_MEDIUM;
+        } else if (result.ad_statistic < detail::TWO) {
+            result.ad_p_value = detail::ALPHA_10;
         } else {
-            result.ad_p_value = constants::thresholds::ALPHA_01;
+            result.ad_p_value = detail::ALPHA_01;
         }
 
         // Overall assessment
-        result.distribution_adequate = (result.ks_p_value > constants::thresholds::ALPHA_05) &&
-                                       (result.ad_p_value > constants::thresholds::ALPHA_05);
+        result.distribution_adequate =
+            (result.ks_p_value > detail::ALPHA_05) && (result.ad_p_value > detail::ALPHA_05);
 
         // Generate recommendations
         std::ostringstream recommendations;
         if (!result.distribution_adequate) {
             recommendations << "Distribution fit may be inadequate. ";
-            if (result.ks_p_value <= constants::thresholds::ALPHA_05) {
+            if (result.ks_p_value <= detail::ALPHA_05) {
                 recommendations << "KS test suggests poor fit. ";
             }
-            if (result.ad_p_value <= constants::thresholds::ALPHA_05) {
+            if (result.ad_p_value <= detail::ALPHA_05) {
                 recommendations << "AD test suggests poor fit. ";
             }
             recommendations << "Consider alternative distributions or data transformations.";
@@ -265,7 +264,7 @@ double DistributionBase::getKLDivergence(const DistributionBase& other) const {
     }
 
     // Simple integration using trapezoidal rule
-    const int n_points = constants::thresholds::DEFAULT_INTEGRATION_POINTS;
+    const int n_points = detail::DEFAULT_INTEGRATION_POINTS;
     double step = (upper - lower) / n_points;
     double divergence = 0.0;
 
@@ -274,8 +273,7 @@ double DistributionBase::getKLDivergence(const DistributionBase& other) const {
         double p = getProbability(x);
         double q = other.getProbability(x);
 
-        if (p > constants::probability::MIN_PROBABILITY &&
-            q > constants::probability::MIN_PROBABILITY) {
+        if (p > detail::MIN_PROBABILITY && q > detail::MIN_PROBABILITY) {
             divergence += p * std::log(p / q) * step;
         }
     }
@@ -329,7 +327,7 @@ double DistributionBase::numericalIntegration(std::function<double(double)> pdf_
                                               double tolerance) {
     // Adaptive Simpson's rule implementation
     return adaptiveSimpsonIntegration(pdf_func, lower_bound, upper_bound, tolerance, 0,
-                                      constants::precision::MAX_ADAPTIVE_SIMPSON_DEPTH);
+                                      detail::MAX_ADAPTIVE_SIMPSON_DEPTH);
 }
 
 // Helper function for adaptive Simpson's rule
@@ -378,11 +376,11 @@ double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)
 double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf_func,
                                                double target_probability, double initial_guess,
                                                double tolerance) {
-    safety::check_probability(target_probability, "target_probability");
+    detail::check_probability(target_probability, "target_probability");
 
     double x = initial_guess;
-    const int max_iterations = constants::precision::MAX_NEWTON_ITERATIONS;
-    const double h = constants::precision::FORWARD_DIFF_STEP;  // For numerical derivative
+    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+    const double h = detail::FORWARD_DIFF_STEP;  // For numerical derivative
 
     for (int i = 0; i < max_iterations; ++i) {
         double fx = cdf_func(x) - target_probability;
@@ -392,9 +390,9 @@ double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf
         }
 
         // Numerical derivative
-        double fpx = (cdf_func(x + h) - cdf_func(x - h)) / (constants::math::TWO * h);
+        double fpx = (cdf_func(x + h) - cdf_func(x - h)) / (detail::TWO * h);
 
-        if (std::abs(fpx) < constants::precision::ZERO) {
+        if (std::abs(fpx) < detail::ZERO) {
             break;  // Derivative too small
         }
 
@@ -409,7 +407,7 @@ void DistributionBase::validateFittingData(const std::vector<double>& data) {
         throw std::invalid_argument("Cannot fit distribution to empty data");
     }
 
-    if (data.size() < constants::thresholds::MIN_DATA_POINTS_FOR_FITTING) {
+    if (data.size() < detail::MIN_DATA_POINTS_FOR_FITTING) {
         throw std::invalid_argument("Need at least 2 data points for fitting");
     }
 
@@ -431,8 +429,8 @@ std::vector<double> DistributionBase::calculateEmpiricalCDF(const std::vector<do
     cdf_values.reserve(data.size());
 
     for (size_t i = 0; i < data.size(); ++i) {
-        double empirical_cdf = (static_cast<double>(i) + constants::math::ONE) /
-                               (static_cast<double>(data.size()) + constants::math::ONE);
+        double empirical_cdf = (static_cast<double>(i) + detail::ONE) /
+                               (static_cast<double>(data.size()) + detail::ONE);
         cdf_values.push_back(empirical_cdf);
     }
 
@@ -473,36 +471,36 @@ double DistributionBase::gammaP(double a, double x) noexcept {
         double term = 1.0;
         double n = 1.0;
 
-        while (std::abs(term) > constants::precision::DEFAULT_TOLERANCE &&
-               n < constants::precision::MAX_GAMMA_SERIES_ITERATIONS) {
-            term *= x / (a + n - constants::math::ONE);
+        while (std::abs(term) > detail::DEFAULT_TOLERANCE &&
+               n < detail::MAX_GAMMA_SERIES_ITERATIONS) {
+            term *= x / (a + n - detail::ONE);
             sum += term;
-            n += constants::math::ONE;
+            n += detail::ONE;
         }
 
         return std::exp(-x + a * std::log(x) - lgamma(a)) * sum;
     } else {
         // Use complementary function
-        return constants::math::ONE - gammaQ(a, x);
+        return detail::ONE - gammaQ(a, x);
     }
 }
 
 double DistributionBase::gammaQ(double a, double x) noexcept {
-    return constants::math::ONE - gammaP(a, x);
+    return detail::ONE - gammaP(a, x);
 }
 
 double DistributionBase::betaI(double x, double a, double b) noexcept {
     // Simplified implementation of incomplete beta function
-    if (x < constants::math::ZERO_DOUBLE || x > constants::math::ONE) {
-        return constants::math::ZERO_DOUBLE;
+    if (x < detail::ZERO_DOUBLE || x > detail::ONE) {
+        return detail::ZERO_DOUBLE;
     }
 
-    if (x == constants::math::ZERO_DOUBLE) {
-        return constants::math::ZERO_DOUBLE;
+    if (x == detail::ZERO_DOUBLE) {
+        return detail::ZERO_DOUBLE;
     }
 
-    if (x == constants::math::ONE) {
-        return constants::math::ONE;
+    if (x == detail::ONE) {
+        return detail::ONE;
     }
 
     // Use continued fraction approximation
@@ -523,7 +521,7 @@ double DistributionBase::betaI(double x, double a, double b) noexcept {
 double DistributionBase::betaI_continued_fraction(double x, double a, double b) noexcept {
     // Continued fraction for incomplete beta function
     const int max_iterations = 100;
-    const double tolerance = constants::precision::DEFAULT_TOLERANCE;
+    const double tolerance = detail::DEFAULT_TOLERANCE;
 
     double qab = a + b;
     double qap = a + 1.0;
@@ -531,8 +529,8 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
     double c = 1.0;
     double d = 1.0 - qab * x / qap;
 
-    if (std::abs(d) < constants::precision::ZERO) {
-        d = constants::precision::ZERO;
+    if (std::abs(d) < detail::ZERO) {
+        d = detail::ZERO;
     }
 
     d = 1.0 / d;
@@ -543,14 +541,14 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
         double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
         d = 1.0 + aa * d;
 
-        if (std::abs(d) < constants::precision::ZERO) {
-            d = constants::precision::ZERO;
+        if (std::abs(d) < detail::ZERO) {
+            d = detail::ZERO;
         }
 
         c = 1.0 + aa / c;
 
-        if (std::abs(c) < constants::precision::ZERO) {
-            c = constants::precision::ZERO;
+        if (std::abs(c) < detail::ZERO) {
+            c = detail::ZERO;
         }
 
         d = 1.0 / d;
@@ -559,14 +557,14 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
         aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
         d = 1.0 + aa * d;
 
-        if (std::abs(d) < constants::precision::ZERO) {
-            d = constants::precision::ZERO;
+        if (std::abs(d) < detail::ZERO) {
+            d = detail::ZERO;
         }
 
         c = 1.0 + aa / c;
 
-        if (std::abs(c) < constants::precision::ZERO) {
-            c = constants::precision::ZERO;
+        if (std::abs(c) < detail::ZERO) {
+            c = detail::ZERO;
         }
 
         d = 1.0 / d;
@@ -581,4 +579,4 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
     return h;
 }
 
-}  // namespace libstats
+}  // namespace stats

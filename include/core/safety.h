@@ -44,8 +44,8 @@
  * - Code duplication is minimized
  */
 
-namespace libstats {
-namespace safety {
+namespace stats {
+namespace detail {
 
 //==============================================================================
 // MEMORY SAFETY AND BOUNDS CHECKING
@@ -234,11 +234,11 @@ inline void check_log_probability(double log_prob, const std::string& name = "lo
  */
 inline double clamp_probability(double prob) noexcept {
     if (std::isnan(prob))
-        return constants::probability::MIN_PROBABILITY;
+        return detail::MIN_PROBABILITY;
     if (prob <= 0.0)
-        return constants::probability::MIN_PROBABILITY;
+        return detail::MIN_PROBABILITY;
     if (prob >= 1.0)
-        return constants::probability::MAX_PROBABILITY;
+        return detail::MAX_PROBABILITY;
     return prob;
 }
 
@@ -249,11 +249,11 @@ inline double clamp_probability(double prob) noexcept {
  */
 inline double clamp_log_probability(double log_prob) noexcept {
     if (std::isnan(log_prob))
-        return constants::probability::MIN_LOG_PROBABILITY;
+        return detail::MIN_LOG_PROBABILITY;
     if (log_prob > 0.0)
-        return constants::probability::MAX_LOG_PROBABILITY;
-    if (log_prob < constants::probability::MIN_LOG_PROBABILITY) {
-        return constants::probability::MIN_LOG_PROBABILITY;
+        return detail::MAX_LOG_PROBABILITY;
+    if (log_prob < detail::MIN_LOG_PROBABILITY) {
+        return detail::MIN_LOG_PROBABILITY;
     }
     return log_prob;
 }
@@ -265,7 +265,7 @@ inline double clamp_log_probability(double log_prob) noexcept {
  */
 inline double safe_log(double value) noexcept {
     if (value <= 0.0 || std::isnan(value)) {
-        return constants::probability::MIN_LOG_PROBABILITY;
+        return detail::MIN_LOG_PROBABILITY;
     }
     if (std::isinf(value)) {
         return std::numeric_limits<double>::max();
@@ -281,17 +281,17 @@ inline double safe_log(double value) noexcept {
 inline double safe_exp(double value) noexcept {
     if (std::isnan(value))
         return 0.0;
-    if (value < constants::probability::MIN_LOG_PROBABILITY) {
-        return constants::probability::MIN_PROBABILITY;
+    if (value < detail::MIN_LOG_PROBABILITY) {
+        return detail::MIN_PROBABILITY;
     }
-    if (value > constants::thresholds::LOG_EXP_OVERFLOW_THRESHOLD) {  // Prevent overflow
+    if (value > detail::LOG_EXP_OVERFLOW_THRESHOLD) {  // Prevent overflow
         return std::numeric_limits<double>::max();
     }
 
     double result = std::exp(value);
     // Handle underflow: if exp() returns 0 but value is finite, clamp to MIN_PROBABILITY
     if (result == 0.0 && std::isfinite(value)) {
-        return constants::probability::MIN_PROBABILITY;
+        return detail::MIN_PROBABILITY;
     }
     return result;
 }
@@ -404,7 +404,7 @@ inline bool normalize_probabilities(std::vector<double>& probs) noexcept {
     }
 
     // If sum is too small, set to uniform distribution
-    if (sum < constants::precision::ZERO) {
+    if (sum < detail::ZERO) {
         const double uniform_prob = 1.0 / static_cast<double>(probs.size());
         for (double& prob : probs) {
             prob = uniform_prob;
@@ -426,9 +426,8 @@ inline bool normalize_probabilities(std::vector<double>& probs) noexcept {
  * @param tolerance Tolerance for sum check
  * @return True if probabilities are properly normalized
  */
-inline bool is_probability_distribution(
-    const std::vector<double>& probs,
-    double tolerance = constants::precision::DEFAULT_TOLERANCE) noexcept {
+inline bool is_probability_distribution(const std::vector<double>& probs,
+                                        double tolerance = detail::DEFAULT_TOLERANCE) noexcept {
     double sum = 0.0;
     for (double prob : probs) {
         if (prob < 0.0 || prob > 1.0 || std::isnan(prob)) {
@@ -461,7 +460,7 @@ class ConvergenceDetector {
      * @param max_iterations Maximum iterations before forced termination
      * @param window_size Number of previous values to consider for convergence
      */
-    explicit ConvergenceDetector(double tolerance = constants::precision::DEFAULT_TOLERANCE,
+    explicit ConvergenceDetector(double tolerance = detail::DEFAULT_TOLERANCE,
                                  std::size_t max_iterations = 1000, std::size_t window_size = 5)
         : tolerance_(tolerance),
           max_iterations_(max_iterations),
@@ -594,7 +593,7 @@ inline bool recover_from_underflow(std::vector<double>& probs,
                                    RecoveryStrategy strategy = RecoveryStrategy::GracefulMode) {
     bool had_underflow = false;
     for (double& prob : probs) {
-        if (prob < constants::probability::MIN_PROBABILITY) {
+        if (prob < detail::MIN_PROBABILITY) {
             had_underflow = true;
             switch (strategy) {
                 case RecoveryStrategy::StrictMode:
@@ -602,7 +601,7 @@ inline bool recover_from_underflow(std::vector<double>& probs,
                 case RecoveryStrategy::GracefulMode:
                 case RecoveryStrategy::RobustMode:
                 case RecoveryStrategy::AdaptiveMode:
-                    prob = constants::probability::MIN_PROBABILITY;
+                    prob = detail::MIN_PROBABILITY;
                     break;
             }
         }
@@ -627,7 +626,7 @@ inline std::size_t handle_nan_values(std::vector<double>& values,
                     value = 0.0;
                     break;
                 case RecoveryStrategy::RobustMode:
-                    value = constants::precision::ZERO;
+                    value = detail::ZERO;
                     break;
             }
         }
@@ -635,5 +634,5 @@ inline std::size_t handle_nan_values(std::vector<double>& values,
     return nan_count;
 }
 
-}  // namespace safety
-}  // namespace libstats
+}  // namespace detail
+}  // namespace stats

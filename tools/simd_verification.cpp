@@ -32,8 +32,8 @@
 #include <cmath>
 #include <limits>
 
-using namespace libstats;
-using namespace libstats::tools;
+using namespace stats;
+using namespace stats::detail;
 
 namespace {
 constexpr int VERIFICATION_SEED = 12345;
@@ -92,11 +92,11 @@ class SIMDVerifier {
    public:
     SIMDVerifier() : rng_(VERIFICATION_SEED) {
         // Get the actual active SIMD level from libstats
-        active_simd_level_ = libstats::simd::VectorOps::get_active_simd_level();
+        active_simd_level_ = stats::arch::simd::VectorOps::get_active_simd_level();
     }
 
     void runVerification() {
-        system_info::displayToolHeader(
+        stats::detail::detail::displayToolHeader(
             "SIMD Verification Tool",
             "Validates SIMD operations correctness and performance on actual system architecture");
 
@@ -120,14 +120,14 @@ class SIMDVerifier {
 
    private:
     void displaySystemSIMDInfo() {
-        display::subsectionHeader("System SIMD Capabilities");
+        stats::detail::detail::subsectionHeader("System SIMD Capabilities");
 
-        const auto& features = libstats::cpu::get_features();
+        const auto& features = stats::arch::get_features();
         std::cout << "Active SIMD Level: " << active_simd_level_ << "\n";
-        std::cout << "Architecture: " << system_info::getActiveArchitecture() << "\n";
+        std::cout << "Architecture: " << stats::detail::detail::getActiveArchitecture() << "\n";
 
         // Display available SIMD features based on architecture
-        table::ColumnFormatter formatter({20, 10, 30});
+        stats::detail::detail::ColumnFormatter formatter({20, 10, 30});
         std::cout << formatter.formatRow({"SIMD Feature", "Available", "Description"}) << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
@@ -153,15 +153,14 @@ class SIMDVerifier {
                   << "\n";
 #endif
 
-        std::cout << "\nOptimal SIMD block size: "
-                  << libstats::constants::platform::get_optimal_simd_block_size() << " elements\n";
-        std::cout << "Memory alignment: " << libstats::constants::platform::get_optimal_alignment()
-                  << " bytes\n\n";
+        std::cout << "\nOptimal SIMD block size: " << stats::arch::get_optimal_simd_block_size()
+                  << " elements\n";
+        std::cout << "Memory alignment: " << stats::arch::get_optimal_alignment() << " bytes\n\n";
     }
 
     void testUniformDistribution() {
-        display::subsectionHeader("Uniform Distribution SIMD Verification");
-        auto dist = libstats::UniformDistribution::create(0.0, 1.0).value;
+        stats::detail::detail::subsectionHeader("Uniform Distribution SIMD Verification");
+        auto dist = stats::UniformDistribution::create(0.0, 1.0).value;
 
         // Test data around the distribution range
         auto test_data = generateTestData(-0.5, 1.5, TEST_SIZE);
@@ -170,8 +169,8 @@ class SIMDVerifier {
     }
 
     void testGaussianDistribution() {
-        display::subsectionHeader("Gaussian Distribution SIMD Verification");
-        auto dist = libstats::GaussianDistribution::create(0.0, 1.0).value;
+        stats::detail::detail::subsectionHeader("Gaussian Distribution SIMD Verification");
+        auto dist = stats::GaussianDistribution::create(0.0, 1.0).value;
 
         // Test data with wider range for Gaussian
         auto test_data = generateTestData(-5.0, 5.0, TEST_SIZE);
@@ -180,8 +179,8 @@ class SIMDVerifier {
     }
 
     void testExponentialDistribution() {
-        display::subsectionHeader("Exponential Distribution SIMD Verification");
-        auto dist = libstats::ExponentialDistribution::create(1.0).value;
+        stats::detail::detail::subsectionHeader("Exponential Distribution SIMD Verification");
+        auto dist = stats::ExponentialDistribution::create(1.0).value;
 
         // Test data for exponential (positive values)
         auto test_data = generateTestData(0.0, 10.0, TEST_SIZE);
@@ -190,8 +189,8 @@ class SIMDVerifier {
     }
 
     void testDiscreteDistribution() {
-        display::subsectionHeader("Discrete Distribution SIMD Verification");
-        auto dist = libstats::DiscreteDistribution::create(0, 10).value;
+        stats::detail::detail::subsectionHeader("Discrete Distribution SIMD Verification");
+        auto dist = stats::DiscreteDistribution::create(0, 10).value;
 
         // Test data with integer and near-integer values
         auto test_data = generateIntegerTestData(-2, 12, TEST_SIZE);
@@ -200,8 +199,8 @@ class SIMDVerifier {
     }
 
     void testPoissonDistribution() {
-        display::subsectionHeader("Poisson Distribution SIMD Verification");
-        auto dist = libstats::PoissonDistribution::create(3.0).value;
+        stats::detail::detail::subsectionHeader("Poisson Distribution SIMD Verification");
+        auto dist = stats::PoissonDistribution::create(3.0).value;
 
         // Test data with non-negative integer and near-integer values
         auto test_data = generateIntegerTestData(0, 15, TEST_SIZE);
@@ -210,8 +209,8 @@ class SIMDVerifier {
     }
 
     void testGammaDistribution() {
-        display::subsectionHeader("Gamma Distribution SIMD Verification");
-        auto dist = libstats::GammaDistribution::create(2.0, 1.0).value;
+        stats::detail::detail::subsectionHeader("Gamma Distribution SIMD Verification");
+        auto dist = stats::GammaDistribution::create(2.0, 1.0).value;
 
         // Test data for gamma (positive values)
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
@@ -237,7 +236,7 @@ class SIMDVerifier {
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
                 d.getProbabilityWithStrategy(input_span, output_span,
-                                             libstats::performance::Strategy::SIMD_BATCH);
+                                             stats::detail::Strategy::SIMD_BATCH);
             });
 
         // Test LogPDF operation
@@ -254,7 +253,7 @@ class SIMDVerifier {
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
                 d.getLogProbabilityWithStrategy(input_span, output_span,
-                                                libstats::performance::Strategy::SIMD_BATCH);
+                                                stats::detail::Strategy::SIMD_BATCH);
             });
 
         // Test CDF operation
@@ -271,7 +270,7 @@ class SIMDVerifier {
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
                 d.getCumulativeProbabilityWithStrategy(input_span, output_span,
-                                                       libstats::performance::Strategy::SIMD_BATCH);
+                                                       stats::detail::Strategy::SIMD_BATCH);
             });
     }
 
@@ -405,22 +404,22 @@ class SIMDVerifier {
     }
 
     void testEdgeCases() {
-        display::subsectionHeader("Edge Cases Testing");
+        stats::detail::detail::subsectionHeader("Edge Cases Testing");
 
         std::cout << "Testing distributions with edge case values (NaN, infinity, etc.)\n";
 
         // Test each distribution with edge case values
         std::vector<std::pair<std::string, std::function<void()>>> edge_tests = {
             {"Uniform",
-             [this]() { testDistributionEdgeCases(libstats::Uniform(0.0, 1.0), "Uniform"); }},
+             [this]() { testDistributionEdgeCases(stats::Uniform(0.0, 1.0), "Uniform"); }},
             {"Gaussian",
-             [this]() { testDistributionEdgeCases(libstats::Gaussian(0.0, 1.0), "Gaussian"); }},
+             [this]() { testDistributionEdgeCases(stats::Gaussian(0.0, 1.0), "Gaussian"); }},
             {"Exponential",
-             [this]() { testDistributionEdgeCases(libstats::Exponential(1.0), "Exponential"); }},
+             [this]() { testDistributionEdgeCases(stats::Exponential(1.0), "Exponential"); }},
             {"Discrete",
-             [this]() { testDistributionEdgeCases(libstats::Discrete(0, 10), "Discrete"); }},
-            {"Poisson", [this]() { testDistributionEdgeCases(libstats::Poisson(3.0), "Poisson"); }},
-            {"Gamma", [this]() { testDistributionEdgeCases(libstats::Gamma(2.0, 1.0), "Gamma"); }}};
+             [this]() { testDistributionEdgeCases(stats::Discrete(0, 10), "Discrete"); }},
+            {"Poisson", [this]() { testDistributionEdgeCases(stats::Poisson(3.0), "Poisson"); }},
+            {"Gamma", [this]() { testDistributionEdgeCases(stats::Gamma(2.0, 1.0), "Gamma"); }}};
 
         for (const auto& test : edge_tests) {
             std::cout << "  Testing " << test.first << " edge cases...\n";
@@ -485,7 +484,7 @@ class SIMDVerifier {
     }
 
     void analyzeResults() {
-        display::sectionHeader("SIMD Verification Analysis");
+        stats::detail::detail::sectionHeader("SIMD Verification Analysis");
 
         // Summary statistics
         size_t total_tests = results_.size();
@@ -501,7 +500,7 @@ class SIMDVerifier {
         std::cout << "Failed: " << (total_tests - passed_tests) << "\n\n";
 
         // Detailed results table
-        table::ColumnFormatter formatter({18, 10, 8, 12, 12, 10, 8});
+        stats::detail::detail::ColumnFormatter formatter({18, 10, 8, 12, 12, 10, 8});
         std::cout << formatter.formatRow({"Distribution", "Operation", "Status", "Max Diff",
                                           "Avg Diff", "Speedup", "Errors"})
                   << "\n";
@@ -509,13 +508,16 @@ class SIMDVerifier {
 
         for (const auto& result : results_) {
             std::string status = result.correctness_passed ? "PASS" : "FAIL";
-            std::string max_diff_str = (result.max_difference < 1e-15)
-                                           ? "~0"
-                                           : format::formatDouble(result.max_difference, 2);
-            std::string avg_diff_str = (result.avg_difference < 1e-15)
-                                           ? "~0"
-                                           : format::formatDouble(result.avg_difference, 2);
-            std::string speedup_str = format::formatDouble(result.speedup_ratio, 1) + "x";
+            std::string max_diff_str =
+                (result.max_difference < 1e-15)
+                    ? "~0"
+                    : stats::detail::detail::formatDouble(result.max_difference, 2);
+            std::string avg_diff_str =
+                (result.avg_difference < 1e-15)
+                    ? "~0"
+                    : stats::detail::detail::formatDouble(result.avg_difference, 2);
+            std::string speedup_str =
+                stats::detail::detail::formatDouble(result.speedup_ratio, 1) + "x";
             std::string errors_str = std::to_string(result.failed_comparisons);
 
             // Truncate long distribution names for better table formatting
@@ -534,7 +536,7 @@ class SIMDVerifier {
                                           [](const auto& r) { return !r.correctness_passed; });
 
         if (failed_tests > 0) {
-            display::subsectionHeader("Failed Tests Details");
+            stats::detail::detail::subsectionHeader("Failed Tests Details");
             for (const auto& result : results_) {
                 if (!result.correctness_passed) {
                     std::cout << "❌ " << result.distribution_name << "::" << result.operation_name
@@ -552,7 +554,7 @@ class SIMDVerifier {
         }
 
         // Performance analysis
-        display::subsectionHeader("Performance Analysis");
+        stats::detail::detail::subsectionHeader("Performance Analysis");
         double total_scalar_time = 0, total_simd_time = 0;
         double min_speedup = std::numeric_limits<double>::max();
         double max_speedup = 0;
@@ -582,7 +584,7 @@ class SIMDVerifier {
         }
 
         // Recommendations
-        display::subsectionHeader("Recommendations");
+        stats::detail::detail::subsectionHeader("Recommendations");
         if (passed_tests == total_tests) {
             std::cout << "✅ All SIMD operations are producing correct results.\n";
             std::cout << "✅ " << active_simd_level_ << " optimizations are working correctly.\n";
@@ -611,7 +613,7 @@ class SIMDVerifier {
 };
 
 int main() {
-    return tool_utils::runTool("SIMD Verification", []() {
+    return stats::detail::detail::runTool("SIMD Verification", []() {
         SIMDVerifier verifier;
         verifier.runVerification();
     });

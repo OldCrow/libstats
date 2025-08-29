@@ -10,7 +10,7 @@
 #include "../include/distributions/uniform.h"
 
 using namespace std;
-using namespace libstats;
+using namespace stats;
 
 std::atomic<int> completed_operations{0};
 std::atomic<bool> stop_test{false};
@@ -67,8 +67,8 @@ void stressTestGaussianCopyMove(int thread_id) {
     while (!stop_test.load()) {
         try {
             // Create distributions
-            auto gauss1 = libstats::GaussianDistribution::create(thread_id, 1.0).value;
-            auto gauss2 = libstats::GaussianDistribution::create(thread_id + 10, 2.0).value;
+            auto gauss1 = stats::GaussianDistribution::create(thread_id, 1.0).value;
+            auto gauss2 = stats::GaussianDistribution::create(thread_id + 10, 2.0).value;
 
             // Perform multiple copy assignments
             for (int i = 0; i < 10; ++i) {
