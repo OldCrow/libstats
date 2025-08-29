@@ -394,6 +394,10 @@ inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const v
 
 bool VectorOps::should_use_vectorized_path(std::size_t size, const void* data1, const void* data2,
                                            const void* data3) noexcept {
+    // Early return for null pointer - always use scalar path
+    if (!data1) {
+        return false;
+    }
     return should_use_advanced_simd<void>(size, data1, data2, data3);
 }
 
