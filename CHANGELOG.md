@@ -1,3 +1,45 @@
+## [1.0.0](https://github.com/OldCrow/libstats/compare/v0.10.0...v1.0.0) (2025-08-29)
+
+### ⚠ BREAKING CHANGES
+
+* Main namespace changed from libstats to stats
+
+- Changed primary namespace from 'libstats' to 'stats' across entire codebase
+- Updated ~147 files (headers, source, tests, examples, tools)
+- Added backward compatibility alias: namespace libstats = stats
+- Resolved LOG_PROBABILITY_EPSILON collision in precision_constants.h
+- Version bumped to 0.11.0
+
+This is phase 1 of namespace consolidation to reduce ~160 namespaces to 3-5.
+Users can migrate gradually thanks to the compatibility alias.
+
+Test results: 34/39 tests passing (87%)
+Failed tests are performance-related (SIMD speedup), not functionality issues.
+
+### ✨ Features
+
+* Add comprehensive AVX-512 testing infrastructure ([1fcb8d2](https://github.com/OldCrow/libstats/commit/1fcb8d28bae3df2f92941c3bd76ba126d317f98d))
+* Complete Phase 2 namespace consolidation and prepare Phase 3 architecture ([0d2b8ac](https://github.com/OldCrow/libstats/commit/0d2b8ac019153b578e2e4d4173d33a29e5b4032c))
+* Complete PIMPL refactoring and namespace modernization ([4355ef4](https://github.com/OldCrow/libstats/commit/4355ef42e86b9d4571e143112ba4853eae56fdf7))
+
+### 🐛 Bug Fixes
+
+* Complete namespace fixes for all SIMD implementation files ([2d2ea9e](https://github.com/OldCrow/libstats/commit/2d2ea9e716e3b50e0586798af825d8848a061450))
+* Correct AVX-512 constant namespace in simd_dispatch.cpp ([6f98fa0](https://github.com/OldCrow/libstats/commit/6f98fa036cbe375a238dab5457fd65372318dfb6))
+* Cross-platform namespace issues for Linux/Windows builds ([7a38aec](https://github.com/OldCrow/libstats/commit/7a38aec2b19a273aca6db8e9e56adf621aa3107c))
+* Redesign AVX-512 workflow for compilation-only testing ([fd68939](https://github.com/OldCrow/libstats/commit/fd68939953cfe0e240db91de23e273e01f0dfb44))
+* Remove incorrect cpu:: namespace prefix in simd_policy.cpp ([b8d2557](https://github.com/OldCrow/libstats/commit/b8d2557e9a29047d87db191e7f42af28776a5e33))
+* Resolve compilation warnings and AVX-512 function naming consistency ([361000b](https://github.com/OldCrow/libstats/commit/361000b6b8c9bf35f23dc6902087c107914e0e5e))
+* Resolve CPU feature detection namespace issues and MSVC std::max type errors ([eeb7e25](https://github.com/OldCrow/libstats/commit/eeb7e25c8dfcddd537ba9c29cc579817bcfff477))
+
+### ♻️ Refactoring
+
+* migrate from libstats:: to stats:: namespace (v0.11.0) ([92e5952](https://github.com/OldCrow/libstats/commit/92e595279bfd64248475964c64081f3aca2b70e6))
+
+### 🔧 Maintenance
+
+* apply pre-commit hooks and fix formatting ([d4af2a4](https://github.com/OldCrow/libstats/commit/d4af2a4d1166dc7c622e1655fa5d571985f653d8))
+
 ## [0.10.0](https://github.com/OldCrow/libstats/compare/v0.9.1...v0.10.0) (2025-08-20)
 
 ### ✨ Features
