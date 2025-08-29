@@ -206,7 +206,7 @@ void test_basic_platform_info() {
     // Verify basic consistency
     assert(VectorOps::supports_vectorization());
     assert(VectorOps::double_vector_width() > 0);
-    assert(VectorOps::float_vector_width() > 0);
+    assert(float_vector_width() > 0);
     assert(stats::arch::optimal_alignment() > 0 &&
            (stats::arch::optimal_alignment() & (stats::arch::optimal_alignment() - 1)) == 0);
 }
