@@ -34,7 +34,7 @@ inline constexpr std::size_t PREFETCH_STRIDE = 4;
 
 // SIMD optimization thresholds
 inline constexpr std::size_t MIN_SIMD_SIZE = 8;
-inline constexpr std::size_t OPTIMAL_SIMD_BLOCK = 32;
+inline constexpr std::size_t OPTIMAL_SIMD_BLOCK = 4;  // AVX: 4 doubles per 256-bit register
 
 // Legacy Intel CPU-specific tuning (Sandy Bridge/Ivy Bridge)
 namespace legacy {
@@ -95,7 +95,7 @@ inline constexpr std::size_t PREFETCH_STRIDE = 4;
 
 // SIMD optimization thresholds
 inline constexpr std::size_t MIN_SIMD_SIZE = 8;
-inline constexpr std::size_t OPTIMAL_SIMD_BLOCK = 32;
+inline constexpr std::size_t OPTIMAL_SIMD_BLOCK = 4;  // AVX: 4 doubles per 256-bit register
 
 // Ryzen-specific optimizations
 namespace ryzen {
@@ -140,7 +140,7 @@ inline constexpr std::size_t PREFETCH_STRIDE = 2;
 
 // SIMD optimization thresholds (NEON)
 inline constexpr std::size_t MIN_SIMD_SIZE = 4;
-inline constexpr std::size_t OPTIMAL_SIMD_BLOCK = 16;
+inline constexpr std::size_t OPTIMAL_SIMD_BLOCK = 2;  // NEON: 2 doubles per 128-bit register
 
 // ARM-specific grain sizes
 inline constexpr std::size_t DEFAULT_GRAIN_SIZE = 128;

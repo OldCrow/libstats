@@ -112,6 +112,12 @@ struct FeaturesSingleton {
 static FeaturesSingleton g_features_manager;
 
 #ifdef LIBSTATS_X86_FAMILY
+
+    #if defined(__APPLE__)
+// Forward declaration for macOS-specific function used in x86 path
+void detect_macos_topology(Features& features);
+    #endif
+
 /**
  * @brief Execute CPUID instruction safely
  */
