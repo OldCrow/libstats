@@ -1,4 +1,6 @@
 name: AVX-512 Testing
+permissions:
+  contents: read
 
 on:
   push:
