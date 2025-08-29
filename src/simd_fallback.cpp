@@ -95,8 +95,10 @@ bool VectorOps::should_use_simd(std::size_t size) noexcept {
 }
 
 std::size_t VectorOps::min_simd_size() noexcept {
-    // Return platform-adaptive minimum size
-    return stats::arch::get_min_simd_size();
+    // Return platform-adaptive minimum size, ensuring it's at least as large as the vector width
+    std::size_t platform_min = stats::arch::get_min_simd_size();
+    std::size_t vector_width = double_vector_width();
+    return std::max(platform_min, vector_width);
 }
 
 bool VectorOps::supports_vectorization() noexcept {
