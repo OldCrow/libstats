@@ -1,16 +1,17 @@
+#define LIBSTATS_ENABLE_GTEST_INTEGRATION
 #ifdef _MSC_VER
     #pragma warning(push)
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
 #include "../include/distributions/exponential.h"
-#include "enhanced_test_template.h"
+#include "../include/tests/tests.h"
 
 #include <gtest/gtest.h>
 
 using namespace std;
 using namespace stats;
-using namespace stats::test;
+using namespace stats::tests;
 
 namespace stats {
 
@@ -324,20 +325,21 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
                 << batch_size;
         }
 
-        // Performance expectations (adjusted for batch size)
-        EXPECT_GT(simd_speedup, 1.0) << "SIMD should provide speedup for batch size " << batch_size;
+        // Architecture-aware performance expectations using adaptive validation
+        // Use adaptive SIMD threshold - exponential is moderately complex
+        double simd_threshold =
+            stats::tests::validators::getSIMDValidationThreshold(batch_size, false);
+        EXPECT_GT(simd_speedup, simd_threshold)
+            << "SIMD speedup " << simd_speedup << "x should exceed adaptive threshold "
+            << simd_threshold << "x for batch size " << batch_size;
 
         if (std::thread::hardware_concurrency() > 1) {
-            if (batch_size >= 10000) {
-                // For large batches, parallel should significantly outperform SIMD
-                EXPECT_GT(parallel_speedup, simd_speedup * 0.8)
-                    << "Parallel should be competitive with SIMD for large batches";
-            } else {
-                // For smaller batches, parallel may have overhead but should still be reasonable
-                EXPECT_GT(parallel_speedup, 0.5)
-                    << "Parallel should provide reasonable performance for batch size "
-                    << batch_size;
-            }
+            // Use adaptive parallel threshold - exponential is moderately complex
+            double parallel_threshold =
+                stats::tests::validators::getParallelValidationThreshold(batch_size, false);
+            EXPECT_GT(parallel_speedup, parallel_threshold)
+                << "Parallel speedup " << parallel_speedup << "x should exceed adaptive threshold "
+                << parallel_threshold << "x for batch size " << batch_size;
         }
     }
 }
@@ -605,18 +607,18 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         test_values[i] = dis(gen);
     }
 
-    StandardizedBenchmark::printBenchmarkHeader("Exponential Distribution", BENCHMARK_SIZE);
+    fixtures::BenchmarkFormatter::printBenchmarkHeader("Exponential Distribution", BENCHMARK_SIZE);
 
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
 
-    std::vector<BenchmarkResult> benchmark_results;
+    std::vector<fixtures::BenchmarkResult> benchmark_results;
 
     // For each operation type (PDF, LogPDF, CDF)
     std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
 
     for (const auto& op : operations) {
-        BenchmarkResult result;
+        fixtures::BenchmarkResult result;
         result.operation_name = op;
 
         // 1. SIMD Batch (baseline)
@@ -809,18 +811,20 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
 
         // Verify correctness
         if (op == "PDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values, pdf_results, "PDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values,
+                                                                   pdf_results, "PDF");
         } else if (op == "LogPDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values, log_pdf_results,
-                                                         "LogPDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values,
+                                                                   log_pdf_results, "LogPDF");
         } else if (op == "CDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values, cdf_results, "CDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(unitExp, test_values,
+                                                                   cdf_results, "CDF");
         }
     }
 
     // Print standardized benchmark results
-    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
-    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
+    fixtures::BenchmarkFormatter::printBenchmarkResults(benchmark_results);
+    fixtures::BenchmarkFormatter::printPerformanceAnalysis(benchmark_results);
 }
 
 //==============================================================================
@@ -969,8 +973,9 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
 TEST_F(ExponentialEnhancedTest, NumericalStabilityAndEdgeCases) {
     auto unitExp = stats::ExponentialDistribution::create(1.0).value;
 
-    EdgeCaseTester<ExponentialDistribution>::testExtremeValues(unitExp, "Exponential");
-    EdgeCaseTester<ExponentialDistribution>::testEmptyBatchOperations(unitExp, "Exponential");
+    fixtures::EdgeCaseTester<ExponentialDistribution>::testExtremeValues(unitExp, "Exponential");
+    fixtures::EdgeCaseTester<ExponentialDistribution>::testEmptyBatchOperations(unitExp,
+                                                                                "Exponential");
 }
 
 }  // namespace stats

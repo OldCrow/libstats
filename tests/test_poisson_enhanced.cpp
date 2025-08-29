@@ -1,10 +1,11 @@
+#define LIBSTATS_ENABLE_GTEST_INTEGRATION
 #ifdef _MSC_VER
     #pragma warning(push)
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
 #include "../include/distributions/poisson.h"
-#include "enhanced_test_template.h"
+#include "../include/tests/tests.h"
 
 #include <algorithm>
 #include <chrono>
@@ -18,7 +19,7 @@
 
 using namespace std;
 using namespace stats;
-using namespace stats::test;
+using namespace stats::tests;
 
 namespace stats {
 
@@ -593,18 +594,18 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         test_values[i] = static_cast<double>(dis(gen));
     }
 
-    StandardizedBenchmark::printBenchmarkHeader("Poisson Distribution", BENCHMARK_SIZE);
+    fixtures::BenchmarkFormatter::printBenchmarkHeader("Poisson Distribution", BENCHMARK_SIZE);
 
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
 
-    std::vector<BenchmarkResult> benchmark_results;
+    std::vector<fixtures::BenchmarkResult> benchmark_results;
 
     // For each operation type (PMF, LogPMF, CDF)
     std::vector<std::string> operations = {"PMF", "LogPMF", "CDF"};
 
     for (const auto& op : operations) {
-        BenchmarkResult result;
+        fixtures::BenchmarkResult result;
         result.operation_name = op;
 
         // 1. SIMD Batch (baseline)
@@ -797,20 +798,20 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
 
         // Verify correctness
         if (op == "PMF") {
-            StatisticalTestUtils::verifyBatchCorrectness(stdPoisson, test_values, pdf_results,
-                                                         "PMF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdPoisson, test_values,
+                                                                   pdf_results, "PMF");
         } else if (op == "LogPMF") {
-            StatisticalTestUtils::verifyBatchCorrectness(stdPoisson, test_values, log_pdf_results,
-                                                         "LogPMF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdPoisson, test_values,
+                                                                   log_pdf_results, "LogPMF");
         } else if (op == "CDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(stdPoisson, test_values, cdf_results,
-                                                         "CDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdPoisson, test_values,
+                                                                   cdf_results, "CDF");
         }
     }
 
     // Print standardized benchmark results
-    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
-    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
+    fixtures::BenchmarkFormatter::printBenchmarkResults(benchmark_results);
+    fixtures::BenchmarkFormatter::printPerformanceAnalysis(benchmark_results);
 }
 
 //==============================================================================
@@ -962,8 +963,8 @@ TEST_F(PoissonEnhancedTest, ParallelBatchFittingTests) {
 TEST_F(PoissonEnhancedTest, NumericalStabilityAndEdgeCases) {
     auto poisson = stats::PoissonDistribution::create(5.0).value;
 
-    EdgeCaseTester<PoissonDistribution>::testExtremeValues(poisson, "Poisson");
-    EdgeCaseTester<PoissonDistribution>::testEmptyBatchOperations(poisson, "Poisson");
+    fixtures::EdgeCaseTester<PoissonDistribution>::testExtremeValues(poisson, "Poisson");
+    fixtures::EdgeCaseTester<PoissonDistribution>::testEmptyBatchOperations(poisson, "Poisson");
 }
 
 }  // namespace stats

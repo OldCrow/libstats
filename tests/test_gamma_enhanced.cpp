@@ -1,16 +1,17 @@
+#define LIBSTATS_ENABLE_GTEST_INTEGRATION
 #ifdef _MSC_VER
     #pragma warning(push)
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
 #include "../include/distributions/gamma.h"
-#include "enhanced_test_template.h"
+#include "../include/tests/tests.h"
 
 #include <gtest/gtest.h>
 
 using namespace std;
 using namespace stats;
-using namespace stats::test;
+using namespace stats::tests;
 
 namespace stats {
 
@@ -271,11 +272,13 @@ TEST_F(GammaEnhancedTest, ThreadSafetyAndEdgeCases) {
     std::cout << "\n=== Thread Safety and Edge Cases ===\n";
 
     // Basic thread safety test
-    ThreadSafetyTester<GammaDistribution>::testBasicThreadSafety(test_distribution_, "Gamma");
+    fixtures::ThreadSafetyTester<GammaDistribution>::testBasicThreadSafety(test_distribution_,
+                                                                           "Gamma");
 
     // Extreme values and empty batch test
-    EdgeCaseTester<GammaDistribution>::testExtremeValues(test_distribution_, "Gamma");
-    EdgeCaseTester<GammaDistribution>::testEmptyBatchOperations(test_distribution_, "Gamma");
+    fixtures::EdgeCaseTester<GammaDistribution>::testExtremeValues(test_distribution_, "Gamma");
+    fixtures::EdgeCaseTester<GammaDistribution>::testEmptyBatchOperations(test_distribution_,
+                                                                          "Gamma");
 }
 
 //==============================================================================
@@ -636,18 +639,18 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
         test_values[i] = dis(gen);
     }
 
-    StandardizedBenchmark::printBenchmarkHeader("Gamma Distribution", BENCHMARK_SIZE);
+    fixtures::BenchmarkFormatter::printBenchmarkHeader("Gamma Distribution", BENCHMARK_SIZE);
 
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
 
-    std::vector<BenchmarkResult> benchmark_results;
+    std::vector<fixtures::BenchmarkResult> benchmark_results;
 
     // For each operation type (PDF, LogPDF, CDF)
     std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
 
     for (const auto& op : operations) {
-        BenchmarkResult result;
+        fixtures::BenchmarkResult result;
         result.operation_name = op;
 
         // 1. SIMD Batch (baseline)
@@ -817,8 +820,8 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
     }
 
     // Print results and verify correctness
-    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
-    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
+    fixtures::BenchmarkFormatter::printBenchmarkResults(benchmark_results);
+    fixtures::BenchmarkFormatter::printPerformanceAnalysis(benchmark_results);
 }
 
 //==============================================================================

@@ -1,10 +1,11 @@
+#define LIBSTATS_ENABLE_GTEST_INTEGRATION
 #ifdef _MSC_VER
     #pragma warning(push)
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
 #include "../include/distributions/uniform.h"
-#include "enhanced_test_template.h"
+#include "../include/tests/tests.h"
 
 #include <algorithm>
 #include <chrono>
@@ -18,7 +19,7 @@
 
 using namespace std;
 using namespace stats;
-using namespace stats::test;
+using namespace stats::tests;
 
 namespace stats {
 
@@ -613,18 +614,18 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
         test_values[i] = dis(gen);
     }
 
-    StandardizedBenchmark::printBenchmarkHeader("Uniform Distribution", BENCHMARK_SIZE);
+    fixtures::BenchmarkFormatter::printBenchmarkHeader("Uniform Distribution", BENCHMARK_SIZE);
 
     // Create shared resources ONCE outside the loop to avoid resource issues
     WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
 
-    std::vector<BenchmarkResult> benchmark_results;
+    std::vector<fixtures::BenchmarkResult> benchmark_results;
 
     // For each operation type (PDF, LogPDF, CDF)
     std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
 
     for (const auto& op : operations) {
-        BenchmarkResult result;
+        fixtures::BenchmarkResult result;
         result.operation_name = op;
 
         // 1. SIMD Batch (baseline)
@@ -818,20 +819,20 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
 
         // Verify correctness
         if (op == "PDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(stdUniform, test_values, pdf_results,
-                                                         "PDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdUniform, test_values,
+                                                                   pdf_results, "PDF");
         } else if (op == "LogPDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(stdUniform, test_values, log_pdf_results,
-                                                         "LogPDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdUniform, test_values,
+                                                                   log_pdf_results, "LogPDF");
         } else if (op == "CDF") {
-            StatisticalTestUtils::verifyBatchCorrectness(stdUniform, test_values, cdf_results,
-                                                         "CDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdUniform, test_values,
+                                                                   cdf_results, "CDF");
         }
     }
 
     // Print standardized benchmark results
-    StandardizedBenchmark::printBenchmarkResults(benchmark_results);
-    StandardizedBenchmark::printPerformanceAnalysis(benchmark_results);
+    fixtures::BenchmarkFormatter::printBenchmarkResults(benchmark_results);
+    fixtures::BenchmarkFormatter::printPerformanceAnalysis(benchmark_results);
 }
 
 //==============================================================================
@@ -993,8 +994,8 @@ TEST_F(UniformEnhancedTest, ParallelBatchFittingTests) {
 TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
     auto uniform = stats::UniformDistribution::create(0.0, 1.0).value;
 
-    EdgeCaseTester<UniformDistribution>::testExtremeValues(uniform, "Uniform");
-    EdgeCaseTester<UniformDistribution>::testEmptyBatchOperations(uniform, "Uniform");
+    fixtures::EdgeCaseTester<UniformDistribution>::testExtremeValues(uniform, "Uniform");
+    fixtures::EdgeCaseTester<UniformDistribution>::testEmptyBatchOperations(uniform, "Uniform");
 }
 
 }  // namespace stats

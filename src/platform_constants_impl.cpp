@@ -1,5 +1,6 @@
 #include "../include/common/platform_constants_fwd.h"
 #include "../include/platform/platform_constants.h"
+#include "../include/platform/simd_policy.h"
 #include "platform/cpu_detection.h"
 #include "platform/cpu_vendor_constants.h"
 
@@ -419,20 +420,10 @@ std::size_t get_cache_line_size() {
 }
 
 std::size_t get_min_simd_size() {
-    const auto& features = stats::arch::get_features();
-
-    // Higher-end SIMD can handle smaller datasets efficiently
-    if (features.avx512f) {
-        return 4;
-    } else if (features.avx2 || features.fma) {
-        return 6;
-    } else if (features.avx || features.sse4_2) {
-        return 8;
-    } else if (features.sse2 || features.neon) {
-        return 12;
-    } else {
-        return 32;  // No SIMD benefit until larger sizes
-    }
+    // Delegate to the centralized SIMDPolicy for consistent thresholds
+    // This ensures VectorOps::min_simd_size() and VectorOps::should_use_simd()
+    // use the same threshold values
+    return arch::simd::SIMDPolicy::getMinThreshold();
 }
 
 std::size_t get_min_parallel_elements() {

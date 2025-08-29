@@ -1,17 +1,17 @@
 // Focused unit test for poisson distribution
 #include "../include/distributions/poisson.h"
-#include "basic_test_template.h"
+#include "../include/tests/tests.h"
 
 using namespace std;
 using namespace stats;
-using namespace BasicTestUtilities;
+using namespace stats::tests::fixtures;
 
 int main() {
-    StandardizedBasicTest::printTestHeader("Poisson");
+    BasicTestFormatter::printTestHeader("Poisson");
 
     try {
         // Test 1: Constructors and Destructor
-        StandardizedBasicTest::printTestStart(1, "Constructors and Destructor");
+        BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "This test verifies all ways to create Poisson distributions: default (1.0), "
                 "parameterized (3.0),"
              << endl;
@@ -21,33 +21,33 @@ int main() {
 
         // Default constructor test
         auto default_poisson = stats::PoissonDistribution::create().value;
-        StandardizedBasicTest::printProperty("Default Lambda", default_poisson.getLambda());
+        BasicTestFormatter::printProperty("Default Lambda", default_poisson.getLambda());
 
         // Parameterized constructor test
         auto param_poisson = stats::PoissonDistribution::create(3.0).value;
-        StandardizedBasicTest::printProperty("Param Lambda", param_poisson.getLambda());
+        BasicTestFormatter::printProperty("Param Lambda", param_poisson.getLambda());
 
         // Copy constructor test
         auto copy_poisson = param_poisson;
-        StandardizedBasicTest::printProperty("Copy Lambda", copy_poisson.getLambda());
+        BasicTestFormatter::printProperty("Copy Lambda", copy_poisson.getLambda());
 
         // Move constructor test
         auto temp_poisson = stats::PoissonDistribution::create(5.0).value;
         auto move_poisson = std::move(temp_poisson);
-        StandardizedBasicTest::printProperty("Move Lambda", move_poisson.getLambda());
+        BasicTestFormatter::printProperty("Move Lambda", move_poisson.getLambda());
 
         // Safe factory method test
         auto result = PoissonDistribution::create(3.0);
         if (result.isOk()) {
             auto factory_poisson = std::move(result.value);
-            StandardizedBasicTest::printProperty("Factory Lambda", factory_poisson.getLambda());
+            BasicTestFormatter::printProperty("Factory Lambda", factory_poisson.getLambda());
         }
 
-        StandardizedBasicTest::printTestSuccess("All constructor and destructor tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All constructor and destructor tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 2: Parameter Getters and Setters
-        StandardizedBasicTest::printTestStart(2, "Parameter Getters and Setters");
+        BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
         cout << "This test verifies parameter access methods: normal getters, atomic (lock-free) "
                 "getters,"
              << endl;
@@ -61,33 +61,32 @@ int main() {
         auto poisson_dist = stats::PoissonDistribution::create(3.0).value;
 
         // Test getters
-        StandardizedBasicTest::printProperty("Initial Lambda", poisson_dist.getLambda());
-        StandardizedBasicTest::printProperty("Mean", poisson_dist.getMean());
-        StandardizedBasicTest::printProperty("Variance", poisson_dist.getVariance());
-        StandardizedBasicTest::printProperty("Skewness", poisson_dist.getSkewness());
-        StandardizedBasicTest::printProperty("Kurtosis", poisson_dist.getKurtosis());
-        StandardizedBasicTest::printProperty("Mode", poisson_dist.getMode());
-        StandardizedBasicTest::printPropertyInt("Num Parameters", poisson_dist.getNumParameters());
+        BasicTestFormatter::printProperty("Initial Lambda", poisson_dist.getLambda());
+        BasicTestFormatter::printProperty("Mean", poisson_dist.getMean());
+        BasicTestFormatter::printProperty("Variance", poisson_dist.getVariance());
+        BasicTestFormatter::printProperty("Skewness", poisson_dist.getSkewness());
+        BasicTestFormatter::printProperty("Kurtosis", poisson_dist.getKurtosis());
+        BasicTestFormatter::printProperty("Mode", poisson_dist.getMode());
+        BasicTestFormatter::printPropertyInt("Num Parameters", poisson_dist.getNumParameters());
 
         // Test atomic getters (lock-free access)
-        StandardizedBasicTest::printProperty("Atomic Lambda", poisson_dist.getLambdaAtomic());
+        BasicTestFormatter::printProperty("Atomic Lambda", poisson_dist.getLambdaAtomic());
 
         // Test setters
         poisson_dist.setLambda(4.0);
-        StandardizedBasicTest::printProperty("After setting - Lambda", poisson_dist.getLambda());
+        BasicTestFormatter::printProperty("After setting - Lambda", poisson_dist.getLambda());
 
         // Test safe setters (no exceptions)
         auto set_result = poisson_dist.trySetLambda(2.5);
         if (set_result.isOk()) {
-            StandardizedBasicTest::printProperty("Safe set lambda - Lambda",
-                                                 poisson_dist.getLambda());
+            BasicTestFormatter::printProperty("Safe set lambda - Lambda", poisson_dist.getLambda());
         }
 
-        StandardizedBasicTest::printTestSuccess("All parameter getter/setter tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All parameter getter/setter tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 3: Core Probability Methods
-        StandardizedBasicTest::printTestStart(3, "Core Probability Methods");
+        BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "This test verifies the core statistical functions: PMF, log PMF, CDF, quantiles,"
              << endl;
         cout << "and Poisson-specific utilities like mode calculation and normal approximation "
@@ -99,26 +98,26 @@ int main() {
         auto test_poisson = stats::PoissonDistribution::create(3.0).value;
         int k = 3;
 
-        StandardizedBasicTest::printProperty("PMF(3)", test_poisson.getProbability(k));
-        StandardizedBasicTest::printProperty("Log PMF(3)", test_poisson.getLogProbability(k));
-        StandardizedBasicTest::printProperty("CDF(3)", test_poisson.getCumulativeProbability(k));
-        StandardizedBasicTest::printProperty("Quantile(0.5)", test_poisson.getQuantile(0.5));
-        StandardizedBasicTest::printProperty("Quantile(0.9)", test_poisson.getQuantile(0.9));
+        BasicTestFormatter::printProperty("PMF(3)", test_poisson.getProbability(k));
+        BasicTestFormatter::printProperty("Log PMF(3)", test_poisson.getLogProbability(k));
+        BasicTestFormatter::printProperty("CDF(3)", test_poisson.getCumulativeProbability(k));
+        BasicTestFormatter::printProperty("Quantile(0.5)", test_poisson.getQuantile(0.5));
+        BasicTestFormatter::printProperty("Quantile(0.9)", test_poisson.getQuantile(0.9));
 
         // Test edge cases
-        StandardizedBasicTest::printProperty("PMF(0)", test_poisson.getProbability(0));
-        StandardizedBasicTest::printProperty("CDF(0)", test_poisson.getCumulativeProbability(0));
+        BasicTestFormatter::printProperty("PMF(0)", test_poisson.getProbability(0));
+        BasicTestFormatter::printProperty("CDF(0)", test_poisson.getCumulativeProbability(0));
 
         // Test Poisson-specific utility methods
-        StandardizedBasicTest::printProperty("Mode", test_poisson.getMode());
-        StandardizedBasicTest::printProperty("Median", test_poisson.getMedian());
+        BasicTestFormatter::printProperty("Mode", test_poisson.getMode());
+        BasicTestFormatter::printProperty("Median", test_poisson.getMedian());
 
         // Test exact integer methods
-        StandardizedBasicTest::printProperty("PMF_exact(3)", test_poisson.getProbabilityExact(3));
-        StandardizedBasicTest::printProperty("Log PMF_exact(3)",
-                                             test_poisson.getLogProbabilityExact(3));
-        StandardizedBasicTest::printProperty("CDF_exact(3)",
-                                             test_poisson.getCumulativeProbabilityExact(3));
+        BasicTestFormatter::printProperty("PMF_exact(3)", test_poisson.getProbabilityExact(3));
+        BasicTestFormatter::printProperty("Log PMF_exact(3)",
+                                          test_poisson.getLogProbabilityExact(3));
+        BasicTestFormatter::printProperty("CDF_exact(3)",
+                                          test_poisson.getCumulativeProbabilityExact(3));
 
         // Test distribution properties
         cout << "Is discrete: " << (test_poisson.isDiscrete() ? "YES" : "NO") << endl;
@@ -126,11 +125,11 @@ int main() {
         cout << "Can use normal approximation: "
              << (test_poisson.canUseNormalApproximation() ? "YES" : "NO") << endl;
 
-        StandardizedBasicTest::printTestSuccess("All core probability method tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All core probability method tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 4: Random Sampling
-        StandardizedBasicTest::printTestStart(4, "Random Sampling");
+        BasicTestFormatter::printTestStart(4, "Random Sampling");
         cout << "This test verifies random number generation using Knuth's algorithm (small λ) or"
              << endl;
         cout << "Atkinson's algorithm (large λ). Sample statistics should approximately match "
@@ -141,29 +140,29 @@ int main() {
 
         // Single sample
         double single_sample = test_poisson.sample(rng);
-        StandardizedBasicTest::printProperty("Single sample", single_sample);
+        BasicTestFormatter::printProperty("Single sample", single_sample);
 
         // Multiple samples
         vector<double> samples = test_poisson.sample(rng, 10);
-        StandardizedBasicTest::printSamples(samples, "10 random samples");
+        BasicTestFormatter::printSamples(samples, "10 random samples");
 
         // Test integer sampling
         auto int_samples = test_poisson.sampleIntegers(rng, 10);
-        StandardizedBasicTest::printIntegerSamples(int_samples, "10 integer samples");
+        BasicTestFormatter::printIntegerSamples(int_samples, "10 integer samples");
 
         // Verify sample statistics approximately match distribution
-        double sample_mean = StandardizedBasicTest::computeSampleMean(samples);
-        double sample_var = StandardizedBasicTest::computeSampleVariance(samples);
-        StandardizedBasicTest::printProperty("Sample mean", sample_mean);
-        StandardizedBasicTest::printProperty("Sample variance", sample_var);
-        StandardizedBasicTest::printProperty("Expected mean (λ)", test_poisson.getMean());
-        StandardizedBasicTest::printProperty("Expected variance (λ)", test_poisson.getVariance());
+        double sample_mean = TestDataGenerators::computeSampleMean(samples);
+        double sample_var = TestDataGenerators::computeSampleVariance(samples);
+        BasicTestFormatter::printProperty("Sample mean", sample_mean);
+        BasicTestFormatter::printProperty("Sample variance", sample_var);
+        BasicTestFormatter::printProperty("Expected mean (λ)", test_poisson.getMean());
+        BasicTestFormatter::printProperty("Expected variance (λ)", test_poisson.getVariance());
 
-        StandardizedBasicTest::printTestSuccess("All sampling tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All sampling tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 5: Distribution Management
-        StandardizedBasicTest::printTestStart(5, "Distribution Management");
+        BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "This test verifies parameter fitting using Maximum Likelihood Estimation (MLE),"
              << endl;
         cout << "distribution reset to default (1.0) parameter, and string representation "
@@ -171,24 +170,24 @@ int main() {
              << endl;
 
         // Test fitting
-        vector<double> fit_data = StandardizedBasicTest::generatePoissonTestData();
+        vector<double> fit_data = TestDataGenerators::generatePoissonTestData();
         auto fitted_dist = stats::PoissonDistribution::create().value;
         fitted_dist.fit(fit_data);
-        StandardizedBasicTest::printProperty("Fitted Lambda", fitted_dist.getLambda());
+        BasicTestFormatter::printProperty("Fitted Lambda", fitted_dist.getLambda());
 
         // Test reset
         fitted_dist.reset();
-        StandardizedBasicTest::printProperty("After reset - Lambda", fitted_dist.getLambda());
+        BasicTestFormatter::printProperty("After reset - Lambda", fitted_dist.getLambda());
 
         // Test toString
         string dist_str = fitted_dist.toString();
         cout << "String representation: " << dist_str << endl;
 
-        StandardizedBasicTest::printTestSuccess("All distribution management tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All distribution management tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 6: Auto-dispatch Parallel Processing with Timing and Strategy Report
-        StandardizedBasicTest::printTestStart(6, "Auto-dispatch Parallel Processing");
+        BasicTestFormatter::printTestStart(6, "Auto-dispatch Parallel Processing");
         cout << "This test verifies smart auto-dispatch that selects optimal execution strategy"
              << endl;
         cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large."
@@ -257,10 +256,10 @@ int main() {
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        StandardizedBasicTest::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
-        StandardizedBasicTest::printBatchResults(small_log_pdf_results,
-                                                 "Auto-dispatch Log PDF results");
-        StandardizedBasicTest::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
+        BasicTestFormatter::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
+        BasicTestFormatter::printBatchResults(small_log_pdf_results,
+                                              "Auto-dispatch Log PDF results");
+        BasicTestFormatter::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
 
         cout << "Auto-dispatch PDF time: " << auto_pdf_time << "μs, Traditional: " << trad_pdf_time
              << "μs" << endl;
@@ -320,8 +319,8 @@ int main() {
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        StandardizedBasicTest::printLargeBatchValidation(large_output[0], large_output[4999],
-                                                         "Auto-dispatch PDF (diverse data)");
+        BasicTestFormatter::printLargeBatchValidation(large_output[0], large_output[4999],
+                                                      "Auto-dispatch PDF (diverse data)");
 
         cout << "Large batch auto-dispatch time: " << large_auto_time
              << "μs, Traditional: " << large_trad_time << "μs" << endl;
@@ -352,12 +351,11 @@ int main() {
             cout << "⚠️  Auto-dispatch performance may be affected by overhead" << endl;
         }
 
-        StandardizedBasicTest::printTestSuccess(
-            "All auto-dispatch parallel processing tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All auto-dispatch parallel processing tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 7: Comparison and Stream Operators
-        StandardizedBasicTest::printTestStart(7, "Comparison and Stream Operators");
+        BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
@@ -386,19 +384,19 @@ int main() {
             cout << "Stream input failed" << endl;
         }
 
-        StandardizedBasicTest::printTestSuccess("All comparison and stream operator tests passed");
-        StandardizedBasicTest::printNewline();
+        BasicTestFormatter::printTestSuccess("All comparison and stream operator tests passed");
+        BasicTestFormatter::printNewline();
 
         // Test 8: Error Handling
-        StandardizedBasicTest::printTestStart(8, "Error Handling");
+        BasicTestFormatter::printTestStart(8, "Error Handling");
         // NOTE: Using ::create() here (not stats::Poisson) to test exception-free error handling
         // ::create() returns Result<T> for explicit error checking without exceptions
         auto error_result = PoissonDistribution::create(-1.0);  // Invalid: negative lambda
         if (error_result.isError()) {
-            StandardizedBasicTest::printTestSuccess("Negative lambda error handling works: " +
-                                                    error_result.message);
+            BasicTestFormatter::printTestSuccess("Negative lambda error handling works: " +
+                                                 error_result.message);
         } else {
-            StandardizedBasicTest::printTestError("Negative lambda error handling failed");
+            BasicTestFormatter::printTestError("Negative lambda error handling failed");
             return 1;
         }
 
@@ -407,27 +405,27 @@ int main() {
         if (zero_result.isError()) {
             cout << "Zero lambda error handling works: " << zero_result.message << endl;
         } else {
-            StandardizedBasicTest::printTestError("Zero lambda error handling failed");
+            BasicTestFormatter::printTestError("Zero lambda error handling failed");
             return 1;
         }
 
-        StandardizedBasicTest::printCompletionMessage("Poisson");
+        BasicTestFormatter::printCompletionMessage("Poisson");
 
-        StandardizedBasicTest::printSummaryHeader();
-        StandardizedBasicTest::printSummaryItem("Safe factory creation and error handling");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryHeader();
+        BasicTestFormatter::printSummaryItem("Safe factory creation and error handling");
+        BasicTestFormatter::printSummaryItem(
             "All distribution properties (lambda, mean, variance, skewness, kurtosis, mode)");
-        StandardizedBasicTest::printSummaryItem("PMF, Log PMF, CDF, and quantile functions");
-        StandardizedBasicTest::printSummaryItem("Exact integer methods for discrete distribution");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryItem("PMF, Log PMF, CDF, and quantile functions");
+        BasicTestFormatter::printSummaryItem("Exact integer methods for discrete distribution");
+        BasicTestFormatter::printSummaryItem(
             "Random sampling (Knuth's algorithm for small λ, Atkinson for large λ)");
-        StandardizedBasicTest::printSummaryItem("Integer sampling convenience method");
-        StandardizedBasicTest::printSummaryItem("Parameter fitting (MLE)");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryItem("Integer sampling convenience method");
+        BasicTestFormatter::printSummaryItem("Parameter fitting (MLE)");
+        BasicTestFormatter::printSummaryItem(
             "Smart auto-dispatch batch operations with strategy selection");
-        StandardizedBasicTest::printSummaryItem(
+        BasicTestFormatter::printSummaryItem(
             "Large batch auto-dispatch validation and correctness");
-        StandardizedBasicTest::printSummaryItem("Normal approximation capability check");
+        BasicTestFormatter::printSummaryItem("Normal approximation capability check");
 
         return 0;
 
