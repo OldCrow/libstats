@@ -1,4 +1,6 @@
 name: AVX-512 Compilation Verification
+permissions:
+  contents: read
 
 # This workflow tests AVX-512 code compilation without linking or runtime testing
 # Limitation: Cannot test full linking due to GitHub runners lacking AVX-512 hardware
