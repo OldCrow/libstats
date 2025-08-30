@@ -2,7 +2,9 @@
 
 #include "../include/core/constants.h"
 #include "../include/core/dispatch_utils.h"
+#include "../include/core/robust_constants.h"
 #include "../include/core/safety.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_thresholds.h"
@@ -1050,11 +1052,13 @@ std::pair<double, double> GaussianDistribution::robustEstimation(const std::vect
 
     // Convert MAD to robust scale estimate
     double robust_location = median;
-    double robust_scale = mad * detail::MAD_SCALING_FACTOR;  // Use named constant instead of 1.4826
+    double robust_scale =
+        mad *
+        detail::MAD_SCALING_FACTOR;  // Use named constant instead of detail::MAD_SCALING_FACTOR
 
     // Iterative M-estimation
     const int max_iterations = 50;
-    const double convergence_tol = 1e-6;
+    const double convergence_tol = detail::MIN_STD_DEV;
 
     for (int iter = 0; iter < max_iterations; ++iter) {
         double sum_weights = detail::ZERO_DOUBLE;
@@ -1205,10 +1209,11 @@ std::vector<double> GaussianDistribution::calculateHigherMoments(const std::vect
 
     const size_t n = data.size();
     const double sample_mean =
-        center_on_mean ? std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n)
-                       : 0.0;
+        center_on_mean ? std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) /
+                             static_cast<double>(n)
+                       : detail::ZERO_DOUBLE;
 
-    std::vector<double> moments(6, 0.0);
+    std::vector<double> moments(6, detail::ZERO_DOUBLE);
 
     // Calculate raw or central moments up to 6th order
     for (double x : data) {
@@ -1236,16 +1241,16 @@ std::tuple<double, double, bool> GaussianDistribution::jarqueBeraTest(
     if (data.size() < 8) {
         throw std::invalid_argument("At least 8 data points required for Jarque-Bera test");
     }
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     const size_t n = data.size();
     const double sample_mean =
-        std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
+        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
 
     // Calculate sample variance, skewness, and kurtosis
-    double m2 = 0.0, m3 = 0.0, m4 = 0.0;
+    double m2 = detail::ZERO_DOUBLE, m3 = detail::ZERO_DOUBLE, m4 = detail::ZERO_DOUBLE;
 
     for (double x : data) {
         const double deviation = x - sample_mean;
@@ -1280,10 +1285,10 @@ std::tuple<double, double, bool> GaussianDistribution::jarqueBeraTest(
 
 std::tuple<double, double, bool> GaussianDistribution::shapiroWilkTest(
     const std::vector<double>& data, double alpha) {
-    if (data.size() < 3 || data.size() > 5000) {
+    if (data.size() < 3 || data.size() > detail::MAX_DATA_POINTS_FOR_SW_TEST) {
         throw std::invalid_argument("Shapiro-Wilk test requires 3 to 5000 data points");
     }
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -1297,20 +1302,21 @@ std::tuple<double, double, bool> GaussianDistribution::shapiroWilkTest(
 
     // Calculate sample variance
     const double sample_mean =
-        std::accumulate(sorted_data.begin(), sorted_data.end(), 0.0) / static_cast<double>(n);
-    double ss = 0.0;
+        std::accumulate(sorted_data.begin(), sorted_data.end(), detail::ZERO_DOUBLE) /
+        static_cast<double>(n);
+    double ss = detail::ZERO_DOUBLE;
     for (double x : sorted_data) {
         ss += (x - sample_mean) * (x - sample_mean);
     }
 
     // Simplified W statistic calculation
     // This is a basic approximation - full implementation would use proper coefficients
-    double numerator = 0.0;
+    double numerator = detail::ZERO_DOUBLE;
     for (size_t i = 0; i < n / 2; ++i) {
         const double coeff =
             detail::inverse_normal_cdf((static_cast<double>(i) + detail::THREE_QUARTERS) /
                                        (static_cast<double>(n) + detail::HALF));
-        numerator += coeff * (sorted_data[n - 1 - i] - sorted_data[i]);
+        numerator += coeff * (sorted_data[n - detail::ONE_INT - i] - sorted_data[i]);
     }
 
     const double w_statistic = (numerator * numerator) / ss;
@@ -1332,13 +1338,13 @@ std::tuple<double, double, bool> GaussianDistribution::likelihoodRatioTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     // Calculate log-likelihoods
-    double log_likelihood_restricted = 0.0;
-    double log_likelihood_unrestricted = 0.0;
+    double log_likelihood_restricted = detail::ZERO_DOUBLE;
+    double log_likelihood_unrestricted = detail::ZERO_DOUBLE;
 
     for (double x : data) {
         log_likelihood_restricted += restricted_model.getLogProbability(x);
@@ -1374,7 +1380,7 @@ std::tuple<double, double, bool> GaussianDistribution::kolmogorovSmirnovTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -1400,7 +1406,7 @@ std::tuple<double, double, bool> GaussianDistribution::andersonDarlingTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -1485,7 +1491,7 @@ std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCross
         // Evaluate on validation data
         // double mean_error = 0.0;  // No longer used - MAE calculated directly from errors vector
         // double std_error = 0.0;   // No longer used
-        double log_likelihood = 0.0;
+        double log_likelihood = detail::ZERO_DOUBLE;
 
         // Calculate prediction errors and log-likelihood
         std::vector<double> errors;
@@ -1500,11 +1506,11 @@ std::vector<std::tuple<double, double, double>> GaussianDistribution::kFoldCross
         }
 
         // Calculate MAE and RMSE
-        double mae =
-            std::accumulate(errors.begin(), errors.end(), 0.0) / static_cast<double>(errors.size());
+        double mae = std::accumulate(errors.begin(), errors.end(), detail::ZERO_DOUBLE) /
+                     static_cast<double>(errors.size());
 
         // Calculate RMSE = sqrt(mean(squared_errors))
-        double mse = 0.0;
+        double mse = detail::ZERO_DOUBLE;
         for (double error : errors) {
             mse += error * error;
         }
@@ -1526,7 +1532,7 @@ std::tuple<double, double, double> GaussianDistribution::leaveOneOutCrossValidat
     const size_t n = data.size();
     std::vector<double> absolute_errors;
     std::vector<double> squared_errors;
-    double total_log_likelihood = 0.0;
+    double total_log_likelihood = detail::ZERO_DOUBLE;
 
     absolute_errors.reserve(n);
     squared_errors.reserve(n);
@@ -1561,10 +1567,11 @@ std::tuple<double, double, double> GaussianDistribution::leaveOneOutCrossValidat
 
     // Calculate summary statistics
     double mean_absolute_error =
-        std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) /
+        std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
         static_cast<double>(n);
     double mean_squared_error =
-        std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / static_cast<double>(n);
+        std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
+        static_cast<double>(n);
     double root_mean_squared_error = std::sqrt(mean_squared_error);
 
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
@@ -1584,7 +1591,7 @@ std::tuple<double, double, double, double> GaussianDistribution::computeInformat
     const int k = fitted_distribution.getNumParameters();  // 2 for Gaussian
 
     // Calculate log-likelihood
-    double log_likelihood = 0.0;
+    double log_likelihood = detail::ZERO_DOUBLE;
     for (double val : data) {
         log_likelihood += fitted_distribution.getLogProbability(val);
     }
@@ -1616,7 +1623,7 @@ GaussianDistribution::bootstrapParameterConfidenceIntervals(const std::vector<do
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
     if (n_bootstrap <= 0) {

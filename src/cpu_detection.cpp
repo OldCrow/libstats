@@ -156,10 +156,10 @@ void detect_cache_info(Features& features) {
                 break;  // No more cache levels
 
             uint32_t cache_level = (eax >> 5) & 0x7;
-            uint32_t line_size = (ebx & 0xFFF) + 1;
-            uint32_t partitions = ((ebx >> 12) & 0x3FF) + 1;
-            uint32_t associativity = ((ebx >> 22) & 0x3FF) + 1;
-            uint32_t sets = ecx + 1;
+            uint32_t line_size = (ebx & 0xFFF) + detail::ONE_INT;
+            uint32_t partitions = ((ebx >> 12) & 0x3FF) + detail::ONE_INT;
+            uint32_t associativity = ((ebx >> 22) & 0x3FF) + detail::ONE_INT;
+            uint32_t sets = ecx + detail::ONE_INT;
 
             uint32_t cache_size = line_size * partitions * associativity * sets;
 
@@ -352,7 +352,7 @@ Features detect_x86_features() {
     // Get vendor string
     char vendor[13] = {0};
     memcpy(vendor, &ebx, 4);
-    memcpy(vendor + 4, &edx, 4);
+    memcpy(vendor + detail::FOUR_INT, &edx, detail::FOUR_INT);
     memcpy(vendor + 8, &ecx, 4);
     features.vendor = vendor;
 

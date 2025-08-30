@@ -1,5 +1,7 @@
 #include "../include/platform/parallel_thresholds.h"
 
+#include "../include/core/threshold_constants.h"
+
 #include <algorithm>
 #include <cctype>
 
@@ -17,7 +19,7 @@ ArchitectureProfile AdaptiveThresholdCalculator::detectArchitectureProfile() con
     // Apple Silicon: Excellent threading performance
     profile.thread_creation_cost_us = 2;
     profile.simd_width_elements = 2;  // NEON 128-bit
-    profile.thread_efficiency_factor = 0.95;
+    profile.thread_efficiency_factor = detail::CONFIDENCE_95;
     profile.base_parallel_threshold = 1024;
 #elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
     // High-end x86_64: Good threading, excellent SIMD
@@ -29,13 +31,13 @@ ArchitectureProfile AdaptiveThresholdCalculator::detectArchitectureProfile() con
     // Standard x86_64: Moderate threading
     profile.thread_creation_cost_us = 8;
     profile.simd_width_elements = 2;  // SSE 128-bit / 2 doubles
-    profile.thread_efficiency_factor = 0.75;
+    profile.thread_efficiency_factor = detail::AD_P_VALUE_MEDIUM;
     profile.base_parallel_threshold = 4096;
 #else
     // Conservative defaults for other architectures
     profile.thread_creation_cost_us = 10;
     profile.simd_width_elements = 1;  // No SIMD assumed
-    profile.thread_efficiency_factor = 0.7;
+    profile.thread_efficiency_factor = detail::STRONG_CORRELATION;
     profile.base_parallel_threshold = 8192;
 #endif
 

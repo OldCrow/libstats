@@ -4,10 +4,6 @@
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h"
@@ -455,7 +451,7 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
     std::vector<double> samples;
     samples.reserve(n);
 
-    std::uniform_real_distribution<double> dist(detail::ZERO_DOUBLE, detail::ONE);
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
 
     // Get cached parameters for efficiency
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -587,12 +583,12 @@ std::pair<double, double> UniformDistribution::confidenceIntervalLowerBound(
     if (data.empty()) {
         throw std::invalid_argument("Data cannot be empty");
     }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
     const size_t n = data.size();
-    const double alpha = detail::ONE - confidence_level;
+    const double alpha = 1.0 - confidence_level;
     const double min_val = *std::min_element(data.begin(), data.end());
 
     // For uniform distribution, the minimum X_(1) has distribution:
@@ -602,9 +598,8 @@ std::pair<double, double> UniformDistribution::confidenceIntervalLowerBound(
 
     // Conservative approach: use the empirical minimum with adjustment
     const double range_estimate = *std::max_element(data.begin(), data.end()) - min_val;
-    const double adjustment =
-        range_estimate * std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)) /
-        (detail::ONE + std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)));
+    const double adjustment = range_estimate * std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)) /
+                              (1.0 + std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)));
 
     const double ci_lower = min_val - adjustment;
     const double ci_upper = min_val;
@@ -617,12 +612,12 @@ std::pair<double, double> UniformDistribution::confidenceIntervalUpperBound(
     if (data.empty()) {
         throw std::invalid_argument("Data cannot be empty");
     }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
     const size_t n = data.size();
-    const double alpha = detail::ONE - confidence_level;
+    const double alpha = 1.0 - confidence_level;
     const double max_val = *std::max_element(data.begin(), data.end());
     const double min_val = *std::min_element(data.begin(), data.end());
 
@@ -631,9 +626,8 @@ std::pair<double, double> UniformDistribution::confidenceIntervalUpperBound(
     // We use the fact that (b - X_(n))/(b - a) ~ Beta(1, n)
 
     const double range_estimate = max_val - min_val;
-    const double adjustment =
-        range_estimate * std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)) /
-        (detail::ONE + std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)));
+    const double adjustment = range_estimate * std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)) /
+                              (1.0 + std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)));
 
     const double ci_lower = max_val;
     const double ci_upper = max_val + adjustment;
@@ -649,7 +643,7 @@ std::tuple<double, double, bool> UniformDistribution::likelihoodRatioTest(
     if (null_a >= null_b) {
         throw std::invalid_argument("null_a must be less than null_b");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
@@ -660,7 +654,7 @@ std::tuple<double, double, bool> UniformDistribution::likelihoodRatioTest(
     // Check if null hypothesis is feasible
     if (sample_min < null_a || sample_max > null_b) {
         // Data outside null hypothesis bounds - reject immediately
-        return {std::numeric_limits<double>::infinity(), detail::ZERO_DOUBLE, true};
+        return {std::numeric_limits<double>::infinity(), 0.0, true};
     }
 
     // Log-likelihood under null hypothesis: n * log(1/(null_b - null_a))
@@ -668,17 +662,16 @@ std::tuple<double, double, bool> UniformDistribution::likelihoodRatioTest(
 
     // Log-likelihood under alternative (MLE): n * log(1/(sample_max - sample_min))
     const double sample_range = sample_max - sample_min;
-    const double log_like_alt = (sample_range > 0)
-                                    ? static_cast<double>(n) * (-std::log(sample_range))
-                                    : detail::ZERO_DOUBLE;
+    const double log_like_alt =
+        (sample_range > 0) ? static_cast<double>(n) * (-std::log(sample_range)) : 0.0;
 
     // Likelihood ratio test statistic: -2 * (log L_0 - log L_1)
-    const double test_statistic = -detail::TWO * (log_like_null - log_like_alt);
+    const double test_statistic = -2.0 * (log_like_null - log_like_alt);
 
     // For large n, test statistic follows chi-square with 2 degrees of freedom
     // Approximate p-value using chi-square distribution
     const double p_value =
-        1.0 - (1.0 - std::exp(-test_statistic / detail::TWO));  // Simplified approximation
+        1.0 - (1.0 - std::exp(-test_statistic / 2.0));  // Simplified approximation
 
     const bool reject_null = (p_value < significance_level);
 
@@ -705,14 +698,14 @@ UniformDistribution::bayesianEstimation(const std::vector<double>& data,
 
     // Simplified Bayesian update (assuming uniform priors)
     const double posterior_a_mean =
-        sample_min - (sample_max - sample_min) / (static_cast<double>(n) + detail::TWO);
-    const double posterior_a_var = std::pow(sample_max - sample_min, 2) /
-                                   (detail::TWELVE * (static_cast<double>(n) + detail::TWO));
+        sample_min - (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
+    const double posterior_a_var =
+        std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
 
     const double posterior_b_mean =
-        sample_max + (sample_max - sample_min) / (static_cast<double>(n) + detail::TWO);
-    const double posterior_b_var = std::pow(sample_max - sample_min, 2) /
-                                   (detail::TWELVE * (static_cast<double>(n) + detail::TWO));
+        sample_max + (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
+    const double posterior_b_var =
+        std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
 
     // Return as (mean, std_dev) pairs
     std::pair<double, double> posterior_a = {posterior_a_mean, std::sqrt(posterior_a_var)};
@@ -727,8 +720,8 @@ std::pair<double, double> UniformDistribution::robustEstimation(const std::vecto
     if (data.empty()) {
         throw std::invalid_argument("Data cannot be empty");
     }
-    if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion >= detail::HALF) {
-        throw std::invalid_argument("Trim proportion must be in [0, detail::HALF)");
+    if (trim_proportion < 0.0 || trim_proportion >= 0.5) {
+        throw std::invalid_argument("Trim proportion must be in [0, 0.5)");
     }
 
     std::vector<double> sorted_data = data;
@@ -777,18 +770,18 @@ std::pair<double, double> UniformDistribution::methodOfMomentsEstimation(
     // From these: a = mean - sqrt(3*variance), b = mean + sqrt(3*variance)
 
     const size_t n = data.size();
-    const double sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
+    const double sum = std::accumulate(data.begin(), data.end(), 0.0);
     const double mean = sum / static_cast<double>(n);
 
-    double variance = detail::ZERO_DOUBLE;
+    double variance = 0.0;
     for (double x : data) {
         variance += (x - mean) * (x - mean);
     }
     variance /= static_cast<double>(n - 1);  // Sample variance
 
     const double range_estimate = std::sqrt(12.0 * variance);
-    const double a_estimate = mean - range_estimate / detail::TWO;
-    const double b_estimate = mean + range_estimate / detail::TWO;
+    const double a_estimate = mean - range_estimate / 2.0;
+    const double b_estimate = mean + range_estimate / 2.0;
 
     return {a_estimate, b_estimate};
 }
@@ -801,7 +794,7 @@ UniformDistribution::bayesianCredibleInterval(const std::vector<double>& data,
     if (data.empty()) {
         throw std::invalid_argument("Data cannot be empty");
     }
-    if (credibility_level <= detail::ZERO_DOUBLE || credibility_level >= detail::ONE) {
+    if (credibility_level <= 0.0 || credibility_level >= 1.0) {
         throw std::invalid_argument("Credibility level must be between 0 and 1");
     }
 
@@ -809,11 +802,11 @@ UniformDistribution::bayesianCredibleInterval(const std::vector<double>& data,
     auto posterior_params =
         bayesianEstimation(data, prior_a_shape, prior_a_scale, prior_b_shape, prior_b_scale);
 
-    const double alpha = detail::ONE - credibility_level;
-    [[maybe_unused]] const double tail_prob = alpha / detail::TWO;
+    const double alpha = 1.0 - credibility_level;
+    [[maybe_unused]] const double tail_prob = alpha / 2.0;
 
     // For simplicity, use normal approximation to posterior
-    const double z_score = detail::Z_95;  // Approximate 97.5th percentile of standard normal
+    const double z_score = 1.96;  // Approximate 97.5th percentile of standard normal
 
     // Credible interval for 'a'
     const double a_mean = posterior_params.first.first;
@@ -854,19 +847,18 @@ std::pair<double, double> UniformDistribution::lMomentsEstimation(const std::vec
     L1 /= static_cast<double>(n);
 
     // L2 calculation using order statistics
-    double L2 = detail::ZERO_DOUBLE;
+    double L2 = 0.0;
     for (size_t i = 0; i < n; ++i) {
         const double weight =
-            (detail::TWO * static_cast<double>(i) - static_cast<double>(n) + 1.0) /
-            static_cast<double>(n);
+            (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);
         L2 += weight * sorted_data[i];
     }
     L2 /= static_cast<double>(n);
     L2 = std::abs(L2);  // L2 should be positive
 
     // Invert the relationships: a = L1 - 3*L2, b = L1 + 3*L2
-    const double a_estimate = L1 - detail::THREE * L2;
-    const double b_estimate = L1 + detail::THREE * L2;
+    const double a_estimate = L1 - 3.0 * L2;
+    const double b_estimate = L1 + 3.0 * L2;
 
     return {a_estimate, b_estimate};
 }
@@ -876,7 +868,7 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
     if (data.empty()) {
         throw std::invalid_argument("Data cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
@@ -885,9 +877,9 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
     const double sample_max = *std::max_element(data.begin(), data.end());
     const double sample_range = sample_max - sample_min;
 
-    if (sample_range == detail::ZERO_DOUBLE) {
+    if (sample_range == 0.0) {
         // All data points are identical - not uniform
-        return {std::numeric_limits<double>::infinity(), detail::ZERO_DOUBLE, false};
+        return {std::numeric_limits<double>::infinity(), 0.0, false};
     }
 
     // Use range/variance ratio test
@@ -895,8 +887,8 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
     // Test statistic: T = 12 * Var / Range²
     // Should be close to 1 for uniform data
 
-    double sample_variance = detail::ZERO_DOUBLE;
-    double sample_mean = detail::ZERO_DOUBLE;
+    double sample_variance = 0.0;
+    double sample_mean = 0.0;
     for (double x : data) {
         sample_mean += x;
     }
@@ -913,7 +905,7 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
     // For large n, this approximately follows a known distribution
     // Simplified p-value calculation
     const double p_value =
-        detail::TWO * std::min(test_statistic, detail::TWO - test_statistic);  // Symmetric around 1
+        2.0 * std::min(test_statistic, 2.0 - test_statistic);  // Symmetric around 1
 
     const bool uniformity_is_valid = (p_value > significance_level);
 
@@ -930,7 +922,7 @@ std::tuple<double, double, bool> UniformDistribution::kolmogorovSmirnovTest(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
+    if (alpha <= 0.0 || alpha >= 1.0) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -940,11 +932,11 @@ std::tuple<double, double, bool> UniformDistribution::kolmogorovSmirnovTest(
     const size_t n = data.size();
 
     // Asymptotic critical value for KS test
-    double critical_value = std::sqrt(-detail::HALF * std::log(alpha / detail::TWO)) / std::sqrt(n);
+    double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);
 
     // Asymptotic p-value approximation (Kolmogorov distribution)
     double ks_stat_scaled = ks_statistic * std::sqrt(n);
-    double p_value = detail::TWO * std::exp(-detail::TWO * ks_stat_scaled * ks_stat_scaled);
+    double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);
     p_value = std::max(0.0, std::min(1.0, p_value));  // Clamp to [0,1]
 
     bool reject_null = (ks_statistic > critical_value);
@@ -958,7 +950,7 @@ std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
+    if (alpha <= 0.0 || alpha >= 1.0) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -967,23 +959,23 @@ std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
 
     // Asymptotic critical values for Anderson-Darling test (approximate)
     double critical_value;
-    if (alpha <= detail::ALPHA_01) {
+    if (alpha <= 0.01) {
         critical_value = 3.857;
-    } else if (alpha <= detail::ALPHA_05) {
+    } else if (alpha <= 0.05) {
         critical_value = 2.492;
-    } else if (alpha <= detail::ALPHA_10) {
+    } else if (alpha <= 0.10) {
         critical_value = 1.933;
     } else {
-        critical_value = 1.159;  // alpha = detail::QUARTER
+        critical_value = 1.159;  // alpha = 0.25
     }
 
     // Better p-value approximation for Anderson-Darling test
     // For the uniform distribution, we use a more accurate formula
     double p_value;
-    if (ad_stat < detail::SMALL_EFFECT) {
-        p_value = detail::ONE - std::exp(-1.2804 * std::pow(ad_stat, -detail::HALF));
+    if (ad_stat < 0.2) {
+        p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat, -0.5));
     } else if (ad_stat < 0.34) {
-        p_value = detail::ONE - std::exp(-detail::LARGE_EFFECT * ad_stat - 0.26);
+        p_value = 1.0 - std::exp(-0.8 * ad_stat - 0.26);
     } else if (ad_stat < 0.6) {
         p_value = std::exp(-0.9 * ad_stat - 0.16);
     } else {
@@ -1061,7 +1053,7 @@ std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossV
 
         // Add small epsilon to ensure all training data is within bounds
         double width = train_b - train_a;
-        double epsilon = std::max(detail::NEWTON_RAPHSON_TOLERANCE, width * detail::MIN_STD_DEV);
+        double epsilon = std::max(1e-10, width * 1e-6);
         train_a -= epsilon;
         train_b += epsilon;
 
@@ -1070,7 +1062,7 @@ std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossV
         // Evaluate on validation data
         std::vector<double> errors;
         errors.reserve(validation_data.size());
-        double total_log_likelihood = detail::ZERO_DOUBLE;
+        double total_log_likelihood = 0.0;
 
         for (double val : validation_data) {
             // Prediction error (use mean as point prediction)
@@ -1085,11 +1077,11 @@ std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossV
         }
 
         // Calculate metrics - MAE and RMSE
-        double mae = std::accumulate(errors.begin(), errors.end(), detail::ZERO_DOUBLE) /
-                     static_cast<double>(errors.size());
+        double mae =
+            std::accumulate(errors.begin(), errors.end(), 0.0) / static_cast<double>(errors.size());
 
         // Calculate RMSE = sqrt(mean(squared_errors))
-        double mse = detail::ZERO_DOUBLE;
+        double mse = 0.0;
         for (double error : errors) {
             mse += error * error;
         }
@@ -1111,7 +1103,7 @@ std::tuple<double, double, double> UniformDistribution::leaveOneOutCrossValidati
     const size_t n = data.size();
     std::vector<double> errors;
     errors.reserve(n);
-    double total_log_likelihood = detail::ZERO_DOUBLE;
+    double total_log_likelihood = 0.0;
 
     for (size_t i = 0; i < n; ++i) {
         // Create training set (all data except point i)
@@ -1131,7 +1123,7 @@ std::tuple<double, double, double> UniformDistribution::leaveOneOutCrossValidati
 
         // Add small epsilon to ensure robustness
         double width = train_b - train_a;
-        double epsilon = std::max(detail::NEWTON_RAPHSON_TOLERANCE, width * detail::MIN_STD_DEV);
+        double epsilon = std::max(1e-10, width * 1e-6);
         train_a -= epsilon;
         train_b += epsilon;
 
@@ -1152,10 +1144,10 @@ std::tuple<double, double, double> UniformDistribution::leaveOneOutCrossValidati
     }
 
     // Calculate final metrics
-    double mae = std::accumulate(errors.begin(), errors.end(), detail::ZERO_DOUBLE) /
-                 static_cast<double>(errors.size());
+    double mae =
+        std::accumulate(errors.begin(), errors.end(), 0.0) / static_cast<double>(errors.size());
 
-    double mse = detail::ZERO_DOUBLE;
+    double mse = 0.0;
     for (double error : errors) {
         mse += error * error;
     }
@@ -1179,7 +1171,7 @@ std::tuple<double, double, double, double> UniformDistribution::computeInformati
     const int k = 2;  // Number of parameters for uniform distribution (a, b)
 
     // Compute log likelihood
-    double log_likelihood = detail::ZERO_DOUBLE;
+    double log_likelihood = 0.0;
     for (double x : data) {
         double log_prob = fitted_distribution.getLogProbability(x);
         // Handle the case where data points are outside the distribution bounds
@@ -1192,13 +1184,13 @@ std::tuple<double, double, double, double> UniformDistribution::computeInformati
     }
 
     // Compute information criteria
-    double aic = -detail::TWO * log_likelihood + detail::TWO * k;
-    double bic = -detail::TWO * log_likelihood + k * std::log(n);
+    double aic = -2.0 * log_likelihood + 2.0 * k;
+    double bic = -2.0 * log_likelihood + k * std::log(n);
 
     // AICc (corrected AIC for small sample sizes)
     double aicc = aic;
     if (n > k + 1) {
-        aicc += (detail::TWO * k * (k + 1)) / static_cast<double>(n - k - 1);
+        aicc += (2.0 * k * (k + 1)) / static_cast<double>(n - k - 1);
     }
 
     return std::make_tuple(aic, bic, aicc, log_likelihood);
@@ -1216,7 +1208,7 @@ UniformDistribution::bootstrapParameterConfidenceIntervals(const std::vector<dou
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
@@ -1256,9 +1248,9 @@ UniformDistribution::bootstrapParameterConfidenceIntervals(const std::vector<dou
     std::sort(bootstrap_b_estimates.begin(), bootstrap_b_estimates.end());
 
     // Calculate confidence intervals using percentile method
-    double alpha = detail::ONE - confidence_level;
-    double lower_percentile = alpha / detail::TWO;
-    double upper_percentile = detail::ONE - alpha / detail::TWO;
+    double alpha = 1.0 - confidence_level;
+    double lower_percentile = alpha / 2.0;
+    double upper_percentile = 1.0 - alpha / 2.0;
 
     size_t lower_idx = static_cast<size_t>(std::floor(lower_percentile * (n_bootstrap - 1)));
     size_t upper_idx = static_cast<size_t>(std::ceil(upper_percentile * (n_bootstrap - 1)));

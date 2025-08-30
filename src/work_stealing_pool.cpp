@@ -23,6 +23,8 @@
     #include <sys/sysinfo.h>
     #include <unistd.h>
 #elif defined(_WIN32)
+    #include "../include/core/precision_constants.h"
+
     #include <windows.h>
 #endif
 
@@ -43,7 +45,7 @@ using result_of_t = typename std::result_of<F(Args...)>::type;
 #endif
 
 // Thread-local storage for current worker ID
-thread_local int WorkStealingPool::currentWorkerId_ = -1;
+thread_local int WorkStealingPool::currentWorkerId_ = -detail::ONE_INT;
 
 WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) {
     if (numThreads == detail::ZERO_INT) {
@@ -67,7 +69,8 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
         std::unique_lock<std::mutex> lock(readinessMutex_);
 
         // Use timeout to prevent indefinite blocking in case of initialization issues
-        const auto timeout = std::chrono::milliseconds(5000);  // 5 second max wait
+        const auto timeout =
+            std::chrono::milliseconds(detail::MAX_DATA_POINTS_FOR_SW_TEST);  // 5 second max wait
         const bool allReady = readinessCondition_.wait_for(lock, timeout, [this, numThreads] {
             return readyThreads_.load(std::memory_order_acquire) == numThreads;
         });
@@ -195,7 +198,7 @@ void WorkStealingPool::workerLoop(int workerId) {
     {
         std::lock_guard<std::mutex> lock(readinessMutex_);
         [[maybe_unused]] const std::size_t ready =
-            readyThreads_.fetch_add(1, std::memory_order_release) + 1;
+            readyThreads_.fetch_add(detail::ONE_INT, std::memory_order_release) + detail::ONE_INT;
         readinessCondition_.notify_one();
 
 // Optional: Log readiness for debugging (can be removed in production)
@@ -240,7 +243,8 @@ void WorkStealingPool::workerLoop(int workerId) {
                 std::this_thread::yield();
                 backoffCount++;
             } else {
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
+                std::this_thread::sleep_for(
+                    std::chrono::microseconds(detail::MAX_NEWTON_ITERATIONS));
                 backoffCount = 0;  // Reset backoff counter
             }
         }
@@ -393,7 +397,7 @@ void WorkStealingPool::optimizeCurrentThread([[maybe_unused]] int workerId,
     // Lower worker IDs get slightly higher priority (closer to 0)
     if (numWorkers > 1) {
         // Spread relative priorities from -2 to +2 across workers
-        relative_priority = -2 + (4 * workerId) / (numWorkers - 1);
+        relative_priority = -detail::TWO_INT + (4 * workerId) / (numWorkers - 1);
     }
 
     // Apply QoS class to the current thread (self)

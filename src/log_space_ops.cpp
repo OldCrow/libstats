@@ -27,7 +27,7 @@ void LogSpaceOps::initialize() {
 
     // Precompute log(1 + exp(x)) for x in [-50, 0]
     // This covers the range where numerical precision matters most
-    constexpr double x_min = -50.0;
+    constexpr double x_min = -detail::FIFTY;
     constexpr double x_max = 0.0;
     constexpr double step = (x_max - x_min) / (LOOKUP_TABLE_SIZE - 1);
 
@@ -65,7 +65,7 @@ double LogSpaceOps::logSumExp(double logA, double logB) noexcept {
     }
 
     // Use lookup table for common range
-    if (diff >= -50.0 && diff <= 0.0) {
+    if (diff >= -detail::FIFTY && diff <= detail::ZERO_DOUBLE) {
         return logA + lookupLogOnePlusExp(diff);
     }
 
@@ -158,15 +158,15 @@ void LogSpaceOps::logMatrixVectorMultiplyTransposed(const double* logMatrix,
 
 double LogSpaceOps::lookupLogOnePlusExp(double x) noexcept {
     // x should be in [-50, 0] for the lookup table
-    if (x < -50.0) {
+    if (x < -detail::FIFTY) {
         return std::exp(x);  // log(1 + exp(x)) ≈ exp(x) for very small x
     }
-    if (x > 0.0) {
+    if (x > detail::ZERO_DOUBLE) {
         return x + std::log1p(std::exp(-x));  // Use alternative form for x > 0
     }
 
     // Linear interpolation in lookup table
-    constexpr double x_min = -50.0;
+    constexpr double x_min = -detail::FIFTY;
     constexpr double x_max = 0.0;
     constexpr double step = (x_max - x_min) / (LOOKUP_TABLE_SIZE - 1);
 
@@ -175,7 +175,7 @@ double LogSpaceOps::lookupLogOnePlusExp(double x) noexcept {
     const std::size_t index_high = std::min(index_low + 1, LOOKUP_TABLE_SIZE - 1);
 
     if (index_low >= LOOKUP_TABLE_SIZE - 1) {
-        return logOnePlusExpTable_[LOOKUP_TABLE_SIZE - 1];
+        return logOnePlusExpTable_[LOOKUP_TABLE_SIZE - detail::ONE_INT];
     }
 
     // Linear interpolation
@@ -201,7 +201,7 @@ double LogSpaceOps::logSumExpArraySIMD(const double* logValues, std::size_t size
 
     // Use SIMD to compute sum of exp(logValues[i] - max_val)
     // This is a simplified version - in practice, you'd use specific SIMD intrinsics
-    double sum_exp = 0.0;
+    double sum_exp = detail::ZERO_DOUBLE;
 
     // Process SIMD blocks
     const std::size_t simd_width = arch::simd::double_vector_width();
@@ -245,7 +245,7 @@ double LogSpaceOps::logSumExpArrayScalar(const double* logValues, std::size_t si
     }
 
     // Compute sum of exp(logValues[i] - max_val)
-    double sum_exp = 0.0;
+    double sum_exp = detail::ZERO_DOUBLE;
     for (std::size_t i = 0; i < size; ++i) {
         double val = logValues[i];
         if (std::isfinite(val)) {

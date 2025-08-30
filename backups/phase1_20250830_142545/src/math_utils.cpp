@@ -2,10 +2,7 @@
 
 #include "../include/core/constants.h"
 #include "../include/core/distribution_base.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
 #include "../include/core/safety.h"
-#include "../include/core/threshold_constants.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/simd_policy.h"
 
@@ -69,12 +66,12 @@ double erf_inv(double x) noexcept {
 
     double result;
 
-    if (a <= detail::STRONG_CORRELATION) {
+    if (a <= 0.7) {
         // Central region: use rational approximation
         double z = a * a;
         result = a * (((a3 * z + a2) * z + a1) * z + a0) /
                  ((((b3 * z + b2) * z + b1) * z + b0) * z + detail::ONE);
-    } else if (a < detail::CONFIDENCE_99) {
+    } else if (a < 0.99) {
         // Moderate tail region: use improved asymptotic expansion with better coefficients
         double z = std::sqrt(-std::log((detail::ONE - a) * detail::HALF));
 
@@ -93,7 +90,7 @@ double erf_inv(double x) noexcept {
         // For erf(x) very close to 1, use high-precision asymptotic expansion
         double eps = detail::ONE - a;  // Small positive number
 
-        if (eps < detail::ULTRA_HIGH_PRECISION_TOLERANCE) {
+        if (eps < 1e-15) {
             // Ultra-extreme tail: use logarithmic asymptotic expansion
             double log_eps = std::log(eps);
             double sqrt_log_eps = std::sqrt(-log_eps);
@@ -107,15 +104,15 @@ double erf_inv(double x) noexcept {
             result -= correction;
 
             // Even higher order terms for extreme precision
-            if (eps > 1e-15) {
-                double log_correction = std::log(sqrt_log_eps * detail::SQRT_PI * detail::HALF);
-                double second_order = (log_correction * log_correction - detail::TWO) /
+            if (eps > 1e-100) {
+                double log_correction = std::log(sqrt_log_eps * detail::SQRT_PI * 0.5);
+                double second_order = (log_correction * log_correction - 2.0) /
                                       (8.0 * sqrt_log_eps * sqrt_log_eps * sqrt_log_eps);
                 result += second_order;
             }
         } else {
             // Standard extreme tail: use refined asymptotic expansion
-            double t = std::sqrt(-detail::TWO * std::log(eps));
+            double t = std::sqrt(-2.0 * std::log(eps));
 
             // More accurate coefficients for extreme tail
             static const double d0 = 2.515517;
@@ -125,13 +122,11 @@ double erf_inv(double x) noexcept {
             static const double e1 = 0.189269;
             static const double e2 = 0.001308;
 
-            result = t - (d0 + d1 * t + d2 * t * t) /
-                             (detail::ONE + e0 * t + e1 * t * t + e2 * t * t * t);
+            result = t - (d0 + d1 * t + d2 * t * t) / (1.0 + e0 * t + e1 * t * t + e2 * t * t * t);
 
             // Additional correction term for better accuracy
-            double correction = std::log(t * detail::SQRT_PI * detail::HALF) / (detail::TWO * t);
-            result -=
-                correction * detail::AD_THRESHOLD_1;  // Damped correction to avoid overcorrection
+            double correction = std::log(t * detail::SQRT_PI * 0.5) / (2.0 * t);
+            result -= correction * 0.5;  // Damped correction to avoid overcorrection
         }
     }
 
@@ -146,10 +141,10 @@ double erf_inv(double x) noexcept {
 
         // Halley's method: more stable than Newton-Raphson
         double exp_term = std::exp(-result * result);
-        double f_prime = (detail::TWO / detail::SQRT_PI) * exp_term;
-        double f_double_prime = -detail::TWO * result * f_prime;
+        double f_prime = (2.0 / detail::SQRT_PI) * exp_term;
+        double f_double_prime = -2.0 * result * f_prime;
 
-        double denominator = f_prime - detail::HALF * err * f_double_prime / f_prime;
+        double denominator = f_prime - 0.5 * err * f_double_prime / f_prime;
         if (std::abs(denominator) > detail::ZERO) {
             result -= err / denominator;
         }
@@ -165,17 +160,17 @@ double lgamma(double x) noexcept {
 double gamma_p(double a, double x) noexcept {
     // Regularized incomplete gamma function P(a,x) = γ(a,x) / Γ(a)
     // where γ(a,x) is the lower incomplete gamma function
-    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x < 0.0 || a <= 0.0) {
+        return 0.0;
     }
 
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x == 0.0) {
+        return 0.0;
     }
 
-    if (x > a + detail::ONE) {
+    if (x > a + 1.0) {
         // For large x, use the complementary function for better convergence
-        return detail::ONE - gamma_q(a, x);
+        return 1.0 - gamma_q(a, x);
     }
 
     // Use the dedicated series function that has the correct formula
@@ -185,23 +180,23 @@ double gamma_p(double a, double x) noexcept {
 double gamma_q(double a, double x) noexcept {
     // Regularized complementary incomplete gamma function using continued fraction
     // Q(a,x) = 1 - P(a,x) but for large x, use continued fraction for better convergence
-    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
-        return detail::ONE;
+    if (x < 0.0 || a <= 0.0) {
+        return 1.0;
     }
 
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ONE;
+    if (x == 0.0) {
+        return 1.0;
     }
 
-    if (x <= a + detail::ONE) {
+    if (x <= a + 1.0) {
         // For small x, use the series expansion of P(a,x) and compute 1-P
-        return detail::ONE - gamma_p_series(a, x);
+        return 1.0 - gamma_p_series(a, x);
     }
 
     // For large x, use continued fraction expansion for Q(a,x)
-    double b = x + detail::ONE - a;
-    double c = detail::LARGE_CONTINUED_FRACTION_VALUE;
-    double d = detail::ONE / b;
+    double b = x + 1.0 - a;
+    double c = 1e30;
+    double d = 1.0 / b;
     double h = d;
 
     const int max_iterations = detail::MAX_GAMMA_SERIES_ITERATIONS;
@@ -209,7 +204,7 @@ double gamma_q(double a, double x) noexcept {
 
     for (int i = 1; i <= max_iterations; ++i) {
         double an = -i * (i - a);
-        b += detail::TWO;
+        b += 2.0;
         d = an * d + b;
         if (std::abs(d) < detail::ZERO) {
             d = detail::ZERO;
@@ -218,10 +213,10 @@ double gamma_q(double a, double x) noexcept {
         if (std::abs(c) < detail::ZERO) {
             c = detail::ZERO;
         }
-        d = detail::ONE / d;
+        d = 1.0 / d;
         double del = d * c;
         h *= del;
-        if (std::abs(del - detail::ONE) < tolerance) {
+        if (std::abs(del - 1.0) < tolerance) {
             break;
         }
     }
@@ -232,27 +227,26 @@ double gamma_q(double a, double x) noexcept {
 
 double beta_i(double x, double a, double b) noexcept {
     // Regularized incomplete beta function I_x(a,b)
-    if (x < detail::ZERO_DOUBLE || x > detail::ONE || a <= detail::ZERO_DOUBLE ||
-        b <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x < 0.0 || x > 1.0 || a <= 0.0 || b <= 0.0) {
+        return 0.0;
     }
 
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x == 0.0) {
+        return 0.0;
     }
 
-    if (x == detail::ONE) {
-        return detail::ONE;
+    if (x == 1.0) {
+        return 1.0;
     }
 
     // Use continued fraction approximation
-    double bt = std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) +
-                         b * std::log(detail::ONE - x));
+    double bt =
+        std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) + b * std::log(1.0 - x));
 
-    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
+    if (x < (a + 1.0) / (a + b + 2.0)) {
         return bt * beta_continued_fraction(x, a, b);
     } else {
-        return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, b, a);
+        return 1.0 - bt * beta_continued_fraction(1.0 - x, b, a);
     }
 }
 
@@ -263,58 +257,58 @@ static double beta_continued_fraction(double x, double a, double b) noexcept {
     const double tolerance = detail::DEFAULT_TOLERANCE;
 
     double qab = a + b;
-    double qap = a + detail::ONE;
-    double qam = a - detail::ONE;
+    double qap = a + 1.0;
+    double qam = a - 1.0;
 
     // Initial values for continued fraction
-    double c = detail::ONE;
-    double d = detail::ONE - qab * x / qap;
+    double c = 1.0;
+    double d = 1.0 - qab * x / qap;
 
     if (std::abs(d) < detail::ZERO) {
         d = detail::ZERO;
     }
 
-    d = detail::ONE / d;
+    d = 1.0 / d;
     double h = d;
 
     for (int m = 1; m <= max_iterations; ++m) {
-        int m2 = detail::TWO_INT * m;
+        int m2 = 2 * m;
 
         // Even step (positive): aa = m * (b - m) * x / [(a + m2 - 1) * (a + m2)]
         double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
 
         // Update d and c
-        d = detail::ONE + aa * d;
+        d = 1.0 + aa * d;
         if (std::abs(d) < detail::ZERO) {
             d = detail::ZERO;
         }
-        c = detail::ONE + aa / c;
+        c = 1.0 + aa / c;
         if (std::abs(c) < detail::ZERO) {
             c = detail::ZERO;
         }
 
-        d = detail::ONE / d;
+        d = 1.0 / d;
         h *= d * c;
 
         // Odd step (negative): aa = -(a + m) * (qab + m) * x / [(a + m2) * (qap + m2)]
         aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
 
         // Update d and c
-        d = detail::ONE + aa * d;
+        d = 1.0 + aa * d;
         if (std::abs(d) < detail::ZERO) {
             d = detail::ZERO;
         }
-        c = detail::ONE + aa / c;
+        c = 1.0 + aa / c;
         if (std::abs(c) < detail::ZERO) {
             c = detail::ZERO;
         }
 
-        d = detail::ONE / d;
+        d = 1.0 / d;
         double delta = d * c;
         h *= delta;
 
         // Check convergence
-        if (std::abs(delta - detail::ONE) < tolerance) {
+        if (std::abs(delta - 1.0) < tolerance) {
             break;
         }
     }
@@ -327,8 +321,8 @@ static double beta_continued_fraction(double x, double a, double b) noexcept {
 static double gamma_p_series(double a, double x) noexcept {
     // Compute the series expansion of the regularized incomplete gamma function
     // Based on Numerical Recipes algorithm
-    if (x == detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
+    if (x == 0.0)
+        return 0.0;
 
     // Standard series: P(a,x) = exp(-x + a*ln(x) - ln(Gamma(a))) * sum
     // where sum = 1/a * (1 + x/(a+1) + x^2/((a+1)*(a+2)) + ...)
@@ -397,13 +391,13 @@ std::vector<double> calculate_quantiles(std::span<const double> data,
     result.reserve(quantiles.size());
 
     for (double q : quantiles) {
-        if (q < detail::ZERO_DOUBLE || q > detail::ONE) {
+        if (q < 0.0 || q > 1.0) {
             throw std::invalid_argument("Quantile values must be in [0, 1]");
         }
 
-        if (q == detail::ZERO_DOUBLE) {
+        if (q == 0.0) {
             result.push_back(sorted_data.front());
-        } else if (q == detail::ONE) {
+        } else if (q == 1.0) {
             result.push_back(sorted_data.back());
         } else {
             // Use linear interpolation between data points
@@ -415,8 +409,8 @@ std::vector<double> calculate_quantiles(std::span<const double> data,
                 result.push_back(sorted_data[lower_idx]);
             } else {
                 double weight = pos - static_cast<double>(lower_idx);
-                double interpolated = sorted_data[lower_idx] * (detail::ONE - weight) +
-                                      sorted_data[upper_idx] * weight;
+                double interpolated =
+                    sorted_data[lower_idx] * (1.0 - weight) + sorted_data[upper_idx] * weight;
                 result.push_back(interpolated);
             }
         }
@@ -433,7 +427,7 @@ std::array<double, 4> sample_moments(std::span<const double> data) {
     const std::size_t n = data.size();
 
     // Calculate mean
-    double sum = detail::ZERO_DOUBLE;
+    double sum = 0.0;
     for (double x : data) {
         if (!std::isfinite(x)) {
             throw std::invalid_argument("Data contains non-finite values");
@@ -443,7 +437,7 @@ std::array<double, 4> sample_moments(std::span<const double> data) {
     double mean = sum / static_cast<double>(n);
 
     // Calculate central moments
-    double m2 = detail::ZERO_DOUBLE, m3 = detail::ZERO_DOUBLE, m4 = detail::ZERO_DOUBLE;
+    double m2 = 0.0, m3 = 0.0, m4 = 0.0;
     for (double x : data) {
         double diff = x - mean;
         double diff2 = diff * diff;
@@ -489,7 +483,7 @@ bool validate_fitting_data(std::span<const double> data) noexcept {
 double calculate_ks_statistic(const std::vector<double>& data,
                               const DistributionBase& dist) noexcept {
     if (data.empty()) {
-        return detail::ZERO_DOUBLE;
+        return 0.0;
     }
 
     // Create a copy of the data for sorting
@@ -497,7 +491,7 @@ double calculate_ks_statistic(const std::vector<double>& data,
     std::sort(sorted_data.begin(), sorted_data.end());
 
     const auto n = static_cast<double>(sorted_data.size());
-    double max_diff = detail::ZERO_DOUBLE;
+    double max_diff = 0.0;
 
     // Calculate KS statistic: max |F_n(x) - F(x)|
     for (std::size_t i = 0; i < sorted_data.size(); ++i) {
@@ -517,7 +511,7 @@ double calculate_ks_statistic(const std::vector<double>& data,
 double calculate_ad_statistic(const std::vector<double>& data,
                               const DistributionBase& dist) noexcept {
     if (data.empty()) {
-        return detail::ZERO_DOUBLE;
+        return 0.0;
     }
 
     // Create a copy of the data for sorting
@@ -525,7 +519,7 @@ double calculate_ad_statistic(const std::vector<double>& data,
     std::sort(sorted_data.begin(), sorted_data.end());
 
     const auto n = static_cast<double>(sorted_data.size());
-    double ad_sum = detail::ZERO_DOUBLE;
+    double ad_sum = 0.0;
 
     // Calculate Anderson-Darling statistic using numerically stable approach
     for (std::size_t i = 0; i < sorted_data.size(); ++i) {
@@ -534,16 +528,15 @@ double calculate_ad_statistic(const std::vector<double>& data,
         // Clamp F values to avoid numerical issues with log(0) and log(negative)
         // Use
         F_xi = std::max(detail::ANDERSON_DARLING_MIN_PROB,
-                        std::min(detail::ONE - detail::ANDERSON_DARLING_MIN_PROB, F_xi));
+                        std::min(1.0 - detail::ANDERSON_DARLING_MIN_PROB, F_xi));
 
         // Calculate log terms with safe bounds
         double log_F_xi = std::log(F_xi);
-        double log_one_minus_F_xi = std::log(detail::ONE - F_xi);
+        double log_one_minus_F_xi = std::log(1.0 - F_xi);
 
         // Correct Anderson-Darling formula with proper indexing (i+1 for 1-based indexing)
-        ad_sum += (detail::TWO * static_cast<double>(i + 1) - detail::ONE) * log_F_xi +
-                  (detail::TWO * n - detail::TWO * static_cast<double>(i + 1) + detail::ONE) *
-                      log_one_minus_F_xi;
+        ad_sum += (2.0 * static_cast<double>(i + 1) - 1.0) * log_F_xi +
+                  (2.0 * n - 2.0 * static_cast<double>(i + 1) + 1.0) * log_one_minus_F_xi;
     }
 
     return -n - ad_sum / n;
@@ -683,10 +676,10 @@ double normal_cdf(double z) noexcept {
 
 double inverse_normal_cdf(double p) noexcept {
     // Inverse standard normal CDF using inverse error function
-    if (p <= detail::ZERO_DOUBLE || p >= detail::ONE) {
-        if (p == detail::ZERO_DOUBLE)
+    if (p <= 0.0 || p >= 1.0) {
+        if (p == 0.0)
             return -std::numeric_limits<double>::infinity();
-        if (p == detail::ONE)
+        if (p == 1.0)
             return std::numeric_limits<double>::infinity();
         return std::numeric_limits<double>::quiet_NaN();
     }
@@ -698,15 +691,15 @@ double inverse_normal_cdf(double p) noexcept {
 
 double t_cdf(double t, double df) noexcept {
     // Student's t-distribution CDF using regularized incomplete beta function
-    if (df <= detail::ZERO_DOUBLE) {
+    if (df <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
     if (std::isinf(t)) {
-        return (t > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
+        return (t > 0.0) ? 1.0 : 0.0;
     }
 
-    if (t == detail::ZERO_DOUBLE) {
+    if (t == 0.0) {
         return detail::HALF;
     }
 
@@ -722,7 +715,7 @@ double t_cdf(double t, double df) noexcept {
     double x = df / (df + t * t);
     double result = beta_i(x, detail::HALF * df, detail::HALF);
 
-    if (t > detail::ZERO_DOUBLE) {
+    if (t > 0.0) {
         return detail::ONE - detail::HALF * result;
     } else {
         return detail::HALF * result;
@@ -731,29 +724,29 @@ double t_cdf(double t, double df) noexcept {
 
 double inverse_t_cdf(double p, double df) noexcept {
     // Inverse t-distribution CDF using iterative methods
-    if (p <= detail::ZERO_DOUBLE || p >= detail::ONE || df <= detail::ZERO_DOUBLE) {
-        if (p == detail::ZERO_DOUBLE)
+    if (p <= 0.0 || p >= 1.0 || df <= 0.0) {
+        if (p == 0.0)
             return -std::numeric_limits<double>::infinity();
-        if (p == detail::ONE)
+        if (p == 1.0)
             return std::numeric_limits<double>::infinity();
         return std::numeric_limits<double>::quiet_NaN();
     }
 
     if (p == detail::HALF) {
-        return detail::ZERO_DOUBLE;
+        return 0.0;
     }
 
     // Use approximate initial guess from normal distribution
     double z = inverse_normal_cdf(p);
 
     // For large degrees of freedom, t-distribution approaches normal
-    if (df > detail::HUNDRED) {
+    if (df > 100.0) {
         return z;
     }
 
     // Newton-Raphson iteration to refine the estimate
     double t = z;  // Initial guess
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+    const int max_iterations = 100;
     const double tolerance = detail::DEFAULT_TOLERANCE;
 
     for (int i = 0; i < max_iterations; ++i) {
@@ -765,12 +758,11 @@ double inverse_t_cdf(double p, double df) noexcept {
         }
 
         // Calculate derivative (PDF)
-        double pdf_val =
-            std::exp(lgamma((df + detail::ONE) * detail::HALF) - lgamma(df * detail::HALF) -
-                     detail::HALF * std::log(df * detail::PI)) *
-            std::pow(detail::ONE + t * t / df, -(df + detail::ONE) * detail::HALF);
+        double pdf_val = std::exp(lgamma((df + 1.0) * detail::HALF) - lgamma(df * detail::HALF) -
+                                  detail::HALF * std::log(df * detail::PI)) *
+                         std::pow(1.0 + t * t / df, -(df + 1.0) * detail::HALF);
 
-        if (pdf_val <= detail::ZERO_DOUBLE) {
+        if (pdf_val <= 0.0) {
             break;  // Avoid division by zero
         }
 
@@ -782,16 +774,16 @@ double inverse_t_cdf(double p, double df) noexcept {
 
 double chi_squared_cdf(double x, double df) noexcept {
     // Chi-squared CDF using regularized incomplete gamma function
-    if (x < detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x < 0.0) {
+        return 0.0;
     }
 
-    if (df <= detail::ZERO_DOUBLE) {
+    if (df <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x == 0.0) {
+        return 0.0;
     }
 
     // Chi-squared with df degrees of freedom is Gamma(df/2, 2)
@@ -801,28 +793,28 @@ double chi_squared_cdf(double x, double df) noexcept {
 
 double inverse_chi_squared_cdf(double p, double df) noexcept {
     // Inverse chi-squared CDF using iterative methods
-    if (p < detail::ZERO_DOUBLE || p > detail::ONE || df <= detail::ZERO_DOUBLE) {
+    if (p < 0.0 || p > 1.0 || df <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    if (p == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (p == 0.0) {
+        return 0.0;
     }
 
-    if (p == detail::ONE) {
+    if (p == 1.0) {
         return std::numeric_limits<double>::infinity();
     }
 
     // For very small p, use bisection to avoid Newton-Raphson instability
     if (p < 0.1 || p > 0.9) {
         // Use bisection method which is more stable for extreme probabilities
-        double low = detail::ZERO_DOUBLE;
+        double low = 0.0;
         double high = df + 10.0 * std::sqrt(df);  // Conservative upper bound
         const double tolerance = detail::DEFAULT_TOLERANCE;
-        const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+        const int max_iterations = 100;
 
         for (int i = 0; i < max_iterations; ++i) {
-            double mid = (low + high) * detail::HALF;
+            double mid = (low + high) * 0.5;
             double cdf_val = chi_squared_cdf(mid, df);
 
             if (std::abs(cdf_val - p) < tolerance) {
@@ -836,25 +828,25 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
             }
 
             if (high - low < tolerance) {
-                return (low + high) * detail::HALF;
+                return (low + high) * 0.5;
             }
         }
-        return (low + high) * detail::HALF;
+        return (low + high) * 0.5;
     }
 
     // Initial guess using Wilson-Hilferty approximation
-    double h = detail::TWO / (detail::NINE * df);
+    double h = detail::TWO / (9.0 * df);
     double z = inverse_normal_cdf(p);
-    double initial_guess = df * std::pow(detail::ONE - h + z * std::sqrt(h), 3);
+    double initial_guess = df * std::pow(1.0 - h + z * std::sqrt(h), 3);
 
     // Ensure initial guess is positive
-    if (initial_guess <= detail::ZERO_DOUBLE) {
+    if (initial_guess <= 0.0) {
         initial_guess = df;  // Use mean as fallback
     }
 
     // Newton-Raphson iteration for moderate probabilities
     double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+    const int max_iterations = 100;
     const double tolerance = detail::DEFAULT_TOLERANCE;
 
     for (int i = 0; i < max_iterations; ++i) {
@@ -866,11 +858,10 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
         }
 
         // Calculate derivative (PDF)
-        double pdf_val =
-            std::exp((df * detail::HALF - detail::ONE) * std::log(x) - x * detail::HALF -
-                     lgamma(df * detail::HALF) - df * detail::HALF * detail::LN2);
+        double pdf_val = std::exp((df * detail::HALF - 1.0) * std::log(x) - x * detail::HALF -
+                                  lgamma(df * detail::HALF) - df * detail::HALF * detail::LN2);
 
-        if (pdf_val <= detail::ZERO_DOUBLE) {
+        if (pdf_val <= 0.0) {
             break;  // Avoid division by zero
         }
 
@@ -880,11 +871,11 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
         // Check for divergence and fall back to bisection if needed
         if (x > df + 10.0 * std::sqrt(df) || !std::isfinite(x)) {
             // Fall back to bisection method
-            double low = detail::ZERO_DOUBLE;
+            double low = 0.0;
             double high = df + 10.0 * std::sqrt(df);
 
             for (int j = 0; j < max_iterations; ++j) {
-                double mid = (low + high) * detail::HALF;
+                double mid = (low + high) * 0.5;
                 double mid_cdf = chi_squared_cdf(mid, df);
 
                 if (std::abs(mid_cdf - p) < tolerance) {
@@ -898,10 +889,10 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
                 }
 
                 if (high - low < tolerance) {
-                    return (low + high) * detail::HALF;
+                    return (low + high) * 0.5;
                 }
             }
-            return (low + high) * detail::HALF;
+            return (low + high) * 0.5;
         }
     }
 
@@ -910,12 +901,12 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
 
 double f_cdf(double x, double df1, double df2) noexcept {
     // F-distribution CDF using regularized incomplete beta function
-    if (x < detail::ZERO_DOUBLE || df1 <= detail::ZERO_DOUBLE || df2 <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x < 0.0 || df1 <= 0.0 || df2 <= 0.0) {
+        return 0.0;
     }
 
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x == 0.0) {
+        return 0.0;
     }
 
     // F-distribution relationship with beta function:
@@ -926,26 +917,25 @@ double f_cdf(double x, double df1, double df2) noexcept {
 
 double inverse_f_cdf(double p, double df1, double df2) noexcept {
     // Inverse F-distribution CDF using iterative methods
-    if (p < detail::ZERO_DOUBLE || p > detail::ONE || df1 <= detail::ZERO_DOUBLE ||
-        df2 <= detail::ZERO_DOUBLE) {
+    if (p < 0.0 || p > 1.0 || df1 <= 0.0 || df2 <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    if (p == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (p == 0.0) {
+        return 0.0;
     }
 
-    if (p == detail::ONE) {
+    if (p == 1.0) {
         return std::numeric_limits<double>::infinity();
     }
 
     // Initial guess using approximation
     double z = inverse_normal_cdf(p);
-    double initial_guess = std::max(detail::ONE, detail::ONE + z * std::sqrt(detail::TWO / df1));
+    double initial_guess = std::max(1.0, 1.0 + z * std::sqrt(2.0 / df1));
 
     // Newton-Raphson iteration
     double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+    const int max_iterations = 100;
     const double tolerance = detail::DEFAULT_TOLERANCE;
 
     for (int i = 0; i < max_iterations; ++i) {
@@ -958,14 +948,13 @@ double inverse_f_cdf(double p, double df1, double df2) noexcept {
 
         // Calculate derivative (PDF)
         double log_pdf = lgamma((df1 + df2) * detail::HALF) - lgamma(df1 * detail::HALF) -
-                         lgamma(df2 * detail::HALF) +
-                         (df1 * detail::HALF - detail::ONE) * std::log(x) -
-                         (df1 + df2) * detail::HALF * std::log(detail::ONE + df1 * x / df2) +
+                         lgamma(df2 * detail::HALF) + (df1 * detail::HALF - 1.0) * std::log(x) -
+                         (df1 + df2) * detail::HALF * std::log(1.0 + df1 * x / df2) +
                          df1 * detail::HALF * std::log(df1 / df2);
 
         double pdf_val = std::exp(log_pdf);
 
-        if (pdf_val <= detail::ZERO_DOUBLE) {
+        if (pdf_val <= 0.0) {
             break;  // Avoid division by zero
         }
 
@@ -978,12 +967,12 @@ double inverse_f_cdf(double p, double df1, double df2) noexcept {
 
 double gamma_cdf(double x, double shape, double scale) noexcept {
     // Gamma distribution CDF using regularized incomplete gamma function
-    if (x < detail::ZERO_DOUBLE || shape <= detail::ZERO_DOUBLE || scale <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x < 0.0 || shape <= 0.0 || scale <= 0.0) {
+        return 0.0;
     }
 
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x == 0.0) {
+        return 0.0;
     }
 
     // Gamma CDF: F(x; α, β) = P(α, x/β) where α=shape, β=scale
@@ -993,16 +982,15 @@ double gamma_cdf(double x, double shape, double scale) noexcept {
 
 double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
     // Inverse gamma distribution CDF using iterative methods
-    if (p < detail::ZERO_DOUBLE || p > detail::ONE || shape <= detail::ZERO_DOUBLE ||
-        scale <= detail::ZERO_DOUBLE) {
+    if (p < 0.0 || p > 1.0 || shape <= 0.0 || scale <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    if (p == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (p == 0.0) {
+        return 0.0;
     }
 
-    if (p == detail::ONE) {
+    if (p == 1.0) {
         return std::numeric_limits<double>::infinity();
     }
 
@@ -1012,24 +1000,24 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
     double variance = shape * scale * scale;
 
     // Wilson-Hilferty approximation for initial guess
-    double h = detail::TWO / (detail::NINE * shape);
+    double h = 2.0 / (9.0 * shape);
     double z = inverse_normal_cdf(p);
-    double initial_guess = mean * std::pow(detail::ONE - h + z * std::sqrt(h), 3);
+    double initial_guess = mean * std::pow(1.0 - h + z * std::sqrt(h), 3);
 
     // Ensure initial guess is positive
-    if (initial_guess <= detail::ZERO_DOUBLE) {
+    if (initial_guess <= 0.0) {
         initial_guess = mean;  // Use mean as fallback
     }
 
     // For extreme probabilities, use bisection method for stability
     if (p < 0.1 || p > 0.9) {
-        double low = detail::ZERO_DOUBLE;
+        double low = 0.0;
         double high = mean + 10.0 * std::sqrt(variance);  // Conservative upper bound
         const double tolerance = detail::DEFAULT_TOLERANCE;
-        const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+        const int max_iterations = 100;
 
         for (int i = 0; i < max_iterations; ++i) {
-            double mid = (low + high) * detail::HALF;
+            double mid = (low + high) * 0.5;
             double cdf_val = gamma_cdf(mid, shape, scale);
 
             if (std::abs(cdf_val - p) < tolerance) {
@@ -1043,15 +1031,15 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
             }
 
             if (high - low < tolerance) {
-                return (low + high) * detail::HALF;
+                return (low + high) * 0.5;
             }
         }
-        return (low + high) * detail::HALF;
+        return (low + high) * 0.5;
     }
 
     // Newton-Raphson iteration for moderate probabilities
     double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+    const int max_iterations = 100;
     const double tolerance = detail::DEFAULT_TOLERANCE;
 
     for (int i = 0; i < max_iterations; ++i) {
@@ -1064,11 +1052,11 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
 
         // Calculate derivative (PDF)
         // Gamma PDF: f(x; α, β) = (1/β^α Γ(α)) * x^(α-1) * e^(-x/β)
-        double log_pdf = (shape - detail::ONE) * std::log(x) - x / scale - shape * std::log(scale) -
-                         lgamma(shape);
+        double log_pdf =
+            (shape - 1.0) * std::log(x) - x / scale - shape * std::log(scale) - lgamma(shape);
         double pdf_val = std::exp(log_pdf);
 
-        if (pdf_val <= detail::ZERO_DOUBLE) {
+        if (pdf_val <= 0.0) {
             break;  // Avoid division by zero
         }
 
@@ -1078,11 +1066,11 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
         // Check for divergence and fall back to bisection if needed
         if (x > mean + 10.0 * std::sqrt(variance) || !std::isfinite(x)) {
             // Fall back to bisection method
-            double low = detail::ZERO_DOUBLE;
+            double low = 0.0;
             double high = mean + 10.0 * std::sqrt(variance);
 
             for (int j = 0; j < max_iterations; ++j) {
-                double mid = (low + high) * detail::HALF;
+                double mid = (low + high) * 0.5;
                 double mid_cdf = gamma_cdf(mid, shape, scale);
 
                 if (std::abs(mid_cdf - p) < tolerance) {
@@ -1096,10 +1084,10 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
                 }
 
                 if (high - low < tolerance) {
-                    return (low + high) * detail::HALF;
+                    return (low + high) * 0.5;
                 }
             }
-            return (low + high) * detail::HALF;
+            return (low + high) * 0.5;
         }
     }
 

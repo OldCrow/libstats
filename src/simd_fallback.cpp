@@ -17,7 +17,7 @@ namespace ops {
 
 double VectorOps::dot_product_fallback(const double* a, const double* b,
                                        std::size_t size) noexcept {
-    double sum = 0.0;
+    double sum = detail::ZERO_DOUBLE;
     for (std::size_t i = 0; i < size; ++i) {
         sum += a[i] * b[i];
     }

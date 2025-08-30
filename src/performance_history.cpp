@@ -1,5 +1,9 @@
 #include "../include/core/performance_history.h"
 
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/precision_constants.h"
+#include "../include/core/threshold_constants.h"
+
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -82,7 +86,7 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
 
     // If we have no historical data, return a conservative default
     if (strategy_performance.empty()) {
-        return {Strategy::SCALAR, 0.0, 0, false};
+        return {Strategy::SCALAR, detail::ZERO_DOUBLE, 0, false};
     }
 
     // Find the strategy with the best (lowest) average time
@@ -92,7 +96,7 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
 
     // Calculate confidence score based on the number of strategies we have data for
     // and the performance difference between best and worst
-    double confidence_score = 0.0;
+    double confidence_score = detail::ZERO_DOUBLE;
     if (strategy_performance.size() >= 2) {
         auto worst_it =
             std::max_element(strategy_performance.begin(), strategy_performance.end(),
@@ -102,10 +106,11 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
         double performance_ratio =
             static_cast<double>(worst_it->second) / static_cast<double>(best_it->second);
         double data_confidence =
-            std::min(1.0, static_cast<double>(strategy_performance.size()) / 5.0);
-        confidence_score = std::min(1.0, (performance_ratio - 1.0) * data_confidence);
+            std::min(detail::ONE, static_cast<double>(strategy_performance.size()) / detail::FIVE);
+        confidence_score =
+            std::min(detail::ONE, (performance_ratio - detail::ONE) * data_confidence);
     } else {
-        confidence_score = 0.5;  // Medium confidence with only one data point
+        confidence_score = detail::AD_THRESHOLD_1;  // Medium confidence with only one data point
     }
 
     return {best_it->first, confidence_score, best_it->second, true};
@@ -198,8 +203,8 @@ std::size_t PerformanceHistory::categorizeBatchSize(std::size_t batch_size) noex
         return 64;
     else if (batch_size <= 80)
         return 80;
-    else if (batch_size <= 100)
-        return 100;
+    else if (batch_size <= detail::MAX_NEWTON_ITERATIONS)
+        return detail::MAX_NEWTON_ITERATIONS;
     else if (batch_size <= 128)
         return 128;
     else if (batch_size <= 160)
@@ -218,8 +223,8 @@ std::size_t PerformanceHistory::categorizeBatchSize(std::size_t batch_size) noex
         return 640;
     else if (batch_size <= 800)
         return 800;
-    else if (batch_size <= 1000)
-        return 1000;
+    else if (batch_size <= detail::MAX_BISECTION_ITERATIONS)
+        return detail::MAX_BISECTION_ITERATIONS;
     else if (batch_size <= 1280)
         return 1280;
     else if (batch_size <= 1600)
@@ -232,8 +237,8 @@ std::size_t PerformanceHistory::categorizeBatchSize(std::size_t batch_size) noex
         return 3200;
     else if (batch_size <= 4000)
         return 4000;
-    else if (batch_size <= 5000)
-        return 5000;
+    else if (batch_size <= detail::MAX_DATA_POINTS_FOR_SW_TEST)
+        return detail::MAX_DATA_POINTS_FOR_SW_TEST;
     else if (batch_size <= 6400)
         return 6400;
     else if (batch_size <= 8000)
@@ -302,9 +307,9 @@ std::size_t PerformanceHistory::findOptimalThreshold(
     const std::map<std::size_t, std::map<Strategy, std::uint64_t>>& batch_performance,
     Strategy baseline_strategy, Strategy target_strategy) noexcept {
     // Fallback thresholds based on strategy type
-    std::size_t fallback_threshold = 100;  // Default for SIMD
+    std::size_t fallback_threshold = detail::MAX_NEWTON_ITERATIONS;  // Default for SIMD
     if (target_strategy == Strategy::PARALLEL_SIMD)
-        fallback_threshold = 5000;
+        fallback_threshold = detail::MAX_DATA_POINTS_FOR_SW_TEST;
     else if (target_strategy == Strategy::WORK_STEALING)
         fallback_threshold = 10000;
     else if (target_strategy == Strategy::GPU_ACCELERATED)
