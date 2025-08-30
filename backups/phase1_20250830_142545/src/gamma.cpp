@@ -3,11 +3,7 @@
 #include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
 #include "../include/core/error_handling.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/mathematical_constants.h"
 #include "../include/core/performance_dispatcher.h"
-#include "../include/core/precision_constants.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/core/threshold_constants.h"
 #include "../include/platform/parallel_execution.h"
 #include "../include/platform/thread_pool.h"
 #include "../include/platform/work_stealing_pool.h"
@@ -147,15 +143,15 @@ double GammaDistribution::getSkewness() const noexcept {
 
 double GammaDistribution::getKurtosis() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return detail::SIX / alpha_;  // Direct computation is safe
+    return 6.0 / alpha_;  // Direct computation is safe
 }
 
 double GammaDistribution::getMode() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (alpha_ < detail::ONE) {
-        return detail::ZERO_DOUBLE;
+    if (alpha_ < 1.0) {
+        return 0.0;
     }
-    return (alpha_ - detail::ONE) / beta_;
+    return (alpha_ - 1.0) / beta_;
 }
 
 void GammaDistribution::setAlpha(double alpha) {
@@ -284,8 +280,8 @@ VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexce
 //==========================================================================
 
 double GammaDistribution::getProbability(double x) const {
-    if (x < detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x < 0.0) {
+        return 0.0;
     }
 
     // Ensure cache is valid
@@ -301,10 +297,10 @@ double GammaDistribution::getProbability(double x) const {
     }
 
     // Handle special case x = 0
-    if (x == detail::ZERO_DOUBLE) {
-        return (alpha_ < detail::ONE)    ? std::numeric_limits<double>::infinity()
-               : (alpha_ == detail::ONE) ? beta_
-                                         : detail::ZERO_DOUBLE;
+    if (x == 0.0) {
+        return (alpha_ < 1.0)    ? std::numeric_limits<double>::infinity()
+               : (alpha_ == 1.0) ? beta_
+                                 : 0.0;
     }
 
     // Use log-space computation for numerical stability
@@ -313,7 +309,7 @@ double GammaDistribution::getProbability(double x) const {
 }
 
 double GammaDistribution::getLogProbability(double x) const noexcept {
-    if (x < detail::ZERO_DOUBLE) {
+    if (x < 0.0) {
         return detail::NEGATIVE_INFINITY;
     }
 
@@ -330,10 +326,10 @@ double GammaDistribution::getLogProbability(double x) const noexcept {
     }
 
     // Handle special case x = 0
-    if (x == detail::ZERO_DOUBLE) {
-        if (alpha_ < detail::ONE) {
+    if (x == 0.0) {
+        if (alpha_ < 1.0) {
             return std::numeric_limits<double>::infinity();
-        } else if (alpha_ == detail::ONE) {
+        } else if (alpha_ == 1.0) {
             return logBeta_;  // log(β)
         } else {
             return detail::MIN_LOG_PROBABILITY;
@@ -345,8 +341,8 @@ double GammaDistribution::getLogProbability(double x) const noexcept {
 }
 
 double GammaDistribution::getCumulativeProbability(double x) const {
-    if (x <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x <= 0.0) {
+        return 0.0;
     }
 
     // Ensure cache is valid
@@ -366,14 +362,14 @@ double GammaDistribution::getCumulativeProbability(double x) const {
 }
 
 double GammaDistribution::getQuantile(double p) const {
-    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
+    if (p < 0.0 || p > 1.0) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (p == 0.0) {
+        return 0.0;
     }
-    if (p == detail::ONE) {
+    if (p == 1.0) {
         return std::numeric_limits<double>::infinity();
     }
 
@@ -395,7 +391,7 @@ double GammaDistribution::sample(std::mt19937& rng) const {
     }
 
     // Choose sampling method based on α
-    if (alpha_ >= detail::ONE) {
+    if (alpha_ >= 1.0) {
         return sampleMarsagliaTsang(rng);
     } else {
         return sampleAhrensDieter(rng);
@@ -424,7 +420,7 @@ void GammaDistribution::fit(const std::vector<double>& values) {
 
     // Check for non-positive values
     for (double value : values) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -508,14 +504,13 @@ std::string GammaDistribution::toString() const {
 
 std::pair<double, double> GammaDistribution::confidenceIntervalShape(
     const std::vector<double>& data, double confidence_level) {
-    if (data.empty() || confidence_level <= detail::ZERO_DOUBLE ||
-        confidence_level >= detail::ONE) {
+    if (data.empty() || confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Invalid data or confidence level");
     }
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -526,30 +521,29 @@ std::pair<double, double> GammaDistribution::confidenceIntervalShape(
 
     // Calculate log-likelihood at MLE
     size_t n = data.size();
-    [[maybe_unused]] double sum_log_x = detail::ZERO_DOUBLE;
-    [[maybe_unused]] double sum_x = detail::ZERO_DOUBLE;
+    [[maybe_unused]] double sum_log_x = 0.0;
+    [[maybe_unused]] double sum_x = 0.0;
     for (double x : data) {
         sum_log_x += std::log(x);
         sum_x += x;
     }
 
     // Chi-square critical value
-    [[maybe_unused]] double alpha_level = detail::ONE - confidence_level;
-    double chi2_critical =
-        detail::CHI2_95_DF_1;  // χ²(1, detail::ALPHA_05) ≈ detail::CHI2_95_DF_1 for 95% CI
-    if (confidence_level == detail::CONFIDENCE_99) {
-        chi2_critical = detail::CHI2_99_DF_1;
+    [[maybe_unused]] double alpha_level = 1.0 - confidence_level;
+    double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
+    if (confidence_level == 0.99) {
+        chi2_critical = 6.635;
     }
-    if (confidence_level == detail::CONFIDENCE_90) {
+    if (confidence_level == 0.90) {
         chi2_critical = 2.706;
     }
 
     // Profile likelihood bounds (simplified approximation)
     // For large samples, use asymptotic normality
     double se_alpha = alpha_hat / std::sqrt(n);  // Approximate standard error
-    double margin = std::sqrt(chi2_critical / detail::TWO) * se_alpha;
+    double margin = std::sqrt(chi2_critical / 2.0) * se_alpha;
 
-    double lower_bound = std::max(detail::ALPHA_001, alpha_hat - margin);
+    double lower_bound = std::max(0.001, alpha_hat - margin);
     double upper_bound = alpha_hat + margin;
 
     return {lower_bound, upper_bound};
@@ -557,14 +551,13 @@ std::pair<double, double> GammaDistribution::confidenceIntervalShape(
 
 std::pair<double, double> GammaDistribution::confidenceIntervalRate(const std::vector<double>& data,
                                                                     double confidence_level) {
-    if (data.empty() || confidence_level <= detail::ZERO_DOUBLE ||
-        confidence_level >= detail::ONE) {
+    if (data.empty() || confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Invalid data or confidence level");
     }
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -574,25 +567,24 @@ std::pair<double, double> GammaDistribution::confidenceIntervalRate(const std::v
     double beta_hat = mle_estimates.second;
 
     size_t n = data.size();
-    [[maybe_unused]] double sum_x = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
+    [[maybe_unused]] double sum_x = std::accumulate(data.begin(), data.end(), 0.0);
 
     // Chi-square critical value
-    [[maybe_unused]] double alpha_level = detail::ONE - confidence_level;
-    double chi2_critical =
-        detail::CHI2_95_DF_1;  // χ²(1, detail::ALPHA_05) ≈ detail::CHI2_95_DF_1 for 95% CI
-    if (confidence_level == detail::CONFIDENCE_99) {
-        chi2_critical = detail::CHI2_99_DF_1;
+    [[maybe_unused]] double alpha_level = 1.0 - confidence_level;
+    double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
+    if (confidence_level == 0.99) {
+        chi2_critical = 6.635;
     }
-    if (confidence_level == detail::CONFIDENCE_90) {
+    if (confidence_level == 0.90) {
         chi2_critical = 2.706;
     }
 
     // For rate parameter β, use asymptotic normality
     // Variance of MLE for β is approximately β²/(n*α)
     double se_beta = beta_hat / std::sqrt(static_cast<double>(n) * mle_estimates.first);
-    double margin = std::sqrt(chi2_critical / detail::TWO) * se_beta;
+    double margin = std::sqrt(chi2_critical / 2.0) * se_beta;
 
-    double lower_bound = std::max(detail::ALPHA_001, beta_hat - margin);
+    double lower_bound = std::max(0.001, beta_hat - margin);
     double upper_bound = beta_hat + margin;
 
     return {lower_bound, upper_bound};
@@ -604,16 +596,16 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
-    if (null_shape <= detail::ZERO_DOUBLE || null_rate <= detail::ZERO_DOUBLE) {
+    if (null_shape <= 0.0 || null_rate <= 0.0) {
         throw std::invalid_argument("Null hypothesis parameters must be positive");
     }
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -621,8 +613,8 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
     size_t n = data.size();
 
     // Calculate sufficient statistics
-    double sum_x = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    double sum_log_x = detail::ZERO_DOUBLE;
+    double sum_x = std::accumulate(data.begin(), data.end(), 0.0);
+    double sum_log_x = 0.0;
     for (double x : data) {
         sum_log_x += std::log(x);
     }
@@ -630,7 +622,7 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
     // Log-likelihood under null hypothesis H0: (α₀, β₀)
     double log_likelihood_null = static_cast<double>(n) * null_shape * std::log(null_rate) -
                                  static_cast<double>(n) * std::lgamma(null_shape) +
-                                 (null_shape - detail::ONE) * sum_log_x - null_rate * sum_x;
+                                 (null_shape - 1.0) * sum_log_x - null_rate * sum_x;
 
     // MLE estimates under alternative hypothesis H1
     auto mle_estimates = methodOfMomentsEstimation(data);
@@ -640,27 +632,26 @@ std::tuple<double, double, bool> GammaDistribution::likelihoodRatioTest(
     // Log-likelihood under alternative hypothesis H1: (α̂, β̂)
     double log_likelihood_alt = static_cast<double>(n) * alpha_hat * std::log(beta_hat) -
                                 static_cast<double>(n) * std::lgamma(alpha_hat) +
-                                (alpha_hat - detail::ONE) * sum_log_x - beta_hat * sum_x;
+                                (alpha_hat - 1.0) * sum_log_x - beta_hat * sum_x;
 
     // Likelihood ratio test statistic: -2 * ln(L₀/L₁) = 2 * (ln(L₁) - ln(L₀))
-    double lr_statistic = detail::TWO * (log_likelihood_alt - log_likelihood_null);
+    double lr_statistic = 2.0 * (log_likelihood_alt - log_likelihood_null);
 
     // Under H0, LR statistic follows χ²(2) distribution asymptotically
     // (2 degrees of freedom for 2 parameters: α and β)
 
     // Chi-square critical values for df=2
-    double chi2_critical =
-        detail::CHI2_95_DF_2;  // χ²(2, detail::ALPHA_05) ≈ detail::CHI2_95_DF_2 for 95% confidence
-    if (significance_level == detail::ALPHA_01) {
-        chi2_critical = detail::CHI2_99_DF_2;
+    double chi2_critical = 5.991;  // χ²(2, 0.05) ≈ 5.991 for 95% confidence
+    if (significance_level == 0.01) {
+        chi2_critical = 9.210;
     }
-    if (significance_level == detail::ALPHA_10) {
+    if (significance_level == 0.10) {
         chi2_critical = 4.605;
     }
 
     // Approximate p-value using chi-square distribution
     // For a more accurate p-value, we would use the complementary gamma function
-    double p_value = 1.0 - detail::gamma_p(1.0, lr_statistic / detail::TWO);  // Approximation
+    double p_value = 1.0 - detail::gamma_p(1.0, lr_statistic / 2.0);  // Approximation
 
     // Reject null hypothesis if LR statistic > critical value
     bool reject_null = (lr_statistic > chi2_critical);
@@ -674,14 +665,14 @@ std::tuple<double, double, double, double> GammaDistribution::bayesianEstimation
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (prior_shape_shape <= detail::ZERO_DOUBLE || prior_shape_rate <= detail::ZERO_DOUBLE ||
-        prior_rate_shape <= detail::ZERO_DOUBLE || prior_rate_rate <= detail::ZERO_DOUBLE) {
+    if (prior_shape_shape <= 0.0 || prior_shape_rate <= 0.0 || prior_rate_shape <= 0.0 ||
+        prior_rate_rate <= 0.0) {
         throw std::invalid_argument("Prior parameters must be positive");
     }
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -689,8 +680,8 @@ std::tuple<double, double, double, double> GammaDistribution::bayesianEstimation
     size_t n = data.size();
 
     // Calculate sufficient statistics
-    [[maybe_unused]] double sum_x = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    [[maybe_unused]] double sum_log_x = detail::ZERO_DOUBLE;
+    [[maybe_unused]] double sum_x = std::accumulate(data.begin(), data.end(), 0.0);
+    [[maybe_unused]] double sum_log_x = 0.0;
     for (double x : data) {
         sum_log_x += std::log(x);
     }
@@ -736,13 +727,13 @@ std::tuple<double, double, double, double> GammaDistribution::bayesianEstimation
 std::pair<double, double> GammaDistribution::robustEstimation(const std::vector<double>& data,
                                                               const std::string& estimator_type,
                                                               double trim_proportion) {
-    if (data.empty() || trim_proportion < detail::ZERO_DOUBLE || trim_proportion > detail::HALF) {
+    if (data.empty() || trim_proportion < 0.0 || trim_proportion > 0.5) {
         throw std::invalid_argument("Invalid data or trim proportion");
     }
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -755,7 +746,7 @@ std::pair<double, double> GammaDistribution::robustEstimation(const std::vector<
     if (estimator_type == "trimmed") {
         // Trimmed estimator: remove extreme values
         size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(data.size()));
-        if (trim_count * detail::TWO_INT >= data.size()) {
+        if (trim_count * 2 >= data.size()) {
             throw std::invalid_argument("Trim proportion too large");
         }
 
@@ -766,9 +757,9 @@ std::pair<double, double> GammaDistribution::robustEstimation(const std::vector<
         processed_data = sorted_data;
         size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(data.size()));
 
-        if (trim_count > 0 && trim_count * detail::TWO_INT < data.size()) {
+        if (trim_count > 0 && trim_count * 2 < data.size()) {
             double lower_bound = sorted_data[trim_count];
-            double upper_bound = sorted_data[data.size() - trim_count - detail::ONE_INT];
+            double upper_bound = sorted_data[data.size() - trim_count - 1];
 
             for (size_t i = 0; i < trim_count; ++i) {
                 processed_data[i] = lower_bound;
@@ -778,9 +769,8 @@ std::pair<double, double> GammaDistribution::robustEstimation(const std::vector<
     } else if (estimator_type == "quantile") {
         // Quantile-based estimator: use interquartile range
         processed_data = sorted_data;
-        size_t q1_idx = static_cast<size_t>(detail::QUARTER * static_cast<double>(data.size()));
-        size_t q3_idx =
-            static_cast<size_t>(detail::AD_P_VALUE_MEDIUM * static_cast<double>(data.size()));
+        size_t q1_idx = static_cast<size_t>(0.25 * static_cast<double>(data.size()));
+        size_t q3_idx = static_cast<size_t>(0.75 * static_cast<double>(data.size()));
 
         if (q3_idx > q1_idx) {
             processed_data.assign(sorted_data.begin() + static_cast<std::ptrdiff_t>(q1_idx),
@@ -806,7 +796,7 @@ std::pair<double, double> GammaDistribution::methodOfMomentsEstimation(
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -814,18 +804,17 @@ std::pair<double, double> GammaDistribution::methodOfMomentsEstimation(
     size_t n = data.size();
 
     // Calculate sample mean
-    double sample_mean =
-        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
+    double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
 
     // Calculate sample variance
-    double sum_sq_diff = detail::ZERO_DOUBLE;
+    double sum_sq_diff = 0.0;
     for (double value : data) {
         double diff = value - sample_mean;
         sum_sq_diff += diff * diff;
     }
     double sample_variance = sum_sq_diff / static_cast<double>(n - 1);
 
-    if (sample_variance <= detail::ZERO_DOUBLE) {
+    if (sample_variance <= 0.0) {
         throw std::invalid_argument("Sample variance must be positive");
     }
 
@@ -846,17 +835,17 @@ GammaDistribution::bayesianCredibleInterval(const std::vector<double>& data,
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (credibility_level <= detail::ZERO_DOUBLE || credibility_level >= detail::ONE) {
+    if (credibility_level <= 0.0 || credibility_level >= 1.0) {
         throw std::invalid_argument("Credibility level must be between 0 and 1");
     }
-    if (prior_shape_shape <= detail::ZERO_DOUBLE || prior_shape_rate <= detail::ZERO_DOUBLE ||
-        prior_rate_shape <= detail::ZERO_DOUBLE || prior_rate_rate <= detail::ZERO_DOUBLE) {
+    if (prior_shape_shape <= 0.0 || prior_shape_rate <= 0.0 || prior_rate_shape <= 0.0 ||
+        prior_rate_rate <= 0.0) {
         throw std::invalid_argument("Prior parameters must be positive");
     }
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -871,26 +860,26 @@ GammaDistribution::bayesianCredibleInterval(const std::vector<double>& data,
     double post_beta_rate = std::get<3>(posterior_params);
 
     // Calculate credible intervals for both parameters
-    double alpha_tail = (detail::ONE - credibility_level) / detail::TWO;
+    double alpha_tail = (1.0 - credibility_level) / 2.0;
 
     // For shape parameter α ~ Gamma(post_alpha_shape, post_alpha_rate)
     // Use gamma inverse CDF (quantile function)
     double alpha_lower =
-        detail::gamma_inverse_cdf(alpha_tail, post_alpha_shape, detail::ONE / post_alpha_rate);
-    double alpha_upper = detail::gamma_inverse_cdf(detail::ONE - alpha_tail, post_alpha_shape,
-                                                   detail::ONE / post_alpha_rate);
+        detail::gamma_inverse_cdf(alpha_tail, post_alpha_shape, 1.0 / post_alpha_rate);
+    double alpha_upper =
+        detail::gamma_inverse_cdf(1.0 - alpha_tail, post_alpha_shape, 1.0 / post_alpha_rate);
 
     // For rate parameter β ~ Gamma(post_beta_shape, post_beta_rate)
     double beta_lower =
-        detail::gamma_inverse_cdf(alpha_tail, post_beta_shape, detail::ONE / post_beta_rate);
-    double beta_upper = detail::gamma_inverse_cdf(detail::ONE - alpha_tail, post_beta_shape,
-                                                  detail::ONE / post_beta_rate);
+        detail::gamma_inverse_cdf(alpha_tail, post_beta_shape, 1.0 / post_beta_rate);
+    double beta_upper =
+        detail::gamma_inverse_cdf(1.0 - alpha_tail, post_beta_shape, 1.0 / post_beta_rate);
 
     // Ensure bounds are positive and reasonable
-    alpha_lower = std::max(alpha_lower, detail::MIN_STD_DEV);
-    alpha_upper = std::max(alpha_upper, alpha_lower + detail::MIN_STD_DEV);
-    beta_lower = std::max(beta_lower, detail::MIN_STD_DEV);
-    beta_upper = std::max(beta_upper, beta_lower + detail::MIN_STD_DEV);
+    alpha_lower = std::max(alpha_lower, 1e-6);
+    alpha_upper = std::max(alpha_upper, alpha_lower + 1e-6);
+    beta_lower = std::max(beta_lower, 1e-6);
+    beta_upper = std::max(beta_upper, beta_lower + 1e-6);
 
     return std::make_tuple(std::make_pair(alpha_lower, alpha_upper),
                            std::make_pair(beta_lower, beta_upper));
@@ -903,7 +892,7 @@ std::pair<double, double> GammaDistribution::lMomentsEstimation(const std::vecto
 
     // Check for non-positive values
     for (double value : data) {
-        if (value <= detail::ZERO_DOUBLE) {
+        if (value <= 0.0) {
             throw std::invalid_argument("All values must be positive for Gamma distribution");
         }
     }
@@ -915,19 +904,19 @@ std::pair<double, double> GammaDistribution::lMomentsEstimation(const std::vecto
 
     // Calculate L-moments (first two)
     // L1 (L-mean) = mean of order statistics
-    double L1 = std::accumulate(sorted_data.begin(), sorted_data.end(), detail::ZERO_DOUBLE) /
-                static_cast<double>(n);
+    double L1 =
+        std::accumulate(sorted_data.begin(), sorted_data.end(), 0.0) / static_cast<double>(n);
 
     // L2 (L-scale) = expectation of (X(2) - X(1)) for sample size 2
-    double L2 = detail::ZERO_DOUBLE;
+    double L2 = 0.0;
     for (size_t i = 0; i < n; ++i) {
-        double weight = (detail::TWO * static_cast<double>(i) - static_cast<double>(n) + 1.0) /
-                        static_cast<double>(n);
+        double weight =
+            (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);
         L2 += weight * sorted_data[i];
     }
-    L2 /= detail::TWO;
+    L2 /= 2.0;
 
-    if (L2 <= detail::ZERO_DOUBLE) {
+    if (L2 <= 0.0) {
         throw std::invalid_argument("L-scale must be positive");
     }
 
@@ -940,7 +929,7 @@ std::pair<double, double> GammaDistribution::lMomentsEstimation(const std::vecto
 
     // Initial guess using method of moments approximation
     double cv = tau;  // Coefficient of variation approximation
-    [[maybe_unused]] double alpha_estimate = detail::ONE / (cv * cv);
+    [[maybe_unused]] double alpha_estimate = 1.0 / (cv * cv);
     [[maybe_unused]] double beta_estimate = alpha_estimate / L1;
 
     // Refine estimate (simplified - in practice would use iterative method)
@@ -953,7 +942,7 @@ std::tuple<double, double, bool> GammaDistribution::normalApproximationTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
@@ -966,12 +955,11 @@ std::tuple<double, double, bool> GammaDistribution::normalApproximationTest(
     double normal_var = alpha_hat / static_cast<double>(n);
     double normal_sd = std::sqrt(normal_var);
 
-    double threshold_z = detail::inverse_normal_cdf(detail::ONE - significance_level / detail::TWO);
+    double threshold_z = detail::inverse_normal_cdf(1.0 - significance_level / 2.0);
     double lower_bound = normal_mean - threshold_z * normal_sd;
     double upper_bound = normal_mean + threshold_z * normal_sd;
 
-    double sample_mean =
-        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
+    double sample_mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
 
     bool reject_null = (sample_mean < lower_bound || sample_mean > upper_bound);
 
@@ -988,7 +976,7 @@ std::tuple<double, double, bool> GammaDistribution::kolmogorovSmirnovTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
@@ -1005,21 +993,19 @@ std::tuple<double, double, bool> GammaDistribution::kolmogorovSmirnovTest(
     double p_value;
 
     if (lambda < 0.27) {
-        p_value = detail::ONE;
-    } else if (lambda < detail::ONE) {
-        p_value = detail::ONE - detail::TWO * std::pow(lambda, 2) *
-                                    (detail::ONE - detail::TWO * lambda * lambda / detail::THREE);
+        p_value = 1.0;
+    } else if (lambda < 1.0) {
+        p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
     } else {
         // Asymptotic series for large lambda
-        p_value = detail::TWO * std::exp(-detail::TWO * lambda * lambda);
+        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
         // Add correction terms
-        double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE +
-                            8.0 * std::pow(lambda, 4) / 15.0;
-        p_value *= std::max(detail::ZERO_DOUBLE, correction);
+        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
+        p_value *= std::max(0.0, correction);
     }
 
     // Ensure p-value is in valid range
-    p_value = std::min(detail::ONE, std::max(detail::ZERO_DOUBLE, p_value));
+    p_value = std::min(1.0, std::max(0.0, p_value));
 
     return std::make_tuple(ks_statistic, p_value, reject_null);
 }
@@ -1030,7 +1016,7 @@ std::tuple<double, double, bool> GammaDistribution::andersonDarlingTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
@@ -1039,21 +1025,20 @@ std::tuple<double, double, bool> GammaDistribution::andersonDarlingTest(
 
     // Use the same p-value approximation as Gaussian distribution for consistency
     const double n = static_cast<double>(data.size());
-    const double modified_stat =
-        ad_statistic * (detail::ONE + detail::AD_P_VALUE_MEDIUM / n + 2.25 / (n * n));
+    const double modified_stat = ad_statistic * (1.0 + 0.75 / n + 2.25 / (n * n));
 
     // Approximate p-value using exponential approximation
     double p_value;
     if (modified_stat >= 13.0) {
-        p_value = detail::ZERO_DOUBLE;
-    } else if (modified_stat >= detail::SIX) {
+        p_value = 0.0;
+    } else if (modified_stat >= 6.0) {
         p_value = std::exp(-1.28 * modified_stat);
     } else {
         p_value = std::exp(-1.8 * modified_stat + 1.5);
     }
 
     // Clamp p-value to [0, 1]
-    p_value = std::min(detail::ONE, std::max(detail::ZERO_DOUBLE, p_value));
+    p_value = std::min(1.0, std::max(0.0, p_value));
 
     const bool reject_null = p_value < significance_level;
 
@@ -1102,7 +1087,7 @@ std::vector<std::tuple<double, double, double>> GammaDistribution::kFoldCrossVal
         // Evaluate on validation data
         std::vector<double> absolute_errors;
         std::vector<double> squared_errors;
-        double log_likelihood = detail::ZERO_DOUBLE;
+        double log_likelihood = 0.0;
 
         absolute_errors.reserve(validation_data.size());
         squared_errors.reserve(validation_data.size());
@@ -1122,12 +1107,10 @@ std::vector<std::tuple<double, double, double>> GammaDistribution::kFoldCrossVal
         }
 
         // Calculate MAE and RMSE
-        const double mae =
-            std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
-            static_cast<double>(absolute_errors.size());
-        const double mse =
-            std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
-            static_cast<double>(squared_errors.size());
+        const double mae = std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) /
+                           static_cast<double>(absolute_errors.size());
+        const double mse = std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) /
+                           static_cast<double>(squared_errors.size());
         const double rmse = std::sqrt(mse);
 
         results.emplace_back(mae, rmse, log_likelihood);
@@ -1145,7 +1128,7 @@ std::tuple<double, double, double> GammaDistribution::leaveOneOutCrossValidation
     const size_t n = data.size();
     std::vector<double> absolute_errors;
     std::vector<double> squared_errors;
-    double total_log_likelihood = detail::ZERO_DOUBLE;
+    double total_log_likelihood = 0.0;
 
     absolute_errors.reserve(n);
     squared_errors.reserve(n);
@@ -1174,11 +1157,10 @@ std::tuple<double, double, double> GammaDistribution::leaveOneOutCrossValidation
 
     // Calculate summary statistics
     const double mean_absolute_error =
-        std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
+        std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) /
         static_cast<double>(n);
     const double mean_squared_error =
-        std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
-        static_cast<double>(n);
+        std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / static_cast<double>(n);
     const double root_mean_squared_error = std::sqrt(mean_squared_error);
 
     return std::make_tuple(mean_absolute_error, root_mean_squared_error, total_log_likelihood);
@@ -1198,13 +1180,13 @@ std::tuple<double, double, double, double> GammaDistribution::computeInformation
     int k = 2;  // Number of parameters (alpha and beta)
 
     // Calculate log-likelihood
-    double log_likelihood = detail::ZERO_DOUBLE;
+    double log_likelihood = 0.0;
     for (double value : data) {
         log_likelihood += fitted_distribution.getLogProbability(value);
     }
 
     // AIC (Akaike Information Criterion)
-    double aic = detail::TWO_INT * k - detail::TWO_INT * log_likelihood;
+    double aic = 2 * k - 2 * log_likelihood;
 
     // BIC (Bayesian Information Criterion)
     double bic = k * std::log(static_cast<double>(n)) - 2 * log_likelihood;
@@ -1226,7 +1208,7 @@ GammaDistribution::bootstrapParameterConfidenceIntervals(const std::vector<doubl
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
     if (n_bootstrap < 100) {
@@ -1266,7 +1248,7 @@ GammaDistribution::bootstrapParameterConfidenceIntervals(const std::vector<doubl
     std::sort(bootstrap_betas.begin(), bootstrap_betas.end());
 
     // Calculate confidence intervals using percentile method
-    double alpha_level = (detail::ONE - confidence_level) / detail::TWO;
+    double alpha_level = (1.0 - confidence_level) / 2.0;
     size_t lower_idx =
         static_cast<size_t>(alpha_level * static_cast<double>(bootstrap_alphas.size()));
     size_t upper_idx =
@@ -1315,11 +1297,10 @@ bool GammaDistribution::isChiSquaredDistribution() const noexcept {
 
 double GammaDistribution::getDegreesOfFreedom() const {
     if (!isChiSquaredDistribution()) {
-        throw std::logic_error(
-            "Distribution is not a chi-squared distribution (beta != detail::HALF)");
+        throw std::logic_error("Distribution is not a chi-squared distribution (beta != 0.5)");
     }
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return detail::TWO * alpha_;
+    return 2.0 * alpha_;
 }
 
 double GammaDistribution::getEntropy() const {
@@ -1335,7 +1316,7 @@ double GammaDistribution::getEntropy() const {
     }
 
     // H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α)
-    return alpha_ - logBeta_ + logGammaAlpha_ + (detail::ONE - alpha_) * digammaAlpha_;
+    return alpha_ - logBeta_ + logGammaAlpha_ + (1.0 - alpha_) * digammaAlpha_;
 }
 
 bool GammaDistribution::canUseNormalApproximation() const noexcept {
@@ -1354,11 +1335,11 @@ bool GammaDistribution::canUseNormalApproximation() const noexcept {
 
 Result<GammaDistribution> GammaDistribution::createFromMoments(double mean,
                                                                double variance) noexcept {
-    if (mean <= detail::ZERO_DOUBLE) {
+    if (mean <= 0.0) {
         return Result<GammaDistribution>::makeError(ValidationError::InvalidParameter,
                                                     "Mean must be positive");
     }
-    if (variance <= detail::ZERO_DOUBLE) {
+    if (variance <= 0.0) {
         return Result<GammaDistribution>::makeError(ValidationError::InvalidParameter,
                                                     "Variance must be positive");
     }
@@ -1440,8 +1421,8 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
                     } else {
                         res[i] =
                             std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
@@ -1452,8 +1433,8 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
                     } else {
                         res[i] =
                             std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
@@ -1496,8 +1477,8 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
                                       cached_beta * x - cached_log_gamma_alpha);
@@ -1540,8 +1521,8 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             // This approach avoids the cache contention issues that caused performance regression
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
                                       cached_beta * x - cached_log_gamma_alpha);
@@ -1614,7 +1595,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
+                    if (x <= 0.0) {
                         res[i] = detail::NEGATIVE_INFINITY;
                     } else {
                         res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
@@ -1625,7 +1606,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
+                    if (x <= 0.0) {
                         res[i] = detail::NEGATIVE_INFINITY;
                     } else {
                         res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
@@ -1667,7 +1648,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
+                if (x <= 0.0) {
                     res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
@@ -1708,7 +1689,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
+                if (x <= 0.0) {
                     res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
@@ -1780,8 +1761,8 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
                     } else {
                         res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                     }
@@ -1790,8 +1771,8 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (x <= 0.0) {
+                        res[i] = 0.0;
                     } else {
                         res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                     }
@@ -1829,8 +1810,8 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
@@ -1867,8 +1848,8 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
@@ -1950,8 +1931,8 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
                                       cached_beta * x - cached_log_gamma_alpha);
@@ -1992,8 +1973,8 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
                                       cached_beta * x - cached_log_gamma_alpha);
@@ -2034,8 +2015,8 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
                                       cached_beta * x - cached_log_gamma_alpha);
@@ -2114,7 +2095,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
+                if (x <= 0.0) {
                     res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
@@ -2156,7 +2137,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
+                if (x <= 0.0) {
                     res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
@@ -2198,7 +2179,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
+                if (x <= 0.0) {
                     res[i] = detail::NEGATIVE_INFINITY;
                 } else {
                     res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
@@ -2273,8 +2254,8 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
             // Execute parallel strategy directly - no threshold checks for WithStrategy power users
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
@@ -2311,8 +2292,8 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
@@ -2349,8 +2330,8 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (x <= 0.0) {
+                    res[i] = 0.0;
                 } else {
                     res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
@@ -2394,8 +2375,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
         size_t equals_pos = temp.find('=');
         size_t comma_pos = temp.find(',');
         if (equals_pos != std::string::npos && comma_pos != std::string::npos) {
-            std::string alpha_str =
-                temp.substr(equals_pos + detail::ONE_INT, comma_pos - equals_pos - detail::ONE_INT);
+            std::string alpha_str = temp.substr(equals_pos + 1, comma_pos - equals_pos - 1);
             alpha = std::stod(alpha_str);
 
             // Read "beta=value)"
@@ -2405,8 +2385,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
                 size_t close_paren_pos = temp.find(')');
                 if (beta_equals_pos != std::string::npos && close_paren_pos != std::string::npos) {
                     std::string beta_str =
-                        temp.substr(beta_equals_pos + detail::ONE_INT,
-                                    close_paren_pos - beta_equals_pos - detail::ONE_INT);
+                        temp.substr(beta_equals_pos + 1, close_paren_pos - beta_equals_pos - 1);
                     beta = std::stod(beta_str);
 
                     // Set parameters if valid
@@ -2452,8 +2431,8 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
+            if (values[i] <= 0.0) {
+                results[i] = 0.0;
             } else {
                 results[i] = std::exp(alpha_log_beta - log_gamma_alpha +
                                       alpha_minus_one * std::log(values[i]) - beta * values[i]);
@@ -2469,7 +2448,7 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
 
     // Step 1: Handle negative values and compute log(values)
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
+        if (values[i] <= 0.0) {
             log_values[i] = detail::MIN_LOG_PROBABILITY;  // Will be set to 0 later
         } else {
             log_values[i] = std::log(values[i]);
@@ -2494,8 +2473,8 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
 
     // Step 6: Handle negative input values (set to zero) - must be done after exp
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
+        if (values[i] <= 0.0) {
+            results[i] = 0.0;
         }
     }
 }
@@ -2512,7 +2491,7 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= detail::ZERO_DOUBLE) {
+            if (values[i] <= 0.0) {
                 results[i] = detail::NEGATIVE_INFINITY;
             } else {
                 results[i] = alpha_log_beta - log_gamma_alpha +
@@ -2529,7 +2508,7 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
 
     // Step 1: Handle negative values and compute log(values)
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
+        if (values[i] <= 0.0) {
             log_values[i] = 0.0;  // Use 0 for now, will handle negative values at the end
         } else {
             log_values[i] = std::log(values[i]);
@@ -2550,7 +2529,7 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
     // Step 5: Handle negative input values (set to MIN_LOG_PROBABILITY) - must be done after all
     // SIMD ops
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
+        if (values[i] <= 0.0) {
             results[i] = detail::MIN_LOG_PROBABILITY;
         }
     }
@@ -2566,8 +2545,8 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
     if (!use_simd) {
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
+            if (values[i] <= 0.0) {
+                results[i] = 0.0;
             } else {
                 results[i] = regularizedIncompleteGamma(alpha, beta * values[i]);
             }
@@ -2585,8 +2564,8 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
     // Step 2: Apply regularized incomplete gamma function to each scaled value
     // Note: This function is not easily vectorizable, so we still use scalar loop
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
+        if (values[i] <= 0.0) {
+            results[i] = 0.0;
         } else {
             results[i] = detail::gamma_p(alpha, scaled_values[i]);
         }
@@ -2599,52 +2578,51 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
 
 double GammaDistribution::incompleteGamma(double a, double x) noexcept {
     // Lower incomplete gamma function γ(a,x) using series expansion or continued fractions
-    if (x <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x <= 0.0) {
+        return 0.0;
     }
-    if (a <= detail::ZERO_DOUBLE) {
+    if (a <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
     // For x < a+1, use series expansion
-    if (x < a + detail::ONE) {
+    if (x < a + 1.0) {
         // Series: γ(a,x) = e^(-x) * x^a * Σ(x^n / Γ(a+n+1)) for n=0 to ∞
-        double sum = detail::ONE;
-        double term = detail::ONE;
-        double n = detail::ONE;
+        double sum = 1.0;
+        double term = 1.0;
+        double n = 1.0;
 
         // Continue series until convergence
-        while (std::abs(term) > detail::ULTRA_HIGH_PRECISION_TOLERANCE * std::abs(sum) &&
-               n < detail::MAX_BISECTION_ITERATIONS) {
-            term *= x / (a + n - detail::ONE);
+        while (std::abs(term) > 1e-15 * std::abs(sum) && n < 1000) {
+            term *= x / (a + n - 1.0);
             sum += term;
-            n += detail::ONE;
+            n += 1.0;
         }
 
         return std::exp(-x + a * std::log(x) - std::lgamma(a)) * sum;
     } else {
         // For x >= a+1, use continued fraction: γ(a,x) = Γ(a) - Γ(a,x)
         // where Γ(a,x) is computed using continued fraction
-        double b = x + detail::ONE - a;
-        double c = detail::LARGE_CONTINUED_FRACTION_VALUE;
-        double d = detail::ONE / b;
+        double b = x + 1.0 - a;
+        double c = 1e30;
+        double d = 1.0 / b;
         double h = d;
 
-        for (std::size_t i = 1; i <= detail::MAX_CONTINUED_FRACTION_ITERATIONS; ++i) {
-            double an = -static_cast<double>(i) * (static_cast<double>(i) - a);
-            b += detail::TWO;
+        for (int i = 1; i <= 1000; ++i) {
+            double an = -i * (i - a);
+            b += 2.0;
             d = an * d + b;
-            if (std::abs(d) < detail::ULTRA_SMALL_THRESHOLD) {
-                d = detail::ULTRA_SMALL_THRESHOLD;
+            if (std::abs(d) < 1e-30) {
+                d = 1e-30;
             }
             c = b + an / c;
-            if (std::abs(c) < detail::ULTRA_SMALL_THRESHOLD) {
-                c = detail::ULTRA_SMALL_THRESHOLD;
+            if (std::abs(c) < 1e-30) {
+                c = 1e-30;
             }
-            d = detail::ONE / d;
+            d = 1.0 / d;
             double del = d * c;
             h *= del;
-            if (std::abs(del - 1.0) < detail::ULTRA_HIGH_PRECISION_TOLERANCE) {
+            if (std::abs(del - 1.0) < 1e-15) {
                 break;
             }
         }
@@ -2656,10 +2634,10 @@ double GammaDistribution::incompleteGamma(double a, double x) noexcept {
 
 double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcept {
     // Regularized lower incomplete gamma function P(a,x) = γ(a,x) / Γ(a)
-    if (x <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (x <= 0.0) {
+        return 0.0;
     }
-    if (a <= detail::ZERO_DOUBLE) {
+    if (a <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
@@ -2668,28 +2646,28 @@ double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcep
 
 double GammaDistribution::computeQuantile(double p) const noexcept {
     // Quantile function using Newton-Raphson iteration with initial guess
-    if (p <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
+    if (p <= 0.0) {
+        return 0.0;
     }
-    if (p >= detail::ONE) {
+    if (p >= 1.0) {
         return std::numeric_limits<double>::infinity();
     }
 
     // Initial guess using Wilson-Hilferty transformation for large α
     double initial_guess;
-    if (alpha_ > detail::ONE) {
-        double h = detail::TWO / (detail::NINE * alpha_);
+    if (alpha_ > 1.0) {
+        double h = 2.0 / (9.0 * alpha_);
         double z = detail::inverse_normal_cdf(p);
-        initial_guess = alpha_ * std::pow(detail::ONE - h + z * std::sqrt(h), 3) / beta_;
+        initial_guess = alpha_ * std::pow(1.0 - h + z * std::sqrt(h), 3) / beta_;
     } else {
         // For small α, use exponential approximation
-        initial_guess = -std::log(detail::ONE - p) / beta_;
+        initial_guess = -std::log(1.0 - p) / beta_;
     }
 
     // Newton-Raphson iteration
-    double x = std::max(initial_guess, detail::NEWTON_RAPHSON_TOLERANCE);
-    const double tolerance = detail::HIGH_PRECISION_TOLERANCE;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+    double x = std::max(initial_guess, 1e-10);
+    const double tolerance = 1e-12;
+    const int max_iterations = 100;
 
     for (int i = 0; i < max_iterations; ++i) {
         double cdf = getCumulativeProbability(x);
@@ -2699,7 +2677,7 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
             break;
         }
 
-        if (pdf < detail::ULTRA_SMALL_THRESHOLD) {
+        if (pdf < 1e-30) {
             // If PDF is too small, use bisection method fallback
             break;
         }
@@ -2719,30 +2697,30 @@ double GammaDistribution::sampleMarsagliaTsang(std::mt19937& rng) const noexcept
     // Marsaglia-Tsang "squeeze" method for α ≥ 1
     // This is a fast rejection sampling method
 
-    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
-    std::normal_distribution<double> normal(detail::ZERO_DOUBLE, detail::ONE);
+    std::uniform_real_distribution<double> uniform(0.0, 1.0);
+    std::normal_distribution<double> normal(0.0, 1.0);
 
-    const double d = alpha_ - detail::ONE / detail::THREE;
-    const double c = detail::ONE / std::sqrt(detail::NINE * d);
+    const double d = alpha_ - 1.0 / 3.0;
+    const double c = 1.0 / std::sqrt(9.0 * d);
 
     while (true) {
         double x, v;
 
         do {
             x = normal(rng);
-            v = detail::ONE + c * x;
-        } while (v <= detail::ZERO_DOUBLE);
+            v = 1.0 + c * x;
+        } while (v <= 0.0);
 
         v = v * v * v;
         double u = uniform(rng);
 
         // Quick accept
-        if (u < detail::ONE - 0.0331 * (x * x) * (x * x)) {
+        if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
             return d * v / beta_;
         }
 
         // Quick reject
-        if (std::log(u) < detail::HALF * x * x + d * (detail::ONE - v + std::log(v))) {
+        if (std::log(u) < 0.5 * x * x + d * (1.0 - v + std::log(v))) {
             return d * v / beta_;
         }
     }
@@ -2750,7 +2728,7 @@ double GammaDistribution::sampleMarsagliaTsang(std::mt19937& rng) const noexcept
 
 double GammaDistribution::sampleAhrensDieter(std::mt19937& rng) const noexcept {
     // Ahrens-Dieter acceptance-rejection method for α < 1
-    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
+    std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
     const double b = (detail::E + alpha_) / detail::E;
 
@@ -2758,8 +2736,8 @@ double GammaDistribution::sampleAhrensDieter(std::mt19937& rng) const noexcept {
         double u = uniform(rng);
         double p = b * u;
 
-        if (p <= detail::ONE) {
-            double x = std::pow(p, detail::ONE / alpha_);
+        if (p <= 1.0) {
+            double x = std::pow(p, 1.0 / alpha_);
             double u2 = uniform(rng);
             if (u2 <= std::exp(-x)) {
                 return x / beta_;
@@ -2767,7 +2745,7 @@ double GammaDistribution::sampleAhrensDieter(std::mt19937& rng) const noexcept {
         } else {
             double x = -std::log((b - p) / alpha_);
             double u2 = uniform(rng);
-            if (u2 <= std::pow(x, alpha_ - detail::ONE)) {
+            if (u2 <= std::pow(x, alpha_ - 1.0)) {
                 return x / beta_;
             }
         }
@@ -2798,8 +2776,8 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
     }
 
     size_t n = values.size();
-    double sum_x = std::accumulate(values.begin(), values.end(), detail::ZERO_DOUBLE);
-    double sum_log_x = detail::ZERO_DOUBLE;
+    double sum_x = std::accumulate(values.begin(), values.end(), 0.0);
+    double sum_log_x = 0.0;
     for (double x : values) {
         sum_log_x += std::log(x);
     }
@@ -2809,27 +2787,25 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
 
     // Initial guess using method of moments
     double s = std::log(mean_x) - mean_log_x;
-    double alpha_est =
-        (detail::THREE - s + std::sqrt((s - detail::THREE) * (s - detail::THREE) + 24.0 * s)) /
-        (12.0 * s);
+    double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);
 
     // Newton-Raphson iteration for α
-    const double tolerance = detail::NEWTON_RAPHSON_TOLERANCE;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
+    const double tolerance = 1e-10;
+    const int max_iterations = 100;
 
     for (int i = 0; i < max_iterations; ++i) {
         double digamma_alpha = GammaDistribution::computeDigamma(alpha_est);
         double trigamma_alpha = GammaDistribution::computeTrigamma(alpha_est);
 
         double f = std::log(alpha_est) - digamma_alpha - s;
-        double df = detail::ONE / alpha_est - trigamma_alpha;
+        double df = 1.0 / alpha_est - trigamma_alpha;
 
         if (std::abs(f) < tolerance) {
             break;
         }
 
         alpha_est = alpha_est - f / df;
-        alpha_est = std::max(alpha_est, detail::NEWTON_RAPHSON_TOLERANCE);  // Ensure positive
+        alpha_est = std::max(alpha_est, 1e-10);  // Ensure positive
     }
 
     double beta_est = alpha_est / mean_x;
@@ -2851,27 +2827,27 @@ double GammaDistribution::computeDigamma(double x) noexcept {
     // Digamma function ψ(x) = d/dx log(Γ(x))
     // Uses asymptotic series for large x and reflection formula for small x
 
-    if (x <= detail::ZERO_DOUBLE) {
+    if (x <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
     // For small x, use reflection formula: ψ(x) = ψ(1-x) - π*cot(π*x)
     // But this is complex, so we use recurrence relation: ψ(x+1) = ψ(x) + 1/x
-    double result = detail::ZERO_DOUBLE;
+    double result = 0.0;
     double z = x;
 
     // Use recurrence to get z >= 8 for asymptotic series
     while (z < 8.0) {
-        result -= detail::ONE / z;
-        z += detail::ONE;
+        result -= 1.0 / z;
+        z += 1.0;
     }
 
     // Asymptotic series for large z
     // ψ(z) ≈ log(z) - 1/(2z) - 1/(12z²) + 1/(120z⁴) - 1/(252z⁶) + ...
-    double z_inv = detail::ONE / z;
+    double z_inv = 1.0 / z;
     double z_inv_sq = z_inv * z_inv;
 
-    result += std::log(z) - detail::HALF * z_inv;
+    result += std::log(z) - 0.5 * z_inv;
     result -= z_inv_sq / 12.0;                         // Bernoulli B₂/2
     result += z_inv_sq * z_inv_sq / 120.0;             // Bernoulli B₄/4
     result -= z_inv_sq * z_inv_sq * z_inv_sq / 252.0;  // Bernoulli B₆/6
@@ -2883,26 +2859,26 @@ double GammaDistribution::computeTrigamma(double x) noexcept {
     // Trigamma function ψ'(x) = d²/dx² log(Γ(x))
     // Uses asymptotic series for large x and recurrence relation
 
-    if (x <= detail::ZERO_DOUBLE) {
+    if (x <= 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    double result = detail::ZERO_DOUBLE;
+    double result = 0.0;
     double z = x;
 
     // Use recurrence: ψ'(x+1) = ψ'(x) - 1/x²
     while (z < 8.0) {
-        result += detail::ONE / (z * z);
-        z += detail::ONE;
+        result += 1.0 / (z * z);
+        z += 1.0;
     }
 
     // Asymptotic series for large z
     // ψ'(z) ≈ 1/z + 1/(2z²) + 1/(6z³) - 1/(30z⁵) + 1/(42z⁷) - ...
-    double z_inv = detail::ONE / z;
+    double z_inv = 1.0 / z;
     double z_inv_sq = z_inv * z_inv;
 
-    result += z_inv + detail::HALF * z_inv_sq;
-    result += z_inv_sq * z_inv / detail::SIX;                 // 1/(6z³)
+    result += z_inv + 0.5 * z_inv_sq;
+    result += z_inv_sq * z_inv / 6.0;                         // 1/(6z³)
     result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)
     result += z_inv_sq * z_inv_sq * z_inv_sq * z_inv / 42.0;  // 1/(42z⁷)
 

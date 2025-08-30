@@ -8,7 +8,8 @@
 #include "../include/platform/parallel_execution.h"  // For parallel execution policies
 #include "../include/platform/work_stealing_pool.h"  // For WorkStealingPool
 // ParallelUtils functionality is provided by parallel_execution.h
-#include "../include/core/dispatch_utils.h"   // For DispatchUtils::autoDispatch
+#include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/thread_pool.h"  // For ThreadPool
 
 #include <algorithm>
@@ -949,7 +950,7 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
     // Based on D'Agostino and Stephens (1986) formulas for exponential distribution
     // with enhanced handling for large statistics
     double p_value;
-    if (ad_adjusted < 0.2) {
+    if (ad_adjusted < detail::SMALL_EFFECT) {
         p_value = detail::ONE -
                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
     } else if (ad_adjusted < 0.34) {

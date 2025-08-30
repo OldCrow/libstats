@@ -2,10 +2,6 @@
 
 #include "../include/core/constants.h"
 #include "../include/core/distribution_base.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/core/threshold_constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -70,21 +66,21 @@ namespace {
     // Critical values for α = 0.05 (5% significance level)
     if (alpha == detail::ALPHA_05) {
         if (df == 1)
-            return detail::CHI2_95_DF_1;  // χ²(1,detail::ALPHA_05) = detail::CHI2_95_DF_1
+            return 3.841;  // χ²(1,0.05) = 3.841
         if (df == 2)
-            return detail::CHI2_95_DF_2;  // χ²(2,detail::ALPHA_05) = detail::CHI2_95_DF_2
+            return 5.991;  // χ²(2,0.05) = 5.991
         if (df == 3)
-            return detail::CHI2_95_DF_3;  // χ²(3,detail::ALPHA_05) = detail::CHI2_95_DF_3
+            return 7.815;  // χ²(3,0.05) = 7.815
         if (df == 4)
-            return detail::CHI2_95_DF_4;  // χ²(4,detail::ALPHA_05) = detail::CHI2_95_DF_4
+            return 9.488;  // χ²(4,0.05) = 9.488
         if (df == 5)
-            return detail::CHI2_95_DF_5;  // χ²(5,detail::ALPHA_05) = detail::CHI2_95_DF_5
+            return 11.070;  // χ²(5,0.05) = 11.070
     }
 
     // Wilson-Hilferty approximation for general case
-    const double h = detail::TWO / (detail::NINE * df);
+    const double h = detail::TWO / (9.0 * df);
     const double z_alpha =
-        (alpha == detail::ALPHA_05) ? detail::Z_90 : detail::Z_95;  // approximate normal quantile
+        (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile
     const double term = detail::ONE - h + z_alpha * std::sqrt(h);
     return df * std::pow(term, 3);
 }
@@ -128,21 +124,21 @@ double gamma_function(double z) {
         771.32342877765313,   -176.61502916214059,   12.507343278686905,
         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7};
 
-    if (z < detail::HALF) {
+    if (z < 0.5) {
         // Use reflection formula: Γ(z) = π / (sin(πz) * Γ(1-z))
-        return M_PI / (std::sin(M_PI * z) * gamma_function(detail::ONE - z));
+        return M_PI / (std::sin(M_PI * z) * gamma_function(1.0 - z));
     }
 
-    z -= detail::ONE;
+    z -= 1.0;
     double x = coeff[0];
     for (size_t i = 1; i < 9; ++i) {
         x += coeff[i] / (z + static_cast<double>(i));
     }
 
-    const double t = z + g + detail::HALF;
-    const double sqrt_2pi = std::sqrt(detail::TWO * M_PI);
+    const double t = z + g + 0.5;
+    const double sqrt_2pi = std::sqrt(2.0 * M_PI);
 
-    return sqrt_2pi * std::pow(t, z + detail::HALF) * std::exp(-t) * x;
+    return sqrt_2pi * std::pow(t, z + 0.5) * std::exp(-t) * x;
 }
 
 /**
@@ -166,8 +162,8 @@ double lower_incomplete_gamma(double s, double x) {
     if (x == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    const double eps = detail::HIGH_PRECISION_TOLERANCE;
-    const int max_iter = detail::MAX_BISECTION_ITERATIONS;
+    const double eps = 1e-12;
+    const int max_iter = 1000;
 
     if (x < s + detail::ONE) {
         // Use series expansion
@@ -184,25 +180,25 @@ double lower_incomplete_gamma(double s, double x) {
         return std::pow(x, s) * std::exp(-x) * sum;
     } else {
         // Use continued fraction
-        [[maybe_unused]] double a = detail::ONE;
-        double b = x + detail::ONE - s;
+        [[maybe_unused]] double a = 1.0;
+        double b = x + 1.0 - s;
         double c = 1e30;
-        double d = detail::ONE / b;
+        double d = 1.0 / b;
         double h = d;
 
         for (int i = 1; i < max_iter; ++i) {
             const double an = -i * (i - s);
-            b += detail::TWO;
+            b += 2.0;
             d = an * d + b;
             if (std::abs(d) < eps)
                 d = eps;
             c = b + an / c;
             if (std::abs(c) < eps)
                 c = eps;
-            d = detail::ONE / d;
+            d = 1.0 / d;
             const double del = d * c;
             h *= del;
-            if (std::abs(del - detail::ONE) < eps)
+            if (std::abs(del - 1.0) < eps)
                 break;
         }
 
@@ -225,16 +221,16 @@ double lower_incomplete_gamma(double s, double x) {
  */
 double chi_squared_pvalue(double chi_squared_statistic, int degrees_of_freedom) {
     if (chi_squared_statistic <= 0 || degrees_of_freedom <= 0)
-        return detail::ONE;
+        return 1.0;
 
-    const double s = degrees_of_freedom / detail::TWO;
-    const double x = chi_squared_statistic / detail::TWO;
+    const double s = degrees_of_freedom / 2.0;
+    const double x = chi_squared_statistic / 2.0;
 
     const double lower_gamma = lower_incomplete_gamma(s, x);
     const double gamma_val = gamma_function(s);
 
     if (gamma_val == 0)
-        return detail::ONE;
+        return 1.0;
 
     const double cdf = lower_gamma / gamma_val;
     return 1.0 - std::max(0.0, std::min(1.0, cdf));  // Return upper tail probability
@@ -259,50 +255,48 @@ double chi_squared_pvalue(double chi_squared_statistic, int degrees_of_freedom) 
  */
 double ks_pvalue_enhanced(double ks_statistic, size_t n) {
     if (ks_statistic <= 0)
-        return detail::ONE;
+        return 1.0;
     if (ks_statistic >= 1)
-        return detail::ZERO_DOUBLE;
+        return 0.0;
 
     const double sqrt_n = std::sqrt(static_cast<double>(n));
     const double lambda = ks_statistic * sqrt_n;
 
     if (n >= 35) {
         // Enhanced asymptotic formula with more terms and better convergence
-        double sum = detail::ZERO_DOUBLE;
+        double sum = 0.0;
         const double lambda_sq = lambda * lambda;
 
         for (int k = 1; k <= 200; ++k) {
-            const double term = std::exp(-detail::TWO * k * k * lambda_sq);
-            if (term < detail::NEWTON_RAPHSON_TOLERANCE)
+            const double term = std::exp(-2.0 * k * k * lambda_sq);
+            if (term < 1e-10)
                 break;  // Early termination for negligible terms
             sum += std::pow(-1, k - 1) * term;
         }
 
-        double p_value = detail::TWO * sum;
+        double p_value = 2.0 * sum;
 
         // Apply small-sample correction for moderate n
-        if (n < detail::MAX_NEWTON_ITERATIONS) {
-            const double correction =
-                detail::ONE + detail::TWO * lambda_sq / (detail::THREE * sqrt_n);
+        if (n < 100) {
+            const double correction = 1.0 + 2.0 * lambda_sq / (3.0 * sqrt_n);
             p_value *= correction;
         }
 
-        return std::max(detail::ZERO_DOUBLE, std::min(detail::ONE, p_value));
+        return std::max(0.0, std::min(1.0, p_value));
     } else {
         // For small samples, use a more accurate approximation
         // Based on exact distribution properties
         const double z = lambda;
 
         if (z < 0.27) {
-            return 1.0 - detail::TWO * z * z;  // Linear approximation for very small z
-        } else if (z < detail::ONE) {
+            return 1.0 - 2.0 * z * z;  // Linear approximation for very small z
+        } else if (z < 1.0) {
             // Improved small-sample approximation
             const double z_sq = z * z;
-            return std::exp(-detail::TWO * z_sq) *
-                   (detail::ONE + detail::TWO * z_sq / detail::THREE);
+            return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);
         } else {
             // For large z, use asymptotic expansion
-            return detail::TWO * std::exp(-detail::TWO * z * z);
+            return 2.0 * std::exp(-2.0 * z * z);
         }
     }
 }
@@ -321,39 +315,31 @@ double ks_pvalue_enhanced(double ks_statistic, size_t n) {
  */
 double anderson_darling_pvalue_enhanced(double statistic) {
     if (statistic <= 0)
-        return detail::ONE;
+        return 1.0;
 
     // Extended critical values for better interpolation
     static const double extended_critical_values[] = {
         0.576,  // α = 0.50
         0.656,  // α = 0.40
         0.787,  // α = 0.30
-        1.248,  // α = detail::QUARTER
+        1.248,  // α = 0.25
         1.610,  // α = 0.15
-        1.933,  // α = detail::ALPHA_10
-        2.492,  // α = detail::ALPHA_05
+        1.933,  // α = 0.10
+        2.492,  // α = 0.05
         3.070,  // α = 0.025
-        3.857,  // α = detail::ALPHA_01
+        3.857,  // α = 0.01
         4.500   // α = 0.005
     };
 
-    static const double extended_significance_levels[] = {0.50,
-                                                          0.40,
-                                                          0.30,
-                                                          detail::QUARTER,
-                                                          0.15,
-                                                          detail::ALPHA_10,
-                                                          detail::ALPHA_05,
-                                                          0.025,
-                                                          detail::ALPHA_01,
-                                                          0.005};
+    static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  0.25, 0.15,
+                                                          0.10, 0.05, 0.025, 0.01, 0.005};
 
     const size_t num_points =
         sizeof(extended_critical_values) / sizeof(extended_critical_values[0]);
 
     // Handle boundary cases
     if (statistic <= extended_critical_values[0]) {
-        return detail::ONE;
+        return 1.0;
     }
     if (statistic >= extended_critical_values[num_points - 1]) {
         // Asymptotic approximation for very large statistics
@@ -365,9 +351,9 @@ double anderson_darling_pvalue_enhanced(double statistic) {
         if (statistic <= extended_critical_values[i + 1]) {
             // Use cubic spline interpolation for better accuracy
             const double x1 = extended_critical_values[i];
-            const double x2 = extended_critical_values[i + detail::ONE_INT];
+            const double x2 = extended_critical_values[i + 1];
             const double y1 = extended_significance_levels[i];
-            const double y2 = extended_significance_levels[i + detail::ONE_INT];
+            const double y2 = extended_significance_levels[i + 1];
 
             // Simple linear interpolation (can be enhanced to cubic spline)
             const double t = (statistic - x1) / (x2 - x1);
@@ -375,7 +361,7 @@ double anderson_darling_pvalue_enhanced(double statistic) {
         }
     }
 
-    return detail::ALPHA_001;  // fallback
+    return 0.001;  // fallback
 }
 
 // Legacy function for backward compatibility
@@ -387,7 +373,7 @@ double interpolate_ad_pvalue(double statistic) {
 KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
                                      const DistributionBase& distribution) {
     if (data.empty()) {
-        return {detail::ZERO_DOUBLE, detail::ONE, false, "Error: Empty data set"};
+        return {0.0, 1.0, false, "Error: Empty data set"};
     }
 
     // Sort the data
@@ -397,7 +383,7 @@ KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
     // Calculate empirical CDF
     const size_t n = sorted_data.size();
     const auto empirical_cdfs = calculate_empirical_cdf(sorted_data);
-    double max_diff = detail::ZERO_DOUBLE;
+    double max_diff = 0.0;
 
     for (size_t i = 0; i < n; ++i) {
         const double empirical_cdf = empirical_cdfs[i];
@@ -413,7 +399,7 @@ KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
     // Calculate p-value using enhanced Kolmogorov distribution approximation
     const double p_value = ks_pvalue_enhanced(max_diff, n);
 
-    const bool reject_null = p_value < detail::ALPHA_05;
+    const bool reject_null = p_value < 0.05;
 
     std::ostringstream interpretation;
     interpretation << "KS test: D = " << max_diff << ", p = " << p_value;
@@ -429,7 +415,7 @@ KSTestResult kolmogorov_smirnov_test(const std::vector<double>& data,
 ADTestResult anderson_darling_test(const std::vector<double>& data,
                                    const DistributionBase& distribution) {
     if (data.empty()) {
-        return {detail::ZERO_DOUBLE, detail::ONE, false, "Error: Empty data set"};
+        return {0.0, 1.0, false, "Error: Empty data set"};
     }
 
     // Sort the data
@@ -437,29 +423,28 @@ ADTestResult anderson_darling_test(const std::vector<double>& data,
     std::sort(sorted_data.begin(), sorted_data.end());
 
     const size_t n = sorted_data.size();
-    double ad_statistic = detail::ZERO_DOUBLE;
+    double ad_statistic = 0.0;
 
     // Calculate Anderson-Darling statistic using numerically stable approach
     for (size_t i = 0; i < n; ++i) {
         const double cdf_val = distribution.getCumulativeProbability(sorted_data[i]);
-        const double cdf_complement =
-            distribution.getCumulativeProbability(sorted_data[n - detail::ONE_INT - i]);
+        const double cdf_complement = distribution.getCumulativeProbability(sorted_data[n - 1 - i]);
 
         // Clamp CDF values to avoid numerical issues with log(0) and log(negative)
         // Use threshold from constants to ensure consistency
         const double clamped_cdf =
             std::max(detail::ANDERSON_DARLING_MIN_PROB,
-                     std::min(detail::ONE - detail::ANDERSON_DARLING_MIN_PROB, cdf_val));
+                     std::min(1.0 - detail::ANDERSON_DARLING_MIN_PROB, cdf_val));
         const double clamped_complement =
             std::max(detail::ANDERSON_DARLING_MIN_PROB,
-                     std::min(detail::ONE - detail::ANDERSON_DARLING_MIN_PROB, cdf_complement));
+                     std::min(1.0 - detail::ANDERSON_DARLING_MIN_PROB, cdf_complement));
 
         // Calculate log terms with safe bounds
         const double log_cdf = std::log(clamped_cdf);
-        const double log_one_minus_complement = std::log(detail::ONE - clamped_complement);
+        const double log_one_minus_complement = std::log(1.0 - clamped_complement);
 
         // Accumulate with proper weighting
-        const double weight = detail::TWO * static_cast<double>(i + 1) - detail::ONE;
+        const double weight = 2.0 * static_cast<double>(i + 1) - 1.0;
         ad_statistic += weight * (log_cdf + log_one_minus_complement);
     }
 
@@ -467,12 +452,12 @@ ADTestResult anderson_darling_test(const std::vector<double>& data,
 
     // Adjust for sample size (Anderson-Darling adjustment)
     const double adjusted_statistic =
-        ad_statistic * (detail::ONE + detail::AD_P_VALUE_MEDIUM / static_cast<double>(n) +
+        ad_statistic * (1.0 + 0.75 / static_cast<double>(n) +
                         2.25 / (static_cast<double>(n) * static_cast<double>(n)));
 
     // Calculate p-value
     const double p_value = interpolate_ad_pvalue(adjusted_statistic);
-    const bool reject_null = p_value < detail::ALPHA_05;
+    const bool reject_null = p_value < 0.05;
 
     std::ostringstream interpretation;
     interpretation << "Anderson-Darling test: A² = " << adjusted_statistic << ", p = " << p_value;
@@ -488,12 +473,11 @@ ADTestResult anderson_darling_test(const std::vector<double>& data,
 ChiSquaredResult chi_squared_goodness_of_fit(const std::vector<int>& observed_counts,
                                              const std::vector<double>& expected_probabilities) {
     if (observed_counts.size() != expected_probabilities.size()) {
-        return {detail::ZERO_DOUBLE, detail::ONE, 0, true,
-                "Error: Observed and expected vectors must have same size"};
+        return {0.0, 1.0, 0, true, "Error: Observed and expected vectors must have same size"};
     }
 
     if (observed_counts.empty()) {
-        return {detail::ZERO_DOUBLE, detail::ONE, 0, false, "Error: Empty data"};
+        return {0.0, 1.0, 0, false, "Error: Empty data"};
     }
 
     const size_t num_categories = observed_counts.size();
@@ -508,13 +492,13 @@ ChiSquaredResult chi_squared_goodness_of_fit(const std::vector<int>& observed_co
 
     // Check minimum expected frequency constraint
     const double min_expected = *std::min_element(expected_counts.begin(), expected_counts.end());
-    if (min_expected < detail::FIVE) {
-        return {detail::ZERO_DOUBLE, detail::ONE, 0, true,
+    if (min_expected < 5.0) {
+        return {0.0, 1.0, 0, true,
                 "Warning: Some expected frequencies < 5, test may not be reliable"};
     }
 
     // Calculate chi-squared statistic
-    double chi_squared = detail::ZERO_DOUBLE;
+    double chi_squared = 0.0;
     for (size_t i = 0; i < num_categories; ++i) {
         const double diff = observed_counts[i] - expected_counts[i];
         chi_squared += (diff * diff) / expected_counts[i];
@@ -524,7 +508,7 @@ ChiSquaredResult chi_squared_goodness_of_fit(const std::vector<int>& observed_co
 
     // Calculate accurate p-value using enhanced chi-squared distribution
     const double p_value = chi_squared_pvalue(chi_squared, degrees_of_freedom);
-    const bool reject_null = p_value < detail::ALPHA_05;
+    const bool reject_null = p_value < 0.05;
 
     std::ostringstream interpretation;
     interpretation << "Chi-squared test: χ² = " << chi_squared << ", df = " << degrees_of_freedom
@@ -541,14 +525,14 @@ ChiSquaredResult chi_squared_goodness_of_fit(const std::vector<int>& observed_co
 ModelDiagnostics calculate_model_diagnostics(const DistributionBase& distribution,
                                              const std::vector<double>& data) {
     if (data.empty()) {
-        return {detail::ZERO_DOUBLE, detail::ZERO_DOUBLE, detail::ZERO_DOUBLE, 0, 0};
+        return {0.0, 0.0, 0.0, 0, 0};
     }
 
     // Calculate log-likelihood
-    double log_likelihood = detail::ZERO_DOUBLE;
+    double log_likelihood = 0.0;
     for (double value : data) {
         const double density = distribution.getProbability(value);
-        if (density > detail::ZERO_DOUBLE) {
+        if (density > 0.0) {
             log_likelihood += std::log(density);
         } else {
             log_likelihood += -1e10;  // Large negative penalty for zero density
@@ -559,8 +543,8 @@ ModelDiagnostics calculate_model_diagnostics(const DistributionBase& distributio
     const int k = distribution.getNumParameters();  // Number of parameters
 
     // Calculate AIC and BIC
-    const double aic = detail::TWO * k - detail::TWO * log_likelihood;
-    const double bic = k * std::log(static_cast<double>(n)) - detail::TWO * log_likelihood;
+    const double aic = 2.0 * k - 2.0 * log_likelihood;
+    const double bic = k * std::log(static_cast<double>(n)) - 2.0 * log_likelihood;
 
     return {log_likelihood, aic, bic, k, n};
 }
@@ -575,11 +559,11 @@ std::vector<double> calculate_residuals(const std::vector<double>& data,
         const double expected = distribution.getMean();
         const double variance = distribution.getVariance();
 
-        if (variance > detail::ZERO_DOUBLE) {
+        if (variance > 0.0) {
             const double standardized = (value - expected) / std::sqrt(variance);
             residuals.push_back(standardized);
         } else {
-            residuals.push_back(detail::ZERO_DOUBLE);
+            residuals.push_back(0.0);
         }
     }
 
@@ -628,13 +612,13 @@ std::vector<double> generate_bootstrap_sample(const DistributionBase& distributi
 double calculate_bootstrap_ks_statistic(const std::vector<double>& bootstrap_sample,
                                         const DistributionBase& distribution) {
     if (bootstrap_sample.empty())
-        return detail::ZERO_DOUBLE;
+        return 0.0;
 
     std::vector<double> sorted_sample = bootstrap_sample;
     std::sort(sorted_sample.begin(), sorted_sample.end());
 
     const size_t n = sorted_sample.size();
-    double max_diff = detail::ZERO_DOUBLE;
+    double max_diff = 0.0;
 
     for (size_t i = 0; i < n; ++i) {
         const double empirical_cdf = static_cast<double>(i + 1) / static_cast<double>(n);
@@ -662,23 +646,21 @@ double calculate_bootstrap_ks_statistic(const std::vector<double>& bootstrap_sam
 double calculate_bootstrap_ad_statistic(const std::vector<double>& bootstrap_sample,
                                         const DistributionBase& distribution) {
     if (bootstrap_sample.empty())
-        return detail::ZERO_DOUBLE;
+        return 0.0;
 
     std::vector<double> sorted_sample = bootstrap_sample;
     std::sort(sorted_sample.begin(), sorted_sample.end());
 
     const size_t n = sorted_sample.size();
-    double statistic = detail::ZERO_DOUBLE;
+    double statistic = 0.0;
 
     for (size_t i = 0; i < n; ++i) {
         const double cdf_val = distribution.getCumulativeProbability(sorted_sample[i]);
-        const double log_cdf = std::log(std::max(detail::ANDERSON_DARLING_MIN_PROB, cdf_val));
-        const double log_1_minus_cdf =
-            std::log(std::max(detail::ANDERSON_DARLING_MIN_PROB, 1.0 - cdf_val));
+        const double log_cdf = std::log(std::max(1e-300, cdf_val));
+        const double log_1_minus_cdf = std::log(std::max(1e-300, 1.0 - cdf_val));
 
-        const double term1 = (detail::TWO * static_cast<double>(i + 1) - detail::ONE) * log_cdf;
-        const double term2 =
-            (detail::TWO * static_cast<double>(n - i) - detail::ONE) * log_1_minus_cdf;
+        const double term1 = (2.0 * static_cast<double>(i + 1) - 1.0) * log_cdf;
+        const double term2 = (2.0 * static_cast<double>(n - i) - 1.0) * log_1_minus_cdf;
 
         statistic += term1 + term2;
     }
@@ -695,10 +677,9 @@ double calculate_bootstrap_ad_statistic(const std::vector<double>& bootstrap_sam
  */
 double calculate_percentile(const std::vector<double>& sorted_values, double percentile) {
     if (sorted_values.empty())
-        return detail::ZERO_DOUBLE;
+        return 0.0;
 
-    const double index =
-        (percentile / detail::HUNDRED) * static_cast<double>(sorted_values.size() - 1);
+    const double index = (percentile / 100.0) * static_cast<double>(sorted_values.size() - 1);
     const size_t lower_index = static_cast<size_t>(std::floor(index));
     const size_t upper_index = static_cast<size_t>(std::ceil(index));
 
@@ -707,8 +688,7 @@ double calculate_percentile(const std::vector<double>& sorted_values, double per
     }
 
     const double weight = index - static_cast<double>(lower_index);
-    return sorted_values[lower_index] * (detail::ONE - weight) +
-           sorted_values[upper_index] * weight;
+    return sorted_values[lower_index] * (1.0 - weight) + sorted_values[upper_index] * weight;
 }
 }  // namespace
 
@@ -716,7 +696,7 @@ BootstrapTestResult bootstrap_kolmogorov_smirnov_test(const std::vector<double>&
                                                       const DistributionBase& distribution,
                                                       size_t num_bootstrap, double alpha) {
     if (data.empty()) {
-        return {detail::ZERO_DOUBLE, detail::ONE, {}, false, "Error: Empty data set", 0};
+        return {0.0, 1.0, {}, false, "Error: Empty data set", 0};
     }
 
     // Calculate observed KS statistic
@@ -765,7 +745,7 @@ BootstrapTestResult bootstrap_anderson_darling_test(const std::vector<double>& d
                                                     const DistributionBase& distribution,
                                                     size_t num_bootstrap, double alpha) {
     if (data.empty()) {
-        return {detail::ZERO_DOUBLE, detail::ONE, {}, false, "Error: Empty data set", 0};
+        return {0.0, 1.0, {}, false, "Error: Empty data set", 0};
     }
 
     // Calculate observed AD statistic
@@ -814,7 +794,7 @@ BootstrapTestResult bootstrap_parameter_test(const std::vector<double>& data,
                                              const DistributionBase& distribution,
                                              size_t num_bootstrap, double alpha) {
     if (data.empty()) {
-        return {detail::ZERO_DOUBLE, detail::ONE, {}, false, "Error: Empty data set", 0};
+        return {0.0, 1.0, {}, false, "Error: Empty data set", 0};
     }
 
     // Calculate observed parameter fit quality (using log-likelihood)
@@ -890,12 +870,11 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(const std::vector
             generate_bootstrap_sample(distribution, data.size(), rng);
 
         // Calculate sample mean and variance
-        double sum =
-            std::accumulate(bootstrap_sample.begin(), bootstrap_sample.end(), detail::ZERO_DOUBLE);
+        double sum = std::accumulate(bootstrap_sample.begin(), bootstrap_sample.end(), 0.0);
         double mean = sum / static_cast<double>(bootstrap_sample.size());
         bootstrap_means.push_back(mean);
 
-        double variance = detail::ZERO_DOUBLE;
+        double variance = 0.0;
         for (double value : bootstrap_sample) {
             variance += (value - mean) * (value - mean);
         }
@@ -908,9 +887,9 @@ std::vector<ConfidenceInterval> bootstrap_confidence_intervals(const std::vector
     std::sort(bootstrap_variances.begin(), bootstrap_variances.end());
 
     // Calculate confidence intervals
-    const double alpha = detail::ONE - confidence_level;
-    const double lower_percentile = detail::HUNDRED * (alpha / detail::TWO);
-    const double upper_percentile = detail::HUNDRED * (detail::ONE - alpha / detail::TWO);
+    const double alpha = 1.0 - confidence_level;
+    const double lower_percentile = 100.0 * (alpha / 2.0);
+    const double upper_percentile = 100.0 * (1.0 - alpha / 2.0);
 
     // Mean confidence interval
     ConfidenceInterval mean_interval;

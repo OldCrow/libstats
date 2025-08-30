@@ -144,25 +144,31 @@ echo "=== Integer Literals (>10) ===" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 
 # Find larger integer literals that might be thresholds or limits
-while IFS=: read -r file line content; do
-    # Skip array access patterns like [100] or common loop patterns
-    if [[ ! "$content" =~ \[[0-9]+\] ]] && [[ ! "$content" =~ for.*int.*\<.*[0-9]+ ]]; then
-        numbers=$(echo "$content" | grep -oE '\b[1-9][0-9]{2,}\b')
+# Process each source file, clean floating-point numbers first, then find integers
+find src/ -name "*.cpp" -type f | while read -r filepath; do
+    grep -n '.' "$filepath" | while IFS=: read -r line content; do
+        # Skip array access patterns like [100] or common loop patterns
+        if [[ ! "$content" =~ \[[0-9]+\] ]] && [[ ! "$content" =~ for.*int.*\<.*[0-9]+ ]]; then
+            # First, remove all floating-point numbers from the line, then find integers
+            # Use more robust regex patterns to handle all floating-point formats including scientific notation
+            temp_content=$(echo "$content" | sed -E 's/[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?//g' | sed -E 's/-[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?//g')
+            numbers=$(echo "$temp_content" | grep -oE '\b[1-9][0-9]{2,}\b')
 
-        for num in $numbers; do
-            if ! is_comment_or_string "$content" "$num"; then
-                category=$(categorize_number "$num")
-                echo -e "${YELLOW}$file:$line${NC} - Value: ${RED}$num${NC} (${GREEN}$category${NC})"
-                echo "$file:$line - Value: $num ($category)" >> "$OUTPUT_FILE"
-                echo "  Context: $content" >> "$OUTPUT_FILE"
-                echo "" >> "$OUTPUT_FILE"
+            for num in $numbers; do
+                if ! is_comment_or_string "$content" "$num"; then
+                    category=$(categorize_number "$num")
+                    echo -e "${YELLOW}$filepath:$line${NC} - Value: ${RED}$num${NC} (${GREEN}$category${NC})"
+                    echo "$filepath:$line - Value: $num ($category)" >> "$OUTPUT_FILE"
+                    echo "  Context: $content" >> "$OUTPUT_FILE"
+                    echo "" >> "$OUTPUT_FILE"
 
-                clean_content=$(echo "$content" | sed 's/,/ /g' | sed 's/"//g')
-                echo "$file,$line,$num,\"$clean_content\",$category" >> "$CSV_FILE"
-            fi
-        done
-    fi
-done < <(grep -r -n -E '\b[1-9][0-9]{2,}\b' src/ --include="*.cpp")
+                    clean_content=$(echo "$content" | sed 's/,/ /g' | sed 's/"//g')
+                    echo "$filepath,$line,$num,\"$clean_content\",$category" >> "$CSV_FILE"
+                fi
+            done
+        fi
+    done
+done
 
 echo ""
 echo -e "${BLUE}=== Phase 4: Negative Numbers ===${NC}"
@@ -201,8 +207,8 @@ echo "--------"
 echo ""
 echo "Magic Numbers by Category:"
 for category in mathematical statistical_critical normal_quantile significance_level convergence_tolerance iteration_limit uncategorized; do
-    count=$(grep -c ",$category$" "$CSV_FILE" 2>/dev/null || echo "0")
-    if [ "$count" -gt 0 ]; then
+    count=$(grep -c ",$category$" "$CSV_FILE" 2>/dev/null)
+    if [ $? -eq 0 ] && [ "$count" -gt 0 ]; then
         echo "  $category: $count"
     fi
 done

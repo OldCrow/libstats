@@ -1,2042 +1,788 @@
-Magic Numbers Report - Generated Fri 29 Aug 2025 21:20:18 EDT
+Magic Numbers Report - Generated Sat 30 Aug 2025 18:23:11 EDT
 =======================================
 
 === Floating-Point Literals ===
 
-src//validation.cpp:69 - Value: 3.841 (chi_squared_critical)
-  Context:             return 3.841;  // χ²(1,0.05) = 3.841
-
-src//validation.cpp:69 - Value: 0.05 (significance_level)
-  Context:             return 3.841;  // χ²(1,0.05) = 3.841
-
-src//validation.cpp:69 - Value: 3.841 (chi_squared_critical)
-  Context:             return 3.841;  // χ²(1,0.05) = 3.841
-
-src//validation.cpp:71 - Value: 5.991 (chi_squared_critical)
-  Context:             return 5.991;  // χ²(2,0.05) = 5.991
-
-src//validation.cpp:71 - Value: 0.05 (significance_level)
-  Context:             return 5.991;  // χ²(2,0.05) = 5.991
-
-src//validation.cpp:71 - Value: 5.991 (chi_squared_critical)
-  Context:             return 5.991;  // χ²(2,0.05) = 5.991
-
-src//validation.cpp:73 - Value: 7.815 (chi_squared_critical)
-  Context:             return 7.815;  // χ²(3,0.05) = 7.815
-
-src//validation.cpp:73 - Value: 0.05 (significance_level)
-  Context:             return 7.815;  // χ²(3,0.05) = 7.815
-
-src//validation.cpp:73 - Value: 7.815 (chi_squared_critical)
-  Context:             return 7.815;  // χ²(3,0.05) = 7.815
-
-src//validation.cpp:75 - Value: 9.488 (chi_squared_critical)
-  Context:             return 9.488;  // χ²(4,0.05) = 9.488
-
-src//validation.cpp:75 - Value: 0.05 (significance_level)
-  Context:             return 9.488;  // χ²(4,0.05) = 9.488
-
-src//validation.cpp:75 - Value: 9.488 (chi_squared_critical)
-  Context:             return 9.488;  // χ²(4,0.05) = 9.488
-
-src//validation.cpp:77 - Value: 11.070 (chi_squared_critical)
-  Context:             return 11.070;  // χ²(5,0.05) = 11.070
-
-src//validation.cpp:77 - Value: 0.05 (significance_level)
-  Context:             return 11.070;  // χ²(5,0.05) = 11.070
-
-src//validation.cpp:77 - Value: 11.070 (chi_squared_critical)
-  Context:             return 11.070;  // χ²(5,0.05) = 11.070
-
-src//validation.cpp:81 - Value: 9.0 (mathematical)
-  Context:     const double h = detail::TWO / (9.0 * df);
-
-src//validation.cpp:83 - Value: 1.645 (normal_quantile)
-  Context:         (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile
-
-src//validation.cpp:83 - Value: 1.96 (normal_quantile)
-  Context:         (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile
-
-src//validation.cpp:121 - Value: 7.0 (uncategorized)
+src//validation.cpp:125 - Value: 7.0 (uncategorized)
   Context:     static const double g = 7.0;
 
-src//validation.cpp:123 - Value: 0.99999999999980993 (uncategorized)
+src//validation.cpp:127 - Value: 0.99999999999980993 (uncategorized)
   Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
 
-src//validation.cpp:123 - Value: 676.5203681218851 (uncategorized)
+src//validation.cpp:127 - Value: 676.5203681218851 (uncategorized)
   Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
 
-src//validation.cpp:123 - Value: 1259.1392167224028 (uncategorized)
+src//validation.cpp:127 - Value: 1259.1392167224028 (uncategorized)
   Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
 
-src//validation.cpp:124 - Value: 771.32342877765313 (uncategorized)
+src//validation.cpp:128 - Value: 771.32342877765313 (uncategorized)
   Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
 
-src//validation.cpp:124 - Value: 176.61502916214059 (uncategorized)
+src//validation.cpp:128 - Value: 176.61502916214059 (uncategorized)
   Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
 
-src//validation.cpp:124 - Value: 12.507343278686905 (uncategorized)
+src//validation.cpp:128 - Value: 12.507343278686905 (uncategorized)
   Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
 
-src//validation.cpp:125 - Value: 0.13857109526572012 (uncategorized)
+src//validation.cpp:129 - Value: 0.13857109526572012 (uncategorized)
   Context:         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7};
 
-src//validation.cpp:127 - Value: 0.5 (mathematical)
-  Context:     if (z < 0.5) {
-
-src//validation.cpp:138 - Value: 0.5 (mathematical)
-  Context:     const double t = z + g + 0.5;
-
-src//validation.cpp:139 - Value: 2.0 (mathematical)
-  Context:     const double sqrt_2pi = std::sqrt(2.0 * M_PI);
-
-src//validation.cpp:141 - Value: 0.5 (mathematical)
-  Context:     return sqrt_2pi * std::pow(t, z + 0.5) * std::exp(-t) * x;
-
-src//validation.cpp:191 - Value: 2.0 (mathematical)
-  Context:             b += 2.0;
-
-src//validation.cpp:226 - Value: 2.0 (mathematical)
-  Context:     const double s = degrees_of_freedom / 2.0;
-
-src//validation.cpp:227 - Value: 2.0 (mathematical)
-  Context:     const double x = chi_squared_statistic / 2.0;
-
-src//validation.cpp:271 - Value: 2.0 (mathematical)
-  Context:             const double term = std::exp(-2.0 * k * k * lambda_sq);
-
-src//validation.cpp:277 - Value: 2.0 (mathematical)
-  Context:         double p_value = 2.0 * sum;
-
-src//validation.cpp:281 - Value: 2.0 (mathematical)
-  Context:             const double correction = 1.0 + 2.0 * lambda_sq / (3.0 * sqrt_n);
-
-src//validation.cpp:281 - Value: 3.0 (mathematical)
-  Context:             const double correction = 1.0 + 2.0 * lambda_sq / (3.0 * sqrt_n);
-
-src//validation.cpp:291 - Value: 0.27 (uncategorized)
+src//validation.cpp:295 - Value: 0.27 (uncategorized)
   Context:         if (z < 0.27) {
 
-src//validation.cpp:292 - Value: 2.0 (mathematical)
-  Context:             return 1.0 - 2.0 * z * z;  // Linear approximation for very small z
-
-src//validation.cpp:296 - Value: 2.0 (mathematical)
-  Context:             return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);
-
-src//validation.cpp:296 - Value: 2.0 (mathematical)
-  Context:             return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);
-
-src//validation.cpp:296 - Value: 3.0 (mathematical)
-  Context:             return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);
-
-src//validation.cpp:299 - Value: 2.0 (mathematical)
-  Context:             return 2.0 * std::exp(-2.0 * z * z);
-
-src//validation.cpp:299 - Value: 2.0 (mathematical)
-  Context:             return 2.0 * std::exp(-2.0 * z * z);
-
-src//validation.cpp:322 - Value: 0.576 (uncategorized)
+src//validation.cpp:326 - Value: 0.576 (uncategorized)
   Context:         0.576,  // α = 0.50
 
-src//validation.cpp:322 - Value: 0.50 (uncategorized)
+src//validation.cpp:326 - Value: 0.50 (uncategorized)
   Context:         0.576,  // α = 0.50
 
-src//validation.cpp:323 - Value: 0.656 (uncategorized)
+src//validation.cpp:327 - Value: 0.656 (uncategorized)
   Context:         0.656,  // α = 0.40
 
-src//validation.cpp:323 - Value: 0.40 (uncategorized)
+src//validation.cpp:327 - Value: 0.40 (uncategorized)
   Context:         0.656,  // α = 0.40
 
-src//validation.cpp:324 - Value: 0.787 (uncategorized)
+src//validation.cpp:328 - Value: 0.787 (uncategorized)
   Context:         0.787,  // α = 0.30
 
-src//validation.cpp:324 - Value: 0.30 (uncategorized)
+src//validation.cpp:328 - Value: 0.30 (uncategorized)
   Context:         0.787,  // α = 0.30
 
-src//validation.cpp:325 - Value: 1.248 (uncategorized)
-  Context:         1.248,  // α = 0.25
+src//validation.cpp:329 - Value: 1.248 (uncategorized)
+  Context:         1.248,  // α = detail::QUARTER
 
-src//validation.cpp:325 - Value: 0.25 (uncategorized)
-  Context:         1.248,  // α = 0.25
-
-src//validation.cpp:326 - Value: 1.610 (uncategorized)
+src//validation.cpp:330 - Value: 1.610 (uncategorized)
   Context:         1.610,  // α = 0.15
 
-src//validation.cpp:326 - Value: 0.15 (uncategorized)
+src//validation.cpp:330 - Value: 0.15 (uncategorized)
   Context:         1.610,  // α = 0.15
 
-src//validation.cpp:327 - Value: 1.933 (uncategorized)
-  Context:         1.933,  // α = 0.10
+src//validation.cpp:331 - Value: 1.933 (uncategorized)
+  Context:         1.933,  // α = detail::ALPHA_10
 
-src//validation.cpp:327 - Value: 0.10 (significance_level)
-  Context:         1.933,  // α = 0.10
+src//validation.cpp:332 - Value: 2.492 (uncategorized)
+  Context:         2.492,  // α = detail::ALPHA_05
 
-src//validation.cpp:328 - Value: 2.492 (uncategorized)
-  Context:         2.492,  // α = 0.05
-
-src//validation.cpp:328 - Value: 0.05 (significance_level)
-  Context:         2.492,  // α = 0.05
-
-src//validation.cpp:329 - Value: 3.070 (uncategorized)
+src//validation.cpp:333 - Value: 3.070 (uncategorized)
   Context:         3.070,  // α = 0.025
 
-src//validation.cpp:329 - Value: 0.025 (uncategorized)
+src//validation.cpp:333 - Value: 0.025 (uncategorized)
   Context:         3.070,  // α = 0.025
 
-src//validation.cpp:330 - Value: 3.857 (uncategorized)
-  Context:         3.857,  // α = 0.01
+src//validation.cpp:334 - Value: 3.857 (uncategorized)
+  Context:         3.857,  // α = detail::ALPHA_01
 
-src//validation.cpp:330 - Value: 0.01 (significance_level)
-  Context:         3.857,  // α = 0.01
-
-src//validation.cpp:331 - Value: 4.500 (uncategorized)
+src//validation.cpp:335 - Value: 4.500 (uncategorized)
   Context:         4.500   // α = 0.005
-
-src//validation.cpp:331 - Value: 0.005 (uncategorized)
-  Context:         4.500   // α = 0.005
-
-src//validation.cpp:334 - Value: 0.50 (uncategorized)
-  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  0.25, 0.15,
-
-src//validation.cpp:334 - Value: 0.40 (uncategorized)
-  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  0.25, 0.15,
-
-src//validation.cpp:334 - Value: 0.30 (uncategorized)
-  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  0.25, 0.15,
-
-src//validation.cpp:334 - Value: 0.25 (uncategorized)
-  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  0.25, 0.15,
-
-src//validation.cpp:334 - Value: 0.15 (uncategorized)
-  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  0.25, 0.15,
-
-src//validation.cpp:335 - Value: 0.10 (significance_level)
-  Context:                                                           0.10, 0.05, 0.025, 0.01, 0.005};
-
-src//validation.cpp:335 - Value: 0.05 (significance_level)
-  Context:                                                           0.10, 0.05, 0.025, 0.01, 0.005};
-
-src//validation.cpp:335 - Value: 0.025 (uncategorized)
-  Context:                                                           0.10, 0.05, 0.025, 0.01, 0.005};
-
-src//validation.cpp:335 - Value: 0.01 (significance_level)
-  Context:                                                           0.10, 0.05, 0.025, 0.01, 0.005};
 
 src//validation.cpp:335 - Value: 0.005 (uncategorized)
-  Context:                                                           0.10, 0.05, 0.025, 0.01, 0.005};
+  Context:         4.500   // α = 0.005
 
-src//validation.cpp:364 - Value: 0.001 (uncategorized)
-  Context:     return 0.001;  // fallback
+src//validation.cpp:338 - Value: 0.50 (uncategorized)
+  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  detail::QUARTER, 0.15,
 
-src//validation.cpp:402 - Value: 0.05 (significance_level)
-  Context:     const bool reject_null = p_value < 0.05;
+src//validation.cpp:338 - Value: 0.40 (uncategorized)
+  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  detail::QUARTER, 0.15,
 
-src//validation.cpp:447 - Value: 2.0 (mathematical)
-  Context:         const double weight = 2.0 * static_cast<double>(i + 1) - 1.0;
+src//validation.cpp:338 - Value: 0.30 (uncategorized)
+  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  detail::QUARTER, 0.15,
 
-src//validation.cpp:455 - Value: 0.75 (uncategorized)
-  Context:         ad_statistic * (1.0 + 0.75 / static_cast<double>(n) +
+src//validation.cpp:338 - Value: 0.15 (uncategorized)
+  Context:     static const double extended_significance_levels[] = {0.50, 0.40, 0.30,  detail::QUARTER, 0.15,
 
-src//validation.cpp:456 - Value: 2.25 (uncategorized)
+src//validation.cpp:339 - Value: 0.025 (uncategorized)
+  Context:                                                           detail::ALPHA_10, detail::ALPHA_05, 0.025, detail::ALPHA_01, 0.005};
+
+src//validation.cpp:339 - Value: 0.005 (uncategorized)
+  Context:                                                           detail::ALPHA_10, detail::ALPHA_05, 0.025, detail::ALPHA_01, 0.005};
+
+src//validation.cpp:460 - Value: 2.25 (uncategorized)
   Context:                         2.25 / (static_cast<double>(n) * static_cast<double>(n)));
 
-src//validation.cpp:460 - Value: 0.05 (significance_level)
-  Context:     const bool reject_null = p_value < 0.05;
-
-src//validation.cpp:495 - Value: 5.0 (uncategorized)
-  Context:     if (min_expected < 5.0) {
-
-src//validation.cpp:511 - Value: 0.05 (significance_level)
-  Context:     const bool reject_null = p_value < 0.05;
-
-src//validation.cpp:546 - Value: 2.0 (mathematical)
-  Context:     const double aic = 2.0 * k - 2.0 * log_likelihood;
-
-src//validation.cpp:546 - Value: 2.0 (mathematical)
-  Context:     const double aic = 2.0 * k - 2.0 * log_likelihood;
-
-src//validation.cpp:547 - Value: 2.0 (mathematical)
-  Context:     const double bic = k * std::log(static_cast<double>(n)) - 2.0 * log_likelihood;
-
-src//validation.cpp:662 - Value: 2.0 (mathematical)
-  Context:         const double term1 = (2.0 * static_cast<double>(i + 1) - 1.0) * log_cdf;
-
-src//validation.cpp:663 - Value: 2.0 (mathematical)
-  Context:         const double term2 = (2.0 * static_cast<double>(n - i) - 1.0) * log_1_minus_cdf;
-
-src//validation.cpp:682 - Value: 100.0 (uncategorized)
-  Context:     const double index = (percentile / 100.0) * static_cast<double>(sorted_values.size() - 1);
-
-src//validation.cpp:891 - Value: 100.0 (uncategorized)
-  Context:     const double lower_percentile = 100.0 * (alpha / 2.0);
-
-src//validation.cpp:891 - Value: 2.0 (mathematical)
-  Context:     const double lower_percentile = 100.0 * (alpha / 2.0);
-
-src//validation.cpp:892 - Value: 100.0 (uncategorized)
-  Context:     const double upper_percentile = 100.0 * (1.0 - alpha / 2.0);
-
-src//validation.cpp:892 - Value: 2.0 (mathematical)
-  Context:     const double upper_percentile = 100.0 * (1.0 - alpha / 2.0);
-
-src//performance_history.cpp:105 - Value: 5.0 (uncategorized)
-  Context:             std::min(1.0, static_cast<double>(strategy_performance.size()) / 5.0);
-
-src//performance_history.cpp:108 - Value: 0.5 (mathematical)
-  Context:         confidence_score = 0.5;  // Medium confidence with only one data point
-
-src//performance_history.cpp:330 - Value: 1.05 (uncategorized)
+src//performance_history.cpp:333 - Value: 1.05 (uncategorized)
   Context:                 if (improvement_ratio > 1.05) {
 
-src//performance_history.cpp:348 - Value: 1.1 (uncategorized)
+src//performance_history.cpp:351 - Value: 1.1 (uncategorized)
   Context:     constexpr double MIN_IMPROVEMENT_RATIO = 1.1;  // Require 10% improvement
 
-src//gamma.cpp:146 - Value: 6.0 (mathematical)
-  Context:     return 6.0 / alpha_;  // Direct computation is safe
-
-src//gamma.cpp:533 - Value: 3.841 (chi_squared_critical)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:533 - Value: 0.05 (significance_level)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:533 - Value: 3.841 (chi_squared_critical)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:534 - Value: 0.99 (significance_level)
-  Context:     if (confidence_level == 0.99) {
-
-src//gamma.cpp:535 - Value: 6.635 (uncategorized)
-  Context:         chi2_critical = 6.635;
-
-src//gamma.cpp:537 - Value: 0.90 (significance_level)
-  Context:     if (confidence_level == 0.90) {
-
-src//gamma.cpp:538 - Value: 2.706 (uncategorized)
+src//gamma.cpp:542 - Value: 2.706 (uncategorized)
   Context:         chi2_critical = 2.706;
 
-src//gamma.cpp:544 - Value: 2.0 (mathematical)
-  Context:     double margin = std::sqrt(chi2_critical / 2.0) * se_alpha;
-
-src//gamma.cpp:546 - Value: 0.001 (uncategorized)
-  Context:     double lower_bound = std::max(0.001, alpha_hat - margin);
-
-src//gamma.cpp:574 - Value: 3.841 (chi_squared_critical)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:574 - Value: 0.05 (significance_level)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:574 - Value: 3.841 (chi_squared_critical)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:575 - Value: 0.99 (significance_level)
-  Context:     if (confidence_level == 0.99) {
-
-src//gamma.cpp:576 - Value: 6.635 (uncategorized)
-  Context:         chi2_critical = 6.635;
-
-src//gamma.cpp:578 - Value: 0.90 (significance_level)
-  Context:     if (confidence_level == 0.90) {
-
-src//gamma.cpp:579 - Value: 2.706 (uncategorized)
+src//gamma.cpp:583 - Value: 2.706 (uncategorized)
   Context:         chi2_critical = 2.706;
 
-src//gamma.cpp:585 - Value: 2.0 (mathematical)
-  Context:     double margin = std::sqrt(chi2_critical / 2.0) * se_beta;
-
-src//gamma.cpp:587 - Value: 0.001 (uncategorized)
-  Context:     double lower_bound = std::max(0.001, beta_hat - margin);
-
-src//gamma.cpp:638 - Value: 2.0 (mathematical)
-  Context:     double lr_statistic = 2.0 * (log_likelihood_alt - log_likelihood_null);
-
-src//gamma.cpp:644 - Value: 5.991 (chi_squared_critical)
-  Context:     double chi2_critical = 5.991;  // χ²(2, 0.05) ≈ 5.991 for 95% confidence
-
-src//gamma.cpp:644 - Value: 0.05 (significance_level)
-  Context:     double chi2_critical = 5.991;  // χ²(2, 0.05) ≈ 5.991 for 95% confidence
-
-src//gamma.cpp:644 - Value: 5.991 (chi_squared_critical)
-  Context:     double chi2_critical = 5.991;  // χ²(2, 0.05) ≈ 5.991 for 95% confidence
-
-src//gamma.cpp:645 - Value: 0.01 (significance_level)
-  Context:     if (significance_level == 0.01) {
-
-src//gamma.cpp:646 - Value: 9.210 (uncategorized)
-  Context:         chi2_critical = 9.210;
-
-src//gamma.cpp:648 - Value: 0.10 (significance_level)
-  Context:     if (significance_level == 0.10) {
-
-src//gamma.cpp:649 - Value: 4.605 (uncategorized)
+src//gamma.cpp:653 - Value: 4.605 (uncategorized)
   Context:         chi2_critical = 4.605;
 
-src//gamma.cpp:654 - Value: 2.0 (mathematical)
-  Context:     double p_value = 1.0 - detail::gamma_p(1.0, lr_statistic / 2.0);  // Approximation
-
-src//gamma.cpp:730 - Value: 0.5 (mathematical)
-  Context:     if (data.empty() || trim_proportion < 0.0 || trim_proportion > 0.5) {
-
-src//gamma.cpp:772 - Value: 0.25 (uncategorized)
-  Context:         size_t q1_idx = static_cast<size_t>(0.25 * static_cast<double>(data.size()));
-
-src//gamma.cpp:773 - Value: 0.75 (uncategorized)
-  Context:         size_t q3_idx = static_cast<size_t>(0.75 * static_cast<double>(data.size()));
-
-src//gamma.cpp:863 - Value: 2.0 (mathematical)
-  Context:     double alpha_tail = (1.0 - credibility_level) / 2.0;
-
-src//gamma.cpp:914 - Value: 2.0 (mathematical)
-  Context:             (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);
-
-src//gamma.cpp:917 - Value: 2.0 (mathematical)
-  Context:     L2 /= 2.0;
-
-src//gamma.cpp:958 - Value: 2.0 (mathematical)
-  Context:     double threshold_z = detail::inverse_normal_cdf(1.0 - significance_level / 2.0);
-
-src//gamma.cpp:987 - Value: 1.36 (uncategorized)
+src//gamma.cpp:991 - Value: 1.36 (uncategorized)
   Context:     double critical_value = 1.36 / std::sqrt(n);  // Approximation for KS test critical value
 
-src//gamma.cpp:995 - Value: 0.27 (uncategorized)
+src//gamma.cpp:999 - Value: 0.27 (uncategorized)
   Context:     if (lambda < 0.27) {
 
-src//gamma.cpp:998 - Value: 2.0 (mathematical)
-  Context:         p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
+src//gamma.cpp:1007 - Value: 8.0 (uncategorized)
+  Context:         double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda, 4) / 15.0;
 
-src//gamma.cpp:998 - Value: 2.0 (mathematical)
-  Context:         p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
+src//gamma.cpp:1007 - Value: 15.0 (uncategorized)
+  Context:         double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda, 4) / 15.0;
 
-src//gamma.cpp:998 - Value: 3.0 (mathematical)
-  Context:         p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
+src//gamma.cpp:1032 - Value: 2.25 (uncategorized)
+  Context:     const double modified_stat = ad_statistic * (detail::ONE + detail::AD_P_VALUE_MEDIUM / n + 2.25 / (n * n));
 
-src//gamma.cpp:1001 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
-
-src//gamma.cpp:1001 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
-
-src//gamma.cpp:1003 - Value: 2.0 (mathematical)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//gamma.cpp:1003 - Value: 3.0 (mathematical)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//gamma.cpp:1003 - Value: 8.0 (uncategorized)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//gamma.cpp:1003 - Value: 15.0 (uncategorized)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//gamma.cpp:1028 - Value: 0.75 (uncategorized)
-  Context:     const double modified_stat = ad_statistic * (1.0 + 0.75 / n + 2.25 / (n * n));
-
-src//gamma.cpp:1028 - Value: 2.25 (uncategorized)
-  Context:     const double modified_stat = ad_statistic * (1.0 + 0.75 / n + 2.25 / (n * n));
-
-src//gamma.cpp:1032 - Value: 13.0 (uncategorized)
+src//gamma.cpp:1036 - Value: 13.0 (uncategorized)
   Context:     if (modified_stat >= 13.0) {
 
-src//gamma.cpp:1034 - Value: 6.0 (mathematical)
-  Context:     } else if (modified_stat >= 6.0) {
-
-src//gamma.cpp:1035 - Value: 1.28 (uncategorized)
+src//gamma.cpp:1039 - Value: 1.28 (uncategorized)
   Context:         p_value = std::exp(-1.28 * modified_stat);
 
-src//gamma.cpp:1037 - Value: 1.8 (uncategorized)
+src//gamma.cpp:1041 - Value: 1.8 (uncategorized)
   Context:         p_value = std::exp(-1.8 * modified_stat + 1.5);
 
-src//gamma.cpp:1037 - Value: 1.5 (uncategorized)
+src//gamma.cpp:1041 - Value: 1.5 (uncategorized)
   Context:         p_value = std::exp(-1.8 * modified_stat + 1.5);
 
-src//gamma.cpp:1251 - Value: 2.0 (mathematical)
-  Context:     double alpha_level = (1.0 - confidence_level) / 2.0;
-
-src//gamma.cpp:1303 - Value: 2.0 (mathematical)
-  Context:     return 2.0 * alpha_;
-
-src//gamma.cpp:2613 - Value: 2.0 (mathematical)
-  Context:             b += 2.0;
-
-src//gamma.cpp:2659 - Value: 2.0 (mathematical)
-  Context:         double h = 2.0 / (9.0 * alpha_);
-
-src//gamma.cpp:2659 - Value: 9.0 (mathematical)
-  Context:         double h = 2.0 / (9.0 * alpha_);
-
-src//gamma.cpp:2686 - Value: 0.1 (uncategorized)
+src//gamma.cpp:2690 - Value: 0.1 (uncategorized)
   Context:         x = std::max(x - delta, x * 0.1);  // Ensure x stays positive
 
-src//gamma.cpp:2703 - Value: 3.0 (mathematical)
-  Context:     const double d = alpha_ - 1.0 / 3.0;
+src//gamma.cpp:2722 - Value: 0.0331 (uncategorized)
+  Context:         if (u < detail::ONE - 0.0331 * (x * x) * (x * x)) {
 
-src//gamma.cpp:2704 - Value: 9.0 (mathematical)
-  Context:     const double c = 1.0 / std::sqrt(9.0 * d);
+src//gamma.cpp:2794 - Value: 24.0 (uncategorized)
+  Context:     double alpha_est = (detail::THREE - s + std::sqrt((s - detail::THREE) * (s - detail::THREE) + 24.0 * s)) / (12.0 * s);
 
-src//gamma.cpp:2718 - Value: 0.0331 (uncategorized)
-  Context:         if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
+src//gamma.cpp:2794 - Value: 12.0 (uncategorized)
+  Context:     double alpha_est = (detail::THREE - s + std::sqrt((s - detail::THREE) * (s - detail::THREE) + 24.0 * s)) / (12.0 * s);
 
-src//gamma.cpp:2723 - Value: 0.5 (mathematical)
-  Context:         if (std::log(u) < 0.5 * x * x + d * (1.0 - v + std::log(v))) {
-
-src//gamma.cpp:2790 - Value: 3.0 (mathematical)
-  Context:     double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);
-
-src//gamma.cpp:2790 - Value: 3.0 (mathematical)
-  Context:     double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);
-
-src//gamma.cpp:2790 - Value: 3.0 (mathematical)
-  Context:     double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);
-
-src//gamma.cpp:2790 - Value: 24.0 (uncategorized)
-  Context:     double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);
-
-src//gamma.cpp:2790 - Value: 12.0 (uncategorized)
-  Context:     double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);
-
-src//gamma.cpp:2840 - Value: 8.0 (uncategorized)
+src//gamma.cpp:2844 - Value: 8.0 (uncategorized)
   Context:     while (z < 8.0) {
 
-src//gamma.cpp:2850 - Value: 0.5 (mathematical)
-  Context:     result += std::log(z) - 0.5 * z_inv;
-
-src//gamma.cpp:2851 - Value: 12.0 (uncategorized)
+src//gamma.cpp:2855 - Value: 12.0 (uncategorized)
   Context:     result -= z_inv_sq / 12.0;                         // Bernoulli B₂/2
 
-src//gamma.cpp:2852 - Value: 120.0 (uncategorized)
+src//gamma.cpp:2856 - Value: 120.0 (uncategorized)
   Context:     result += z_inv_sq * z_inv_sq / 120.0;             // Bernoulli B₄/4
 
-src//gamma.cpp:2853 - Value: 252.0 (uncategorized)
+src//gamma.cpp:2857 - Value: 252.0 (uncategorized)
   Context:     result -= z_inv_sq * z_inv_sq * z_inv_sq / 252.0;  // Bernoulli B₆/6
 
-src//gamma.cpp:2870 - Value: 8.0 (uncategorized)
+src//gamma.cpp:2874 - Value: 8.0 (uncategorized)
   Context:     while (z < 8.0) {
 
-src//gamma.cpp:2880 - Value: 0.5 (mathematical)
-  Context:     result += z_inv + 0.5 * z_inv_sq;
-
-src//gamma.cpp:2881 - Value: 6.0 (mathematical)
-  Context:     result += z_inv_sq * z_inv / 6.0;                         // 1/(6z³)
-
-src//gamma.cpp:2882 - Value: 30.0 (uncategorized)
+src//gamma.cpp:2886 - Value: 30.0 (uncategorized)
   Context:     result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)
 
-src//gamma.cpp:2883 - Value: 42.0 (uncategorized)
+src//gamma.cpp:2887 - Value: 42.0 (uncategorized)
   Context:     result += z_inv_sq * z_inv_sq * z_inv_sq * z_inv / 42.0;  // 1/(42z⁷)
 
-src//uniform.cpp:601 - Value: 2.0 (mathematical)
-  Context:     const double adjustment = range_estimate * std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)) /
-
-src//uniform.cpp:602 - Value: 2.0 (mathematical)
-  Context:                               (1.0 + std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)));
-
-src//uniform.cpp:629 - Value: 2.0 (mathematical)
-  Context:     const double adjustment = range_estimate * std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)) /
-
-src//uniform.cpp:630 - Value: 2.0 (mathematical)
-  Context:                               (1.0 + std::pow(alpha / 2.0, 1.0 / static_cast<double>(n)));
-
-src//uniform.cpp:669 - Value: 2.0 (mathematical)
-  Context:     const double test_statistic = -2.0 * (log_like_null - log_like_alt);
-
-src//uniform.cpp:674 - Value: 2.0 (mathematical)
-  Context:         1.0 - (1.0 - std::exp(-test_statistic / 2.0));  // Simplified approximation
-
-src//uniform.cpp:701 - Value: 2.0 (mathematical)
-  Context:         sample_min - (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
-
-src//uniform.cpp:703 - Value: 12.0 (uncategorized)
-  Context:         std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
-
-src//uniform.cpp:703 - Value: 2.0 (mathematical)
-  Context:         std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
-
-src//uniform.cpp:706 - Value: 2.0 (mathematical)
-  Context:         sample_max + (sample_max - sample_min) / (static_cast<double>(n) + 2.0);
-
-src//uniform.cpp:708 - Value: 12.0 (uncategorized)
-  Context:         std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
-
-src//uniform.cpp:708 - Value: 2.0 (mathematical)
-  Context:         std::pow(sample_max - sample_min, 2) / (12.0 * (static_cast<double>(n) + 2.0));
-
-src//uniform.cpp:723 - Value: 0.5 (mathematical)
-  Context:     if (trim_proportion < 0.0 || trim_proportion >= 0.5) {
-
-src//uniform.cpp:782 - Value: 12.0 (uncategorized)
+src//uniform.cpp:786 - Value: 12.0 (uncategorized)
   Context:     const double range_estimate = std::sqrt(12.0 * variance);
 
-src//uniform.cpp:783 - Value: 2.0 (mathematical)
-  Context:     const double a_estimate = mean - range_estimate / 2.0;
-
-src//uniform.cpp:784 - Value: 2.0 (mathematical)
-  Context:     const double b_estimate = mean + range_estimate / 2.0;
-
-src//uniform.cpp:806 - Value: 2.0 (mathematical)
-  Context:     [[maybe_unused]] const double tail_prob = alpha / 2.0;
-
-src//uniform.cpp:809 - Value: 1.96 (normal_quantile)
-  Context:     const double z_score = 1.96;  // Approximate 97.5th percentile of standard normal
-
-src//uniform.cpp:853 - Value: 2.0 (mathematical)
-  Context:             (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);
-
-src//uniform.cpp:860 - Value: 3.0 (mathematical)
-  Context:     const double a_estimate = L1 - 3.0 * L2;
-
-src//uniform.cpp:861 - Value: 3.0 (mathematical)
-  Context:     const double b_estimate = L1 + 3.0 * L2;
-
-src//uniform.cpp:902 - Value: 12.0 (uncategorized)
+src//uniform.cpp:906 - Value: 12.0 (uncategorized)
   Context:     const double expected_variance = sample_range * sample_range / 12.0;
 
-src//uniform.cpp:908 - Value: 2.0 (mathematical)
-  Context:         2.0 * std::min(test_statistic, 2.0 - test_statistic);  // Symmetric around 1
-
-src//uniform.cpp:908 - Value: 2.0 (mathematical)
-  Context:         2.0 * std::min(test_statistic, 2.0 - test_statistic);  // Symmetric around 1
-
-src//uniform.cpp:935 - Value: 0.5 (mathematical)
-  Context:     double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);
-
-src//uniform.cpp:935 - Value: 2.0 (mathematical)
-  Context:     double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);
-
-src//uniform.cpp:939 - Value: 2.0 (mathematical)
-  Context:     double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);
-
-src//uniform.cpp:939 - Value: 2.0 (mathematical)
-  Context:     double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);
-
-src//uniform.cpp:962 - Value: 0.01 (significance_level)
-  Context:     if (alpha <= 0.01) {
-
-src//uniform.cpp:963 - Value: 3.857 (uncategorized)
+src//uniform.cpp:967 - Value: 3.857 (uncategorized)
   Context:         critical_value = 3.857;
 
-src//uniform.cpp:964 - Value: 0.05 (significance_level)
-  Context:     } else if (alpha <= 0.05) {
-
-src//uniform.cpp:965 - Value: 2.492 (uncategorized)
+src//uniform.cpp:969 - Value: 2.492 (uncategorized)
   Context:         critical_value = 2.492;
 
-src//uniform.cpp:966 - Value: 0.10 (significance_level)
-  Context:     } else if (alpha <= 0.10) {
-
-src//uniform.cpp:967 - Value: 1.933 (uncategorized)
+src//uniform.cpp:971 - Value: 1.933 (uncategorized)
   Context:         critical_value = 1.933;
 
-src//uniform.cpp:969 - Value: 1.159 (uncategorized)
-  Context:         critical_value = 1.159;  // alpha = 0.25
+src//uniform.cpp:973 - Value: 1.159 (uncategorized)
+  Context:         critical_value = 1.159;  // alpha = detail::QUARTER
 
-src//uniform.cpp:969 - Value: 0.25 (uncategorized)
-  Context:         critical_value = 1.159;  // alpha = 0.25
+src//uniform.cpp:980 - Value: 1.2804 (uncategorized)
+  Context:         p_value = detail::ONE - std::exp(-1.2804 * std::pow(ad_stat, -detail::HALF));
 
-src//uniform.cpp:975 - Value: 0.2 (uncategorized)
-  Context:     if (ad_stat < 0.2) {
-
-src//uniform.cpp:976 - Value: 1.2804 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat, -0.5));
-
-src//uniform.cpp:976 - Value: 0.5 (mathematical)
-  Context:         p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat, -0.5));
-
-src//uniform.cpp:977 - Value: 0.34 (uncategorized)
+src//uniform.cpp:981 - Value: 0.34 (uncategorized)
   Context:     } else if (ad_stat < 0.34) {
 
-src//uniform.cpp:978 - Value: 0.8 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-0.8 * ad_stat - 0.26);
+src//uniform.cpp:982 - Value: 0.26 (uncategorized)
+  Context:         p_value = detail::ONE - std::exp(-detail::LARGE_EFFECT * ad_stat - 0.26);
 
-src//uniform.cpp:978 - Value: 0.26 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-0.8 * ad_stat - 0.26);
-
-src//uniform.cpp:979 - Value: 0.6 (uncategorized)
+src//uniform.cpp:983 - Value: 0.6 (uncategorized)
   Context:     } else if (ad_stat < 0.6) {
 
-src//uniform.cpp:980 - Value: 0.9 (uncategorized)
+src//uniform.cpp:984 - Value: 0.9 (uncategorized)
   Context:         p_value = std::exp(-0.9 * ad_stat - 0.16);
 
-src//uniform.cpp:980 - Value: 0.16 (uncategorized)
+src//uniform.cpp:984 - Value: 0.16 (uncategorized)
   Context:         p_value = std::exp(-0.9 * ad_stat - 0.16);
 
-src//uniform.cpp:982 - Value: 1.8 (uncategorized)
+src//uniform.cpp:986 - Value: 1.8 (uncategorized)
   Context:         p_value = std::exp(-1.8 * ad_stat + 0.258);
 
-src//uniform.cpp:982 - Value: 0.258 (uncategorized)
+src//uniform.cpp:986 - Value: 0.258 (uncategorized)
   Context:         p_value = std::exp(-1.8 * ad_stat + 0.258);
 
-src//uniform.cpp:1076 - Value: 1000.0 (uncategorized)
+src//uniform.cpp:1080 - Value: 1000.0 (uncategorized)
   Context:                 std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
 
-src//uniform.cpp:1143 - Value: 1000.0 (uncategorized)
+src//uniform.cpp:1147 - Value: 1000.0 (uncategorized)
   Context:             std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
 
-src//uniform.cpp:1182 - Value: 1000.0 (uncategorized)
+src//uniform.cpp:1186 - Value: 1000.0 (uncategorized)
   Context:             log_likelihood += -1000.0;
 
-src//uniform.cpp:1187 - Value: 2.0 (mathematical)
-  Context:     double aic = -2.0 * log_likelihood + 2.0 * k;
-
-src//uniform.cpp:1187 - Value: 2.0 (mathematical)
-  Context:     double aic = -2.0 * log_likelihood + 2.0 * k;
-
-src//uniform.cpp:1188 - Value: 2.0 (mathematical)
-  Context:     double bic = -2.0 * log_likelihood + k * std::log(n);
-
-src//uniform.cpp:1193 - Value: 2.0 (mathematical)
-  Context:         aicc += (2.0 * k * (k + 1)) / static_cast<double>(n - k - 1);
-
-src//uniform.cpp:1252 - Value: 2.0 (mathematical)
-  Context:     double lower_percentile = alpha / 2.0;
-
-src//uniform.cpp:1253 - Value: 2.0 (mathematical)
-  Context:     double upper_percentile = 1.0 - alpha / 2.0;
-
-src//system_capabilities.cpp:21 - Value: 1.5 (uncategorized)
+src//system_capabilities.cpp:23 - Value: 1.5 (uncategorized)
   Context:     std::vector<double> data(BENCHMARK_ARRAY_SIZE, 1.5);
 
-src//system_capabilities.cpp:28 - Value: 2.0 (mathematical)
-  Context:             results[j] = data[j] * 2.0 + 1.0;
+src//system_capabilities.cpp:41 - Value: 10.0 (uncategorized)
+  Context:     return std::min(detail::ONE, 10.0 / std::max(detail::ONE, time_per_operation));
 
-src//system_capabilities.cpp:39 - Value: 10.0 (uncategorized)
-  Context:     return std::min(1.0, 10.0 / std::max(1.0, time_per_operation));
-
-src//system_capabilities.cpp:80 - Value: 0.5 (mathematical)
-  Context:         source[i] = static_cast<double>(i % 1000) + 0.5;
-
-src//system_capabilities.cpp:102 - Value: 2.0 (mathematical)
-  Context:     double bytes_transferred = 2.0 * array_size * sizeof(double) * iterations;
-
-src//system_capabilities.cpp:107 - Value: 25.0 (uncategorized)
+src//system_capabilities.cpp:109 - Value: 25.0 (uncategorized)
   Context:         return 25.0;  // Reasonable fallback for DDR3-1600 dual channel
 
-src//system_capabilities.cpp:113 - Value: 100.0 (uncategorized)
-  Context:     return std::max(1.0, std::min(100.0, bandwidth));
-
-src//platform_constants_impl.cpp:461 - Value: 1.5 (uncategorized)
+src//platform_constants_impl.cpp:462 - Value: 1.5 (uncategorized)
   Context:         return static_cast<std::size_t>(std::round(static_cast<double>(base_grain) * 1.5));
 
-src//discrete.cpp:392 - Value: 0.5 (mathematical)
-  Context:         return detail::HALF;  // 0.5 for binary [0,1]
-
-src//discrete.cpp:423 - Value: 0.5 (mathematical)
-  Context:         return -detail::LN2;  // log(0.5)
-
-src//discrete.cpp:677 - Value: 2.0 (mathematical)
-  Context:     const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));
-
-src//discrete.cpp:714 - Value: 2.0 (mathematical)
-  Context:     const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));
-
-src//discrete.cpp:753 - Value: 2.0 (mathematical)
-  Context:     const double test_statistic = -2.0 * log_likelihood_ratio;
-
-src//discrete.cpp:761 - Value: 3.841 (chi_squared_critical)
-  Context:     const double critical_value = 3.841;  // Chi-squared(1) at alpha=0.05
-
-src//discrete.cpp:761 - Value: 0.05 (significance_level)
-  Context:     const double critical_value = 3.841;  // Chi-squared(1) at alpha=0.05
-
-src//discrete.cpp:764 - Value: 0.01 (significance_level)
-  Context:     const double p_value = (test_statistic > critical_value) ? 0.01 : 0.5;
-
-src//discrete.cpp:764 - Value: 0.5 (mathematical)
-  Context:     const double p_value = (test_statistic > critical_value) ? 0.01 : 0.5;
-
-src//discrete.cpp:830 - Value: 0.5 (mathematical)
-  Context:     if (trim_proportion < 0.0 || trim_proportion >= 0.5) {
-
-src//discrete.cpp:850 - Value: 2.0 (mathematical)
-  Context:     const double median = (n % 2 == 0) ? (int_data[n / 2 - 1] + int_data[n / 2]) / 2.0
-
-src//discrete.cpp:861 - Value: 2.0 (mathematical)
-  Context:         (n % 2 == 0) ? (deviations[n / 2 - 1] + deviations[n / 2]) / 2.0 : deviations[n / 2];
-
-src//discrete.cpp:868 - Value: 2.0 (mathematical)
-  Context:         const double threshold = 2.0 * mad;  // Fixed threshold
-
-src//discrete.cpp:933 - Value: 12.0 (uncategorized)
+src//discrete.cpp:936 - Value: 12.0 (uncategorized)
   Context:     const double range_estimate = std::sqrt(12.0 * sample_variance);
 
-src//discrete.cpp:934 - Value: 2.0 (mathematical)
-  Context:     const double a_estimate = sample_mean - range_estimate / 2.0;
-
-src//discrete.cpp:935 - Value: 2.0 (mathematical)
-  Context:     const double b_estimate = sample_mean + range_estimate / 2.0;
-
-src//discrete.cpp:960 - Value: 1.96 (normal_quantile)
-  Context:     const double z_score = 1.96;  // Approximate for 95% credibility
-
-src//discrete.cpp:963 - Value: 2.0 (mathematical)
-  Context:     const double a_mean = (posterior_a_interval.first + posterior_a_interval.second) / 2.0;
-
-src//discrete.cpp:965 - Value: 4.0 (uncategorized)
+src//discrete.cpp:968 - Value: 4.0 (uncategorized)
   Context:         (posterior_a_interval.second - posterior_a_interval.first) / 4.0;  // rough estimate
 
-src//discrete.cpp:969 - Value: 2.0 (mathematical)
-  Context:     const double b_mean = (posterior_b_interval.first + posterior_b_interval.second) / 2.0;
-
-src//discrete.cpp:971 - Value: 4.0 (uncategorized)
+src//discrete.cpp:974 - Value: 4.0 (uncategorized)
   Context:         (posterior_b_interval.second - posterior_b_interval.first) / 4.0;  // rough estimate
 
-src//discrete.cpp:1013 - Value: 2.0 (mathematical)
-  Context:     l2 /= (2.0 * static_cast<double>(n) * static_cast<double>(n));
-
-src//discrete.cpp:1019 - Value: 3.0 (mathematical)
-  Context:     const double range_estimate = 3.0 * l2;
-
-src//discrete.cpp:1020 - Value: 2.0 (mathematical)
-  Context:     const double a_estimate = l1 - range_estimate / 2.0;
-
-src//discrete.cpp:1021 - Value: 2.0 (mathematical)
-  Context:     const double b_estimate = l1 + range_estimate / 2.0;
-
-src//discrete.cpp:1072 - Value: 3.841 (chi_squared_critical)
-  Context:     const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-
-src//discrete.cpp:1072 - Value: 0.05 (significance_level)
-  Context:     const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-
-src//discrete.cpp:1073 - Value: 0.01 (significance_level)
-  Context:     double p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
-
-src//discrete.cpp:1073 - Value: 0.5 (mathematical)
-  Context:     double p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
-
-src//discrete.cpp:1108 - Value: 0.27 (uncategorized)
+src//discrete.cpp:1111 - Value: 0.27 (uncategorized)
   Context:     if (lambda < 0.27) {
 
-src//discrete.cpp:1111 - Value: 2.0 (mathematical)
-  Context:         p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
+src//discrete.cpp:1119 - Value: 8.0 (uncategorized)
+  Context:         double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda, 4) / 15.0;
 
-src//discrete.cpp:1111 - Value: 2.0 (mathematical)
-  Context:         p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
+src//discrete.cpp:1119 - Value: 15.0 (uncategorized)
+  Context:         double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda, 4) / 15.0;
 
-src//discrete.cpp:1111 - Value: 3.0 (mathematical)
-  Context:         p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
-
-src//discrete.cpp:1114 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
-
-src//discrete.cpp:1114 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
-
-src//discrete.cpp:1116 - Value: 2.0 (mathematical)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//discrete.cpp:1116 - Value: 3.0 (mathematical)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//discrete.cpp:1116 - Value: 8.0 (uncategorized)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//discrete.cpp:1116 - Value: 15.0 (uncategorized)
-  Context:         double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-
-src//discrete.cpp:1143 - Value: 0.01 (significance_level)
-  Context:     if (alpha <= 0.01) {
-
-src//discrete.cpp:1144 - Value: 3.857 (uncategorized)
+src//discrete.cpp:1147 - Value: 3.857 (uncategorized)
   Context:         critical_value = 3.857;
 
-src//discrete.cpp:1145 - Value: 0.05 (significance_level)
-  Context:     } else if (alpha <= 0.05) {
-
-src//discrete.cpp:1146 - Value: 2.492 (uncategorized)
+src//discrete.cpp:1149 - Value: 2.492 (uncategorized)
   Context:         critical_value = 2.492;
 
-src//discrete.cpp:1147 - Value: 0.10 (significance_level)
-  Context:     } else if (alpha <= 0.10) {
-
-src//discrete.cpp:1148 - Value: 1.933 (uncategorized)
+src//discrete.cpp:1151 - Value: 1.933 (uncategorized)
   Context:         critical_value = 1.933;
 
-src//discrete.cpp:1150 - Value: 1.159 (uncategorized)
-  Context:         critical_value = 1.159;  // alpha = 0.25
+src//discrete.cpp:1153 - Value: 1.159 (uncategorized)
+  Context:         critical_value = 1.159;  // alpha = detail::QUARTER
 
-src//discrete.cpp:1150 - Value: 0.25 (uncategorized)
-  Context:         critical_value = 1.159;  // alpha = 0.25
+src//discrete.cpp:1159 - Value: 1.2337 (uncategorized)
+  Context:         p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic, -detail::ONE) + detail::ONE);
 
-src//discrete.cpp:1155 - Value: 0.5 (mathematical)
-  Context:     if (ad_statistic < 0.5) {
+src//discrete.cpp:1234 - Value: 0.025 (uncategorized)
+  Context:         p_value = (z_score > detail::Z_95) ? 0.025 : detail::AD_THRESHOLD_1;  // Very rough normal approximation
 
-src//discrete.cpp:1156 - Value: 1.2337 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//discrete.cpp:1157 - Value: 2.0 (mathematical)
-  Context:     } else if (ad_statistic < 2.0) {
-
-src//discrete.cpp:1158 - Value: 0.75 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
-
-src//discrete.cpp:1158 - Value: 0.5 (mathematical)
-  Context:         p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
-
-src//discrete.cpp:1200 - Value: 5.0 (uncategorized)
-  Context:     if (expected_freq < 5.0) {
-
-src//discrete.cpp:1220 - Value: 3.841 (chi_squared_critical)
-  Context:     const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-
-src//discrete.cpp:1220 - Value: 0.05 (significance_level)
-  Context:     const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-
-src//discrete.cpp:1225 - Value: 0.01 (significance_level)
-  Context:         p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
-
-src//discrete.cpp:1225 - Value: 0.5 (mathematical)
-  Context:         p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
-
-src//discrete.cpp:1229 - Value: 2.0 (mathematical)
-  Context:         const double std_chi = std::sqrt(2.0 * degrees_of_freedom);
-
-src//discrete.cpp:1231 - Value: 1.96 (normal_quantile)
-  Context:         p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation
-
-src//discrete.cpp:1231 - Value: 0.025 (uncategorized)
-  Context:         p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation
-
-src//discrete.cpp:1231 - Value: 0.5 (mathematical)
-  Context:         p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation
-
-src//discrete.cpp:1385 - Value: 2.0 (mathematical)
-  Context:     const double aic = 2.0 * k - 2.0 * log_likelihood;
-
-src//discrete.cpp:1385 - Value: 2.0 (mathematical)
-  Context:     const double aic = 2.0 * k - 2.0 * log_likelihood;
-
-src//discrete.cpp:1386 - Value: 2.0 (mathematical)
-  Context:     const double bic = k * std::log(static_cast<double>(n)) - 2.0 * log_likelihood;
-
-src//discrete.cpp:1391 - Value: 2.0 (mathematical)
-  Context:         aicc = aic + (2.0 * k * (k + 1)) / (static_cast<double>(n) - k - 1);
-
-src//discrete.cpp:1446 - Value: 3.0 (mathematical)
-  Context:     if (sampling_density >= 3.0 && observed_range <= 20) {
-
-src//discrete.cpp:1504 - Value: 2.0 (mathematical)
-  Context:         const size_t lower_index = static_cast<size_t>(alpha / 2.0 * n_bootstrap);
-
-src//discrete.cpp:1505 - Value: 2.0 (mathematical)
-  Context:         const size_t upper_index = static_cast<size_t>((1.0 - alpha / 2.0) * n_bootstrap);
-
-src//benchmark.cpp:165 - Value: 100.0 (uncategorized)
-  Context:                 ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) * 100.0;
-
-src//benchmark.cpp:174 - Value: 1.05 (uncategorized)
+src//benchmark.cpp:176 - Value: 1.05 (uncategorized)
   Context:             if (speedup > 1.05) {
 
-src//benchmark.cpp:176 - Value: 0.95 (significance_level)
-  Context:             } else if (speedup < 0.95) {
-
-src//benchmark.cpp:207 - Value: 2.0 (mathematical)
-  Context:         stats.median = (sortedTimes[mid - 1] + sortedTimes[mid]) / 2.0;
-
-src//benchmark.cpp:440 - Value: 2.0 (mathematical)
-  Context:                     result[i] = vec[i] * 2.0;
-
-src//benchmark.cpp:462 - Value: 2.0 (mathematical)
-  Context:         0, static_cast<double>(data.size()) / 2.0);
-
-src//benchmark.cpp:559 - Value: 100.0 (uncategorized)
-  Context:             ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) * 100.0;
-
-src//benchmark.cpp:595 - Value: 1.5 (uncategorized)
+src//benchmark.cpp:597 - Value: 1.5 (uncategorized)
   Context:         iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.5);
 
-src//benchmark.cpp:596 - Value: 1.2 (uncategorized)
+src//benchmark.cpp:598 - Value: 1.2 (uncategorized)
   Context:         warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.2);
 
-src//benchmark.cpp:599 - Value: 0.8 (uncategorized)
-  Context:         iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.8);
-
-src//benchmark.cpp:600 - Value: 0.8 (uncategorized)
-  Context:         warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 0.8);
-
-src//benchmark.cpp:606 - Value: 1.2 (uncategorized)
+src//benchmark.cpp:608 - Value: 1.2 (uncategorized)
   Context:         iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.2);
 
-src//benchmark.cpp:609 - Value: 0.9 (uncategorized)
+src//benchmark.cpp:611 - Value: 0.9 (uncategorized)
   Context:         iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.9);
 
-src//benchmark.cpp:615 - Value: 1.3 (uncategorized)
+src//benchmark.cpp:617 - Value: 1.3 (uncategorized)
   Context:         warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.3);
 
-src//benchmark.cpp:665 - Value: 2.0 (mathematical)
-  Context:         stats.median = (sortedTimes[mid - 1] + sortedTimes[mid]) / 2.0;
-
-src//gaussian.cpp:1053 - Value: 1.4826 (uncategorized)
-  Context:     double robust_scale = mad * detail::MAD_SCALING_FACTOR;  // Use named constant instead of 1.4826
-
-src//gaussian.cpp:1265 - Value: 1.5 (uncategorized)
+src//gaussian.cpp:1267 - Value: 1.5 (uncategorized)
   Context:     const double skewness = m3 / std::pow(m2, 1.5);
 
-src//gaussian.cpp:3012 - Value: 0.0625 (uncategorized)
+src//gaussian.cpp:3014 - Value: 0.0625 (uncategorized)
   Context:     isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16
 
-src//parallel_thresholds.cpp:20 - Value: 0.95 (significance_level)
-  Context:     profile.thread_efficiency_factor = 0.95;
-
-src//parallel_thresholds.cpp:26 - Value: 0.85 (uncategorized)
+src//parallel_thresholds.cpp:27 - Value: 0.85 (uncategorized)
   Context:     profile.thread_efficiency_factor = 0.85;
 
-src//parallel_thresholds.cpp:32 - Value: 0.75 (uncategorized)
-  Context:     profile.thread_efficiency_factor = 0.75;
-
-src//parallel_thresholds.cpp:38 - Value: 0.7 (uncategorized)
-  Context:     profile.thread_efficiency_factor = 0.7;
-
-src//poisson.cpp:535 - Value: 2.0 (mathematical)
-  Context:         lower_bound = chi2_lower / (2.0 * static_cast<double>(n));
-
-src//poisson.cpp:1025 - Value: 0.27 (uncategorized)
+src//poisson.cpp:1027 - Value: 0.27 (uncategorized)
   Context:     if (lambda_ks < 0.27) {
 
-src//poisson.cpp:1028 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1028 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1031 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1031 - Value: 2.0 (mathematical)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1033 - Value: 2.0 (mathematical)
-  Context:             p_value += 2.0 * std::pow(-1, k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1033 - Value: 2.0 (mathematical)
-  Context:             p_value += 2.0 * std::pow(-1, k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1073 - Value: 0.5 (mathematical)
-  Context:     if (ad_statistic < 0.5) {
-
-src//poisson.cpp:1074 - Value: 1.2337 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//poisson.cpp:1075 - Value: 2.0 (mathematical)
-  Context:     } else if (ad_statistic < 2.0) {
-
-src//poisson.cpp:1076 - Value: 0.75 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
-
-src//poisson.cpp:1076 - Value: 0.5 (mathematical)
-  Context:         p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
-
-src//poisson.cpp:2937 - Value: 3.0 (mathematical)
-  Context:     if (isVeryLargeLambda_ && std::abs(k - lambda_) < 3.0 * sqrtLambda_) {
-
-src//log_space_ops.cpp:30 - Value: 50.0 (uncategorized)
-  Context:     constexpr double x_min = -50.0;
-
-src//log_space_ops.cpp:68 - Value: 50.0 (uncategorized)
-  Context:     if (diff >= -50.0 && diff <= 0.0) {
-
-src//log_space_ops.cpp:161 - Value: 50.0 (uncategorized)
-  Context:     if (x < -50.0) {
-
-src//log_space_ops.cpp:169 - Value: 50.0 (uncategorized)
-  Context:     constexpr double x_min = -50.0;
-
-src//safety.cpp:123 - Value: 700.0 (uncategorized)
-  Context:                 } else if (value > 700.0) {
-
-src//distribution_base.cpp:339 - Value: 2.0 (mathematical)
-  Context:         double mid = (a + b) / 2.0;
-
-src//distribution_base.cpp:343 - Value: 6.0 (mathematical)
-  Context:         return (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
-
-src//distribution_base.cpp:343 - Value: 4.0 (uncategorized)
-  Context:         return (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
-
-src//distribution_base.cpp:346 - Value: 2.0 (mathematical)
-  Context:     double mid = (a + b) / 2.0;
-
-src//distribution_base.cpp:347 - Value: 2.0 (mathematical)
-  Context:     double left_mid = (a + mid) / 2.0;
-
-src//distribution_base.cpp:348 - Value: 2.0 (mathematical)
-  Context:     double right_mid = (mid + b) / 2.0;
-
-src//distribution_base.cpp:358 - Value: 6.0 (mathematical)
-  Context:     double whole = (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
-
-src//distribution_base.cpp:358 - Value: 4.0 (uncategorized)
-  Context:     double whole = (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
-
-src//distribution_base.cpp:361 - Value: 6.0 (mathematical)
-  Context:     double left = (mid - a) / 6.0 * (fa + 4.0 * fleft_mid + fmid);
-
-src//distribution_base.cpp:361 - Value: 4.0 (uncategorized)
-  Context:     double left = (mid - a) / 6.0 * (fa + 4.0 * fleft_mid + fmid);
-
-src//distribution_base.cpp:362 - Value: 6.0 (mathematical)
-  Context:     double right = (b - mid) / 6.0 * (fmid + 4.0 * fright_mid + fb);
-
-src//distribution_base.cpp:362 - Value: 4.0 (uncategorized)
-  Context:     double right = (b - mid) / 6.0 * (fmid + 4.0 * fright_mid + fb);
-
-src//distribution_base.cpp:367 - Value: 15.0 (uncategorized)
-  Context:     if (std::abs(combined - whole) < 15.0 * tolerance) {
+src//poisson.cpp:1076 - Value: 1.2337 (uncategorized)
+  Context:         p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic, -detail::ONE) + detail::ONE);
 
 src//distribution_base.cpp:368 - Value: 15.0 (uncategorized)
+  Context:     if (std::abs(combined - whole) < 15.0 * tolerance) {
+
+src//distribution_base.cpp:369 - Value: 15.0 (uncategorized)
   Context:         return combined + (combined - whole) / 15.0;  // Richardson extrapolation
 
-src//distribution_base.cpp:372 - Value: 2.0 (mathematical)
-  Context:     return adaptiveSimpsonIntegration(func, a, mid, tolerance / 2.0, depth + 1, max_depth) +
-
-src//distribution_base.cpp:373 - Value: 2.0 (mathematical)
-  Context:            adaptiveSimpsonIntegration(func, mid, b, tolerance / 2.0, depth + 1, max_depth);
-
-src//distribution_base.cpp:510 - Value: 2.0 (mathematical)
-  Context:     if (x < (a + 1.0) / (a + b + 2.0)) {
-
-src//exponential.cpp:946 - Value: 0.6 (uncategorized)
+src//exponential.cpp:947 - Value: 0.6 (uncategorized)
   Context:     const double ad_adjusted = ad_statistic * (detail::ONE + 0.6 / n_double);
 
-src//exponential.cpp:952 - Value: 0.2 (uncategorized)
-  Context:     if (ad_adjusted < 0.2) {
-
-src//exponential.cpp:954 - Value: 13.436 (uncategorized)
+src//exponential.cpp:955 - Value: 13.436 (uncategorized)
   Context:                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:954 - Value: 101.14 (uncategorized)
+src//exponential.cpp:955 - Value: 101.14 (uncategorized)
   Context:                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:954 - Value: 223.73 (uncategorized)
+src//exponential.cpp:955 - Value: 223.73 (uncategorized)
   Context:                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:955 - Value: 0.34 (uncategorized)
+src//exponential.cpp:956 - Value: 0.34 (uncategorized)
   Context:     } else if (ad_adjusted < 0.34) {
 
-src//exponential.cpp:957 - Value: 8.318 (uncategorized)
+src//exponential.cpp:958 - Value: 8.318 (uncategorized)
   Context:                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:957 - Value: 42.796 (uncategorized)
+src//exponential.cpp:958 - Value: 42.796 (uncategorized)
   Context:                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:957 - Value: 59.938 (uncategorized)
+src//exponential.cpp:958 - Value: 59.938 (uncategorized)
   Context:                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:958 - Value: 0.6 (uncategorized)
+src//exponential.cpp:959 - Value: 0.6 (uncategorized)
   Context:     } else if (ad_adjusted < 0.6) {
 
-src//exponential.cpp:959 - Value: 0.9177 (uncategorized)
+src//exponential.cpp:960 - Value: 0.9177 (uncategorized)
   Context:         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:959 - Value: 4.279 (uncategorized)
+src//exponential.cpp:960 - Value: 4.279 (uncategorized)
   Context:         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:959 - Value: 1.38 (uncategorized)
+src//exponential.cpp:960 - Value: 1.38 (uncategorized)
   Context:         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:960 - Value: 2.0 (mathematical)
-  Context:     } else if (ad_adjusted < 2.0) {
-
-src//exponential.cpp:961 - Value: 1.2937 (uncategorized)
+src//exponential.cpp:962 - Value: 1.2937 (uncategorized)
   Context:         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:961 - Value: 5.709 (uncategorized)
+src//exponential.cpp:962 - Value: 5.709 (uncategorized)
   Context:         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
 
-src//exponential.cpp:961 - Value: 0.0186 (uncategorized)
+src//exponential.cpp:962 - Value: 0.0186 (uncategorized)
   Context:         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
 
-src//math_utils.cpp:55 - Value: 2.50662823884 (uncategorized)
+src//math_utils.cpp:58 - Value: 2.50662823884 (uncategorized)
   Context:     static const double a0 = 2.50662823884;
 
-src//math_utils.cpp:56 - Value: 18.61500062529 (uncategorized)
+src//math_utils.cpp:59 - Value: 18.61500062529 (uncategorized)
   Context:     static const double a1 = -18.61500062529;
 
-src//math_utils.cpp:57 - Value: 41.39119773534 (uncategorized)
+src//math_utils.cpp:60 - Value: 41.39119773534 (uncategorized)
   Context:     static const double a2 = 41.39119773534;
 
-src//math_utils.cpp:58 - Value: 25.44106049637 (uncategorized)
+src//math_utils.cpp:61 - Value: 25.44106049637 (uncategorized)
   Context:     static const double a3 = -25.44106049637;
 
-src//math_utils.cpp:60 - Value: 8.47351093090 (uncategorized)
+src//math_utils.cpp:63 - Value: 8.47351093090 (uncategorized)
   Context:     static const double b0 = -8.47351093090;
 
-src//math_utils.cpp:61 - Value: 23.08336743743 (uncategorized)
+src//math_utils.cpp:64 - Value: 23.08336743743 (uncategorized)
   Context:     static const double b1 = 23.08336743743;
 
-src//math_utils.cpp:62 - Value: 21.06224101826 (uncategorized)
+src//math_utils.cpp:65 - Value: 21.06224101826 (uncategorized)
   Context:     static const double b2 = -21.06224101826;
 
-src//math_utils.cpp:63 - Value: 3.13082909833 (uncategorized)
+src//math_utils.cpp:66 - Value: 3.13082909833 (uncategorized)
   Context:     static const double b3 = 3.13082909833;
 
-src//math_utils.cpp:69 - Value: 0.7 (uncategorized)
-  Context:     if (a <= 0.7) {
-
-src//math_utils.cpp:74 - Value: 0.99 (significance_level)
-  Context:     } else if (a < 0.99) {
-
-src//math_utils.cpp:79 - Value: 2.515517 (uncategorized)
+src//math_utils.cpp:82 - Value: 2.515517 (uncategorized)
   Context:         static const double d0 = 2.515517;
 
-src//math_utils.cpp:80 - Value: 0.802853 (uncategorized)
+src//math_utils.cpp:83 - Value: 0.802853 (uncategorized)
   Context:         static const double d1 = 0.802853;
 
-src//math_utils.cpp:81 - Value: 0.010328 (uncategorized)
+src//math_utils.cpp:84 - Value: 0.010328 (uncategorized)
   Context:         static const double d2 = 0.010328;
 
-src//math_utils.cpp:82 - Value: 1.432788 (uncategorized)
+src//math_utils.cpp:85 - Value: 1.432788 (uncategorized)
   Context:         static const double e1 = 1.432788;
 
-src//math_utils.cpp:83 - Value: 0.189269 (uncategorized)
+src//math_utils.cpp:86 - Value: 0.189269 (uncategorized)
   Context:         static const double e2 = 0.189269;
 
-src//math_utils.cpp:84 - Value: 0.001308 (uncategorized)
+src//math_utils.cpp:87 - Value: 0.001308 (uncategorized)
   Context:         static const double e3 = 0.001308;
 
-src//math_utils.cpp:108 - Value: 0.5 (mathematical)
-  Context:                 double log_correction = std::log(sqrt_log_eps * detail::SQRT_PI * 0.5);
-
-src//math_utils.cpp:109 - Value: 2.0 (mathematical)
-  Context:                 double second_order = (log_correction * log_correction - 2.0) /
-
-src//math_utils.cpp:110 - Value: 8.0 (uncategorized)
+src//math_utils.cpp:113 - Value: 8.0 (uncategorized)
   Context:                                       (8.0 * sqrt_log_eps * sqrt_log_eps * sqrt_log_eps);
 
-src//math_utils.cpp:115 - Value: 2.0 (mathematical)
-  Context:             double t = std::sqrt(-2.0 * std::log(eps));
-
-src//math_utils.cpp:118 - Value: 2.515517 (uncategorized)
+src//math_utils.cpp:121 - Value: 2.515517 (uncategorized)
   Context:             static const double d0 = 2.515517;
 
-src//math_utils.cpp:119 - Value: 0.802853 (uncategorized)
+src//math_utils.cpp:122 - Value: 0.802853 (uncategorized)
   Context:             static const double d1 = 0.802853;
 
-src//math_utils.cpp:120 - Value: 0.010328 (uncategorized)
+src//math_utils.cpp:123 - Value: 0.010328 (uncategorized)
   Context:             static const double d2 = 0.010328;
 
-src//math_utils.cpp:121 - Value: 1.432788 (uncategorized)
+src//math_utils.cpp:124 - Value: 1.432788 (uncategorized)
   Context:             static const double e0 = 1.432788;
 
-src//math_utils.cpp:122 - Value: 0.189269 (uncategorized)
+src//math_utils.cpp:125 - Value: 0.189269 (uncategorized)
   Context:             static const double e1 = 0.189269;
 
-src//math_utils.cpp:123 - Value: 0.001308 (uncategorized)
+src//math_utils.cpp:126 - Value: 0.001308 (uncategorized)
   Context:             static const double e2 = 0.001308;
 
-src//math_utils.cpp:128 - Value: 0.5 (mathematical)
-  Context:             double correction = std::log(t * detail::SQRT_PI * 0.5) / (2.0 * t);
-
-src//math_utils.cpp:128 - Value: 2.0 (mathematical)
-  Context:             double correction = std::log(t * detail::SQRT_PI * 0.5) / (2.0 * t);
-
-src//math_utils.cpp:129 - Value: 0.5 (mathematical)
-  Context:             result -= correction * 0.5;  // Damped correction to avoid overcorrection
-
-src//math_utils.cpp:144 - Value: 2.0 (mathematical)
-  Context:         double f_prime = (2.0 / detail::SQRT_PI) * exp_term;
-
-src//math_utils.cpp:145 - Value: 2.0 (mathematical)
-  Context:         double f_double_prime = -2.0 * result * f_prime;
-
-src//math_utils.cpp:147 - Value: 0.5 (mathematical)
-  Context:         double denominator = f_prime - 0.5 * err * f_double_prime / f_prime;
-
-src//math_utils.cpp:207 - Value: 2.0 (mathematical)
-  Context:         b += 2.0;
-
-src//math_utils.cpp:246 - Value: 2.0 (mathematical)
-  Context:     if (x < (a + 1.0) / (a + b + 2.0)) {
-
-src//math_utils.cpp:538 - Value: 2.0 (mathematical)
-  Context:         ad_sum += (2.0 * static_cast<double>(i + 1) - 1.0) * log_F_xi +
-
-src//math_utils.cpp:539 - Value: 2.0 (mathematical)
-  Context:                   (2.0 * n - 2.0 * static_cast<double>(i + 1) + 1.0) * log_one_minus_F_xi;
-
-src//math_utils.cpp:539 - Value: 2.0 (mathematical)
-  Context:                   (2.0 * n - 2.0 * static_cast<double>(i + 1) + 1.0) * log_one_minus_F_xi;
-
-src//math_utils.cpp:707 - Value: 1000.0 (uncategorized)
+src//math_utils.cpp:710 - Value: 1000.0 (uncategorized)
   Context:     if (df >= 1000.0) {
 
-src//math_utils.cpp:743 - Value: 100.0 (uncategorized)
-  Context:     if (df > 100.0) {
-
-src//math_utils.cpp:809 - Value: 0.1 (uncategorized)
+src//math_utils.cpp:812 - Value: 0.1 (uncategorized)
   Context:     if (p < 0.1 || p > 0.9) {
 
-src//math_utils.cpp:809 - Value: 0.9 (uncategorized)
+src//math_utils.cpp:812 - Value: 0.9 (uncategorized)
   Context:     if (p < 0.1 || p > 0.9) {
 
-src//math_utils.cpp:812 - Value: 10.0 (uncategorized)
+src//math_utils.cpp:815 - Value: 10.0 (uncategorized)
   Context:         double high = df + 10.0 * std::sqrt(df);  // Conservative upper bound
 
-src//math_utils.cpp:817 - Value: 0.5 (mathematical)
-  Context:             double mid = (low + high) * 0.5;
-
-src//math_utils.cpp:831 - Value: 0.5 (mathematical)
-  Context:                 return (low + high) * 0.5;
-
-src//math_utils.cpp:834 - Value: 0.5 (mathematical)
-  Context:         return (low + high) * 0.5;
-
-src//math_utils.cpp:838 - Value: 9.0 (mathematical)
-  Context:     double h = detail::TWO / (9.0 * df);
-
-src//math_utils.cpp:872 - Value: 10.0 (uncategorized)
+src//math_utils.cpp:875 - Value: 10.0 (uncategorized)
   Context:         if (x > df + 10.0 * std::sqrt(df) || !std::isfinite(x)) {
 
-src//math_utils.cpp:875 - Value: 10.0 (uncategorized)
+src//math_utils.cpp:878 - Value: 10.0 (uncategorized)
   Context:             double high = df + 10.0 * std::sqrt(df);
 
-src//math_utils.cpp:878 - Value: 0.5 (mathematical)
-  Context:                 double mid = (low + high) * 0.5;
-
-src//math_utils.cpp:892 - Value: 0.5 (mathematical)
-  Context:                     return (low + high) * 0.5;
-
-src//math_utils.cpp:895 - Value: 0.5 (mathematical)
-  Context:             return (low + high) * 0.5;
-
-src//math_utils.cpp:934 - Value: 2.0 (mathematical)
-  Context:     double initial_guess = std::max(1.0, 1.0 + z * std::sqrt(2.0 / df1));
-
-src//math_utils.cpp:1003 - Value: 2.0 (mathematical)
-  Context:     double h = 2.0 / (9.0 * shape);
-
-src//math_utils.cpp:1003 - Value: 9.0 (mathematical)
-  Context:     double h = 2.0 / (9.0 * shape);
-
-src//math_utils.cpp:1013 - Value: 0.1 (uncategorized)
+src//math_utils.cpp:1016 - Value: 0.1 (uncategorized)
   Context:     if (p < 0.1 || p > 0.9) {
 
-src//math_utils.cpp:1013 - Value: 0.9 (uncategorized)
+src//math_utils.cpp:1016 - Value: 0.9 (uncategorized)
   Context:     if (p < 0.1 || p > 0.9) {
 
-src//math_utils.cpp:1015 - Value: 10.0 (uncategorized)
+src//math_utils.cpp:1018 - Value: 10.0 (uncategorized)
   Context:         double high = mean + 10.0 * std::sqrt(variance);  // Conservative upper bound
 
-src//math_utils.cpp:1020 - Value: 0.5 (mathematical)
-  Context:             double mid = (low + high) * 0.5;
-
-src//math_utils.cpp:1034 - Value: 0.5 (mathematical)
-  Context:                 return (low + high) * 0.5;
-
-src//math_utils.cpp:1037 - Value: 0.5 (mathematical)
-  Context:         return (low + high) * 0.5;
-
-src//math_utils.cpp:1067 - Value: 10.0 (uncategorized)
+src//math_utils.cpp:1070 - Value: 10.0 (uncategorized)
   Context:         if (x > mean + 10.0 * std::sqrt(variance) || !std::isfinite(x)) {
 
-src//math_utils.cpp:1070 - Value: 10.0 (uncategorized)
+src//math_utils.cpp:1073 - Value: 10.0 (uncategorized)
   Context:             double high = mean + 10.0 * std::sqrt(variance);
 
-src//math_utils.cpp:1073 - Value: 0.5 (mathematical)
-  Context:                 double mid = (low + high) * 0.5;
-
-src//math_utils.cpp:1087 - Value: 0.5 (mathematical)
-  Context:                     return (low + high) * 0.5;
-
-src//math_utils.cpp:1090 - Value: 0.5 (mathematical)
-  Context:             return (low + high) * 0.5;
-
-src//performance_dispatcher.cpp:87 - Value: 0.8 (uncategorized)
-  Context:     if (recommendation.has_sufficient_data && recommendation.confidence_score > 0.8) {
-
-src//performance_dispatcher.cpp:122 - Value: 50.0 (uncategorized)
+src//performance_dispatcher.cpp:125 - Value: 50.0 (uncategorized)
   Context:     return batch_size >= thresholds_.gpu_accelerated_min && system.memory_bandwidth_gb_s() >= 50.0;
 
-src//performance_dispatcher.cpp:170 - Value: 0.3 (uncategorized)
-  Context:     if (effective_simd_efficiency < 0.3) {
-
-src//performance_dispatcher.cpp:173 - Value: 1000000.0 (uncategorized)
+src//performance_dispatcher.cpp:176 - Value: 1000000.0 (uncategorized)
   Context:             threading_overhead < (1000000.0 * dist_chars.base_complexity)) {
 
-src//performance_dispatcher.cpp:175 - Value: 0.6 (uncategorized)
+src//performance_dispatcher.cpp:178 - Value: 0.6 (uncategorized)
   Context:             return (dist_chars.parallelization_efficiency > 0.6) ? Strategy::PARALLEL_SIMD
 
-src//performance_dispatcher.cpp:184 - Value: 0.5 (mathematical)
-  Context:         if (effective_simd_efficiency > 0.5 && dist_chars.vectorization_efficiency > 0.6) {
+src//performance_dispatcher.cpp:187 - Value: 0.6 (uncategorized)
+  Context:         if (effective_simd_efficiency > detail::HALF && dist_chars.vectorization_efficiency > 0.6) {
 
-src//performance_dispatcher.cpp:184 - Value: 0.6 (uncategorized)
-  Context:         if (effective_simd_efficiency > 0.5 && dist_chars.vectorization_efficiency > 0.6) {
-
-src//performance_dispatcher.cpp:194 - Value: 200000.0 (uncategorized)
+src//performance_dispatcher.cpp:197 - Value: 200000.0 (uncategorized)
   Context:     double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity
 
-src//performance_dispatcher.cpp:195 - Value: 2.0 (mathematical)
-  Context:     if (threading_overhead > acceptable_overhead && dist_chars.base_complexity < 2.0) {
-
-src//performance_dispatcher.cpp:197 - Value: 0.4 (uncategorized)
+src//performance_dispatcher.cpp:200 - Value: 0.4 (uncategorized)
   Context:         if (effective_simd_efficiency > 0.4) {
 
-src//performance_dispatcher.cpp:206 - Value: 50.0 (uncategorized)
+src//performance_dispatcher.cpp:209 - Value: 50.0 (uncategorized)
   Context:                               (memory_bandwidth >= 50.0) &&
 
-src//performance_dispatcher.cpp:207 - Value: 0.8 (uncategorized)
-  Context:                               (dist_chars.memory_access_pattern > 0.8);
-
-src//performance_dispatcher.cpp:218 - Value: 1.2 (uncategorized)
+src//performance_dispatcher.cpp:221 - Value: 1.2 (uncategorized)
   Context:         (dist_chars.branch_prediction_cost > 1.2);  // High branching variability
 
-src//performance_dispatcher.cpp:225 - Value: 0.6 (uncategorized)
+src//performance_dispatcher.cpp:228 - Value: 0.6 (uncategorized)
   Context:     if (dist_chars.parallelization_efficiency > 0.6) {
 
-src//performance_dispatcher.cpp:230 - Value: 0.4 (uncategorized)
+src//performance_dispatcher.cpp:233 - Value: 0.4 (uncategorized)
   Context:     if (effective_simd_efficiency > 0.4) {
 
-src//performance_dispatcher.cpp:290 - Value: 2.0 (mathematical)
-  Context:         double complexity_scaling = 1.0 / std::max(1.0, chars.base_complexity / 2.0);
-
-src//performance_dispatcher.cpp:395 - Value: 0.8 (uncategorized)
-  Context:     if (simd_efficiency < 0.8) {
-
-src//performance_dispatcher.cpp:397 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:400 - Value: 1.5 (uncategorized)
   Context:         simd_min = static_cast<size_t>(static_cast<double>(simd_min) * (1.5 / simd_efficiency));
 
-src//performance_dispatcher.cpp:400 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:403 - Value: 1.5 (uncategorized)
   Context:         uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 1.5);
 
-src//performance_dispatcher.cpp:402 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:405 - Value: 1.5 (uncategorized)
   Context:             static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 1.5);
 
-src//performance_dispatcher.cpp:404 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:407 - Value: 1.5 (uncategorized)
   Context:             static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 1.5);
 
-src//performance_dispatcher.cpp:406 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:409 - Value: 1.5 (uncategorized)
   Context:             static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 1.5);
 
-src//performance_dispatcher.cpp:407 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:410 - Value: 1.5 (uncategorized)
   Context:         poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 1.5);
 
-src//performance_dispatcher.cpp:408 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:411 - Value: 1.5 (uncategorized)
   Context:         gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);
 
-src//performance_dispatcher.cpp:409 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:412 - Value: 1.5 (uncategorized)
   Context:     } else if (simd_efficiency > 1.5) {
 
-src//performance_dispatcher.cpp:411 - Value: 0.7 (uncategorized)
-  Context:         simd_min = static_cast<size_t>(static_cast<double>(simd_min) * 0.7);
-
-src//performance_dispatcher.cpp:414 - Value: 0.8 (uncategorized)
-  Context:         uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 0.8);
-
-src//performance_dispatcher.cpp:416 - Value: 0.8 (uncategorized)
-  Context:             static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 0.8);
-
-src//performance_dispatcher.cpp:418 - Value: 0.8 (uncategorized)
-  Context:             static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 0.8);
-
-src//performance_dispatcher.cpp:420 - Value: 0.8 (uncategorized)
-  Context:             static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 0.8);
-
-src//performance_dispatcher.cpp:421 - Value: 0.8 (uncategorized)
-  Context:         poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 0.8);
-
-src//performance_dispatcher.cpp:422 - Value: 0.8 (uncategorized)
-  Context:         gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 0.8);
-
-src//performance_dispatcher.cpp:426 - Value: 100000.0 (uncategorized)
+src//performance_dispatcher.cpp:429 - Value: 100000.0 (uncategorized)
   Context:     if (threading_overhead > 100000.0) {  // > 100μs overhead
 
-src//performance_dispatcher.cpp:428 - Value: 3.0 (mathematical)
-  Context:         double multiplier = std::min(3.0, threading_overhead / 50000.0);
+src//performance_dispatcher.cpp:431 - Value: 50000.0 (uncategorized)
+  Context:         double multiplier = std::min(detail::THREE, threading_overhead / 50000.0);
 
-src//performance_dispatcher.cpp:428 - Value: 50000.0 (uncategorized)
-  Context:         double multiplier = std::min(3.0, threading_overhead / 50000.0);
-
-src//performance_dispatcher.cpp:446 - Value: 10000.0 (uncategorized)
+src//performance_dispatcher.cpp:449 - Value: 10000.0 (uncategorized)
   Context:     } else if (threading_overhead < 10000.0) {  // < 10μs overhead
 
-src//performance_dispatcher.cpp:448 - Value: 0.5 (mathematical)
-  Context:         double multiplier = std::max(0.5, threading_overhead / 20000.0);
+src//performance_dispatcher.cpp:451 - Value: 20000.0 (uncategorized)
+  Context:         double multiplier = std::max(detail::HALF, threading_overhead / 20000.0);
 
-src//performance_dispatcher.cpp:448 - Value: 20000.0 (uncategorized)
-  Context:         double multiplier = std::max(0.5, threading_overhead / 20000.0);
-
-src//performance_dispatcher.cpp:469 - Value: 20.0 (uncategorized)
+src//performance_dispatcher.cpp:472 - Value: 20.0 (uncategorized)
   Context:     if (memory_bandwidth < 20.0) {
 
-src//performance_dispatcher.cpp:471 - Value: 1.5 (uncategorized)
+src//performance_dispatcher.cpp:474 - Value: 1.5 (uncategorized)
   Context:         gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 1.5);
-
-src//performance_dispatcher.cpp:472 - Value: 100.0 (uncategorized)
-  Context:     } else if (memory_bandwidth > 100.0) {
-
-src//performance_dispatcher.cpp:474 - Value: 0.7 (uncategorized)
-  Context:         gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 0.7);
-
-src//performance_dispatcher.cpp:480 - Value: 2.0 (mathematical)
-  Context:         work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 2.0);
-
-src//performance_dispatcher.cpp:483 - Value: 0.8 (uncategorized)
-  Context:         work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 0.8);
 
 === Scientific Notation ===
 
-src//validation.cpp:125 - Value: 9.9843695780195716e-6 (uncategorized)
+src//validation.cpp:129 - Value: 9.9843695780195716e-6 (uncategorized)
   Context:         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7};
 
-src//validation.cpp:125 - Value: 1.5056327351493116e-7 (convergence_tolerance)
+src//validation.cpp:129 - Value: 1.5056327351493116e-7 (convergence_tolerance)
   Context:         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7};
 
-src//validation.cpp:165 - Value: 1e-12 (convergence_tolerance)
-  Context:     const double eps = 1e-12;
-
-src//validation.cpp:185 - Value: 1e30 (uncategorized)
+src//validation.cpp:189 - Value: 1e30 (uncategorized)
   Context:         double c = 1e30;
 
-src//validation.cpp:272 - Value: 1e-10 (convergence_tolerance)
-  Context:             if (term < 1e-10)
-
-src//validation.cpp:538 - Value: 1e10 (uncategorized)
+src//validation.cpp:542 - Value: 1e10 (uncategorized)
   Context:             log_likelihood += -1e10;  // Large negative penalty for zero density
 
-src//validation.cpp:659 - Value: 1e-300 (convergence_tolerance)
-  Context:         const double log_cdf = std::log(std::max(1e-300, cdf_val));
-
-src//validation.cpp:660 - Value: 1e-300 (convergence_tolerance)
-  Context:         const double log_1_minus_cdf = std::log(std::max(1e-300, 1.0 - cdf_val));
-
-src//gamma.cpp:879 - Value: 1e-6 (convergence_tolerance)
-  Context:     alpha_lower = std::max(alpha_lower, 1e-6);
-
-src//gamma.cpp:880 - Value: 1e-6 (convergence_tolerance)
-  Context:     alpha_upper = std::max(alpha_upper, alpha_lower + 1e-6);
-
-src//gamma.cpp:881 - Value: 1e-6 (convergence_tolerance)
-  Context:     beta_lower = std::max(beta_lower, 1e-6);
-
-src//gamma.cpp:882 - Value: 1e-6 (convergence_tolerance)
-  Context:     beta_upper = std::max(beta_upper, beta_lower + 1e-6);
-
-src//gamma.cpp:2596 - Value: 1e-15 (convergence_tolerance)
-  Context:         while (std::abs(term) > 1e-15 * std::abs(sum) && n < 1000) {
-
-src//gamma.cpp:2607 - Value: 1e30 (uncategorized)
-  Context:         double c = 1e30;
-
-src//gamma.cpp:2615 - Value: 1e-30 (convergence_tolerance)
-  Context:             if (std::abs(d) < 1e-30) {
-
-src//gamma.cpp:2616 - Value: 1e-30 (convergence_tolerance)
-  Context:                 d = 1e-30;
-
-src//gamma.cpp:2619 - Value: 1e-30 (convergence_tolerance)
-  Context:             if (std::abs(c) < 1e-30) {
-
-src//gamma.cpp:2620 - Value: 1e-30 (convergence_tolerance)
-  Context:                 c = 1e-30;
-
-src//gamma.cpp:2625 - Value: 1e-15 (convergence_tolerance)
-  Context:             if (std::abs(del - 1.0) < 1e-15) {
-
-src//gamma.cpp:2668 - Value: 1e-10 (convergence_tolerance)
-  Context:     double x = std::max(initial_guess, 1e-10);
-
-src//gamma.cpp:2669 - Value: 1e-12 (convergence_tolerance)
-  Context:     const double tolerance = 1e-12;
-
-src//gamma.cpp:2680 - Value: 1e-30 (convergence_tolerance)
-  Context:         if (pdf < 1e-30) {
-
-src//gamma.cpp:2793 - Value: 1e-10 (convergence_tolerance)
-  Context:     const double tolerance = 1e-10;
-
-src//gamma.cpp:2808 - Value: 1e-10 (convergence_tolerance)
-  Context:         alpha_est = std::max(alpha_est, 1e-10);  // Ensure positive
-
-src//uniform.cpp:1056 - Value: 1e-10 (convergence_tolerance)
-  Context:         double epsilon = std::max(1e-10, width * 1e-6);
-
-src//uniform.cpp:1056 - Value: 1e-6 (convergence_tolerance)
-  Context:         double epsilon = std::max(1e-10, width * 1e-6);
-
-src//uniform.cpp:1126 - Value: 1e-10 (convergence_tolerance)
-  Context:         double epsilon = std::max(1e-10, width * 1e-6);
-
-src//uniform.cpp:1126 - Value: 1e-6 (convergence_tolerance)
-  Context:         double epsilon = std::max(1e-10, width * 1e-6);
-
-src//system_capabilities.cpp:103 - Value: 1e9 (uncategorized)
+src//system_capabilities.cpp:105 - Value: 1e9 (uncategorized)
   Context:     double seconds = static_cast<double>(duration.count()) / 1e9;
 
-src//system_capabilities.cpp:110 - Value: 1e9 (uncategorized)
+src//system_capabilities.cpp:112 - Value: 1e9 (uncategorized)
   Context:     double bandwidth = (bytes_transferred / seconds) / 1e9;  // GB/s
 
-src//gaussian.cpp:1057 - Value: 1e-6 (convergence_tolerance)
-  Context:     const double convergence_tol = 1e-6;
-
-src//poisson.cpp:1150 - Value: 1e-10 (convergence_tolerance)
-  Context:             if (k >= max_value && group_expected < 1e-10)
-
-src//math_utils.cpp:93 - Value: 1e-15 (convergence_tolerance)
-  Context:         if (eps < 1e-15) {
-
-src//math_utils.cpp:107 - Value: 1e-100 (convergence_tolerance)
-  Context:             if (eps > 1e-100) {
-
-src//math_utils.cpp:198 - Value: 1e30 (uncategorized)
-  Context:     double c = 1e30;
+src//math_utils.cpp:110 - Value: 1e-15 (convergence_tolerance)
+  Context:             if (eps > 1e-15) {
 
 === Integer Literals (>10) ===
 
-src//validation.cpp:69 - Value: 841 (uncategorized)
-  Context:             return 3.841;  // χ²(1,0.05) = 3.841
-
-src//validation.cpp:69 - Value: 841 (uncategorized)
-  Context:             return 3.841;  // χ²(1,0.05) = 3.841
-
-src//validation.cpp:71 - Value: 991 (uncategorized)
-  Context:             return 5.991;  // χ²(2,0.05) = 5.991
-
-src//validation.cpp:71 - Value: 991 (uncategorized)
-  Context:             return 5.991;  // χ²(2,0.05) = 5.991
-
-src//validation.cpp:73 - Value: 815 (uncategorized)
-  Context:             return 7.815;  // χ²(3,0.05) = 7.815
-
-src//validation.cpp:73 - Value: 815 (uncategorized)
-  Context:             return 7.815;  // χ²(3,0.05) = 7.815
-
-src//validation.cpp:75 - Value: 488 (uncategorized)
-  Context:             return 9.488;  // χ²(4,0.05) = 9.488
-
-src//validation.cpp:75 - Value: 488 (uncategorized)
-  Context:             return 9.488;  // χ²(4,0.05) = 9.488
-
-src//validation.cpp:83 - Value: 645 (uncategorized)
-  Context:         (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile
-
-src//validation.cpp:123 - Value: 99999999999980993 (uncategorized)
-  Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
-
-src//validation.cpp:123 - Value: 676 (uncategorized)
-  Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
-
-src//validation.cpp:123 - Value: 5203681218851 (uncategorized)
-  Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
-
-src//validation.cpp:123 - Value: 1259 (uncategorized)
-  Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
-
-src//validation.cpp:123 - Value: 1392167224028 (uncategorized)
-  Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
-
-src//validation.cpp:124 - Value: 771 (uncategorized)
-  Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
-
-src//validation.cpp:124 - Value: 32342877765313 (uncategorized)
-  Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
-
-src//validation.cpp:124 - Value: 176 (uncategorized)
-  Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
-
-src//validation.cpp:124 - Value: 61502916214059 (uncategorized)
-  Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
-
-src//validation.cpp:124 - Value: 507343278686905 (uncategorized)
-  Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
-
-src//validation.cpp:125 - Value: 13857109526572012 (uncategorized)
-  Context:         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7};
-
-src//validation.cpp:166 - Value: 1000 (iteration_limit)
-  Context:     const int max_iter = 1000;
-
-src//validation.cpp:280 - Value: 100 (iteration_limit)
-  Context:         if (n < 100) {
-
-src//validation.cpp:322 - Value: 576 (uncategorized)
-  Context:         0.576,  // α = 0.50
-
-src//validation.cpp:323 - Value: 656 (uncategorized)
-  Context:         0.656,  // α = 0.40
-
-src//validation.cpp:324 - Value: 787 (uncategorized)
-  Context:         0.787,  // α = 0.30
-
-src//validation.cpp:325 - Value: 248 (uncategorized)
-  Context:         1.248,  // α = 0.25
-
-src//validation.cpp:326 - Value: 610 (uncategorized)
-  Context:         1.610,  // α = 0.15
-
-src//validation.cpp:327 - Value: 933 (uncategorized)
-  Context:         1.933,  // α = 0.10
-
-src//validation.cpp:328 - Value: 492 (uncategorized)
-  Context:         2.492,  // α = 0.05
-
-src//validation.cpp:330 - Value: 857 (uncategorized)
-  Context:         3.857,  // α = 0.01
-
-src//validation.cpp:331 - Value: 500 (iteration_limit)
-  Context:         4.500   // α = 0.005
-
-src//validation.cpp:659 - Value: 300 (uncategorized)
-  Context:         const double log_cdf = std::log(std::max(1e-300, cdf_val));
-
-src//validation.cpp:660 - Value: 300 (uncategorized)
-  Context:         const double log_1_minus_cdf = std::log(std::max(1e-300, 1.0 - cdf_val));
-
-src//validation.cpp:682 - Value: 100 (iteration_limit)
-  Context:     const double index = (percentile / 100.0) * static_cast<double>(sorted_values.size() - 1);
-
-src//validation.cpp:891 - Value: 100 (iteration_limit)
-  Context:     const double lower_percentile = 100.0 * (alpha / 2.0);
-
-src//validation.cpp:892 - Value: 100 (iteration_limit)
-  Context:     const double upper_percentile = 100.0 * (1.0 - alpha / 2.0);
-
-src//performance_history.cpp:201 - Value: 100 (iteration_limit)
-  Context:     else if (batch_size <= 100)
-
-src//performance_history.cpp:202 - Value: 100 (iteration_limit)
-  Context:         return 100;
-
-src//performance_history.cpp:203 - Value: 128 (uncategorized)
+src//performance_history.cpp:206 - Value: 128 (uncategorized)
   Context:     else if (batch_size <= 128)
 
-src//performance_history.cpp:204 - Value: 128 (uncategorized)
+src//performance_history.cpp:207 - Value: 128 (uncategorized)
   Context:         return 128;
 
-src//performance_history.cpp:205 - Value: 160 (uncategorized)
+src//performance_history.cpp:208 - Value: 160 (uncategorized)
   Context:     else if (batch_size <= 160)
 
-src//performance_history.cpp:206 - Value: 160 (uncategorized)
+src//performance_history.cpp:209 - Value: 160 (uncategorized)
   Context:         return 160;
 
-src//performance_history.cpp:207 - Value: 200 (iteration_limit)
+src//performance_history.cpp:210 - Value: 200 (iteration_limit)
   Context:     else if (batch_size <= 200)
 
-src//performance_history.cpp:208 - Value: 200 (iteration_limit)
+src//performance_history.cpp:211 - Value: 200 (iteration_limit)
   Context:         return 200;
 
-src//performance_history.cpp:209 - Value: 250 (uncategorized)
+src//performance_history.cpp:212 - Value: 250 (uncategorized)
   Context:     else if (batch_size <= 250)
 
-src//performance_history.cpp:210 - Value: 250 (uncategorized)
+src//performance_history.cpp:213 - Value: 250 (uncategorized)
   Context:         return 250;
 
-src//performance_history.cpp:211 - Value: 320 (uncategorized)
+src//performance_history.cpp:214 - Value: 320 (uncategorized)
   Context:     else if (batch_size <= 320)
 
-src//performance_history.cpp:212 - Value: 320 (uncategorized)
+src//performance_history.cpp:215 - Value: 320 (uncategorized)
   Context:         return 320;
 
-src//performance_history.cpp:213 - Value: 400 (uncategorized)
+src//performance_history.cpp:216 - Value: 400 (uncategorized)
   Context:     else if (batch_size <= 400)
 
-src//performance_history.cpp:214 - Value: 400 (uncategorized)
+src//performance_history.cpp:217 - Value: 400 (uncategorized)
   Context:         return 400;
 
-src//performance_history.cpp:215 - Value: 500 (iteration_limit)
+src//performance_history.cpp:218 - Value: 500 (iteration_limit)
   Context:     else if (batch_size <= 500)
 
-src//performance_history.cpp:216 - Value: 500 (iteration_limit)
+src//performance_history.cpp:219 - Value: 500 (iteration_limit)
   Context:         return 500;
 
-src//performance_history.cpp:217 - Value: 640 (uncategorized)
+src//performance_history.cpp:220 - Value: 640 (uncategorized)
   Context:     else if (batch_size <= 640)
 
-src//performance_history.cpp:218 - Value: 640 (uncategorized)
+src//performance_history.cpp:221 - Value: 640 (uncategorized)
   Context:         return 640;
 
-src//performance_history.cpp:219 - Value: 800 (uncategorized)
+src//performance_history.cpp:222 - Value: 800 (uncategorized)
   Context:     else if (batch_size <= 800)
 
-src//performance_history.cpp:220 - Value: 800 (uncategorized)
+src//performance_history.cpp:223 - Value: 800 (uncategorized)
   Context:         return 800;
 
-src//performance_history.cpp:221 - Value: 1000 (iteration_limit)
-  Context:     else if (batch_size <= 1000)
-
-src//performance_history.cpp:222 - Value: 1000 (iteration_limit)
-  Context:         return 1000;
-
-src//performance_history.cpp:223 - Value: 1280 (uncategorized)
+src//performance_history.cpp:226 - Value: 1280 (uncategorized)
   Context:     else if (batch_size <= 1280)
 
-src//performance_history.cpp:224 - Value: 1280 (uncategorized)
+src//performance_history.cpp:227 - Value: 1280 (uncategorized)
   Context:         return 1280;
 
-src//performance_history.cpp:225 - Value: 1600 (uncategorized)
+src//performance_history.cpp:228 - Value: 1600 (uncategorized)
   Context:     else if (batch_size <= 1600)
 
-src//performance_history.cpp:226 - Value: 1600 (uncategorized)
+src//performance_history.cpp:229 - Value: 1600 (uncategorized)
   Context:         return 1600;
 
-src//performance_history.cpp:227 - Value: 2000 (uncategorized)
+src//performance_history.cpp:230 - Value: 2000 (uncategorized)
   Context:     else if (batch_size <= 2000)
 
-src//performance_history.cpp:228 - Value: 2000 (uncategorized)
+src//performance_history.cpp:231 - Value: 2000 (uncategorized)
   Context:         return 2000;
 
-src//performance_history.cpp:229 - Value: 2500 (uncategorized)
+src//performance_history.cpp:232 - Value: 2500 (uncategorized)
   Context:     else if (batch_size <= 2500)
 
-src//performance_history.cpp:230 - Value: 2500 (uncategorized)
+src//performance_history.cpp:233 - Value: 2500 (uncategorized)
   Context:         return 2500;
 
-src//performance_history.cpp:231 - Value: 3200 (uncategorized)
+src//performance_history.cpp:234 - Value: 3200 (uncategorized)
   Context:     else if (batch_size <= 3200)
 
-src//performance_history.cpp:232 - Value: 3200 (uncategorized)
+src//performance_history.cpp:235 - Value: 3200 (uncategorized)
   Context:         return 3200;
 
-src//performance_history.cpp:233 - Value: 4000 (uncategorized)
+src//performance_history.cpp:236 - Value: 4000 (uncategorized)
   Context:     else if (batch_size <= 4000)
 
-src//performance_history.cpp:234 - Value: 4000 (uncategorized)
+src//performance_history.cpp:237 - Value: 4000 (uncategorized)
   Context:         return 4000;
 
-src//performance_history.cpp:235 - Value: 5000 (iteration_limit)
-  Context:     else if (batch_size <= 5000)
-
-src//performance_history.cpp:236 - Value: 5000 (iteration_limit)
-  Context:         return 5000;
-
-src//performance_history.cpp:237 - Value: 6400 (uncategorized)
+src//performance_history.cpp:240 - Value: 6400 (uncategorized)
   Context:     else if (batch_size <= 6400)
 
-src//performance_history.cpp:238 - Value: 6400 (uncategorized)
+src//performance_history.cpp:241 - Value: 6400 (uncategorized)
   Context:         return 6400;
 
-src//performance_history.cpp:239 - Value: 8000 (uncategorized)
+src//performance_history.cpp:242 - Value: 8000 (uncategorized)
   Context:     else if (batch_size <= 8000)
 
-src//performance_history.cpp:240 - Value: 8000 (uncategorized)
+src//performance_history.cpp:243 - Value: 8000 (uncategorized)
   Context:         return 8000;
 
-src//performance_history.cpp:241 - Value: 10000 (uncategorized)
+src//performance_history.cpp:244 - Value: 10000 (uncategorized)
   Context:     else if (batch_size <= 10000)
 
-src//performance_history.cpp:242 - Value: 10000 (uncategorized)
+src//performance_history.cpp:245 - Value: 10000 (uncategorized)
   Context:         return 10000;
 
-src//performance_history.cpp:243 - Value: 12800 (uncategorized)
+src//performance_history.cpp:246 - Value: 12800 (uncategorized)
   Context:     else if (batch_size <= 12800)
 
-src//performance_history.cpp:244 - Value: 12800 (uncategorized)
+src//performance_history.cpp:247 - Value: 12800 (uncategorized)
   Context:         return 12800;
 
-src//performance_history.cpp:245 - Value: 16000 (uncategorized)
+src//performance_history.cpp:248 - Value: 16000 (uncategorized)
   Context:     else if (batch_size <= 16000)
 
-src//performance_history.cpp:246 - Value: 16000 (uncategorized)
+src//performance_history.cpp:249 - Value: 16000 (uncategorized)
   Context:         return 16000;
 
-src//performance_history.cpp:247 - Value: 20000 (uncategorized)
+src//performance_history.cpp:250 - Value: 20000 (uncategorized)
   Context:     else if (batch_size <= 20000)
 
-src//performance_history.cpp:248 - Value: 20000 (uncategorized)
+src//performance_history.cpp:251 - Value: 20000 (uncategorized)
   Context:         return 20000;
 
-src//performance_history.cpp:249 - Value: 25000 (uncategorized)
+src//performance_history.cpp:252 - Value: 25000 (uncategorized)
   Context:     else if (batch_size <= 25000)
 
-src//performance_history.cpp:250 - Value: 25000 (uncategorized)
+src//performance_history.cpp:253 - Value: 25000 (uncategorized)
   Context:         return 25000;
 
-src//performance_history.cpp:251 - Value: 32000 (uncategorized)
+src//performance_history.cpp:254 - Value: 32000 (uncategorized)
   Context:     else if (batch_size <= 32000)
 
-src//performance_history.cpp:252 - Value: 32000 (uncategorized)
+src//performance_history.cpp:255 - Value: 32000 (uncategorized)
   Context:         return 32000;
 
-src//performance_history.cpp:253 - Value: 40000 (uncategorized)
+src//performance_history.cpp:256 - Value: 40000 (uncategorized)
   Context:     else if (batch_size <= 40000)
 
-src//performance_history.cpp:254 - Value: 40000 (uncategorized)
+src//performance_history.cpp:257 - Value: 40000 (uncategorized)
   Context:         return 40000;
 
-src//performance_history.cpp:255 - Value: 50000 (uncategorized)
+src//performance_history.cpp:258 - Value: 50000 (uncategorized)
   Context:     else if (batch_size <= 50000)
 
-src//performance_history.cpp:256 - Value: 50000 (uncategorized)
+src//performance_history.cpp:259 - Value: 50000 (uncategorized)
   Context:         return 50000;
 
-src//performance_history.cpp:257 - Value: 64000 (uncategorized)
+src//performance_history.cpp:260 - Value: 64000 (uncategorized)
   Context:     else if (batch_size <= 64000)
 
-src//performance_history.cpp:258 - Value: 64000 (uncategorized)
+src//performance_history.cpp:261 - Value: 64000 (uncategorized)
   Context:         return 64000;
 
-src//performance_history.cpp:259 - Value: 80000 (uncategorized)
+src//performance_history.cpp:262 - Value: 80000 (uncategorized)
   Context:     else if (batch_size <= 80000)
 
-src//performance_history.cpp:260 - Value: 80000 (uncategorized)
+src//performance_history.cpp:263 - Value: 80000 (uncategorized)
   Context:         return 80000;
 
-src//performance_history.cpp:262 - Value: 100000 (uncategorized)
+src//performance_history.cpp:265 - Value: 100000 (uncategorized)
   Context:         return 100000;
 
-src//performance_history.cpp:305 - Value: 100 (iteration_limit)
-  Context:     std::size_t fallback_threshold = 100;  // Default for SIMD
-
-src//performance_history.cpp:307 - Value: 5000 (iteration_limit)
-  Context:         fallback_threshold = 5000;
-
-src//performance_history.cpp:309 - Value: 10000 (uncategorized)
+src//performance_history.cpp:312 - Value: 10000 (uncategorized)
   Context:         fallback_threshold = 10000;
 
-src//performance_history.cpp:311 - Value: 50000 (uncategorized)
+src//performance_history.cpp:314 - Value: 50000 (uncategorized)
   Context:         fallback_threshold = 50000;
 
-src//gamma.cpp:533 - Value: 841 (uncategorized)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:533 - Value: 841 (uncategorized)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:535 - Value: 635 (uncategorized)
-  Context:         chi2_critical = 6.635;
-
-src//gamma.cpp:538 - Value: 706 (uncategorized)
-  Context:         chi2_critical = 2.706;
-
-src//gamma.cpp:574 - Value: 841 (uncategorized)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:574 - Value: 841 (uncategorized)
-  Context:     double chi2_critical = 3.841;  // χ²(1, 0.05) ≈ 3.841 for 95% CI
-
-src//gamma.cpp:576 - Value: 635 (uncategorized)
-  Context:         chi2_critical = 6.635;
-
-src//gamma.cpp:579 - Value: 706 (uncategorized)
-  Context:         chi2_critical = 2.706;
-
-src//gamma.cpp:644 - Value: 991 (uncategorized)
-  Context:     double chi2_critical = 5.991;  // χ²(2, 0.05) ≈ 5.991 for 95% confidence
-
-src//gamma.cpp:644 - Value: 991 (uncategorized)
-  Context:     double chi2_critical = 5.991;  // χ²(2, 0.05) ≈ 5.991 for 95% confidence
-
-src//gamma.cpp:646 - Value: 210 (uncategorized)
-  Context:         chi2_critical = 9.210;
-
-src//gamma.cpp:649 - Value: 605 (uncategorized)
-  Context:         chi2_critical = 4.605;
-
-src//gamma.cpp:1214 - Value: 100 (iteration_limit)
+src//gamma.cpp:1218 - Value: 100 (iteration_limit)
   Context:     if (n_bootstrap < 100) {
 
-src//gamma.cpp:2596 - Value: 1000 (iteration_limit)
-  Context:         while (std::abs(term) > 1e-15 * std::abs(sum) && n < 1000) {
-
-src//gamma.cpp:2670 - Value: 100 (iteration_limit)
-  Context:     const int max_iterations = 100;
-
-src//gamma.cpp:2794 - Value: 100 (iteration_limit)
-  Context:     const int max_iterations = 100;
-
-src//gamma.cpp:2852 - Value: 120 (uncategorized)
-  Context:     result += z_inv_sq * z_inv_sq / 120.0;             // Bernoulli B₄/4
-
-src//gamma.cpp:2853 - Value: 252 (uncategorized)
-  Context:     result -= z_inv_sq * z_inv_sq * z_inv_sq / 252.0;  // Bernoulli B₆/6
-
-src//uniform.cpp:963 - Value: 857 (uncategorized)
-  Context:         critical_value = 3.857;
-
-src//uniform.cpp:965 - Value: 492 (uncategorized)
-  Context:         critical_value = 2.492;
-
-src//uniform.cpp:967 - Value: 933 (uncategorized)
-  Context:         critical_value = 1.933;
-
-src//uniform.cpp:969 - Value: 159 (uncategorized)
-  Context:         critical_value = 1.159;  // alpha = 0.25
-
-src//uniform.cpp:976 - Value: 2804 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat, -0.5));
-
-src//uniform.cpp:982 - Value: 258 (uncategorized)
-  Context:         p_value = std::exp(-1.8 * ad_stat + 0.258);
-
-src//uniform.cpp:1076 - Value: 1000 (iteration_limit)
-  Context:                 std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
-
-src//uniform.cpp:1143 - Value: 1000 (iteration_limit)
-  Context:             std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
-
-src//uniform.cpp:1182 - Value: 1000 (iteration_limit)
-  Context:             log_likelihood += -1000.0;
-
-src//system_capabilities.cpp:16 - Value: 1000 (iteration_limit)
-  Context: constexpr size_t BENCHMARK_ITERATIONS = 1000;
-
-src//system_capabilities.cpp:17 - Value: 1024 (uncategorized)
+src//system_capabilities.cpp:19 - Value: 1024 (uncategorized)
   Context: constexpr size_t BENCHMARK_ARRAY_SIZE = 1024;
 
-src//system_capabilities.cpp:44 - Value: 100 (iteration_limit)
-  Context:     constexpr size_t num_tests = 100;
-
-src//system_capabilities.cpp:71 - Value: 1024 (uncategorized)
+src//system_capabilities.cpp:73 - Value: 1024 (uncategorized)
   Context:     constexpr size_t array_size = 16 * 1024 * 1024;  // 16MB to exceed cache sizes
 
-src//system_capabilities.cpp:71 - Value: 1024 (uncategorized)
+src//system_capabilities.cpp:73 - Value: 1024 (uncategorized)
   Context:     constexpr size_t array_size = 16 * 1024 * 1024;  // 16MB to exceed cache sizes
 
-src//system_capabilities.cpp:80 - Value: 1000 (iteration_limit)
-  Context:         source[i] = static_cast<double>(i % 1000) + 0.5;
-
-src//system_capabilities.cpp:107 - Value: 1600 (uncategorized)
+src//system_capabilities.cpp:109 - Value: 1600 (uncategorized)
   Context:         return 25.0;  // Reasonable fallback for DDR3-1600 dual channel
 
-src//system_capabilities.cpp:113 - Value: 100 (iteration_limit)
-  Context:     return std::max(1.0, std::min(100.0, bandwidth));
-
-src//system_capabilities.cpp:133 - Value: 1024 (uncategorized)
+src//system_capabilities.cpp:135 - Value: 1024 (uncategorized)
   Context:     l1_cache_size_ = 32 * 1024;        // 32KB typical L1
 
-src//system_capabilities.cpp:134 - Value: 256 (uncategorized)
+src//system_capabilities.cpp:136 - Value: 256 (uncategorized)
   Context:     l2_cache_size_ = 256 * 1024;       // 256KB typical L2
 
-src//system_capabilities.cpp:134 - Value: 1024 (uncategorized)
+src//system_capabilities.cpp:136 - Value: 1024 (uncategorized)
   Context:     l2_cache_size_ = 256 * 1024;       // 256KB typical L2
 
-src//system_capabilities.cpp:135 - Value: 1024 (uncategorized)
+src//system_capabilities.cpp:137 - Value: 1024 (uncategorized)
   Context:     l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3
 
-src//system_capabilities.cpp:135 - Value: 1024 (uncategorized)
+src//system_capabilities.cpp:137 - Value: 1024 (uncategorized)
   Context:     l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3
 
-src//platform_constants_impl.cpp:341 - Value: 512 (uncategorized)
+src//platform_constants_impl.cpp:342 - Value: 512 (uncategorized)
   Context:             return 8;  // AVX-512: 8 doubles per register
 
-src//platform_constants_impl.cpp:368 - Value: 512 (uncategorized)
+src//platform_constants_impl.cpp:369 - Value: 512 (uncategorized)
   Context:         return stats::arch::cpu::intel::CACHE_LINE_SIZE;  // AVX-512: Use full cache line alignment
 
-src//platform_constants_impl.cpp:434 - Value: 256 (uncategorized)
+src//platform_constants_impl.cpp:435 - Value: 256 (uncategorized)
   Context:         return 256;
 
-src//platform_constants_impl.cpp:436 - Value: 384 (uncategorized)
+src//platform_constants_impl.cpp:437 - Value: 384 (uncategorized)
   Context:         return 384;
 
-src//platform_constants_impl.cpp:438 - Value: 512 (uncategorized)
+src//platform_constants_impl.cpp:439 - Value: 512 (uncategorized)
   Context:         return 512;
 
-src//platform_constants_impl.cpp:440 - Value: 768 (uncategorized)
+src//platform_constants_impl.cpp:441 - Value: 768 (uncategorized)
   Context:         return 768;
 
-src//platform_constants_impl.cpp:442 - Value: 1024 (uncategorized)
+src//platform_constants_impl.cpp:443 - Value: 1024 (uncategorized)
   Context:         return 1024;
 
-src//platform_constants_impl.cpp:444 - Value: 2048 (uncategorized)
+src//platform_constants_impl.cpp:445 - Value: 2048 (uncategorized)
   Context:         return 2048;  // Higher threshold for scalar operations
 
-src//platform_constants_impl.cpp:480 - Value: 4096 (uncategorized)
+src//platform_constants_impl.cpp:481 - Value: 4096 (uncategorized)
   Context:                                      : 4096;  // Use half of L1
 
-src//platform_constants_impl.cpp:483 - Value: 32768 (uncategorized)
-  Context:         features.l2_cache_size > 0 ? (features.l2_cache_size / sizeof(double)) / 2 : 32768;
+src//platform_constants_impl.cpp:484 - Value: 32768 (uncategorized)
+  Context:         features.l2_cache_size > 0 ? (features.l2_cache_size / sizeof(double)) / detail::TWO_INT : 32768;
 
-src//platform_constants_impl.cpp:486 - Value: 262144 (uncategorized)
-  Context:         features.l3_cache_size > 0 ? (features.l3_cache_size / sizeof(double)) / 4 : 262144;
+src//platform_constants_impl.cpp:487 - Value: 262144 (uncategorized)
+  Context:         features.l3_cache_size > 0 ? (features.l3_cache_size / sizeof(double)) / detail::FOUR_INT : 262144;
 
 src//cpu_vendor_detection.cpp:44 - Value: 128 (uncategorized)
   Context:         return apple_silicon::CACHE_LINE_SIZE;  // 128 bytes
@@ -2044,65 +790,23 @@ src//cpu_vendor_detection.cpp:44 - Value: 128 (uncategorized)
 src//cpu_vendor_detection.cpp:66 - Value: 32768 (uncategorized)
   Context:     return 32768;  // Default to 32KB
 
-src//discrete.cpp:761 - Value: 841 (uncategorized)
-  Context:     const double critical_value = 3.841;  // Chi-squared(1) at alpha=0.05
-
-src//discrete.cpp:1072 - Value: 841 (uncategorized)
-  Context:     const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-
-src//discrete.cpp:1144 - Value: 857 (uncategorized)
-  Context:         critical_value = 3.857;
-
-src//discrete.cpp:1146 - Value: 492 (uncategorized)
-  Context:         critical_value = 2.492;
-
-src//discrete.cpp:1148 - Value: 933 (uncategorized)
-  Context:         critical_value = 1.933;
-
-src//discrete.cpp:1150 - Value: 159 (uncategorized)
-  Context:         critical_value = 1.159;  // alpha = 0.25
-
-src//discrete.cpp:1156 - Value: 2337 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//discrete.cpp:1220 - Value: 841 (uncategorized)
-  Context:     const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-
-src//discrete.cpp:1596 - Value: 1000000 (uncategorized)
+src//discrete.cpp:1599 - Value: 1000000 (uncategorized)
   Context:     if (range > 1000000) {  // 1M elements max (4MB memory)
 
-src//discrete.cpp:1601 - Value: 10000 (uncategorized)
+src//discrete.cpp:1604 - Value: 10000 (uncategorized)
   Context:     if (range > 10000) {  // Warning for large ranges
 
-src//benchmark.cpp:165 - Value: 100 (iteration_limit)
-  Context:                 ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) * 100.0;
-
-src//benchmark.cpp:559 - Value: 100 (iteration_limit)
-  Context:             ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) * 100.0;
-
-src//benchmark.cpp:604 - Value: 1024 (uncategorized)
+src//benchmark.cpp:606 - Value: 1024 (uncategorized)
   Context:     if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) {  // 16MB+
 
-src//benchmark.cpp:604 - Value: 1024 (uncategorized)
+src//benchmark.cpp:606 - Value: 1024 (uncategorized)
   Context:     if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) {  // 16MB+
 
-src//benchmark.cpp:607 - Value: 1024 (uncategorized)
+src//benchmark.cpp:609 - Value: 1024 (uncategorized)
   Context:     } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) {  // 4MB or less
 
-src//benchmark.cpp:607 - Value: 1024 (uncategorized)
+src//benchmark.cpp:609 - Value: 1024 (uncategorized)
   Context:     } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) {  // 4MB or less
-
-src//gaussian.cpp:1053 - Value: 4826 (uncategorized)
-  Context:     double robust_scale = mad * detail::MAD_SCALING_FACTOR;  // Use named constant instead of 1.4826
-
-src//gaussian.cpp:1283 - Value: 5000 (iteration_limit)
-  Context:     if (data.size() < 3 || data.size() > 5000) {
-
-src//work_stealing_pool.cpp:70 - Value: 5000 (iteration_limit)
-  Context:         const auto timeout = std::chrono::milliseconds(5000);  // 5 second max wait
-
-src//work_stealing_pool.cpp:243 - Value: 100 (iteration_limit)
-  Context:                 std::this_thread::sleep_for(std::chrono::microseconds(100));
 
 src//cpu_detection.cpp:692 - Value: 512 (uncategorized)
   Context:         return 8;  // 512 bits / 64 bits per double
@@ -2167,442 +871,226 @@ src//cpu_detection.cpp:963 - Value: 512 (uncategorized)
 src//cpu_detection.cpp:964 - Value: 125 (uncategorized)
   Context:             || (features.family == 6 && features.model >= 125));  // Ice Lake and newer models
 
-src//parallel_thresholds.cpp:19 - Value: 128 (uncategorized)
+src//parallel_thresholds.cpp:20 - Value: 128 (uncategorized)
   Context:     profile.simd_width_elements = 2;  // NEON 128-bit
 
-src//parallel_thresholds.cpp:21 - Value: 1024 (uncategorized)
+src//parallel_thresholds.cpp:22 - Value: 1024 (uncategorized)
   Context:     profile.base_parallel_threshold = 1024;
 
-src//parallel_thresholds.cpp:25 - Value: 256 (uncategorized)
+src//parallel_thresholds.cpp:26 - Value: 256 (uncategorized)
   Context:     profile.simd_width_elements = 4;  // AVX2 256-bit / 4 doubles
 
-src//parallel_thresholds.cpp:27 - Value: 2048 (uncategorized)
+src//parallel_thresholds.cpp:28 - Value: 2048 (uncategorized)
   Context:     profile.base_parallel_threshold = 2048;
 
-src//parallel_thresholds.cpp:31 - Value: 128 (uncategorized)
+src//parallel_thresholds.cpp:32 - Value: 128 (uncategorized)
   Context:     profile.simd_width_elements = 2;  // SSE 128-bit / 2 doubles
 
-src//parallel_thresholds.cpp:33 - Value: 4096 (uncategorized)
+src//parallel_thresholds.cpp:34 - Value: 4096 (uncategorized)
   Context:     profile.base_parallel_threshold = 4096;
 
-src//parallel_thresholds.cpp:39 - Value: 8192 (uncategorized)
+src//parallel_thresholds.cpp:40 - Value: 8192 (uncategorized)
   Context:     profile.base_parallel_threshold = 8192;
 
-src//parallel_thresholds.cpp:46 - Value: 1024 (uncategorized)
+src//parallel_thresholds.cpp:47 - Value: 1024 (uncategorized)
   Context:         profile.l3_cache_size_elements = 2 * 1024 * 1024;  // 2MB worth of doubles
 
-src//parallel_thresholds.cpp:46 - Value: 1024 (uncategorized)
+src//parallel_thresholds.cpp:47 - Value: 1024 (uncategorized)
   Context:         profile.l3_cache_size_elements = 2 * 1024 * 1024;  // 2MB worth of doubles
 
-src//parallel_thresholds.cpp:112 - Value: 16384 (uncategorized)
+src//parallel_thresholds.cpp:113 - Value: 16384 (uncategorized)
   Context:             threshold = 16384;
 
-src//parallel_thresholds.cpp:116 - Value: 16384 (uncategorized)
+src//parallel_thresholds.cpp:117 - Value: 16384 (uncategorized)
   Context:             threshold = 16384;
 
-src//parallel_thresholds.cpp:120 - Value: 8192 (uncategorized)
+src//parallel_thresholds.cpp:121 - Value: 8192 (uncategorized)
   Context:             threshold = 8192;
 
-src//parallel_thresholds.cpp:124 - Value: 1048576 (uncategorized)
+src//parallel_thresholds.cpp:125 - Value: 1048576 (uncategorized)
   Context:             threshold = 1048576;
 
-src//parallel_thresholds.cpp:126 - Value: 32768 (uncategorized)
+src//parallel_thresholds.cpp:127 - Value: 32768 (uncategorized)
   Context:             threshold = 32768;
 
-src//parallel_thresholds.cpp:128 - Value: 65536 (uncategorized)
+src//parallel_thresholds.cpp:129 - Value: 65536 (uncategorized)
   Context:             threshold = 65536;
 
-src//parallel_thresholds.cpp:132 - Value: 32768 (uncategorized)
+src//parallel_thresholds.cpp:133 - Value: 32768 (uncategorized)
   Context:             threshold = 32768;
 
-src//parallel_thresholds.cpp:138 - Value: 128 (uncategorized)
+src//parallel_thresholds.cpp:139 - Value: 128 (uncategorized)
   Context:             threshold = 128;
 
-src//parallel_thresholds.cpp:150 - Value: 256 (uncategorized)
+src//parallel_thresholds.cpp:151 - Value: 256 (uncategorized)
   Context:             threshold = 256;
 
-src//parallel_thresholds.cpp:156 - Value: 256 (uncategorized)
+src//parallel_thresholds.cpp:157 - Value: 256 (uncategorized)
   Context:             threshold = 256;
 
-src//parallel_thresholds.cpp:160 - Value: 4096 (uncategorized)
+src//parallel_thresholds.cpp:161 - Value: 4096 (uncategorized)
   Context:             threshold = 4096;
 
-src//parallel_thresholds.cpp:162 - Value: 8192 (uncategorized)
+src//parallel_thresholds.cpp:163 - Value: 8192 (uncategorized)
   Context:             threshold = 8192;
 
-src//parallel_thresholds.cpp:164 - Value: 512 (uncategorized)
+src//parallel_thresholds.cpp:165 - Value: 512 (uncategorized)
   Context:             threshold = 512;
 
-src//parallel_thresholds.cpp:168 - Value: 4096 (uncategorized)
+src//parallel_thresholds.cpp:169 - Value: 4096 (uncategorized)
   Context:             threshold = 4096;
 
-src//parallel_thresholds.cpp:172 - Value: 256 (uncategorized)
+src//parallel_thresholds.cpp:173 - Value: 256 (uncategorized)
   Context:             threshold = 256;
 
-src//parallel_thresholds.cpp:174 - Value: 512 (uncategorized)
+src//parallel_thresholds.cpp:175 - Value: 512 (uncategorized)
   Context:             threshold = 512;
 
-src//parallel_thresholds.cpp:176 - Value: 128 (uncategorized)
+src//parallel_thresholds.cpp:177 - Value: 128 (uncategorized)
   Context:             threshold = 128;
 
-src//parallel_thresholds.cpp:180 - Value: 256 (uncategorized)
+src//parallel_thresholds.cpp:181 - Value: 256 (uncategorized)
   Context:             threshold = 256;
 
-src//parallel_thresholds.cpp:185 - Value: 8192 (uncategorized)
+src//parallel_thresholds.cpp:186 - Value: 8192 (uncategorized)
   Context:             threshold = 8192;
 
-src//parallel_thresholds.cpp:187 - Value: 4096 (uncategorized)
+src//parallel_thresholds.cpp:188 - Value: 4096 (uncategorized)
   Context:             threshold = 4096;
 
-src//parallel_thresholds.cpp:189 - Value: 16384 (uncategorized)
+src//parallel_thresholds.cpp:190 - Value: 16384 (uncategorized)
   Context:             threshold = 16384;
 
-src//parallel_thresholds.cpp:191 - Value: 8192 (uncategorized)
+src//parallel_thresholds.cpp:192 - Value: 8192 (uncategorized)
   Context:             threshold = 8192;
 
-src//parallel_thresholds.cpp:193 - Value: 8192 (uncategorized)
+src//parallel_thresholds.cpp:194 - Value: 8192 (uncategorized)
   Context:             threshold = 8192;  // Default for generic operations
 
-src//poisson.cpp:1074 - Value: 2337 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//poisson.cpp:2967 - Value: 170 (uncategorized)
+src//poisson.cpp:2969 - Value: 170 (uncategorized)
   Context:     if (n > 170)
-
-src//safety.cpp:123 - Value: 700 (uncategorized)
-  Context:                 } else if (value > 700.0) {
-
-src//distribution_base.cpp:523 - Value: 100 (iteration_limit)
-  Context:     const int max_iterations = 100;
 
 src//simd_avx512.cpp:19 - Value: 512 (uncategorized)
   Context: #include <immintrin.h>  // AVX-512 intrinsics
 
-src//exponential.cpp:954 - Value: 436 (uncategorized)
-  Context:                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:954 - Value: 101 (uncategorized)
-  Context:                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:954 - Value: 223 (uncategorized)
-  Context:                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:957 - Value: 318 (uncategorized)
-  Context:                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:957 - Value: 796 (uncategorized)
-  Context:                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:957 - Value: 938 (uncategorized)
-  Context:                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:959 - Value: 9177 (uncategorized)
-  Context:         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:959 - Value: 279 (uncategorized)
-  Context:         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:961 - Value: 2937 (uncategorized)
-  Context:         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
-
-src//exponential.cpp:961 - Value: 709 (uncategorized)
-  Context:         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
-
-src//math_utils.cpp:55 - Value: 50662823884 (uncategorized)
-  Context:     static const double a0 = 2.50662823884;
-
-src//math_utils.cpp:56 - Value: 61500062529 (uncategorized)
-  Context:     static const double a1 = -18.61500062529;
-
-src//math_utils.cpp:57 - Value: 39119773534 (uncategorized)
-  Context:     static const double a2 = 41.39119773534;
-
-src//math_utils.cpp:58 - Value: 44106049637 (uncategorized)
-  Context:     static const double a3 = -25.44106049637;
-
-src//math_utils.cpp:60 - Value: 47351093090 (uncategorized)
-  Context:     static const double b0 = -8.47351093090;
-
-src//math_utils.cpp:63 - Value: 13082909833 (uncategorized)
-  Context:     static const double b3 = 3.13082909833;
-
-src//math_utils.cpp:79 - Value: 515517 (uncategorized)
-  Context:         static const double d0 = 2.515517;
-
-src//math_utils.cpp:80 - Value: 802853 (uncategorized)
-  Context:         static const double d1 = 0.802853;
-
-src//math_utils.cpp:82 - Value: 432788 (uncategorized)
-  Context:         static const double e1 = 1.432788;
-
-src//math_utils.cpp:83 - Value: 189269 (uncategorized)
-  Context:         static const double e2 = 0.189269;
-
-src//math_utils.cpp:107 - Value: 100 (iteration_limit)
-  Context:             if (eps > 1e-100) {
-
-src//math_utils.cpp:118 - Value: 515517 (uncategorized)
-  Context:             static const double d0 = 2.515517;
-
-src//math_utils.cpp:119 - Value: 802853 (uncategorized)
-  Context:             static const double d1 = 0.802853;
-
-src//math_utils.cpp:121 - Value: 432788 (uncategorized)
-  Context:             static const double e0 = 1.432788;
-
-src//math_utils.cpp:122 - Value: 189269 (uncategorized)
-  Context:             static const double e1 = 0.189269;
-
-src//math_utils.cpp:707 - Value: 1000 (iteration_limit)
-  Context:     if (df >= 1000.0) {
-
-src//math_utils.cpp:743 - Value: 100 (iteration_limit)
-  Context:     if (df > 100.0) {
-
-src//math_utils.cpp:749 - Value: 100 (iteration_limit)
-  Context:     const int max_iterations = 100;
-
-src//math_utils.cpp:814 - Value: 100 (iteration_limit)
-  Context:         const int max_iterations = 100;
-
-src//math_utils.cpp:849 - Value: 100 (iteration_limit)
-  Context:     const int max_iterations = 100;
-
-src//math_utils.cpp:938 - Value: 100 (iteration_limit)
-  Context:     const int max_iterations = 100;
-
-src//math_utils.cpp:1017 - Value: 100 (iteration_limit)
-  Context:         const int max_iterations = 100;
-
-src//math_utils.cpp:1042 - Value: 100 (iteration_limit)
-  Context:     const int max_iterations = 100;
-
-src//performance_dispatcher.cpp:173 - Value: 1000000 (uncategorized)
-  Context:             threading_overhead < (1000000.0 * dist_chars.base_complexity)) {
-
-src//performance_dispatcher.cpp:194 - Value: 200000 (uncategorized)
-  Context:     double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity
-
-src//performance_dispatcher.cpp:248 - Value: 500 (iteration_limit)
+src//performance_dispatcher.cpp:251 - Value: 500 (iteration_limit)
   Context:             thresholds.parallel_min = 500;  // Powerful SIMD reduces parallel threshold
 
-src//performance_dispatcher.cpp:249 - Value: 8000 (uncategorized)
+src//performance_dispatcher.cpp:252 - Value: 8000 (uncategorized)
   Context:             thresholds.work_stealing_min = 8000;
 
-src//performance_dispatcher.cpp:250 - Value: 32000 (uncategorized)
+src//performance_dispatcher.cpp:253 - Value: 32000 (uncategorized)
   Context:             thresholds.gpu_accelerated_min = 32000;
 
-src//performance_dispatcher.cpp:253 - Value: 1000 (iteration_limit)
-  Context:             thresholds.parallel_min = 1000;  // Good SIMD efficiency
-
-src//performance_dispatcher.cpp:254 - Value: 10000 (uncategorized)
+src//performance_dispatcher.cpp:257 - Value: 10000 (uncategorized)
   Context:             thresholds.work_stealing_min = 10000;
 
-src//performance_dispatcher.cpp:255 - Value: 50000 (uncategorized)
+src//performance_dispatcher.cpp:258 - Value: 50000 (uncategorized)
   Context:             thresholds.gpu_accelerated_min = 50000;
 
-src//performance_dispatcher.cpp:258 - Value: 5000 (iteration_limit)
-  Context:             thresholds.parallel_min = 5000;  // AVX often has limited efficiency
-
-src//performance_dispatcher.cpp:259 - Value: 50000 (uncategorized)
+src//performance_dispatcher.cpp:262 - Value: 50000 (uncategorized)
   Context:             thresholds.work_stealing_min = 50000;
 
-src//performance_dispatcher.cpp:260 - Value: 200000 (uncategorized)
+src//performance_dispatcher.cpp:263 - Value: 200000 (uncategorized)
   Context:             thresholds.gpu_accelerated_min = 200000;
 
-src//performance_dispatcher.cpp:263 - Value: 2000 (uncategorized)
+src//performance_dispatcher.cpp:266 - Value: 2000 (uncategorized)
   Context:             thresholds.parallel_min = 2000;  // Older architecture, conservative
 
-src//performance_dispatcher.cpp:264 - Value: 20000 (uncategorized)
+src//performance_dispatcher.cpp:267 - Value: 20000 (uncategorized)
   Context:             thresholds.work_stealing_min = 20000;
 
-src//performance_dispatcher.cpp:265 - Value: 100000 (uncategorized)
+src//performance_dispatcher.cpp:268 - Value: 100000 (uncategorized)
   Context:             thresholds.gpu_accelerated_min = 100000;
 
-src//performance_dispatcher.cpp:268 - Value: 1500 (uncategorized)
+src//performance_dispatcher.cpp:271 - Value: 1500 (uncategorized)
   Context:             thresholds.parallel_min = 1500;  // ARM characteristics
 
-src//performance_dispatcher.cpp:269 - Value: 15000 (uncategorized)
+src//performance_dispatcher.cpp:272 - Value: 15000 (uncategorized)
   Context:             thresholds.work_stealing_min = 15000;
 
-src//performance_dispatcher.cpp:270 - Value: 75000 (uncategorized)
+src//performance_dispatcher.cpp:273 - Value: 75000 (uncategorized)
   Context:             thresholds.gpu_accelerated_min = 75000;
 
-src//performance_dispatcher.cpp:275 - Value: 500 (iteration_limit)
+src//performance_dispatcher.cpp:278 - Value: 500 (iteration_limit)
   Context:             thresholds.parallel_min = 500;   // Lower threshold since SIMD unavailable
 
-src//performance_dispatcher.cpp:276 - Value: 5000 (iteration_limit)
-  Context:             thresholds.work_stealing_min = 5000;
-
-src//performance_dispatcher.cpp:277 - Value: 25000 (uncategorized)
+src//performance_dispatcher.cpp:280 - Value: 25000 (uncategorized)
   Context:             thresholds.gpu_accelerated_min = 25000;
 
-src//performance_dispatcher.cpp:426 - Value: 100000 (uncategorized)
-  Context:     if (threading_overhead > 100000.0) {  // > 100μs overhead
-
-src//performance_dispatcher.cpp:428 - Value: 50000 (uncategorized)
-  Context:         double multiplier = std::min(3.0, threading_overhead / 50000.0);
-
-src//performance_dispatcher.cpp:446 - Value: 10000 (uncategorized)
-  Context:     } else if (threading_overhead < 10000.0) {  // < 10μs overhead
-
-src//performance_dispatcher.cpp:448 - Value: 20000 (uncategorized)
-  Context:         double multiplier = std::max(0.5, threading_overhead / 20000.0);
-
-src//performance_dispatcher.cpp:472 - Value: 100 (iteration_limit)
-  Context:     } else if (memory_bandwidth > 100.0) {
-
-src//performance_dispatcher.cpp:488 - Value: 100 (iteration_limit)
-  Context:     parallel_min = std::max(parallel_min, static_cast<size_t>(100));
-
-src//performance_dispatcher.cpp:489 - Value: 1000 (iteration_limit)
-  Context:     work_stealing_min = std::max(work_stealing_min, static_cast<size_t>(1000));
-
-src//performance_dispatcher.cpp:490 - Value: 10000 (uncategorized)
+src//performance_dispatcher.cpp:493 - Value: 10000 (uncategorized)
   Context:     gpu_accelerated_min = std::max(gpu_accelerated_min, static_cast<size_t>(10000));
 
 === Negative Numbers ===
 
-src//validation.cpp:123 - Value: -1259.1392167224028 (uncategorized)
+src//validation.cpp:127 - Value: -1259.1392167224028 (uncategorized)
   Context:         0.99999999999980993,  676.5203681218851,     -1259.1392167224028,
 
-src//validation.cpp:124 - Value: -176.61502916214059 (uncategorized)
+src//validation.cpp:128 - Value: -176.61502916214059 (uncategorized)
   Context:         771.32342877765313,   -176.61502916214059,   12.507343278686905,
 
-src//validation.cpp:271 - Value: -2.0 (uncategorized)
-  Context:             const double term = std::exp(-2.0 * k * k * lambda_sq);
-
-src//validation.cpp:296 - Value: -2.0 (uncategorized)
-  Context:             return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);
-
-src//validation.cpp:299 - Value: -2.0 (uncategorized)
-  Context:             return 2.0 * std::exp(-2.0 * z * z);
-
-src//gamma.cpp:1001 - Value: -2.0 (uncategorized)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
-
-src//gamma.cpp:1035 - Value: -1.28 (uncategorized)
+src//gamma.cpp:1039 - Value: -1.28 (uncategorized)
   Context:         p_value = std::exp(-1.28 * modified_stat);
 
-src//gamma.cpp:1037 - Value: -1.8 (uncategorized)
+src//gamma.cpp:1041 - Value: -1.8 (uncategorized)
   Context:         p_value = std::exp(-1.8 * modified_stat + 1.5);
 
-src//gamma.cpp:2882 - Value: -1 (uncategorized)
+src//gamma.cpp:2886 - Value: -1 (uncategorized)
   Context:     result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)
 
-src//uniform.cpp:82 - Value: -1 (uncategorized)
+src//uniform.cpp:86 - Value: -1 (uncategorized)
   Context:             if (std::try_lock(lock1, lock2) == -1) {
 
-src//uniform.cpp:669 - Value: -2.0 (uncategorized)
-  Context:     const double test_statistic = -2.0 * (log_like_null - log_like_alt);
+src//uniform.cpp:980 - Value: -1.2804 (uncategorized)
+  Context:         p_value = detail::ONE - std::exp(-1.2804 * std::pow(ad_stat, -detail::HALF));
 
-src//uniform.cpp:935 - Value: -0.5 (mathematical)
-  Context:     double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);
-
-src//uniform.cpp:939 - Value: -2.0 (uncategorized)
-  Context:     double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);
-
-src//uniform.cpp:976 - Value: -1.2804 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat, -0.5));
-
-src//uniform.cpp:976 - Value: -0.5 (mathematical)
-  Context:         p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat, -0.5));
-
-src//uniform.cpp:982 - Value: -1.8 (uncategorized)
+src//uniform.cpp:986 - Value: -1.8 (uncategorized)
   Context:         p_value = std::exp(-1.8 * ad_stat + 0.258);
 
-src//uniform.cpp:1076 - Value: -1000.0 (uncategorized)
+src//uniform.cpp:1080 - Value: -1000.0 (uncategorized)
   Context:                 std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
 
-src//uniform.cpp:1143 - Value: -1000.0 (uncategorized)
+src//uniform.cpp:1147 - Value: -1000.0 (uncategorized)
   Context:             std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
 
-src//uniform.cpp:1182 - Value: -1000.0 (uncategorized)
+src//uniform.cpp:1186 - Value: -1000.0 (uncategorized)
   Context:             log_likelihood += -1000.0;
 
-src//uniform.cpp:1187 - Value: -2.0 (uncategorized)
-  Context:     double aic = -2.0 * log_likelihood + 2.0 * k;
-
-src//uniform.cpp:1188 - Value: -2.0 (uncategorized)
-  Context:     double bic = -2.0 * log_likelihood + k * std::log(n);
-
-src//system_capabilities.cpp:107 - Value: -1600 (uncategorized)
+src//system_capabilities.cpp:109 - Value: -1600 (uncategorized)
   Context:         return 25.0;  // Reasonable fallback for DDR3-1600 dual channel
 
-src//discrete.cpp:135 - Value: -1 (uncategorized)
+src//discrete.cpp:138 - Value: -1 (uncategorized)
   Context:             if (std::try_lock(lock1, lock2) == -1) {
 
-src//discrete.cpp:753 - Value: -2.0 (uncategorized)
-  Context:     const double test_statistic = -2.0 * log_likelihood_ratio;
+src//discrete.cpp:1159 - Value: -1.2337 (uncategorized)
+  Context:         p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic, -detail::ONE) + detail::ONE);
 
-src//discrete.cpp:1114 - Value: -2.0 (uncategorized)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
-
-src//discrete.cpp:1156 - Value: -1.2337 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//discrete.cpp:1156 - Value: -1.0 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//gaussian.cpp:90 - Value: -1 (uncategorized)
+src//gaussian.cpp:92 - Value: -1 (uncategorized)
   Context:             if (std::try_lock(lock1, lock2) == -1) {
 
-src//work_stealing_pool.cpp:46 - Value: -1 (uncategorized)
-  Context: thread_local int WorkStealingPool::currentWorkerId_ = -1;
-
-src//poisson.cpp:81 - Value: -1 (uncategorized)
+src//poisson.cpp:83 - Value: -1 (uncategorized)
   Context:             if (std::try_lock(lock1, lock2) == -1) {
 
-src//poisson.cpp:1028 - Value: -2.0 (uncategorized)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
+src//poisson.cpp:1035 - Value: -1 (uncategorized)
+  Context:             p_value += detail::TWO * std::pow(-1, k) * std::exp(-detail::TWO * k * k * lambda_ks * lambda_ks);
 
-src//poisson.cpp:1031 - Value: -2.0 (uncategorized)
-  Context:         p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
+src//poisson.cpp:1076 - Value: -1.2337 (uncategorized)
+  Context:         p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic, -detail::ONE) + detail::ONE);
 
-src//poisson.cpp:1033 - Value: -1 (uncategorized)
-  Context:             p_value += 2.0 * std::pow(-1, k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1033 - Value: -2.0 (uncategorized)
-  Context:             p_value += 2.0 * std::pow(-1, k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);
-
-src//poisson.cpp:1074 - Value: -1.2337 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//poisson.cpp:1074 - Value: -1.0 (uncategorized)
-  Context:         p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-
-src//poisson.cpp:1169 - Value: -1 (uncategorized)
+src//poisson.cpp:1171 - Value: -1 (uncategorized)
   Context:     const int df = static_cast<int>(num_groups) - 1 - 1;  // -1 for estimated lambda
 
-src//log_space_ops.cpp:30 - Value: -50.0 (uncategorized)
-  Context:     constexpr double x_min = -50.0;
-
-src//log_space_ops.cpp:68 - Value: -50.0 (uncategorized)
-  Context:     if (diff >= -50.0 && diff <= 0.0) {
-
-src//log_space_ops.cpp:161 - Value: -50.0 (uncategorized)
-  Context:     if (x < -50.0) {
-
-src//log_space_ops.cpp:169 - Value: -50.0 (uncategorized)
-  Context:     constexpr double x_min = -50.0;
-
-src//exponential.cpp:86 - Value: -1 (uncategorized)
+src//exponential.cpp:87 - Value: -1 (uncategorized)
   Context:             if (std::try_lock(lock1, lock2) == -1) {
 
-src//math_utils.cpp:56 - Value: -18.61500062529 (uncategorized)
+src//math_utils.cpp:59 - Value: -18.61500062529 (uncategorized)
   Context:     static const double a1 = -18.61500062529;
 
-src//math_utils.cpp:58 - Value: -25.44106049637 (uncategorized)
+src//math_utils.cpp:61 - Value: -25.44106049637 (uncategorized)
   Context:     static const double a3 = -25.44106049637;
 
-src//math_utils.cpp:60 - Value: -8.47351093090 (uncategorized)
+src//math_utils.cpp:63 - Value: -8.47351093090 (uncategorized)
   Context:     static const double b0 = -8.47351093090;
 
-src//math_utils.cpp:62 - Value: -21.06224101826 (uncategorized)
+src//math_utils.cpp:65 - Value: -21.06224101826 (uncategorized)
   Context:     static const double b2 = -21.06224101826;
-
-src//math_utils.cpp:115 - Value: -2.0 (uncategorized)
-  Context:             double t = std::sqrt(-2.0 * std::log(eps));
-
-src//math_utils.cpp:145 - Value: -2.0 (uncategorized)
-  Context:         double f_double_prime = -2.0 * result * f_prime;

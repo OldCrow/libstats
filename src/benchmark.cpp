@@ -1,5 +1,8 @@
 #include "../include/platform/benchmark.h"
 
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/threshold_constants.h"
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -19,7 +22,7 @@ std::string BenchmarkStats::toString() const {
     oss << "StdDev: " << stddev << "s, ";
     oss << "Min: " << min << "s, ";
     oss << "Max: " << max << "s";
-    if (throughput > 0.0) {
+    if (throughput > detail::ZERO_DOUBLE) {
         oss << ", Throughput: " << std::setprecision(2) << throughput << " ops/s";
     }
     oss << " (n=" << samples << ")";
@@ -162,7 +165,8 @@ void Benchmark::compareResults(const std::vector<BenchmarkResult>& baseline,
 
             const double speedup = baseResult->stats.mean / compResult.stats.mean;
             const double percentChange =
-                ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) * 100.0;
+                ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) *
+                detail::HUNDRED;
 
             os << "Test: " << name << "\n";
             os << "  Baseline:   " << std::fixed << std::setprecision(6) << baseResult->stats.mean
@@ -173,7 +177,7 @@ void Benchmark::compareResults(const std::vector<BenchmarkResult>& baseline,
 
             if (speedup > 1.05) {
                 os << " (FASTER)";
-            } else if (speedup < 0.95) {
+            } else if (speedup < detail::CONFIDENCE_95) {
                 os << " (SLOWER)";
             } else {
                 os << " (SIMILAR)";
@@ -195,8 +199,8 @@ BenchmarkStats Benchmark::calculateStats(const std::vector<double>& times,
     stats.samples = times.size();
 
     // Calculate mean
-    stats.mean =
-        std::accumulate(times.begin(), times.end(), 0.0) / static_cast<double>(times.size());
+    stats.mean = std::accumulate(times.begin(), times.end(), detail::ZERO_DOUBLE) /
+                 static_cast<double>(times.size());
 
     // Calculate median
     std::vector<double> sortedTimes = times;
@@ -204,13 +208,13 @@ BenchmarkStats Benchmark::calculateStats(const std::vector<double>& times,
 
     if (sortedTimes.size() % 2 == 0) {
         const size_t mid = sortedTimes.size() / 2;
-        stats.median = (sortedTimes[mid - 1] + sortedTimes[mid]) / 2.0;
+        stats.median = (sortedTimes[mid - detail::ONE_INT] + sortedTimes[mid]) / detail::TWO;
     } else {
         stats.median = sortedTimes[sortedTimes.size() / 2];
     }
 
     // Calculate standard deviation
-    double sumSquaredDiffs = 0.0;
+    double sumSquaredDiffs = detail::ZERO_DOUBLE;
     for (double time : times) {
         const double diff = time - stats.mean;
         sumSquaredDiffs += diff * diff;
@@ -222,7 +226,7 @@ BenchmarkStats Benchmark::calculateStats(const std::vector<double>& times,
     stats.max = *std::max_element(times.begin(), times.end());
 
     // Throughput (operations per second)
-    if (stats.mean > 0.0 && operationCount > 0.0) {
+    if (stats.mean > detail::ZERO_DOUBLE && operationCount > detail::ZERO_DOUBLE) {
         stats.throughput = operationCount / stats.mean;
     }
 
@@ -287,7 +291,7 @@ std::vector<std::vector<double>> StatsBenchmarkUtils::createTestVectors(std::siz
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<double> dist(0.0, 1.0);
+    std::normal_distribution<double> dist(detail::ZERO_DOUBLE, detail::ONE);
     std::uniform_int_distribution<std::size_t> sizeDist(minSize, maxSize);
 
     for (std::size_t i = 0; i < numVectors; ++i) {
@@ -314,7 +318,7 @@ std::vector<std::vector<double>> StatsBenchmarkUtils::createTestMatrices(std::si
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<double> dist(0.0, 1.0);
+    std::normal_distribution<double> dist(detail::ZERO_DOUBLE, detail::ONE);
     std::uniform_int_distribution<std::size_t> rowDist(minRows, maxRows);
     std::uniform_int_distribution<std::size_t> colDist(minCols, maxCols);
 
@@ -343,7 +347,7 @@ void StatsBenchmarkUtils::benchmarkBasicStats(const std::vector<std::vector<doub
         "Mean Calculation",
         [&data]() {
             for (const auto& vec : data) {
-                volatile double sum = std::accumulate(vec.begin(), vec.end(), 0.0);
+                volatile double sum = std::accumulate(vec.begin(), vec.end(), detail::ZERO_DOUBLE);
                 [[maybe_unused]] volatile double mean = sum / static_cast<double>(vec.size());
             }
         },
@@ -354,9 +358,9 @@ void StatsBenchmarkUtils::benchmarkBasicStats(const std::vector<std::vector<doub
         "Variance Calculation",
         [&data]() {
             for (const auto& vec : data) {
-                const double mean =
-                    std::accumulate(vec.begin(), vec.end(), 0.0) / static_cast<double>(vec.size());
-                double sumSq = 0.0;
+                const double mean = std::accumulate(vec.begin(), vec.end(), detail::ZERO_DOUBLE) /
+                                    static_cast<double>(vec.size());
+                double sumSq = detail::ZERO_DOUBLE;
                 for (double val : vec) {
                     const double diff = val - mean;
                     sumSq += diff * diff;
@@ -389,7 +393,7 @@ void StatsBenchmarkUtils::benchmarkMatrixOps(const std::vector<std::vector<doubl
         [&matrices]() {
             for (const auto& matrix : matrices) {
                 [[maybe_unused]] volatile double sum =
-                    std::accumulate(matrix.begin(), matrix.end(), 0.0);
+                    std::accumulate(matrix.begin(), matrix.end(), detail::ZERO_DOUBLE);
             }
         },
         0, static_cast<double>(matrices.size()));
@@ -400,9 +404,9 @@ void StatsBenchmarkUtils::benchmarkMatrixOps(const std::vector<std::vector<doubl
         [&matrices]() {
             for (const auto& matrix : matrices) {
                 std::vector<double> normalized = matrix;
-                const double norm = std::sqrt(
-                    std::inner_product(matrix.begin(), matrix.end(), matrix.begin(), 0.0));
-                if (norm > 0.0) {
+                const double norm = std::sqrt(std::inner_product(
+                    matrix.begin(), matrix.end(), matrix.begin(), detail::ZERO_DOUBLE));
+                if (norm > detail::ZERO_DOUBLE) {
                     for (double& val : normalized) {
                         val /= norm;
                     }
@@ -424,7 +428,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(const std::vector<std::vector<
             for (const auto& vec : data) {
                 std::vector<double> result(vec.size());
                 for (size_t i = 0; i < vec.size(); ++i) {
-                    result[i] = vec[i] + 1.0;
+                    result[i] = vec[i] + detail::ONE;
                 }
             }
         },
@@ -437,7 +441,7 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(const std::vector<std::vector<
             for (const auto& vec : data) {
                 std::vector<double> result(vec.size());
                 for (size_t i = 0; i < vec.size(); ++i) {
-                    result[i] = vec[i] * 2.0;
+                    result[i] = vec[i] * detail::TWO;
                 }
             }
         },
@@ -449,17 +453,17 @@ void StatsBenchmarkUtils::benchmarkSIMDOperations(const std::vector<std::vector<
         [&data]() {
             for (size_t i = 0; i + 1 < data.size(); ++i) {
                 const auto& vec1 = data[i];
-                const auto& vec2 = data[i + 1];
+                const auto& vec2 = data[i + detail::ONE_INT];
                 const size_t minSize = std::min(vec1.size(), vec2.size());
 
-                double dotProduct = 0.0;
+                double dotProduct = detail::ZERO_DOUBLE;
                 for (size_t j = 0; j < minSize; ++j) {
                     dotProduct += vec1[j] * vec2[j];
                 }
                 [[maybe_unused]] volatile double result = dotProduct;
             }
         },
-        0, static_cast<double>(data.size()) / 2.0);
+        0, static_cast<double>(data.size()) / detail::TWO);
 }
 
 //========== RegressionTester Implementation ==========
@@ -556,7 +560,7 @@ bool RegressionTester::checkRegressions(const std::vector<BenchmarkResult>& curr
 
         const auto& baseline = *it->second;
         const double percentChange =
-            ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) * 100.0;
+            ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) * detail::HUNDRED;
         const bool isRegression = percentChange > tolerancePercent_;
 
         if (isRegression) {
@@ -596,8 +600,10 @@ std::pair<std::size_t, std::size_t> Benchmark::getOptimalBenchmarkParams() const
         warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.2);
     } else if (cpuFeatures.topology.physical_cores <= 4) {
         // Low-core count systems - fewer iterations to save time
-        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.8);
-        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 0.8);
+        iterations =
+            static_cast<std::size_t>(static_cast<double>(iterations) * detail::LARGE_EFFECT);
+        warmupRuns =
+            static_cast<std::size_t>(static_cast<double>(warmupRuns) * detail::LARGE_EFFECT);
     }
 
     // Adjust for cache characteristics
@@ -634,10 +640,10 @@ BenchmarkStats Benchmark::calculateStatsRobust(const std::vector<double>& times,
     // Use robust statistical methods from math_utils
 
     // Calculate mean using numerically stable method
-    double sum = 0.0;
+    double sum = detail::ZERO_DOUBLE;
     for (const double time : times) {
         // Use standard checks for finite values
-        if (std::isfinite(time) && time >= 0.0) {
+        if (std::isfinite(time) && time >= detail::ZERO_DOUBLE) {
             sum += time;
         }
     }
@@ -649,7 +655,7 @@ BenchmarkStats Benchmark::calculateStatsRobust(const std::vector<double>& times,
 
     // Filter out invalid values
     for (const double time : times) {
-        if (std::isfinite(time) && time >= 0.0) {
+        if (std::isfinite(time) && time >= detail::ZERO_DOUBLE) {
             sortedTimes.push_back(time);
         }
     }
@@ -662,23 +668,23 @@ BenchmarkStats Benchmark::calculateStatsRobust(const std::vector<double>& times,
 
     if (sortedTimes.size() % 2 == 0) {
         const size_t mid = sortedTimes.size() / 2;
-        stats.median = (sortedTimes[mid - 1] + sortedTimes[mid]) / 2.0;
+        stats.median = (sortedTimes[mid - detail::ONE_INT] + sortedTimes[mid]) / detail::TWO;
     } else {
         stats.median = sortedTimes[sortedTimes.size() / 2];
     }
 
     // Calculate robust standard deviation using math_utils
-    double sumSquaredDiffs = 0.0;
+    double sumSquaredDiffs = detail::ZERO_DOUBLE;
     for (const double time : sortedTimes) {
         const double diff = time - stats.mean;
         sumSquaredDiffs += diff * diff;
     }
 
     // Use safe square root from math_utils
-    if (sumSquaredDiffs > 0.0 && sortedTimes.size() > 1) {
+    if (sumSquaredDiffs > detail::ZERO_DOUBLE && sortedTimes.size() > 1) {
         stats.stddev = std::sqrt(sumSquaredDiffs / static_cast<double>(sortedTimes.size() - 1));
     } else {
-        stats.stddev = 0.0;
+        stats.stddev = detail::ZERO_DOUBLE;
     }
 
     // Min and max from filtered data
@@ -687,10 +693,10 @@ BenchmarkStats Benchmark::calculateStatsRobust(const std::vector<double>& times,
 
     // Calculate throughput safely
     if (std::isfinite(stats.mean) && stats.mean > detail::MACHINE_EPSILON &&
-        std::isfinite(operationCount) && operationCount > 0.0) {
+        std::isfinite(operationCount) && operationCount > detail::ZERO_DOUBLE) {
         stats.throughput = operationCount / stats.mean;
     } else {
-        stats.throughput = 0.0;
+        stats.throughput = detail::ZERO_DOUBLE;
     }
 
     return stats;

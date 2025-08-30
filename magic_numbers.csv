@@ -1,703 +1,271 @@
 File,Line,Value,Context,Category
-src//validation.cpp,69,3.841,"            return 3.841;  // χ²(1 0.05) = 3.841",chi_squared_critical
-src//validation.cpp,69,0.05,"            return 3.841;  // χ²(1 0.05) = 3.841",significance_level
-src//validation.cpp,69,3.841,"            return 3.841;  // χ²(1 0.05) = 3.841",chi_squared_critical
-src//validation.cpp,71,5.991,"            return 5.991;  // χ²(2 0.05) = 5.991",chi_squared_critical
-src//validation.cpp,71,0.05,"            return 5.991;  // χ²(2 0.05) = 5.991",significance_level
-src//validation.cpp,71,5.991,"            return 5.991;  // χ²(2 0.05) = 5.991",chi_squared_critical
-src//validation.cpp,73,7.815,"            return 7.815;  // χ²(3 0.05) = 7.815",chi_squared_critical
-src//validation.cpp,73,0.05,"            return 7.815;  // χ²(3 0.05) = 7.815",significance_level
-src//validation.cpp,73,7.815,"            return 7.815;  // χ²(3 0.05) = 7.815",chi_squared_critical
-src//validation.cpp,75,9.488,"            return 9.488;  // χ²(4 0.05) = 9.488",chi_squared_critical
-src//validation.cpp,75,0.05,"            return 9.488;  // χ²(4 0.05) = 9.488",significance_level
-src//validation.cpp,75,9.488,"            return 9.488;  // χ²(4 0.05) = 9.488",chi_squared_critical
-src//validation.cpp,77,11.070,"            return 11.070;  // χ²(5 0.05) = 11.070",chi_squared_critical
-src//validation.cpp,77,0.05,"            return 11.070;  // χ²(5 0.05) = 11.070",significance_level
-src//validation.cpp,77,11.070,"            return 11.070;  // χ²(5 0.05) = 11.070",chi_squared_critical
-src//validation.cpp,81,9.0,"    const double h = detail::TWO / (9.0 * df);",mathematical
-src//validation.cpp,83,1.645,"        (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile",normal_quantile
-src//validation.cpp,83,1.96,"        (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile",normal_quantile
-src//validation.cpp,121,7.0,"    static const double g = 7.0;",uncategorized
-src//validation.cpp,123,0.99999999999980993,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,123,676.5203681218851,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,123,1259.1392167224028,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,124,771.32342877765313,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,124,176.61502916214059,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,124,12.507343278686905,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,125,0.13857109526572012,"        -0.13857109526572012  9.9843695780195716e-6  1.5056327351493116e-7};",uncategorized
-src//validation.cpp,127,0.5,"    if (z < 0.5) {",mathematical
-src//validation.cpp,138,0.5,"    const double t = z + g + 0.5;",mathematical
-src//validation.cpp,139,2.0,"    const double sqrt_2pi = std::sqrt(2.0 * M_PI);",mathematical
-src//validation.cpp,141,0.5,"    return sqrt_2pi * std::pow(t  z + 0.5) * std::exp(-t) * x;",mathematical
-src//validation.cpp,191,2.0,"            b += 2.0;",mathematical
-src//validation.cpp,226,2.0,"    const double s = degrees_of_freedom / 2.0;",mathematical
-src//validation.cpp,227,2.0,"    const double x = chi_squared_statistic / 2.0;",mathematical
-src//validation.cpp,271,2.0,"            const double term = std::exp(-2.0 * k * k * lambda_sq);",mathematical
-src//validation.cpp,277,2.0,"        double p_value = 2.0 * sum;",mathematical
-src//validation.cpp,281,2.0,"            const double correction = 1.0 + 2.0 * lambda_sq / (3.0 * sqrt_n);",mathematical
-src//validation.cpp,281,3.0,"            const double correction = 1.0 + 2.0 * lambda_sq / (3.0 * sqrt_n);",mathematical
-src//validation.cpp,291,0.27,"        if (z < 0.27) {",uncategorized
-src//validation.cpp,292,2.0,"            return 1.0 - 2.0 * z * z;  // Linear approximation for very small z",mathematical
-src//validation.cpp,296,2.0,"            return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);",mathematical
-src//validation.cpp,296,2.0,"            return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);",mathematical
-src//validation.cpp,296,3.0,"            return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);",mathematical
-src//validation.cpp,299,2.0,"            return 2.0 * std::exp(-2.0 * z * z);",mathematical
-src//validation.cpp,299,2.0,"            return 2.0 * std::exp(-2.0 * z * z);",mathematical
-src//validation.cpp,322,0.576,"        0.576   // α = 0.50",uncategorized
-src//validation.cpp,322,0.50,"        0.576   // α = 0.50",uncategorized
-src//validation.cpp,323,0.656,"        0.656   // α = 0.40",uncategorized
-src//validation.cpp,323,0.40,"        0.656   // α = 0.40",uncategorized
-src//validation.cpp,324,0.787,"        0.787   // α = 0.30",uncategorized
-src//validation.cpp,324,0.30,"        0.787   // α = 0.30",uncategorized
-src//validation.cpp,325,1.248,"        1.248   // α = 0.25",uncategorized
-src//validation.cpp,325,0.25,"        1.248   // α = 0.25",uncategorized
-src//validation.cpp,326,1.610,"        1.610   // α = 0.15",uncategorized
-src//validation.cpp,326,0.15,"        1.610   // α = 0.15",uncategorized
-src//validation.cpp,327,1.933,"        1.933   // α = 0.10",uncategorized
-src//validation.cpp,327,0.10,"        1.933   // α = 0.10",significance_level
-src//validation.cpp,328,2.492,"        2.492   // α = 0.05",uncategorized
-src//validation.cpp,328,0.05,"        2.492   // α = 0.05",significance_level
-src//validation.cpp,329,3.070,"        3.070   // α = 0.025",uncategorized
-src//validation.cpp,329,0.025,"        3.070   // α = 0.025",uncategorized
-src//validation.cpp,330,3.857,"        3.857   // α = 0.01",uncategorized
-src//validation.cpp,330,0.01,"        3.857   // α = 0.01",significance_level
-src//validation.cpp,331,4.500,"        4.500   // α = 0.005",uncategorized
-src//validation.cpp,331,0.005,"        4.500   // α = 0.005",uncategorized
-src//validation.cpp,334,0.50,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   0.25  0.15 ",uncategorized
-src//validation.cpp,334,0.40,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   0.25  0.15 ",uncategorized
-src//validation.cpp,334,0.30,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   0.25  0.15 ",uncategorized
-src//validation.cpp,334,0.25,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   0.25  0.15 ",uncategorized
-src//validation.cpp,334,0.15,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   0.25  0.15 ",uncategorized
-src//validation.cpp,335,0.10,"                                                          0.10  0.05  0.025  0.01  0.005};",significance_level
-src//validation.cpp,335,0.05,"                                                          0.10  0.05  0.025  0.01  0.005};",significance_level
-src//validation.cpp,335,0.025,"                                                          0.10  0.05  0.025  0.01  0.005};",uncategorized
-src//validation.cpp,335,0.01,"                                                          0.10  0.05  0.025  0.01  0.005};",significance_level
-src//validation.cpp,335,0.005,"                                                          0.10  0.05  0.025  0.01  0.005};",uncategorized
-src//validation.cpp,364,0.001,"    return 0.001;  // fallback",uncategorized
-src//validation.cpp,402,0.05,"    const bool reject_null = p_value < 0.05;",significance_level
-src//validation.cpp,447,2.0,"        const double weight = 2.0 * static_cast<double>(i + 1) - 1.0;",mathematical
-src//validation.cpp,455,0.75,"        ad_statistic * (1.0 + 0.75 / static_cast<double>(n) +",uncategorized
-src//validation.cpp,456,2.25,"                        2.25 / (static_cast<double>(n) * static_cast<double>(n)));",uncategorized
-src//validation.cpp,460,0.05,"    const bool reject_null = p_value < 0.05;",significance_level
-src//validation.cpp,495,5.0,"    if (min_expected < 5.0) {",uncategorized
-src//validation.cpp,511,0.05,"    const bool reject_null = p_value < 0.05;",significance_level
-src//validation.cpp,546,2.0,"    const double aic = 2.0 * k - 2.0 * log_likelihood;",mathematical
-src//validation.cpp,546,2.0,"    const double aic = 2.0 * k - 2.0 * log_likelihood;",mathematical
-src//validation.cpp,547,2.0,"    const double bic = k * std::log(static_cast<double>(n)) - 2.0 * log_likelihood;",mathematical
-src//validation.cpp,662,2.0,"        const double term1 = (2.0 * static_cast<double>(i + 1) - 1.0) * log_cdf;",mathematical
-src//validation.cpp,663,2.0,"        const double term2 = (2.0 * static_cast<double>(n - i) - 1.0) * log_1_minus_cdf;",mathematical
-src//validation.cpp,682,100.0,"    const double index = (percentile / 100.0) * static_cast<double>(sorted_values.size() - 1);",uncategorized
-src//validation.cpp,891,100.0,"    const double lower_percentile = 100.0 * (alpha / 2.0);",uncategorized
-src//validation.cpp,891,2.0,"    const double lower_percentile = 100.0 * (alpha / 2.0);",mathematical
-src//validation.cpp,892,100.0,"    const double upper_percentile = 100.0 * (1.0 - alpha / 2.0);",uncategorized
-src//validation.cpp,892,2.0,"    const double upper_percentile = 100.0 * (1.0 - alpha / 2.0);",mathematical
-src//performance_history.cpp,105,5.0,"            std::min(1.0  static_cast<double>(strategy_performance.size()) / 5.0);",uncategorized
-src//performance_history.cpp,108,0.5,"        confidence_score = 0.5;  // Medium confidence with only one data point",mathematical
-src//performance_history.cpp,330,1.05,"                if (improvement_ratio > 1.05) {",uncategorized
-src//performance_history.cpp,348,1.1,"    constexpr double MIN_IMPROVEMENT_RATIO = 1.1;  // Require 10% improvement",uncategorized
-src//gamma.cpp,146,6.0,"    return 6.0 / alpha_;  // Direct computation is safe",mathematical
-src//gamma.cpp,533,3.841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",chi_squared_critical
-src//gamma.cpp,533,0.05,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",significance_level
-src//gamma.cpp,533,3.841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",chi_squared_critical
-src//gamma.cpp,534,0.99,"    if (confidence_level == 0.99) {",significance_level
-src//gamma.cpp,535,6.635,"        chi2_critical = 6.635;",uncategorized
-src//gamma.cpp,537,0.90,"    if (confidence_level == 0.90) {",significance_level
-src//gamma.cpp,538,2.706,"        chi2_critical = 2.706;",uncategorized
-src//gamma.cpp,544,2.0,"    double margin = std::sqrt(chi2_critical / 2.0) * se_alpha;",mathematical
-src//gamma.cpp,546,0.001,"    double lower_bound = std::max(0.001  alpha_hat - margin);",uncategorized
-src//gamma.cpp,574,3.841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",chi_squared_critical
-src//gamma.cpp,574,0.05,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",significance_level
-src//gamma.cpp,574,3.841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",chi_squared_critical
-src//gamma.cpp,575,0.99,"    if (confidence_level == 0.99) {",significance_level
-src//gamma.cpp,576,6.635,"        chi2_critical = 6.635;",uncategorized
-src//gamma.cpp,578,0.90,"    if (confidence_level == 0.90) {",significance_level
-src//gamma.cpp,579,2.706,"        chi2_critical = 2.706;",uncategorized
-src//gamma.cpp,585,2.0,"    double margin = std::sqrt(chi2_critical / 2.0) * se_beta;",mathematical
-src//gamma.cpp,587,0.001,"    double lower_bound = std::max(0.001  beta_hat - margin);",uncategorized
-src//gamma.cpp,638,2.0,"    double lr_statistic = 2.0 * (log_likelihood_alt - log_likelihood_null);",mathematical
-src//gamma.cpp,644,5.991,"    double chi2_critical = 5.991;  // χ²(2  0.05) ≈ 5.991 for 95% confidence",chi_squared_critical
-src//gamma.cpp,644,0.05,"    double chi2_critical = 5.991;  // χ²(2  0.05) ≈ 5.991 for 95% confidence",significance_level
-src//gamma.cpp,644,5.991,"    double chi2_critical = 5.991;  // χ²(2  0.05) ≈ 5.991 for 95% confidence",chi_squared_critical
-src//gamma.cpp,645,0.01,"    if (significance_level == 0.01) {",significance_level
-src//gamma.cpp,646,9.210,"        chi2_critical = 9.210;",uncategorized
-src//gamma.cpp,648,0.10,"    if (significance_level == 0.10) {",significance_level
-src//gamma.cpp,649,4.605,"        chi2_critical = 4.605;",uncategorized
-src//gamma.cpp,654,2.0,"    double p_value = 1.0 - detail::gamma_p(1.0  lr_statistic / 2.0);  // Approximation",mathematical
-src//gamma.cpp,730,0.5,"    if (data.empty() || trim_proportion < 0.0 || trim_proportion > 0.5) {",mathematical
-src//gamma.cpp,772,0.25,"        size_t q1_idx = static_cast<size_t>(0.25 * static_cast<double>(data.size()));",uncategorized
-src//gamma.cpp,773,0.75,"        size_t q3_idx = static_cast<size_t>(0.75 * static_cast<double>(data.size()));",uncategorized
-src//gamma.cpp,863,2.0,"    double alpha_tail = (1.0 - credibility_level) / 2.0;",mathematical
-src//gamma.cpp,914,2.0,"            (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);",mathematical
-src//gamma.cpp,917,2.0,"    L2 /= 2.0;",mathematical
-src//gamma.cpp,958,2.0,"    double threshold_z = detail::inverse_normal_cdf(1.0 - significance_level / 2.0);",mathematical
-src//gamma.cpp,987,1.36,"    double critical_value = 1.36 / std::sqrt(n);  // Approximation for KS test critical value",uncategorized
-src//gamma.cpp,995,0.27,"    if (lambda < 0.27) {",uncategorized
-src//gamma.cpp,998,2.0,"        p_value = 1.0 - 2.0 * std::pow(lambda  2) * (1.0 - 2.0 * lambda * lambda / 3.0);",mathematical
-src//gamma.cpp,998,2.0,"        p_value = 1.0 - 2.0 * std::pow(lambda  2) * (1.0 - 2.0 * lambda * lambda / 3.0);",mathematical
-src//gamma.cpp,998,3.0,"        p_value = 1.0 - 2.0 * std::pow(lambda  2) * (1.0 - 2.0 * lambda * lambda / 3.0);",mathematical
-src//gamma.cpp,1001,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);",mathematical
-src//gamma.cpp,1001,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);",mathematical
-src//gamma.cpp,1003,2.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",mathematical
-src//gamma.cpp,1003,3.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",mathematical
-src//gamma.cpp,1003,8.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
-src//gamma.cpp,1003,15.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
-src//gamma.cpp,1028,0.75,"    const double modified_stat = ad_statistic * (1.0 + 0.75 / n + 2.25 / (n * n));",uncategorized
-src//gamma.cpp,1028,2.25,"    const double modified_stat = ad_statistic * (1.0 + 0.75 / n + 2.25 / (n * n));",uncategorized
-src//gamma.cpp,1032,13.0,"    if (modified_stat >= 13.0) {",uncategorized
-src//gamma.cpp,1034,6.0,"    } else if (modified_stat >= 6.0) {",mathematical
-src//gamma.cpp,1035,1.28,"        p_value = std::exp(-1.28 * modified_stat);",uncategorized
-src//gamma.cpp,1037,1.8,"        p_value = std::exp(-1.8 * modified_stat + 1.5);",uncategorized
-src//gamma.cpp,1037,1.5,"        p_value = std::exp(-1.8 * modified_stat + 1.5);",uncategorized
-src//gamma.cpp,1251,2.0,"    double alpha_level = (1.0 - confidence_level) / 2.0;",mathematical
-src//gamma.cpp,1303,2.0,"    return 2.0 * alpha_;",mathematical
-src//gamma.cpp,2613,2.0,"            b += 2.0;",mathematical
-src//gamma.cpp,2659,2.0,"        double h = 2.0 / (9.0 * alpha_);",mathematical
-src//gamma.cpp,2659,9.0,"        double h = 2.0 / (9.0 * alpha_);",mathematical
-src//gamma.cpp,2686,0.1,"        x = std::max(x - delta  x * 0.1);  // Ensure x stays positive",uncategorized
-src//gamma.cpp,2703,3.0,"    const double d = alpha_ - 1.0 / 3.0;",mathematical
-src//gamma.cpp,2704,9.0,"    const double c = 1.0 / std::sqrt(9.0 * d);",mathematical
-src//gamma.cpp,2718,0.0331,"        if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {",uncategorized
-src//gamma.cpp,2723,0.5,"        if (std::log(u) < 0.5 * x * x + d * (1.0 - v + std::log(v))) {",mathematical
-src//gamma.cpp,2790,3.0,"    double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);",mathematical
-src//gamma.cpp,2790,3.0,"    double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);",mathematical
-src//gamma.cpp,2790,3.0,"    double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);",mathematical
-src//gamma.cpp,2790,24.0,"    double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);",uncategorized
-src//gamma.cpp,2790,12.0,"    double alpha_est = (3.0 - s + std::sqrt((s - 3.0) * (s - 3.0) + 24.0 * s)) / (12.0 * s);",uncategorized
-src//gamma.cpp,2840,8.0,"    while (z < 8.0) {",uncategorized
-src//gamma.cpp,2850,0.5,"    result += std::log(z) - 0.5 * z_inv;",mathematical
-src//gamma.cpp,2851,12.0,"    result -= z_inv_sq / 12.0;                         // Bernoulli B₂/2",uncategorized
-src//gamma.cpp,2852,120.0,"    result += z_inv_sq * z_inv_sq / 120.0;             // Bernoulli B₄/4",uncategorized
-src//gamma.cpp,2853,252.0,"    result -= z_inv_sq * z_inv_sq * z_inv_sq / 252.0;  // Bernoulli B₆/6",uncategorized
-src//gamma.cpp,2870,8.0,"    while (z < 8.0) {",uncategorized
-src//gamma.cpp,2880,0.5,"    result += z_inv + 0.5 * z_inv_sq;",mathematical
-src//gamma.cpp,2881,6.0,"    result += z_inv_sq * z_inv / 6.0;                         // 1/(6z³)",mathematical
-src//gamma.cpp,2882,30.0,"    result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)",uncategorized
-src//gamma.cpp,2883,42.0,"    result += z_inv_sq * z_inv_sq * z_inv_sq * z_inv / 42.0;  // 1/(42z⁷)",uncategorized
-src//uniform.cpp,601,2.0,"    const double adjustment = range_estimate * std::pow(alpha / 2.0  1.0 / static_cast<double>(n)) /",mathematical
-src//uniform.cpp,602,2.0,"                              (1.0 + std::pow(alpha / 2.0  1.0 / static_cast<double>(n)));",mathematical
-src//uniform.cpp,629,2.0,"    const double adjustment = range_estimate * std::pow(alpha / 2.0  1.0 / static_cast<double>(n)) /",mathematical
-src//uniform.cpp,630,2.0,"                              (1.0 + std::pow(alpha / 2.0  1.0 / static_cast<double>(n)));",mathematical
-src//uniform.cpp,669,2.0,"    const double test_statistic = -2.0 * (log_like_null - log_like_alt);",mathematical
-src//uniform.cpp,674,2.0,"        1.0 - (1.0 - std::exp(-test_statistic / 2.0));  // Simplified approximation",mathematical
-src//uniform.cpp,701,2.0,"        sample_min - (sample_max - sample_min) / (static_cast<double>(n) + 2.0);",mathematical
-src//uniform.cpp,703,12.0,"        std::pow(sample_max - sample_min  2) / (12.0 * (static_cast<double>(n) + 2.0));",uncategorized
-src//uniform.cpp,703,2.0,"        std::pow(sample_max - sample_min  2) / (12.0 * (static_cast<double>(n) + 2.0));",mathematical
-src//uniform.cpp,706,2.0,"        sample_max + (sample_max - sample_min) / (static_cast<double>(n) + 2.0);",mathematical
-src//uniform.cpp,708,12.0,"        std::pow(sample_max - sample_min  2) / (12.0 * (static_cast<double>(n) + 2.0));",uncategorized
-src//uniform.cpp,708,2.0,"        std::pow(sample_max - sample_min  2) / (12.0 * (static_cast<double>(n) + 2.0));",mathematical
-src//uniform.cpp,723,0.5,"    if (trim_proportion < 0.0 || trim_proportion >= 0.5) {",mathematical
-src//uniform.cpp,782,12.0,"    const double range_estimate = std::sqrt(12.0 * variance);",uncategorized
-src//uniform.cpp,783,2.0,"    const double a_estimate = mean - range_estimate / 2.0;",mathematical
-src//uniform.cpp,784,2.0,"    const double b_estimate = mean + range_estimate / 2.0;",mathematical
-src//uniform.cpp,806,2.0,"    [[maybe_unused]] const double tail_prob = alpha / 2.0;",mathematical
-src//uniform.cpp,809,1.96,"    const double z_score = 1.96;  // Approximate 97.5th percentile of standard normal",normal_quantile
-src//uniform.cpp,853,2.0,"            (2.0 * static_cast<double>(i) - static_cast<double>(n) + 1.0) / static_cast<double>(n);",mathematical
-src//uniform.cpp,860,3.0,"    const double a_estimate = L1 - 3.0 * L2;",mathematical
-src//uniform.cpp,861,3.0,"    const double b_estimate = L1 + 3.0 * L2;",mathematical
-src//uniform.cpp,902,12.0,"    const double expected_variance = sample_range * sample_range / 12.0;",uncategorized
-src//uniform.cpp,908,2.0,"        2.0 * std::min(test_statistic  2.0 - test_statistic);  // Symmetric around 1",mathematical
-src//uniform.cpp,908,2.0,"        2.0 * std::min(test_statistic  2.0 - test_statistic);  // Symmetric around 1",mathematical
-src//uniform.cpp,935,0.5,"    double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);",mathematical
-src//uniform.cpp,935,2.0,"    double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);",mathematical
-src//uniform.cpp,939,2.0,"    double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);",mathematical
-src//uniform.cpp,939,2.0,"    double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);",mathematical
-src//uniform.cpp,962,0.01,"    if (alpha <= 0.01) {",significance_level
-src//uniform.cpp,963,3.857,"        critical_value = 3.857;",uncategorized
-src//uniform.cpp,964,0.05,"    } else if (alpha <= 0.05) {",significance_level
-src//uniform.cpp,965,2.492,"        critical_value = 2.492;",uncategorized
-src//uniform.cpp,966,0.10,"    } else if (alpha <= 0.10) {",significance_level
-src//uniform.cpp,967,1.933,"        critical_value = 1.933;",uncategorized
-src//uniform.cpp,969,1.159,"        critical_value = 1.159;  // alpha = 0.25",uncategorized
-src//uniform.cpp,969,0.25,"        critical_value = 1.159;  // alpha = 0.25",uncategorized
-src//uniform.cpp,975,0.2,"    if (ad_stat < 0.2) {",uncategorized
-src//uniform.cpp,976,1.2804,"        p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat  -0.5));",uncategorized
-src//uniform.cpp,976,0.5,"        p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat  -0.5));",mathematical
-src//uniform.cpp,977,0.34,"    } else if (ad_stat < 0.34) {",uncategorized
-src//uniform.cpp,978,0.8,"        p_value = 1.0 - std::exp(-0.8 * ad_stat - 0.26);",uncategorized
-src//uniform.cpp,978,0.26,"        p_value = 1.0 - std::exp(-0.8 * ad_stat - 0.26);",uncategorized
-src//uniform.cpp,979,0.6,"    } else if (ad_stat < 0.6) {",uncategorized
-src//uniform.cpp,980,0.9,"        p_value = std::exp(-0.9 * ad_stat - 0.16);",uncategorized
-src//uniform.cpp,980,0.16,"        p_value = std::exp(-0.9 * ad_stat - 0.16);",uncategorized
-src//uniform.cpp,982,1.8,"        p_value = std::exp(-1.8 * ad_stat + 0.258);",uncategorized
-src//uniform.cpp,982,0.258,"        p_value = std::exp(-1.8 * ad_stat + 0.258);",uncategorized
-src//uniform.cpp,1076,1000.0,"                std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
-src//uniform.cpp,1143,1000.0,"            std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
-src//uniform.cpp,1182,1000.0,"            log_likelihood += -1000.0;",uncategorized
-src//uniform.cpp,1187,2.0,"    double aic = -2.0 * log_likelihood + 2.0 * k;",mathematical
-src//uniform.cpp,1187,2.0,"    double aic = -2.0 * log_likelihood + 2.0 * k;",mathematical
-src//uniform.cpp,1188,2.0,"    double bic = -2.0 * log_likelihood + k * std::log(n);",mathematical
-src//uniform.cpp,1193,2.0,"        aicc += (2.0 * k * (k + 1)) / static_cast<double>(n - k - 1);",mathematical
-src//uniform.cpp,1252,2.0,"    double lower_percentile = alpha / 2.0;",mathematical
-src//uniform.cpp,1253,2.0,"    double upper_percentile = 1.0 - alpha / 2.0;",mathematical
-src//system_capabilities.cpp,21,1.5,"    std::vector<double> data(BENCHMARK_ARRAY_SIZE  1.5);",uncategorized
-src//system_capabilities.cpp,28,2.0,"            results[j] = data[j] * 2.0 + 1.0;",mathematical
-src//system_capabilities.cpp,39,10.0,"    return std::min(1.0  10.0 / std::max(1.0  time_per_operation));",uncategorized
-src//system_capabilities.cpp,80,0.5,"        source[i] = static_cast<double>(i % 1000) + 0.5;",mathematical
-src//system_capabilities.cpp,102,2.0,"    double bytes_transferred = 2.0 * array_size * sizeof(double) * iterations;",mathematical
-src//system_capabilities.cpp,107,25.0,"        return 25.0;  // Reasonable fallback for DDR3-1600 dual channel",uncategorized
-src//system_capabilities.cpp,113,100.0,"    return std::max(1.0  std::min(100.0  bandwidth));",uncategorized
-src//platform_constants_impl.cpp,461,1.5,"        return static_cast<std::size_t>(std::round(static_cast<double>(base_grain) * 1.5));",uncategorized
-src//discrete.cpp,392,0.5,"        return detail::HALF;  // 0.5 for binary [0 1]",mathematical
-src//discrete.cpp,423,0.5,"        return -detail::LN2;  // log(0.5)",mathematical
-src//discrete.cpp,677,2.0,"    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));",mathematical
-src//discrete.cpp,714,2.0,"    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));",mathematical
-src//discrete.cpp,753,2.0,"    const double test_statistic = -2.0 * log_likelihood_ratio;",mathematical
-src//discrete.cpp,761,3.841,"    const double critical_value = 3.841;  // Chi-squared(1) at alpha=0.05",chi_squared_critical
-src//discrete.cpp,761,0.05,"    const double critical_value = 3.841;  // Chi-squared(1) at alpha=0.05",significance_level
-src//discrete.cpp,764,0.01,"    const double p_value = (test_statistic > critical_value) ? 0.01 : 0.5;",significance_level
-src//discrete.cpp,764,0.5,"    const double p_value = (test_statistic > critical_value) ? 0.01 : 0.5;",mathematical
-src//discrete.cpp,830,0.5,"    if (trim_proportion < 0.0 || trim_proportion >= 0.5) {",mathematical
-src//discrete.cpp,850,2.0,"    const double median = (n % 2 == 0) ? (int_data[n / 2 - 1] + int_data[n / 2]) / 2.0",mathematical
-src//discrete.cpp,861,2.0,"        (n % 2 == 0) ? (deviations[n / 2 - 1] + deviations[n / 2]) / 2.0 : deviations[n / 2];",mathematical
-src//discrete.cpp,868,2.0,"        const double threshold = 2.0 * mad;  // Fixed threshold",mathematical
-src//discrete.cpp,933,12.0,"    const double range_estimate = std::sqrt(12.0 * sample_variance);",uncategorized
-src//discrete.cpp,934,2.0,"    const double a_estimate = sample_mean - range_estimate / 2.0;",mathematical
-src//discrete.cpp,935,2.0,"    const double b_estimate = sample_mean + range_estimate / 2.0;",mathematical
-src//discrete.cpp,960,1.96,"    const double z_score = 1.96;  // Approximate for 95% credibility",normal_quantile
-src//discrete.cpp,963,2.0,"    const double a_mean = (posterior_a_interval.first + posterior_a_interval.second) / 2.0;",mathematical
-src//discrete.cpp,965,4.0,"        (posterior_a_interval.second - posterior_a_interval.first) / 4.0;  // rough estimate",uncategorized
-src//discrete.cpp,969,2.0,"    const double b_mean = (posterior_b_interval.first + posterior_b_interval.second) / 2.0;",mathematical
-src//discrete.cpp,971,4.0,"        (posterior_b_interval.second - posterior_b_interval.first) / 4.0;  // rough estimate",uncategorized
-src//discrete.cpp,1013,2.0,"    l2 /= (2.0 * static_cast<double>(n) * static_cast<double>(n));",mathematical
-src//discrete.cpp,1019,3.0,"    const double range_estimate = 3.0 * l2;",mathematical
-src//discrete.cpp,1020,2.0,"    const double a_estimate = l1 - range_estimate / 2.0;",mathematical
-src//discrete.cpp,1021,2.0,"    const double b_estimate = l1 + range_estimate / 2.0;",mathematical
-src//discrete.cpp,1072,3.841,"    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05  df=1",chi_squared_critical
-src//discrete.cpp,1072,0.05,"    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05  df=1",significance_level
-src//discrete.cpp,1073,0.01,"    double p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation",significance_level
-src//discrete.cpp,1073,0.5,"    double p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation",mathematical
-src//discrete.cpp,1108,0.27,"    if (lambda < 0.27) {",uncategorized
-src//discrete.cpp,1111,2.0,"        p_value = 1.0 - 2.0 * std::pow(lambda  2) * (1.0 - 2.0 * lambda * lambda / 3.0);",mathematical
-src//discrete.cpp,1111,2.0,"        p_value = 1.0 - 2.0 * std::pow(lambda  2) * (1.0 - 2.0 * lambda * lambda / 3.0);",mathematical
-src//discrete.cpp,1111,3.0,"        p_value = 1.0 - 2.0 * std::pow(lambda  2) * (1.0 - 2.0 * lambda * lambda / 3.0);",mathematical
-src//discrete.cpp,1114,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);",mathematical
-src//discrete.cpp,1114,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);",mathematical
-src//discrete.cpp,1116,2.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",mathematical
-src//discrete.cpp,1116,3.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",mathematical
-src//discrete.cpp,1116,8.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
-src//discrete.cpp,1116,15.0,"        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
-src//discrete.cpp,1143,0.01,"    if (alpha <= 0.01) {",significance_level
-src//discrete.cpp,1144,3.857,"        critical_value = 3.857;",uncategorized
-src//discrete.cpp,1145,0.05,"    } else if (alpha <= 0.05) {",significance_level
-src//discrete.cpp,1146,2.492,"        critical_value = 2.492;",uncategorized
-src//discrete.cpp,1147,0.10,"    } else if (alpha <= 0.10) {",significance_level
-src//discrete.cpp,1148,1.933,"        critical_value = 1.933;",uncategorized
-src//discrete.cpp,1150,1.159,"        critical_value = 1.159;  // alpha = 0.25",uncategorized
-src//discrete.cpp,1150,0.25,"        critical_value = 1.159;  // alpha = 0.25",uncategorized
-src//discrete.cpp,1155,0.5,"    if (ad_statistic < 0.5) {",mathematical
-src//discrete.cpp,1156,1.2337,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//discrete.cpp,1157,2.0,"    } else if (ad_statistic < 2.0) {",mathematical
-src//discrete.cpp,1158,0.75,"        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);",uncategorized
-src//discrete.cpp,1158,0.5,"        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);",mathematical
-src//discrete.cpp,1200,5.0,"    if (expected_freq < 5.0) {",uncategorized
-src//discrete.cpp,1220,3.841,"    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05  df=1",chi_squared_critical
-src//discrete.cpp,1220,0.05,"    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05  df=1",significance_level
-src//discrete.cpp,1225,0.01,"        p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation",significance_level
-src//discrete.cpp,1225,0.5,"        p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation",mathematical
-src//discrete.cpp,1229,2.0,"        const double std_chi = std::sqrt(2.0 * degrees_of_freedom);",mathematical
-src//discrete.cpp,1231,1.96,"        p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation",normal_quantile
-src//discrete.cpp,1231,0.025,"        p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation",uncategorized
-src//discrete.cpp,1231,0.5,"        p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation",mathematical
-src//discrete.cpp,1385,2.0,"    const double aic = 2.0 * k - 2.0 * log_likelihood;",mathematical
-src//discrete.cpp,1385,2.0,"    const double aic = 2.0 * k - 2.0 * log_likelihood;",mathematical
-src//discrete.cpp,1386,2.0,"    const double bic = k * std::log(static_cast<double>(n)) - 2.0 * log_likelihood;",mathematical
-src//discrete.cpp,1391,2.0,"        aicc = aic + (2.0 * k * (k + 1)) / (static_cast<double>(n) - k - 1);",mathematical
-src//discrete.cpp,1446,3.0,"    if (sampling_density >= 3.0 && observed_range <= 20) {",mathematical
-src//discrete.cpp,1504,2.0,"        const size_t lower_index = static_cast<size_t>(alpha / 2.0 * n_bootstrap);",mathematical
-src//discrete.cpp,1505,2.0,"        const size_t upper_index = static_cast<size_t>((1.0 - alpha / 2.0) * n_bootstrap);",mathematical
-src//benchmark.cpp,165,100.0,"                ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) * 100.0;",uncategorized
-src//benchmark.cpp,174,1.05,"            if (speedup > 1.05) {",uncategorized
-src//benchmark.cpp,176,0.95,"            } else if (speedup < 0.95) {",significance_level
-src//benchmark.cpp,207,2.0,"        stats.median = (sortedTimes[mid - 1] + sortedTimes[mid]) / 2.0;",mathematical
-src//benchmark.cpp,440,2.0,"                    result[i] = vec[i] * 2.0;",mathematical
-src//benchmark.cpp,462,2.0,"        0  static_cast<double>(data.size()) / 2.0);",mathematical
-src//benchmark.cpp,559,100.0,"            ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) * 100.0;",uncategorized
-src//benchmark.cpp,595,1.5,"        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.5);",uncategorized
-src//benchmark.cpp,596,1.2,"        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.2);",uncategorized
-src//benchmark.cpp,599,0.8,"        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.8);",uncategorized
-src//benchmark.cpp,600,0.8,"        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 0.8);",uncategorized
-src//benchmark.cpp,606,1.2,"        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.2);",uncategorized
-src//benchmark.cpp,609,0.9,"        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.9);",uncategorized
-src//benchmark.cpp,615,1.3,"        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.3);",uncategorized
-src//benchmark.cpp,665,2.0,"        stats.median = (sortedTimes[mid - 1] + sortedTimes[mid]) / 2.0;",mathematical
-src//gaussian.cpp,1053,1.4826,"    double robust_scale = mad * detail::MAD_SCALING_FACTOR;  // Use named constant instead of 1.4826",uncategorized
-src//gaussian.cpp,1265,1.5,"    const double skewness = m3 / std::pow(m2  1.5);",uncategorized
-src//gaussian.cpp,3012,0.0625,"    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16",uncategorized
-src//parallel_thresholds.cpp,20,0.95,"    profile.thread_efficiency_factor = 0.95;",significance_level
-src//parallel_thresholds.cpp,26,0.85,"    profile.thread_efficiency_factor = 0.85;",uncategorized
-src//parallel_thresholds.cpp,32,0.75,"    profile.thread_efficiency_factor = 0.75;",uncategorized
-src//parallel_thresholds.cpp,38,0.7,"    profile.thread_efficiency_factor = 0.7;",uncategorized
-src//poisson.cpp,535,2.0,"        lower_bound = chi2_lower / (2.0 * static_cast<double>(n));",mathematical
-src//poisson.cpp,1025,0.27,"    if (lambda_ks < 0.27) {",uncategorized
-src//poisson.cpp,1028,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);",mathematical
-src//poisson.cpp,1028,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);",mathematical
-src//poisson.cpp,1031,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);",mathematical
-src//poisson.cpp,1031,2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);",mathematical
-src//poisson.cpp,1033,2.0,"            p_value += 2.0 * std::pow(-1  k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);",mathematical
-src//poisson.cpp,1033,2.0,"            p_value += 2.0 * std::pow(-1  k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);",mathematical
-src//poisson.cpp,1073,0.5,"    if (ad_statistic < 0.5) {",mathematical
-src//poisson.cpp,1074,1.2337,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//poisson.cpp,1075,2.0,"    } else if (ad_statistic < 2.0) {",mathematical
-src//poisson.cpp,1076,0.75,"        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);",uncategorized
-src//poisson.cpp,1076,0.5,"        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);",mathematical
-src//poisson.cpp,2937,3.0,"    if (isVeryLargeLambda_ && std::abs(k - lambda_) < 3.0 * sqrtLambda_) {",mathematical
-src//log_space_ops.cpp,30,50.0,"    constexpr double x_min = -50.0;",uncategorized
-src//log_space_ops.cpp,68,50.0,"    if (diff >= -50.0 && diff <= 0.0) {",uncategorized
-src//log_space_ops.cpp,161,50.0,"    if (x < -50.0) {",uncategorized
-src//log_space_ops.cpp,169,50.0,"    constexpr double x_min = -50.0;",uncategorized
-src//safety.cpp,123,700.0,"                } else if (value > 700.0) {",uncategorized
-src//distribution_base.cpp,339,2.0,"        double mid = (a + b) / 2.0;",mathematical
-src//distribution_base.cpp,343,6.0,"        return (b - a) / 6.0 * (fa + 4.0 * fmid + fb);",mathematical
-src//distribution_base.cpp,343,4.0,"        return (b - a) / 6.0 * (fa + 4.0 * fmid + fb);",uncategorized
-src//distribution_base.cpp,346,2.0,"    double mid = (a + b) / 2.0;",mathematical
-src//distribution_base.cpp,347,2.0,"    double left_mid = (a + mid) / 2.0;",mathematical
-src//distribution_base.cpp,348,2.0,"    double right_mid = (mid + b) / 2.0;",mathematical
-src//distribution_base.cpp,358,6.0,"    double whole = (b - a) / 6.0 * (fa + 4.0 * fmid + fb);",mathematical
-src//distribution_base.cpp,358,4.0,"    double whole = (b - a) / 6.0 * (fa + 4.0 * fmid + fb);",uncategorized
-src//distribution_base.cpp,361,6.0,"    double left = (mid - a) / 6.0 * (fa + 4.0 * fleft_mid + fmid);",mathematical
-src//distribution_base.cpp,361,4.0,"    double left = (mid - a) / 6.0 * (fa + 4.0 * fleft_mid + fmid);",uncategorized
-src//distribution_base.cpp,362,6.0,"    double right = (b - mid) / 6.0 * (fmid + 4.0 * fright_mid + fb);",mathematical
-src//distribution_base.cpp,362,4.0,"    double right = (b - mid) / 6.0 * (fmid + 4.0 * fright_mid + fb);",uncategorized
-src//distribution_base.cpp,367,15.0,"    if (std::abs(combined - whole) < 15.0 * tolerance) {",uncategorized
-src//distribution_base.cpp,368,15.0,"        return combined + (combined - whole) / 15.0;  // Richardson extrapolation",uncategorized
-src//distribution_base.cpp,372,2.0,"    return adaptiveSimpsonIntegration(func  a  mid  tolerance / 2.0  depth + 1  max_depth) +",mathematical
-src//distribution_base.cpp,373,2.0,"           adaptiveSimpsonIntegration(func  mid  b  tolerance / 2.0  depth + 1  max_depth);",mathematical
-src//distribution_base.cpp,510,2.0,"    if (x < (a + 1.0) / (a + b + 2.0)) {",mathematical
-src//exponential.cpp,946,0.6,"    const double ad_adjusted = ad_statistic * (detail::ONE + 0.6 / n_double);",uncategorized
-src//exponential.cpp,952,0.2,"    if (ad_adjusted < 0.2) {",uncategorized
-src//exponential.cpp,954,13.436,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,954,101.14,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,954,223.73,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,955,0.34,"    } else if (ad_adjusted < 0.34) {",uncategorized
-src//exponential.cpp,957,8.318,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,957,42.796,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,957,59.938,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,958,0.6,"    } else if (ad_adjusted < 0.6) {",uncategorized
-src//exponential.cpp,959,0.9177,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,959,4.279,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,959,1.38,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,960,2.0,"    } else if (ad_adjusted < 2.0) {",mathematical
-src//exponential.cpp,961,1.2937,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,961,5.709,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,961,0.0186,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
-src//math_utils.cpp,55,2.50662823884,"    static const double a0 = 2.50662823884;",uncategorized
-src//math_utils.cpp,56,18.61500062529,"    static const double a1 = -18.61500062529;",uncategorized
-src//math_utils.cpp,57,41.39119773534,"    static const double a2 = 41.39119773534;",uncategorized
-src//math_utils.cpp,58,25.44106049637,"    static const double a3 = -25.44106049637;",uncategorized
-src//math_utils.cpp,60,8.47351093090,"    static const double b0 = -8.47351093090;",uncategorized
-src//math_utils.cpp,61,23.08336743743,"    static const double b1 = 23.08336743743;",uncategorized
-src//math_utils.cpp,62,21.06224101826,"    static const double b2 = -21.06224101826;",uncategorized
-src//math_utils.cpp,63,3.13082909833,"    static const double b3 = 3.13082909833;",uncategorized
-src//math_utils.cpp,69,0.7,"    if (a <= 0.7) {",uncategorized
-src//math_utils.cpp,74,0.99,"    } else if (a < 0.99) {",significance_level
-src//math_utils.cpp,79,2.515517,"        static const double d0 = 2.515517;",uncategorized
-src//math_utils.cpp,80,0.802853,"        static const double d1 = 0.802853;",uncategorized
-src//math_utils.cpp,81,0.010328,"        static const double d2 = 0.010328;",uncategorized
-src//math_utils.cpp,82,1.432788,"        static const double e1 = 1.432788;",uncategorized
-src//math_utils.cpp,83,0.189269,"        static const double e2 = 0.189269;",uncategorized
-src//math_utils.cpp,84,0.001308,"        static const double e3 = 0.001308;",uncategorized
-src//math_utils.cpp,108,0.5,"                double log_correction = std::log(sqrt_log_eps * detail::SQRT_PI * 0.5);",mathematical
-src//math_utils.cpp,109,2.0,"                double second_order = (log_correction * log_correction - 2.0) /",mathematical
-src//math_utils.cpp,110,8.0,"                                      (8.0 * sqrt_log_eps * sqrt_log_eps * sqrt_log_eps);",uncategorized
-src//math_utils.cpp,115,2.0,"            double t = std::sqrt(-2.0 * std::log(eps));",mathematical
-src//math_utils.cpp,118,2.515517,"            static const double d0 = 2.515517;",uncategorized
-src//math_utils.cpp,119,0.802853,"            static const double d1 = 0.802853;",uncategorized
-src//math_utils.cpp,120,0.010328,"            static const double d2 = 0.010328;",uncategorized
-src//math_utils.cpp,121,1.432788,"            static const double e0 = 1.432788;",uncategorized
-src//math_utils.cpp,122,0.189269,"            static const double e1 = 0.189269;",uncategorized
-src//math_utils.cpp,123,0.001308,"            static const double e2 = 0.001308;",uncategorized
-src//math_utils.cpp,128,0.5,"            double correction = std::log(t * detail::SQRT_PI * 0.5) / (2.0 * t);",mathematical
-src//math_utils.cpp,128,2.0,"            double correction = std::log(t * detail::SQRT_PI * 0.5) / (2.0 * t);",mathematical
-src//math_utils.cpp,129,0.5,"            result -= correction * 0.5;  // Damped correction to avoid overcorrection",mathematical
-src//math_utils.cpp,144,2.0,"        double f_prime = (2.0 / detail::SQRT_PI) * exp_term;",mathematical
-src//math_utils.cpp,145,2.0,"        double f_double_prime = -2.0 * result * f_prime;",mathematical
-src//math_utils.cpp,147,0.5,"        double denominator = f_prime - 0.5 * err * f_double_prime / f_prime;",mathematical
-src//math_utils.cpp,207,2.0,"        b += 2.0;",mathematical
-src//math_utils.cpp,246,2.0,"    if (x < (a + 1.0) / (a + b + 2.0)) {",mathematical
-src//math_utils.cpp,538,2.0,"        ad_sum += (2.0 * static_cast<double>(i + 1) - 1.0) * log_F_xi +",mathematical
-src//math_utils.cpp,539,2.0,"                  (2.0 * n - 2.0 * static_cast<double>(i + 1) + 1.0) * log_one_minus_F_xi;",mathematical
-src//math_utils.cpp,539,2.0,"                  (2.0 * n - 2.0 * static_cast<double>(i + 1) + 1.0) * log_one_minus_F_xi;",mathematical
-src//math_utils.cpp,707,1000.0,"    if (df >= 1000.0) {",uncategorized
-src//math_utils.cpp,743,100.0,"    if (df > 100.0) {",uncategorized
-src//math_utils.cpp,809,0.1,"    if (p < 0.1 || p > 0.9) {",uncategorized
-src//math_utils.cpp,809,0.9,"    if (p < 0.1 || p > 0.9) {",uncategorized
-src//math_utils.cpp,812,10.0,"        double high = df + 10.0 * std::sqrt(df);  // Conservative upper bound",uncategorized
-src//math_utils.cpp,817,0.5,"            double mid = (low + high) * 0.5;",mathematical
-src//math_utils.cpp,831,0.5,"                return (low + high) * 0.5;",mathematical
-src//math_utils.cpp,834,0.5,"        return (low + high) * 0.5;",mathematical
-src//math_utils.cpp,838,9.0,"    double h = detail::TWO / (9.0 * df);",mathematical
-src//math_utils.cpp,872,10.0,"        if (x > df + 10.0 * std::sqrt(df) || !std::isfinite(x)) {",uncategorized
-src//math_utils.cpp,875,10.0,"            double high = df + 10.0 * std::sqrt(df);",uncategorized
-src//math_utils.cpp,878,0.5,"                double mid = (low + high) * 0.5;",mathematical
-src//math_utils.cpp,892,0.5,"                    return (low + high) * 0.5;",mathematical
-src//math_utils.cpp,895,0.5,"            return (low + high) * 0.5;",mathematical
-src//math_utils.cpp,934,2.0,"    double initial_guess = std::max(1.0  1.0 + z * std::sqrt(2.0 / df1));",mathematical
-src//math_utils.cpp,1003,2.0,"    double h = 2.0 / (9.0 * shape);",mathematical
-src//math_utils.cpp,1003,9.0,"    double h = 2.0 / (9.0 * shape);",mathematical
-src//math_utils.cpp,1013,0.1,"    if (p < 0.1 || p > 0.9) {",uncategorized
-src//math_utils.cpp,1013,0.9,"    if (p < 0.1 || p > 0.9) {",uncategorized
-src//math_utils.cpp,1015,10.0,"        double high = mean + 10.0 * std::sqrt(variance);  // Conservative upper bound",uncategorized
-src//math_utils.cpp,1020,0.5,"            double mid = (low + high) * 0.5;",mathematical
-src//math_utils.cpp,1034,0.5,"                return (low + high) * 0.5;",mathematical
-src//math_utils.cpp,1037,0.5,"        return (low + high) * 0.5;",mathematical
-src//math_utils.cpp,1067,10.0,"        if (x > mean + 10.0 * std::sqrt(variance) || !std::isfinite(x)) {",uncategorized
-src//math_utils.cpp,1070,10.0,"            double high = mean + 10.0 * std::sqrt(variance);",uncategorized
-src//math_utils.cpp,1073,0.5,"                double mid = (low + high) * 0.5;",mathematical
-src//math_utils.cpp,1087,0.5,"                    return (low + high) * 0.5;",mathematical
-src//math_utils.cpp,1090,0.5,"            return (low + high) * 0.5;",mathematical
-src//performance_dispatcher.cpp,87,0.8,"    if (recommendation.has_sufficient_data && recommendation.confidence_score > 0.8) {",uncategorized
-src//performance_dispatcher.cpp,122,50.0,"    return batch_size >= thresholds_.gpu_accelerated_min && system.memory_bandwidth_gb_s() >= 50.0;",uncategorized
-src//performance_dispatcher.cpp,170,0.3,"    if (effective_simd_efficiency < 0.3) {",uncategorized
-src//performance_dispatcher.cpp,173,1000000.0,"            threading_overhead < (1000000.0 * dist_chars.base_complexity)) {",uncategorized
-src//performance_dispatcher.cpp,175,0.6,"            return (dist_chars.parallelization_efficiency > 0.6) ? Strategy::PARALLEL_SIMD",uncategorized
-src//performance_dispatcher.cpp,184,0.5,"        if (effective_simd_efficiency > 0.5 && dist_chars.vectorization_efficiency > 0.6) {",mathematical
-src//performance_dispatcher.cpp,184,0.6,"        if (effective_simd_efficiency > 0.5 && dist_chars.vectorization_efficiency > 0.6) {",uncategorized
-src//performance_dispatcher.cpp,194,200000.0,"    double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity",uncategorized
-src//performance_dispatcher.cpp,195,2.0,"    if (threading_overhead > acceptable_overhead && dist_chars.base_complexity < 2.0) {",mathematical
-src//performance_dispatcher.cpp,197,0.4,"        if (effective_simd_efficiency > 0.4) {",uncategorized
-src//performance_dispatcher.cpp,206,50.0,"                              (memory_bandwidth >= 50.0) &&",uncategorized
-src//performance_dispatcher.cpp,207,0.8,"                              (dist_chars.memory_access_pattern > 0.8);",uncategorized
-src//performance_dispatcher.cpp,218,1.2,"        (dist_chars.branch_prediction_cost > 1.2);  // High branching variability",uncategorized
-src//performance_dispatcher.cpp,225,0.6,"    if (dist_chars.parallelization_efficiency > 0.6) {",uncategorized
-src//performance_dispatcher.cpp,230,0.4,"    if (effective_simd_efficiency > 0.4) {",uncategorized
-src//performance_dispatcher.cpp,290,2.0,"        double complexity_scaling = 1.0 / std::max(1.0  chars.base_complexity / 2.0);",mathematical
-src//performance_dispatcher.cpp,395,0.8,"    if (simd_efficiency < 0.8) {",uncategorized
-src//performance_dispatcher.cpp,397,1.5,"        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * (1.5 / simd_efficiency));",uncategorized
-src//performance_dispatcher.cpp,400,1.5,"        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 1.5);",uncategorized
-src//performance_dispatcher.cpp,402,1.5,"            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 1.5);",uncategorized
-src//performance_dispatcher.cpp,404,1.5,"            static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 1.5);",uncategorized
-src//performance_dispatcher.cpp,406,1.5,"            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 1.5);",uncategorized
-src//performance_dispatcher.cpp,407,1.5,"        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 1.5);",uncategorized
-src//performance_dispatcher.cpp,408,1.5,"        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);",uncategorized
-src//performance_dispatcher.cpp,409,1.5,"    } else if (simd_efficiency > 1.5) {",uncategorized
-src//performance_dispatcher.cpp,411,0.7,"        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * 0.7);",uncategorized
-src//performance_dispatcher.cpp,414,0.8,"        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 0.8);",uncategorized
-src//performance_dispatcher.cpp,416,0.8,"            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 0.8);",uncategorized
-src//performance_dispatcher.cpp,418,0.8,"            static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 0.8);",uncategorized
-src//performance_dispatcher.cpp,420,0.8,"            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 0.8);",uncategorized
-src//performance_dispatcher.cpp,421,0.8,"        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 0.8);",uncategorized
-src//performance_dispatcher.cpp,422,0.8,"        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 0.8);",uncategorized
-src//performance_dispatcher.cpp,426,100000.0,"    if (threading_overhead > 100000.0) {  // > 100μs overhead",uncategorized
-src//performance_dispatcher.cpp,428,3.0,"        double multiplier = std::min(3.0  threading_overhead / 50000.0);",mathematical
-src//performance_dispatcher.cpp,428,50000.0,"        double multiplier = std::min(3.0  threading_overhead / 50000.0);",uncategorized
-src//performance_dispatcher.cpp,446,10000.0,"    } else if (threading_overhead < 10000.0) {  // < 10μs overhead",uncategorized
-src//performance_dispatcher.cpp,448,0.5,"        double multiplier = std::max(0.5  threading_overhead / 20000.0);",mathematical
-src//performance_dispatcher.cpp,448,20000.0,"        double multiplier = std::max(0.5  threading_overhead / 20000.0);",uncategorized
-src//performance_dispatcher.cpp,469,20.0,"    if (memory_bandwidth < 20.0) {",uncategorized
-src//performance_dispatcher.cpp,471,1.5,"        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 1.5);",uncategorized
-src//performance_dispatcher.cpp,472,100.0,"    } else if (memory_bandwidth > 100.0) {",uncategorized
-src//performance_dispatcher.cpp,474,0.7,"        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 0.7);",uncategorized
-src//performance_dispatcher.cpp,480,2.0,"        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 2.0);",mathematical
-src//performance_dispatcher.cpp,483,0.8,"        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 0.8);",uncategorized
-src//validation.cpp,125,9.9843695780195716e-6,"        -0.13857109526572012  9.9843695780195716e-6  1.5056327351493116e-7};",uncategorized
-src//validation.cpp,125,1.5056327351493116e-7,"        -0.13857109526572012  9.9843695780195716e-6  1.5056327351493116e-7};",convergence_tolerance
-src//validation.cpp,165,1e-12,"    const double eps = 1e-12;",convergence_tolerance
-src//validation.cpp,185,1e30,"        double c = 1e30;",uncategorized
-src//validation.cpp,272,1e-10,"            if (term < 1e-10)",convergence_tolerance
-src//validation.cpp,538,1e10,"            log_likelihood += -1e10;  // Large negative penalty for zero density",uncategorized
-src//validation.cpp,659,1e-300,"        const double log_cdf = std::log(std::max(1e-300  cdf_val));",convergence_tolerance
-src//validation.cpp,660,1e-300,"        const double log_1_minus_cdf = std::log(std::max(1e-300  1.0 - cdf_val));",convergence_tolerance
-src//gamma.cpp,879,1e-6,"    alpha_lower = std::max(alpha_lower  1e-6);",convergence_tolerance
-src//gamma.cpp,880,1e-6,"    alpha_upper = std::max(alpha_upper  alpha_lower + 1e-6);",convergence_tolerance
-src//gamma.cpp,881,1e-6,"    beta_lower = std::max(beta_lower  1e-6);",convergence_tolerance
-src//gamma.cpp,882,1e-6,"    beta_upper = std::max(beta_upper  beta_lower + 1e-6);",convergence_tolerance
-src//gamma.cpp,2596,1e-15,"        while (std::abs(term) > 1e-15 * std::abs(sum) && n < 1000) {",convergence_tolerance
-src//gamma.cpp,2607,1e30,"        double c = 1e30;",uncategorized
-src//gamma.cpp,2615,1e-30,"            if (std::abs(d) < 1e-30) {",convergence_tolerance
-src//gamma.cpp,2616,1e-30,"                d = 1e-30;",convergence_tolerance
-src//gamma.cpp,2619,1e-30,"            if (std::abs(c) < 1e-30) {",convergence_tolerance
-src//gamma.cpp,2620,1e-30,"                c = 1e-30;",convergence_tolerance
-src//gamma.cpp,2625,1e-15,"            if (std::abs(del - 1.0) < 1e-15) {",convergence_tolerance
-src//gamma.cpp,2668,1e-10,"    double x = std::max(initial_guess  1e-10);",convergence_tolerance
-src//gamma.cpp,2669,1e-12,"    const double tolerance = 1e-12;",convergence_tolerance
-src//gamma.cpp,2680,1e-30,"        if (pdf < 1e-30) {",convergence_tolerance
-src//gamma.cpp,2793,1e-10,"    const double tolerance = 1e-10;",convergence_tolerance
-src//gamma.cpp,2808,1e-10,"        alpha_est = std::max(alpha_est  1e-10);  // Ensure positive",convergence_tolerance
-src//uniform.cpp,1056,1e-10,"        double epsilon = std::max(1e-10  width * 1e-6);",convergence_tolerance
-src//uniform.cpp,1056,1e-6,"        double epsilon = std::max(1e-10  width * 1e-6);",convergence_tolerance
-src//uniform.cpp,1126,1e-10,"        double epsilon = std::max(1e-10  width * 1e-6);",convergence_tolerance
-src//uniform.cpp,1126,1e-6,"        double epsilon = std::max(1e-10  width * 1e-6);",convergence_tolerance
-src//system_capabilities.cpp,103,1e9,"    double seconds = static_cast<double>(duration.count()) / 1e9;",uncategorized
-src//system_capabilities.cpp,110,1e9,"    double bandwidth = (bytes_transferred / seconds) / 1e9;  // GB/s",uncategorized
-src//gaussian.cpp,1057,1e-6,"    const double convergence_tol = 1e-6;",convergence_tolerance
-src//poisson.cpp,1150,1e-10,"            if (k >= max_value && group_expected < 1e-10)",convergence_tolerance
-src//math_utils.cpp,93,1e-15,"        if (eps < 1e-15) {",convergence_tolerance
-src//math_utils.cpp,107,1e-100,"            if (eps > 1e-100) {",convergence_tolerance
-src//math_utils.cpp,198,1e30,"    double c = 1e30;",uncategorized
-src//validation.cpp,69,841,"            return 3.841;  // χ²(1 0.05) = 3.841",uncategorized
-src//validation.cpp,69,841,"            return 3.841;  // χ²(1 0.05) = 3.841",uncategorized
-src//validation.cpp,71,991,"            return 5.991;  // χ²(2 0.05) = 5.991",uncategorized
-src//validation.cpp,71,991,"            return 5.991;  // χ²(2 0.05) = 5.991",uncategorized
-src//validation.cpp,73,815,"            return 7.815;  // χ²(3 0.05) = 7.815",uncategorized
-src//validation.cpp,73,815,"            return 7.815;  // χ²(3 0.05) = 7.815",uncategorized
-src//validation.cpp,75,488,"            return 9.488;  // χ²(4 0.05) = 9.488",uncategorized
-src//validation.cpp,75,488,"            return 9.488;  // χ²(4 0.05) = 9.488",uncategorized
-src//validation.cpp,83,645,"        (alpha == detail::ALPHA_05) ? 1.645 : 1.96;  // approximate normal quantile",uncategorized
-src//validation.cpp,123,99999999999980993,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,123,676,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,123,5203681218851,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,123,1259,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,123,1392167224028,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,124,771,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,124,32342877765313,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,124,176,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,124,61502916214059,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,124,507343278686905,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,125,13857109526572012,"        -0.13857109526572012  9.9843695780195716e-6  1.5056327351493116e-7};",uncategorized
-src//validation.cpp,166,1000,"    const int max_iter = 1000;",iteration_limit
-src//validation.cpp,280,100,"        if (n < 100) {",iteration_limit
-src//validation.cpp,322,576,"        0.576   // α = 0.50",uncategorized
-src//validation.cpp,323,656,"        0.656   // α = 0.40",uncategorized
-src//validation.cpp,324,787,"        0.787   // α = 0.30",uncategorized
-src//validation.cpp,325,248,"        1.248   // α = 0.25",uncategorized
-src//validation.cpp,326,610,"        1.610   // α = 0.15",uncategorized
-src//validation.cpp,327,933,"        1.933   // α = 0.10",uncategorized
-src//validation.cpp,328,492,"        2.492   // α = 0.05",uncategorized
-src//validation.cpp,330,857,"        3.857   // α = 0.01",uncategorized
-src//validation.cpp,331,500,"        4.500   // α = 0.005",iteration_limit
-src//validation.cpp,659,300,"        const double log_cdf = std::log(std::max(1e-300  cdf_val));",uncategorized
-src//validation.cpp,660,300,"        const double log_1_minus_cdf = std::log(std::max(1e-300  1.0 - cdf_val));",uncategorized
-src//validation.cpp,682,100,"    const double index = (percentile / 100.0) * static_cast<double>(sorted_values.size() - 1);",iteration_limit
-src//validation.cpp,891,100,"    const double lower_percentile = 100.0 * (alpha / 2.0);",iteration_limit
-src//validation.cpp,892,100,"    const double upper_percentile = 100.0 * (1.0 - alpha / 2.0);",iteration_limit
-src//performance_history.cpp,201,100,"    else if (batch_size <= 100)",iteration_limit
-src//performance_history.cpp,202,100,"        return 100;",iteration_limit
-src//performance_history.cpp,203,128,"    else if (batch_size <= 128)",uncategorized
-src//performance_history.cpp,204,128,"        return 128;",uncategorized
-src//performance_history.cpp,205,160,"    else if (batch_size <= 160)",uncategorized
-src//performance_history.cpp,206,160,"        return 160;",uncategorized
-src//performance_history.cpp,207,200,"    else if (batch_size <= 200)",iteration_limit
-src//performance_history.cpp,208,200,"        return 200;",iteration_limit
-src//performance_history.cpp,209,250,"    else if (batch_size <= 250)",uncategorized
-src//performance_history.cpp,210,250,"        return 250;",uncategorized
-src//performance_history.cpp,211,320,"    else if (batch_size <= 320)",uncategorized
-src//performance_history.cpp,212,320,"        return 320;",uncategorized
-src//performance_history.cpp,213,400,"    else if (batch_size <= 400)",uncategorized
-src//performance_history.cpp,214,400,"        return 400;",uncategorized
-src//performance_history.cpp,215,500,"    else if (batch_size <= 500)",iteration_limit
-src//performance_history.cpp,216,500,"        return 500;",iteration_limit
-src//performance_history.cpp,217,640,"    else if (batch_size <= 640)",uncategorized
-src//performance_history.cpp,218,640,"        return 640;",uncategorized
-src//performance_history.cpp,219,800,"    else if (batch_size <= 800)",uncategorized
-src//performance_history.cpp,220,800,"        return 800;",uncategorized
-src//performance_history.cpp,221,1000,"    else if (batch_size <= 1000)",iteration_limit
-src//performance_history.cpp,222,1000,"        return 1000;",iteration_limit
-src//performance_history.cpp,223,1280,"    else if (batch_size <= 1280)",uncategorized
-src//performance_history.cpp,224,1280,"        return 1280;",uncategorized
-src//performance_history.cpp,225,1600,"    else if (batch_size <= 1600)",uncategorized
-src//performance_history.cpp,226,1600,"        return 1600;",uncategorized
-src//performance_history.cpp,227,2000,"    else if (batch_size <= 2000)",uncategorized
-src//performance_history.cpp,228,2000,"        return 2000;",uncategorized
-src//performance_history.cpp,229,2500,"    else if (batch_size <= 2500)",uncategorized
-src//performance_history.cpp,230,2500,"        return 2500;",uncategorized
-src//performance_history.cpp,231,3200,"    else if (batch_size <= 3200)",uncategorized
-src//performance_history.cpp,232,3200,"        return 3200;",uncategorized
-src//performance_history.cpp,233,4000,"    else if (batch_size <= 4000)",uncategorized
-src//performance_history.cpp,234,4000,"        return 4000;",uncategorized
-src//performance_history.cpp,235,5000,"    else if (batch_size <= 5000)",iteration_limit
-src//performance_history.cpp,236,5000,"        return 5000;",iteration_limit
-src//performance_history.cpp,237,6400,"    else if (batch_size <= 6400)",uncategorized
-src//performance_history.cpp,238,6400,"        return 6400;",uncategorized
-src//performance_history.cpp,239,8000,"    else if (batch_size <= 8000)",uncategorized
-src//performance_history.cpp,240,8000,"        return 8000;",uncategorized
-src//performance_history.cpp,241,10000,"    else if (batch_size <= 10000)",uncategorized
-src//performance_history.cpp,242,10000,"        return 10000;",uncategorized
-src//performance_history.cpp,243,12800,"    else if (batch_size <= 12800)",uncategorized
-src//performance_history.cpp,244,12800,"        return 12800;",uncategorized
-src//performance_history.cpp,245,16000,"    else if (batch_size <= 16000)",uncategorized
-src//performance_history.cpp,246,16000,"        return 16000;",uncategorized
-src//performance_history.cpp,247,20000,"    else if (batch_size <= 20000)",uncategorized
-src//performance_history.cpp,248,20000,"        return 20000;",uncategorized
-src//performance_history.cpp,249,25000,"    else if (batch_size <= 25000)",uncategorized
-src//performance_history.cpp,250,25000,"        return 25000;",uncategorized
-src//performance_history.cpp,251,32000,"    else if (batch_size <= 32000)",uncategorized
-src//performance_history.cpp,252,32000,"        return 32000;",uncategorized
-src//performance_history.cpp,253,40000,"    else if (batch_size <= 40000)",uncategorized
-src//performance_history.cpp,254,40000,"        return 40000;",uncategorized
-src//performance_history.cpp,255,50000,"    else if (batch_size <= 50000)",uncategorized
-src//performance_history.cpp,256,50000,"        return 50000;",uncategorized
-src//performance_history.cpp,257,64000,"    else if (batch_size <= 64000)",uncategorized
-src//performance_history.cpp,258,64000,"        return 64000;",uncategorized
-src//performance_history.cpp,259,80000,"    else if (batch_size <= 80000)",uncategorized
-src//performance_history.cpp,260,80000,"        return 80000;",uncategorized
-src//performance_history.cpp,262,100000,"        return 100000;",uncategorized
-src//performance_history.cpp,305,100,"    std::size_t fallback_threshold = 100;  // Default for SIMD",iteration_limit
-src//performance_history.cpp,307,5000,"        fallback_threshold = 5000;",iteration_limit
-src//performance_history.cpp,309,10000,"        fallback_threshold = 10000;",uncategorized
-src//performance_history.cpp,311,50000,"        fallback_threshold = 50000;",uncategorized
-src//gamma.cpp,533,841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",uncategorized
-src//gamma.cpp,533,841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",uncategorized
-src//gamma.cpp,535,635,"        chi2_critical = 6.635;",uncategorized
-src//gamma.cpp,538,706,"        chi2_critical = 2.706;",uncategorized
-src//gamma.cpp,574,841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",uncategorized
-src//gamma.cpp,574,841,"    double chi2_critical = 3.841;  // χ²(1  0.05) ≈ 3.841 for 95% CI",uncategorized
-src//gamma.cpp,576,635,"        chi2_critical = 6.635;",uncategorized
-src//gamma.cpp,579,706,"        chi2_critical = 2.706;",uncategorized
-src//gamma.cpp,644,991,"    double chi2_critical = 5.991;  // χ²(2  0.05) ≈ 5.991 for 95% confidence",uncategorized
-src//gamma.cpp,644,991,"    double chi2_critical = 5.991;  // χ²(2  0.05) ≈ 5.991 for 95% confidence",uncategorized
-src//gamma.cpp,646,210,"        chi2_critical = 9.210;",uncategorized
-src//gamma.cpp,649,605,"        chi2_critical = 4.605;",uncategorized
-src//gamma.cpp,1214,100,"    if (n_bootstrap < 100) {",iteration_limit
-src//gamma.cpp,2596,1000,"        while (std::abs(term) > 1e-15 * std::abs(sum) && n < 1000) {",iteration_limit
-src//gamma.cpp,2670,100,"    const int max_iterations = 100;",iteration_limit
-src//gamma.cpp,2794,100,"    const int max_iterations = 100;",iteration_limit
-src//gamma.cpp,2852,120,"    result += z_inv_sq * z_inv_sq / 120.0;             // Bernoulli B₄/4",uncategorized
-src//gamma.cpp,2853,252,"    result -= z_inv_sq * z_inv_sq * z_inv_sq / 252.0;  // Bernoulli B₆/6",uncategorized
-src//uniform.cpp,963,857,"        critical_value = 3.857;",uncategorized
-src//uniform.cpp,965,492,"        critical_value = 2.492;",uncategorized
-src//uniform.cpp,967,933,"        critical_value = 1.933;",uncategorized
-src//uniform.cpp,969,159,"        critical_value = 1.159;  // alpha = 0.25",uncategorized
-src//uniform.cpp,976,2804,"        p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat  -0.5));",uncategorized
-src//uniform.cpp,982,258,"        p_value = std::exp(-1.8 * ad_stat + 0.258);",uncategorized
-src//uniform.cpp,1076,1000,"                std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",iteration_limit
-src//uniform.cpp,1143,1000,"            std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",iteration_limit
-src//uniform.cpp,1182,1000,"            log_likelihood += -1000.0;",iteration_limit
-src//system_capabilities.cpp,16,1000,"constexpr size_t BENCHMARK_ITERATIONS = 1000;",iteration_limit
-src//system_capabilities.cpp,17,1024,"constexpr size_t BENCHMARK_ARRAY_SIZE = 1024;",uncategorized
-src//system_capabilities.cpp,44,100,"    constexpr size_t num_tests = 100;",iteration_limit
-src//system_capabilities.cpp,71,1024,"    constexpr size_t array_size = 16 * 1024 * 1024;  // 16MB to exceed cache sizes",uncategorized
-src//system_capabilities.cpp,71,1024,"    constexpr size_t array_size = 16 * 1024 * 1024;  // 16MB to exceed cache sizes",uncategorized
-src//system_capabilities.cpp,80,1000,"        source[i] = static_cast<double>(i % 1000) + 0.5;",iteration_limit
-src//system_capabilities.cpp,107,1600,"        return 25.0;  // Reasonable fallback for DDR3-1600 dual channel",uncategorized
-src//system_capabilities.cpp,113,100,"    return std::max(1.0  std::min(100.0  bandwidth));",iteration_limit
-src//system_capabilities.cpp,133,1024,"    l1_cache_size_ = 32 * 1024;        // 32KB typical L1",uncategorized
-src//system_capabilities.cpp,134,256,"    l2_cache_size_ = 256 * 1024;       // 256KB typical L2",uncategorized
-src//system_capabilities.cpp,134,1024,"    l2_cache_size_ = 256 * 1024;       // 256KB typical L2",uncategorized
-src//system_capabilities.cpp,135,1024,"    l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3",uncategorized
-src//system_capabilities.cpp,135,1024,"    l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3",uncategorized
-src//platform_constants_impl.cpp,341,512,"            return 8;  // AVX-512: 8 doubles per register",uncategorized
-src//platform_constants_impl.cpp,368,512,"        return stats::arch::cpu::intel::CACHE_LINE_SIZE;  // AVX-512: Use full cache line alignment",uncategorized
-src//platform_constants_impl.cpp,434,256,"        return 256;",uncategorized
-src//platform_constants_impl.cpp,436,384,"        return 384;",uncategorized
-src//platform_constants_impl.cpp,438,512,"        return 512;",uncategorized
-src//platform_constants_impl.cpp,440,768,"        return 768;",uncategorized
-src//platform_constants_impl.cpp,442,1024,"        return 1024;",uncategorized
-src//platform_constants_impl.cpp,444,2048,"        return 2048;  // Higher threshold for scalar operations",uncategorized
-src//platform_constants_impl.cpp,480,4096,"                                     : 4096;  // Use half of L1",uncategorized
-src//platform_constants_impl.cpp,483,32768,"        features.l2_cache_size > 0 ? (features.l2_cache_size / sizeof(double)) / 2 : 32768;",uncategorized
-src//platform_constants_impl.cpp,486,262144,"        features.l3_cache_size > 0 ? (features.l3_cache_size / sizeof(double)) / 4 : 262144;",uncategorized
+src//validation.cpp,125,7.0,"    static const double g = 7.0;",uncategorized
+src//validation.cpp,127,0.99999999999980993,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
+src//validation.cpp,127,676.5203681218851,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
+src//validation.cpp,127,1259.1392167224028,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
+src//validation.cpp,128,771.32342877765313,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
+src//validation.cpp,128,176.61502916214059,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
+src//validation.cpp,128,12.507343278686905,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
+src//validation.cpp,129,0.13857109526572012,"        -0.13857109526572012  9.9843695780195716e-6  1.5056327351493116e-7};",uncategorized
+src//validation.cpp,295,0.27,"        if (z < 0.27) {",uncategorized
+src//validation.cpp,326,0.576,"        0.576   // α = 0.50",uncategorized
+src//validation.cpp,326,0.50,"        0.576   // α = 0.50",uncategorized
+src//validation.cpp,327,0.656,"        0.656   // α = 0.40",uncategorized
+src//validation.cpp,327,0.40,"        0.656   // α = 0.40",uncategorized
+src//validation.cpp,328,0.787,"        0.787   // α = 0.30",uncategorized
+src//validation.cpp,328,0.30,"        0.787   // α = 0.30",uncategorized
+src//validation.cpp,329,1.248,"        1.248   // α = detail::QUARTER",uncategorized
+src//validation.cpp,330,1.610,"        1.610   // α = 0.15",uncategorized
+src//validation.cpp,330,0.15,"        1.610   // α = 0.15",uncategorized
+src//validation.cpp,331,1.933,"        1.933   // α = detail::ALPHA_10",uncategorized
+src//validation.cpp,332,2.492,"        2.492   // α = detail::ALPHA_05",uncategorized
+src//validation.cpp,333,3.070,"        3.070   // α = 0.025",uncategorized
+src//validation.cpp,333,0.025,"        3.070   // α = 0.025",uncategorized
+src//validation.cpp,334,3.857,"        3.857   // α = detail::ALPHA_01",uncategorized
+src//validation.cpp,335,4.500,"        4.500   // α = 0.005",uncategorized
+src//validation.cpp,335,0.005,"        4.500   // α = 0.005",uncategorized
+src//validation.cpp,338,0.50,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   detail::QUARTER  0.15 ",uncategorized
+src//validation.cpp,338,0.40,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   detail::QUARTER  0.15 ",uncategorized
+src//validation.cpp,338,0.30,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   detail::QUARTER  0.15 ",uncategorized
+src//validation.cpp,338,0.15,"    static const double extended_significance_levels[] = {0.50  0.40  0.30   detail::QUARTER  0.15 ",uncategorized
+src//validation.cpp,339,0.025,"                                                          detail::ALPHA_10  detail::ALPHA_05  0.025  detail::ALPHA_01  0.005};",uncategorized
+src//validation.cpp,339,0.005,"                                                          detail::ALPHA_10  detail::ALPHA_05  0.025  detail::ALPHA_01  0.005};",uncategorized
+src//validation.cpp,460,2.25,"                        2.25 / (static_cast<double>(n) * static_cast<double>(n)));",uncategorized
+src//performance_history.cpp,333,1.05,"                if (improvement_ratio > 1.05) {",uncategorized
+src//performance_history.cpp,351,1.1,"    constexpr double MIN_IMPROVEMENT_RATIO = 1.1;  // Require 10% improvement",uncategorized
+src//gamma.cpp,542,2.706,"        chi2_critical = 2.706;",uncategorized
+src//gamma.cpp,583,2.706,"        chi2_critical = 2.706;",uncategorized
+src//gamma.cpp,653,4.605,"        chi2_critical = 4.605;",uncategorized
+src//gamma.cpp,991,1.36,"    double critical_value = 1.36 / std::sqrt(n);  // Approximation for KS test critical value",uncategorized
+src//gamma.cpp,999,0.27,"    if (lambda < 0.27) {",uncategorized
+src//gamma.cpp,1007,8.0,"        double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
+src//gamma.cpp,1007,15.0,"        double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
+src//gamma.cpp,1032,2.25,"    const double modified_stat = ad_statistic * (detail::ONE + detail::AD_P_VALUE_MEDIUM / n + 2.25 / (n * n));",uncategorized
+src//gamma.cpp,1036,13.0,"    if (modified_stat >= 13.0) {",uncategorized
+src//gamma.cpp,1039,1.28,"        p_value = std::exp(-1.28 * modified_stat);",uncategorized
+src//gamma.cpp,1041,1.8,"        p_value = std::exp(-1.8 * modified_stat + 1.5);",uncategorized
+src//gamma.cpp,1041,1.5,"        p_value = std::exp(-1.8 * modified_stat + 1.5);",uncategorized
+src//gamma.cpp,2690,0.1,"        x = std::max(x - delta  x * 0.1);  // Ensure x stays positive",uncategorized
+src//gamma.cpp,2722,0.0331,"        if (u < detail::ONE - 0.0331 * (x * x) * (x * x)) {",uncategorized
+src//gamma.cpp,2794,24.0,"    double alpha_est = (detail::THREE - s + std::sqrt((s - detail::THREE) * (s - detail::THREE) + 24.0 * s)) / (12.0 * s);",uncategorized
+src//gamma.cpp,2794,12.0,"    double alpha_est = (detail::THREE - s + std::sqrt((s - detail::THREE) * (s - detail::THREE) + 24.0 * s)) / (12.0 * s);",uncategorized
+src//gamma.cpp,2844,8.0,"    while (z < 8.0) {",uncategorized
+src//gamma.cpp,2855,12.0,"    result -= z_inv_sq / 12.0;                         // Bernoulli B₂/2",uncategorized
+src//gamma.cpp,2856,120.0,"    result += z_inv_sq * z_inv_sq / 120.0;             // Bernoulli B₄/4",uncategorized
+src//gamma.cpp,2857,252.0,"    result -= z_inv_sq * z_inv_sq * z_inv_sq / 252.0;  // Bernoulli B₆/6",uncategorized
+src//gamma.cpp,2874,8.0,"    while (z < 8.0) {",uncategorized
+src//gamma.cpp,2886,30.0,"    result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)",uncategorized
+src//gamma.cpp,2887,42.0,"    result += z_inv_sq * z_inv_sq * z_inv_sq * z_inv / 42.0;  // 1/(42z⁷)",uncategorized
+src//uniform.cpp,786,12.0,"    const double range_estimate = std::sqrt(12.0 * variance);",uncategorized
+src//uniform.cpp,906,12.0,"    const double expected_variance = sample_range * sample_range / 12.0;",uncategorized
+src//uniform.cpp,967,3.857,"        critical_value = 3.857;",uncategorized
+src//uniform.cpp,969,2.492,"        critical_value = 2.492;",uncategorized
+src//uniform.cpp,971,1.933,"        critical_value = 1.933;",uncategorized
+src//uniform.cpp,973,1.159,"        critical_value = 1.159;  // alpha = detail::QUARTER",uncategorized
+src//uniform.cpp,980,1.2804,"        p_value = detail::ONE - std::exp(-1.2804 * std::pow(ad_stat  -detail::HALF));",uncategorized
+src//uniform.cpp,981,0.34,"    } else if (ad_stat < 0.34) {",uncategorized
+src//uniform.cpp,982,0.26,"        p_value = detail::ONE - std::exp(-detail::LARGE_EFFECT * ad_stat - 0.26);",uncategorized
+src//uniform.cpp,983,0.6,"    } else if (ad_stat < 0.6) {",uncategorized
+src//uniform.cpp,984,0.9,"        p_value = std::exp(-0.9 * ad_stat - 0.16);",uncategorized
+src//uniform.cpp,984,0.16,"        p_value = std::exp(-0.9 * ad_stat - 0.16);",uncategorized
+src//uniform.cpp,986,1.8,"        p_value = std::exp(-1.8 * ad_stat + 0.258);",uncategorized
+src//uniform.cpp,986,0.258,"        p_value = std::exp(-1.8 * ad_stat + 0.258);",uncategorized
+src//uniform.cpp,1080,1000.0,"                std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
+src//uniform.cpp,1147,1000.0,"            std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
+src//uniform.cpp,1186,1000.0,"            log_likelihood += -1000.0;",uncategorized
+src//system_capabilities.cpp,23,1.5,"    std::vector<double> data(BENCHMARK_ARRAY_SIZE  1.5);",uncategorized
+src//system_capabilities.cpp,41,10.0,"    return std::min(detail::ONE  10.0 / std::max(detail::ONE  time_per_operation));",uncategorized
+src//system_capabilities.cpp,109,25.0,"        return 25.0;  // Reasonable fallback for DDR3-1600 dual channel",uncategorized
+src//platform_constants_impl.cpp,462,1.5,"        return static_cast<std::size_t>(std::round(static_cast<double>(base_grain) * 1.5));",uncategorized
+src//discrete.cpp,936,12.0,"    const double range_estimate = std::sqrt(12.0 * sample_variance);",uncategorized
+src//discrete.cpp,968,4.0,"        (posterior_a_interval.second - posterior_a_interval.first) / 4.0;  // rough estimate",uncategorized
+src//discrete.cpp,974,4.0,"        (posterior_b_interval.second - posterior_b_interval.first) / 4.0;  // rough estimate",uncategorized
+src//discrete.cpp,1111,0.27,"    if (lambda < 0.27) {",uncategorized
+src//discrete.cpp,1119,8.0,"        double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
+src//discrete.cpp,1119,15.0,"        double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE + 8.0 * std::pow(lambda  4) / 15.0;",uncategorized
+src//discrete.cpp,1147,3.857,"        critical_value = 3.857;",uncategorized
+src//discrete.cpp,1149,2.492,"        critical_value = 2.492;",uncategorized
+src//discrete.cpp,1151,1.933,"        critical_value = 1.933;",uncategorized
+src//discrete.cpp,1153,1.159,"        critical_value = 1.159;  // alpha = detail::QUARTER",uncategorized
+src//discrete.cpp,1159,1.2337,"        p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic  -detail::ONE) + detail::ONE);",uncategorized
+src//discrete.cpp,1234,0.025,"        p_value = (z_score > detail::Z_95) ? 0.025 : detail::AD_THRESHOLD_1;  // Very rough normal approximation",uncategorized
+src//benchmark.cpp,176,1.05,"            if (speedup > 1.05) {",uncategorized
+src//benchmark.cpp,597,1.5,"        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.5);",uncategorized
+src//benchmark.cpp,598,1.2,"        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.2);",uncategorized
+src//benchmark.cpp,608,1.2,"        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 1.2);",uncategorized
+src//benchmark.cpp,611,0.9,"        iterations = static_cast<std::size_t>(static_cast<double>(iterations) * 0.9);",uncategorized
+src//benchmark.cpp,617,1.3,"        warmupRuns = static_cast<std::size_t>(static_cast<double>(warmupRuns) * 1.3);",uncategorized
+src//gaussian.cpp,1267,1.5,"    const double skewness = m3 / std::pow(m2  1.5);",uncategorized
+src//gaussian.cpp,3014,0.0625,"    isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16",uncategorized
+src//parallel_thresholds.cpp,27,0.85,"    profile.thread_efficiency_factor = 0.85;",uncategorized
+src//poisson.cpp,1027,0.27,"    if (lambda_ks < 0.27) {",uncategorized
+src//poisson.cpp,1076,1.2337,"        p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic  -detail::ONE) + detail::ONE);",uncategorized
+src//distribution_base.cpp,368,15.0,"    if (std::abs(combined - whole) < 15.0 * tolerance) {",uncategorized
+src//distribution_base.cpp,369,15.0,"        return combined + (combined - whole) / 15.0;  // Richardson extrapolation",uncategorized
+src//exponential.cpp,947,0.6,"    const double ad_adjusted = ad_statistic * (detail::ONE + 0.6 / n_double);",uncategorized
+src//exponential.cpp,955,13.436,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,955,101.14,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,955,223.73,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,956,0.34,"    } else if (ad_adjusted < 0.34) {",uncategorized
+src//exponential.cpp,958,8.318,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,958,42.796,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,958,59.938,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,959,0.6,"    } else if (ad_adjusted < 0.6) {",uncategorized
+src//exponential.cpp,960,0.9177,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,960,4.279,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,960,1.38,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,962,1.2937,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,962,5.709,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
+src//exponential.cpp,962,0.0186,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
+src//math_utils.cpp,58,2.50662823884,"    static const double a0 = 2.50662823884;",uncategorized
+src//math_utils.cpp,59,18.61500062529,"    static const double a1 = -18.61500062529;",uncategorized
+src//math_utils.cpp,60,41.39119773534,"    static const double a2 = 41.39119773534;",uncategorized
+src//math_utils.cpp,61,25.44106049637,"    static const double a3 = -25.44106049637;",uncategorized
+src//math_utils.cpp,63,8.47351093090,"    static const double b0 = -8.47351093090;",uncategorized
+src//math_utils.cpp,64,23.08336743743,"    static const double b1 = 23.08336743743;",uncategorized
+src//math_utils.cpp,65,21.06224101826,"    static const double b2 = -21.06224101826;",uncategorized
+src//math_utils.cpp,66,3.13082909833,"    static const double b3 = 3.13082909833;",uncategorized
+src//math_utils.cpp,82,2.515517,"        static const double d0 = 2.515517;",uncategorized
+src//math_utils.cpp,83,0.802853,"        static const double d1 = 0.802853;",uncategorized
+src//math_utils.cpp,84,0.010328,"        static const double d2 = 0.010328;",uncategorized
+src//math_utils.cpp,85,1.432788,"        static const double e1 = 1.432788;",uncategorized
+src//math_utils.cpp,86,0.189269,"        static const double e2 = 0.189269;",uncategorized
+src//math_utils.cpp,87,0.001308,"        static const double e3 = 0.001308;",uncategorized
+src//math_utils.cpp,113,8.0,"                                      (8.0 * sqrt_log_eps * sqrt_log_eps * sqrt_log_eps);",uncategorized
+src//math_utils.cpp,121,2.515517,"            static const double d0 = 2.515517;",uncategorized
+src//math_utils.cpp,122,0.802853,"            static const double d1 = 0.802853;",uncategorized
+src//math_utils.cpp,123,0.010328,"            static const double d2 = 0.010328;",uncategorized
+src//math_utils.cpp,124,1.432788,"            static const double e0 = 1.432788;",uncategorized
+src//math_utils.cpp,125,0.189269,"            static const double e1 = 0.189269;",uncategorized
+src//math_utils.cpp,126,0.001308,"            static const double e2 = 0.001308;",uncategorized
+src//math_utils.cpp,710,1000.0,"    if (df >= 1000.0) {",uncategorized
+src//math_utils.cpp,812,0.1,"    if (p < 0.1 || p > 0.9) {",uncategorized
+src//math_utils.cpp,812,0.9,"    if (p < 0.1 || p > 0.9) {",uncategorized
+src//math_utils.cpp,815,10.0,"        double high = df + 10.0 * std::sqrt(df);  // Conservative upper bound",uncategorized
+src//math_utils.cpp,875,10.0,"        if (x > df + 10.0 * std::sqrt(df) || !std::isfinite(x)) {",uncategorized
+src//math_utils.cpp,878,10.0,"            double high = df + 10.0 * std::sqrt(df);",uncategorized
+src//math_utils.cpp,1016,0.1,"    if (p < 0.1 || p > 0.9) {",uncategorized
+src//math_utils.cpp,1016,0.9,"    if (p < 0.1 || p > 0.9) {",uncategorized
+src//math_utils.cpp,1018,10.0,"        double high = mean + 10.0 * std::sqrt(variance);  // Conservative upper bound",uncategorized
+src//math_utils.cpp,1070,10.0,"        if (x > mean + 10.0 * std::sqrt(variance) || !std::isfinite(x)) {",uncategorized
+src//math_utils.cpp,1073,10.0,"            double high = mean + 10.0 * std::sqrt(variance);",uncategorized
+src//performance_dispatcher.cpp,125,50.0,"    return batch_size >= thresholds_.gpu_accelerated_min && system.memory_bandwidth_gb_s() >= 50.0;",uncategorized
+src//performance_dispatcher.cpp,176,1000000.0,"            threading_overhead < (1000000.0 * dist_chars.base_complexity)) {",uncategorized
+src//performance_dispatcher.cpp,178,0.6,"            return (dist_chars.parallelization_efficiency > 0.6) ? Strategy::PARALLEL_SIMD",uncategorized
+src//performance_dispatcher.cpp,187,0.6,"        if (effective_simd_efficiency > detail::HALF && dist_chars.vectorization_efficiency > 0.6) {",uncategorized
+src//performance_dispatcher.cpp,197,200000.0,"    double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity",uncategorized
+src//performance_dispatcher.cpp,200,0.4,"        if (effective_simd_efficiency > 0.4) {",uncategorized
+src//performance_dispatcher.cpp,209,50.0,"                              (memory_bandwidth >= 50.0) &&",uncategorized
+src//performance_dispatcher.cpp,221,1.2,"        (dist_chars.branch_prediction_cost > 1.2);  // High branching variability",uncategorized
+src//performance_dispatcher.cpp,228,0.6,"    if (dist_chars.parallelization_efficiency > 0.6) {",uncategorized
+src//performance_dispatcher.cpp,233,0.4,"    if (effective_simd_efficiency > 0.4) {",uncategorized
+src//performance_dispatcher.cpp,400,1.5,"        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * (1.5 / simd_efficiency));",uncategorized
+src//performance_dispatcher.cpp,403,1.5,"        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 1.5);",uncategorized
+src//performance_dispatcher.cpp,405,1.5,"            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 1.5);",uncategorized
+src//performance_dispatcher.cpp,407,1.5,"            static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 1.5);",uncategorized
+src//performance_dispatcher.cpp,409,1.5,"            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 1.5);",uncategorized
+src//performance_dispatcher.cpp,410,1.5,"        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 1.5);",uncategorized
+src//performance_dispatcher.cpp,411,1.5,"        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);",uncategorized
+src//performance_dispatcher.cpp,412,1.5,"    } else if (simd_efficiency > 1.5) {",uncategorized
+src//performance_dispatcher.cpp,429,100000.0,"    if (threading_overhead > 100000.0) {  // > 100μs overhead",uncategorized
+src//performance_dispatcher.cpp,431,50000.0,"        double multiplier = std::min(detail::THREE  threading_overhead / 50000.0);",uncategorized
+src//performance_dispatcher.cpp,449,10000.0,"    } else if (threading_overhead < 10000.0) {  // < 10μs overhead",uncategorized
+src//performance_dispatcher.cpp,451,20000.0,"        double multiplier = std::max(detail::HALF  threading_overhead / 20000.0);",uncategorized
+src//performance_dispatcher.cpp,472,20.0,"    if (memory_bandwidth < 20.0) {",uncategorized
+src//performance_dispatcher.cpp,474,1.5,"        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 1.5);",uncategorized
+src//validation.cpp,129,9.9843695780195716e-6,"        -0.13857109526572012  9.9843695780195716e-6  1.5056327351493116e-7};",uncategorized
+src//validation.cpp,129,1.5056327351493116e-7,"        -0.13857109526572012  9.9843695780195716e-6  1.5056327351493116e-7};",convergence_tolerance
+src//validation.cpp,189,1e30,"        double c = 1e30;",uncategorized
+src//validation.cpp,542,1e10,"            log_likelihood += -1e10;  // Large negative penalty for zero density",uncategorized
+src//system_capabilities.cpp,105,1e9,"    double seconds = static_cast<double>(duration.count()) / 1e9;",uncategorized
+src//system_capabilities.cpp,112,1e9,"    double bandwidth = (bytes_transferred / seconds) / 1e9;  // GB/s",uncategorized
+src//math_utils.cpp,110,1e-15,"            if (eps > 1e-15) {",convergence_tolerance
+src//performance_history.cpp,206,128,"    else if (batch_size <= 128)",uncategorized
+src//performance_history.cpp,207,128,"        return 128;",uncategorized
+src//performance_history.cpp,208,160,"    else if (batch_size <= 160)",uncategorized
+src//performance_history.cpp,209,160,"        return 160;",uncategorized
+src//performance_history.cpp,210,200,"    else if (batch_size <= 200)",iteration_limit
+src//performance_history.cpp,211,200,"        return 200;",iteration_limit
+src//performance_history.cpp,212,250,"    else if (batch_size <= 250)",uncategorized
+src//performance_history.cpp,213,250,"        return 250;",uncategorized
+src//performance_history.cpp,214,320,"    else if (batch_size <= 320)",uncategorized
+src//performance_history.cpp,215,320,"        return 320;",uncategorized
+src//performance_history.cpp,216,400,"    else if (batch_size <= 400)",uncategorized
+src//performance_history.cpp,217,400,"        return 400;",uncategorized
+src//performance_history.cpp,218,500,"    else if (batch_size <= 500)",iteration_limit
+src//performance_history.cpp,219,500,"        return 500;",iteration_limit
+src//performance_history.cpp,220,640,"    else if (batch_size <= 640)",uncategorized
+src//performance_history.cpp,221,640,"        return 640;",uncategorized
+src//performance_history.cpp,222,800,"    else if (batch_size <= 800)",uncategorized
+src//performance_history.cpp,223,800,"        return 800;",uncategorized
+src//performance_history.cpp,226,1280,"    else if (batch_size <= 1280)",uncategorized
+src//performance_history.cpp,227,1280,"        return 1280;",uncategorized
+src//performance_history.cpp,228,1600,"    else if (batch_size <= 1600)",uncategorized
+src//performance_history.cpp,229,1600,"        return 1600;",uncategorized
+src//performance_history.cpp,230,2000,"    else if (batch_size <= 2000)",uncategorized
+src//performance_history.cpp,231,2000,"        return 2000;",uncategorized
+src//performance_history.cpp,232,2500,"    else if (batch_size <= 2500)",uncategorized
+src//performance_history.cpp,233,2500,"        return 2500;",uncategorized
+src//performance_history.cpp,234,3200,"    else if (batch_size <= 3200)",uncategorized
+src//performance_history.cpp,235,3200,"        return 3200;",uncategorized
+src//performance_history.cpp,236,4000,"    else if (batch_size <= 4000)",uncategorized
+src//performance_history.cpp,237,4000,"        return 4000;",uncategorized
+src//performance_history.cpp,240,6400,"    else if (batch_size <= 6400)",uncategorized
+src//performance_history.cpp,241,6400,"        return 6400;",uncategorized
+src//performance_history.cpp,242,8000,"    else if (batch_size <= 8000)",uncategorized
+src//performance_history.cpp,243,8000,"        return 8000;",uncategorized
+src//performance_history.cpp,244,10000,"    else if (batch_size <= 10000)",uncategorized
+src//performance_history.cpp,245,10000,"        return 10000;",uncategorized
+src//performance_history.cpp,246,12800,"    else if (batch_size <= 12800)",uncategorized
+src//performance_history.cpp,247,12800,"        return 12800;",uncategorized
+src//performance_history.cpp,248,16000,"    else if (batch_size <= 16000)",uncategorized
+src//performance_history.cpp,249,16000,"        return 16000;",uncategorized
+src//performance_history.cpp,250,20000,"    else if (batch_size <= 20000)",uncategorized
+src//performance_history.cpp,251,20000,"        return 20000;",uncategorized
+src//performance_history.cpp,252,25000,"    else if (batch_size <= 25000)",uncategorized
+src//performance_history.cpp,253,25000,"        return 25000;",uncategorized
+src//performance_history.cpp,254,32000,"    else if (batch_size <= 32000)",uncategorized
+src//performance_history.cpp,255,32000,"        return 32000;",uncategorized
+src//performance_history.cpp,256,40000,"    else if (batch_size <= 40000)",uncategorized
+src//performance_history.cpp,257,40000,"        return 40000;",uncategorized
+src//performance_history.cpp,258,50000,"    else if (batch_size <= 50000)",uncategorized
+src//performance_history.cpp,259,50000,"        return 50000;",uncategorized
+src//performance_history.cpp,260,64000,"    else if (batch_size <= 64000)",uncategorized
+src//performance_history.cpp,261,64000,"        return 64000;",uncategorized
+src//performance_history.cpp,262,80000,"    else if (batch_size <= 80000)",uncategorized
+src//performance_history.cpp,263,80000,"        return 80000;",uncategorized
+src//performance_history.cpp,265,100000,"        return 100000;",uncategorized
+src//performance_history.cpp,312,10000,"        fallback_threshold = 10000;",uncategorized
+src//performance_history.cpp,314,50000,"        fallback_threshold = 50000;",uncategorized
+src//gamma.cpp,1218,100,"    if (n_bootstrap < 100) {",iteration_limit
+src//system_capabilities.cpp,19,1024,"constexpr size_t BENCHMARK_ARRAY_SIZE = 1024;",uncategorized
+src//system_capabilities.cpp,73,1024,"    constexpr size_t array_size = 16 * 1024 * 1024;  // 16MB to exceed cache sizes",uncategorized
+src//system_capabilities.cpp,73,1024,"    constexpr size_t array_size = 16 * 1024 * 1024;  // 16MB to exceed cache sizes",uncategorized
+src//system_capabilities.cpp,109,1600,"        return 25.0;  // Reasonable fallback for DDR3-1600 dual channel",uncategorized
+src//system_capabilities.cpp,135,1024,"    l1_cache_size_ = 32 * 1024;        // 32KB typical L1",uncategorized
+src//system_capabilities.cpp,136,256,"    l2_cache_size_ = 256 * 1024;       // 256KB typical L2",uncategorized
+src//system_capabilities.cpp,136,1024,"    l2_cache_size_ = 256 * 1024;       // 256KB typical L2",uncategorized
+src//system_capabilities.cpp,137,1024,"    l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3",uncategorized
+src//system_capabilities.cpp,137,1024,"    l3_cache_size_ = 8 * 1024 * 1024;  // 8MB typical L3",uncategorized
+src//platform_constants_impl.cpp,342,512,"            return 8;  // AVX-512: 8 doubles per register",uncategorized
+src//platform_constants_impl.cpp,369,512,"        return stats::arch::cpu::intel::CACHE_LINE_SIZE;  // AVX-512: Use full cache line alignment",uncategorized
+src//platform_constants_impl.cpp,435,256,"        return 256;",uncategorized
+src//platform_constants_impl.cpp,437,384,"        return 384;",uncategorized
+src//platform_constants_impl.cpp,439,512,"        return 512;",uncategorized
+src//platform_constants_impl.cpp,441,768,"        return 768;",uncategorized
+src//platform_constants_impl.cpp,443,1024,"        return 1024;",uncategorized
+src//platform_constants_impl.cpp,445,2048,"        return 2048;  // Higher threshold for scalar operations",uncategorized
+src//platform_constants_impl.cpp,481,4096,"                                     : 4096;  // Use half of L1",uncategorized
+src//platform_constants_impl.cpp,484,32768,"        features.l2_cache_size > 0 ? (features.l2_cache_size / sizeof(double)) / detail::TWO_INT : 32768;",uncategorized
+src//platform_constants_impl.cpp,487,262144,"        features.l3_cache_size > 0 ? (features.l3_cache_size / sizeof(double)) / detail::FOUR_INT : 262144;",uncategorized
 src//cpu_vendor_detection.cpp,44,128,"        return apple_silicon::CACHE_LINE_SIZE;  // 128 bytes",uncategorized
 src//cpu_vendor_detection.cpp,66,32768,"    return 32768;  // Default to 32KB",uncategorized
-src//discrete.cpp,761,841,"    const double critical_value = 3.841;  // Chi-squared(1) at alpha=0.05",uncategorized
-src//discrete.cpp,1072,841,"    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05  df=1",uncategorized
-src//discrete.cpp,1144,857,"        critical_value = 3.857;",uncategorized
-src//discrete.cpp,1146,492,"        critical_value = 2.492;",uncategorized
-src//discrete.cpp,1148,933,"        critical_value = 1.933;",uncategorized
-src//discrete.cpp,1150,159,"        critical_value = 1.159;  // alpha = 0.25",uncategorized
-src//discrete.cpp,1156,2337,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//discrete.cpp,1220,841,"    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05  df=1",uncategorized
-src//discrete.cpp,1596,1000000,"    if (range > 1000000) {  // 1M elements max (4MB memory)",uncategorized
-src//discrete.cpp,1601,10000,"    if (range > 10000) {  // Warning for large ranges",uncategorized
-src//benchmark.cpp,165,100,"                ((compResult.stats.mean - baseResult->stats.mean) / baseResult->stats.mean) * 100.0;",iteration_limit
-src//benchmark.cpp,559,100,"            ((current.stats.mean - baseline.stats.mean) / baseline.stats.mean) * 100.0;",iteration_limit
-src//benchmark.cpp,604,1024,"    if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) {  // 16MB+",uncategorized
-src//benchmark.cpp,604,1024,"    if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) {  // 16MB+",uncategorized
-src//benchmark.cpp,607,1024,"    } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) {  // 4MB or less",uncategorized
-src//benchmark.cpp,607,1024,"    } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) {  // 4MB or less",uncategorized
-src//gaussian.cpp,1053,4826,"    double robust_scale = mad * detail::MAD_SCALING_FACTOR;  // Use named constant instead of 1.4826",uncategorized
-src//gaussian.cpp,1283,5000,"    if (data.size() < 3 || data.size() > 5000) {",iteration_limit
-src//work_stealing_pool.cpp,70,5000,"        const auto timeout = std::chrono::milliseconds(5000);  // 5 second max wait",iteration_limit
-src//work_stealing_pool.cpp,243,100,"                std::this_thread::sleep_for(std::chrono::microseconds(100));",iteration_limit
+src//discrete.cpp,1599,1000000,"    if (range > 1000000) {  // 1M elements max (4MB memory)",uncategorized
+src//discrete.cpp,1604,10000,"    if (range > 10000) {  // Warning for large ranges",uncategorized
+src//benchmark.cpp,606,1024,"    if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) {  // 16MB+",uncategorized
+src//benchmark.cpp,606,1024,"    if (cpuFeatures.l3_cache_size >= 16 * 1024 * 1024) {  // 16MB+",uncategorized
+src//benchmark.cpp,609,1024,"    } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) {  // 4MB or less",uncategorized
+src//benchmark.cpp,609,1024,"    } else if (cpuFeatures.l3_cache_size <= 4 * 1024 * 1024) {  // 4MB or less",uncategorized
 src//cpu_detection.cpp,692,512,"        return 8;  // 512 bits / 64 bits per double",uncategorized
 src//cpu_detection.cpp,694,256,"        return 4;  // 256 bits / 64 bits per double",uncategorized
 src//cpu_detection.cpp,696,128,"        return 2;  // 128 bits / 64 bits per double",uncategorized
@@ -719,149 +287,77 @@ src//cpu_detection.cpp,956,165,"            features.model == 166);  // Coffee L
 src//cpu_detection.cpp,956,166,"            features.model == 166);  // Coffee Lake-H: 165  Cannon Lake: 166",uncategorized
 src//cpu_detection.cpp,963,512,"           (features.avx512f                                      // Any CPU with AVX-512 is modern",uncategorized
 src//cpu_detection.cpp,964,125,"            || (features.family == 6 && features.model >= 125));  // Ice Lake and newer models",uncategorized
-src//parallel_thresholds.cpp,19,128,"    profile.simd_width_elements = 2;  // NEON 128-bit",uncategorized
-src//parallel_thresholds.cpp,21,1024,"    profile.base_parallel_threshold = 1024;",uncategorized
-src//parallel_thresholds.cpp,25,256,"    profile.simd_width_elements = 4;  // AVX2 256-bit / 4 doubles",uncategorized
-src//parallel_thresholds.cpp,27,2048,"    profile.base_parallel_threshold = 2048;",uncategorized
-src//parallel_thresholds.cpp,31,128,"    profile.simd_width_elements = 2;  // SSE 128-bit / 2 doubles",uncategorized
-src//parallel_thresholds.cpp,33,4096,"    profile.base_parallel_threshold = 4096;",uncategorized
-src//parallel_thresholds.cpp,39,8192,"    profile.base_parallel_threshold = 8192;",uncategorized
-src//parallel_thresholds.cpp,46,1024,"        profile.l3_cache_size_elements = 2 * 1024 * 1024;  // 2MB worth of doubles",uncategorized
-src//parallel_thresholds.cpp,46,1024,"        profile.l3_cache_size_elements = 2 * 1024 * 1024;  // 2MB worth of doubles",uncategorized
-src//parallel_thresholds.cpp,112,16384,"            threshold = 16384;",uncategorized
-src//parallel_thresholds.cpp,116,16384,"            threshold = 16384;",uncategorized
-src//parallel_thresholds.cpp,120,8192,"            threshold = 8192;",uncategorized
-src//parallel_thresholds.cpp,124,1048576,"            threshold = 1048576;",uncategorized
-src//parallel_thresholds.cpp,126,32768,"            threshold = 32768;",uncategorized
-src//parallel_thresholds.cpp,128,65536,"            threshold = 65536;",uncategorized
-src//parallel_thresholds.cpp,132,32768,"            threshold = 32768;",uncategorized
-src//parallel_thresholds.cpp,138,128,"            threshold = 128;",uncategorized
-src//parallel_thresholds.cpp,150,256,"            threshold = 256;",uncategorized
-src//parallel_thresholds.cpp,156,256,"            threshold = 256;",uncategorized
-src//parallel_thresholds.cpp,160,4096,"            threshold = 4096;",uncategorized
-src//parallel_thresholds.cpp,162,8192,"            threshold = 8192;",uncategorized
-src//parallel_thresholds.cpp,164,512,"            threshold = 512;",uncategorized
-src//parallel_thresholds.cpp,168,4096,"            threshold = 4096;",uncategorized
-src//parallel_thresholds.cpp,172,256,"            threshold = 256;",uncategorized
-src//parallel_thresholds.cpp,174,512,"            threshold = 512;",uncategorized
-src//parallel_thresholds.cpp,176,128,"            threshold = 128;",uncategorized
-src//parallel_thresholds.cpp,180,256,"            threshold = 256;",uncategorized
-src//parallel_thresholds.cpp,185,8192,"            threshold = 8192;",uncategorized
-src//parallel_thresholds.cpp,187,4096,"            threshold = 4096;",uncategorized
-src//parallel_thresholds.cpp,189,16384,"            threshold = 16384;",uncategorized
-src//parallel_thresholds.cpp,191,8192,"            threshold = 8192;",uncategorized
-src//parallel_thresholds.cpp,193,8192,"            threshold = 8192;  // Default for generic operations",uncategorized
-src//poisson.cpp,1074,2337,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//poisson.cpp,2967,170,"    if (n > 170)",uncategorized
-src//safety.cpp,123,700,"                } else if (value > 700.0) {",uncategorized
-src//distribution_base.cpp,523,100,"    const int max_iterations = 100;",iteration_limit
+src//parallel_thresholds.cpp,20,128,"    profile.simd_width_elements = 2;  // NEON 128-bit",uncategorized
+src//parallel_thresholds.cpp,22,1024,"    profile.base_parallel_threshold = 1024;",uncategorized
+src//parallel_thresholds.cpp,26,256,"    profile.simd_width_elements = 4;  // AVX2 256-bit / 4 doubles",uncategorized
+src//parallel_thresholds.cpp,28,2048,"    profile.base_parallel_threshold = 2048;",uncategorized
+src//parallel_thresholds.cpp,32,128,"    profile.simd_width_elements = 2;  // SSE 128-bit / 2 doubles",uncategorized
+src//parallel_thresholds.cpp,34,4096,"    profile.base_parallel_threshold = 4096;",uncategorized
+src//parallel_thresholds.cpp,40,8192,"    profile.base_parallel_threshold = 8192;",uncategorized
+src//parallel_thresholds.cpp,47,1024,"        profile.l3_cache_size_elements = 2 * 1024 * 1024;  // 2MB worth of doubles",uncategorized
+src//parallel_thresholds.cpp,47,1024,"        profile.l3_cache_size_elements = 2 * 1024 * 1024;  // 2MB worth of doubles",uncategorized
+src//parallel_thresholds.cpp,113,16384,"            threshold = 16384;",uncategorized
+src//parallel_thresholds.cpp,117,16384,"            threshold = 16384;",uncategorized
+src//parallel_thresholds.cpp,121,8192,"            threshold = 8192;",uncategorized
+src//parallel_thresholds.cpp,125,1048576,"            threshold = 1048576;",uncategorized
+src//parallel_thresholds.cpp,127,32768,"            threshold = 32768;",uncategorized
+src//parallel_thresholds.cpp,129,65536,"            threshold = 65536;",uncategorized
+src//parallel_thresholds.cpp,133,32768,"            threshold = 32768;",uncategorized
+src//parallel_thresholds.cpp,139,128,"            threshold = 128;",uncategorized
+src//parallel_thresholds.cpp,151,256,"            threshold = 256;",uncategorized
+src//parallel_thresholds.cpp,157,256,"            threshold = 256;",uncategorized
+src//parallel_thresholds.cpp,161,4096,"            threshold = 4096;",uncategorized
+src//parallel_thresholds.cpp,163,8192,"            threshold = 8192;",uncategorized
+src//parallel_thresholds.cpp,165,512,"            threshold = 512;",uncategorized
+src//parallel_thresholds.cpp,169,4096,"            threshold = 4096;",uncategorized
+src//parallel_thresholds.cpp,173,256,"            threshold = 256;",uncategorized
+src//parallel_thresholds.cpp,175,512,"            threshold = 512;",uncategorized
+src//parallel_thresholds.cpp,177,128,"            threshold = 128;",uncategorized
+src//parallel_thresholds.cpp,181,256,"            threshold = 256;",uncategorized
+src//parallel_thresholds.cpp,186,8192,"            threshold = 8192;",uncategorized
+src//parallel_thresholds.cpp,188,4096,"            threshold = 4096;",uncategorized
+src//parallel_thresholds.cpp,190,16384,"            threshold = 16384;",uncategorized
+src//parallel_thresholds.cpp,192,8192,"            threshold = 8192;",uncategorized
+src//parallel_thresholds.cpp,194,8192,"            threshold = 8192;  // Default for generic operations",uncategorized
+src//poisson.cpp,2969,170,"    if (n > 170)",uncategorized
 src//simd_avx512.cpp,19,512,"#include <immintrin.h>  // AVX-512 intrinsics",uncategorized
-src//exponential.cpp,954,436,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,954,101,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,954,223,"                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,957,318,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,957,796,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,957,938,"                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,959,9177,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,959,279,"        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,961,2937,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
-src//exponential.cpp,961,709,"        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);",uncategorized
-src//math_utils.cpp,55,50662823884,"    static const double a0 = 2.50662823884;",uncategorized
-src//math_utils.cpp,56,61500062529,"    static const double a1 = -18.61500062529;",uncategorized
-src//math_utils.cpp,57,39119773534,"    static const double a2 = 41.39119773534;",uncategorized
-src//math_utils.cpp,58,44106049637,"    static const double a3 = -25.44106049637;",uncategorized
-src//math_utils.cpp,60,47351093090,"    static const double b0 = -8.47351093090;",uncategorized
-src//math_utils.cpp,63,13082909833,"    static const double b3 = 3.13082909833;",uncategorized
-src//math_utils.cpp,79,515517,"        static const double d0 = 2.515517;",uncategorized
-src//math_utils.cpp,80,802853,"        static const double d1 = 0.802853;",uncategorized
-src//math_utils.cpp,82,432788,"        static const double e1 = 1.432788;",uncategorized
-src//math_utils.cpp,83,189269,"        static const double e2 = 0.189269;",uncategorized
-src//math_utils.cpp,107,100,"            if (eps > 1e-100) {",iteration_limit
-src//math_utils.cpp,118,515517,"            static const double d0 = 2.515517;",uncategorized
-src//math_utils.cpp,119,802853,"            static const double d1 = 0.802853;",uncategorized
-src//math_utils.cpp,121,432788,"            static const double e0 = 1.432788;",uncategorized
-src//math_utils.cpp,122,189269,"            static const double e1 = 0.189269;",uncategorized
-src//math_utils.cpp,707,1000,"    if (df >= 1000.0) {",iteration_limit
-src//math_utils.cpp,743,100,"    if (df > 100.0) {",iteration_limit
-src//math_utils.cpp,749,100,"    const int max_iterations = 100;",iteration_limit
-src//math_utils.cpp,814,100,"        const int max_iterations = 100;",iteration_limit
-src//math_utils.cpp,849,100,"    const int max_iterations = 100;",iteration_limit
-src//math_utils.cpp,938,100,"    const int max_iterations = 100;",iteration_limit
-src//math_utils.cpp,1017,100,"        const int max_iterations = 100;",iteration_limit
-src//math_utils.cpp,1042,100,"    const int max_iterations = 100;",iteration_limit
-src//performance_dispatcher.cpp,173,1000000,"            threading_overhead < (1000000.0 * dist_chars.base_complexity)) {",uncategorized
-src//performance_dispatcher.cpp,194,200000,"    double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity",uncategorized
-src//performance_dispatcher.cpp,248,500,"            thresholds.parallel_min = 500;  // Powerful SIMD reduces parallel threshold",iteration_limit
-src//performance_dispatcher.cpp,249,8000,"            thresholds.work_stealing_min = 8000;",uncategorized
-src//performance_dispatcher.cpp,250,32000,"            thresholds.gpu_accelerated_min = 32000;",uncategorized
-src//performance_dispatcher.cpp,253,1000,"            thresholds.parallel_min = 1000;  // Good SIMD efficiency",iteration_limit
-src//performance_dispatcher.cpp,254,10000,"            thresholds.work_stealing_min = 10000;",uncategorized
-src//performance_dispatcher.cpp,255,50000,"            thresholds.gpu_accelerated_min = 50000;",uncategorized
-src//performance_dispatcher.cpp,258,5000,"            thresholds.parallel_min = 5000;  // AVX often has limited efficiency",iteration_limit
-src//performance_dispatcher.cpp,259,50000,"            thresholds.work_stealing_min = 50000;",uncategorized
-src//performance_dispatcher.cpp,260,200000,"            thresholds.gpu_accelerated_min = 200000;",uncategorized
-src//performance_dispatcher.cpp,263,2000,"            thresholds.parallel_min = 2000;  // Older architecture  conservative",uncategorized
-src//performance_dispatcher.cpp,264,20000,"            thresholds.work_stealing_min = 20000;",uncategorized
-src//performance_dispatcher.cpp,265,100000,"            thresholds.gpu_accelerated_min = 100000;",uncategorized
-src//performance_dispatcher.cpp,268,1500,"            thresholds.parallel_min = 1500;  // ARM characteristics",uncategorized
-src//performance_dispatcher.cpp,269,15000,"            thresholds.work_stealing_min = 15000;",uncategorized
-src//performance_dispatcher.cpp,270,75000,"            thresholds.gpu_accelerated_min = 75000;",uncategorized
-src//performance_dispatcher.cpp,275,500,"            thresholds.parallel_min = 500;   // Lower threshold since SIMD unavailable",iteration_limit
-src//performance_dispatcher.cpp,276,5000,"            thresholds.work_stealing_min = 5000;",iteration_limit
-src//performance_dispatcher.cpp,277,25000,"            thresholds.gpu_accelerated_min = 25000;",uncategorized
-src//performance_dispatcher.cpp,426,100000,"    if (threading_overhead > 100000.0) {  // > 100μs overhead",uncategorized
-src//performance_dispatcher.cpp,428,50000,"        double multiplier = std::min(3.0  threading_overhead / 50000.0);",uncategorized
-src//performance_dispatcher.cpp,446,10000,"    } else if (threading_overhead < 10000.0) {  // < 10μs overhead",uncategorized
-src//performance_dispatcher.cpp,448,20000,"        double multiplier = std::max(0.5  threading_overhead / 20000.0);",uncategorized
-src//performance_dispatcher.cpp,472,100,"    } else if (memory_bandwidth > 100.0) {",iteration_limit
-src//performance_dispatcher.cpp,488,100,"    parallel_min = std::max(parallel_min  static_cast<size_t>(100));",iteration_limit
-src//performance_dispatcher.cpp,489,1000,"    work_stealing_min = std::max(work_stealing_min  static_cast<size_t>(1000));",iteration_limit
-src//performance_dispatcher.cpp,490,10000,"    gpu_accelerated_min = std::max(gpu_accelerated_min  static_cast<size_t>(10000));",uncategorized
-src//validation.cpp,123,-1259.1392167224028,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
-src//validation.cpp,124,-176.61502916214059,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
-src//validation.cpp,271,-2.0,"            const double term = std::exp(-2.0 * k * k * lambda_sq);",uncategorized
-src//validation.cpp,296,-2.0,"            return std::exp(-2.0 * z_sq) * (1.0 + 2.0 * z_sq / 3.0);",uncategorized
-src//validation.cpp,299,-2.0,"            return 2.0 * std::exp(-2.0 * z * z);",uncategorized
-src//gamma.cpp,1001,-2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);",uncategorized
-src//gamma.cpp,1035,-1.28,"        p_value = std::exp(-1.28 * modified_stat);",uncategorized
-src//gamma.cpp,1037,-1.8,"        p_value = std::exp(-1.8 * modified_stat + 1.5);",uncategorized
-src//gamma.cpp,2882,-1,"    result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)",uncategorized
-src//uniform.cpp,82,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
-src//uniform.cpp,669,-2.0,"    const double test_statistic = -2.0 * (log_like_null - log_like_alt);",uncategorized
-src//uniform.cpp,935,-0.5,"    double critical_value = std::sqrt(-0.5 * std::log(alpha / 2.0)) / std::sqrt(n);",mathematical
-src//uniform.cpp,939,-2.0,"    double p_value = 2.0 * std::exp(-2.0 * ks_stat_scaled * ks_stat_scaled);",uncategorized
-src//uniform.cpp,976,-1.2804,"        p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat  -0.5));",uncategorized
-src//uniform.cpp,976,-0.5,"        p_value = 1.0 - std::exp(-1.2804 * std::pow(ad_stat  -0.5));",mathematical
-src//uniform.cpp,982,-1.8,"        p_value = std::exp(-1.8 * ad_stat + 0.258);",uncategorized
-src//uniform.cpp,1076,-1000.0,"                std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
-src//uniform.cpp,1143,-1000.0,"            std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
-src//uniform.cpp,1182,-1000.0,"            log_likelihood += -1000.0;",uncategorized
-src//uniform.cpp,1187,-2.0,"    double aic = -2.0 * log_likelihood + 2.0 * k;",uncategorized
-src//uniform.cpp,1188,-2.0,"    double bic = -2.0 * log_likelihood + k * std::log(n);",uncategorized
-src//system_capabilities.cpp,107,-1600,"        return 25.0;  // Reasonable fallback for DDR3-1600 dual channel",uncategorized
-src//discrete.cpp,135,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
-src//discrete.cpp,753,-2.0,"    const double test_statistic = -2.0 * log_likelihood_ratio;",uncategorized
-src//discrete.cpp,1114,-2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);",uncategorized
-src//discrete.cpp,1156,-1.2337,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//discrete.cpp,1156,-1.0,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//gaussian.cpp,90,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
-src//work_stealing_pool.cpp,46,-1,"thread_local int WorkStealingPool::currentWorkerId_ = -1;",uncategorized
-src//poisson.cpp,81,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
-src//poisson.cpp,1028,-2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);",uncategorized
-src//poisson.cpp,1031,-2.0,"        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);",uncategorized
-src//poisson.cpp,1033,-1,"            p_value += 2.0 * std::pow(-1  k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);",uncategorized
-src//poisson.cpp,1033,-2.0,"            p_value += 2.0 * std::pow(-1  k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);",uncategorized
-src//poisson.cpp,1074,-1.2337,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//poisson.cpp,1074,-1.0,"        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic  -1.0) + 1.0);",uncategorized
-src//poisson.cpp,1169,-1,"    const int df = static_cast<int>(num_groups) - 1 - 1;  // -1 for estimated lambda",uncategorized
-src//log_space_ops.cpp,30,-50.0,"    constexpr double x_min = -50.0;",uncategorized
-src//log_space_ops.cpp,68,-50.0,"    if (diff >= -50.0 && diff <= 0.0) {",uncategorized
-src//log_space_ops.cpp,161,-50.0,"    if (x < -50.0) {",uncategorized
-src//log_space_ops.cpp,169,-50.0,"    constexpr double x_min = -50.0;",uncategorized
-src//exponential.cpp,86,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
-src//math_utils.cpp,56,-18.61500062529,"    static const double a1 = -18.61500062529;",uncategorized
-src//math_utils.cpp,58,-25.44106049637,"    static const double a3 = -25.44106049637;",uncategorized
-src//math_utils.cpp,60,-8.47351093090,"    static const double b0 = -8.47351093090;",uncategorized
-src//math_utils.cpp,62,-21.06224101826,"    static const double b2 = -21.06224101826;",uncategorized
-src//math_utils.cpp,115,-2.0,"            double t = std::sqrt(-2.0 * std::log(eps));",uncategorized
-src//math_utils.cpp,145,-2.0,"        double f_double_prime = -2.0 * result * f_prime;",uncategorized
+src//performance_dispatcher.cpp,251,500,"            thresholds.parallel_min = 500;  // Powerful SIMD reduces parallel threshold",iteration_limit
+src//performance_dispatcher.cpp,252,8000,"            thresholds.work_stealing_min = 8000;",uncategorized
+src//performance_dispatcher.cpp,253,32000,"            thresholds.gpu_accelerated_min = 32000;",uncategorized
+src//performance_dispatcher.cpp,257,10000,"            thresholds.work_stealing_min = 10000;",uncategorized
+src//performance_dispatcher.cpp,258,50000,"            thresholds.gpu_accelerated_min = 50000;",uncategorized
+src//performance_dispatcher.cpp,262,50000,"            thresholds.work_stealing_min = 50000;",uncategorized
+src//performance_dispatcher.cpp,263,200000,"            thresholds.gpu_accelerated_min = 200000;",uncategorized
+src//performance_dispatcher.cpp,266,2000,"            thresholds.parallel_min = 2000;  // Older architecture  conservative",uncategorized
+src//performance_dispatcher.cpp,267,20000,"            thresholds.work_stealing_min = 20000;",uncategorized
+src//performance_dispatcher.cpp,268,100000,"            thresholds.gpu_accelerated_min = 100000;",uncategorized
+src//performance_dispatcher.cpp,271,1500,"            thresholds.parallel_min = 1500;  // ARM characteristics",uncategorized
+src//performance_dispatcher.cpp,272,15000,"            thresholds.work_stealing_min = 15000;",uncategorized
+src//performance_dispatcher.cpp,273,75000,"            thresholds.gpu_accelerated_min = 75000;",uncategorized
+src//performance_dispatcher.cpp,278,500,"            thresholds.parallel_min = 500;   // Lower threshold since SIMD unavailable",iteration_limit
+src//performance_dispatcher.cpp,280,25000,"            thresholds.gpu_accelerated_min = 25000;",uncategorized
+src//performance_dispatcher.cpp,493,10000,"    gpu_accelerated_min = std::max(gpu_accelerated_min  static_cast<size_t>(10000));",uncategorized
+src//validation.cpp,127,-1259.1392167224028,"        0.99999999999980993   676.5203681218851      -1259.1392167224028 ",uncategorized
+src//validation.cpp,128,-176.61502916214059,"        771.32342877765313    -176.61502916214059    12.507343278686905 ",uncategorized
+src//gamma.cpp,1039,-1.28,"        p_value = std::exp(-1.28 * modified_stat);",uncategorized
+src//gamma.cpp,1041,-1.8,"        p_value = std::exp(-1.8 * modified_stat + 1.5);",uncategorized
+src//gamma.cpp,2886,-1,"    result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)",uncategorized
+src//uniform.cpp,86,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
+src//uniform.cpp,980,-1.2804,"        p_value = detail::ONE - std::exp(-1.2804 * std::pow(ad_stat  -detail::HALF));",uncategorized
+src//uniform.cpp,986,-1.8,"        p_value = std::exp(-1.8 * ad_stat + 0.258);",uncategorized
+src//uniform.cpp,1080,-1000.0,"                std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
+src//uniform.cpp,1147,-1000.0,"            std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds",uncategorized
+src//uniform.cpp,1186,-1000.0,"            log_likelihood += -1000.0;",uncategorized
+src//system_capabilities.cpp,109,-1600,"        return 25.0;  // Reasonable fallback for DDR3-1600 dual channel",uncategorized
+src//discrete.cpp,138,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
+src//discrete.cpp,1159,-1.2337,"        p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic  -detail::ONE) + detail::ONE);",uncategorized
+src//gaussian.cpp,92,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
+src//poisson.cpp,83,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
+src//poisson.cpp,1035,-1,"            p_value += detail::TWO * std::pow(-1  k) * std::exp(-detail::TWO * k * k * lambda_ks * lambda_ks);",uncategorized
+src//poisson.cpp,1076,-1.2337,"        p_value = detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic  -detail::ONE) + detail::ONE);",uncategorized
+src//poisson.cpp,1171,-1,"    const int df = static_cast<int>(num_groups) - 1 - 1;  // -1 for estimated lambda",uncategorized
+src//exponential.cpp,87,-1,"            if (std::try_lock(lock1  lock2) == -1) {",uncategorized
+src//math_utils.cpp,59,-18.61500062529,"    static const double a1 = -18.61500062529;",uncategorized
+src//math_utils.cpp,61,-25.44106049637,"    static const double a3 = -25.44106049637;",uncategorized
+src//math_utils.cpp,63,-8.47351093090,"    static const double b0 = -8.47351093090;",uncategorized
+src//math_utils.cpp,65,-21.06224101826,"    static const double b2 = -21.06224101826;",uncategorized

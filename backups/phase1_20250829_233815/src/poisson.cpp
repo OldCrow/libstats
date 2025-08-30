@@ -4,9 +4,7 @@
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/precision_constants.h"
 #include "../include/core/safety.h"
-#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h"
@@ -284,7 +282,7 @@ double PoissonDistribution::getQuantile(double p) const {
 
     // Binary search
     while (upper - lower > 1) {
-        int mid = (lower + upper) / detail::TWO_INT;
+        int mid = (lower + upper) / 2;
         if (getCumulativeProbabilityExact(mid) < p) {
             lower = mid;
         } else {
@@ -366,11 +364,11 @@ std::vector<double> PoissonDistribution::sample(std::mt19937& rng, size_t n) con
     if (cached_is_small) {
         // Knuth's algorithm for small lambda - optimized for batch
         double L = cached_exp_neg_lambda;
-        std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
+        std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
         for (size_t i = 0; i < n; ++i) {
             int k = 0;
-            double p = detail::ONE;
+            double p = 1.0;
 
             do {
                 k++;
@@ -386,7 +384,7 @@ std::vector<double> PoissonDistribution::sample(std::mt19937& rng, size_t n) con
         for (size_t i = 0; i < n; ++i) {
             while (true) {
                 double sample = normal(rng);
-                if (sample >= detail::ZERO_DOUBLE) {
+                if (sample >= 0.0) {
                     samples.push_back(std::round(sample));
                     break;
                 }
@@ -506,13 +504,13 @@ std::pair<double, double> PoissonDistribution::confidenceIntervalRate(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -521,7 +519,7 @@ std::pair<double, double> PoissonDistribution::confidenceIntervalRate(
     }
 
     const size_t n = data.size();
-    const double total_count = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
+    const double total_count = std::accumulate(data.begin(), data.end(), 0.0);
     const double alpha = detail::ONE - confidence_level;
 
     // For Poisson data, the sum follows Poisson(n*λ) distribution
@@ -533,16 +531,15 @@ std::pair<double, double> PoissonDistribution::confidenceIntervalRate(
     // Lower bound: chi2_lower/2n where chi2_lower has 2*total_count degrees of freedom
     double lower_bound;
     if (total_count > 0) {
-        const double chi2_lower =
-            detail::inverse_chi_squared_cdf(alpha_half, detail::TWO_INT * total_count);
-        lower_bound = chi2_lower / (detail::TWO * static_cast<double>(n));
+        const double chi2_lower = detail::inverse_chi_squared_cdf(alpha_half, 2 * total_count);
+        lower_bound = chi2_lower / (2.0 * static_cast<double>(n));
     } else {
         lower_bound = detail::ZERO_DOUBLE;
     }
 
     // Upper bound: chi2_upper/2n where chi2_upper has 2*(total_count+1) degrees of freedom
-    const double chi2_upper = detail::inverse_chi_squared_cdf(detail::ONE - alpha_half,
-                                                              detail::TWO_INT * (total_count + 1));
+    const double chi2_upper =
+        detail::inverse_chi_squared_cdf(detail::ONE - alpha_half, 2 * (total_count + 1));
     const double upper_bound = chi2_upper / (detail::TWO * static_cast<double>(n));
 
     return {lower_bound, upper_bound};
@@ -556,13 +553,13 @@ std::tuple<double, double, bool> PoissonDistribution::likelihoodRatioTest(
     if (lambda0 <= detail::ZERO_DOUBLE) {
         throw std::invalid_argument("Lambda0 must be positive");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -582,8 +579,8 @@ std::tuple<double, double, bool> PoissonDistribution::likelihoodRatioTest(
     PoissonDistribution unrestricted_model(lambda_hat);
 
     // Calculate log-likelihoods
-    double log_likelihood_restricted = detail::ZERO_DOUBLE;
-    double log_likelihood_unrestricted = detail::ZERO_DOUBLE;
+    double log_likelihood_restricted = 0.0;
+    double log_likelihood_unrestricted = 0.0;
 
     for (double x : data) {
         log_likelihood_restricted += restricted_model.getLogProbability(x);
@@ -609,7 +606,7 @@ double PoissonDistribution::methodOfMomentsEstimation(const std::vector<double>&
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -619,10 +616,10 @@ double PoissonDistribution::methodOfMomentsEstimation(const std::vector<double>&
 
     // For Poisson distribution, method of moments estimator is simply the sample mean
     // since E[X] = Var[X] = λ
-    const double sample_mean = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) /
-                               static_cast<double>(data.size());
+    const double sample_mean =
+        std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(data.size());
 
-    if (sample_mean <= detail::ZERO_DOUBLE) {
+    if (sample_mean <= 0.0) {
         throw std::invalid_argument("Sample mean must be positive for Poisson distribution");
     }
 
@@ -635,7 +632,7 @@ std::pair<double, double> PoissonDistribution::bayesianEstimation(const std::vec
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (prior_shape <= detail::ZERO_DOUBLE || prior_rate <= detail::ZERO_DOUBLE) {
+    if (prior_shape <= 0.0 || prior_rate <= 0.0) {
         throw std::invalid_argument("Prior parameters must be positive");
     }
 
@@ -650,7 +647,7 @@ std::pair<double, double> PoissonDistribution::bayesianEstimation(const std::vec
     }
 
     const size_t n = data.size();
-    const double sum_x = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
+    const double sum_x = std::accumulate(data.begin(), data.end(), 0.0);
 
     // For Poisson likelihood and Gamma(α, β) prior:
     // Posterior is Gamma(α + Σx_i, β + n)
@@ -666,16 +663,16 @@ std::pair<double, double> PoissonDistribution::bayesianCredibleInterval(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (credibility_level <= detail::ZERO_DOUBLE || credibility_level >= detail::ONE) {
+    if (credibility_level <= 0.0 || credibility_level >= 1.0) {
         throw std::invalid_argument("Credibility level must be between 0 and 1");
     }
-    if (prior_shape <= detail::ZERO_DOUBLE || prior_rate <= detail::ZERO_DOUBLE) {
+    if (prior_shape <= 0.0 || prior_rate <= 0.0) {
         throw std::invalid_argument("Prior parameters must be positive");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -684,7 +681,7 @@ std::pair<double, double> PoissonDistribution::bayesianCredibleInterval(
     }
 
     const size_t n = data.size();
-    const double sum_x = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
+    const double sum_x = std::accumulate(data.begin(), data.end(), 0.0);
 
     // For Poisson likelihood and Gamma(α, β) prior:
     // Posterior is Gamma(α + Σx_i, β + n)
@@ -712,13 +709,13 @@ double PoissonDistribution::robustEstimation(const std::vector<double>& data,
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion > detail::HALF) {
-        throw std::invalid_argument("Trim proportion must be between 0 and detail::HALF");
+    if (trim_proportion < 0.0 || trim_proportion > detail::HALF) {
+        throw std::invalid_argument("Trim proportion must be between 0 and 0.5");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -736,9 +733,9 @@ double PoissonDistribution::robustEstimation(const std::vector<double>& data,
         // Winsorized mean: replace extreme values with percentiles
         const size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(n));
         const double lower_val = sorted_data[trim_count];
-        const double upper_val = sorted_data[n - detail::ONE_INT - trim_count];
+        const double upper_val = sorted_data[n - 1 - trim_count];
 
-        double sum = detail::ZERO_DOUBLE;
+        double sum = 0.0;
         for (size_t i = 0; i < n; ++i) {
             if (sorted_data[i] < lower_val) {
                 sum += lower_val;
@@ -760,7 +757,7 @@ double PoissonDistribution::robustEstimation(const std::vector<double>& data,
             throw std::invalid_argument("Trim proportion too large - no data remains");
         }
 
-        double sum = detail::ZERO_DOUBLE;
+        double sum = 0.0;
         for (size_t i = start_idx; i < end_idx; ++i) {
             sum += sorted_data[i];
         }
@@ -769,11 +766,9 @@ double PoissonDistribution::robustEstimation(const std::vector<double>& data,
     } else if (estimator_type == "median") {
         // Median estimator
         if (n % 2 == 0) {
-            estimate = (sorted_data[n / detail::TWO_INT - detail::ONE_INT] +
-                        sorted_data[n / detail::TWO_INT]) *
-                       detail::HALF;
+            estimate = (sorted_data[n / 2 - 1] + sorted_data[n / 2]) * detail::HALF;
         } else {
-            estimate = sorted_data[n / detail::TWO_INT];
+            estimate = sorted_data[n / 2];
         }
 
     } else {
@@ -781,7 +776,7 @@ double PoissonDistribution::robustEstimation(const std::vector<double>& data,
             "Unknown estimator type: must be 'winsorized', 'trimmed', or 'median'");
     }
 
-    if (estimate <= detail::ZERO_DOUBLE) {
+    if (estimate <= 0.0) {
         throw std::runtime_error("Robust estimate must be positive for Poisson distribution");
     }
 
@@ -795,7 +790,7 @@ double PoissonDistribution::lMomentsEstimation(const std::vector<double>& data) 
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -805,10 +800,10 @@ double PoissonDistribution::lMomentsEstimation(const std::vector<double>& data) 
 
     // For Poisson distribution, L-moments estimator: λ = L₁ (first L-moment = mean)
     // Since E[X] = λ for Poisson, the first L-moment equals the sample mean
-    const double sample_mean = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) /
-                               static_cast<double>(data.size());
+    const double sample_mean =
+        std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(data.size());
 
-    if (sample_mean <= detail::ZERO_DOUBLE) {
+    if (sample_mean <= 0.0) {
         throw std::invalid_argument("L-moments estimate must be positive for Poisson distribution");
     }
 
@@ -820,13 +815,13 @@ std::tuple<double, double, bool> PoissonDistribution::overdispersionTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -835,11 +830,10 @@ std::tuple<double, double, bool> PoissonDistribution::overdispersionTest(
     }
 
     const size_t n = data.size();
-    const double mean =
-        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
+    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
 
     // Calculate sample variance
-    double variance = detail::ZERO_DOUBLE;
+    double variance = 0.0;
     for (double value : data) {
         const double diff = value - mean;
         variance += diff * diff;
@@ -868,13 +862,13 @@ std::tuple<double, double, bool> PoissonDistribution::excessZerosTest(
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -883,10 +877,9 @@ std::tuple<double, double, bool> PoissonDistribution::excessZerosTest(
     }
 
     const size_t n = data.size();
-    const size_t observed_zeros =
-        static_cast<size_t>(std::count(data.begin(), data.end(), detail::ZERO_DOUBLE));
+    const size_t observed_zeros = static_cast<size_t>(std::count(data.begin(), data.end(), 0.0));
     const double lambda_hat =
-        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
+        std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
 
     // Expected number of zeros under Poisson(λ): n * e^(-λ)
     const double expected_zeros = static_cast<double>(n) * std::exp(-lambda_hat);
@@ -896,7 +889,7 @@ std::tuple<double, double, bool> PoissonDistribution::excessZerosTest(
     const double variance_zeros =
         static_cast<double>(n) * exp_neg_lambda * (detail::ONE - exp_neg_lambda);
 
-    if (variance_zeros <= detail::ZERO_DOUBLE) {
+    if (variance_zeros <= 0.0) {
         throw std::runtime_error("Variance of zeros count is non-positive");
     }
 
@@ -920,13 +913,13 @@ std::tuple<double, double, bool> PoissonDistribution::rateStabilityTest(
     if (data.size() < 3) {
         throw std::invalid_argument("At least 3 data points required for rate stability test");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -939,8 +932,7 @@ std::tuple<double, double, bool> PoissonDistribution::rateStabilityTest(
     // Perform linear regression: y_i = a + b*i + ε_i
     // Test H0: b = 0 (no trend) vs H1: b ≠ 0 (trend exists)
 
-    double sum_x = detail::ZERO_DOUBLE, sum_y = detail::ZERO_DOUBLE, sum_xx = detail::ZERO_DOUBLE,
-           sum_xy = detail::ZERO_DOUBLE;
+    double sum_x = 0.0, sum_y = 0.0, sum_xx = 0.0, sum_xy = 0.0;
 
     for (size_t i = 0; i < n; ++i) {
         const double x = static_cast<double>(i + 1);  // Time index (1, 2, 3, ...)
@@ -966,7 +958,7 @@ std::tuple<double, double, bool> PoissonDistribution::rateStabilityTest(
     const double intercept = mean_y - slope * mean_x;
 
     // Calculate residual sum of squares
-    double rss = detail::ZERO_DOUBLE;
+    double rss = 0.0;
     for (size_t i = 0; i < n; ++i) {
         const double x = static_cast<double>(i + 1);
         const double predicted = intercept + slope * x;
@@ -1004,13 +996,13 @@ std::tuple<double, double, bool> PoissonDistribution::kolmogorovSmirnovTest(
     if (data.size() < detail::MIN_DATA_POINTS_FOR_CHI_SQUARE) {
         throw std::invalid_argument("At least 5 data points required for KS test");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1031,15 +1023,14 @@ std::tuple<double, double, bool> PoissonDistribution::kolmogorovSmirnovTest(
     // Improved p-value calculation for discrete distributions
     double p_value;
     if (lambda_ks < 0.27) {
-        p_value = detail::ONE;
-    } else if (lambda_ks < detail::ONE) {
-        p_value = detail::TWO * std::exp(-detail::TWO * lambda_ks * lambda_ks);
+        p_value = 1.0;
+    } else if (lambda_ks < 1.0) {
+        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
     } else {
         // Asymptotic approximation with correction terms
-        p_value = detail::TWO * std::exp(-detail::TWO * lambda_ks * lambda_ks);
+        p_value = 2.0 * std::exp(-2.0 * lambda_ks * lambda_ks);
         for (int k = 1; k <= 10; ++k) {
-            p_value += detail::TWO * std::pow(-1, k) *
-                       std::exp(-detail::TWO * k * k * lambda_ks * lambda_ks);
+            p_value += 2.0 * std::pow(-1, k) * std::exp(-2.0 * k * k * lambda_ks * lambda_ks);
         }
     }
 
@@ -1059,13 +1050,13 @@ std::tuple<double, double, bool> PoissonDistribution::andersonDarlingTest(
     if (data.size() < detail::MIN_DATA_POINTS_FOR_CHI_SQUARE) {
         throw std::invalid_argument("At least 5 data points required for Anderson-Darling test");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1079,17 +1070,16 @@ std::tuple<double, double, bool> PoissonDistribution::andersonDarlingTest(
     // Critical values and p-value approximation for discrete Anderson-Darling test
     // These are approximations since exact distribution is complex for discrete case
     double p_value;
-    if (ad_statistic < detail::HALF) {
-        p_value =
-            detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic, -detail::ONE) + detail::ONE);
-    } else if (ad_statistic < detail::TWO) {
-        p_value = detail::ONE - std::exp(-detail::AD_P_VALUE_MEDIUM * ad_statistic - detail::HALF);
+    if (ad_statistic < 0.5) {
+        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
+    } else if (ad_statistic < 2.0) {
+        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
     } else {
         p_value = std::exp(-ad_statistic);
     }
 
     // Ensure p-value is in valid range
-    p_value = std::max(detail::ZERO_DOUBLE, std::min(detail::ONE, p_value));
+    p_value = std::max(0.0, std::min(1.0, p_value));
 
     const bool reject_null = p_value < significance_level;
 
@@ -1111,7 +1101,7 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1148,22 +1138,22 @@ std::tuple<double, double, bool> PoissonDistribution::chiSquareGoodnessOfFit(
             grouped_observed.emplace_back(current_group_start, current_observed);
 
             // Calculate total expected frequency for this group
-            double group_expected = detail::ZERO_DOUBLE;
+            double group_expected = 0.0;
             for (int j = current_group_start; j <= k; ++j) {
                 group_expected += static_cast<double>(n) * distribution.getProbabilityExact(j);
             }
             expected_freq.push_back(group_expected);
 
-            current_group_start = k + detail::ONE_INT;
+            current_group_start = k + 1;
             current_observed = 0;
 
-            if (k >= max_value && group_expected < detail::NEWTON_RAPHSON_TOLERANCE)
+            if (k >= max_value && group_expected < 1e-10)
                 break;
         }
     }
 
     // Calculate chi-square statistic
-    double chi_square_stat = detail::ZERO_DOUBLE;
+    double chi_square_stat = 0.0;
     const size_t num_groups = grouped_observed.size();
 
     for (size_t i = 0; i < num_groups; ++i) {
@@ -1195,13 +1185,13 @@ std::tuple<double, double, bool> PoissonDistribution::comprehensiveGoodnessOfFit
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
+    if (significance_level <= 0.0 || significance_level >= 1.0) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1245,7 +1235,7 @@ std::tuple<double, double, bool> PoissonDistribution::comprehensiveGoodnessOfFit
 
     } catch (const std::exception& /* e */) {
         // If any individual test fails, return conservative result
-        return {detail::ZERO_DOUBLE, detail::ZERO_DOUBLE, false};
+        return {0.0, 0.0, false};
     }
 }
 
@@ -1264,7 +1254,7 @@ std::vector<std::tuple<double, double, double>> PoissonDistribution::kFoldCrossV
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1308,9 +1298,9 @@ std::vector<std::tuple<double, double, double>> PoissonDistribution::kFoldCrossV
         fitted_model.fit(training_data);
 
         // Evaluate on validation data
-        double total_absolute_error = detail::ZERO_DOUBLE;
-        double total_squared_error = detail::ZERO_DOUBLE;
-        double total_log_likelihood = detail::ZERO_DOUBLE;
+        double total_absolute_error = 0.0;
+        double total_squared_error = 0.0;
+        double total_log_likelihood = 0.0;
 
         for (double val : validation_data) {
             const double predicted_mean = fitted_model.getMean();
@@ -1341,7 +1331,7 @@ std::tuple<double, double, double> PoissonDistribution::leaveOneOutCrossValidati
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1352,7 +1342,7 @@ std::tuple<double, double, double> PoissonDistribution::leaveOneOutCrossValidati
     const size_t n = data.size();
     std::vector<double> absolute_errors;
     std::vector<double> squared_errors;
-    double total_log_likelihood = detail::ZERO_DOUBLE;
+    double total_log_likelihood = 0.0;
 
     absolute_errors.reserve(n);
     squared_errors.reserve(n);
@@ -1388,11 +1378,10 @@ std::tuple<double, double, double> PoissonDistribution::leaveOneOutCrossValidati
 
     // Calculate summary statistics
     const double mean_absolute_error =
-        std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
+        std::accumulate(absolute_errors.begin(), absolute_errors.end(), 0.0) /
         static_cast<double>(n);
     const double mean_squared_error =
-        std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
-        static_cast<double>(n);
+        std::accumulate(squared_errors.begin(), squared_errors.end(), 0.0) / static_cast<double>(n);
     const double root_mean_squared_error = std::sqrt(mean_squared_error);
 
     return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
@@ -1410,7 +1399,7 @@ std::tuple<double, double, double, double> PoissonDistribution::computeInformati
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1422,7 +1411,7 @@ std::tuple<double, double, double, double> PoissonDistribution::computeInformati
     const int k = fitted_distribution.getNumParameters();  // 1 for Poisson (lambda)
 
     // Calculate log-likelihood
-    double log_likelihood = detail::ZERO_DOUBLE;
+    double log_likelihood = 0.0;
     for (double val : data) {
         log_likelihood += fitted_distribution.getLogProbability(val);
     }
@@ -1452,7 +1441,7 @@ std::pair<double, double> PoissonDistribution::bootstrapParameterConfidenceInter
     if (data.empty()) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
+    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
     if (n_bootstrap <= 0) {
@@ -1461,7 +1450,7 @@ std::pair<double, double> PoissonDistribution::bootstrapParameterConfidenceInter
 
     // Validate that all values are non-negative (count data)
     for (double value : data) {
-        if (value < detail::ZERO_DOUBLE) {
+        if (value < 0.0) {
             throw std::invalid_argument("Poisson distribution requires non-negative count data");
         }
         if (!std::isfinite(value)) {
@@ -1642,14 +1631,14 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
                         return;
                     }
 
                     int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                     if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ZERO_DOUBLE;
+                        res[i] = 0.0;
                         return;
                     }
 
@@ -1669,14 +1658,14 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
                         continue;
                     }
 
                     int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                     if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ZERO_DOUBLE;
+                        res[i] = 0.0;
                         continue;
                     }
 
@@ -1726,14 +1715,14 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
+                    res[i] = 0.0;
                     return;
                 }
 
@@ -1782,14 +1771,14 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
 
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
+                    res[i] = 0.0;
                     return;
                 }
 
@@ -2053,14 +2042,14 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
                         return;
                     }
 
                     int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                     if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ONE;
+                        res[i] = 1.0;
                         return;
                     }
 
@@ -2070,14 +2059,14 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (vals[i] < 0.0) {
+                        res[i] = 0.0;
                         continue;
                     }
 
                     int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                     if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ONE;
+                        res[i] = 1.0;
                         continue;
                     }
 
@@ -2115,14 +2104,14 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
+                    res[i] = 1.0;
                     return;
                 }
 
@@ -2159,14 +2148,14 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
 
             // Use pool.parallelFor for GPU acceleration pattern
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
+                    res[i] = 1.0;
                     return;
                 }
 
@@ -2240,14 +2229,14 @@ void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> val
 
             // Direct parallel execution
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
+                    res[i] = 0.0;
                     return;
                 }
 
@@ -2297,14 +2286,14 @@ void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> val
 
             // Direct work-stealing execution
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
+                    res[i] = 0.0;
                     return;
                 }
 
@@ -2353,14 +2342,14 @@ void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> val
 
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
+                    res[i] = 0.0;
                     return;
                 }
 
@@ -2601,14 +2590,14 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
 
             // Direct parallel execution
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
+                    res[i] = 1.0;
                     return;
                 }
 
@@ -2645,14 +2634,14 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
 
             // Direct work-stealing execution
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
+                    res[i] = 1.0;
                     return;
                 }
 
@@ -2689,14 +2678,14 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
 
             // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (vals[i] < 0.0) {
+                    res[i] = 0.0;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
+                    res[i] = 1.0;
                     return;
                 }
 
@@ -2945,7 +2934,7 @@ double PoissonDistribution::computePMFSmall(int k) const noexcept {
 
 double PoissonDistribution::computePMFLarge(int k) const noexcept {
     // Use Stirling's approximation or normal approximation for large lambda
-    if (isVeryLargeLambda_ && std::abs(k - lambda_) < detail::THREE * sqrtLambda_) {
+    if (isVeryLargeLambda_ && std::abs(k - lambda_) < 3.0 * sqrtLambda_) {
         // Normal approximation with continuity correction
         double z = (k + detail::HALF - lambda_) / sqrtLambda_;
         return std::exp(detail::NEG_HALF * z * z) / (sqrtLambda_ * detail::SQRT_2PI);
