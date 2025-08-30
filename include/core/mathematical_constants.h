@@ -104,6 +104,7 @@ inline constexpr int TWO_INT = 2;
 inline constexpr int THREE_INT = 3;
 inline constexpr int FOUR_INT = 4;
 inline constexpr int FIVE_INT = 5;
+inline constexpr int SIX_INT = 6;
 inline constexpr int TEN_INT = 10;
 
 /// Precomputed reciprocals to avoid division operations

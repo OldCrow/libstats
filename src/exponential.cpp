@@ -734,7 +734,7 @@ double ExponentialDistribution::robustEstimation(const std::vector<double>& data
     }
 
     if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion >= detail::HALF) {
-        throw std::invalid_argument("Trim proportion must be between 0 and 0.5");
+        throw std::invalid_argument("Trim proportion must be between 0 and detail::HALF");
     }
 
     // Check for positive values
@@ -754,11 +754,11 @@ double ExponentialDistribution::robustEstimation(const std::vector<double>& data
         // Winsorized estimation: replace extreme values with boundary values
         if (trim_count > 0) {
             const double lower_bound = sorted_data[trim_count];
-            const double upper_bound = sorted_data[n - 1 - trim_count];
+            const double upper_bound = sorted_data[n - detail::ONE_INT - trim_count];
 
             for (std::size_t i = 0; i < trim_count; ++i) {
                 sorted_data[i] = lower_bound;
-                sorted_data[n - 1 - i] = upper_bound;
+                sorted_data[n - detail::ONE_INT - i] = upper_bound;
             }
         }
     } else if (estimator_type == "trimmed") {
@@ -957,7 +957,7 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
     } else if (ad_adjusted < 0.6) {
         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < 2.0) {
+    } else if (ad_adjusted < detail::TWO) {
         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
     } else {
         // For very large AD statistics, p-value should be very small (close to 0)
