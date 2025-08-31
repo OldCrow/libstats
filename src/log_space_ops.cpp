@@ -1,6 +1,9 @@
 #include "../include/core/log_space_ops.h"
 
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/precision_constants.h"
 #include "../include/core/safety.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/simd_policy.h"
 
 #include <algorithm>

@@ -1,9 +1,11 @@
 #include "../include/platform/parallel_thresholds.h"
 
 #include "../include/core/threshold_constants.h"
+#include "../include/platform/cpu_detection.h"
 
 #include <algorithm>
 #include <cctype>
+#include <string>
 
 namespace stats {
 namespace arch {

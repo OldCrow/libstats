@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 /**
  * @file core/threshold_constants.h
  * @brief Threshold constants for statistical tests and numerical algorithms.
@@ -96,19 +98,19 @@ inline constexpr double AD_P_VALUE_MEDIUM = 0.5;
 inline constexpr int DEFAULT_INTEGRATION_POINTS = 1000;
 
 /// Minimum data points required for fitting distributions
-inline constexpr size_t MIN_DATA_POINTS_FOR_FITTING = 2;
+inline constexpr std::size_t MIN_DATA_POINTS_FOR_FITTING = 2;
 
 /// Minimum data points required for reliable Jarque-Bera test
-inline constexpr size_t MIN_DATA_POINTS_FOR_JB_TEST = 8;
+inline constexpr std::size_t MIN_DATA_POINTS_FOR_JB_TEST = 8;
 
 /// Minimum data points required for Shapiro-Wilk test
-inline constexpr size_t MIN_DATA_POINTS_FOR_SW_TEST = 3;
+inline constexpr std::size_t MIN_DATA_POINTS_FOR_SW_TEST = 3;
 
 /// Maximum data points recommended for Shapiro-Wilk test
-inline constexpr size_t MAX_DATA_POINTS_FOR_SW_TEST = 5000;
+inline constexpr std::size_t MAX_DATA_POINTS_FOR_SW_TEST = 5000;
 
 /// Minimum data points required for LOOCV
-inline constexpr size_t MIN_DATA_POINTS_FOR_LOOCV = 3;
+inline constexpr std::size_t MIN_DATA_POINTS_FOR_LOOCV = 3;
 
 /// Poisson distribution specific constants
 // Consolidated into detail namespace (was: namespace poisson)

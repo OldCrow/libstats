@@ -1,13 +1,14 @@
 // Scalar fallback implementations - no SIMD instructions
 // These implementations work on any CPU and serve as the baseline
 
-#include "../include/core/constants.h"
-#include "../include/platform/cpu_detection.h"
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/platform_constants.h"
 #include "../include/platform/simd.h"
 #include "../include/platform/simd_policy.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace stats {
 namespace simd {

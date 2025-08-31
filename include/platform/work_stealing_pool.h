@@ -1,11 +1,17 @@
 #pragma once
 
-#include "../common/platform_common.h"
-
+#include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <deque>
+#include <functional>
 #include <future>
+#include <memory>
+#include <mutex>
 #include <random>
+#include <string>
+#include <thread>
+#include <vector>
 
 // Platform headers needed for template implementations
 #include "simd.h"

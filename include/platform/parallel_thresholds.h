@@ -9,8 +9,8 @@
  * an explosion of architecture-specific constants.
  */
 
-#include "../common/platform_common.h"
-
+#include <cstddef>
+#include <string>
 #include <unordered_map>
 
 namespace stats {

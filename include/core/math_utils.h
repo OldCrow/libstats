@@ -2,8 +2,10 @@
 
 #include "../common/utility_common.h"
 #include "../platform/simd.h"
-#include "constants.h"  // Math utils needs the full constants
+#include "mathematical_constants.h"
+#include "precision_constants.h"
 #include "safety.h"
+#include "threshold_constants.h"
 
 #include <array>  // Required for std::array return type in sample_moments function
 

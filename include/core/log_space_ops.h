@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../platform/simd.h"
-#include "constants.h"
+#include "mathematical_constants.h"
+#include "precision_constants.h"
+#include "threshold_constants.h"
 
 #include <array>
 #include <cmath>
