@@ -10,27 +10,38 @@
 // Use consolidated tool utilities header which includes libstats.h
 #include "tool_utils.h"
 
-// Additional standard library includes for verification functionality
+// Additional specific distribution includes
 #include "../include/distributions/discrete.h"
 #include "../include/distributions/exponential.h"
 #include "../include/distributions/gamma.h"
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/poisson.h"
 #include "../include/distributions/uniform.h"
-#include "../include/libstats.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h"
 #include "../include/platform/thread_pool.h"
-#include "tool_utils.h"
 
-#include <cmath>
-#include <functional>
-#include <future>
-#include <iomanip>
-#include <map>
-#include <random>
-#include <sstream>
-#include <thread>
+// Standard library includes
+#include <algorithm>    // for std::sort, std::count_if
+#include <chrono>       // for timing operations
+#include <cmath>        // for std::abs, std::isnan, std::isinf
+#include <exception>    // for std::exception, std::runtime_error
+#include <functional>   // for std::function
+#include <future>       // for std::future
+#include <iomanip>      // for std::setw, std::setprecision, std::fixed
+#include <iostream>     // for std::cout, std::cerr
+#include <map>          // for std::map
+#include <random>       // for std::mt19937, random distributions
+#include <sstream>      // for std::ostringstream
+#include <string>       // for std::string
+#include <thread>       // for std::thread
+#include <type_traits>  // for std::is_same_v
+#include <vector>       // for std::vector
+
+// Platform-specific includes
+#if defined(LIBSTATS_HAS_GCD)
+    #include <dispatch/dispatch.h>
+#endif
 
 using namespace stats;
 

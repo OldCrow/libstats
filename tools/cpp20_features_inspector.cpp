@@ -2,10 +2,15 @@
 #include "tool_utils.h"
 
 // Additional standard library includes for C++20 features demonstration
-#include <array>
-#include <bitset>
-#include <chrono>
-#include <numeric>
+#include <array>     // for std::array
+#include <bitset>    // for std::bitset
+#include <chrono>    // for timing operations
+#include <cstddef>   // for size_t
+#include <iomanip>   // for std::setw, std::left
+#include <iostream>  // for std::cout
+#include <numeric>   // for numeric algorithms
+#include <string>    // for std::string
+#include <vector>    // for std::vector
 
 // C++20 headers with availability checking
 #ifdef __has_include

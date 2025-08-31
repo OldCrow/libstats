@@ -12,10 +12,15 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iostream>
-#include <random>
+// Standard library includes
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed
+#include <iostream>   // for std::cout, std::cerr
+#include <random>     // for std::mt19937, std::normal_distribution
+#include <string>     // for std::string
+#include <vector>     // for std::vector
 
 int main() {
     std::cout << "=== libstats Quick Start Tutorial ===" << std::endl;

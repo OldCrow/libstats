@@ -15,12 +15,17 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <chrono>    // for timing operations
+#include <iomanip>   // for std::setw, std::setprecision, std::fixed, std::left
+#include <iostream>  // for std::cout
+#include <random>    // for std::mt19937, std::uniform_real_distribution
+#include <span>      // for std::span
+#include <string>    // for std::string, std::to_string
+#include <tuple>     // for std::tuple
+#include <vector>    // for std::vector
 
 std::string strategyToString(stats::detail::Strategy strategy) {
     switch (strategy) {

@@ -12,12 +12,18 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iomanip>
-#include <iostream>
-#include <random>
-
+// Standard library includes
+#include <algorithm>  // for std::minmax_element
+#include <cmath>      // for std::abs
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed
+#include <iostream>   // for std::cout, std::cerr
+#include <numeric>    // for std::accumulate
+#include <random>     // for std::mt19937, std::uniform_real_distribution
+#include <string>     // for std::string
+#include <vector>     // for std::vector
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;
     std::cout << title << std::endl;
