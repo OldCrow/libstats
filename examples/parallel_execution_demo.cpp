@@ -12,12 +12,16 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <algorithm>  // for std::generate
+#include <chrono>     // for timing operations
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed, std::left
+#include <iostream>   // for std::cout
+#include <random>     // for std::random_device, std::mt19937, std::uniform_real_distribution
+#include <string>     // for std::string
+#include <vector>     // for std::vector
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;

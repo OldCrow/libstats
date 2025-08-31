@@ -24,13 +24,21 @@
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/poisson.h"
 #include "../include/distributions/uniform.h"
-#include "../include/libstats.h"
 #include "../include/platform/simd.h"
-#include "tool_utils.h"
 
-#include <algorithm>
-#include <cmath>
-#include <limits>
+#include <algorithm>   // for std::max, std::min, std::count_if, std::clamp
+#include <chrono>      // for timing operations
+#include <cmath>       // for mathematical functions, std::abs
+#include <cstddef>     // for size_t
+#include <functional>  // for std::function
+#include <iomanip>     // for std::setprecision, std::scientific
+#include <iostream>    // for std::cout
+#include <limits>      // for std::numeric_limits
+#include <random>      // for std::mt19937, random distributions
+#include <span>        // for std::span
+#include <sstream>     // for std::ostringstream
+#include <string>      // for std::string, to_string
+#include <vector>      // for std::vector
 
 using namespace stats;
 using namespace stats::detail;

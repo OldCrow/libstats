@@ -22,12 +22,15 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed
+#include <iostream>   // for std::cout, std::cerr
+#include <random>     // for std::mt19937, std::poisson_distribution
+#include <string>     // for std::string
+#include <vector>     // for std::vector
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(60, '=') << std::endl;

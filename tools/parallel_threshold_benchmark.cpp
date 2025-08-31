@@ -9,13 +9,18 @@
 // Use consolidated tool utilities header which includes libstats.h
 #include "tool_utils.h"
 
-#include <fstream>
-#include <map>
-#include <span>
-#include <thread>
+#include <chrono>    // for timing operations
+#include <cstddef>   // for size_t
+#include <fstream>   // for file I/O
+#include <iostream>  // for std::cout
+#include <map>       // for std::map
+#include <random>    // for std::mt19937, distributions
+#include <span>      // for std::span
+#include <string>    // for std::string
+#include <thread>    // for threading operations
+#include <vector>    // for std::vector
 
-// Include the distribution headers
-#include "../include/core/constants.h"
+// Include the specific headers instead of broad constants.h
 #include "../include/core/performance_dispatcher.h"
 #include "../include/distributions/discrete.h"
 #include "../include/distributions/exponential.h"
@@ -23,8 +28,6 @@
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/poisson.h"
 #include "../include/distributions/uniform.h"
-#include "../include/libstats.h"
-#include "tool_utils.h"
 
 using namespace std::chrono;
 using namespace stats;
