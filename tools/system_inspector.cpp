@@ -14,11 +14,17 @@
  */
 
 #include <chrono>
+#include <cstddef>  // for size_t
 #include <iomanip>
 #include <iostream>
+#include <string>  // for std::string, to_string
 #include <thread>
-#include <vector>
+#include <vector>  // for std::vector (keep standard portable header)
 // Use consolidated header for complete library functionality
+#include "core/mathematical_constants.h"  // for ONE
+#include "core/performance_dispatcher.h"  // for SystemCapabilities, DistributionType
+#include "platform/platform_constants.h"  // for platform constants
+#include "platform/simd.h"                // for VectorOps
 #include "tool_utils.h"
 
 using namespace std::chrono;
