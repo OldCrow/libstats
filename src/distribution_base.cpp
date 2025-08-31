@@ -8,11 +8,15 @@
 #include "../include/core/threshold_constants.h"
 #include "../include/platform/parallel_execution.h"
 
-#include <algorithm>
-#include <cmath>
-#include <numeric>
-#include <sstream>
-#include <stdexcept>
+#include <algorithm>   // for std::sort, std::abs
+#include <cmath>       // for std::log, std::exp, std::sqrt, std::isfinite
+#include <cstddef>     // for size_t
+#include <functional>  // for std::function
+#include <numeric>     // for numerical algorithms
+#include <sstream>     // for std::ostringstream
+#include <stdexcept>   // for std::invalid_argument
+#include <string>      // for std::string, std::to_string
+#include <vector>      // for std::vector
 
 namespace stats {
 

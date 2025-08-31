@@ -1,8 +1,9 @@
 #include "../include/distributions/exponential.h"
 
-#include "../include/core/constants.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/precision_constants.h"
 #include "../include/core/validation.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/parallel_execution.h"  // For parallel execution policies
