@@ -1,17 +1,14 @@
 #include "../include/platform/thread_pool.h"
 
+#include "../include/core/threshold_constants.h"
+#include "../include/platform/cpu_detection.h"
 #include "../include/platform/platform_constants.h"
 
-// Additional includes for integration
 #include <algorithm>
 #include <iostream>
-#include <set>
-#include <sstream>
+#include <stdexcept>
 
-using namespace stats;
-using namespace stats::detail;
-using namespace stats::arch::parallel;
-// Platform-specific includes
+// Platform-specific includes (conditionally accepted when properly guarded)
 #ifdef __APPLE__
     #include <mach/mach.h>
     #include <mach/thread_policy.h>
@@ -26,6 +23,10 @@ using namespace stats::arch::parallel;
     #include <intrin.h>
     #include <windows.h>
 #endif
+
+using namespace stats;
+using namespace stats::detail;
+using namespace stats::arch::parallel;
 
 namespace stats {
 

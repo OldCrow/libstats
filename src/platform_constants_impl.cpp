@@ -7,11 +7,9 @@
 
 // Heavy STL includes are now contained in this implementation file
 #include <algorithm>
-#include <chrono>
-#include <climits>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
+#include <string>  // for operator==
 
 /**
  * @file platform_constants_impl.cpp

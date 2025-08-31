@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>  // for size_t
 #include <cstdint>
 #include <optional>
 #include <string>

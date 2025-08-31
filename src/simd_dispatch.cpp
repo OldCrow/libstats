@@ -2,7 +2,8 @@
 // This file contains only the decision logic for which implementation to use
 // Enhanced with platform-specific optimizations and adaptive thresholds
 
-#include "../include/core/constants.h"
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/platform_constants.h"
 #include "../include/platform/simd.h"
@@ -10,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 
 namespace stats {
 namespace simd {

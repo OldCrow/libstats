@@ -1,5 +1,7 @@
 #include "../include/platform/work_stealing_pool.h"
 
+#include "../include/core/threshold_constants.h"
+#include "../include/platform/cpu_detection.h"
 #include "../include/platform/platform_constants.h"
 
 #include <algorithm>
@@ -10,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <stdexcept>
 #include <thread>
 
 // Platform-specific includes for thread optimization

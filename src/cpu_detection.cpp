@@ -19,16 +19,16 @@
 
 #include "../include/platform/cpu_detection.h"
 
-#include "../include/core/constants.h"
 #include "../include/platform/platform_constants.h"
+#include "core/mathematical_constants.h"
 
 #include <atomic>
 #include <chrono>
 #include <cstring>  // For memcpy
-#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
+#include <version>  // for __cpp_lib_atomic...
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
     #if defined(_MSC_VER)
