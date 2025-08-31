@@ -1,6 +1,7 @@
 #include "../include/distributions/gaussian.h"
 
-#include <iostream>
+// Standard library includes
+#include <iostream>  // for std::cout, std::endl
 
 using namespace std;
 using namespace stats;

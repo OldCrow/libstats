@@ -7,7 +7,14 @@
 #include "../include/distributions/gamma.h"
 #include "../include/tests/tests.h"
 
+// Standard library includes
+#include <algorithm>  // for std::sort, std::min, std::max
+#include <cmath>      // for std::exp, std::log, std::isfinite, std::abs
 #include <gtest/gtest.h>
+#include <iostream>  // for std::cout, std::endl
+#include <random>    // for std::mt19937, std::gamma_distribution
+#include <utility>   // for std::move, std::pair
+#include <vector>    // for std::vector
 
 using namespace std;
 using namespace stats;

@@ -6,9 +6,11 @@
 // Use focused header for system capabilities testing
 #include "../include/core/performance_dispatcher.h"
 
-#include <chrono>
+// Standard library includes
+#include <chrono>  // for std::chrono::microseconds
 #include <gtest/gtest.h>
-#include <thread>
+#include <thread>  // for std::thread
+#include <vector>  // for std::vector
 
 using namespace stats::detail;
 

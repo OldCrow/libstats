@@ -7,9 +7,10 @@
 #include "../include/core/performance_dispatcher.h"
 #include "../include/core/performance_history.h"
 
+// Standard library includes
 #include <gtest/gtest.h>
-#include <thread>
-#include <vector>
+#include <thread>  // for std::thread
+#include <vector>  // for std::vector
 
 using namespace stats::detail;
 

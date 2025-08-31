@@ -3,11 +3,13 @@
 #include "../include/distributions/gaussian.h"
 #include "../include/tests/tests.h"
 
-#include <cmath>
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <cmath>     // for mathematical functions
+#include <cstddef>   // for std::size_t
+#include <iomanip>   // for std::fixed, std::setprecision
+#include <iostream>  // for std::cout, std::endl
+#include <random>    // for std::random_device, std::mt19937, std::normal_distribution
+#include <vector>    // for std::vector
 
 using namespace stats;
 using namespace stats::detail;

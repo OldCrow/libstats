@@ -1,17 +1,15 @@
 #include "../include/distributions/exponential.h"
 
+#include "../include/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
 #include "../include/core/mathematical_constants.h"
 #include "../include/core/precision_constants.h"
 #include "../include/core/validation.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_execution.h"  // For parallel execution policies
-#include "../include/platform/work_stealing_pool.h"  // For WorkStealingPool
-// ParallelUtils functionality is provided by parallel_execution.h
+// Note: parallel execution included through distribution base inheritance
+// Note: work_stealing_pool.h and thread_pool.h included only where actually used
 #include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
 #include "../include/core/threshold_constants.h"
-#include "../include/platform/thread_pool.h"  // For ThreadPool
 
 #include <algorithm>
 #include <cmath>

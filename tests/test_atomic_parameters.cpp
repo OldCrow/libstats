@@ -15,8 +15,11 @@
 #include "../include/distributions/exponential.h"
 #include "../include/distributions/gaussian.h"
 
-#include <cassert>
-#include <iostream>
+// Standard library includes
+#include <cassert>   // for assert
+#include <cmath>     // for std::abs
+#include <iostream>  // for std::cout, std::endl
+#include <utility>   // for std::move
 
 using namespace stats;
 
