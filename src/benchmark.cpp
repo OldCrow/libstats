@@ -7,8 +7,10 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <numeric>
 #include <random>
+#include <sstream>
 
 namespace stats {
 
