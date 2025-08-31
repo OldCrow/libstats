@@ -6,7 +6,7 @@
 #include "../include/core/precision_constants.h"
 #include "../include/core/safety.h"
 #include "../include/core/threshold_constants.h"
-#include "../include/platform/parallel_execution.h"
+#include "../include/platform/parallel_execution.h"  // Parallel execution (full implementation)
 
 #include <algorithm>   // for std::sort, std::abs
 #include <cmath>       // for std::log, std::exp, std::sqrt, std::isfinite

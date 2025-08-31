@@ -2,6 +2,18 @@
 #include "../include/distributions/poisson.h"
 #include "../include/tests/tests.h"
 
+// Standard library includes
+#include <chrono>     // for std::chrono::high_resolution_clock, timing measurements
+#include <cmath>      // for std::abs
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::fixed, std::setprecision
+#include <iostream>   // for std::cout, std::endl
+#include <random>     // for std::mt19937, std::uniform_real_distribution
+#include <span>       // for std::span
+#include <string>     // for std::string
+#include <utility>    // for std::move
+#include <vector>     // for std::vector
+
 using namespace std;
 using namespace stats;
 using namespace stats::tests::fixtures;

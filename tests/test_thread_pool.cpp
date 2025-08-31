@@ -9,16 +9,17 @@
  * 4. Comprehensive documentation and examples
  */
 
-#include <cassert>
-#include <chrono>
-#include <cmath>
-#include <future>
-#include <iomanip>
-#include <iostream>
-#include <numeric>
-#include <random>
-#include <thread>
-#include <vector>
+// Standard library includes
+#include <cassert>   // for assert
+#include <chrono>    // for std::chrono::high_resolution_clock
+#include <cmath>     // for mathematical functions
+#include <future>    // for std::future, std::async
+#include <iomanip>   // for std::setprecision
+#include <iostream>  // for std::cout, std::endl
+#include <numeric>   // for std::iota, std::accumulate
+#include <random>    // for std::random_device, std::mt19937
+#include <thread>    // for std::thread
+#include <vector>    // for std::vector
 
 // Include the enhanced thread_pool.h with Level 0-2 integration
 #include "../include/platform/thread_pool.h"

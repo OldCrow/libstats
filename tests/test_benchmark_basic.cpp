@@ -1,6 +1,14 @@
 // Use focused header for benchmark infrastructure
 #include "../include/platform/benchmark.h"
 
+// Standard library includes
+#include <algorithm>  // for std::fill
+#include <chrono>     // for std::chrono::microseconds, std::chrono::milliseconds
+#include <cstddef>    // for std::size_t
+#include <iostream>   // for std::cout, std::endl
+#include <thread>     // for std::this_thread::sleep_for
+#include <vector>     // for std::vector
+
 using namespace stats;
 
 int main() {

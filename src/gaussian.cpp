@@ -1,15 +1,15 @@
 #include "../include/distributions/gaussian.h"
 
+#include "../include/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
+#include "../include/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
+#include "../include/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/mathematical_constants.h"
 #include "../include/core/robust_constants.h"
 #include "../include/core/safety.h"
 #include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_thresholds.h"
-#include "../include/platform/simd.h"
-#include "../include/platform/simd_policy.h"
+// Note: simd.h still included in implementation files that actually use SIMD operations
 
 #include <algorithm>
 #include <cmath>

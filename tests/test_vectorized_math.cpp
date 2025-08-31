@@ -1,11 +1,13 @@
 #include "../include/core/math_utils.h"
 
-#include <cassert>
-#include <chrono>
-#include <cmath>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <cassert>   // for assert
+#include <chrono>    // for std::chrono::high_resolution_clock
+#include <cmath>     // for std::abs, std::erf, std::erfc, std::lgamma
+#include <cstddef>   // for std::size_t
+#include <iostream>  // for std::cout, std::endl
+#include <random>    // for std::mt19937, std::uniform_real_distribution
+#include <vector>    // for std::vector
 
 using namespace std;
 using namespace stats::detail;

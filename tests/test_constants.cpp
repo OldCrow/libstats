@@ -21,6 +21,7 @@
  */
 
 // Include all constants headers
+// Include all constants headers
 #include "../include/core/benchmark_constants.h"            // Benchmark parameters
 #include "../include/core/constants.h"                      // Main aggregated constants
 #include "../include/core/essential_constants.h"            // Essential constants
@@ -36,14 +37,15 @@
 #include "../include/platform/simd.h"                       // SIMD constants
 #include "../include/tests/constants.h"                     // Test constants
 
-#include <algorithm>
-#include <cassert>
-#include <cmath>
-#include <cstddef>
-#include <iostream>
-#include <limits>
-#include <string>
-#include <vector>
+// Standard library includes
+#include <algorithm>  // for std::min, std::max
+#include <cassert>    // for assert
+#include <cmath>      // for std::abs, std::log, std::exp
+#include <cstddef>    // for std::size_t
+#include <iostream>   // for std::cout, std::endl
+#include <limits>     // for std::numeric_limits
+#include <string>     // for std::string
+#include <vector>     // for std::vector
 
 void test_math_constants() {
     using namespace stats::detail;

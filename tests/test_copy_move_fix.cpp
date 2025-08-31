@@ -1,13 +1,16 @@
-#include <chrono>
-#include <iostream>
-#include <memory>
-#include <thread>
-#include <vector>
-
 // Include all three distributions
 #include "../include/distributions/exponential.h"
 #include "../include/distributions/gaussian.h"
 #include "../include/distributions/uniform.h"
+
+// Standard library includes
+#include <atomic>    // for std::atomic
+#include <chrono>    // for std::chrono::high_resolution_clock
+#include <iostream>  // for std::cout, std::endl
+#include <memory>    // for std::unique_ptr
+#include <thread>    // for std::thread
+#include <utility>   // for std::move
+#include <vector>    // for std::vector
 
 using namespace std;
 using namespace stats;

@@ -3,13 +3,17 @@
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
-#include <gtest/gtest.h>
+#include <gtest/gtest.h>  // For testing framework
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"
+#include "../include/libstats.h"  // For stats library interface
 
-#include <chrono>
-#include <iostream>
-#include <vector>
+#include <chrono>    // For high_resolution_clock timing
+#include <cmath>     // For std::isfinite
+#include <cstddef>   // For size_t
+#include <iostream>  // For std::cout output
+#include <span>      // For std::span
+#include <utility>   // For std::move
+#include <vector>    // For std::vector
 
 using namespace std;
 using namespace stats;

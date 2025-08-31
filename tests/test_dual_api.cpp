@@ -2,9 +2,11 @@
 #define LIBSTATS_FULL_INTERFACE
 #include "../include/libstats.h"
 
-#include <cassert>
-#include <iostream>
-#include <limits>
+// Standard library includes
+#include <cassert>   // for assert
+#include <cmath>     // for std::abs
+#include <iostream>  // for std::cout, std::endl
+#include <limits>    // for std::numeric_limits
 
 using namespace stats;
 
