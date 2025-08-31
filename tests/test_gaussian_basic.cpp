@@ -2,6 +2,16 @@
 #include "../include/distributions/gaussian.h"
 #include "../include/tests/tests.h"
 
+#include <chrono>    // for timing measurements
+#include <cstdlib>   // for size_t (portable alternative to stdlib.h)
+#include <iomanip>   // for stream formatting
+#include <iostream>  // for cout, basic_ostream
+#include <random>    // for mt19937, distributions
+#include <sstream>   // for string streams
+#include <string>    // for std::string
+#include <utility>   // for std::move
+#include <vector>    // for std::vector
+
 using namespace std;
 using namespace stats;
 using namespace stats::tests::fixtures;
