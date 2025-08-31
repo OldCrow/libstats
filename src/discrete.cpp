@@ -1,6 +1,5 @@
 #include "../include/distributions/discrete.h"
 
-#include "../include/core/constants.h"
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/math_utils.h"
 #include "../include/core/mathematical_constants.h"

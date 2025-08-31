@@ -1,5 +1,11 @@
 #pragma once
 
+// Standard library includes
+#include <cstddef>     // for size_t
+#include <functional>  // for std::function
+#include <limits>      // for std::numeric_limits
+#include <vector>      // for std::vector
+
 // Include the common base and split components
 #include "../common/distribution_base_common.h"
 #include "distribution_interface.h"

@@ -1,7 +1,7 @@
 #include "../include/distributions/gaussian.h"
 
-#include "../include/core/constants.h"
 #include "../include/core/dispatch_utils.h"
+#include "../include/core/mathematical_constants.h"
 #include "../include/core/robust_constants.h"
 #include "../include/core/safety.h"
 #include "../include/core/threshold_constants.h"
