@@ -1,3 +1,38 @@
+## [2.0.0](https://github.com/OldCrow/libstats/compare/v1.1.0...v2.0.0) (2025-09-01)
+
+### ⚠ BREAKING CHANGES
+
+* **optimization:** Test headers relocated from include/tests/ to tests/include/
+
+## Summary
+Major header optimization phase completed, improving compilation time and code organization
+across the entire libstats project.
+
+## Key Improvements
+- Removed unused C++20 headers (<concepts>, <ranges>, <version>) reducing compilation overhead
+- Created forward declaration headers for frequently-used types (cpu_detection_fwd.h, platform_constants_fwd.h, simd_policy_fwd.h)
+- Introduced common headers to consolidate includes (simd_implementation_common.h, test_common.h)
+- Relocated test infrastructure from include/tests/ to tests/include/ for better separation
+- Fixed distribution name mismatch in discrete_enhanced test
+
+## Performance Impact
+- Clean build time: ~2 minutes (maintained)
+- Test pass rate: 89% (34/38 tests passing)
+- Reduced header parsing overhead
+- Better incremental build performance
+
+## Migration Guide
+For developers working on tests:
+- Update test includes from 'include/tests/' to '../include/' or 'include/' paths
+- New test_common.h header available for common test utilities
+- CMakeLists.txt updated to include tests/include/ in test target paths
+
+Closes header optimization work from v0.11.0-header-optimization branch
+
+### ✨ Features
+
+* **optimization:** complete header dependency optimization and bump to v0.12.0 ([0bb7988](https://github.com/OldCrow/libstats/commit/0bb79881c25b8dfcf721d4221fd778f7a3e1c03b))
+
 ## [1.1.0](https://github.com/OldCrow/libstats/compare/v1.0.0...v1.1.0) (2025-09-01)
 
 ### ✨ Features
