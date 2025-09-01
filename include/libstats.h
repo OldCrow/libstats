@@ -174,9 +174,9 @@ using Discrete = DiscreteDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;
-constexpr int LIBSTATS_VERSION_MINOR = 11;
+constexpr int LIBSTATS_VERSION_MINOR = 12;
 constexpr int LIBSTATS_VERSION_PATCH = 0;
-constexpr const char* VERSION_STRING = "0.11.0";
+constexpr const char* VERSION_STRING = "0.12.0";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays
