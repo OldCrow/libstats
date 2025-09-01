@@ -12,8 +12,8 @@
  * Part of the stats::tests:: namespace hierarchy reorganization
  */
 
-#include "../platform/cpu_detection.h"
-#include "../platform/cpu_vendor_constants.h"
+#include "../../include/platform/cpu_detection.h"
+#include "../../include/platform/cpu_vendor_constants.h"
 #include "constants.h"
 
 #include <algorithm>

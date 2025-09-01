@@ -7,7 +7,7 @@
 #include "../include/core/precision_constants.h"
 #include "../include/core/validation.h"
 // Note: parallel execution included through distribution base inheritance
-// Note: work_stealing_pool.h and thread_pool.h included only where actually used
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
 #include "../include/core/threshold_constants.h"
 
@@ -1245,8 +1245,73 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-// Note: Most distribution-specific utility methods are implemented inline in the header for
-// performance Only complex methods requiring implementation are included here
+// Utility methods moved from header for PIMPL optimization - no longer inline
+double ExponentialDistribution::getLambdaAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicLambda_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getLambda();
+}
+
+double ExponentialDistribution::getSkewness() const noexcept {
+    return 2.0;  // Exponential distribution is always right-skewed
+}
+
+double ExponentialDistribution::getKurtosis() const noexcept {
+    return 6.0;  // Exponential distribution has high kurtosis
+}
+
+int ExponentialDistribution::getNumParameters() const noexcept {
+    return 1;
+}
+
+std::string ExponentialDistribution::getDistributionName() const {
+    return "Exponential";
+}
+
+bool ExponentialDistribution::isDiscrete() const noexcept {
+    return false;
+}
+
+double ExponentialDistribution::getSupportLowerBound() const noexcept {
+    return 0.0;
+}
+
+double ExponentialDistribution::getSupportUpperBound() const noexcept {
+    return std::numeric_limits<double>::infinity();
+}
+
+VoidResult ExponentialDistribution::validateCurrentParameters() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return validateExponentialParameters(lambda_);
+}
+
+double ExponentialDistribution::getHalfLife() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return std::log(2.0) / lambda_;
+}
+
+bool ExponentialDistribution::isMemoryless() const noexcept {
+    return true;
+}
+
+double ExponentialDistribution::getMedian() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return detail::LN2 / lambda_;  // Use precomputed ln(2)
+}
+
+double ExponentialDistribution::getEntropy() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return detail::ONE - std::log(lambda_);
+}
+
+double ExponentialDistribution::getMode() const noexcept {
+    return detail::ZERO_DOUBLE;
+}
 
 //==============================================================================
 // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

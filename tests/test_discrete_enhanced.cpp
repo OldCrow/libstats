@@ -5,7 +5,7 @@
 #endif
 
 #include "../include/distributions/discrete.h"
-#include "../include/tests/tests.h"
+#include "include/tests.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -92,7 +92,7 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_TRUE(dice.isInSupport(3.0));
     EXPECT_FALSE(dice.isInSupport(3.5));  // Non-integers not in discrete support
     EXPECT_TRUE(dice.isDiscrete());
-    EXPECT_EQ(dice.getDistributionName(), "Discrete");
+    EXPECT_EQ(dice.getDistributionName(), "DiscreteUniform");
 }
 
 //==============================================================================

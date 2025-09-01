@@ -1,16 +1,18 @@
 #include "../include/distributions/discrete.h"
 
+// Core functionality - lightweight headers
 #include "../include/core/dispatch_utils.h"
+#include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
 #include "../include/core/mathematical_constants.h"
-#include "../include/core/safety.h"
+#include "../include/core/precision_constants.h"
 #include "../include/core/statistical_constants.h"
-#include "../include/core/threshold_constants.h"
-#include "../include/platform/parallel_execution.h"
-#include "../include/platform/simd.h"
-#include "../include/platform/simd_policy.h"
-#include "../include/platform/thread_pool.h"
-#include "../include/platform/work_stealing_pool.h"
+#include "../include/core/validation.h"
+
+// Platform headers - use forward declarations where available
+#include "../include/common/cpu_detection_fwd.h"  // Lightweight CPU detection
+// Note: parallel_execution.h is transitively included via dispatch_utils.h
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 
 #include <algorithm>
 #include <cmath>
@@ -244,6 +246,62 @@ void DiscreteDistribution::setParameters(int a, int b) {
 
     // CRITICAL: Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
+}
+
+// Implementation moved from header - no longer inline
+int DiscreteDistribution::getLowerBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return a_;
+}
+
+// Implementation moved from header - no longer inline
+int DiscreteDistribution::getUpperBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return b_;
+}
+
+// Simple getters for constant values - no longer inline
+double DiscreteDistribution::getSkewness() const noexcept {
+    return 0.0;  // Discrete uniform distribution is perfectly symmetric
+}
+
+double DiscreteDistribution::getKurtosis() const noexcept {
+    // For discrete uniform: excess kurtosis ≈ -1.2 for large ranges
+    // For exact calculation: -6/5 * (n²+1)/(n²-1) where n = b-a+1
+    // But approximation is sufficient for performance-critical inline method
+    return -1.2;
+}
+
+int DiscreteDistribution::getNumParameters() const noexcept {
+    return 2;  // Lower bound (a) and upper bound (b)
+}
+
+std::string DiscreteDistribution::getDistributionName() const {
+    return "DiscreteUniform";
+}
+
+bool DiscreteDistribution::isDiscrete() const noexcept {
+    return true;  // Discrete uniform distribution is always discrete
+}
+
+double DiscreteDistribution::getSupportLowerBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return static_cast<double>(a_);
+}
+
+double DiscreteDistribution::getSupportUpperBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return static_cast<double>(b_);
+}
+
+double DiscreteDistribution::getMode() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
+}
+
+double DiscreteDistribution::getMedian() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
 }
 
 int DiscreteDistribution::getRange() const noexcept {
@@ -1632,6 +1690,33 @@ std::vector<int> DiscreteDistribution::getAllOutcomes() const {
     return outcomes;
 }
 
+VoidResult DiscreteDistribution::validateCurrentParameters() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return validateDiscreteParameters(a_, b_);
+}
+
+int DiscreteDistribution::getLowerBoundAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicA_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getLowerBound();
+}
+
+int DiscreteDistribution::getUpperBoundAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicB_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getUpperBound();
+}
+
 //==============================================================================
 // 13. SMART AUTO-DISPATCH BATCH METHODS
 //==============================================================================
@@ -2694,6 +2779,11 @@ bool DiscreteDistribution::operator==(const DiscreteDistribution& other) const {
     return (a_ == other.a_) && (b_ == other.b_);
 }
 
+// Implementation moved from header - no longer inline
+bool DiscreteDistribution::operator!=(const DiscreteDistribution& other) const {
+    return !(*this == other);
+}
+
 //==============================================================================
 // 16. STREAM OPERATORS
 //==============================================================================
@@ -2772,8 +2862,19 @@ std::istream& operator>>(std::istream& is, DiscreteDistribution& distribution) {
 // 17. PRIVATE FACTORY METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Implementation moved from header - NOT inline (needs external linkage)
+DiscreteDistribution DiscreteDistribution::createUnchecked(int a, int b) noexcept {
+    DiscreteDistribution dist(a, b, true);  // bypass validation
+    return dist;
+}
+
+// Implementation moved from header - NOT inline (private constructor)
+DiscreteDistribution::DiscreteDistribution(int a, int b, bool /*bypassValidation*/) noexcept
+    : DistributionBase(), a_(a), b_(b) {
+    // Cache will be updated on first use
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+}
 
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
@@ -2905,15 +3006,64 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 // 19. PRIVATE COMPUTATIONAL METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Implementation moved from header - NOT inline due to complexity
+void DiscreteDistribution::updateCacheUnsafe() const noexcept {
+    // Primary calculations - compute once, reuse multiple times
+    range_ = b_ - a_ + 1;
+    probability_ = 1.0 / static_cast<double>(range_);
+    mean_ = (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
+
+    // Variance for discrete uniform: ((b-a)(b-a+2))/12
+    const double width = static_cast<double>(b_ - a_);
+    variance_ = (width * (width + 2.0)) / 12.0;
+
+    logProbability_ = -std::log(static_cast<double>(range_));
+
+    // Optimization flags
+    isBinary_ = (a_ == 0 && b_ == 1);
+    isStandardDie_ = (a_ == 1 && b_ == 6);
+    isSymmetric_ = (a_ == -b_);
+    isSmallRange_ = (range_ <= 10);
+    isLargeRange_ = (range_ > 1000);
+
+    cache_valid_ = true;
+    cacheValidAtomic_.store(true, std::memory_order_release);
+
+    // Update atomic parameters for lock-free access
+    atomicA_.store(a_, std::memory_order_release);
+    atomicB_.store(b_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
+}
+
+// Static validation method moved from header for better compile times
+void DiscreteDistribution::validateParameters(int a, int b) {
+    if (a > b) {
+        throw std::invalid_argument(
+            "Upper bound (b) must be greater than or equal to lower bound (a)");
+    }
+    // Check for integer overflow in range calculation
+    if (b > INT_MAX - 1 || a < INT_MIN + 1) {
+        throw std::invalid_argument("Parameter range too large - risk of integer overflow");
+    }
+    // Additional safety check for very large ranges
+    const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
+    if (range_check > INT_MAX) {
+        throw std::invalid_argument("Parameter range exceeds maximum supported size");
+    }
+}
 
 //==========================================================================
 // 20. PRIVATE UTILITY METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Static utility methods moved from header for better compile times
+inline int DiscreteDistribution::roundToInt(double x) noexcept {
+    return static_cast<int>(std::round(x));
+}
+
+inline bool DiscreteDistribution::isValidIntegerValue(double x) noexcept {
+    return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
+}
 
 //==============================================================================
 // 21. DISTRIBUTION PARAMETERS

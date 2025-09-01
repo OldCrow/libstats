@@ -1,5 +1,6 @@
 #include "../include/distributions/poisson.h"
 
+// Core functionality - lightweight headers
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
@@ -8,10 +9,12 @@
 #include "../include/core/safety.h"
 #include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_execution.h"
-#include "../include/platform/simd_policy.h"
-#include "../include/platform/thread_pool.h"
+
+// Platform headers - use forward declarations where available
+#include "../include/common/cpu_detection_fwd.h"  // Lightweight CPU detection
+// Note: parallel_execution.h is transitively included via dispatch_utils.h
+#include "../include/common/simd_policy_fwd.h"  // Lightweight SIMD policy
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 
 #include <algorithm>
 #include <any>
@@ -181,6 +184,37 @@ double PoissonDistribution::getKurtosis() const noexcept {
     return invLambda_;  // 1/λ (excess kurtosis)
 }
 
+double PoissonDistribution::getLambdaAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicLambda_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getLambda();
+}
+
+inline int PoissonDistribution::getNumParameters() const noexcept {
+    return 1;
+}
+
+inline std::string PoissonDistribution::getDistributionName() const {
+    return "Poisson";
+}
+
+inline bool PoissonDistribution::isDiscrete() const noexcept {
+    return true;
+}
+
+inline double PoissonDistribution::getSupportLowerBound() const noexcept {
+    return 0.0;
+}
+
+inline double PoissonDistribution::getSupportUpperBound() const noexcept {
+    return std::numeric_limits<double>::infinity();
+}
+
 double PoissonDistribution::getMode() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return std::floor(lambda_);
@@ -222,6 +256,11 @@ VoidResult PoissonDistribution::trySetParameters(double lambda) noexcept {
     // distributions The atomic cache validation is handled by cacheValidAtomic_
 
     return VoidResult::ok(true);
+}
+
+inline VoidResult PoissonDistribution::validateCurrentParameters() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return validatePoissonParameters(lambda_);
 }
 
 //==============================================================================
@@ -1577,6 +1616,18 @@ bool PoissonDistribution::canUseNormalApproximation() const noexcept {
                                                               // reasonable normal approximation
 }
 
+double PoissonDistribution::getMedian() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    // For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ for large λ
+    // For small λ, use numerical approximation via quantile function
+    if (lambda_ > 10.0) {
+        return lambda_ + (1.0 / 3.0) - (0.02 / lambda_);
+    } else {
+        // Use quantile function for more accurate median calculation for small λ
+        return getQuantile(0.5);
+    }
+}
+
 //==============================================================================
 // 13. SMART AUTO-DISPATCH BATCH METHODS
 //==============================================================================
@@ -2718,6 +2769,10 @@ bool PoissonDistribution::operator==(const PoissonDistribution& other) const {
     return std::abs(lambda_ - other.lambda_) <= detail::DEFAULT_TOLERANCE;
 }
 
+bool PoissonDistribution::operator!=(const PoissonDistribution& other) const {
+    return !(*this == other);
+}
+
 //==============================================================================
 // 16. FRIEND FUNCTION STREAM OPERATORS
 //==============================================================================
@@ -2775,8 +2830,17 @@ std::istream& operator>>(std::istream& is, PoissonDistribution& distribution) {
 // 17. PRIVATE FACTORY METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+PoissonDistribution PoissonDistribution::createUnchecked(double lambda) noexcept {
+    PoissonDistribution dist(lambda, true);  // bypass validation
+    return dist;
+}
+
+PoissonDistribution::PoissonDistribution(double lambda, bool /*bypassValidation*/) noexcept
+    : DistributionBase(), lambda_(lambda) {
+    // Cache will be updated on first use
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+}
 
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
@@ -2932,6 +2996,42 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
 // 19. PRIVATE COMPUTATIONAL METHODS
 //==============================================================================
 
+// Implementation moved from header - NOT inline due to complexity
+void PoissonDistribution::updateCacheUnsafe() const noexcept {
+    // Primary calculations - compute once, reuse multiple times
+    logLambda_ = std::log(lambda_);
+    expNegLambda_ = std::exp(-lambda_);
+    sqrtLambda_ = std::sqrt(lambda_);
+    invLambda_ = detail::ONE / lambda_;
+
+    // Stirling's approximation for log(Γ(λ+1)) = log(λ!)
+    logGammaLambdaPlus1_ = std::lgamma(lambda_ + detail::ONE);
+
+    // Optimization flags
+    isSmallLambda_ = (lambda_ < detail::SMALL_LAMBDA_THRESHOLD);
+    isLargeLambda_ = (lambda_ > detail::HUNDRED);
+    isVeryLargeLambda_ = (lambda_ > detail::THOUSAND);
+    isIntegerLambda_ = (std::abs(lambda_ - std::round(lambda_)) <= detail::DEFAULT_TOLERANCE);
+    isTinyLambda_ = (lambda_ < detail::TENTH);
+
+    cache_valid_ = true;
+    cacheValidAtomic_.store(true, std::memory_order_release);
+
+    // Update atomic parameters for lock-free access
+    atomicLambda_.store(lambda_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
+}
+
+// Static validation method moved from header for better compile times
+void PoissonDistribution::validateParameters(double lambda) {
+    if (std::isnan(lambda) || std::isinf(lambda) || lambda <= detail::ZERO_DOUBLE) {
+        throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
+    }
+    if (lambda > detail::MAX_POISSON_LAMBDA) {
+        throw std::invalid_argument("Lambda too large for accurate Poisson computation");
+    }
+}
+
 double PoissonDistribution::computePMFSmall(int k) const noexcept {
     // Direct computation for small lambda
     if (k < static_cast<int>(FACTORIAL_CACHE.size())) {
@@ -3003,8 +3103,16 @@ double PoissonDistribution::logFactorial(int n) noexcept {
 // 20. PRIVATE UTILITY METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Static utility methods moved from header for better compile times
+inline int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
+    if (x < 0.0)
+        return 0;
+    return static_cast<int>(std::round(x));
+}
+
+inline bool PoissonDistribution::isValidCount(double x) noexcept {
+    return (x >= 0.0 && x <= static_cast<double>(INT_MAX));
+}
 
 //==============================================================================
 // 21. DISTRIBUTION PARAMETERS

@@ -1,6 +1,6 @@
 // Focused unit test for uniform distribution
 #include "../include/distributions/uniform.h"
-#include "../include/tests/tests.h"
+#include "include/tests.h"
 
 // Standard library includes
 #include <chrono>     // for std::chrono::high_resolution_clock, timing measurements

@@ -789,10 +789,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Range value (b - a)
      */
-    [[nodiscard]] double getRange() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return b_ - a_;  // Direct subtraction is most efficient
-    }
+    [[nodiscard]] double getRange() const noexcept;
 
     /**
      * @brief Check if a value is contained within the distribution's support
@@ -802,10 +799,7 @@ class UniformDistribution : public DistributionBase {
      * @param x Value to check
      * @return true if a ≤ x ≤ b, false otherwise
      */
-    [[nodiscard]] bool contains(double x) const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return x >= a_ && x <= b_;
-    }
+    [[nodiscard]] bool contains(double x) const noexcept;
 
     /**
      * @brief Compute the entropy of the distribution
@@ -815,10 +809,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return std::log(b_ - a_);  // ln(range)
-    }
+    [[nodiscard]] double getEntropy() const noexcept override;
 
     /**
      * @brief Check if this is the unit interval [0,1]
@@ -828,11 +819,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return true if a ≈ 0 and b ≈ 1, false otherwise
      */
-    [[nodiscard]] bool isUnitInterval() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (std::abs(a_ - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) &&
-               (std::abs(b_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
-    }
+    [[nodiscard]] bool isUnitInterval() const noexcept;
 
     /**
      * @brief Check if this is symmetric around zero
@@ -842,10 +829,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return true if a + b ≈ 0, false otherwise
      */
-    [[nodiscard]] bool isSymmetricAroundZero() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE;
-    }
+    [[nodiscard]] bool isSymmetricAroundZero() const noexcept;
 
     /**
      * Gets the median of the distribution.
@@ -853,10 +837,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Median value
      */
-    [[nodiscard]] double getMedian() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (a_ + b_) / 2.0;
-    }
+    [[nodiscard]] double getMedian() const noexcept;
 
     /**
      * Gets the mode of the distribution.
@@ -865,10 +846,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Mode value (midpoint of the range)
      */
-    [[nodiscard]] double getMode() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (a_ + b_) / 2.0;
-    }
+    [[nodiscard]] double getMode() const noexcept;
 
     /**
      * Gets the midpoint of the distribution (a + b)/2.
@@ -877,10 +855,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Midpoint of the distribution
      */
-    [[nodiscard]] double getMidpoint() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (a_ + b_) * detail::HALF;  // Multiplication is faster than division
-    }
+    [[nodiscard]] double getMidpoint() const noexcept;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)

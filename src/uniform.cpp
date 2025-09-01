@@ -1,5 +1,6 @@
 #include "../include/distributions/uniform.h"
 
+// Core functionality - lightweight headers
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
@@ -8,9 +9,11 @@
 #include "../include/core/statistical_constants.h"
 #include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_execution.h"
-#include "../include/platform/work_stealing_pool.h"
+
+// Platform headers - use forward declarations where available
+#include "../include/common/cpu_detection_fwd.h"  // Lightweight CPU detection
+// Note: parallel_execution.h is transitively included via dispatch_utils.h
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 
 #include <algorithm>
 #include <cmath>
@@ -1279,8 +1282,49 @@ UniformDistribution::bootstrapParameterConfidenceIntervals(const std::vector<dou
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Inline utility methods moved from header for PIMPL optimization
+// These retain 'inline' hint to allow compiler optimization while reducing header bloat
+
+double UniformDistribution::getRange() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return b_ - a_;  // Direct subtraction is most efficient
+}
+
+bool UniformDistribution::contains(double x) const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return x >= a_ && x <= b_;
+}
+
+double UniformDistribution::getEntropy() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return std::log(b_ - a_);  // ln(range)
+}
+
+bool UniformDistribution::isUnitInterval() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (std::abs(a_ - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) &&
+           (std::abs(b_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+}
+
+bool UniformDistribution::isSymmetricAroundZero() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE;
+}
+
+double UniformDistribution::getMedian() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (a_ + b_) / 2.0;
+}
+
+double UniformDistribution::getMode() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (a_ + b_) / 2.0;
+}
+
+double UniformDistribution::getMidpoint() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (a_ + b_) * detail::HALF;  // Multiplication is faster than division
+}
 
 //==============================================================================
 // 13. SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)

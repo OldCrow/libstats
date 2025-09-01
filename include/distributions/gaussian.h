@@ -268,68 +268,57 @@ class GaussianDistribution : public DistributionBase {
     /**
      * @brief Gets the skewness of the distribution.
      * For Gaussian distribution, skewness = 0 (symmetric)
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Skewness value (always 0)
      */
-    [[nodiscard]] double getSkewness() const noexcept override { return detail::ZERO_DOUBLE; }
+    [[nodiscard]] double getSkewness() const noexcept override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
      * For Gaussian distribution, excess kurtosis = 0
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Excess kurtosis value (always 0)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override { return detail::ZERO_DOUBLE; }
+    [[nodiscard]] double getKurtosis() const noexcept override;
 
     /**
      * @brief Gets the distribution name.
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override { return "Gaussian"; }
+    [[nodiscard]] std::string getDistributionName() const override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
      * For Gaussian distribution, there are 2 parameters: mean and standard deviation
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Number of parameters (always 2)
      */
-    [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
+    [[nodiscard]] int getNumParameters() const noexcept override;
 
     /**
      * @brief Checks if the distribution is discrete.
      * For Gaussian distribution, it's continuous
-     * Inline for performance - no thread safety needed for constant
      *
      * @return false (always continuous)
      */
-    [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
+    [[nodiscard]] bool isDiscrete() const noexcept override;
 
     /**
      * @brief Gets the lower bound of the distribution support.
      * For Gaussian distribution, support is (-∞, ∞)
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Lower bound (-infinity)
      */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override {
-        return -std::numeric_limits<double>::infinity();
-    }
+    [[nodiscard]] double getSupportLowerBound() const noexcept override;
 
     /**
      * @brief Gets the upper bound of the distribution support.
      * For Gaussian distribution, support is (-∞, ∞)
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Upper bound (+infinity)
      */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        return std::numeric_limits<double>::infinity();
-    }
+    [[nodiscard]] double getSupportUpperBound() const noexcept override;
 
     //==============================================================================
     // 4. RESULT-BASED SETTERS
@@ -367,10 +356,7 @@ class GaussianDistribution : public DistributionBase {
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
      */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateGaussianParameters(mean_, standardDeviation_);
-    }
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
     // 5. CORE PROBABILITY METHODS
@@ -798,10 +784,7 @@ class GaussianDistribution : public DistributionBase {
      * @param x Value to standardize
      * @return Standardized value (z-score)
      */
-    [[nodiscard]] double getStandardizedValue(double x) const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (x - mean_) * invStandardDeviation_;  // Use cached 1/σ for efficiency
-    }
+    [[nodiscard]] double getStandardizedValue(double x) const noexcept;
 
     /**
      * @brief Convert a standardized value (z-score) back to the original scale
@@ -812,10 +795,7 @@ class GaussianDistribution : public DistributionBase {
      * @param z Standardized value (z-score)
      * @return Value in original scale
      */
-    [[nodiscard]] double getValueFromStandardized(double z) const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return mean_ + standardDeviation_ * z;
-    }
+    [[nodiscard]] double getValueFromStandardized(double z) const noexcept;
 
     /**
      * @brief Check if this is a standard normal distribution
@@ -825,11 +805,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return true if μ ≈ 0 and σ ≈ 1, false otherwise
      */
-    [[nodiscard]] bool isStandardNormal() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (std::abs(mean_) <= detail::DEFAULT_TOLERANCE) &&
-               (std::abs(standardDeviation_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
-    }
+    [[nodiscard]] bool isStandardNormal() const noexcept;
 
     /**
      * @brief Compute the entropy of the distribution
@@ -840,11 +816,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        // H(X) = 0.5 * (ln(2π) + 1 + 2*ln(σ))
-        return detail::HALF_LN_2PI + detail::HALF + std::log(standardDeviation_);
-    }
+    [[nodiscard]] double getEntropy() const noexcept override;
 
     /**
      * @brief Get the median of the distribution
@@ -854,10 +826,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Median value (equals μ)
      */
-    [[nodiscard]] double getMedian() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return mean_;  // For Gaussian, median = mean
-    }
+    [[nodiscard]] double getMedian() const noexcept;
 
     /**
      * @brief Get the mode of the distribution
@@ -867,10 +836,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Mode value (equals μ)
      */
-    [[nodiscard]] double getMode() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return mean_;  // For Gaussian, mode = mean
-    }
+    [[nodiscard]] double getMode() const noexcept;
 
 #ifdef DEBUG
     /**

@@ -227,16 +227,7 @@ class ExponentialDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] double getLambdaAtomic() const noexcept {
-        // Fast path: check if atomic parameters are valid
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            // Lock-free atomic access with proper memory ordering
-            return atomicLambda_.load(std::memory_order_acquire);
-        }
-
-        // Fallback: use traditional locked getter if atomic parameters are stale
-        return getLambda();
-    }
+    [[nodiscard]] double getLambdaAtomic() const noexcept;
 
     /**
      * Sets the rate parameter λ (exception-based API).
@@ -289,9 +280,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Skewness value (always 2)
      */
-    [[nodiscard]] double getSkewness() const noexcept override {
-        return 2.0;  // Exponential distribution is always right-skewed
-    }
+    [[nodiscard]] double getSkewness() const noexcept override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -300,9 +289,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (always 6)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override {
-        return 6.0;  // Exponential distribution has high kurtosis
-    }
+    [[nodiscard]] double getKurtosis() const noexcept override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -311,7 +298,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Number of parameters (always 1)
      */
-    [[nodiscard]] int getNumParameters() const noexcept override { return 1; }
+    [[nodiscard]] int getNumParameters() const noexcept override;
 
     /**
      * @brief Gets the distribution name.
@@ -319,7 +306,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override { return "Exponential"; }
+    [[nodiscard]] std::string getDistributionName() const override;
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -328,27 +315,23 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return false (always continuous)
      */
-    [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
+    [[nodiscard]] bool isDiscrete() const noexcept override;
 
     /**
      * @brief Gets the lower bound of the distribution support.
      * For Exponential distribution, support is [0, ∞)
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Lower bound (0)
      */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override { return 0.0; }
+    [[nodiscard]] double getSupportLowerBound() const noexcept override;
 
     /**
      * @brief Gets the upper bound of the distribution support.
      * For Exponential distribution, support is [0, ∞)
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Upper bound (+infinity)
      */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        return std::numeric_limits<double>::infinity();
-    }
+    [[nodiscard]] double getSupportUpperBound() const noexcept override;
 
     //==============================================================================
     // 4. RESULT-BASED SETTERS
@@ -376,10 +359,7 @@ class ExponentialDistribution : public DistributionBase {
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
      */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateExponentialParameters(lambda_);
-    }
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
     // 5. CORE PROBABILITY METHODS
@@ -724,10 +704,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Half-life value
      */
-    [[nodiscard]] double getHalfLife() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return std::log(2.0) / lambda_;
-    }
+    [[nodiscard]] double getHalfLife() const noexcept;
 
     /**
      * @brief Check if the distribution has the memoryless property
@@ -737,7 +714,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return true (exponential distribution is always memoryless)
      */
-    [[nodiscard]] constexpr bool isMemoryless() const noexcept { return true; }
+    [[nodiscard]] bool isMemoryless() const noexcept;
 
     /**
      * @brief Get the median of the distribution
@@ -747,10 +724,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Median value
      */
-    [[nodiscard]] double getMedian() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return detail::LN2 / lambda_;  // Use precomputed ln(2)
-    }
+    [[nodiscard]] double getMedian() const noexcept;
 
     /**
      * @brief Compute the entropy of the distribution
@@ -760,10 +734,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return detail::ONE - std::log(lambda_);
-    }
+    [[nodiscard]] double getEntropy() const noexcept override;
 
     /**
      * @brief Get the mode of the distribution
@@ -773,7 +744,7 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Mode value (always 0.0)
      */
-    [[nodiscard]] constexpr double getMode() const noexcept { return detail::ZERO_DOUBLE; }
+    [[nodiscard]] double getMode() const noexcept;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

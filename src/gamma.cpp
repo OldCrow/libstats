@@ -1,17 +1,20 @@
 #include "../include/distributions/gamma.h"
 
-#include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
-#include "../include/core/error_handling.h"
+// Core functionality - lightweight headers
+#include "../include/core/dispatch_utils.h"
+#include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
 #include "../include/core/mathematical_constants.h"
-#include "../include/core/performance_dispatcher.h"
 #include "../include/core/precision_constants.h"
+#include "../include/core/safety.h"
 #include "../include/core/statistical_constants.h"
 #include "../include/core/threshold_constants.h"
-#include "../include/platform/parallel_execution.h"
-#include "../include/platform/thread_pool.h"
-#include "../include/platform/work_stealing_pool.h"
+#include "../include/core/validation.h"
 
+// Platform headers - use forward declarations where available
+#include "../include/common/cpu_detection_fwd.h"  // Lightweight CPU detection
+// Note: parallel_execution.h is transitively included via dispatch_utils.h
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -1284,6 +1287,80 @@ GammaDistribution::bootstrapParameterConfidenceIntervals(const std::vector<doubl
 //==========================================================================
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==========================================================================
+
+// Moved from inline methods in header for better compilation speed
+
+double GammaDistribution::getAlphaAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicAlpha_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getAlpha();
+}
+
+double GammaDistribution::getBetaAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicBeta_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getBeta();
+}
+
+int GammaDistribution::getNumParameters() const noexcept {
+    return 2;
+}
+
+std::string GammaDistribution::getDistributionName() const {
+    return "Gamma";
+}
+
+bool GammaDistribution::isDiscrete() const noexcept {
+    return false;
+}
+
+double GammaDistribution::getSupportLowerBound() const noexcept {
+    return 0.0;
+}
+
+double GammaDistribution::getSupportUpperBound() const noexcept {
+    return std::numeric_limits<double>::infinity();
+}
+
+VoidResult GammaDistribution::validateCurrentParameters() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return validateGammaParameters(alpha_, beta_);
+}
+
+double GammaDistribution::getMedian() const noexcept {
+    return getQuantile(0.5);
+}
+
+bool GammaDistribution::operator!=(const GammaDistribution& other) const {
+    return !(*this == other);
+}
+
+GammaDistribution GammaDistribution::createUnchecked(double alpha, double beta) noexcept {
+    GammaDistribution dist(alpha, beta, true);  // bypass validation
+    return dist;
+}
+
+GammaDistribution::GammaDistribution(double alpha, double beta, bool /*bypassValidation*/) noexcept
+    : DistributionBase(), alpha_(alpha), beta_(beta) {
+    // Cache will be updated on first use
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+
+    // Initialize atomic parameters to invalid state
+    atomicAlpha_.store(alpha, std::memory_order_release);
+    atomicBeta_.store(beta, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+}
 
 bool GammaDistribution::isExponentialDistribution() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
