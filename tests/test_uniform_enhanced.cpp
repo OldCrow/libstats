@@ -284,7 +284,7 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
                                               std::span<double>(simd_results),
-                                              stats::detail::Strategy::SCALAR);
+                                              stats::detail::Strategy::SIMD_BATCH);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -338,23 +338,21 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
                 << batch_size;
         }
 
-        // Performance expectations (adjusted for batch size and computational complexity)
-        EXPECT_GT(simd_speedup, 1.0) << "SIMD should provide speedup for batch size " << batch_size;
+        // Architecture-aware performance expectations using adaptive validation
+        // Uniform is a simple distribution
+        double simd_threshold =
+            stats::tests::validators::getSIMDValidationThreshold(batch_size, false);
+        EXPECT_GT(simd_speedup, simd_threshold)
+            << "SIMD speedup " << simd_speedup << "x should exceed adaptive threshold "
+            << simd_threshold << "x for batch size " << batch_size;
 
         if (std::thread::hardware_concurrency() > 1) {
-            if (batch_size >= 10000) {
-                // For uniform distributions, computations are extremely simple (range checks and
-                // constants), so SIMD can achieve massive speedups (50-70x) but parallel has thread
-                // overhead. Expect parallel to be at least 70% as efficient as SIMD for large
-                // batches.
-                EXPECT_GT(parallel_speedup, simd_speedup * 0.7)
-                    << "Parallel should be reasonably competitive with SIMD for large batches";
-            } else {
-                // For smaller batches, parallel may have overhead but should still be reasonable
-                EXPECT_GT(parallel_speedup, 0.5)
-                    << "Parallel should provide reasonable performance for batch size "
-                    << batch_size;
-            }
+            // Use adaptive parallel threshold for Uniform (simple complexity)
+            double parallel_threshold =
+                stats::tests::validators::getParallelValidationThreshold(batch_size, false);
+            EXPECT_GT(parallel_speedup, parallel_threshold)
+                << "Parallel speedup " << parallel_speedup << "x should exceed adaptive threshold "
+                << parallel_threshold << "x for batch size " << batch_size;
         }
     }
 }
@@ -704,7 +702,7 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(
+        result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Work-Stealing Operations (if available) - fallback to SIMD
@@ -814,8 +812,8 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
-        result.parallel_speedup =
-            static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
+        result.thread_pool_speedup = static_cast<double>(result.simd_time_us) /
+                                     static_cast<double>(result.thread_pool_time_us);
         result.work_stealing_speedup = static_cast<double>(result.simd_time_us) /
                                        static_cast<double>(result.work_stealing_time_us);
         result.gpu_accelerated_speedup = static_cast<double>(result.simd_time_us) /

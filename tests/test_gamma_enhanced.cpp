@@ -660,7 +660,7 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
         fixtures::BenchmarkResult result;
         result.operation_name = op;
 
-        // 1. SIMD Batch (baseline)
+        // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
             gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
@@ -676,10 +676,29 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                             stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
+        result.baseline_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
+        // 2. SIMD Batch operations
+        start = std::chrono::high_resolution_clock::now();
+        if (op == "PDF") {
+            gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                                  std::span<double>(pdf_results),
+                                                  stats::detail::Strategy::SIMD_BATCH);
+        } else if (op == "LogPDF") {
+            gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
+                                                     std::span<double>(log_pdf_results),
+                                                     stats::detail::Strategy::SIMD_BATCH);
+        } else if (op == "CDF") {
+            gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                            std::span<double>(cdf_results),
+                                                            stats::detail::Strategy::SIMD_BATCH);
+        }
+        end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 2. Standard Parallel Operations
+        // 3. Thread Pool (PARALLEL_SIMD strategy)
         std::span<const double> input_span(test_values);
 
         if (op == "PDF") {
@@ -701,10 +720,10 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                             stats::detail::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(
+        result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Work-Stealing Operations (use shared pool to avoid resource issues)
+        // 4. Work-Stealing Operations (use shared pool to avoid resource issues)
         if constexpr (requires {
                           typename WorkStealingPool;
                           {
@@ -757,7 +776,7 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Cache-Aware Operations (use shared cache manager to avoid resource issues)
+        // 5. GPU-Accelerated Operations (fallback to another strategy)
         if constexpr (requires {
                           {
                               gamma_dist.getProbabilityWithStrategy(
@@ -785,43 +804,47 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
                 end = std::chrono::high_resolution_clock::now();
             }
         } else {
-            // Fallback to SIMD batch method
+            // Fallback to Work-Stealing for GPU-Accelerated
             if (op == "PDF") {
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(pdf_results),
-                                                      stats::detail::Strategy::SCALAR);
+                                                      stats::detail::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "LogPDF") {
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                          std::span<double>(log_pdf_results),
-                                                         stats::detail::Strategy::SCALAR);
+                                                         stats::detail::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             } else if (op == "CDF") {
                 start = std::chrono::high_resolution_clock::now();
                 gamma_dist.getCumulativeProbabilityWithStrategy(
                     std::span<const double>(test_values), std::span<double>(cdf_results),
-                    stats::detail::Strategy::SCALAR);
+                    stats::detail::Strategy::WORK_STEALING);
                 end = std::chrono::high_resolution_clock::now();
             }
         }
         result.gpu_accelerated_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // Calculate speedups
-        result.parallel_speedup = result.simd_time_us > 0
-                                      ? static_cast<double>(result.simd_time_us) /
-                                            static_cast<double>(result.parallel_time_us)
-                                      : 0.0;
-        result.work_stealing_speedup = result.simd_time_us > 0
-                                           ? static_cast<double>(result.simd_time_us) /
+        // Calculate speedups (all relative to baseline)
+        result.simd_speedup = result.baseline_time_us > 0
+                                  ? static_cast<double>(result.baseline_time_us) /
+                                        static_cast<double>(result.simd_time_us)
+                                  : 0.0;
+        result.thread_pool_speedup = result.baseline_time_us > 0
+                                         ? static_cast<double>(result.baseline_time_us) /
+                                               static_cast<double>(result.thread_pool_time_us)
+                                         : 0.0;
+        result.work_stealing_speedup = result.baseline_time_us > 0
+                                           ? static_cast<double>(result.baseline_time_us) /
                                                  static_cast<double>(result.work_stealing_time_us)
                                            : 0.0;
         result.gpu_accelerated_speedup =
-            result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) /
-                                          static_cast<double>(result.gpu_accelerated_time_us)
-                                    : 0.0;
+            result.baseline_time_us > 0 ? static_cast<double>(result.baseline_time_us) /
+                                              static_cast<double>(result.gpu_accelerated_time_us)
+                                        : 0.0;
 
         benchmark_results.push_back(result);
     }

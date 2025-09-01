@@ -698,7 +698,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(
+        result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Work-Stealing Operations (if available) - fallback to SIMD
@@ -807,8 +807,8 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
-        result.parallel_speedup =
-            static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
+        result.thread_pool_speedup = static_cast<double>(result.simd_time_us) /
+                                     static_cast<double>(result.thread_pool_time_us);
         result.work_stealing_speedup = static_cast<double>(result.simd_time_us) /
                                        static_cast<double>(result.work_stealing_time_us);
         result.gpu_accelerated_speedup = static_cast<double>(result.simd_time_us) /

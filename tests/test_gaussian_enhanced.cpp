@@ -327,7 +327,7 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
                                              std::span<double>(simd_results),
-                                             stats::detail::Strategy::SCALAR);
+                                             stats::detail::Strategy::SIMD_BATCH);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -381,20 +381,21 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
                 << batch_size;
         }
 
-        // Performance expectations (adjusted for batch size)
-        EXPECT_GT(simd_speedup, 1.0) << "SIMD should provide speedup for batch size " << batch_size;
+        // Architecture-aware performance expectations using adaptive validation
+        // Gaussian is moderately complex distribution
+        double simd_threshold =
+            stats::tests::validators::getSIMDValidationThreshold(batch_size, false);
+        EXPECT_GT(simd_speedup, simd_threshold)
+            << "SIMD speedup " << simd_speedup << "x should exceed adaptive threshold "
+            << simd_threshold << "x for batch size " << batch_size;
 
         if (std::thread::hardware_concurrency() > 1) {
-            if (batch_size >= 10000) {
-                // For large batches, parallel should significantly outperform SIMD
-                EXPECT_GT(parallel_speedup, simd_speedup * 0.8)
-                    << "Parallel should be competitive with SIMD for large batches";
-            } else {
-                // For smaller batches, parallel may have overhead but should still be reasonable
-                EXPECT_GT(parallel_speedup, 0.5)
-                    << "Parallel should provide reasonable performance for batch size "
-                    << batch_size;
-            }
+            // Use adaptive parallel threshold for Gaussian (moderate complexity)
+            double parallel_threshold =
+                stats::tests::validators::getParallelValidationThreshold(batch_size, false);
+            EXPECT_GT(parallel_speedup, parallel_threshold)
+                << "Parallel speedup " << parallel_speedup << "x should exceed adaptive threshold "
+                << parallel_threshold << "x for batch size " << batch_size;
         }
     }
 }
@@ -439,7 +440,7 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
         start = std::chrono::high_resolution_clock::now();
         gauss_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                               std::span<double>(traditional_results),
-                                              stats::detail::Strategy::SCALAR);
+                                              stats::detail::Strategy::SIMD_BATCH);
         end = std::chrono::high_resolution_clock::now();
         auto traditional_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -582,15 +583,15 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                  std::span<double>(pdf_results),
-                                                 stats::detail::Strategy::SCALAR);
+                                                 stats::detail::Strategy::SIMD_BATCH);
         } else if (op == "LogPDF") {
             stdNormal.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                     std::span<double>(log_pdf_results),
-                                                    stats::detail::Strategy::SCALAR);
+                                                    stats::detail::Strategy::SIMD_BATCH);
         } else if (op == "CDF") {
             stdNormal.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                            std::span<double>(cdf_results),
-                                                           stats::detail::Strategy::SCALAR);
+                                                           stats::detail::Strategy::SIMD_BATCH);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
@@ -618,7 +619,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                            stats::detail::Strategy::PARALLEL_SIMD);
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(
+        result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Work-Stealing Operations (use shared pool to avoid resource issues)
@@ -668,10 +669,10 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
-        result.parallel_speedup = result.simd_time_us > 0
-                                      ? static_cast<double>(result.simd_time_us) /
-                                            static_cast<double>(result.parallel_time_us)
-                                      : 0.0;
+        result.thread_pool_speedup = result.simd_time_us > 0
+                                         ? static_cast<double>(result.simd_time_us) /
+                                               static_cast<double>(result.thread_pool_time_us)
+                                         : 0.0;
         result.work_stealing_speedup = result.simd_time_us > 0
                                            ? static_cast<double>(result.simd_time_us) /
                                                  static_cast<double>(result.work_stealing_time_us)

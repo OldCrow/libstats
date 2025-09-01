@@ -272,7 +272,7 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdPoisson.getProbabilityWithStrategy(std::span<const double>(test_values),
                                               std::span<double>(simd_results),
-                                              stats::detail::Strategy::SCALAR);
+                                              stats::detail::Strategy::SIMD_BATCH);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -326,20 +326,21 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
                 << batch_size;
         }
 
-        // Performance expectations (adjusted for batch size)
-        EXPECT_GT(simd_speedup, 1.0) << "SIMD should provide speedup for batch size " << batch_size;
+        // Architecture-aware performance expectations using adaptive validation
+        // Poisson is a complex distribution
+        double simd_threshold =
+            stats::tests::validators::getSIMDValidationThreshold(batch_size, true);
+        EXPECT_GT(simd_speedup, simd_threshold)
+            << "SIMD speedup " << simd_speedup << "x should exceed adaptive threshold "
+            << simd_threshold << "x for batch size " << batch_size;
 
         if (std::thread::hardware_concurrency() > 1) {
-            if (batch_size >= 10000) {
-                // For large batches, parallel should significantly outperform SIMD
-                EXPECT_GT(parallel_speedup, simd_speedup * 0.8)
-                    << "Parallel should be competitive with SIMD for large batches";
-            } else {
-                // For smaller batches, parallel may have overhead but should still be reasonable
-                EXPECT_GT(parallel_speedup, 0.5)
-                    << "Parallel should provide reasonable performance for batch size "
-                    << batch_size;
-            }
+            // Use adaptive parallel threshold for Poisson (complex distribution)
+            double parallel_threshold =
+                stats::tests::validators::getParallelValidationThreshold(batch_size, true);
+            EXPECT_GT(parallel_speedup, parallel_threshold)
+                << "Parallel speedup " << parallel_speedup << "x should exceed adaptive threshold "
+                << parallel_threshold << "x for batch size " << batch_size;
         }
     }
 }
@@ -684,7 +685,7 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(
+        result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Work-Stealing Operations (if available) - fallback to SIMD
@@ -793,8 +794,8 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
-        result.parallel_speedup =
-            static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
+        result.thread_pool_speedup = static_cast<double>(result.simd_time_us) /
+                                     static_cast<double>(result.thread_pool_time_us);
         result.work_stealing_speedup = static_cast<double>(result.simd_time_us) /
                                        static_cast<double>(result.work_stealing_time_us);
         result.gpu_accelerated_speedup = static_cast<double>(result.simd_time_us) /
