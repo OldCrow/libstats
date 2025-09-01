@@ -278,16 +278,7 @@ class GammaDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] double getAlphaAtomic() const noexcept {
-        // Fast path: check if atomic parameters are valid
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            // Lock-free atomic access with proper memory ordering
-            return atomicAlpha_.load(std::memory_order_acquire);
-        }
-
-        // Fallback: use traditional locked getter if atomic parameters are stale
-        return getAlpha();
-    }
+    [[nodiscard]] double getAlphaAtomic() const noexcept;
 
     /**
      * @brief Set the shape parameter α
@@ -335,16 +326,7 @@ class GammaDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] double getBetaAtomic() const noexcept {
-        // Fast path: check if atomic parameters are valid
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            // Lock-free atomic access with proper memory ordering
-            return atomicBeta_.load(std::memory_order_acquire);
-        }
-
-        // Fallback: use traditional locked getter if atomic parameters are stale
-        return getBeta();
-    }
+    [[nodiscard]] double getBetaAtomic() const noexcept;
 
     /**
      * @brief Set the rate parameter β
@@ -414,7 +396,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Number of parameters (always 2)
      */
-    [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
+    [[nodiscard]] int getNumParameters() const noexcept override;
 
     /**
      * @brief Gets the distribution name.
@@ -422,7 +404,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override { return "Gamma"; }
+    [[nodiscard]] std::string getDistributionName() const override;
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -431,27 +413,23 @@ class GammaDistribution : public DistributionBase {
      *
      * @return false (always continuous)
      */
-    [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
+    [[nodiscard]] bool isDiscrete() const noexcept override;
 
     /**
      * @brief Gets the lower bound of the distribution support.
      * For Gamma distribution, support is [0, ∞)
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Lower bound (0)
      */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override { return 0.0; }
+    [[nodiscard]] double getSupportLowerBound() const noexcept override;
 
     /**
      * @brief Gets the upper bound of the distribution support.
      * For Gamma distribution, support is [0, ∞)
-     * Inline for performance - no thread safety needed for constant
      *
      * @return Upper bound (+infinity)
      */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        return std::numeric_limits<double>::infinity();
-    }
+    [[nodiscard]] double getSupportUpperBound() const noexcept override;
 
     //==========================================================================
     // 4. RESULT-BASED SETTERS
@@ -486,10 +464,7 @@ class GammaDistribution : public DistributionBase {
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
      */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateGammaParameters(alpha_, beta_);
-    }
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
     // 5. CORE PROBABILITY METHODS
@@ -887,7 +862,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Median value (quantile at p=0.5)
      */
-    [[nodiscard]] double getMedian() const noexcept { return getQuantile(0.5); }
+    [[nodiscard]] double getMedian() const noexcept;
 
     /**
      * Gets the mode of the distribution.
@@ -1038,7 +1013,7 @@ class GammaDistribution : public DistributionBase {
      * @param other Other distribution to compare with
      * @return true if parameters are not equal
      */
-    bool operator!=(const GammaDistribution& other) const { return !(*this == other); }
+    bool operator!=(const GammaDistribution& other) const;
 
     //==========================================================================
     // 16. FRIEND FUNCTION STREAM OPERATORS
@@ -1071,10 +1046,7 @@ class GammaDistribution : public DistributionBase {
      * @param beta Rate parameter (assumed valid)
      * @return GammaDistribution with the given parameters
      */
-    static GammaDistribution createUnchecked(double alpha, double beta) noexcept {
-        GammaDistribution dist(alpha, beta, true);  // bypass validation
-        return dist;
-    }
+    static GammaDistribution createUnchecked(double alpha, double beta) noexcept;
 
     /**
      * @brief Private constructor that bypasses validation (for internal use)
@@ -1082,12 +1054,7 @@ class GammaDistribution : public DistributionBase {
      * @param beta Rate parameter (assumed valid)
      * @param bypassValidation Internal flag to skip validation
      */
-    GammaDistribution(double alpha, double beta, bool /*bypassValidation*/) noexcept
-        : DistributionBase(), alpha_(alpha), beta_(beta) {
-        // Cache will be updated on first use
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-    }
+    GammaDistribution(double alpha, double beta, bool /*bypassValidation*/) noexcept;
 
     //==========================================================================
     // 18. PRIVATE BATCH IMPLEMENTATION METHODS

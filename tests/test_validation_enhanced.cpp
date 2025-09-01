@@ -1,7 +1,7 @@
 // Note: This test does not use GTest integration
 #include "../include/core/validation.h"
 #include "../include/distributions/gaussian.h"
-#include "../include/tests/tests.h"
+#include "include/tests.h"
 
 // Standard library includes
 #include <cmath>     // for mathematical functions

@@ -12,10 +12,10 @@
 // and has different intrinsic handling
 #endif
 
+#include "../include/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
+#include "../include/common/platform_constants_fwd.h"  // Use lightweight forward declarations
 #include "../include/core/mathematical_constants.h"
 #include "../include/core/threshold_constants.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/platform_constants.h"
 #include "../include/platform/simd.h"
 
 #include <cmath>

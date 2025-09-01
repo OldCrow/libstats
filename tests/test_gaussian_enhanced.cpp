@@ -5,7 +5,7 @@
 #endif
 
 #include "../include/distributions/gaussian.h"
-#include "../include/tests/tests.h"
+#include "include/tests.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max

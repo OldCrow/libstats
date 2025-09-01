@@ -220,10 +220,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Current lower bound value
      */
-    [[nodiscard]] int getLowerBound() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return a_;
-    }
+    [[nodiscard]] int getLowerBound() const noexcept;
 
     /**
      * Gets the upper bound parameter b.
@@ -231,10 +228,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Current upper bound value
      */
-    [[nodiscard]] int getUpperBound() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return b_;
-    }
+    [[nodiscard]] int getUpperBound() const noexcept;
 
     /**
      * @brief Fast lock-free atomic getter for lower bound parameter a
@@ -263,16 +257,7 @@ class DiscreteDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] int getLowerBoundAtomic() const noexcept {
-        // Fast path: check if atomic parameters are valid
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            // Lock-free atomic access with proper memory ordering
-            return atomicA_.load(std::memory_order_acquire);
-        }
-
-        // Fallback: use traditional locked getter if atomic parameters are stale
-        return getLowerBound();
-    }
+    [[nodiscard]] int getLowerBoundAtomic() const noexcept;
 
     /**
      * @brief Fast lock-free atomic getter for upper bound parameter b
@@ -301,16 +286,7 @@ class DiscreteDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] int getUpperBoundAtomic() const noexcept {
-        // Fast path: check if atomic parameters are valid
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            // Lock-free atomic access with proper memory ordering
-            return atomicB_.load(std::memory_order_acquire);
-        }
-
-        // Fallback: use traditional locked getter if atomic parameters are stale
-        return getUpperBound();
-    }
+    [[nodiscard]] int getUpperBoundAtomic() const noexcept;
 
     /**
      * Sets the lower bound parameter a.
@@ -372,9 +348,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Skewness value (always 0)
      */
-    [[nodiscard]] double getSkewness() const noexcept override {
-        return 0.0;  // Discrete uniform distribution is perfectly symmetric
-    }
+    [[nodiscard]] double getSkewness() const noexcept override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -383,9 +357,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (approximately -1.2)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override {
-        return -1.2;  // Approximate excess kurtosis for discrete uniform
-    }
+    [[nodiscard]] double getKurtosis() const noexcept override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -394,7 +366,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Number of parameters (always 2)
      */
-    [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
+    [[nodiscard]] int getNumParameters() const noexcept override;
 
     /**
      * @brief Gets the distribution name.
@@ -402,7 +374,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override { return "Discrete"; }
+    [[nodiscard]] std::string getDistributionName() const override;
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -411,7 +383,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return true (always discrete)
      */
-    [[nodiscard]] bool isDiscrete() const noexcept override { return true; }
+    [[nodiscard]] bool isDiscrete() const noexcept override;
 
     /**
      * @brief Gets the lower bound of the distribution support.
@@ -419,10 +391,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Lower bound (parameter a as double)
      */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return static_cast<double>(a_);
-    }
+    [[nodiscard]] double getSupportLowerBound() const noexcept override;
 
     /**
      * @brief Gets the upper bound of the distribution support.
@@ -430,10 +399,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Upper bound (parameter b as double)
      */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return static_cast<double>(b_);
-    }
+    [[nodiscard]] double getSupportUpperBound() const noexcept override;
 
     /**
      * Gets the range of the distribution (b - a + 1).
@@ -460,10 +426,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Mode value (midpoint of the range)
      */
-    [[nodiscard]] double getMode() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
-    }
+    [[nodiscard]] double getMode() const noexcept;
 
     /**
      * Gets the median of the distribution.
@@ -472,10 +435,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Median value
      */
-    [[nodiscard]] double getMedian() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
-    }
+    [[nodiscard]] double getMedian() const noexcept;
 
     //==============================================================================
     // 4. RESULT-BASED SETTERS
@@ -519,10 +479,7 @@ class DiscreteDistribution : public DistributionBase {
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
      */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validateDiscreteParameters(a_, b_);
-    }
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
     // 5. CORE PROBABILITY METHODS
@@ -1031,7 +988,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param other Other distribution to compare with
      * @return true if parameters are not equal
      */
-    bool operator!=(const DiscreteDistribution& other) const { return !(*this == other); }
+    bool operator!=(const DiscreteDistribution& other) const;
 
     //==========================================================================
     // 16. FRIEND FUNCTION STREAM OPERATORS
@@ -1064,10 +1021,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param b Upper bound parameter (assumed valid)
      * @return DiscreteDistribution with the given parameters
      */
-    static DiscreteDistribution createUnchecked(int a, int b) noexcept {
-        DiscreteDistribution dist(a, b, true);  // bypass validation
-        return dist;
-    }
+    static DiscreteDistribution createUnchecked(int a, int b) noexcept;
 
     /**
      * @brief Private constructor that bypasses validation (for internal use)
@@ -1075,12 +1029,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param b Upper bound parameter (assumed valid)
      * @param bypassValidation Internal flag to skip validation
      */
-    DiscreteDistribution(int a, int b, bool /*bypassValidation*/) noexcept
-        : DistributionBase(), a_(a), b_(b) {
-        // Cache will be updated on first use
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-    }
+    DiscreteDistribution(int a, int b, bool bypassValidation) noexcept;
 
     //==========================================================================
     // 18. PRIVATE BATCH IMPLEMENTATION METHODS
@@ -1106,33 +1055,7 @@ class DiscreteDistribution : public DistributionBase {
     /**
      * Updates cached values when parameters change - assumes mutex is already held
      */
-    void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        range_ = b_ - a_ + 1;
-        probability_ = 1.0 / static_cast<double>(range_);
-        mean_ = (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
-
-        // Variance for discrete uniform: ((b-a)(b-a+2))/12
-        const double width = static_cast<double>(b_ - a_);
-        variance_ = (width * (width + 2.0)) / 12.0;
-
-        logProbability_ = -std::log(static_cast<double>(range_));
-
-        // Optimization flags
-        isBinary_ = (a_ == 0 && b_ == 1);
-        isStandardDie_ = (a_ == 1 && b_ == 6);
-        isSymmetric_ = (a_ == -b_);
-        isSmallRange_ = (range_ <= 10);
-        isLargeRange_ = (range_ > 1000);
-
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-
-        // Update atomic parameters for lock-free access
-        atomicA_.store(a_, std::memory_order_release);
-        atomicB_.store(b_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
+    void updateCacheUnsafe() const noexcept override;
 
     /**
      * Validates parameters for the Discrete Uniform distribution
@@ -1140,33 +1063,17 @@ class DiscreteDistribution : public DistributionBase {
      * @param b Upper bound parameter (integer, must be >= a)
      * @throws std::invalid_argument if parameters are invalid
      */
-    static void validateParameters(int a, int b) {
-        if (a > b) {
-            throw std::invalid_argument(
-                "Upper bound (b) must be greater than or equal to lower bound (a)");
-        }
-        // Check for integer overflow in range calculation
-        if (b > INT_MAX - 1 || a < INT_MIN + 1) {
-            throw std::invalid_argument("Parameter range too large - risk of integer overflow");
-        }
-        // Additional safety check for very large ranges
-        const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
-        if (range_check > INT_MAX) {
-            throw std::invalid_argument("Parameter range exceeds maximum supported size");
-        }
-    }
+    static void validateParameters(int a, int b);
 
     //==========================================================================
     // 20. PRIVATE UTILITY METHODS
     //==========================================================================
 
     /** @brief Round double to nearest integer with proper handling of edge cases */
-    static int roundToInt(double x) noexcept { return static_cast<int>(std::round(x)); }
+    static int roundToInt(double x) noexcept;
 
     /** @brief Check if rounded value is within integer bounds */
-    static bool isValidIntegerValue(double x) noexcept {
-        return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
-    }
+    static bool isValidIntegerValue(double x) noexcept;
 
     //==========================================================================
     // 21. DISTRIBUTION PARAMETERS

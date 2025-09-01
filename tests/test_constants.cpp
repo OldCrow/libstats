@@ -35,7 +35,7 @@
 #include "../include/core/threshold_constants.h"            // Algorithm thresholds
 #include "../include/platform/platform_constants.h"         // Platform constants
 #include "../include/platform/simd.h"                       // SIMD constants
-#include "../include/tests/constants.h"                     // Test constants
+#include "include/constants.h"                              // Test constants
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max

@@ -4,6 +4,7 @@
 #include "../include/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
 #include "../include/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
 #include "../include/core/dispatch_utils.h"
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "../include/core/mathematical_constants.h"
 #include "../include/core/robust_constants.h"
 #include "../include/core/safety.h"
@@ -13,12 +14,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <concepts>  // C++20 concepts
+// Removed unused headers: <concepts>, <ranges>, <version>
 #include <numeric>
-#include <ranges>  // C++20 ranges
-#include <span>    // C++20 span
+#include <span>  // C++20 span - used for batch operations
 #include <vector>
-#include <version>  // C++20 feature detection
 
 namespace stats {
 
@@ -256,6 +255,40 @@ VoidResult GaussianDistribution::trySetParameters(double mean, double standardDe
     atomicParamsValid_.store(false, std::memory_order_release);
 
     return VoidResult::ok(true);
+}
+
+VoidResult GaussianDistribution::validateCurrentParameters() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return validateGaussianParameters(mean_, standardDeviation_);
+}
+
+// Simple getters for constant values - moved from header to reduce compilation load
+double GaussianDistribution::getSkewness() const noexcept {
+    return detail::ZERO_DOUBLE;  // Gaussian distribution is symmetric
+}
+
+double GaussianDistribution::getKurtosis() const noexcept {
+    return detail::ZERO_DOUBLE;  // Gaussian has zero excess kurtosis
+}
+
+std::string GaussianDistribution::getDistributionName() const {
+    return "Gaussian";
+}
+
+int GaussianDistribution::getNumParameters() const noexcept {
+    return 2;  // Mean and standard deviation
+}
+
+bool GaussianDistribution::isDiscrete() const noexcept {
+    return false;  // Gaussian is continuous
+}
+
+double GaussianDistribution::getSupportLowerBound() const noexcept {
+    return -std::numeric_limits<double>::infinity();
+}
+
+double GaussianDistribution::getSupportUpperBound() const noexcept {
+    return std::numeric_limits<double>::infinity();
 }
 
 //==============================================================================
@@ -1698,6 +1731,40 @@ bool GaussianDistribution::isUsingStandardNormalOptimization() const {
 }
 
 #endif  // DEBUG
+
+// Utility methods moved from header for PIMPL optimization - no longer inline
+
+double GaussianDistribution::getStandardizedValue(double x) const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (x - mean_) * invStandardDeviation_;  // Use cached 1/σ for efficiency
+}
+
+double GaussianDistribution::getValueFromStandardized(double z) const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return mean_ + standardDeviation_ * z;
+}
+
+bool GaussianDistribution::isStandardNormal() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (std::abs(mean_) <= detail::DEFAULT_TOLERANCE) &&
+           (std::abs(standardDeviation_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+}
+
+double GaussianDistribution::getEntropy() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    // H(X) = 0.5 * (ln(2π) + 1 + 2*ln(σ))
+    return detail::HALF_LN_2PI + detail::HALF + std::log(standardDeviation_);
+}
+
+double GaussianDistribution::getMedian() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return mean_;  // For Gaussian, median = mean
+}
+
+double GaussianDistribution::getMode() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return mean_;  // For Gaussian, mode = mean
+}
 
 //==============================================================================
 // 13. SMART AUTO-DISPATCH BATCH OPERATIONS (New Simplified API)
