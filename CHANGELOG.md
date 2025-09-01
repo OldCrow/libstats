@@ -1,3 +1,21 @@
+## [1.1.0](https://github.com/OldCrow/libstats/compare/v1.0.0...v1.1.0) (2025-09-01)
+
+### ✨ Features
+
+* apply IWYU optimizations to distribution_base ([92bf0e0](https://github.com/OldCrow/libstats/commit/92bf0e03500df06eab890266f55f843d56fc6d6a))
+* apply IWYU optimizations to tools, examples, and tests directories ([bf89277](https://github.com/OldCrow/libstats/commit/bf89277292fccd8f9a227f75cb94a7de0db31e2f))
+* complete Phase 1 preparation for magic number elimination ([ce03f2c](https://github.com/OldCrow/libstats/commit/ce03f2c5c3324811a3eae80844399f4c51325f2a))
+* Optimize header dependencies and compilation time ([27b4c88](https://github.com/OldCrow/libstats/commit/27b4c88410226d3fdfc8a5d9840c9a0910a0f75a))
+
+### 🐛 Bug Fixes
+
+* resolve arch::safe_transform compilation errors ([9174cc2](https://github.com/OldCrow/libstats/commit/9174cc2867b15fe17bf88fdde38dbb093ac7b11c))
+
+### ♻️ Refactoring
+
+* Apply IWYU optimizations to Levels 2a-2c ([7ca15c8](https://github.com/OldCrow/libstats/commit/7ca15c8a146c1a921e00aaf5455d592bdd0659b0))
+* Apply IWYU optimizations to Levels 3-4 (Infrastructure + Framework) ([55b5b6f](https://github.com/OldCrow/libstats/commit/55b5b6f57d7430692c4be6198f09e5f2761375af))
+
 ## [1.0.0](https://github.com/OldCrow/libstats/compare/v0.10.0...v1.0.0) (2025-08-29)
 
 ### ⚠ BREAKING CHANGES
