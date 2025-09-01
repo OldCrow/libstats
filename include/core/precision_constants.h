@@ -49,5 +49,10 @@ inline constexpr double MONTE_CARLO_INTEGRATION_TOLERANCE = 1.0e-6;
 
 // Maximum recursion depth for adaptive Simpson's rule
 inline constexpr int MAX_ADAPTIVE_SIMPSON_DEPTH = 15;
+
+// Constants for continued fractions and ultra-small thresholds
+inline constexpr double LARGE_CONTINUED_FRACTION_VALUE = 1e30;
+inline constexpr double ULTRA_SMALL_THRESHOLD = 1e-30;
+inline constexpr std::size_t MAX_CONTINUED_FRACTION_ITERATIONS = 1000;
 }  // namespace detail
 }  // namespace stats

@@ -18,13 +18,14 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/simd.h"
 
-#include <chrono>
-#include <cmath>
-#include <iomanip>
-#include <iostream>
-#include <span>
-#include <string>
-#include <vector>
+// Standard library includes
+#include <chrono>    // for std::chrono::high_resolution_clock
+#include <cmath>     // for std::isnan, std::isinf, std::abs
+#include <iomanip>   // for std::setprecision
+#include <iostream>  // for std::cout, std::endl
+#include <span>      // for std::span
+#include <string>    // for std::string
+#include <vector>    // for std::vector
 
 using namespace std;
 using namespace stats;

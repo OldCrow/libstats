@@ -15,10 +15,7 @@
     #endif
 #endif
 
-#include "../include/core/constants.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/platform_constants.h"
-#include "../include/platform/simd.h"
+#include "../include/common/simd_implementation_common.h"
 
 // Only include NEON intrinsics on ARM platforms
 #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
@@ -49,8 +46,8 @@ double VectorOps::dot_product_neon(const double* a, const double* b, std::size_t
     // superscalar execution and out-of-order capabilities
     #if defined(LIBSTATS_APPLE_SILICON)
     if (size >= stats::arch::simd::OPT_APPLE_SILICON_AGGRESSIVE_THRESHOLD * 2) {
-        float64x2_t sum1 = vdupq_n_f64(0.0);
-        float64x2_t sum2 = vdupq_n_f64(0.0);
+        float64x2_t sum1 = vdupq_n_f64(detail::ZERO_DOUBLE);
+        float64x2_t sum2 = vdupq_n_f64(detail::ZERO_DOUBLE);
 
         const std::size_t unroll_end =
             (size / (stats::arch::simd::NEON_UNROLL * 2)) * (stats::arch::simd::NEON_UNROLL * 2);
@@ -91,7 +88,7 @@ double VectorOps::dot_product_neon(const double* a, const double* b, std::size_t
     #endif
 
     // Standard NEON implementation for smaller sizes or non-Apple Silicon
-    float64x2_t sum = vdupq_n_f64(0.0);
+    float64x2_t sum = vdupq_n_f64(detail::ZERO_DOUBLE);
 
     // Process pairs of doubles
     for (std::size_t i = 0; i < simd_end; i += NEON_DOUBLE_WIDTH) {
@@ -142,7 +139,7 @@ void VectorOps::vector_add_neon(const double* a, const double* b, double* result
 
             // Store results
             vst1q_f64(&result[i], vresult1);
-            vst1q_f64(&result[i + 2], vresult2);
+            vst1q_f64(&result[i + detail::TWO_INT], vresult2);
         }
 
         // Handle remaining SIMD-width elements

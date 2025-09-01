@@ -12,7 +12,7 @@
  * Part of the stats::tests:: namespace hierarchy reorganization
  */
 
-#include "../platform/work_stealing_pool.h"
+#include "../../include/platform/work_stealing_pool.h"
 
 #include <algorithm>
 #include <chrono>

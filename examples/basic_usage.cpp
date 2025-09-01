@@ -15,10 +15,14 @@
 #define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
 
+#include <chrono>   // for duration, duration_cast
+#include <cstddef>  // for size_t (portable alternative to stddef.h)
 #include <iomanip>
 #include <iostream>
 #include <random>
-#include <vector>
+#include <span>    // for std::span
+#include <string>  // for std::string
+#include <vector>  // for std::vector (keep standard portable header)
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(50, '=') << std::endl;

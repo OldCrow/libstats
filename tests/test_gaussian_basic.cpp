@@ -1,6 +1,19 @@
 // Focused unit test for gaussian distribution
 #include "../include/distributions/gaussian.h"
-#include "../include/tests/tests.h"
+#include "include/tests.h"
+
+// Standard library includes
+#include <chrono>     // for std::chrono::high_resolution_clock, timing measurements
+#include <cstdlib>    // for size_t (portable alternative to stdlib.h)
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::fixed, std::setprecision, stream formatting
+#include <iostream>   // for std::cout, std::endl
+#include <random>     // for std::mt19937, std::uniform_real_distribution
+#include <span>       // for std::span
+#include <sstream>    // for std::stringstream
+#include <string>     // for std::string
+#include <utility>    // for std::move
+#include <vector>     // for std::vector
 
 using namespace std;
 using namespace stats;

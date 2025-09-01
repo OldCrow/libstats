@@ -18,12 +18,13 @@
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/simd_policy.h"
 
-#include <algorithm>
-#include <cassert>
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <vector>
+// Standard library includes
+#include <algorithm>  // for std::sort, std::min, std::max
+#include <cassert>    // for assert
+#include <cmath>      // for mathematical functions
+#include <iostream>   // for std::cout, std::cerr, std::endl
+#include <string>     // for std::string
+#include <vector>     // for std::vector
 
 using namespace stats::arch::simd;
 

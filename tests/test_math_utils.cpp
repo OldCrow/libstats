@@ -6,7 +6,10 @@
 // Use focused header for math utilities testing
 #include "../include/core/math_utils.h"
 
-#include <gtest/gtest.h>
+// Standard library includes
+#include <cmath>          // for std::abs, std::isnan, std::isinf, std::log, std::sqrt, M_PI
+#include <cstddef>        // for std::size_t
+#include <gtest/gtest.h>  // for testing framework
 
 // Use stats::detail namespace but avoid conflicting standard library functions
 using namespace stats::detail;

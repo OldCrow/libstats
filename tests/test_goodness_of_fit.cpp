@@ -1,10 +1,13 @@
 #include "../include/core/distribution_base.h"
 #include "../include/core/math_utils.h"
 
-#include <cmath>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <cmath>     // for std::sqrt, std::exp, std::erf, M_PI
+#include <iostream>  // for std::cout, std::cerr, std::endl
+#include <limits>    // for std::numeric_limits
+#include <random>    // for std::mt19937, std::normal_distribution
+#include <string>    // for std::string
+#include <vector>    // for std::vector
 
 // Simple test implementation of a distribution for testing goodness-of-fit functions
 class TestNormalDistribution : public stats::DistributionBase {

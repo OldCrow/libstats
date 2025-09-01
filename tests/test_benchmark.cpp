@@ -16,14 +16,16 @@
 
 #include "../include/platform/benchmark.h"
 
-#include <algorithm>
-#include <cassert>
-#include <chrono>
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <thread>
-#include <vector>
+// Standard library includes
+#include <algorithm>  // for std::min, std::max
+#include <cassert>    // for assert
+#include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::milliseconds
+#include <cmath>      // for std::abs
+#include <cstddef>    // for std::size_t
+#include <iostream>   // for std::cout, std::cerr, std::endl
+#include <string>     // for std::string
+#include <thread>     // for std::this_thread::sleep_for
+#include <vector>     // for std::vector
 
 using namespace stats;
 

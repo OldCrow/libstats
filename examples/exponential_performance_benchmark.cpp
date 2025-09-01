@@ -15,12 +15,15 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <iomanip>   // for std::setw, std::setprecision, std::fixed, std::scientific
+#include <iostream>  // for std::cout
+#include <random>    // for std::mt19937, std::exponential_distribution
+#include <span>      // for std::span
+#include <string>    // for std::string, std::to_string
+#include <vector>    // for std::vector
 
 using namespace stats;
 

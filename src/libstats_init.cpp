@@ -3,6 +3,8 @@
 #include "../include/platform/simd_policy.h"
 #include "../include/platform/thread_pool.h"
 
+#include <mutex>
+
 namespace stats {
 
 void initialize_performance_systems() {

@@ -14,15 +14,24 @@
 // Additional includes for performance analysis functionality
 #include "../include/core/performance_history.h"
 
-// Additional standard library includes for tool-specific functionality
-#include <map>
-#include <memory>
-#include <sstream>
-#include <thread>
+// Standard library includes
+#include <algorithm>  // for std::sort, std::max
+#include <chrono>     // for std::chrono timing functions
+#include <cstdint>    // for std::uint64_t
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed, std::left
+#include <iostream>   // for std::cout, std::cerr
+#include <map>        // for std::map
+#include <memory>     // for std::memory (if needed)
+#include <optional>   // for std::optional
+#include <random>     // for std::mt19937, random distributions
+#include <sstream>    // for std::ostringstream
+#include <string>     // for std::string
+#include <thread>     // for threading (if needed)
+#include <utility>    // for std::pair
+#include <vector>     // for std::vector
 
 using namespace stats;
-using namespace stats::detail;
-using namespace stats::detail;
 using namespace stats::detail;
 
 // Consolidated learning analysis constants

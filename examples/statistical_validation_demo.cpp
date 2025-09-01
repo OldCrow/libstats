@@ -11,12 +11,18 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iostream>
-#include <random>
-#include <vector>
-
+// Standard library includes
+#include <algorithm>  // for std::sort, std::max_element
+#include <cmath>      // for std::abs, std::sqrt
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed
+#include <iostream>   // for std::cout, std::cerr
+#include <numeric>    // for std::accumulate
+#include <random>     // for std::mt19937, std::normal_distribution
+#include <string>     // for std::string
+#include <vector>     // for std::vector
 int main() {
     try {
         std::cout << "=== libstats Statistical Validation & Testing Demo ===" << std::endl;

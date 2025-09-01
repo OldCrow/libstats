@@ -1,7 +1,10 @@
 #include "../include/distributions/gaussian.h"
 
-#include <cassert>
-#include <iostream>
+// Standard library includes
+#include <cassert>   // for assert
+#include <cmath>     // for std::abs
+#include <iostream>  // for std::cout, std::endl
+#include <limits>    // for std::numeric_limits
 
 using namespace stats;
 

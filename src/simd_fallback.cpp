@@ -1,13 +1,10 @@
 // Scalar fallback implementations - no SIMD instructions
 // These implementations work on any CPU and serve as the baseline
 
-#include "../include/core/constants.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/platform_constants.h"
-#include "../include/platform/simd.h"
-#include "../include/platform/simd_policy.h"
+#include "../include/common/simd_implementation_common.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace stats {
 namespace simd {
@@ -17,7 +14,7 @@ namespace ops {
 
 double VectorOps::dot_product_fallback(const double* a, const double* b,
                                        std::size_t size) noexcept {
-    double sum = 0.0;
+    double sum = detail::ZERO_DOUBLE;
     for (std::size_t i = 0; i < size; ++i) {
         sum += a[i] * b[i];
     }

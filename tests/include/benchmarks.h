@@ -12,7 +12,7 @@
  * Part of the stats::tests:: namespace hierarchy reorganization
  */
 
-#include "../platform/benchmark.h"
+#include "../../include/platform/benchmark.h"
 #include "constants.h"
 
 #include <chrono>

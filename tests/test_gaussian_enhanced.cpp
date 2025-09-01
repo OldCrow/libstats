@@ -5,9 +5,16 @@
 #endif
 
 #include "../include/distributions/gaussian.h"
-#include "../include/tests/tests.h"
+#include "include/tests.h"
 
+// Standard library includes
+#include <algorithm>  // for std::sort, std::min, std::max
+#include <cmath>      // for std::sqrt, std::exp, M_PI, std::isfinite, std::abs
 #include <gtest/gtest.h>
+#include <iostream>  // for std::cout, std::endl
+#include <random>    // for std::mt19937, std::normal_distribution
+#include <utility>   // for std::move, std::pair
+#include <vector>    // for std::vector
 
 using namespace std;
 using namespace stats;

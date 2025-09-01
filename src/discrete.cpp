@@ -1,14 +1,18 @@
 #include "../include/distributions/discrete.h"
 
-#include "../include/core/constants.h"
+// Core functionality - lightweight headers
 #include "../include/core/dispatch_utils.h"
+#include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/safety.h"
-#include "../include/platform/parallel_execution.h"
-#include "../include/platform/simd.h"
-#include "../include/platform/simd_policy.h"
-#include "../include/platform/thread_pool.h"
-#include "../include/platform/work_stealing_pool.h"
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/precision_constants.h"
+#include "../include/core/statistical_constants.h"
+#include "../include/core/validation.h"
+
+// Platform headers - use forward declarations where available
+#include "../include/common/cpu_detection_fwd.h"  // Lightweight CPU detection
+// Note: parallel_execution.h is transitively included via dispatch_utils.h
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 
 #include <algorithm>
 #include <cmath>
@@ -244,6 +248,62 @@ void DiscreteDistribution::setParameters(int a, int b) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
+// Implementation moved from header - no longer inline
+int DiscreteDistribution::getLowerBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return a_;
+}
+
+// Implementation moved from header - no longer inline
+int DiscreteDistribution::getUpperBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return b_;
+}
+
+// Simple getters for constant values - no longer inline
+double DiscreteDistribution::getSkewness() const noexcept {
+    return 0.0;  // Discrete uniform distribution is perfectly symmetric
+}
+
+double DiscreteDistribution::getKurtosis() const noexcept {
+    // For discrete uniform: excess kurtosis ≈ -1.2 for large ranges
+    // For exact calculation: -6/5 * (n²+1)/(n²-1) where n = b-a+1
+    // But approximation is sufficient for performance-critical inline method
+    return -1.2;
+}
+
+int DiscreteDistribution::getNumParameters() const noexcept {
+    return 2;  // Lower bound (a) and upper bound (b)
+}
+
+std::string DiscreteDistribution::getDistributionName() const {
+    return "DiscreteUniform";
+}
+
+bool DiscreteDistribution::isDiscrete() const noexcept {
+    return true;  // Discrete uniform distribution is always discrete
+}
+
+double DiscreteDistribution::getSupportLowerBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return static_cast<double>(a_);
+}
+
+double DiscreteDistribution::getSupportUpperBound() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return static_cast<double>(b_);
+}
+
+double DiscreteDistribution::getMode() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
+}
+
+double DiscreteDistribution::getMedian() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
+}
+
 int DiscreteDistribution::getRange() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -389,7 +449,7 @@ double DiscreteDistribution::getProbability(double x) const {
 
     // Fast path optimizations
     if (isBinary_) {
-        return detail::HALF;  // 0.5 for binary [0,1]
+        return detail::HALF;  // detail::AD_THRESHOLD_1 for binary [0,1]
     }
 
     return probability_;  // 1/(b-a+1)
@@ -420,7 +480,7 @@ double DiscreteDistribution::getLogProbability(double x) const noexcept {
 
     // Fast path optimizations
     if (isBinary_) {
-        return -detail::LN2;  // log(0.5)
+        return -detail::LN2;  // log(detail::AD_THRESHOLD_1)
     }
 
     return logProbability_;  // -log(b-a+1)
@@ -448,7 +508,7 @@ double DiscreteDistribution::getCumulativeProbability(double x) const {
 
     // For discrete uniform: F(k) = (floor(k) - a + 1) / (b - a + 1)
     const int k = static_cast<int>(std::floor(x));
-    const int numerator = k - a_ + 1;
+    const int numerator = k - a_ + detail::ONE_INT;
 
     // Fast path optimizations
     if (isBinary_) {
@@ -651,7 +711,7 @@ std::pair<int, int> DiscreteDistribution::confidenceIntervalLowerBound(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
@@ -673,8 +733,8 @@ std::pair<int, int> DiscreteDistribution::confidenceIntervalLowerBound(
     // For discrete uniform, use order statistics for confidence interval
     // This is a simplified approximation
     const size_t n = int_data.size();
-    const double alpha = 1.0 - confidence_level;
-    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));
+    const double alpha = detail::ONE - confidence_level;
+    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / detail::TWO));
 
     const int lower_bound = std::max(0, observed_min - margin);
     const int upper_bound = observed_min + margin;
@@ -688,7 +748,7 @@ std::pair<int, int> DiscreteDistribution::confidenceIntervalUpperBound(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
@@ -710,8 +770,8 @@ std::pair<int, int> DiscreteDistribution::confidenceIntervalUpperBound(
     // For discrete uniform, use order statistics for confidence interval
     // This is a simplified approximation
     const size_t n = int_data.size();
-    const double alpha = 1.0 - confidence_level;
-    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / 2.0));
+    const double alpha = detail::ONE - confidence_level;
+    const int margin = static_cast<int>(std::ceil(alpha * static_cast<double>(n) / detail::TWO));
 
     const int lower_bound = observed_max - margin;
     const int upper_bound = observed_max + margin;
@@ -725,7 +785,7 @@ std::tuple<double, double, bool> DiscreteDistribution::likelihoodRatioTest(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (significance_level <= 0.0 || significance_level >= 1.0) {
+    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
@@ -737,20 +797,20 @@ std::tuple<double, double, bool> DiscreteDistribution::likelihoodRatioTest(
     alternative_distribution.fit(data);
 
     // Calculate log-likelihood for null hypothesis
-    double log_likelihood_null = 0.0;
+    double log_likelihood_null = detail::ZERO_DOUBLE;
     for (double x : data) {
         log_likelihood_null += null_distribution.getLogProbability(x);
     }
 
     // Calculate log-likelihood for alternative hypothesis
-    double log_likelihood_alt = 0.0;
+    double log_likelihood_alt = detail::ZERO_DOUBLE;
     for (double x : data) {
         log_likelihood_alt += alternative_distribution.getLogProbability(x);
     }
 
     // Calculate likelihood ratio test statistic
     const double log_likelihood_ratio = log_likelihood_alt - log_likelihood_null;
-    const double test_statistic = -2.0 * log_likelihood_ratio;
+    const double test_statistic = -detail::TWO * log_likelihood_ratio;
 
     // For nested models, test statistic follows chi-squared distribution
     // Degrees of freedom = difference in number of parameters
@@ -758,10 +818,10 @@ std::tuple<double, double, bool> DiscreteDistribution::likelihoodRatioTest(
     // This is a simplified implementation
 
     // Critical value for chi-squared distribution (approximation)
-    const double critical_value = 3.841;  // Chi-squared(1) at alpha=0.05
+    const double critical_value = detail::CHI2_95_DF_1;  // Chi-squared(1) at alpha=detail::ALPHA_05
 
     // Simple p-value approximation
-    const double p_value = (test_statistic > critical_value) ? 0.01 : 0.5;
+    const double p_value = (test_statistic > critical_value) ? detail::ALPHA_01 : detail::HALF;
 
     const bool reject_null = test_statistic > critical_value;
 
@@ -776,8 +836,8 @@ DiscreteDistribution::bayesianEstimation(const std::vector<double>& data, double
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (prior_a_alpha <= 0.0 || prior_a_beta <= 0.0 || prior_b_alpha <= 0.0 ||
-        prior_b_beta <= 0.0) {
+    if (prior_a_alpha <= detail::ZERO_DOUBLE || prior_a_beta <= detail::ZERO_DOUBLE ||
+        prior_b_alpha <= detail::ZERO_DOUBLE || prior_b_beta <= detail::ZERO_DOUBLE) {
         throw std::invalid_argument("Prior parameters must be positive");
     }
 
@@ -802,13 +862,13 @@ DiscreteDistribution::bayesianEstimation(const std::vector<double>& data, double
 
     // Posterior parameters for lower bound (approximate)
     [[maybe_unused]] const double posterior_a_alpha = prior_a_alpha + n;
-    [[maybe_unused]] const double posterior_a_beta = prior_a_beta + 1.0;
+    [[maybe_unused]] const double posterior_a_beta = prior_a_beta + detail::ONE;
     const double posterior_a_mean = empirical_min - 1.0;  // Conservative estimate
     const double posterior_a_var = 1.0;                   // Simplified variance
 
     // Posterior parameters for upper bound (approximate)
     [[maybe_unused]] const double posterior_b_alpha = prior_b_alpha + n;
-    [[maybe_unused]] const double posterior_b_beta = prior_b_beta + 1.0;
+    [[maybe_unused]] const double posterior_b_beta = prior_b_beta + detail::ONE;
     const double posterior_b_mean = empirical_max + 1.0;  // Conservative estimate
     const double posterior_b_var = 1.0;                   // Simplified variance
 
@@ -827,8 +887,8 @@ std::pair<int, int> DiscreteDistribution::robustEstimation(const std::vector<dou
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (trim_proportion < 0.0 || trim_proportion >= 0.5) {
-        throw std::invalid_argument("Trim proportion must be in [0, 0.5)");
+    if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion >= detail::HALF) {
+        throw std::invalid_argument("Trim proportion must be in [0, detail::HALF)");
     }
 
     // Convert to integers and sort
@@ -847,8 +907,11 @@ std::pair<int, int> DiscreteDistribution::robustEstimation(const std::vector<dou
 
     // Use median and MAD (Median Absolute Deviation) for robust estimation
     const size_t n = int_data.size();
-    const double median = (n % 2 == 0) ? (int_data[n / 2 - 1] + int_data[n / 2]) / 2.0
-                                       : static_cast<double>(int_data[n / 2]);
+    const double median =
+        (n % detail::TWO_INT == 0)
+            ? (int_data[n / detail::TWO_INT - detail::ONE_INT] + int_data[n / detail::TWO_INT]) /
+                  detail::TWO
+            : static_cast<double>(int_data[n / 2]);
 
     // Calculate MAD
     std::vector<double> deviations;
@@ -857,15 +920,18 @@ std::pair<int, int> DiscreteDistribution::robustEstimation(const std::vector<dou
     }
     std::sort(deviations.begin(), deviations.end());
 
-    const double mad =
-        (n % 2 == 0) ? (deviations[n / 2 - 1] + deviations[n / 2]) / 2.0 : deviations[n / 2];
+    const double mad = (n % detail::TWO_INT == 0)
+                           ? (deviations[n / detail::TWO_INT - detail::ONE_INT] +
+                              deviations[n / detail::TWO_INT]) /
+                                 detail::TWO
+                           : deviations[n / detail::TWO_INT];
 
     // Apply robust estimation based on estimator type
     std::vector<int> filtered_data;
 
     if (estimator_type == "mode_range") {
         // Use MAD-based filtering
-        const double threshold = 2.0 * mad;  // Fixed threshold
+        const double threshold = detail::TWO * mad;  // Fixed threshold
         for (int val : int_data) {
             if (std::abs(val - median) <= threshold) {
                 filtered_data.push_back(val);
@@ -902,8 +968,8 @@ std::pair<int, int> DiscreteDistribution::methodOfMomentsEstimation(
     }
 
     // Calculate sample moments
-    double sum = 0.0;
-    double sum_squares = 0.0;
+    double sum = detail::ZERO_DOUBLE;
+    double sum_squares = detail::ZERO_DOUBLE;
     size_t valid_count = 0;
 
     for (double val : data) {
@@ -931,8 +997,8 @@ std::pair<int, int> DiscreteDistribution::methodOfMomentsEstimation(
     // Therefore: b - a = sqrt(12 * variance)
 
     const double range_estimate = std::sqrt(12.0 * sample_variance);
-    const double a_estimate = sample_mean - range_estimate / 2.0;
-    const double b_estimate = sample_mean + range_estimate / 2.0;
+    const double a_estimate = sample_mean - range_estimate / detail::TWO;
+    const double b_estimate = sample_mean + range_estimate / detail::TWO;
 
     return std::make_pair(static_cast<int>(std::round(a_estimate)),
                           static_cast<int>(std::round(b_estimate)));
@@ -947,7 +1013,7 @@ DiscreteDistribution::bayesianCredibleInterval(const std::vector<double>& data,
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (credibility_level <= 0.0 || credibility_level >= 1.0) {
+    if (credibility_level <= detail::ZERO_DOUBLE || credibility_level >= detail::ONE) {
         throw std::invalid_argument("Credibility level must be between 0 and 1");
     }
 
@@ -956,17 +1022,17 @@ DiscreteDistribution::bayesianCredibleInterval(const std::vector<double>& data,
         bayesianEstimation(data, prior_a_alpha, prior_a_beta, prior_b_alpha, prior_b_beta);
 
     // Calculate credible intervals using normal approximation
-    [[maybe_unused]] const double alpha = 1.0 - credibility_level;
-    const double z_score = 1.96;  // Approximate for 95% credibility
+    [[maybe_unused]] const double alpha = detail::ONE - credibility_level;
+    const double z_score = detail::Z_95;  // Approximate for 95% credibility
 
     // For parameter a
-    const double a_mean = (posterior_a_interval.first + posterior_a_interval.second) / 2.0;
+    const double a_mean = (posterior_a_interval.first + posterior_a_interval.second) / detail::TWO;
     const double a_std =
         (posterior_a_interval.second - posterior_a_interval.first) / 4.0;  // rough estimate
     const double a_margin = z_score * a_std;
 
     // For parameter b
-    const double b_mean = (posterior_b_interval.first + posterior_b_interval.second) / 2.0;
+    const double b_mean = (posterior_b_interval.first + posterior_b_interval.second) / detail::TWO;
     const double b_std =
         (posterior_b_interval.second - posterior_b_interval.first) / 4.0;  // rough estimate
     const double b_margin = z_score * b_std;
@@ -997,28 +1063,28 @@ std::pair<int, int> DiscreteDistribution::lMomentsEstimation(const std::vector<d
 
     // Calculate L-moments (simplified implementation)
     // L1 (location) = sample mean
-    double l1 = 0.0;
+    double l1 = detail::ZERO_DOUBLE;
     for (int val : int_data) {
         l1 += val;
     }
     l1 /= static_cast<double>(n);
 
     // L2 (scale) = half the mean absolute difference
-    double l2 = 0.0;
+    double l2 = detail::ZERO_DOUBLE;
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = 0; j < n; ++j) {
             l2 += std::abs(int_data[i] - int_data[j]);
         }
     }
-    l2 /= (2.0 * static_cast<double>(n) * static_cast<double>(n));
+    l2 /= (detail::TWO * static_cast<double>(n) * static_cast<double>(n));
 
     // For discrete uniform distribution:
     // L1 = (a + b) / 2
     // L2 ≈ (b - a) / 3 (approximate relationship)
 
-    const double range_estimate = 3.0 * l2;
-    const double a_estimate = l1 - range_estimate / 2.0;
-    const double b_estimate = l1 + range_estimate / 2.0;
+    const double range_estimate = detail::THREE * l2;
+    const double a_estimate = l1 - range_estimate / detail::TWO;
+    const double b_estimate = l1 + range_estimate / detail::TWO;
 
     return std::make_pair(static_cast<int>(std::round(a_estimate)),
                           static_cast<int>(std::round(b_estimate)));
@@ -1030,7 +1096,7 @@ std::tuple<double, double, bool> DiscreteDistribution::discreteUniformityTest(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (significance_level <= 0.0 || significance_level >= 1.0) {
+    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
         throw std::invalid_argument("Significance level must be between 0 and 1");
     }
 
@@ -1054,11 +1120,11 @@ std::tuple<double, double, bool> DiscreteDistribution::discreteUniformityTest(
         throw std::invalid_argument("No valid integer values in data");
     }
 
-    const int range = max_val - min_val + 1;
+    const int range = max_val - min_val + detail::ONE_INT;
     const double expected_frequency = static_cast<double>(total_count) / range;
 
     // Chi-squared test for uniformity
-    double chi_squared = 0.0;
+    double chi_squared = detail::ZERO_DOUBLE;
     for (int k = min_val; k <= max_val; ++k) {
         const int observed = frequency_map[k];  // defaults to 0 if not found
         const double diff = observed - expected_frequency;
@@ -1066,11 +1132,14 @@ std::tuple<double, double, bool> DiscreteDistribution::discreteUniformityTest(
     }
 
     // Degrees of freedom = number of categories - 1
-    [[maybe_unused]] const int degrees_of_freedom = range - 1;
+    [[maybe_unused]] const int degrees_of_freedom = range - detail::ONE_INT;
 
     // Simple p-value approximation
-    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
-    double p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
+    const double critical_value =
+        detail::CHI2_95_DF_1;  // Chi-squared critical value for alpha=detail::ALPHA_05, df=1
+    double p_value = (chi_squared > critical_value)
+                         ? detail::ALPHA_01
+                         : detail::AD_THRESHOLD_1;  // Rough approximation
 
     const bool reject_uniformity = p_value < significance_level;
 
@@ -1087,7 +1156,7 @@ std::tuple<double, double, bool> DiscreteDistribution::kolmogorovSmirnovTest(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -1106,19 +1175,21 @@ std::tuple<double, double, bool> DiscreteDistribution::kolmogorovSmirnovTest(
     double p_value;
 
     if (lambda < 0.27) {
-        p_value = 1.0;
-    } else if (lambda < 1.0) {
-        p_value = 1.0 - 2.0 * std::pow(lambda, 2) * (1.0 - 2.0 * lambda * lambda / 3.0);
+        p_value = detail::ONE;
+    } else if (lambda < detail::ONE) {
+        p_value = detail::ONE - detail::TWO * std::pow(lambda, 2) *
+                                    (detail::ONE - detail::TWO * lambda * lambda / detail::THREE);
     } else {
         // Asymptotic series for large lambda
-        p_value = 2.0 * std::exp(-2.0 * lambda * lambda);
+        p_value = detail::TWO * std::exp(-detail::TWO * lambda * lambda);
         // Add correction terms
-        double correction = 1.0 - 2.0 * lambda * lambda / 3.0 + 8.0 * std::pow(lambda, 4) / 15.0;
-        p_value *= std::max(0.0, correction);
+        double correction = detail::ONE - detail::TWO * lambda * lambda / detail::THREE +
+                            8.0 * std::pow(lambda, 4) / 15.0;
+        p_value *= std::max(detail::ZERO_DOUBLE, correction);
     }
 
     // Ensure p-value is in valid range
-    p_value = std::min(1.0, std::max(0.0, p_value));
+    p_value = std::min(detail::ONE, std::max(detail::ZERO_DOUBLE, p_value));
 
     const bool reject_null = p_value < alpha;
 
@@ -1131,7 +1202,7 @@ std::tuple<double, double, bool> DiscreteDistribution::andersonDarlingTest(
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
@@ -1140,22 +1211,23 @@ std::tuple<double, double, bool> DiscreteDistribution::andersonDarlingTest(
 
     // Critical values remain the same for discrete distributions
     double critical_value;
-    if (alpha <= 0.01) {
+    if (alpha <= detail::ALPHA_01) {
         critical_value = 3.857;
-    } else if (alpha <= 0.05) {
+    } else if (alpha <= detail::ALPHA_05) {
         critical_value = 2.492;
-    } else if (alpha <= 0.10) {
+    } else if (alpha <= detail::ALPHA_10) {
         critical_value = 1.933;
     } else {
-        critical_value = 1.159;  // alpha = 0.25
+        critical_value = 1.159;  // alpha = detail::QUARTER
     }
 
     // P-value calculation for discrete Anderson-Darling test
     double p_value;
-    if (ad_statistic < 0.5) {
-        p_value = 1.0 - std::exp(-1.2337 * std::pow(ad_statistic, -1.0) + 1.0);
-    } else if (ad_statistic < 2.0) {
-        p_value = 1.0 - std::exp(-0.75 * ad_statistic - 0.5);
+    if (ad_statistic < detail::HALF) {
+        p_value =
+            detail::ONE - std::exp(-1.2337 * std::pow(ad_statistic, -detail::ONE) + detail::ONE);
+    } else if (ad_statistic < detail::TWO) {
+        p_value = detail::ONE - std::exp(-detail::AD_P_VALUE_MEDIUM * ad_statistic - detail::HALF);
     } else {
         p_value = std::exp(-ad_statistic);
     }
@@ -1172,14 +1244,14 @@ std::tuple<double, double, bool> DiscreteDistribution::chiSquaredGoodnessOfFitTe
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (alpha <= 0.0 || alpha >= 1.0) {
+    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
         throw std::invalid_argument("Alpha must be between 0 and 1");
     }
 
     // Get distribution parameters
     const int a = distribution.getLowerBound();
     const int b = distribution.getUpperBound();
-    const int range = b - a + 1;
+    const int range = b - a + detail::ONE_INT;
 
     // Count observed frequencies for each possible outcome
     std::map<int, int> observed_counts;
@@ -1197,13 +1269,13 @@ std::tuple<double, double, bool> DiscreteDistribution::chiSquaredGoodnessOfFitTe
     const double expected_freq = static_cast<double>(total_count) / range;
 
     // Check minimum expected frequency requirement (typically >= 5)
-    if (expected_freq < 5.0) {
+    if (expected_freq < detail::FIVE) {
         // Chi-squared test may not be reliable with low expected frequencies
         // But we'll proceed with a warning
     }
 
     // Calculate chi-squared statistic
-    double chi_squared = 0.0;
+    double chi_squared = detail::ZERO_DOUBLE;
     for (int k = a; k <= b; ++k) {
         const int observed = observed_counts[k];  // defaults to 0 if not found
         const double diff = observed - expected_freq;
@@ -1212,23 +1284,27 @@ std::tuple<double, double, bool> DiscreteDistribution::chiSquaredGoodnessOfFitTe
 
     // Degrees of freedom = number of categories - 1 - number of estimated parameters
     // For discrete uniform, we estimate 0 parameters (a and b are given)
-    const int degrees_of_freedom = range - 1;
+    const int degrees_of_freedom = range - detail::ONE_INT;
 
     // Calculate p-value using chi-squared distribution
     // For simplicity, we'll use a basic approximation
     // In a full implementation, you'd use a proper chi-squared CDF
-    const double critical_value = 3.841;  // Chi-squared critical value for alpha=0.05, df=1
+    const double critical_value =
+        detail::CHI2_95_DF_1;  // Chi-squared critical value for alpha=detail::ALPHA_05, df=1
 
     // Simple p-value approximation (this should use proper chi-squared CDF)
     double p_value;
     if (degrees_of_freedom == 1) {
-        p_value = (chi_squared > critical_value) ? 0.01 : 0.5;  // Rough approximation
+        p_value = (chi_squared > critical_value) ? detail::ALPHA_01
+                                                 : detail::AD_THRESHOLD_1;  // Rough approximation
     } else {
         // For higher df, use a rough approximation
         const double mean_chi = degrees_of_freedom;
-        const double std_chi = std::sqrt(2.0 * degrees_of_freedom);
+        const double std_chi = std::sqrt(detail::TWO * degrees_of_freedom);
         const double z_score = (chi_squared - mean_chi) / std_chi;
-        p_value = (z_score > 1.96) ? 0.025 : 0.5;  // Very rough normal approximation
+        p_value = (z_score > detail::Z_95)
+                      ? 0.025
+                      : detail::AD_THRESHOLD_1;  // Very rough normal approximation
     }
 
     const bool reject_null = p_value < alpha;
@@ -1292,9 +1368,9 @@ std::vector<std::tuple<double, double, double>> DiscreteDistribution::kFoldCross
         fold_dist.fit(train_data);
 
         // Evaluate on test data
-        double mean_error = 0.0;
-        double sum_squared_error = 0.0;
-        double log_likelihood = 0.0;
+        double mean_error = detail::ZERO_DOUBLE;
+        double sum_squared_error = detail::ZERO_DOUBLE;
+        double log_likelihood = detail::ZERO_DOUBLE;
 
         for (double test_point : test_data) {
             // Calculate error (difference from expected value)
@@ -1327,9 +1403,9 @@ std::tuple<double, double, double> DiscreteDistribution::leaveOneOutCrossValidat
     }
 
     const size_t n = data.size();
-    double total_absolute_error = 0.0;
-    double total_squared_error = 0.0;
-    double total_log_likelihood = 0.0;
+    double total_absolute_error = detail::ZERO_DOUBLE;
+    double total_squared_error = detail::ZERO_DOUBLE;
+    double total_log_likelihood = detail::ZERO_DOUBLE;
 
     for (size_t i = 0; i < n; ++i) {
         // Create training set excluding point i
@@ -1376,19 +1452,19 @@ std::tuple<double, double, double, double> DiscreteDistribution::computeInformat
     const int k = 2;  // Number of parameters (a and b)
 
     // Calculate log-likelihood
-    double log_likelihood = 0.0;
+    double log_likelihood = detail::ZERO_DOUBLE;
     for (double x : data) {
         log_likelihood += fitted_distribution.getLogProbability(x);
     }
 
     // Calculate information criteria
-    const double aic = 2.0 * k - 2.0 * log_likelihood;
-    const double bic = k * std::log(static_cast<double>(n)) - 2.0 * log_likelihood;
+    const double aic = detail::TWO * k - detail::TWO * log_likelihood;
+    const double bic = k * std::log(static_cast<double>(n)) - detail::TWO * log_likelihood;
 
     // AICc (corrected AIC for small samples)
     double aicc;
     if (n > k + 1) {
-        aicc = aic + (2.0 * k * (k + 1)) / (static_cast<double>(n) - k - 1);
+        aicc = aic + (detail::TWO * k * (k + 1)) / (static_cast<double>(n) - k - 1);
     } else {
         aicc = std::numeric_limits<double>::infinity();  // AICc undefined for small samples
     }
@@ -1409,7 +1485,7 @@ DiscreteDistribution::bootstrapParameterConfidenceIntervals(const std::vector<do
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    if (confidence_level <= 0.0 || confidence_level >= 1.0) {
+    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
         throw std::invalid_argument("Confidence level must be between 0 and 1");
     }
 
@@ -1438,12 +1514,12 @@ DiscreteDistribution::bootstrapParameterConfidenceIntervals(const std::vector<do
     // 3. Bias-corrected bootstrap for edge cases
 
     // Check if we likely have the full range (heuristic: if range is small and densely sampled)
-    const int observed_range = sample_max - sample_min + 1;
+    const int observed_range = sample_max - sample_min + detail::ONE_INT;
     const double sampling_density = static_cast<double>(n) / observed_range;
 
     std::pair<double, double> lower_bound_ci, upper_bound_ci;
 
-    if (sampling_density >= 3.0 && observed_range <= 20) {
+    if (sampling_density >= detail::THREE && observed_range <= 20) {
         // High-density sampling of small range: use exact order statistic theory
         // For discrete uniform U(a,b), the distribution of min and max are known exactly
 
@@ -1500,9 +1576,10 @@ DiscreteDistribution::bootstrapParameterConfidenceIntervals(const std::vector<do
         std::sort(bootstrap_lower_bounds.begin(), bootstrap_lower_bounds.end());
         std::sort(bootstrap_upper_bounds.begin(), bootstrap_upper_bounds.end());
 
-        const double alpha = 1.0 - confidence_level;
-        const size_t lower_index = static_cast<size_t>(alpha / 2.0 * n_bootstrap);
-        const size_t upper_index = static_cast<size_t>((1.0 - alpha / 2.0) * n_bootstrap);
+        const double alpha = detail::ONE - confidence_level;
+        const size_t lower_index = static_cast<size_t>(alpha / detail::TWO * n_bootstrap);
+        const size_t upper_index =
+            static_cast<size_t>((detail::ONE - alpha / detail::TWO) * n_bootstrap);
 
         const size_t safe_lower_idx = std::min(lower_index, static_cast<size_t>(n_bootstrap - 1));
         const size_t safe_upper_idx = std::min(upper_index, static_cast<size_t>(n_bootstrap - 1));
@@ -1591,7 +1668,7 @@ std::vector<int> DiscreteDistribution::getAllOutcomes() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
 
     // Safety check for reasonable range size
-    const int range = b_ - a_ + 1;
+    const int range = b_ - a_ + detail::ONE_INT;
 
     if (range > 1000000) {  // 1M elements max (4MB memory)
         throw std::runtime_error(
@@ -1611,6 +1688,33 @@ std::vector<int> DiscreteDistribution::getAllOutcomes() const {
     }
 
     return outcomes;
+}
+
+VoidResult DiscreteDistribution::validateCurrentParameters() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return validateDiscreteParameters(a_, b_);
+}
+
+int DiscreteDistribution::getLowerBoundAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicA_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getLowerBound();
+}
+
+int DiscreteDistribution::getUpperBoundAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicB_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getUpperBound();
 }
 
 //==============================================================================
@@ -1987,7 +2091,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
             // Cache parameters for batch processing
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
-            const double cached_inv_range = 1.0 / static_cast<double>(dist.range_);
+            const double cached_inv_range = detail::ONE / static_cast<double>(dist.range_);
             lock.unlock();
 
             // Call private implementation directly
@@ -2034,7 +2138,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                         if (cached_is_binary) {
                             res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                         } else {
-                            const int numerator = k - cached_a + 1;
+                            const int numerator = k - cached_a + detail::ONE_INT;
                             res[i] =
                                 static_cast<double>(numerator) / static_cast<double>(cached_range);
                         }
@@ -2052,7 +2156,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                         if (cached_is_binary) {
                             res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                         } else {
-                            const int numerator = k - cached_a + 1;
+                            const int numerator = k - cached_a + detail::ONE_INT;
                             res[i] =
                                 static_cast<double>(numerator) / static_cast<double>(cached_range);
                         }
@@ -2100,7 +2204,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                     if (cached_is_binary) {
                         res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
-                        const int numerator = k - cached_a + 1;
+                        const int numerator = k - cached_a + detail::ONE_INT;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
                 }
@@ -2148,7 +2252,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                     if (cached_is_binary) {
                         res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
-                        const int numerator = k - cached_a + 1;
+                        const int numerator = k - cached_a + detail::ONE_INT;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
                 }
@@ -2511,7 +2615,7 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
             // Cache parameters for batch processing
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
-            const double cached_inv_range = 1.0 / static_cast<double>(dist.range_);
+            const double cached_inv_range = detail::ONE / static_cast<double>(dist.range_);
             lock.unlock();
 
             // Call private implementation directly
@@ -2557,7 +2661,7 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                     if (cached_is_binary) {
                         res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
-                        const int numerator = k - cached_a + 1;
+                        const int numerator = k - cached_a + detail::ONE_INT;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
                 }
@@ -2603,7 +2707,7 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                     if (cached_is_binary) {
                         res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
-                        const int numerator = k - cached_a + 1;
+                        const int numerator = k - cached_a + detail::ONE_INT;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
                 }
@@ -2651,7 +2755,7 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                     if (cached_is_binary) {
                         res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
-                        const int numerator = k - cached_a + 1;
+                        const int numerator = k - cached_a + detail::ONE_INT;
                         res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
                 }
@@ -2673,6 +2777,11 @@ bool DiscreteDistribution::operator==(const DiscreteDistribution& other) const {
     std::lock(lock1, lock2);
 
     return (a_ == other.a_) && (b_ == other.b_);
+}
+
+// Implementation moved from header - no longer inline
+bool DiscreteDistribution::operator!=(const DiscreteDistribution& other) const {
+    return !(*this == other);
 }
 
 //==============================================================================
@@ -2753,8 +2862,19 @@ std::istream& operator>>(std::istream& is, DiscreteDistribution& distribution) {
 // 17. PRIVATE FACTORY METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Implementation moved from header - NOT inline (needs external linkage)
+DiscreteDistribution DiscreteDistribution::createUnchecked(int a, int b) noexcept {
+    DiscreteDistribution dist(a, b, true);  // bypass validation
+    return dist;
+}
+
+// Implementation moved from header - NOT inline (private constructor)
+DiscreteDistribution::DiscreteDistribution(int a, int b, bool /*bypassValidation*/) noexcept
+    : DistributionBase(), a_(a), b_(b) {
+    // Cache will be updated on first use
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+}
 
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
@@ -2855,7 +2975,7 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
                 results[i] = detail::ONE;
             } else {
                 const int k = static_cast<int>(std::floor(values[i]));
-                const int numerator = k - a + 1;
+                const int numerator = k - a + detail::ONE_INT;
                 results[i] = static_cast<double>(numerator) * inv_range;
             }
         }
@@ -2876,7 +2996,7 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             results[i] = detail::ONE;
         } else {
             const int k = static_cast<int>(std::floor(values[i]));
-            const int numerator = k - a + 1;
+            const int numerator = k - a + detail::ONE_INT;
             results[i] = static_cast<double>(numerator) * inv_range;
         }
     }
@@ -2886,15 +3006,64 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 // 19. PRIVATE COMPUTATIONAL METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Implementation moved from header - NOT inline due to complexity
+void DiscreteDistribution::updateCacheUnsafe() const noexcept {
+    // Primary calculations - compute once, reuse multiple times
+    range_ = b_ - a_ + 1;
+    probability_ = 1.0 / static_cast<double>(range_);
+    mean_ = (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
+
+    // Variance for discrete uniform: ((b-a)(b-a+2))/12
+    const double width = static_cast<double>(b_ - a_);
+    variance_ = (width * (width + 2.0)) / 12.0;
+
+    logProbability_ = -std::log(static_cast<double>(range_));
+
+    // Optimization flags
+    isBinary_ = (a_ == 0 && b_ == 1);
+    isStandardDie_ = (a_ == 1 && b_ == 6);
+    isSymmetric_ = (a_ == -b_);
+    isSmallRange_ = (range_ <= 10);
+    isLargeRange_ = (range_ > 1000);
+
+    cache_valid_ = true;
+    cacheValidAtomic_.store(true, std::memory_order_release);
+
+    // Update atomic parameters for lock-free access
+    atomicA_.store(a_, std::memory_order_release);
+    atomicB_.store(b_, std::memory_order_release);
+    atomicParamsValid_.store(true, std::memory_order_release);
+}
+
+// Static validation method moved from header for better compile times
+void DiscreteDistribution::validateParameters(int a, int b) {
+    if (a > b) {
+        throw std::invalid_argument(
+            "Upper bound (b) must be greater than or equal to lower bound (a)");
+    }
+    // Check for integer overflow in range calculation
+    if (b > INT_MAX - 1 || a < INT_MIN + 1) {
+        throw std::invalid_argument("Parameter range too large - risk of integer overflow");
+    }
+    // Additional safety check for very large ranges
+    const long long range_check = static_cast<long long>(b) - static_cast<long long>(a) + 1;
+    if (range_check > INT_MAX) {
+        throw std::invalid_argument("Parameter range exceeds maximum supported size");
+    }
+}
 
 //==========================================================================
 // 20. PRIVATE UTILITY METHODS
 //==========================================================================
 
-// Note: All methods in this section currently implemented inline in the header
-// This section maintained for template compliance
+// Static utility methods moved from header for better compile times
+inline int DiscreteDistribution::roundToInt(double x) noexcept {
+    return static_cast<int>(std::round(x));
+}
+
+inline bool DiscreteDistribution::isValidIntegerValue(double x) noexcept {
+    return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
+}
 
 //==============================================================================
 // 21. DISTRIBUTION PARAMETERS

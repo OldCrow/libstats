@@ -1470,8 +1470,10 @@ if(LIBSTATS_BUILD_TESTS)
         endif()
 
         # Add include directories
-        target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
-                                                        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_include_directories(
+            ${TEST_NAME}
+            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/include)
 
         # Platform-specific linking
         if(APPLE AND USING_HOMEBREW_LLVM)

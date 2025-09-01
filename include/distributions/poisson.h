@@ -258,16 +258,7 @@ class PoissonDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] double getLambdaAtomic() const noexcept {
-        // Fast path: check if atomic parameters are valid
-        if (atomicParamsValid_.load(std::memory_order_acquire)) {
-            // Lock-free atomic access with proper memory ordering
-            return atomicLambda_.load(std::memory_order_acquire);
-        }
-
-        // Fallback: use traditional locked getter if atomic parameters are stale
-        return getLambda();
-    }
+    [[nodiscard]] double getLambdaAtomic() const noexcept;
 
     /**
      * Sets the rate parameter λ (exception-based API).
@@ -329,7 +320,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Number of parameters (always 1)
      */
-    [[nodiscard]] int getNumParameters() const noexcept override { return 1; }
+    [[nodiscard]] int getNumParameters() const noexcept override;
 
     /**
      * @brief Gets the distribution name.
@@ -337,7 +328,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override { return "Poisson"; }
+    [[nodiscard]] std::string getDistributionName() const override;
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -346,7 +337,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return true (always discrete)
      */
-    [[nodiscard]] bool isDiscrete() const noexcept override { return true; }
+    [[nodiscard]] bool isDiscrete() const noexcept override;
 
     /**
      * @brief Gets the lower bound of the distribution support.
@@ -355,7 +346,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Lower bound (0)
      */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override { return 0.0; }
+    [[nodiscard]] double getSupportLowerBound() const noexcept override;
 
     /**
      * @brief Gets the upper bound of the distribution support.
@@ -364,9 +355,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Upper bound (+infinity)
      */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override {
-        return std::numeric_limits<double>::infinity();
-    }
+    [[nodiscard]] double getSupportUpperBound() const noexcept override;
 
     //==========================================================================
     // 4. RESULT-BASED SETTERS
@@ -394,10 +383,7 @@ class PoissonDistribution : public DistributionBase {
      * @brief Check if current parameters are valid
      * @return VoidResult indicating validity
      */
-    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        return validatePoissonParameters(lambda_);
-    }
+    [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
     // 5. CORE PROBABILITY METHODS
@@ -839,11 +825,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Median value (approximate)
      */
-    [[nodiscard]] double getMedian() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        // Approximate formula for Poisson median
-        return lambda_ + 1.0 / 3.0 - 0.02 / lambda_;
-    }
+    [[nodiscard]] double getMedian() const noexcept;
 
     /**
      * Gets the mode of the distribution.
@@ -967,7 +949,7 @@ class PoissonDistribution : public DistributionBase {
      * @param other Other distribution to compare with
      * @return true if parameters are not equal
      */
-    bool operator!=(const PoissonDistribution& other) const { return !(*this == other); }
+    bool operator!=(const PoissonDistribution& other) const;
 
     //==========================================================================
     // 16. FRIEND FUNCTION STREAM OPERATORS
@@ -999,22 +981,14 @@ class PoissonDistribution : public DistributionBase {
      * @param lambda Rate parameter (assumed valid)
      * @return PoissonDistribution with the given parameter
      */
-    static PoissonDistribution createUnchecked(double lambda) noexcept {
-        PoissonDistribution dist(lambda, true);  // bypass validation
-        return dist;
-    }
+    static PoissonDistribution createUnchecked(double lambda) noexcept;
 
     /**
      * @brief Private constructor that bypasses validation (for internal use)
      * @param lambda Rate parameter (assumed valid)
      * @param bypassValidation Internal flag to skip validation
      */
-    PoissonDistribution(double lambda, bool /*bypassValidation*/) noexcept
-        : DistributionBase(), lambda_(lambda) {
-        // Cache will be updated on first use
-        cache_valid_ = false;
-        cacheValidAtomic_.store(false, std::memory_order_release);
-    }
+    PoissonDistribution(double lambda, bool bypassValidation) noexcept;
 
     //==========================================================================
     // 18. PRIVATE BATCH IMPLEMENTATION METHODS
@@ -1058,60 +1032,24 @@ class PoissonDistribution : public DistributionBase {
     /**
      * Updates cached values when parameters change - assumes mutex is already held
      */
-    void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
-        logLambda_ = std::log(lambda_);
-        expNegLambda_ = std::exp(-lambda_);
-        sqrtLambda_ = std::sqrt(lambda_);
-        invLambda_ = detail::ONE / lambda_;
-
-        // Stirling's approximation for log(Γ(λ+1)) = log(λ!)
-        logGammaLambdaPlus1_ = std::lgamma(lambda_ + detail::ONE);
-
-        // Optimization flags
-        isSmallLambda_ = (lambda_ < detail::SMALL_LAMBDA_THRESHOLD);
-        isLargeLambda_ = (lambda_ > detail::HUNDRED);
-        isVeryLargeLambda_ = (lambda_ > detail::THOUSAND);
-        isIntegerLambda_ = (std::abs(lambda_ - std::round(lambda_)) <= detail::DEFAULT_TOLERANCE);
-        isTinyLambda_ = (lambda_ < detail::TENTH);
-
-        cache_valid_ = true;
-        cacheValidAtomic_.store(true, std::memory_order_release);
-
-        // Update atomic parameters for lock-free access
-        atomicLambda_.store(lambda_, std::memory_order_release);
-        atomicParamsValid_.store(true, std::memory_order_release);
-    }
+    void updateCacheUnsafe() const noexcept override;
 
     /**
      * Validates parameters for the Poisson distribution
      * @param lambda Rate parameter (must be positive and finite)
      * @throws std::invalid_argument if parameters are invalid
      */
-    static void validateParameters(double lambda) {
-        if (std::isnan(lambda) || std::isinf(lambda) || lambda <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Lambda (rate parameter) must be a positive finite number");
-        }
-        if (lambda > detail::MAX_POISSON_LAMBDA) {
-            throw std::invalid_argument("Lambda too large for accurate Poisson computation");
-        }
-    }
+    static void validateParameters(double lambda);
 
     //==========================================================================
     // 20. PRIVATE UTILITY METHODS
     //==========================================================================
 
     /** @brief Round double to nearest non-negative integer */
-    static int roundToNonNegativeInt(double x) noexcept {
-        if (x < 0.0)
-            return 0;
-        return static_cast<int>(std::round(x));
-    }
+    static int roundToNonNegativeInt(double x) noexcept;
 
     /** @brief Check if rounded value is a valid count (non-negative integer) */
-    static bool isValidCount(double x) noexcept {
-        return (x >= 0.0 && x <= static_cast<double>(INT_MAX));
-    }
+    static bool isValidCount(double x) noexcept;
 
     //==========================================================================
     // 21. DISTRIBUTION PARAMETERS

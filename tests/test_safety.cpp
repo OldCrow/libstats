@@ -1,13 +1,16 @@
 #include "../include/core/constants.h"
 #include "../include/core/safety.h"
 
-#include <cassert>
-#include <cmath>
-#include <iomanip>
-#include <iostream>
-#include <limits>
-#include <stdexcept>
-#include <vector>
+// Standard library includes
+#include <cassert>    // for assert
+#include <cmath>      // for std::abs, mathematical functions
+#include <cstddef>    // for std::size_t
+#include <iomanip>    // for std::setprecision
+#include <iostream>   // for std::cout, std::cerr, std::endl
+#include <limits>     // for std::numeric_limits
+#include <stdexcept>  // for std::exception
+#include <string>     // for std::string, std::to_string
+#include <vector>     // for std::vector
 
 using namespace stats::detail;
 

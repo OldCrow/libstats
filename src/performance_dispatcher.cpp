@@ -1,7 +1,10 @@
 #include "../include/core/performance_dispatcher.h"
 
 #include "../include/core/distribution_characteristics.h"
+#include "../include/core/mathematical_constants.h"
 #include "../include/core/performance_history.h"
+#include "../include/core/precision_constants.h"
+#include "../include/core/threshold_constants.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/simd_policy.h"
 
@@ -84,7 +87,8 @@ Strategy PerformanceDispatcher::selectOptimalStrategy(
     }
 
     // Use historical data if we have high confidence
-    if (recommendation.has_sufficient_data && recommendation.confidence_score > 0.8) {
+    if (recommendation.has_sufficient_data &&
+        recommendation.confidence_score > detail::LARGE_EFFECT) {
         return recommendation.recommended_strategy;
     }
 
@@ -167,7 +171,7 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     // Use empirical characteristics to guide strategy selection
 
     // If effective SIMD efficiency is poor for this distribution, avoid SIMD strategies
-    if (effective_simd_efficiency < 0.3) {
+    if (effective_simd_efficiency < detail::WEAK_CORRELATION) {
         // SIMD performs poorly for this distribution, prefer parallel or scalar
         if (batch_size >= parallel_threshold &&
             threading_overhead < (1000000.0 * dist_chars.base_complexity)) {
@@ -181,7 +185,7 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     // For medium batches, consider SIMD based on distribution characteristics
     if (batch_size < parallel_threshold) {
         // Use SIMD if the distribution vectorizes well and system supports it
-        if (effective_simd_efficiency > 0.5 && dist_chars.vectorization_efficiency > 0.6) {
+        if (effective_simd_efficiency > detail::HALF && dist_chars.vectorization_efficiency > 0.6) {
             return Strategy::SIMD_BATCH;
         }
         // For distributions with poor vectorization, stick with scalar until parallel threshold
@@ -192,7 +196,7 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
 
     // High threading overhead limits parallel strategies for simple distributions
     double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity
-    if (threading_overhead > acceptable_overhead && dist_chars.base_complexity < 2.0) {
+    if (threading_overhead > acceptable_overhead && dist_chars.base_complexity < detail::TWO) {
         // Simple distributions with high threading overhead: prefer SIMD
         if (effective_simd_efficiency > 0.4) {
             return Strategy::SIMD_BATCH;
@@ -204,7 +208,7 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     // For now, return work-stealing as GPU is not yet implemented
     bool use_gpu_equivalent = (batch_size >= thresholds_.gpu_accelerated_min) &&
                               (memory_bandwidth >= 50.0) &&
-                              (dist_chars.memory_access_pattern > 0.8);
+                              (dist_chars.memory_access_pattern > detail::LARGE_EFFECT);
 
     if (use_gpu_equivalent) {
         // GPU acceleration not implemented - use best CPU alternative
@@ -250,12 +254,13 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
             thresholds.gpu_accelerated_min = 32000;
             break;
         case arch::simd::SIMDPolicy::Level::AVX2:
-            thresholds.parallel_min = 1000;  // Good SIMD efficiency
+            thresholds.parallel_min = detail::MAX_BISECTION_ITERATIONS;  // Good SIMD efficiency
             thresholds.work_stealing_min = 10000;
             thresholds.gpu_accelerated_min = 50000;
             break;
         case arch::simd::SIMDPolicy::Level::AVX:
-            thresholds.parallel_min = 5000;  // AVX often has limited efficiency
+            thresholds.parallel_min =
+                detail::MAX_DATA_POINTS_FOR_SW_TEST;  // AVX often has limited efficiency
             thresholds.work_stealing_min = 50000;
             thresholds.gpu_accelerated_min = 200000;
             break;
@@ -273,7 +278,7 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
         default:
             thresholds.simd_min = SIZE_MAX;  // Disable SIMD entirely
             thresholds.parallel_min = 500;   // Lower threshold since SIMD unavailable
-            thresholds.work_stealing_min = 5000;
+            thresholds.work_stealing_min = detail::MAX_DATA_POINTS_FOR_SW_TEST;
             thresholds.gpu_accelerated_min = 25000;
             break;
     }
@@ -287,7 +292,8 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
 
         // Scale base thresholds by complexity - more complex operations need lower thresholds
         // to benefit from parallelization due to higher computation-to-overhead ratios
-        double complexity_scaling = 1.0 / std::max(1.0, chars.base_complexity / 2.0);
+        double complexity_scaling =
+            detail::ONE / std::max(detail::ONE, chars.base_complexity / detail::TWO);
 
         // Use empirical minimum thresholds, scaled by system characteristics
         size_t empirical_parallel_threshold = static_cast<size_t>(
@@ -392,7 +398,7 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
     auto logical_cores = system.logical_cores();
 
     // Refine SIMD thresholds based on efficiency
-    if (simd_efficiency < 0.8) {
+    if (simd_efficiency < detail::LARGE_EFFECT) {
         // SIMD is inefficient, raise thresholds
         simd_min = static_cast<size_t>(static_cast<double>(simd_min) * (1.5 / simd_efficiency));
 
@@ -408,24 +414,27 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
         gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);
     } else if (simd_efficiency > 1.5) {
         // SIMD is very efficient, lower thresholds
-        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * 0.7);
+        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * detail::STRONG_CORRELATION);
 
         // Lower distribution-specific thresholds
-        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 0.8);
+        uniform_parallel_min =
+            static_cast<size_t>(static_cast<double>(uniform_parallel_min) * detail::LARGE_EFFECT);
         gaussian_parallel_min =
-            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 0.8);
-        exponential_parallel_min =
-            static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 0.8);
+            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * detail::LARGE_EFFECT);
+        exponential_parallel_min = static_cast<size_t>(
+            static_cast<double>(exponential_parallel_min) * detail::LARGE_EFFECT);
         discrete_parallel_min =
-            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 0.8);
-        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 0.8);
-        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 0.8);
+            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * detail::LARGE_EFFECT);
+        poisson_parallel_min =
+            static_cast<size_t>(static_cast<double>(poisson_parallel_min) * detail::LARGE_EFFECT);
+        gamma_parallel_min =
+            static_cast<size_t>(static_cast<double>(gamma_parallel_min) * detail::LARGE_EFFECT);
     }
 
     // Refine parallel thresholds based on threading overhead
     if (threading_overhead > 100000.0) {  // > 100μs overhead
         // High threading overhead, raise parallel thresholds
-        double multiplier = std::min(3.0, threading_overhead / 50000.0);
+        double multiplier = std::min(detail::THREE, threading_overhead / 50000.0);
         parallel_min = static_cast<size_t>(static_cast<double>(parallel_min) * multiplier);
         work_stealing_min =
             static_cast<size_t>(static_cast<double>(work_stealing_min) * multiplier);
@@ -445,7 +454,7 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
             static_cast<size_t>(static_cast<double>(gamma_parallel_min) * multiplier);
     } else if (threading_overhead < 10000.0) {  // < 10μs overhead
         // Low threading overhead, lower parallel thresholds
-        double multiplier = std::max(0.5, threading_overhead / 20000.0);
+        double multiplier = std::max(detail::HALF, threading_overhead / 20000.0);
         parallel_min = static_cast<size_t>(static_cast<double>(parallel_min) * multiplier);
         work_stealing_min =
             static_cast<size_t>(static_cast<double>(work_stealing_min) * multiplier);
@@ -469,24 +478,28 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
     if (memory_bandwidth < 20.0) {
         // Low memory bandwidth, raise GPU acceleration threshold
         gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 1.5);
-    } else if (memory_bandwidth > 100.0) {
+    } else if (memory_bandwidth > detail::HUNDRED) {
         // High memory bandwidth, lower GPU acceleration threshold
-        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 0.7);
+        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) *
+                                                  detail::STRONG_CORRELATION);
     }
 
     // Adjust work-stealing based on core count
     if (logical_cores <= 2) {
         // Few cores, raise work-stealing threshold significantly
-        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 2.0);
+        work_stealing_min =
+            static_cast<size_t>(static_cast<double>(work_stealing_min) * detail::TWO);
     } else if (logical_cores >= 16) {
         // Many cores, lower work-stealing threshold
-        work_stealing_min = static_cast<size_t>(static_cast<double>(work_stealing_min) * 0.8);
+        work_stealing_min =
+            static_cast<size_t>(static_cast<double>(work_stealing_min) * detail::LARGE_EFFECT);
     }
 
     // Ensure minimums
     simd_min = std::max(simd_min, static_cast<size_t>(4));
-    parallel_min = std::max(parallel_min, static_cast<size_t>(100));
-    work_stealing_min = std::max(work_stealing_min, static_cast<size_t>(1000));
+    parallel_min = std::max(parallel_min, static_cast<size_t>(detail::MAX_NEWTON_ITERATIONS));
+    work_stealing_min =
+        std::max(work_stealing_min, static_cast<size_t>(detail::MAX_BISECTION_ITERATIONS));
     gpu_accelerated_min = std::max(gpu_accelerated_min, static_cast<size_t>(10000));
 }
 

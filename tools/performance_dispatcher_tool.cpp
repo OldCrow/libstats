@@ -15,10 +15,15 @@
 // Additional standard library includes for performance analysis
 #include "../include/core/performance_dispatcher.h"
 #include "../include/core/performance_history.h"
-#include "tool_utils.h"
 
-#include <map>
-#include <sstream>
+#include <chrono>    // for timing operations
+#include <cstddef>   // for size_t
+#include <iostream>  // for std::cout
+#include <map>       // for std::map
+#include <random>    // for std::mt19937
+#include <sstream>   // for std::ostringstream
+#include <string>    // for std::string, to_string
+#include <vector>    // for std::vector
 
 using namespace stats::detail;
 using namespace std::chrono;

@@ -14,12 +14,21 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <algorithm>  // for std::minmax_element, std::min_element, std::accumulate
+#include <chrono>     // for timing operations
+#include <cmath>      // for std::sqrt
+#include <exception>  // for std::exception
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed
+#include <iostream>   // for std::cout, std::cerr
+#include <numeric>    // for std::accumulate
+#include <random>     // for std::mt19937
+#include <string>     // for std::string
+#include <tuple>      // for std::make_tuple, structured bindings
+#include <utility>    // for std::pair
+#include <vector>     // for std::vector
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(70, '=') << std::endl;

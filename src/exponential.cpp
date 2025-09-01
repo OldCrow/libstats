@@ -1,15 +1,15 @@
 #include "../include/distributions/exponential.h"
 
-#include "../include/core/constants.h"
+#include "../include/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/precision_constants.h"
 #include "../include/core/validation.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_execution.h"  // For parallel execution policies
-#include "../include/platform/work_stealing_pool.h"  // For WorkStealingPool
-// ParallelUtils functionality is provided by parallel_execution.h
-#include "../include/core/dispatch_utils.h"   // For DispatchUtils::autoDispatch
-#include "../include/platform/thread_pool.h"  // For ThreadPool
+// Note: parallel execution included through distribution base inheritance
+// Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
+#include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
+#include "../include/core/threshold_constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -734,7 +734,7 @@ double ExponentialDistribution::robustEstimation(const std::vector<double>& data
     }
 
     if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion >= detail::HALF) {
-        throw std::invalid_argument("Trim proportion must be between 0 and 0.5");
+        throw std::invalid_argument("Trim proportion must be between 0 and detail::HALF");
     }
 
     // Check for positive values
@@ -754,11 +754,11 @@ double ExponentialDistribution::robustEstimation(const std::vector<double>& data
         // Winsorized estimation: replace extreme values with boundary values
         if (trim_count > 0) {
             const double lower_bound = sorted_data[trim_count];
-            const double upper_bound = sorted_data[n - 1 - trim_count];
+            const double upper_bound = sorted_data[n - detail::ONE_INT - trim_count];
 
             for (std::size_t i = 0; i < trim_count; ++i) {
                 sorted_data[i] = lower_bound;
-                sorted_data[n - 1 - i] = upper_bound;
+                sorted_data[n - detail::ONE_INT - i] = upper_bound;
             }
         }
     } else if (estimator_type == "trimmed") {
@@ -949,7 +949,7 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
     // Based on D'Agostino and Stephens (1986) formulas for exponential distribution
     // with enhanced handling for large statistics
     double p_value;
-    if (ad_adjusted < 0.2) {
+    if (ad_adjusted < detail::SMALL_EFFECT) {
         p_value = detail::ONE -
                   std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
     } else if (ad_adjusted < 0.34) {
@@ -957,7 +957,7 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
                   std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
     } else if (ad_adjusted < 0.6) {
         p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < 2.0) {
+    } else if (ad_adjusted < detail::TWO) {
         p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
     } else {
         // For very large AD statistics, p-value should be very small (close to 0)
@@ -1245,8 +1245,73 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-// Note: Most distribution-specific utility methods are implemented inline in the header for
-// performance Only complex methods requiring implementation are included here
+// Utility methods moved from header for PIMPL optimization - no longer inline
+double ExponentialDistribution::getLambdaAtomic() const noexcept {
+    // Fast path: check if atomic parameters are valid
+    if (atomicParamsValid_.load(std::memory_order_acquire)) {
+        // Lock-free atomic access with proper memory ordering
+        return atomicLambda_.load(std::memory_order_acquire);
+    }
+
+    // Fallback: use traditional locked getter if atomic parameters are stale
+    return getLambda();
+}
+
+double ExponentialDistribution::getSkewness() const noexcept {
+    return 2.0;  // Exponential distribution is always right-skewed
+}
+
+double ExponentialDistribution::getKurtosis() const noexcept {
+    return 6.0;  // Exponential distribution has high kurtosis
+}
+
+int ExponentialDistribution::getNumParameters() const noexcept {
+    return 1;
+}
+
+std::string ExponentialDistribution::getDistributionName() const {
+    return "Exponential";
+}
+
+bool ExponentialDistribution::isDiscrete() const noexcept {
+    return false;
+}
+
+double ExponentialDistribution::getSupportLowerBound() const noexcept {
+    return 0.0;
+}
+
+double ExponentialDistribution::getSupportUpperBound() const noexcept {
+    return std::numeric_limits<double>::infinity();
+}
+
+VoidResult ExponentialDistribution::validateCurrentParameters() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return validateExponentialParameters(lambda_);
+}
+
+double ExponentialDistribution::getHalfLife() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return std::log(2.0) / lambda_;
+}
+
+bool ExponentialDistribution::isMemoryless() const noexcept {
+    return true;
+}
+
+double ExponentialDistribution::getMedian() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return detail::LN2 / lambda_;  // Use precomputed ln(2)
+}
+
+double ExponentialDistribution::getEntropy() const noexcept {
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    return detail::ONE - std::log(lambda_);
+}
+
+double ExponentialDistribution::getMode() const noexcept {
+    return detail::ZERO_DOUBLE;
+}
 
 //==============================================================================
 // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

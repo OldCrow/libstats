@@ -31,6 +31,7 @@
  * see the implementation details in this file and validation.cpp
  */
 
+#include <cstddef>
 #include <string>
 #include <vector>
 

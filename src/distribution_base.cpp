@@ -1,16 +1,22 @@
 #include "../include/core/distribution_base.h"
 
-#include "../include/core/constants.h"
 #include "../include/core/math_utils.h"
+#include "../include/core/mathematical_constants.h"
 #include "../include/core/performance_dispatcher.h"
+#include "../include/core/precision_constants.h"
 #include "../include/core/safety.h"
-#include "../include/platform/parallel_execution.h"
+#include "../include/core/threshold_constants.h"
+#include "../include/platform/parallel_execution.h"  // Parallel execution (full implementation)
 
-#include <algorithm>
-#include <cmath>
-#include <numeric>
-#include <sstream>
-#include <stdexcept>
+#include <algorithm>   // for std::sort, std::abs
+#include <cmath>       // for std::log, std::exp, std::sqrt, std::isfinite
+#include <cstddef>     // for size_t
+#include <functional>  // for std::function
+#include <numeric>     // for numerical algorithms
+#include <sstream>     // for std::ostringstream
+#include <stdexcept>   // for std::invalid_argument
+#include <string>      // for std::string, std::to_string
+#include <vector>      // for std::vector
 
 namespace stats {
 
@@ -239,9 +245,9 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
 
     } catch (const std::exception& e) {
         result.ks_statistic = std::numeric_limits<double>::quiet_NaN();
-        result.ks_p_value = 0.0;
+        result.ks_p_value = detail::ZERO_DOUBLE;
         result.ad_statistic = std::numeric_limits<double>::quiet_NaN();
-        result.ad_p_value = 0.0;
+        result.ad_p_value = detail::ZERO_DOUBLE;
         result.distribution_adequate = false;
         result.recommendations = std::string("Validation failed: ") + e.what();
     }
@@ -266,7 +272,7 @@ double DistributionBase::getKLDivergence(const DistributionBase& other) const {
     // Simple integration using trapezoidal rule
     const int n_points = detail::DEFAULT_INTEGRATION_POINTS;
     double step = (upper - lower) / n_points;
-    double divergence = 0.0;
+    double divergence = detail::ZERO_DOUBLE;
 
     for (int i = 0; i < n_points; ++i) {
         double x = lower + i * step;
@@ -336,16 +342,16 @@ double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)
                                                     int max_depth) {
     if (depth > max_depth) {
         // Fallback to simple Simpson's rule if max depth exceeded
-        double mid = (a + b) / 2.0;
+        double mid = (a + b) / detail::TWO;
         double fa = func(a);
         double fb = func(b);
         double fmid = func(mid);
-        return (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
+        return (b - a) / detail::SIX * (fa + detail::FOUR * fmid + fb);
     }
 
-    double mid = (a + b) / 2.0;
-    double left_mid = (a + mid) / 2.0;
-    double right_mid = (mid + b) / 2.0;
+    double mid = (a + b) / detail::TWO;
+    double left_mid = (a + mid) / detail::TWO;
+    double right_mid = (mid + b) / detail::TWO;
 
     // Evaluate function at all points
     double fa = func(a);
@@ -355,11 +361,11 @@ double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)
     double fright_mid = func(right_mid);
 
     // Compute Simpson's rule for whole interval
-    double whole = (b - a) / 6.0 * (fa + 4.0 * fmid + fb);
+    double whole = (b - a) / detail::SIX * (fa + detail::FOUR * fmid + fb);
 
     // Compute Simpson's rule for left and right halves
-    double left = (mid - a) / 6.0 * (fa + 4.0 * fleft_mid + fmid);
-    double right = (b - mid) / 6.0 * (fmid + 4.0 * fright_mid + fb);
+    double left = (mid - a) / detail::SIX * (fa + detail::FOUR * fleft_mid + fmid);
+    double right = (b - mid) / detail::SIX * (fmid + detail::FOUR * fright_mid + fb);
 
     double combined = left + right;
 
@@ -369,8 +375,10 @@ double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)
     }
 
     // Recursively refine both halves with half the tolerance
-    return adaptiveSimpsonIntegration(func, a, mid, tolerance / 2.0, depth + 1, max_depth) +
-           adaptiveSimpsonIntegration(func, mid, b, tolerance / 2.0, depth + 1, max_depth);
+    return adaptiveSimpsonIntegration(func, a, mid, tolerance / detail::TWO,
+                                      depth + detail::ONE_INT, max_depth) +
+           adaptiveSimpsonIntegration(func, mid, b, tolerance / detail::TWO,
+                                      depth + detail::ONE_INT, max_depth);
 }
 
 double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf_func,
@@ -456,20 +464,20 @@ double DistributionBase::lgamma(double x) noexcept {
 
 double DistributionBase::gammaP(double a, double x) noexcept {
     // Simplified implementation - in practice, use specialized numerical algorithms
-    if (x < 0.0 || a <= 0.0) {
-        return 0.0;
+    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
+        return detail::ZERO_DOUBLE;
     }
 
-    if (x == 0.0) {
-        return 0.0;
+    if (x == detail::ZERO_DOUBLE) {
+        return detail::ZERO_DOUBLE;
     }
 
     // Use series expansion for small x, continued fraction for large x
-    if (x < a + 1.0) {
+    if (x < a + detail::ONE) {
         // Series expansion
-        double sum = 1.0;
-        double term = 1.0;
-        double n = 1.0;
+        double sum = detail::ONE;
+        double term = detail::ONE;
+        double n = detail::ONE;
 
         while (std::abs(term) > detail::DEFAULT_TOLERANCE &&
                n < detail::MAX_GAMMA_SERIES_ITERATIONS) {
@@ -504,13 +512,13 @@ double DistributionBase::betaI(double x, double a, double b) noexcept {
     }
 
     // Use continued fraction approximation
-    double bt =
-        std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) + b * std::log(1.0 - x));
+    double bt = std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) +
+                         b * std::log(detail::ONE - x));
 
-    if (x < (a + 1.0) / (a + b + 2.0)) {
+    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
         return bt * betaI_continued_fraction(x, a, b) / a;
     } else {
-        return 1.0 - bt * betaI_continued_fraction(1.0 - x, b, a) / b;
+        return detail::ONE - bt * betaI_continued_fraction(detail::ONE - x, b, a) / b;
     }
 }
 
@@ -520,58 +528,58 @@ double DistributionBase::betaI(double x, double a, double b) noexcept {
 
 double DistributionBase::betaI_continued_fraction(double x, double a, double b) noexcept {
     // Continued fraction for incomplete beta function
-    const int max_iterations = 100;
+    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
     const double tolerance = detail::DEFAULT_TOLERANCE;
 
     double qab = a + b;
-    double qap = a + 1.0;
-    double qam = a - 1.0;
-    double c = 1.0;
-    double d = 1.0 - qab * x / qap;
+    double qap = a + detail::ONE;
+    double qam = a - detail::ONE;
+    double c = detail::ONE;
+    double d = detail::ONE - qab * x / qap;
 
     if (std::abs(d) < detail::ZERO) {
         d = detail::ZERO;
     }
 
-    d = 1.0 / d;
+    d = detail::ONE / d;
     double h = d;
 
     for (int m = 1; m <= max_iterations; ++m) {
-        int m2 = 2 * m;
+        int m2 = detail::TWO_INT * m;
         double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
-        d = 1.0 + aa * d;
+        d = detail::ONE + aa * d;
 
         if (std::abs(d) < detail::ZERO) {
             d = detail::ZERO;
         }
 
-        c = 1.0 + aa / c;
+        c = detail::ONE + aa / c;
 
         if (std::abs(c) < detail::ZERO) {
             c = detail::ZERO;
         }
 
-        d = 1.0 / d;
+        d = detail::ONE / d;
         h *= d * c;
 
         aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
-        d = 1.0 + aa * d;
+        d = detail::ONE + aa * d;
 
         if (std::abs(d) < detail::ZERO) {
             d = detail::ZERO;
         }
 
-        c = 1.0 + aa / c;
+        c = detail::ONE + aa / c;
 
         if (std::abs(c) < detail::ZERO) {
             c = detail::ZERO;
         }
 
-        d = 1.0 / d;
+        d = detail::ONE / d;
         double del = d * c;
         h *= del;
 
-        if (std::abs(del - 1.0) < tolerance) {
+        if (std::abs(del - detail::ONE) < tolerance) {
             break;
         }
     }

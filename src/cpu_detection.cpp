@@ -19,16 +19,16 @@
 
 #include "../include/platform/cpu_detection.h"
 
-#include "../include/core/constants.h"
 #include "../include/platform/platform_constants.h"
+#include "core/mathematical_constants.h"
 
 #include <atomic>
 #include <chrono>
 #include <cstring>  // For memcpy
-#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
+#include <version>  // for __cpp_lib_atomic...
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
     #if defined(_MSC_VER)
@@ -112,6 +112,12 @@ struct FeaturesSingleton {
 static FeaturesSingleton g_features_manager;
 
 #ifdef LIBSTATS_X86_FAMILY
+
+    #if defined(__APPLE__)
+// Forward declaration for macOS-specific function used in x86 path
+void detect_macos_topology(Features& features);
+    #endif
+
 /**
  * @brief Execute CPUID instruction safely
  */
@@ -150,10 +156,10 @@ void detect_cache_info(Features& features) {
                 break;  // No more cache levels
 
             uint32_t cache_level = (eax >> 5) & 0x7;
-            uint32_t line_size = (ebx & 0xFFF) + 1;
-            uint32_t partitions = ((ebx >> 12) & 0x3FF) + 1;
-            uint32_t associativity = ((ebx >> 22) & 0x3FF) + 1;
-            uint32_t sets = ecx + 1;
+            uint32_t line_size = (ebx & 0xFFF) + detail::ONE_INT;
+            uint32_t partitions = ((ebx >> 12) & 0x3FF) + detail::ONE_INT;
+            uint32_t associativity = ((ebx >> 22) & 0x3FF) + detail::ONE_INT;
+            uint32_t sets = ecx + detail::ONE_INT;
 
             uint32_t cache_size = line_size * partitions * associativity * sets;
 
@@ -346,7 +352,7 @@ Features detect_x86_features() {
     // Get vendor string
     char vendor[13] = {0};
     memcpy(vendor, &ebx, 4);
-    memcpy(vendor + 4, &edx, 4);
+    memcpy(vendor + detail::FOUR_INT, &edx, detail::FOUR_INT);
     memcpy(vendor + 8, &ecx, 4);
     features.vendor = vendor;
 

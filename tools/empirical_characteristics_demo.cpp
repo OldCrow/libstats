@@ -12,10 +12,16 @@
 // Additional includes for empirical characteristics
 #include "../include/core/distribution_characteristics.h"
 
+// Standard library includes
+#include <iomanip>   // for std::setw, std::setprecision, std::fixed, std::left
+#include <iostream>  // for std::cout
+#include <sstream>   // for std::ostringstream
+#include <string>    // for std::string
+#include <utility>   // for std::pair
+#include <vector>    // for std::vector
+
 using namespace stats;
 using namespace stats::detail;
-using namespace stats::detail::detail;
-using namespace stats::detail::detail;
 using namespace stats::detail::detail;
 
 namespace {

@@ -1,4 +1,5 @@
 #include "../include/common/platform_constants_fwd.h"
+#include "../include/core/mathematical_constants.h"
 #include "../include/platform/platform_constants.h"
 #include "../include/platform/simd_policy.h"
 #include "platform/cpu_detection.h"
@@ -6,11 +7,9 @@
 
 // Heavy STL includes are now contained in this implementation file
 #include <algorithm>
-#include <chrono>
-#include <climits>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
+#include <string>  // for operator==
 
 /**
  * @file platform_constants_impl.cpp
@@ -476,14 +475,16 @@ stats::arch::CacheThresholds get_cache_thresholds() {
 
     // Convert cache sizes from bytes to number of doubles
     thresholds.l1_optimal_size = features.l1_cache_size > 0
-                                     ? (features.l1_cache_size / sizeof(double)) / 2
+                                     ? (features.l1_cache_size / sizeof(double)) / detail::TWO_INT
                                      : 4096;  // Use half of L1
 
-    thresholds.l2_optimal_size =
-        features.l2_cache_size > 0 ? (features.l2_cache_size / sizeof(double)) / 2 : 32768;
+    thresholds.l2_optimal_size = features.l2_cache_size > 0
+                                     ? (features.l2_cache_size / sizeof(double)) / detail::TWO_INT
+                                     : 32768;
 
-    thresholds.l3_optimal_size =
-        features.l3_cache_size > 0 ? (features.l3_cache_size / sizeof(double)) / 4 : 262144;
+    thresholds.l3_optimal_size = features.l3_cache_size > 0
+                                     ? (features.l3_cache_size / sizeof(double)) / detail::FOUR_INT
+                                     : 262144;
 
 // Special handling for platforms where L3 cache might not be detected (e.g., Apple Silicon)
 // Ensure L3 optimal size is at least as large as L2 optimal size

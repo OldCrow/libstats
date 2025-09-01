@@ -1,9 +1,9 @@
 #include "../include/platform/simd_policy.h"
 
 #include "../include/platform/cpu_detection.h"
-#include "../include/platform/simd.h"
 
 #include <atomic>
+#include <cstddef>  // for SIZE_MAX
 #include <mutex>
 
 /**

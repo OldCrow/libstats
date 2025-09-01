@@ -5,16 +5,22 @@
 #endif
 
 #include "../include/distributions/uniform.h"
-#include "../include/tests/tests.h"
+#include "include/tests.h"
 
-#include <algorithm>
+// Standard library includes
+#include <algorithm>  // for std::sort, std::min, std::max
 #include <chrono>
+#include <cmath>  // for std::log, std::isfinite, std::abs
 #include <cmath>
 #include <gtest/gtest.h>
+#include <iostream>  // for std::cout, std::endl
 #include <numeric>
+#include <random>  // for std::mt19937, std::uniform_real_distribution
 #include <random>
 #include <span>
 #include <thread>
+#include <utility>  // for std::move, std::pair
+#include <vector>   // for std::vector
 #include <vector>
 
 using namespace std;

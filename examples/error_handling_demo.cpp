@@ -17,12 +17,22 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "../include/libstats.h"
 
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <vector>
+// Standard library includes
+#include <algorithm>  // for std::remove_if
+#include <cmath>      // for std::isnan, std::isinf, std::sqrt
+#include <exception>  // for std::exception, std::invalid_argument, std::runtime_error
+#include <iomanip>    // for std::setw, std::setprecision, std::fixed
+#include <iostream>   // for std::cout, std::cerr
+#include <limits>     // for std::numeric_limits
+#include <memory>     // for std::unique_ptr, std::make_unique
+#include <numeric>    // for std::accumulate
+#include <random>     // for std::mt19937
+#include <stdexcept>  // for std::invalid_argument, std::runtime_error
+#include <string>     // for std::string
+#include <utility>    // for std::pair, std::make_pair
+#include <vector>     // for std::vector
 
 void print_separator(const std::string& title) {
     std::cout << "\n" << std::string(70, '=') << std::endl;

@@ -1,6 +1,8 @@
 #include "../include/core/safety.h"
 
-#include "../include/core/constants.h"
+#include "../include/core/mathematical_constants.h"
+#include "../include/core/precision_constants.h"
+#include "../include/core/threshold_constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -120,7 +122,7 @@ void vector_safe_exp(std::span<const double> input, std::span<double> output) no
                     chunk_output[j] = detail::ZERO_DOUBLE;
                 } else if (value < detail::MIN_LOG_PROBABILITY) {
                     chunk_output[j] = detail::MIN_PROBABILITY;
-                } else if (value > 700.0) {
+                } else if (value > detail::LOG_EXP_OVERFLOW_THRESHOLD) {
                     chunk_output[j] = std::numeric_limits<double>::max();
                 } else {
                     chunk_output[j] = std::exp(value);
