@@ -1560,47 +1560,42 @@ if(LIBSTATS_BUILD_TESTS)
     enable_testing()
 
     # =======================================================================
-    # LEVEL 0 TESTS: Foundational Headers (Standard Library Only)
+    # LEVEL 0: Foundational Tests (Platform & Constants)
     # =======================================================================
-    # These test headers with no internal dependencies - only standard library
+    # These test platform capabilities and constants - most critical
 
-    # Basic constants (no internal dependencies)
+    # Basic constants and platform tests
     create_libstats_test(test_constants tests/test_constants.cpp)
-
-    # =======================================================================
-    # LEVEL 1 TESTS: Platform Foundation and Aggregated Constants
-    # =======================================================================
-    # Tests for runtime capabilities and aggregated constant headers
-
-    # cpu_detection.h - Runtime CPU feature detection
     create_libstats_test(test_cpu_detection tests/test_cpu_detection.cpp)
-
-    # simd.h - SIMD compile-time detection and basic operations (CONSOLIDATED)
     create_libstats_test(test_simd_comprehensive tests/test_simd_comprehensive.cpp)
     create_libstats_test(test_platform_optimizations tests/test_platform_optimizations.cpp)
-
-    # simd_policy.h - Centralized SIMD decision making and policy abstraction
     create_libstats_test(test_simd_policy tests/test_simd_policy.cpp)
 
     # =======================================================================
-    # LEVEL 2 TESTS: Core Utilities and Platform Capabilities
+    # LEVEL 1: Core Infrastructure Tests
     # =======================================================================
-    # Test core utilities (Level 2a) and platform capabilities (Level 2b)
+    # Core mathematical and safety functionality
 
-    # LEVEL 2a: Core Utilities (Platform-Independent) safety.h - Safe numerical operations
-    create_libstats_test(test_safety tests/test_safety.cpp)
+    # Consolidated numerical safety (safety.h + log_space_ops.h)
+    create_libstats_test(test_numerical_safety tests/test_numerical_safety.cpp)
 
-    # math_utils.h - Mathematical utilities and special functions
-    create_libstats_gtest(test_math_utils tests/test_math_utils.cpp)
-    create_libstats_test(test_vectorized_math tests/test_vectorized_math.cpp)
+    # Consolidated error handling (error_handling.h)
+    create_libstats_test(test_error_handling_comprehensive
+                         tests/test_error_handling_comprehensive.cpp)
 
-    # validation.h - Parameter validation and constraint checking
-    create_libstats_test(test_goodness_of_fit tests/test_goodness_of_fit.cpp)
+    # Consolidated math utilities (math_utils.h)
+    create_libstats_gtest(test_math_comprehensive tests/test_math_comprehensive.cpp)
+
+    # Enhanced validation (validation.h)
     create_libstats_test(test_validation_enhanced tests/test_validation_enhanced.cpp)
 
-    # error_handling.h - Exception-free error handling
-    create_libstats_test(test_safe_factory tests/test_safe_factory.cpp)
-    create_libstats_test(test_dual_api tests/test_dual_api.cpp)
+    # =======================================================================
+    # LEVEL 2: Statistical Infrastructure
+    # =======================================================================
+    # Statistical validation and goodness-of-fit
+
+    # Goodness-of-fit tests
+    create_libstats_test(test_goodness_of_fit tests/test_goodness_of_fit.cpp)
 
     # LEVEL 2b: Platform Capabilities thread_pool.h and work_stealing_pool.h - Thread pool
     # implementations
@@ -1685,17 +1680,29 @@ if(LIBSTATS_BUILD_TESTS)
     # =======================================================================
     # These test cross-cutting functionality and integration scenarios
 
-    # Copy/move semantics stress tests TODO: Temporarily commented out due to exponential/uniform
-    # distribution dependencies if(EXISTS
-    # ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_stress.cpp)
-    # create_libstats_test(test_copy_move_stress tests/test_copy_move_stress.cpp)
-    # set(HAS_COPY_MOVE_STRESS TRUE) else() set(HAS_COPY_MOVE_STRESS FALSE) endif()
-    set(HAS_COPY_MOVE_STRESS FALSE)
+    # Copy/move semantics stress tests - Now re-enabled as distributions are complete
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_stress.cpp)
+        create_libstats_test(test_copy_move_stress tests/test_copy_move_stress.cpp)
+        set(HAS_COPY_MOVE_STRESS TRUE)
+    else()
+        set(HAS_COPY_MOVE_STRESS FALSE)
+    endif()
 
-    # if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_fix.cpp)
-    # create_libstats_test(test_copy_move_fix tests/test_copy_move_fix.cpp) set(HAS_COPY_MOVE_FIX
-    # TRUE) else() set(HAS_COPY_MOVE_FIX FALSE) endif()
-    set(HAS_COPY_MOVE_FIX FALSE)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_fix.cpp)
+        create_libstats_test(test_copy_move_fix tests/test_copy_move_fix.cpp)
+        set(HAS_COPY_MOVE_FIX TRUE)
+    else()
+        set(HAS_COPY_MOVE_FIX FALSE)
+    endif()
+
+    # test_new_constants removed - functionality is covered by test_constants --platform --simd
+
+    # Test parallel compilation paths (useful for CI/CD) DISABLED: This test forces macros that
+    # don't work on all platforms TODO: Fix with proper compilation guards for each platform
+    # if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_parallel_compilation.cpp)
+    # create_libstats_test(test_parallel_compilation tests/test_parallel_compilation.cpp)
+    # set(HAS_PARALLEL_COMPILATION TRUE) else() set(HAS_PARALLEL_COMPILATION FALSE) endif()
+    set(HAS_PARALLEL_COMPILATION FALSE)
 
     # Dynamic library linking tests
     create_libstats_test_dynamic(test_dynamic_linking tests/test_dynamic_linking.cpp)
@@ -1715,9 +1722,10 @@ if(LIBSTATS_BUILD_TESTS)
     # Future GTest-based tests can be added here using create_libstats_gtest() Example:
     # create_libstats_gtest(test_gaussian_gtest tests/test_gaussian_gtest.cpp)
 
-    # Test target for running all tests (organized by dependency hierarchy)
+    # Test target for running all tests (organized by dependency hierarchy) This target runs ALL
+    # tests including stress/diagnostic tests
     add_custom_target(
-        run_tests
+        run_all_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
         DEPENDS # Level 0: Foundational tests (most critical)
                 test_constants
@@ -1725,46 +1733,56 @@ if(LIBSTATS_BUILD_TESTS)
                 test_simd_comprehensive
                 test_platform_optimizations
                 test_simd_policy
-                test_safe_factory
                 # Level 1: Core infrastructure tests
-                test_dual_api
-                test_safety
-                test_math_utils
-                test_vectorized_math
-                test_goodness_of_fit
+                test_error_handling_comprehensive
+                test_numerical_safety
+                test_math_comprehensive
                 test_validation_enhanced
-                # Level 2: Framework tests (no direct tests - covered by Level 4) Level 3: Parallel
-                # infrastructure tests
+                # Level 2: Statistical infrastructure
+                test_goodness_of_fit
+                # Level 3: Parallel infrastructure tests
                 test_thread_pool
                 test_work_stealing_pool
                 test_parallel_execution_integration
-                test_parallel_execution_comprehensive
                 test_benchmark_basic
-                test_benchmark
-                # Level 4: Distribution implementation tests (CONSOLIDATED)
+                # Level 4: Performance framework tests
+                test_performance_history
+                test_performance_dispatcher
+                test_system_capabilities
+                test_performance_initialization
+                # Level 5: Basic distribution tests
                 test_gaussian_basic
-                test_gaussian_enhanced
                 test_exponential_basic
-                test_exponential_enhanced
-                test_discrete_basic
-                test_discrete_enhanced
-                test_atomic_parameters
                 test_uniform_basic
-                test_uniform_enhanced
                 test_poisson_basic
-                test_poisson_enhanced
+                test_discrete_basic
                 test_gamma_basic
+                test_atomic_parameters
+                # Level 6: Enhanced distribution tests
+                test_gaussian_enhanced
+                test_exponential_enhanced
+                test_uniform_enhanced
+                test_poisson_enhanced
+                test_discrete_enhanced
                 test_gamma_enhanced
-                # Additional tests: Cross-cutting concerns
+                # Level 7: Integration tests
                 test_dynamic_linking
-                # Note: SIMD integration tests consolidated into test_simd_comprehensive
+                # On-demand tests (stress, diagnostic, redundant)
+                test_parallel_execution_comprehensive
+                test_benchmark
                 test_gaussian_basic_dynamic
                 test_exponential_basic_dynamic
-                # test_uniform_simple_dynamic      # TODO: uncomment after fixing uniform.cpp
-                # Conditional tests (added if they exist)
                 $<$<BOOL:${HAS_COPY_MOVE_STRESS}>:test_copy_move_stress>
                 $<$<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
-        COMMENT "Running all libstats tests in dependency order (Level 0-4)")
+                $<$<BOOL:${HAS_PARALLEL_COMPILATION}>:test_parallel_compilation>
+        COMMENT "Running ALL libstats tests in dependency order (Levels 0-7 + on-demand)")
+
+    # Separate target for standard test suite (excludes on-demand tests)
+    add_custom_target(
+        run_tests
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -E
+                "stress|comprehensive|dynamic|_fix|parallel_compilation|^test_benchmark$$"
+        COMMENT "Running standard libstats test suite (excludes on-demand tests)")
 
     message(STATUS "Test infrastructure enabled")
 else()

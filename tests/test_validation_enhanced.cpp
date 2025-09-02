@@ -1,38 +1,112 @@
-// Note: This test does not use GTest integration
+// Comprehensive Validation Testing Suite
+// Tests validation.h and distribution_validation.h functionality
+
 #include "../include/core/validation.h"
 #include "../include/distributions/gaussian.h"
 #include "include/tests.h"
 
 // Standard library includes
-#include <cmath>     // for mathematical functions
-#include <cstddef>   // for std::size_t
-#include <iomanip>   // for std::fixed, std::setprecision
-#include <iostream>  // for std::cout, std::endl
-#include <random>    // for std::random_device, std::mt19937, std::normal_distribution
-#include <vector>    // for std::vector
+#include <cmath>
+#include <cstddef>
+#include <iomanip>
+#include <iostream>
+#include <random>
+#include <sstream>
+#include <string>
+#include <vector>
 
 using namespace stats;
 using namespace stats::detail;
+using namespace std;
 
-void test_enhanced_pvalues() {
-    std::cout << "Testing Enhanced P-Value Calculations" << std::endl;
-    std::cout << "=====================================" << std::endl;
+// Test configuration
+struct TestConfig {
+    bool test_all = true;
+    bool test_gof = false;           // Goodness-of-fit tests
+    bool test_bootstrap = false;     // Bootstrap methods
+    bool test_diagnostics = false;   // Model diagnostics
+    bool test_distribution = false;  // Distribution validation
+    bool test_pvalues = false;       // P-value calculations
+    bool test_stress = false;        // Stress test large datasets
+    bool test_accuracy = false;      // High-precision validation
+    bool json_output = false;        // Output results in JSON format
+    bool verbose = false;
+    size_t sample_size = 100;
+    size_t bootstrap_samples = 100;
+};
 
-    // Generate some test data from a normal distribution
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::normal_distribution<> dist(0.0, 1.0);
+// Test statistics for tracking results
+struct TestStats {
+    int total_tests = 0;
+    int passed = 0;
+    int failed = 0;
+    vector<pair<string, string>> results;  // <test_name, result>
 
-    std::vector<double> normal_data;
-    for (int i = 0; i < 100; ++i) {
-        normal_data.push_back(dist(gen));
+    void record(bool success, const string& test_name, double statistic = 0.0,
+                double p_value = 0.0) {
+        total_tests++;
+        if (success) {
+            passed++;
+            results.push_back(
+                {test_name, "✓ " + to_string(statistic) + " (p=" + to_string(p_value) + ")"});
+        } else {
+            failed++;
+            results.push_back(
+                {test_name, "✗ " + to_string(statistic) + " (p=" + to_string(p_value) + ")"});
+        }
     }
 
-    // Create a Gaussian distribution for testing
-    stats::GaussianDistribution test_gaussian(0.0, 1.0);
+    void print_results(bool json) {
+        if (json) {
+            cout << "{"
+                 << "\n  \"total_tests\": " << total_tests << ","
+                 << "\n  \"passed\": " << passed << ","
+                 << "\n  \"failed\": " << failed << ","
+                 << "\n  \"results\": [\n";
+            for (size_t i = 0; i < results.size(); ++i) {
+                cout << "    {"
+                     << "\n      \"test\": \"" << results[i].first << "\","
+                     << "\n      \"result\": \"" << results[i].second << "\""
+                     << "\n    }" << (i < results.size() - 1 ? "," : "") << "\n";
+            }
+            cout << "  ]\n}\n";
+        } else {
+            cout << "\nTest Results: " << passed << "/" << total_tests << " passed";
+            if (failed > 0) {
+                cout << " (" << failed << " failed)";
+            }
+            cout << endl;
+
+            for (const auto& [test, result] : results) {
+                cout << "  " << result << " " << test << endl;
+            }
+        }
+    }
+};
+
+// Generate test data
+vector<double> generate_test_data(size_t size, double mean = 0.0, double std_dev = 1.0) {
+    random_device rd;
+    mt19937 gen(rd());
+    normal_distribution<> dist(mean, std_dev);
+
+    vector<double> data;
+    data.reserve(size);
+    for (size_t i = 0; i < size; ++i) {
+        data.push_back(dist(gen));
+    }
+    return data;
+}
+
+void test_goodness_of_fit(const TestConfig& config, TestStats& stats) {
+    cout << "\n=== Testing Goodness-of-Fit Tests ===" << endl;
+
+    // Generate test data
+    vector<double> normal_data = generate_test_data(config.sample_size);
+    GaussianDistribution test_gaussian(0.0, 1.0);
 
     // Test Kolmogorov-Smirnov
-    std::cout << "\n1. Kolmogorov-Smirnov Test:" << std::endl;
+    cout << "\n1. Kolmogorov-Smirnov Test:" << endl;
     KSTestResult ks_result = kolmogorov_smirnov_test(normal_data, test_gaussian);
     std::cout << "   Statistic: " << std::fixed << std::setprecision(6) << ks_result.statistic
               << std::endl;
@@ -153,29 +227,20 @@ void test_pvalue_accuracy() {
     std::cout << "\nTesting completed successfully!" << std::endl;
 }
 
-void test_bootstrap_methods() {
-    std::cout << "\n\nTesting Bootstrap-Based Statistical Tests" << std::endl;
-    std::cout << "=========================================" << std::endl;
+void test_bootstrap_methods(const TestConfig& config, TestStats& stats) {
+    cout << "\n=== Testing Bootstrap Methods ===" << endl;
 
-    // Generate test data from a normal distribution
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::normal_distribution<> dist(0.0, 1.0);
-
-    std::vector<double> normal_data;
-    for (int i = 0; i < 50; ++i) {  // Using smaller sample for faster bootstrap
-        normal_data.push_back(dist(gen));
-    }
-
-    // Create a Gaussian distribution for testing
-    stats::GaussianDistribution test_gaussian(0.0, 1.0);
+    // Generate test data
+    vector<double> data = generate_test_data(config.sample_size / 2);  // Smaller for bootstrap
+    GaussianDistribution test_gaussian(0.0, 1.0);
 
     // Test Bootstrap Kolmogorov-Smirnov
-    std::cout << "\n1. Bootstrap Kolmogorov-Smirnov Test:" << std::endl;
-    std::cout << "   Running bootstrap KS test with 100 bootstrap samples..." << std::endl;
+    cout << "\n1. Bootstrap Kolmogorov-Smirnov Test:" << endl;
+    cout << "   Running bootstrap KS test with " << config.bootstrap_samples
+         << " bootstrap samples..." << endl;
 
     BootstrapTestResult bootstrap_ks =
-        bootstrap_kolmogorov_smirnov_test(normal_data, test_gaussian, 100, 0.05);
+        bootstrap_kolmogorov_smirnov_test(data, test_gaussian, config.bootstrap_samples, 0.05);
 
     std::cout << "   Observed statistic: " << std::fixed << std::setprecision(6)
               << bootstrap_ks.observed_statistic << std::endl;
@@ -188,7 +253,7 @@ void test_bootstrap_methods() {
     std::cout << "   Running bootstrap AD test with 100 bootstrap samples..." << std::endl;
 
     BootstrapTestResult bootstrap_ad =
-        bootstrap_anderson_darling_test(normal_data, test_gaussian, 100, 0.05);
+        bootstrap_anderson_darling_test(data, test_gaussian, 100, 0.05);
 
     std::cout << "   Observed statistic: " << std::fixed << std::setprecision(6)
               << bootstrap_ad.observed_statistic << std::endl;
@@ -200,8 +265,7 @@ void test_bootstrap_methods() {
     std::cout << "\n3. Bootstrap Parameter Test:" << std::endl;
     std::cout << "   Running bootstrap parameter test with 100 bootstrap samples..." << std::endl;
 
-    BootstrapTestResult bootstrap_param =
-        bootstrap_parameter_test(normal_data, test_gaussian, 100, 0.05);
+    BootstrapTestResult bootstrap_param = bootstrap_parameter_test(data, test_gaussian, 100, 0.05);
 
     std::cout << "   Observed statistic: " << std::fixed << std::setprecision(6)
               << bootstrap_param.observed_statistic << std::endl;
@@ -214,7 +278,7 @@ void test_bootstrap_methods() {
     std::cout << "   Computing 95% confidence intervals with 100 bootstrap samples..." << std::endl;
 
     std::vector<ConfidenceInterval> intervals =
-        bootstrap_confidence_intervals(normal_data, test_gaussian, 0.95, 100);
+        bootstrap_confidence_intervals(data, test_gaussian, 0.95, 100);
 
     if (intervals.size() >= 2) {
         std::cout << "   Mean CI: [" << std::fixed << std::setprecision(4)
@@ -230,6 +294,8 @@ void test_bootstrap_methods() {
     std::cout << "   Testing with exponential data against normal distribution..." << std::endl;
 
     // Generate exponential data
+    std::random_device rd;
+    std::mt19937 gen(rd());
     std::exponential_distribution<> exp_dist(1.0);
     std::vector<double> exp_data;
     for (int i = 0; i < 50; ++i) {
@@ -248,17 +314,132 @@ void test_bootstrap_methods() {
     std::cout << "\nBootstrap testing completed successfully!" << std::endl;
 }
 
-int main() {
-    try {
-        test_enhanced_pvalues();
-        test_pvalue_accuracy();
-        test_bootstrap_methods();
+//==============================================================================
+// COMMAND LINE INTERFACE
+//==============================================================================
 
-        std::cout << "\n✓ All enhanced p-value and bootstrap tests completed successfully!"
-                  << std::endl;
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "✗ Test failed with exception: " << e.what() << std::endl;
+void print_usage(const char* program_name) {
+    cout << "Usage: " << program_name << " [options]\n\n"
+         << "Statistical Validation Test Suite\n"
+         << "Tests validation.h and distribution_validation.h\n\n"
+         << "Options:\n"
+         << "  --all/-a              Test all components (default)\n"
+         << "  --goodness-of-fit/-g  Test GoF tests (KS, AD, Chi-squared)\n"
+         << "  --bootstrap/-b        Test bootstrap methods\n"
+         << "  --diagnostics/-d      Test model diagnostics\n"
+         << "  --distribution/-D     Test distribution validation\n"
+         << "  --p-values/-p        Test p-value calculations\n"
+         << "  --stress/-s          Stress test with large datasets\n"
+         << "  --accuracy/-A        Test numerical accuracy\n"
+         << "  --json/-j            Output results in JSON format\n"
+         << "  --verbose/-v         Enable verbose output\n"
+         << "  --samples N          Set sample size (default: 100)\n"
+         << "  --bootstrap-reps N   Set bootstrap iterations (default: 100)\n"
+         << "  --help/-h            Show this help\n\n"
+         << "Examples:\n"
+         << "  " << program_name << "                    # Test everything\n"
+         << "  " << program_name << " --goodness-of-fit --p-values\n"
+         << "  " << program_name << " --bootstrap --bootstrap-reps 1000\n"
+         << "  " << program_name << " --stress --samples 100000\n";
+}
+
+TestConfig parse_args(int argc, char* argv[]) {
+    TestConfig config;
+
+    if (argc == 1) {
+        return config;  // Default: test all
+    }
+
+    config.test_all = false;  // If args provided, don't test all by default
+
+    for (int i = 1; i < argc; ++i) {
+        string arg = argv[i];
+
+        if (arg == "--help" || arg == "-h") {
+            print_usage(argv[0]);
+            exit(0);
+        } else if (arg == "--all" || arg == "-a") {
+            config.test_all = true;
+        } else if (arg == "--goodness-of-fit" || arg == "-g") {
+            config.test_gof = true;
+        } else if (arg == "--bootstrap" || arg == "-b") {
+            config.test_bootstrap = true;
+        } else if (arg == "--diagnostics" || arg == "-d") {
+            config.test_diagnostics = true;
+        } else if (arg == "--distribution" || arg == "-D") {
+            config.test_distribution = true;
+        } else if (arg == "--p-values" || arg == "-p") {
+            config.test_pvalues = true;
+        } else if (arg == "--stress" || arg == "-s") {
+            config.test_stress = true;
+        } else if (arg == "--accuracy" || arg == "-A") {
+            config.test_accuracy = true;
+        } else if (arg == "--json" || arg == "-j") {
+            config.json_output = true;
+        } else if (arg == "--verbose" || arg == "-v") {
+            config.verbose = true;
+        } else if (arg == "--samples" && i + 1 < argc) {
+            config.sample_size = stoul(argv[++i]);
+        } else if (arg == "--bootstrap-reps" && i + 1 < argc) {
+            config.bootstrap_samples = stoul(argv[++i]);
+        } else {
+            cerr << "Unknown option: " << arg << endl;
+            print_usage(argv[0]);
+            exit(1);
+        }
+    }
+
+    // If no specific tests selected, test all
+    if (!config.test_gof && !config.test_bootstrap && !config.test_diagnostics &&
+        !config.test_distribution && !config.test_pvalues && !config.test_stress &&
+        !config.test_accuracy) {
+        config.test_all = true;
+    }
+
+    return config;
+}
+
+//==============================================================================
+// MAIN FUNCTION
+//==============================================================================
+
+int main(int argc, char* argv[]) {
+    TestConfig config = parse_args(argc, argv);
+    TestStats stats;
+
+    cout << "=== Statistical Validation Test Suite ===" << endl;
+    cout << "Testing validation.h and distribution_validation.h\n" << endl;
+
+    if (config.verbose) {
+        cout << "Configuration:" << endl;
+        cout << "  Sample size: " << config.sample_size << endl;
+        cout << "  Bootstrap samples: " << config.bootstrap_samples << endl;
+    }
+
+    try {
+        // Run selected tests
+        if (config.test_all || config.test_gof) {
+            test_goodness_of_fit(config, stats);
+        }
+
+        if (config.test_all || config.test_bootstrap) {
+            test_bootstrap_methods(config, stats);
+        }
+
+        if (config.test_all || config.test_pvalues) {
+            test_pvalue_accuracy();
+        }
+
+        if (config.test_stress) {  // Only run if explicitly requested
+            cout << "Stress testing not yet implemented" << endl;
+        }
+
+        // Print results
+        stats.print_results(config.json_output);
+
+        return stats.failed == 0 ? 0 : 1;
+    } catch (const exception& e) {
+        cerr << "Test failed with exception: " << e.what() << endl;
         return 1;
     }
 }

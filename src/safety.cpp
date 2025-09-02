@@ -52,45 +52,10 @@ void vector_safe_log(std::span<const double> input, std::span<double> output) no
 
     const std::size_t size = input.size();
 
-    // Use SIMD for larger arrays
-    if (should_use_vectorized_safety(size)) {
-        // Process in SIMD-sized chunks
-        const std::size_t simd_size = arch::simd::double_vector_width();
-        std::size_t i = 0;
-
-        // SIMD processing loop
-        for (; i + simd_size <= size; i += simd_size) {
-            // Load input chunk
-            alignas(arch::simd::optimal_alignment()) double chunk_input[simd_size];
-            alignas(arch::simd::optimal_alignment()) double chunk_output[simd_size];
-
-            std::copy(input.data() + i, input.data() + i + simd_size, chunk_input);
-
-            // Apply per-element safe_log logic with SIMD
-            for (std::size_t j = 0; j < simd_size; ++j) {
-                double value = chunk_input[j];
-                if (value <= detail::ZERO_DOUBLE || std::isnan(value)) {
-                    chunk_output[j] = detail::MIN_LOG_PROBABILITY;
-                } else if (std::isinf(value)) {
-                    chunk_output[j] = std::numeric_limits<double>::max();
-                } else {
-                    chunk_output[j] = std::log(value);
-                }
-            }
-
-            // Store output chunk
-            std::copy(chunk_output, chunk_output + simd_size, output.data() + i);
-        }
-
-        // Handle remaining elements
-        for (; i < size; ++i) {
-            output[i] = safe_log(input[i]);
-        }
-    } else {
-        // Scalar fallback for small arrays
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = safe_log(input[i]);
-        }
+    // For now, use single-pass scalar processing to avoid double-loop overhead
+    // Future optimization: implement SIMD-accelerated safe_log in simd_avx.cpp etc.
+    for (std::size_t i = 0; i < size; ++i) {
+        output[i] = safe_log(input[i]);
     }
 }
 
@@ -101,47 +66,10 @@ void vector_safe_exp(std::span<const double> input, std::span<double> output) no
 
     const std::size_t size = input.size();
 
-    // Use SIMD for larger arrays
-    if (should_use_vectorized_safety(size)) {
-        // Process in SIMD-sized chunks
-        const std::size_t simd_size = arch::simd::double_vector_width();
-        std::size_t i = 0;
-
-        // SIMD processing loop
-        for (; i + simd_size <= size; i += simd_size) {
-            // Load input chunk
-            alignas(arch::simd::optimal_alignment()) double chunk_input[simd_size];
-            alignas(arch::simd::optimal_alignment()) double chunk_output[simd_size];
-
-            std::copy(input.data() + i, input.data() + i + simd_size, chunk_input);
-
-            // Apply per-element safe_exp logic with SIMD
-            for (std::size_t j = 0; j < simd_size; ++j) {
-                double value = chunk_input[j];
-                if (std::isnan(value)) {
-                    chunk_output[j] = detail::ZERO_DOUBLE;
-                } else if (value < detail::MIN_LOG_PROBABILITY) {
-                    chunk_output[j] = detail::MIN_PROBABILITY;
-                } else if (value > detail::LOG_EXP_OVERFLOW_THRESHOLD) {
-                    chunk_output[j] = std::numeric_limits<double>::max();
-                } else {
-                    chunk_output[j] = std::exp(value);
-                }
-            }
-
-            // Store output chunk
-            std::copy(chunk_output, chunk_output + simd_size, output.data() + i);
-        }
-
-        // Handle remaining elements
-        for (; i < size; ++i) {
-            output[i] = safe_exp(input[i]);
-        }
-    } else {
-        // Scalar fallback for small arrays
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = safe_exp(input[i]);
-        }
+    // For now, use single-pass scalar processing to avoid double-loop overhead
+    // Future optimization: implement SIMD-accelerated safe_exp in simd_avx.cpp etc.
+    for (std::size_t i = 0; i < size; ++i) {
+        output[i] = safe_exp(input[i]);
     }
 }
 
@@ -152,45 +80,10 @@ void vector_safe_sqrt(std::span<const double> input, std::span<double> output) n
 
     const std::size_t size = input.size();
 
-    // Use SIMD for larger arrays
-    if (should_use_vectorized_safety(size)) {
-        // Process in SIMD-sized chunks
-        const std::size_t simd_size = arch::simd::double_vector_width();
-        std::size_t i = 0;
-
-        // SIMD processing loop
-        for (; i + simd_size <= size; i += simd_size) {
-            // Load input chunk
-            alignas(arch::simd::optimal_alignment()) double chunk_input[simd_size];
-            alignas(arch::simd::optimal_alignment()) double chunk_output[simd_size];
-
-            std::copy(input.data() + i, input.data() + i + simd_size, chunk_input);
-
-            // Apply per-element safe_sqrt logic with SIMD
-            for (std::size_t j = 0; j < simd_size; ++j) {
-                double value = chunk_input[j];
-                if (std::isnan(value) || value < detail::ZERO_DOUBLE) {
-                    chunk_output[j] = detail::ZERO_DOUBLE;
-                } else if (std::isinf(value)) {
-                    chunk_output[j] = std::numeric_limits<double>::max();
-                } else {
-                    chunk_output[j] = std::sqrt(value);
-                }
-            }
-
-            // Store output chunk
-            std::copy(chunk_output, chunk_output + simd_size, output.data() + i);
-        }
-
-        // Handle remaining elements
-        for (; i < size; ++i) {
-            output[i] = safe_sqrt(input[i]);
-        }
-    } else {
-        // Scalar fallback for small arrays
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = safe_sqrt(input[i]);
-        }
+    // For now, use single-pass scalar processing
+    // Future optimization: implement SIMD-accelerated safe_sqrt in simd_avx.cpp etc.
+    for (std::size_t i = 0; i < size; ++i) {
+        output[i] = safe_sqrt(input[i]);
     }
 }
 
@@ -200,48 +93,8 @@ void vector_clamp_probability(std::span<const double> input, std::span<double> o
     }
 
     const std::size_t size = input.size();
-
-    // Use SIMD for larger arrays
-    if (should_use_vectorized_safety(size)) {
-        // Process in SIMD-sized chunks
-        const std::size_t simd_size = arch::simd::double_vector_width();
-        std::size_t i = 0;
-
-        // SIMD processing loop
-        for (; i + simd_size <= size; i += simd_size) {
-            // Load input chunk
-            alignas(arch::simd::optimal_alignment()) double chunk_input[simd_size];
-            alignas(arch::simd::optimal_alignment()) double chunk_output[simd_size];
-
-            std::copy(input.data() + i, input.data() + i + simd_size, chunk_input);
-
-            // Apply per-element clamp_probability logic with SIMD
-            for (std::size_t j = 0; j < simd_size; ++j) {
-                double prob = chunk_input[j];
-                if (std::isnan(prob)) {
-                    chunk_output[j] = detail::MIN_PROBABILITY;
-                } else if (prob <= detail::ZERO_DOUBLE) {
-                    chunk_output[j] = detail::MIN_PROBABILITY;
-                } else if (prob >= detail::ONE) {
-                    chunk_output[j] = detail::MAX_PROBABILITY;
-                } else {
-                    chunk_output[j] = prob;
-                }
-            }
-
-            // Store output chunk
-            std::copy(chunk_output, chunk_output + simd_size, output.data() + i);
-        }
-
-        // Handle remaining elements
-        for (; i < size; ++i) {
-            output[i] = clamp_probability(input[i]);
-        }
-    } else {
-        // Scalar fallback for small arrays
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = clamp_probability(input[i]);
-        }
+    for (std::size_t i = 0; i < size; ++i) {
+        output[i] = clamp_probability(input[i]);
     }
 }
 
@@ -252,48 +105,8 @@ void vector_clamp_log_probability(std::span<const double> input,
     }
 
     const std::size_t size = input.size();
-
-    // Use SIMD for larger arrays
-    if (should_use_vectorized_safety(size)) {
-        // Process in SIMD-sized chunks
-        const std::size_t simd_size = arch::simd::double_vector_width();
-        std::size_t i = 0;
-
-        // SIMD processing loop
-        for (; i + simd_size <= size; i += simd_size) {
-            // Load input chunk
-            alignas(arch::simd::optimal_alignment()) double chunk_input[simd_size];
-            alignas(arch::simd::optimal_alignment()) double chunk_output[simd_size];
-
-            std::copy(input.data() + i, input.data() + i + simd_size, chunk_input);
-
-            // Apply per-element clamp_log_probability logic with SIMD
-            for (std::size_t j = 0; j < simd_size; ++j) {
-                double log_prob = chunk_input[j];
-                if (std::isnan(log_prob)) {
-                    chunk_output[j] = detail::MIN_LOG_PROBABILITY;
-                } else if (log_prob > detail::ZERO_DOUBLE) {
-                    chunk_output[j] = detail::MAX_LOG_PROBABILITY;
-                } else if (log_prob < detail::MIN_LOG_PROBABILITY) {
-                    chunk_output[j] = detail::MIN_LOG_PROBABILITY;
-                } else {
-                    chunk_output[j] = log_prob;
-                }
-            }
-
-            // Store output chunk
-            std::copy(chunk_output, chunk_output + simd_size, output.data() + i);
-        }
-
-        // Handle remaining elements
-        for (; i < size; ++i) {
-            output[i] = clamp_log_probability(input[i]);
-        }
-    } else {
-        // Scalar fallback for small arrays
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = clamp_log_probability(input[i]);
-        }
+    for (std::size_t i = 0; i < size; ++i) {
+        output[i] = clamp_log_probability(input[i]);
     }
 }
 
