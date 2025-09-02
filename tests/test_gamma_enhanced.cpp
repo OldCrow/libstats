@@ -391,7 +391,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdGamma.getProbabilityWithStrategy(std::span<const double>(test_values),
                                             std::span<double>(simd_results),
-                                            stats::detail::Strategy::SCALAR);
+                                            stats::detail::Strategy::SIMD_BATCH);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 

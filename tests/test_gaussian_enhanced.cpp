@@ -557,6 +557,11 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
     std::vector<double> log_pdf_results(BENCHMARK_SIZE);
     std::vector<double> cdf_results(BENCHMARK_SIZE);
 
+    // Store baseline results for verification
+    std::vector<double> baseline_pdf_results(BENCHMARK_SIZE);
+    std::vector<double> baseline_log_pdf_results(BENCHMARK_SIZE);
+    std::vector<double> baseline_cdf_results(BENCHMARK_SIZE);
+
     std::mt19937 gen(42);
     std::normal_distribution<> dis(0.0, 1.0);
     for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
@@ -578,8 +583,34 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         fixtures::BenchmarkResult result;
         result.operation_name = op;
 
-        // 1. SIMD Batch (baseline)
+        // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
+        if (op == "PDF") {
+            stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                                 std::span<double>(pdf_results),
+                                                 stats::detail::Strategy::SCALAR);
+            // Save baseline results for verification
+            std::copy(pdf_results.begin(), pdf_results.end(), baseline_pdf_results.begin());
+        } else if (op == "LogPDF") {
+            stdNormal.getLogProbabilityWithStrategy(std::span<const double>(test_values),
+                                                    std::span<double>(log_pdf_results),
+                                                    stats::detail::Strategy::SCALAR);
+            // Save baseline results for verification
+            std::copy(log_pdf_results.begin(), log_pdf_results.end(),
+                      baseline_log_pdf_results.begin());
+        } else if (op == "CDF") {
+            stdNormal.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                           std::span<double>(cdf_results),
+                                                           stats::detail::Strategy::SCALAR);
+            // Save baseline results for verification
+            std::copy(cdf_results.begin(), cdf_results.end(), baseline_cdf_results.begin());
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        result.baseline_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
+        // 2. SIMD Batch operations
+        start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
             stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                  std::span<double>(pdf_results),
@@ -593,11 +624,11 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                            std::span<double>(cdf_results),
                                                            stats::detail::Strategy::SIMD_BATCH);
         }
-        auto end = std::chrono::high_resolution_clock::now();
+        end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 2. Standard Parallel Operations
+        // 3. Thread Pool (PARALLEL_SIMD strategy)
         std::span<const double> input_span(test_values);
 
         if (op == "PDF") {
@@ -622,7 +653,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Work-Stealing Operations (use shared pool to avoid resource issues)
+        // 4. Work-Stealing Operations (use shared pool to avoid resource issues)
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
@@ -645,7 +676,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. GPU-Accelerated Operations (CPU fallback)
+        // 5. GPU-Accelerated Operations (CPU fallback)
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
@@ -668,32 +699,36 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.gpu_accelerated_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // Calculate speedups
-        result.thread_pool_speedup = result.simd_time_us > 0
-                                         ? static_cast<double>(result.simd_time_us) /
+        // Calculate speedups (all relative to baseline)
+        result.simd_speedup = result.baseline_time_us > 0
+                                  ? static_cast<double>(result.baseline_time_us) /
+                                        static_cast<double>(result.simd_time_us)
+                                  : 0.0;
+        result.thread_pool_speedup = result.baseline_time_us > 0
+                                         ? static_cast<double>(result.baseline_time_us) /
                                                static_cast<double>(result.thread_pool_time_us)
                                          : 0.0;
-        result.work_stealing_speedup = result.simd_time_us > 0
-                                           ? static_cast<double>(result.simd_time_us) /
+        result.work_stealing_speedup = result.baseline_time_us > 0
+                                           ? static_cast<double>(result.baseline_time_us) /
                                                  static_cast<double>(result.work_stealing_time_us)
                                            : 0.0;
         result.gpu_accelerated_speedup =
-            result.simd_time_us > 0 ? static_cast<double>(result.simd_time_us) /
-                                          static_cast<double>(result.gpu_accelerated_time_us)
-                                    : 0.0;
+            result.baseline_time_us > 0 ? static_cast<double>(result.baseline_time_us) /
+                                              static_cast<double>(result.gpu_accelerated_time_us)
+                                        : 0.0;
 
         benchmark_results.push_back(result);
 
-        // Verify correctness for this operation type
+        // Verify correctness for this operation type (using baseline results)
         if (op == "PDF") {
             fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdNormal, test_values,
-                                                                   pdf_results, "PDF");
+                                                                   baseline_pdf_results, "PDF");
         } else if (op == "LogPDF") {
-            fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdNormal, test_values,
-                                                                   log_pdf_results, "LogPDF");
+            fixtures::StatisticalTestUtils::verifyBatchCorrectness(
+                stdNormal, test_values, baseline_log_pdf_results, "LogPDF");
         } else if (op == "CDF") {
             fixtures::StatisticalTestUtils::verifyBatchCorrectness(stdNormal, test_values,
-                                                                   cdf_results, "CDF");
+                                                                   baseline_cdf_results, "CDF");
         }
     }
 
