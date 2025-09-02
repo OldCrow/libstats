@@ -408,10 +408,10 @@ void test_edge_cases([[maybe_unused]] const TestConfig& config) {
 
     // Test log-space edge cases
     {
-        double large = 100.0;
-        double small = -100.0;
-        double result = LogSpaceOps::logSumExp(large, small);
-        stats.record(approx_equal(result, large, 1e-10), "logSumExp with large difference");
+        double large_val = 100.0;
+        double small_val = -100.0;
+        double result = LogSpaceOps::logSumExp(large_val, small_val);
+        stats.record(approx_equal(result, large_val, 1e-10), "logSumExp with large difference");
 
         result = LogSpaceOps::logSumExp(numeric_limits<double>::quiet_NaN(), log(5.0));
         stats.record(isnan(result) || approx_equal(result, log(5.0), 1e-10),
