@@ -448,20 +448,20 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     EXPECT_LT(first_time, 100000) << "First access should complete in under 100μs";
     EXPECT_LT(second_time, 100000) << "Second access should complete in under 100μs";
 
-    // Test cache invalidation - create a new distribution with different parameters
-    auto new_dist = stats::DiscreteDistribution::create(2, 8).value;
+    // Test cache invalidation by modifying the distribution's parameters
+    discrete_dist.setBounds(2, 8);  // This should invalidate the cache
 
     start = std::chrono::high_resolution_clock::now();
-    double mean_after_change = new_dist.getMean();
+    double mean_after_change = discrete_dist.getMean();
     end = std::chrono::high_resolution_clock::now();
     auto after_change_time =
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     EXPECT_EQ(mean_after_change, 5.0);  // Mean of uniform(2,8) is (2+8)/2 = 5
-    std::cout << "  New distribution parameter access: " << after_change_time << "ns\n";
+    std::cout << "  After parameter change: " << after_change_time << "ns\n";
 
-    // Test cache functionality: verify that the new distribution returns correct values
-    // (proving cache isolation between different distribution instances)
+    // Test cache functionality: verify that cache invalidation worked correctly
+    // (the new parameter value is returned, proving cache was invalidated)
 }
 
 //==============================================================================

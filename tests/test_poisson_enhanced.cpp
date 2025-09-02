@@ -434,20 +434,20 @@ TEST_F(PoissonEnhancedTest, CachingSpeedupVerification) {
     // Cache should provide speedup (allow some measurement noise)
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
 
-    // Test cache invalidation - create a new distribution with different parameters
-    auto new_dist = stats::PoissonDistribution::create(8.0).value;
+    // Test cache invalidation by modifying the distribution's parameter
+    poisson_dist.setLambda(8.0);  // This should invalidate the cache
 
     start = std::chrono::high_resolution_clock::now();
-    double mean_after_change = new_dist.getMean();
+    double mean_after_change = poisson_dist.getMean();
     end = std::chrono::high_resolution_clock::now();
     auto after_change_time =
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     EXPECT_EQ(mean_after_change, 8.0);  // Mean of Poisson(8.0) is 8.0
-    std::cout << "  New distribution parameter access: " << after_change_time << "ns\n";
+    std::cout << "  After parameter change: " << after_change_time << "ns\n";
 
-    // Test cache functionality: verify that the new distribution returns correct values
-    // (proving cache isolation between different distribution instances)
+    // Test cache functionality: verify that cache invalidation worked correctly
+    // (the new parameter value is returned, proving cache was invalidated)
 }
 
 //==============================================================================
