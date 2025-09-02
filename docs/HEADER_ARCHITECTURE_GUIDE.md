@@ -108,20 +108,16 @@ These headers have no internal project dependencies and provide fundamental cons
 
 ### Level 3: Advanced Infrastructure
 
-**Location**: `include/cache/`, `include/platform/`, `include/core/performance*.h`
+**Location**: `include/core/`, `include/platform/`
 
 #### Caching and Performance
 ```cpp
-#include "cache/adaptive_cache.h"         // Memory-aware caching
-#include "cache/distribution_cache.h"     // Distribution-specific caching
-#include "cache/math_function_cache.h"    // Mathematical function caching (NEW)
-#include "platform/parallel_execution.h" // C++20 parallel algorithms
-#include "platform/benchmark.h"           // Performance measurement utilities
+#include "core/distribution_cache.h"      // Distribution-specific caching
+#include "platform/parallel_execution.h"  // C++20 parallel algorithms
+#include "platform/benchmark.h"            // Performance measurement utilities
 ```
 
-> **✅ Phase 2 Update**: Cache headers moved to dedicated `include/cache/` directory
->
-> **🆕 NEW**: `math_function_cache.h` provides high-performance caching for gamma, erf, beta, and logarithm functions with precision rounding and thread-safe statistics.
+> **Note**: Cache functionality is integrated within `core/distribution_cache.h` rather than a separate cache directory.
 
 #### Performance Framework
 ```cpp
@@ -155,8 +151,8 @@ These headers have no internal project dependencies and provide fundamental cons
 ```cpp
 // For new distribution implementations, use these consolidated headers:
 
-#include "core/distribution_common.h"           // Core framework + common std library
-#include "distributions/distribution_platform_common.h"  // Platform optimizations
+#include "../common/distribution_common.h"           // Core framework + common std library
+#include "../common/distribution_platform_common.h"  // Platform optimizations
 
 // Add specific includes only as needed:
 // #include <tuple>     // If returning statistical test results
@@ -385,10 +381,9 @@ if (libstats::cpu::supports_avx()) {
 - **100% test pass rate** after consolidation
 
 #### Phase 2 (Common Header Reorganization)
-- **9 header files moved** to `include/common/` for shared functionality
+- **16 header files** in `include/common/` for shared functionality
 - **All include paths updated** across codebase (30+ files affected)
-- **Mathematical function cache added** with comprehensive testing
-- **Cache infrastructure optimized** in `distribution_base.h`
+- **Cache infrastructure** maintained in `core/distribution_cache.h`
 - **Zero functionality loss** with improved organization
 - **100% test pass rate** maintained throughout reorganization
 
@@ -466,7 +461,7 @@ For most development scenarios, using the consolidated headers (`distribution_co
 
 ---
 
-**Document Version**: 2.0
-**Last Updated**: 2025-08-18
-**Covers**: Phase 1 cache consolidation, Phase 2 common header reorganization, mathematical function cache, and updated usage guidelines
-**Next Review**: After mathematical function cache integration into distributions
+**Document Version**: 2.1
+**Last Updated**: 2025-09-01
+**Covers**: Phase 1 cache consolidation, Phase 2 common header reorganization, and updated usage guidelines
+**Next Review**: After v0.13.0 pre-release work

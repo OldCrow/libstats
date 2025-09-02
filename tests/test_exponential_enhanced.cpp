@@ -278,7 +278,7 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdExp.getProbabilityWithStrategy(std::span<const double>(test_values),
                                           std::span<double>(simd_results),
-                                          stats::detail::Strategy::SCALAR);
+                                          stats::detail::Strategy::SIMD_BATCH);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -448,20 +448,20 @@ TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
     // Cache should provide speedup (allow some measurement noise)
     EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
 
-    // Test cache invalidation - create a new distribution with different parameters
-    auto new_dist = stats::ExponentialDistribution::create(2.0).value;
+    // Test cache invalidation by modifying the distribution's parameter
+    exp_dist.setLambda(2.0);  // This should invalidate the cache
 
     start = std::chrono::high_resolution_clock::now();
-    double mean_after_change = new_dist.getMean();
+    double mean_after_change = exp_dist.getMean();
     end = std::chrono::high_resolution_clock::now();
     auto after_change_time =
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     EXPECT_EQ(mean_after_change, 0.5);  // Mean of exponential(2.0) is 1/2.0 = 0.5
-    std::cout << "  New distribution parameter access: " << after_change_time << "ns\n";
+    std::cout << "  After parameter change: " << after_change_time << "ns\n";
 
-    // Test cache functionality: verify that the new distribution returns correct values
-    // (proving cache isolation between different distribution instances)
+    // Test cache functionality: verify that cache invalidation worked correctly
+    // (the new parameter value is returned, proving cache was invalidated)
 }
 
 //==============================================================================
@@ -628,7 +628,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         fixtures::BenchmarkResult result;
         result.operation_name = op;
 
-        // 1. SIMD Batch (baseline)
+        // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
             unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
@@ -644,10 +644,29 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                          stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
+        result.baseline_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
+        // 2. SIMD Batch operations
+        start = std::chrono::high_resolution_clock::now();
+        if (op == "PDF") {
+            unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                               std::span<double>(pdf_results),
+                                               stats::detail::Strategy::SIMD_BATCH);
+        } else if (op == "LogPDF") {
+            unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
+                                                  std::span<double>(log_pdf_results),
+                                                  stats::detail::Strategy::SIMD_BATCH);
+        } else if (op == "CDF") {
+            unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                         std::span<double>(cdf_results),
+                                                         stats::detail::Strategy::SIMD_BATCH);
+        }
+        end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 2. Standard Parallel Operations (if available) - fallback to SIMD
+        // 3. Thread Pool (PARALLEL_SIMD strategy) - fallback to SCALAR
         std::span<const double> input_span(test_values);
 
         if (op == "PDF") {
@@ -698,10 +717,10 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(
+        result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Work-Stealing Operations (if available) - fallback to SIMD
+        // 4. Work-Stealing Operations (if available) - fallback to SCALAR
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
@@ -753,7 +772,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Cache-Aware Operations (if available) - fallback to SIMD
+        // 5. GPU-Accelerated Operations (if available) - fallback to SCALAR
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
@@ -806,13 +825,23 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.gpu_accelerated_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // Calculate speedups
-        result.parallel_speedup =
-            static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
-        result.work_stealing_speedup = static_cast<double>(result.simd_time_us) /
-                                       static_cast<double>(result.work_stealing_time_us);
-        result.gpu_accelerated_speedup = static_cast<double>(result.simd_time_us) /
-                                         static_cast<double>(result.gpu_accelerated_time_us);
+        // Calculate speedups (all relative to baseline)
+        result.simd_speedup = result.baseline_time_us > 0
+                                  ? static_cast<double>(result.baseline_time_us) /
+                                        static_cast<double>(result.simd_time_us)
+                                  : 0.0;
+        result.thread_pool_speedup = result.baseline_time_us > 0
+                                         ? static_cast<double>(result.baseline_time_us) /
+                                               static_cast<double>(result.thread_pool_time_us)
+                                         : 0.0;
+        result.work_stealing_speedup = result.baseline_time_us > 0
+                                           ? static_cast<double>(result.baseline_time_us) /
+                                                 static_cast<double>(result.work_stealing_time_us)
+                                           : 0.0;
+        result.gpu_accelerated_speedup =
+            result.baseline_time_us > 0 ? static_cast<double>(result.baseline_time_us) /
+                                              static_cast<double>(result.gpu_accelerated_time_us)
+                                        : 0.0;
 
         benchmark_results.push_back(result);
 

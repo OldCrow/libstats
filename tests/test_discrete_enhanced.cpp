@@ -285,7 +285,7 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdDiscrete.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                std::span<double>(simd_results),
-                                               stats::detail::Strategy::SCALAR);
+                                               stats::detail::Strategy::SIMD_BATCH);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -448,20 +448,20 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     EXPECT_LT(first_time, 100000) << "First access should complete in under 100μs";
     EXPECT_LT(second_time, 100000) << "Second access should complete in under 100μs";
 
-    // Test cache invalidation - create a new distribution with different parameters
-    auto new_dist = stats::DiscreteDistribution::create(2, 8).value;
+    // Test cache invalidation by modifying the distribution's parameters
+    discrete_dist.setBounds(2, 8);  // This should invalidate the cache
 
     start = std::chrono::high_resolution_clock::now();
-    double mean_after_change = new_dist.getMean();
+    double mean_after_change = discrete_dist.getMean();
     end = std::chrono::high_resolution_clock::now();
     auto after_change_time =
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     EXPECT_EQ(mean_after_change, 5.0);  // Mean of uniform(2,8) is (2+8)/2 = 5
-    std::cout << "  New distribution parameter access: " << after_change_time << "ns\n";
+    std::cout << "  After parameter change: " << after_change_time << "ns\n";
 
-    // Test cache functionality: verify that the new distribution returns correct values
-    // (proving cache isolation between different distribution instances)
+    // Test cache functionality: verify that cache invalidation worked correctly
+    // (the new parameter value is returned, proving cache was invalidated)
 }
 
 //==============================================================================
@@ -629,7 +629,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         fixtures::BenchmarkResult result;
         result.operation_name = op;
 
-        // 1. SIMD Batch (baseline)
+        // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PMF") {
             dice.getProbabilityWithStrategy(std::span<const double>(test_values),
@@ -645,10 +645,29 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                       stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
+        result.baseline_time_us = static_cast<long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+
+        // 2. SIMD Batch operations
+        start = std::chrono::high_resolution_clock::now();
+        if (op == "PMF") {
+            dice.getProbabilityWithStrategy(std::span<const double>(test_values),
+                                            std::span<double>(pmf_results),
+                                            stats::detail::Strategy::SIMD_BATCH);
+        } else if (op == "LogPMF") {
+            dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
+                                               std::span<double>(log_pmf_results),
+                                               stats::detail::Strategy::SIMD_BATCH);
+        } else if (op == "CDF") {
+            dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
+                                                      std::span<double>(cdf_results),
+                                                      stats::detail::Strategy::SIMD_BATCH);
+        }
+        end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 2. Standard Parallel Operations (if available) - fallback to SIMD
+        // 3. Thread Pool (PARALLEL_SIMD strategy) - fallback to SCALAR
         std::span<const double> input_span(test_values);
 
         if (op == "PMF") {
@@ -699,10 +718,10 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.parallel_time_us = static_cast<long>(
+        result.thread_pool_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Work-Stealing Operations (if available) - fallback to SIMD
+        // 4. Work-Stealing Operations (if available) - fallback to SCALAR
         if (op == "PMF") {
             std::span<double> output_span(pmf_results);
             start = std::chrono::high_resolution_clock::now();
@@ -754,7 +773,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Cache-Aware Operations (if available) - fallback to SIMD
+        // 5. GPU-Accelerated Operations (if available) - fallback to SCALAR
         if (op == "PMF") {
             std::span<double> output_span(pmf_results);
             start = std::chrono::high_resolution_clock::now();
@@ -807,13 +826,23 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.gpu_accelerated_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // Calculate speedups
-        result.parallel_speedup =
-            static_cast<double>(result.simd_time_us) / static_cast<double>(result.parallel_time_us);
-        result.work_stealing_speedup = static_cast<double>(result.simd_time_us) /
-                                       static_cast<double>(result.work_stealing_time_us);
-        result.gpu_accelerated_speedup = static_cast<double>(result.simd_time_us) /
-                                         static_cast<double>(result.gpu_accelerated_time_us);
+        // Calculate speedups (all relative to baseline)
+        result.simd_speedup = result.baseline_time_us > 0
+                                  ? static_cast<double>(result.baseline_time_us) /
+                                        static_cast<double>(result.simd_time_us)
+                                  : 0.0;
+        result.thread_pool_speedup = result.baseline_time_us > 0
+                                         ? static_cast<double>(result.baseline_time_us) /
+                                               static_cast<double>(result.thread_pool_time_us)
+                                         : 0.0;
+        result.work_stealing_speedup = result.baseline_time_us > 0
+                                           ? static_cast<double>(result.baseline_time_us) /
+                                                 static_cast<double>(result.work_stealing_time_us)
+                                           : 0.0;
+        result.gpu_accelerated_speedup =
+            result.baseline_time_us > 0 ? static_cast<double>(result.baseline_time_us) /
+                                              static_cast<double>(result.gpu_accelerated_time_us)
+                                        : 0.0;
 
         benchmark_results.push_back(result);
 

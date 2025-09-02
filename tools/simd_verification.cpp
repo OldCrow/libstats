@@ -351,23 +351,36 @@ class SIMDVerifier {
         result.avg_difference = 0.0;
         result.failed_comparisons = 0;
         double sum_differences = 0.0;
+        size_t valid_comparisons = 0;  // Track number of non-special-case comparisons
         std::ostringstream error_stream;
 
         for (size_t i = 0; i < scalar_results.size(); ++i) {
             double scalar_val = scalar_results[i];
             double simd_val = simd_results[i];
-            double diff = std::abs(scalar_val - simd_val);
 
-            // Handle special cases (NaN, infinity)
+            // Handle special cases (NaN, infinity) BEFORE computing difference
             if (std::isnan(scalar_val) && std::isnan(simd_val)) {
-                // Both NaN - consider equal
+                // Both NaN - consider equal, skip difference calculation
                 continue;
             }
             if (std::isinf(scalar_val) && std::isinf(simd_val)) {
                 // Both infinite with same sign - consider equal
                 if ((scalar_val > 0) == (simd_val > 0)) {
+                    // Skip difference calculation to avoid inf-inf=nan
                     continue;
                 }
+                // Different signs of infinity - this is an error
+                // Fall through to error handling
+            }
+
+            // NOW compute difference after handling special cases
+            double diff = std::abs(scalar_val - simd_val);
+
+            // Only update statistics if diff is finite
+            if (std::isfinite(diff)) {
+                result.max_difference = std::max(result.max_difference, diff);
+                sum_differences += diff;
+                valid_comparisons++;
             }
 
             // Calculate relative error for non-zero values
@@ -396,12 +409,12 @@ class SIMDVerifier {
                                  << ", simd=" << simd_val << ", diff=" << diff << "; ";
                 }
             }
-
-            result.max_difference = std::max(result.max_difference, diff);
-            sum_differences += diff;
         }
 
-        result.avg_difference = sum_differences / static_cast<double>(scalar_results.size());
+        // Calculate average only from valid comparisons
+        result.avg_difference = (valid_comparisons > 0)
+                                    ? sum_differences / static_cast<double>(valid_comparisons)
+                                    : 0.0;
         result.correctness_passed = (result.failed_comparisons == 0);
         result.error_details = error_stream.str();
 

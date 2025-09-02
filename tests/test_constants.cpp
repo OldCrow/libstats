@@ -152,10 +152,68 @@ void test_simd_constants() {
     assert(MIN_SIMD_SIZE > 0);
     assert(MAX_BLOCK_SIZE >= DEFAULT_BLOCK_SIZE);
     assert(DEFAULT_BLOCK_SIZE >= MIN_SIMD_SIZE);
-    assert(stats::arch::simd::SIMD_ALIGNMENT > 0);
 
-    // Test power of 2 alignment
-    assert((stats::arch::simd::SIMD_ALIGNMENT & (stats::arch::simd::SIMD_ALIGNMENT - 1)) == 0);
+    // Test SIMD alignment constants
+    assert(AVX512_ALIGNMENT == 64);
+    assert(AVX_ALIGNMENT == 32);
+    assert(SSE_ALIGNMENT == 16);
+    assert(NEON_ALIGNMENT == 16);
+    assert(CACHE_LINE_ALIGNMENT == 64);
+    assert(MIN_SAFE_ALIGNMENT == 8);
+
+    // Test alignment hierarchy
+    assert(AVX512_ALIGNMENT >= AVX_ALIGNMENT);
+    assert(AVX_ALIGNMENT >= SSE_ALIGNMENT);
+    assert(SSE_ALIGNMENT == NEON_ALIGNMENT);
+    assert(SSE_ALIGNMENT >= MIN_SAFE_ALIGNMENT);
+
+    // Test all alignments are powers of 2
+    assert((AVX512_ALIGNMENT & (AVX512_ALIGNMENT - 1)) == 0);
+    assert((AVX_ALIGNMENT & (AVX_ALIGNMENT - 1)) == 0);
+    assert((SSE_ALIGNMENT & (SSE_ALIGNMENT - 1)) == 0);
+    assert((CACHE_LINE_ALIGNMENT & (CACHE_LINE_ALIGNMENT - 1)) == 0);
+
+    // Test matrix block sizes
+    assert(MATRIX_L1_BLOCK_SIZE == 64);
+    assert(MATRIX_L2_BLOCK_SIZE == 256);
+    assert(MATRIX_L3_BLOCK_SIZE == 1024);
+    assert(MATRIX_STEP_SIZE == 8);
+    assert(MATRIX_PANEL_WIDTH == 64);
+    assert(MATRIX_MIN_BLOCK_SIZE == 32);
+    assert(MATRIX_MAX_BLOCK_SIZE == 2048);
+
+    // Test matrix block size hierarchy
+    assert(MATRIX_L3_BLOCK_SIZE >= MATRIX_L2_BLOCK_SIZE);
+    assert(MATRIX_L2_BLOCK_SIZE >= MATRIX_L1_BLOCK_SIZE);
+    assert(MATRIX_L1_BLOCK_SIZE >= MATRIX_MIN_BLOCK_SIZE);
+    assert(MATRIX_MAX_BLOCK_SIZE >= MATRIX_L3_BLOCK_SIZE);
+
+    // Test SIMD register widths (doubles per register)
+    assert(AVX512_DOUBLES == 8);
+    assert(AVX_DOUBLES == 4);
+    assert(AVX2_DOUBLES == 4);
+    assert(SSE_DOUBLES == 2);
+    assert(NEON_DOUBLES == 2);
+    assert(SCALAR_DOUBLES == 1);
+
+    // Test register width hierarchy
+    assert(AVX512_DOUBLES >= AVX_DOUBLES);
+    assert(AVX_DOUBLES >= SSE_DOUBLES);
+    assert(SSE_DOUBLES >= SCALAR_DOUBLES);
+
+    // Test loop unrolling factors
+    assert(AVX512_UNROLL == 4);
+    assert(AVX_UNROLL == 2);
+    assert(SSE_UNROLL == 2);
+    assert(NEON_UNROLL == 2);
+    assert(SCALAR_UNROLL == 1);
+
+    // Test optimization thresholds
+    assert(OPT_MEDIUM_DATASET_MIN_SIZE == 32);
+    assert(OPT_ALIGNMENT_BENEFIT_THRESHOLD == 32);
+    assert(OPT_AVX512_MIN_ALIGNED_SIZE == 8);
+    assert(OPT_APPLE_SILICON_AGGRESSIVE_THRESHOLD == 6);
+    assert(OPT_AVX512_SMALL_BENEFIT_THRESHOLD == 4);
 
     std::cout << "   ✓ SIMD constants tests passed" << std::endl;
 }
@@ -222,12 +280,34 @@ void test_parallel_constants() {
     assert(stats::arch::get_simple_operation_grain_size() <= stats::arch::get_default_grain_size());
     assert(stats::arch::get_monte_carlo_grain_size() <= stats::arch::get_max_grain_size());
 
+    // Test SSE parallel constants
+    assert(sse::MIN_ELEMENTS_FOR_PARALLEL == 2048);
+    assert(sse::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL == 1024);
+    assert(sse::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL == 16384);
+    assert(sse::DEFAULT_GRAIN_SIZE == 128);
+    assert(sse::SIMPLE_OPERATION_GRAIN_SIZE == 64);
+    assert(sse::COMPLEX_OPERATION_GRAIN_SIZE == 256);
+    assert(sse::MONTE_CARLO_GRAIN_SIZE == 32);
+    assert(sse::MAX_GRAIN_SIZE == 2048);
+
+    // Test AVX parallel constants
+    assert(avx::MIN_ELEMENTS_FOR_PARALLEL == 4096);
+    assert(avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL == 2048);
+    assert(avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL == 32768);
+    assert(avx::DEFAULT_GRAIN_SIZE == 256);
+    assert(avx::SIMPLE_OPERATION_GRAIN_SIZE == 128);
+    assert(avx::COMPLEX_OPERATION_GRAIN_SIZE == 512);
+    assert(avx::MONTE_CARLO_GRAIN_SIZE == 64);
+    assert(avx::MAX_GRAIN_SIZE == 4096);
+
+    // Test architecture hierarchy - AVX should have larger thresholds than SSE
+    assert(avx::MIN_ELEMENTS_FOR_PARALLEL >= sse::MIN_ELEMENTS_FOR_PARALLEL);
+    assert(avx::DEFAULT_GRAIN_SIZE >= sse::DEFAULT_GRAIN_SIZE);
+    assert(avx::MAX_GRAIN_SIZE >= sse::MAX_GRAIN_SIZE);
+
     // Test adaptive functions
     assert(stats::arch::get_min_elements_for_parallel() > 0);
     assert(stats::arch::get_default_grain_size() > 0);
-    // Note: adaptive functions may not be available in current implementation
-    // assert(stats::arch::parallel::detail::simd_block_size() > 0);
-    // assert(stats::arch::parallel::detail::memory_alignment() > 0);
 
     std::cout << "   ✓ Parallel constants tests passed" << std::endl;
 }
