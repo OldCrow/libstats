@@ -590,13 +590,21 @@ class VectorOps {
     /// @param size Number of elements
     static void vector_log(const double* values, double* results, std::size_t size) noexcept;
 
-    /// Vectorized power computation
+    /// Vectorized power computation (scalar exponent)
     /// @param base Base vector
     /// @param exponent Exponent (scalar)
     /// @param results Output vector (base^exponent)
     /// @param size Number of elements
     static void vector_pow(const double* base, double exponent, double* results,
                            std::size_t size) noexcept;
+
+    /// Vectorized element-wise power computation (vector exponents)
+    /// @param base Base vector
+    /// @param exponent Exponent vector
+    /// @param results Output vector (base[i]^exponent[i])
+    /// @param size Number of elements
+    static void vector_pow_elementwise(const double* base, const double* exponent, double* results,
+                                       std::size_t size) noexcept;
 
     /// Vectorized error function computation
     /// @param values Input vector
@@ -687,6 +695,8 @@ class VectorOps {
     static void vector_log_avx512(const double* values, double* results, std::size_t size) noexcept;
     static void vector_pow_avx512(const double* base, double exponent, double* results,
                                   std::size_t size) noexcept;
+    static void vector_pow_elementwise_avx512(const double* base, const double* exponent,
+                                              double* results, std::size_t size) noexcept;
     static void vector_erf_avx512(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
@@ -706,6 +716,8 @@ class VectorOps {
     static void vector_log_avx(const double* values, double* results, std::size_t size) noexcept;
     static void vector_pow_avx(const double* base, double exponent, double* results,
                                std::size_t size) noexcept;
+    static void vector_pow_elementwise_avx(const double* base, const double* exponent,
+                                           double* results, std::size_t size) noexcept;
     static void vector_erf_avx(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
@@ -725,6 +737,8 @@ class VectorOps {
     static void vector_log_avx2(const double* values, double* results, std::size_t size) noexcept;
     static void vector_pow_avx2(const double* base, double exponent, double* results,
                                 std::size_t size) noexcept;
+    static void vector_pow_elementwise_avx2(const double* base, const double* exponent,
+                                            double* results, std::size_t size) noexcept;
     static void vector_erf_avx2(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
@@ -744,6 +758,8 @@ class VectorOps {
     static void vector_log_sse2(const double* values, double* results, std::size_t size) noexcept;
     static void vector_pow_sse2(const double* base, double exponent, double* results,
                                 std::size_t size) noexcept;
+    static void vector_pow_elementwise_sse2(const double* base, const double* exponent,
+                                            double* results, std::size_t size) noexcept;
     static void vector_erf_sse2(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
@@ -763,6 +779,8 @@ class VectorOps {
     static void vector_log_neon(const double* values, double* results, std::size_t size) noexcept;
     static void vector_pow_neon(const double* base, double exponent, double* results,
                                 std::size_t size) noexcept;
+    static void vector_pow_elementwise_neon(const double* base, const double* exponent,
+                                            double* results, std::size_t size) noexcept;
     static void vector_erf_neon(const double* values, double* results, std::size_t size) noexcept;
 #endif
 };

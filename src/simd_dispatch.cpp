@@ -260,25 +260,201 @@ void VectorOps::scalar_add(const double* a, double scalar, double* result,
 }
 
 void VectorOps::vector_exp(const double* values, double* results, std::size_t size) noexcept {
-    // For complex math functions like exp, we currently use fallback
-    // Full SIMD implementations of transcendental functions require careful
-    // implementation of range reduction and polynomial approximation
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
+        return vector_exp_fallback(values, results, size);
+    }
+
+#ifdef LIBSTATS_HAS_AVX512
+    if (stats::arch::supports_avx512()) {
+        return vector_exp_avx512(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX2
+    if (stats::arch::supports_avx2()) {
+        return vector_exp_avx2(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX
+    if (stats::arch::supports_avx()) {
+        return vector_exp_avx(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_SSE2
+    if (stats::arch::supports_sse2()) {
+        return vector_exp_sse2(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_NEON
+    if (stats::arch::supports_neon()) {
+        return vector_exp_neon(values, results, size);
+    }
+#endif
+
     return vector_exp_fallback(values, results, size);
 }
 
 void VectorOps::vector_log(const double* values, double* results, std::size_t size) noexcept {
-    // For complex math functions like log, we currently use fallback
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
+        return vector_log_fallback(values, results, size);
+    }
+
+#ifdef LIBSTATS_HAS_AVX512
+    if (stats::arch::supports_avx512()) {
+        return vector_log_avx512(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX2
+    if (stats::arch::supports_avx2()) {
+        return vector_log_avx2(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX
+    if (stats::arch::supports_avx()) {
+        return vector_log_avx(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_SSE2
+    if (stats::arch::supports_sse2()) {
+        return vector_log_sse2(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_NEON
+    if (stats::arch::supports_neon()) {
+        return vector_log_neon(values, results, size);
+    }
+#endif
+
     return vector_log_fallback(values, results, size);
 }
 
 void VectorOps::vector_pow(const double* base, double exponent, double* results,
                            std::size_t size) noexcept {
-    // For complex math functions like pow, we currently use fallback
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
+        return vector_pow_fallback(base, exponent, results, size);
+    }
+
+#ifdef LIBSTATS_HAS_AVX512
+    if (stats::arch::supports_avx512()) {
+        return vector_pow_avx512(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX2
+    if (stats::arch::supports_avx2()) {
+        return vector_pow_avx2(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX
+    if (stats::arch::supports_avx()) {
+        return vector_pow_avx(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_SSE2
+    if (stats::arch::supports_sse2()) {
+        return vector_pow_sse2(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_NEON
+    if (stats::arch::supports_neon()) {
+        return vector_pow_neon(base, exponent, results, size);
+    }
+#endif
+
     return vector_pow_fallback(base, exponent, results, size);
 }
 
+void VectorOps::vector_pow_elementwise(const double* base, const double* exponent, double* results,
+                                       std::size_t size) noexcept {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
+        // Fallback to scalar implementation
+        for (std::size_t i = 0; i < size; ++i) {
+            results[i] = std::pow(base[i], exponent[i]);
+        }
+        return;
+    }
+
+#ifdef LIBSTATS_HAS_AVX512
+    if (stats::arch::supports_avx512()) {
+        return vector_pow_elementwise_avx512(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX2
+    if (stats::arch::supports_avx2()) {
+        return vector_pow_elementwise_avx2(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX
+    if (stats::arch::supports_avx()) {
+        return vector_pow_elementwise_avx(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_SSE2
+    if (stats::arch::supports_sse2()) {
+        return vector_pow_elementwise_sse2(base, exponent, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_NEON
+    if (stats::arch::supports_neon()) {
+        return vector_pow_elementwise_neon(base, exponent, results, size);
+    }
+#endif
+
+    // Final fallback
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::pow(base[i], exponent[i]);
+    }
+}
+
 void VectorOps::vector_erf(const double* values, double* results, std::size_t size) noexcept {
-    // For complex math functions like erf, we currently use fallback
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
+        return vector_erf_fallback(values, results, size);
+    }
+
+#ifdef LIBSTATS_HAS_AVX512
+    if (stats::arch::supports_avx512()) {
+        return vector_erf_avx512(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX2
+    if (stats::arch::supports_avx2()) {
+        return vector_erf_avx2(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_AVX
+    if (stats::arch::supports_avx()) {
+        return vector_erf_avx(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_SSE2
+    if (stats::arch::supports_sse2()) {
+        return vector_erf_sse2(values, results, size);
+    }
+#endif
+
+#ifdef LIBSTATS_HAS_NEON
+    if (stats::arch::supports_neon()) {
+        return vector_erf_neon(values, results, size);
+    }
+#endif
+
     return vector_erf_fallback(values, results, size);
 }
 

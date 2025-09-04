@@ -165,6 +165,71 @@ void VectorOps::scalar_add_sse2(const double* a, double scalar, double* result,
     }
 }
 
+// SSE2 doesn't have native exp/log/pow/erf instructions, so we use scalar fallback
+// with SSE2 register management for better cache usage
+
+void VectorOps::vector_exp_sse2(const double* values, double* results, std::size_t size) noexcept {
+    if (!stats::arch::supports_sse2()) {
+        return vector_exp_fallback(values, results, size);
+    }
+
+    // SSE2 lacks exp intrinsics, use scalar math
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::exp(values[i]);
+    }
+}
+
+void VectorOps::vector_log_sse2(const double* values, double* results, std::size_t size) noexcept {
+    if (!stats::arch::supports_sse2()) {
+        return vector_log_fallback(values, results, size);
+    }
+
+    // SSE2 lacks log intrinsics, use scalar math with safety check
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] =
+            values[i] > 0.0 ? std::log(values[i]) : -std::numeric_limits<double>::infinity();
+    }
+}
+
+void VectorOps::vector_pow_sse2(const double* base, double exponent, double* results,
+                                std::size_t size) noexcept {
+    if (!stats::arch::supports_sse2()) {
+        return vector_pow_fallback(base, exponent, results, size);
+    }
+
+    // SSE2 lacks pow intrinsics, use scalar math
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::pow(base[i], exponent);
+    }
+}
+
+void VectorOps::vector_pow_elementwise_sse2(const double* base, const double* exponent,
+                                            double* results, std::size_t size) noexcept {
+    if (!stats::arch::supports_sse2()) {
+        // Fallback to scalar implementation
+        for (std::size_t i = 0; i < size; ++i) {
+            results[i] = std::pow(base[i], exponent[i]);
+        }
+        return;
+    }
+
+    // SSE2 lacks pow intrinsics, use scalar math for element-wise power
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::pow(base[i], exponent[i]);
+    }
+}
+
+void VectorOps::vector_erf_sse2(const double* values, double* results, std::size_t size) noexcept {
+    if (!stats::arch::supports_sse2()) {
+        return vector_erf_fallback(values, results, size);
+    }
+
+    // SSE2 lacks erf intrinsics, use scalar math
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::erf(values[i]);
+    }
+}
+
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats

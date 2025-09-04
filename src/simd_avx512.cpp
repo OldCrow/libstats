@@ -161,6 +161,62 @@ void VectorOps::scalar_add_avx512(const double* a, double scalar, double* result
     }
 }
 
+// AVX512 transcendental functions - for now, delegate to AVX implementations
+// Future: could use SVML (Intel Short Vector Math Library) for better performance
+
+void VectorOps::vector_exp_avx512(const double* values, double* results,
+                                  std::size_t size) noexcept {
+    if (!stats::arch::supports_avx512()) {
+        return vector_exp_fallback(values, results, size);
+    }
+    // For now, delegate to AVX implementation
+    // Future: use _mm512_exp_pd from SVML if available
+    return vector_exp_avx(values, results, size);
+}
+
+void VectorOps::vector_log_avx512(const double* values, double* results,
+                                  std::size_t size) noexcept {
+    if (!stats::arch::supports_avx512()) {
+        return vector_log_fallback(values, results, size);
+    }
+    // For now, delegate to AVX implementation
+    // Future: use _mm512_log_pd from SVML if available
+    return vector_log_avx(values, results, size);
+}
+
+void VectorOps::vector_pow_avx512(const double* base, double exponent, double* results,
+                                  std::size_t size) noexcept {
+    if (!stats::arch::supports_avx512()) {
+        return vector_pow_fallback(base, exponent, results, size);
+    }
+    // For now, delegate to AVX implementation
+    // Future: use _mm512_pow_pd from SVML if available
+    return vector_pow_avx(base, exponent, results, size);
+}
+
+void VectorOps::vector_pow_elementwise_avx512(const double* base, const double* exponent,
+                                              double* results, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx512()) {
+        // Fallback to scalar implementation
+        for (std::size_t i = 0; i < size; ++i) {
+            results[i] = std::pow(base[i], exponent[i]);
+        }
+        return;
+    }
+    // For now, delegate to AVX implementation
+    return vector_pow_elementwise_avx(base, exponent, results, size);
+}
+
+void VectorOps::vector_erf_avx512(const double* values, double* results,
+                                  std::size_t size) noexcept {
+    if (!stats::arch::supports_avx512()) {
+        return vector_erf_fallback(values, results, size);
+    }
+    // For now, delegate to AVX implementation
+    // Future: use _mm512_erf_pd from SVML if available
+    return vector_erf_avx(values, results, size);
+}
+
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats

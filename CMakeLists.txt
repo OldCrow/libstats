@@ -1571,6 +1571,9 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_platform_optimizations tests/test_platform_optimizations.cpp)
     create_libstats_test(test_simd_policy tests/test_simd_policy.cpp)
 
+    # SIMD benchmark test (on-demand only, not in regular test suite due to runtime)
+    create_libstats_test(benchmark_simd_all tests/benchmark_simd_all.cpp)
+
     # =======================================================================
     # LEVEL 1: Core Infrastructure Tests
     # =======================================================================
