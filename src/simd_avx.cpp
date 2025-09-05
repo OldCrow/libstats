@@ -1,5 +1,10 @@
 // AVX-specific SIMD implementations
 // This file is compiled ONLY with AVX flags to ensure safety
+//
+// Some algorithms and polynomial coefficients in this file are inspired by or
+// derived from the SLEEF library (https://github.com/shibatch/sleef), which is
+// licensed under the Boost Software License 1.0. The Boost license is fully
+// compatible with our MIT License.
 
 #if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC target("avx")

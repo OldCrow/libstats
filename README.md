@@ -297,9 +297,13 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+For third-party code attributions and licenses, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Acknowledgments
 
 This project builds upon concepts and components from [libhmm](https://github.com/wolfman/libhmm), adapting them for general-purpose statistical computing while maintaining the focus on modern C++ design and performance.
+
+Our SIMD implementations incorporate algorithms inspired by the SLEEF library for high-accuracy mathematical functions.
 
 ---
 
