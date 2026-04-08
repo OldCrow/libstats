@@ -1,6 +1,7 @@
 #include "../include/platform/parallel_thresholds.h"
 
-#include "../include/core/threshold_constants.h"
+#include "../include/core/math_constants.h"
+#include "../include/core/statistical_constants.h"
 #include "../include/platform/cpu_detection.h"
 
 #include <algorithm>

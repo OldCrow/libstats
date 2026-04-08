@@ -1,6 +1,5 @@
-#include "../include/core/mathematical_constants.h"
+#include "../include/core/math_constants.h"
 #include "../include/core/performance_dispatcher.h"
-#include "../include/core/precision_constants.h"
 #include "../include/platform/cpu_detection.h"
 
 #include <algorithm>

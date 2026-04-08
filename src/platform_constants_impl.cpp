@@ -1,5 +1,5 @@
 #include "../include/common/platform_constants_fwd.h"
-#include "../include/core/mathematical_constants.h"
+#include "../include/core/math_constants.h"
 #include "../include/platform/platform_constants.h"
 #include "../include/platform/simd_policy.h"
 #include "platform/cpu_detection.h"

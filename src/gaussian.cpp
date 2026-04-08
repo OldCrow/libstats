@@ -5,10 +5,7 @@
 #include "../include/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
 #include "../include/core/dispatch_utils.h"
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/robust_constants.h"
 #include "../include/core/safety.h"
-#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 // Note: simd.h still included in implementation files that actually use SIMD operations
 

@@ -2,7 +2,8 @@
 
 #include "../include/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
 #include "../include/common/platform_constants_fwd.h"  // Use lightweight forward declarations
-#include "../include/core/threshold_constants.h"
+#include "../include/core/math_constants.h"
+#include "../include/core/statistical_constants.h"
 
 #include <algorithm>
 #include <iostream>

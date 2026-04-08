@@ -1,8 +1,7 @@
 #include "../include/core/safety.h"
 
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
-#include "../include/core/threshold_constants.h"
+#include "../include/core/math_constants.h"
+#include "../include/core/statistical_constants.h"
 
 #include <algorithm>
 #include <cmath>

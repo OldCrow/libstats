@@ -3,13 +3,10 @@
 #include "../include/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
 #include "../include/core/validation.h"
 // Note: parallel execution included through distribution base inheritance
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
-#include "../include/core/threshold_constants.h"
 
 #include <algorithm>
 #include <cmath>

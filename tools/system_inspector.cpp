@@ -13,6 +13,9 @@
  * - Quick mode: Basic system information only
  */
 
+#include "../include/core/math_constants.h"
+#include "../include/core/statistical_constants.h"
+
 #include <chrono>
 #include <cstddef>  // for size_t
 #include <iomanip>
@@ -21,7 +24,6 @@
 #include <thread>
 #include <vector>  // for std::vector (keep standard portable header)
 // Use consolidated header for complete library functionality
-#include "core/mathematical_constants.h"  // for ONE
 #include "core/performance_dispatcher.h"  // for SystemCapabilities, DistributionType
 #include "platform/platform_constants.h"  // for platform constants
 #include "platform/simd.h"                // for VectorOps

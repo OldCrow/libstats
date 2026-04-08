@@ -3,10 +3,9 @@
 #include "../include/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "../include/common/simd_policy_fwd.h"    // SIMD policy decisions (lightweight)
 #include "../include/core/distribution_base.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
+#include "../include/core/math_constants.h"
 #include "../include/core/safety.h"
-#include "../include/core/threshold_constants.h"
+#include "../include/core/statistical_constants.h"
 
 #include <algorithm>
 #include <array>
