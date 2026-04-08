@@ -164,14 +164,14 @@ class DispatchUtils {
         switch (hint_strategy) {
             case PerformanceHint::PreferredStrategy::FORCE_SCALAR:
                 return Strategy::SCALAR;
-            case PerformanceHint::PreferredStrategy::FORCE_SIMD:
-                return Strategy::SIMD_BATCH;
+            case PerformanceHint::PreferredStrategy::FORCE_VECTORIZED:
+                return Strategy::VECTORIZED;
             case PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
-                return Strategy::PARALLEL_SIMD;
+                return Strategy::PARALLEL;
             case PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                return (count <= 8) ? Strategy::SCALAR : Strategy::SIMD_BATCH;
+                return (count <= 8) ? Strategy::SCALAR : Strategy::VECTORIZED;
             case PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                return Strategy::PARALLEL_SIMD;
+                return Strategy::PARALLEL;
             default:
                 return Strategy::SCALAR;
         }
@@ -195,31 +195,28 @@ class DispatchUtils {
                 }
                 break;
 
-            case Strategy::SIMD_BATCH:
-                // Use existing SIMD implementation
+            case Strategy::VECTORIZED:
+                // Batch path through VectorOps. For Gaussian this uses SIMD intrinsics;
+                // for other distributions it currently uses scalar loops until Phase 6.
                 batch_func(dist, values.data(), results.data(), count);
                 break;
 
-            case Strategy::PARALLEL_SIMD:
-                // Use existing parallel implementation
+            case Strategy::PARALLEL:
+                // Multi-threaded via ParallelUtils::parallelFor.
                 parallel_func(dist, values, results);
                 break;
 
             case Strategy::WORK_STEALING: {
-                // Use work-stealing pool for load balancing
+                // Work-stealing pool for irregular or variable-cost workloads.
                 static thread_local WorkStealingPool default_pool;
                 work_stealing_func(dist, values, results, default_pool);
                 break;
             }
 
-            case Strategy::GPU_ACCELERATED: {
-                // GPU acceleration fallback to work-stealing for optimal CPU performance
-                // NOTE: GPU implementation not yet available - forwards to work-stealing for best
-                // CPU performance
-                static thread_local WorkStealingPool default_pool;
-                gpu_accelerated_func(dist, values, results, default_pool);
-                break;
-            }
+                // Note: GPU_ACCELERATED was removed from the Strategy enum.
+                // GpuAcceleratedFunc / gpu_accelerated_func are kept for ABI compatibility
+                // until Phase 6 removes them from all call sites.
+                [[maybe_unused]] auto& _gpu = gpu_accelerated_func;
         }
     }
 
@@ -297,33 +294,8 @@ class DispatchUtils {
         }
     }
 
-    /**
-     * @brief Execute GPU-accelerated batch operations (CPU fallback)
-     *
-     * NOTE: GPU acceleration is not yet implemented. This function provides
-     * the best CPU alternative using work-stealing for optimal performance.
-     *
-     * @tparam Distribution The distribution type
-     * @tparam ComputationFunc Function type for element-wise computation
-     *
-     * @param dist Reference to the distribution instance
-     * @param values Input values span
-     * @param results Output results span
-     * @param operation_name Name of the operation for logging
-     * @param computation_func Function to compute result for each element
-     */
-    template <typename Distribution, typename ComputationFunc>
-    static void executeBatchGpuAccelerated(const Distribution& dist, std::span<const double> values,
-                                           std::span<double> results,
-                                           [[maybe_unused]] const std::string& operation_name,
-                                           ComputationFunc&& computation_func) {
-        // TODO: Implement proper GPU acceleration in v1.1.0+
-        // For now, use work-stealing for optimal performance.
-
-        static thread_local WorkStealingPool fallback_pool;
-        executeBatchWorkStealing(dist, values, results, fallback_pool,
-                                 std::forward<ComputationFunc>(computation_func));
-    }
+    // executeBatchGpuAccelerated removed — GPU_ACCELERATED strategy removed from enum.
+    // Callers should use executeBatchWorkStealing directly.
 
     /**
      * @brief Common cache validation and parameter extraction pattern

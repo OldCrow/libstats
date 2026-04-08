@@ -319,7 +319,7 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 
 #### Parallel Processing
 - Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`
-- Explicit control: `getProbabilityWithStrategy(spans, Strategy::PARALLEL_SIMD)`
+- Explicit control: `getProbabilityWithStrategy(spans, Strategy::PARALLEL)`
 - Performance thresholds: <8 elements (scalar), 8-1000 (SIMD), >1000 (parallel)
 
 ### Build System Customization

@@ -428,25 +428,24 @@ class ParallelThresholdBenchmark {
         } else if (method == "simd") {
             // SIMD batch operations using explicit strategy to ensure SIMD benchmarking
             if (operation == "PDF") {
-                dist.getProbabilityWithStrategy(input, output, stats::detail::Strategy::SIMD_BATCH);
+                dist.getProbabilityWithStrategy(input, output, stats::detail::Strategy::VECTORIZED);
             } else if (operation == "LogPDF") {
                 dist.getLogProbabilityWithStrategy(input, output,
-                                                   stats::detail::Strategy::SIMD_BATCH);
+                                                   stats::detail::Strategy::VECTORIZED);
             } else if (operation == "CDF") {
                 dist.getCumulativeProbabilityWithStrategy(input, output,
-                                                          stats::detail::Strategy::SIMD_BATCH);
+                                                          stats::detail::Strategy::VECTORIZED);
             }
         } else if (method == "parallel") {
             // Parallel operations using explicit strategy to ensure parallel benchmarking
             if (operation == "PDF") {
-                dist.getProbabilityWithStrategy(input, output,
-                                                stats::detail::Strategy::PARALLEL_SIMD);
+                dist.getProbabilityWithStrategy(input, output, stats::detail::Strategy::PARALLEL);
             } else if (operation == "LogPDF") {
                 dist.getLogProbabilityWithStrategy(input, output,
-                                                   stats::detail::Strategy::PARALLEL_SIMD);
+                                                   stats::detail::Strategy::PARALLEL);
             } else if (operation == "CDF") {
                 dist.getCumulativeProbabilityWithStrategy(input, output,
-                                                          stats::detail::Strategy::PARALLEL_SIMD);
+                                                          stats::detail::Strategy::PARALLEL);
             }
         }
     }

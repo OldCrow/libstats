@@ -1958,7 +1958,7 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
                                                    std::span<double> results,
                                                    detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -2122,7 +2122,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
                                                       std::span<double> results,
                                                       detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -2286,7 +2286,7 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
                                                              std::span<double> results,
                                                              detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 

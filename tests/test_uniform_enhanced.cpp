@@ -284,7 +284,7 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
                                               std::span<double>(simd_results),
-                                              stats::detail::Strategy::SIMD_BATCH);
+                                              stats::detail::Strategy::VECTORIZED);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -295,7 +295,7 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdUniform.getProbabilityWithStrategy(input_span, output_span,
-                                              stats::detail::Strategy::PARALLEL_SIMD);
+                                              stats::detail::Strategy::PARALLEL);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -471,8 +471,8 @@ TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
-    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "SIMD_BATCH", "SIMD_BATCH",
-                                                    "PARALLEL_SIMD"};
+    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "VECTORIZED", "VECTORIZED",
+                                                    "PARALLEL"};
 
     std::cout << "\n=== Auto-Dispatch Assessment (Uniform) ===\n";
 
@@ -656,15 +656,15 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                   std::span<double>(pdf_results),
-                                                  stats::detail::Strategy::SIMD_BATCH);
+                                                  stats::detail::Strategy::VECTORIZED);
         } else if (op == "LogPDF") {
             stdUniform.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                      std::span<double>(log_pdf_results),
-                                                     stats::detail::Strategy::SIMD_BATCH);
+                                                     stats::detail::Strategy::VECTORIZED);
         } else if (op == "CDF") {
             stdUniform.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                             std::span<double>(cdf_results),
-                                                            stats::detail::Strategy::SIMD_BATCH);
+                                                            stats::detail::Strategy::VECTORIZED);
         }
         end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
@@ -678,10 +678,10 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
                               stdUniform.getProbabilityWithStrategy(
-                                  input_span, output_span, stats::detail::Strategy::PARALLEL_SIMD);
+                                  input_span, output_span, stats::detail::Strategy::PARALLEL);
                           }) {
                 stdUniform.getProbabilityWithStrategy(input_span, output_span,
-                                                      stats::detail::Strategy::PARALLEL_SIMD);
+                                                      stats::detail::Strategy::PARALLEL);
             } else {
                 stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(pdf_results),
@@ -693,11 +693,10 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
                               stdUniform.getLogProbabilityWithStrategy(
-                                  input_span, log_output_span,
-                                  stats::detail::Strategy::PARALLEL_SIMD);
+                                  input_span, log_output_span, stats::detail::Strategy::PARALLEL);
                           }) {
                 stdUniform.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                         stats::detail::Strategy::PARALLEL_SIMD);
+                                                         stats::detail::Strategy::PARALLEL);
             } else {
                 stdUniform.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                          std::span<double>(log_pdf_results),
@@ -709,11 +708,10 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
                               stdUniform.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span,
-                                  stats::detail::Strategy::PARALLEL_SIMD);
+                                  input_span, cdf_output_span, stats::detail::Strategy::PARALLEL);
                           }) {
-                stdUniform.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::detail::Strategy::PARALLEL_SIMD);
+                stdUniform.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
+                                                                stats::detail::Strategy::PARALLEL);
             } else {
                 stdUniform.getCumulativeProbabilityWithStrategy(
                     std::span<const double>(test_values), std::span<double>(cdf_results),
@@ -783,11 +781,10 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
                               stdUniform.getProbabilityWithStrategy(
-                                  input_span, output_span,
-                                  stats::detail::Strategy::GPU_ACCELERATED);
+                                  input_span, output_span, stats::detail::Strategy::WORK_STEALING);
                           }) {
                 stdUniform.getProbabilityWithStrategy(input_span, output_span,
-                                                      stats::detail::Strategy::GPU_ACCELERATED);
+                                                      stats::detail::Strategy::WORK_STEALING);
             } else {
                 stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(pdf_results),
@@ -800,10 +797,10 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               stdUniform.getLogProbabilityWithStrategy(
                                   input_span, log_output_span,
-                                  stats::detail::Strategy::GPU_ACCELERATED);
+                                  stats::detail::Strategy::WORK_STEALING);
                           }) {
                 stdUniform.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                         stats::detail::Strategy::GPU_ACCELERATED);
+                                                         stats::detail::Strategy::WORK_STEALING);
             } else {
                 stdUniform.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                          std::span<double>(log_pdf_results),
@@ -816,10 +813,10 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             if constexpr (requires {
                               stdUniform.getCumulativeProbabilityWithStrategy(
                                   input_span, cdf_output_span,
-                                  stats::detail::Strategy::GPU_ACCELERATED);
+                                  stats::detail::Strategy::WORK_STEALING);
                           }) {
                 stdUniform.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::detail::Strategy::GPU_ACCELERATED);
+                    input_span, cdf_output_span, stats::detail::Strategy::WORK_STEALING);
             } else {
                 stdUniform.getCumulativeProbabilityWithStrategy(
                     std::span<const double>(test_values), std::span<double>(cdf_results),

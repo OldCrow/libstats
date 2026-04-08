@@ -1835,7 +1835,7 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
                                                          std::span<double> results,
                                                          detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -1996,7 +1996,7 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
                                                             std::span<double> results,
                                                             detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -2157,7 +2157,7 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
 void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
     std::span<const double> values, std::span<double> results, detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 

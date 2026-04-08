@@ -327,7 +327,7 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
                                              std::span<double>(simd_results),
-                                             stats::detail::Strategy::SIMD_BATCH);
+                                             stats::detail::Strategy::VECTORIZED);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -338,7 +338,7 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                             stats::detail::Strategy::PARALLEL_SIMD);
+                                             stats::detail::Strategy::PARALLEL);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -411,8 +411,8 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
 
     // Test different batch sizes to verify auto-dispatch picks the right method
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
-    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "SIMD_BATCH", "SIMD_BATCH",
-                                                    "PARALLEL_SIMD"};
+    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "VECTORIZED", "VECTORIZED",
+                                                    "PARALLEL"};
 
     for (size_t i = 0; i < batch_sizes.size(); ++i) {
         size_t batch_size = batch_sizes[i];
@@ -440,7 +440,7 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
         start = std::chrono::high_resolution_clock::now();
         gauss_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
                                               std::span<double>(traditional_results),
-                                              stats::detail::Strategy::SIMD_BATCH);
+                                              stats::detail::Strategy::VECTORIZED);
         end = std::chrono::high_resolution_clock::now();
         auto traditional_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -614,15 +614,15 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                  std::span<double>(pdf_results),
-                                                 stats::detail::Strategy::SIMD_BATCH);
+                                                 stats::detail::Strategy::VECTORIZED);
         } else if (op == "LogPDF") {
             stdNormal.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                     std::span<double>(log_pdf_results),
-                                                    stats::detail::Strategy::SIMD_BATCH);
+                                                    stats::detail::Strategy::VECTORIZED);
         } else if (op == "CDF") {
             stdNormal.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                            std::span<double>(cdf_results),
-                                                           stats::detail::Strategy::SIMD_BATCH);
+                                                           stats::detail::Strategy::VECTORIZED);
         }
         end = std::chrono::high_resolution_clock::now();
         result.simd_time_us = static_cast<long>(
@@ -635,19 +635,19 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
             stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                                 stats::detail::Strategy::PARALLEL_SIMD);
+                                                 stats::detail::Strategy::PARALLEL);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
             stdNormal.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                    stats::detail::Strategy::PARALLEL_SIMD);
+                                                    stats::detail::Strategy::PARALLEL);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
             stdNormal.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                           stats::detail::Strategy::PARALLEL_SIMD);
+                                                           stats::detail::Strategy::PARALLEL);
             end = std::chrono::high_resolution_clock::now();
         }
         result.thread_pool_time_us = static_cast<long>(
@@ -681,19 +681,19 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
             stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                                 stats::detail::Strategy::GPU_ACCELERATED);
+                                                 stats::detail::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
             stdNormal.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                    stats::detail::Strategy::GPU_ACCELERATED);
+                                                    stats::detail::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getCumulativeProbabilityWithStrategy(
-                input_span, cdf_output_span, stats::detail::Strategy::GPU_ACCELERATED);
+            stdNormal.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
+                                                           stats::detail::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
         }
         result.gpu_accelerated_time_us = static_cast<long>(

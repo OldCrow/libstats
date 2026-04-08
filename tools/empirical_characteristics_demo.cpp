@@ -139,13 +139,13 @@ void demonstrateStrategySelection() {
 
             std::string strategy_str = strategyToString(strategy);
             // Abbreviate for table display
-            if (strategy_str == "PARALLEL_SIMD")
+            if (strategy_str == "PARALLEL")
                 strategy_str = "PAR_SIMD";
-            else if (strategy_str == "SIMD_BATCH")
+            else if (strategy_str == "VECTORIZED")
                 strategy_str = "SIMD";
             else if (strategy_str == "WORK_STEALING")
                 strategy_str = "WORK_ST";
-            else if (strategy_str == "GPU_ACCELERATED")
+            else if (strategy_str == "WORK_STEALING")
                 strategy_str = "GPU_ACC";
             else if (strategy_str == "SCALAR")
                 strategy_str = "SCALAR";

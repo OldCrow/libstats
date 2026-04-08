@@ -261,7 +261,7 @@ class PerformanceDispatcherTool {
                         simd_time += timing_simulation::SIMD_SMALL_OVERHEAD;  // SIMD overhead for
                                                                               // small sizes
                     }
-                    history.recordPerformance(Strategy::SIMD_BATCH, dist_type, size, simd_time);
+                    history.recordPerformance(Strategy::VECTORIZED, dist_type, size, simd_time);
 
                     // Parallel strategy - use distribution-specific efficiency with realistic
                     // overhead model
@@ -281,8 +281,7 @@ class PerformanceDispatcherTool {
                         static_cast<uint64_t>(timing_simulation::PARALLEL_BASE_OVERHEAD /
                                               complexity_factor / overhead_reduction);
                     parallel_time += base_overhead;
-                    history.recordPerformance(Strategy::PARALLEL_SIMD, dist_type, size,
-                                              parallel_time);
+                    history.recordPerformance(Strategy::PARALLEL, dist_type, size, parallel_time);
                 }
             }
         }

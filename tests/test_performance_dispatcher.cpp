@@ -62,9 +62,8 @@ TEST_F(PerformanceDispatcherTest, BasicStrategySelection) {
     // Very large batches should prefer parallel strategies
     auto strategy_large = dispatcher.selectOptimalStrategy(100000, DistributionType::GAUSSIAN,
                                                            ComputationComplexity::COMPLEX, system);
-    EXPECT_TRUE(strategy_large == Strategy::PARALLEL_SIMD ||
-                strategy_large == Strategy::WORK_STEALING ||
-                strategy_large == Strategy::GPU_ACCELERATED);
+    EXPECT_TRUE(strategy_large == Strategy::PARALLEL || strategy_large == Strategy::WORK_STEALING ||
+                strategy_large == Strategy::WORK_STEALING);
 }
 
 TEST_F(PerformanceDispatcherTest, DistributionSpecificThresholds) {
@@ -84,7 +83,7 @@ TEST_F(PerformanceDispatcherTest, DistributionSpecificThresholds) {
     if (system.physical_cores() > 1) {
         // Gamma with same batch size might choose parallel while uniform chooses SIMD
         // This is probabilistic based on thresholds, so we test the concept
-        EXPECT_TRUE(uniform_medium == Strategy::SCALAR || uniform_medium == Strategy::SIMD_BATCH);
+        EXPECT_TRUE(uniform_medium == Strategy::SCALAR || uniform_medium == Strategy::VECTORIZED);
     }
 }
 
@@ -105,7 +104,7 @@ TEST_F(PerformanceDispatcherTest, ComplexityInfluencesStrategy) {
     // Complex operations should be more likely to choose parallel execution
     // (This is a general trend, though specific results depend on system capabilities)
     EXPECT_TRUE(simple_strategy !=
-                Strategy::GPU_ACCELERATED);  // Simple ops unlikely to need GPU acceleration
+                Strategy::WORK_STEALING);  // Simple ops unlikely to need GPU acceleration
 }
 
 TEST_F(PerformanceDispatcherTest, ThresholdUpdating) {
@@ -129,7 +128,7 @@ TEST_F(PerformanceDispatcherTest, ThresholdUpdating) {
 
 TEST_F(PerformanceDispatcherTest, PerformanceRecording) {
     // Test static performance recording function
-    PerformanceDispatcher::recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL,
+    PerformanceDispatcher::recordPerformance(Strategy::VECTORIZED, DistributionType::EXPONENTIAL,
                                              500, 1500);
     PerformanceDispatcher::recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 500,
                                              2000);
@@ -138,7 +137,7 @@ TEST_F(PerformanceDispatcherTest, PerformanceRecording) {
     auto& history = PerformanceDispatcher::getPerformanceHistory();
 
     auto simd_stats =
-        history.getPerformanceStats(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL);
+        history.getPerformanceStats(Strategy::VECTORIZED, DistributionType::EXPONENTIAL);
     auto scalar_stats =
         history.getPerformanceStats(Strategy::SCALAR, DistributionType::EXPONENTIAL);
 
@@ -163,11 +162,11 @@ TEST_F(PerformanceDispatcherTest, PerformanceHints) {
 
     // Test custom hint
     PerformanceHint custom_hint;
-    custom_hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SIMD;
+    custom_hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
     custom_hint.disable_learning = true;
     custom_hint.force_strategy = true;
 
-    EXPECT_EQ(custom_hint.strategy, PerformanceHint::PreferredStrategy::FORCE_SIMD);
+    EXPECT_EQ(custom_hint.strategy, PerformanceHint::PreferredStrategy::FORCE_VECTORIZED);
     EXPECT_TRUE(custom_hint.disable_learning);
     EXPECT_TRUE(custom_hint.force_strategy);
 }
@@ -191,9 +190,8 @@ TEST_F(PerformanceDispatcherTest, EdgeCases) {
     // Extremely large batch size
     auto huge_strategy = dispatcher.selectOptimalStrategy(SIZE_MAX / 2, DistributionType::UNIFORM,
                                                           ComputationComplexity::SIMPLE, system);
-    EXPECT_TRUE(huge_strategy == Strategy::PARALLEL_SIMD ||
-                huge_strategy == Strategy::WORK_STEALING ||
-                huge_strategy == Strategy::GPU_ACCELERATED);
+    EXPECT_TRUE(huge_strategy == Strategy::PARALLEL || huge_strategy == Strategy::WORK_STEALING ||
+                huge_strategy == Strategy::WORK_STEALING);
 }
 
 TEST_F(PerformanceDispatcherTest, ThreadSafety) {
@@ -236,7 +234,7 @@ TEST_F(PerformanceDispatcherTest, ThreadSafety) {
         EXPECT_EQ(results[t].size(), selections_per_thread);
         // All strategies should be valid
         for (auto strategy : results[t]) {
-            EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::GPU_ACCELERATED);
+            EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::WORK_STEALING);
         }
     }
 

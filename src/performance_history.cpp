@@ -70,8 +70,8 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
     std::unique_lock<std::timed_mutex> lock(data_mutex_);
 
     // Check all available strategies
-    for (auto strategy : {Strategy::SCALAR, Strategy::SIMD_BATCH, Strategy::PARALLEL_SIMD,
-                          Strategy::WORK_STEALING, Strategy::GPU_ACCELERATED}) {
+    for (auto strategy : {Strategy::SCALAR, Strategy::VECTORIZED, Strategy::PARALLEL,
+                          Strategy::WORK_STEALING, Strategy::WORK_STEALING}) {
         std::string key = generateKey(strategy, distribution_type, batch_category);
         auto it = performance_data_.find(key);
 
@@ -134,12 +134,12 @@ std::optional<std::pair<std::size_t, std::size_t>> PerformanceHistory::learnOpti
                 Strategy strategy = Strategy::SCALAR;
                 if (key.find("WORK_STEALING") != std::string::npos)
                     strategy = Strategy::WORK_STEALING;
-                else if (key.find("GPU_ACCELERATED") != std::string::npos)
-                    strategy = Strategy::GPU_ACCELERATED;
-                else if (key.find("PARALLEL_SIMD") != std::string::npos)
-                    strategy = Strategy::PARALLEL_SIMD;
-                else if (key.find("SIMD_BATCH") != std::string::npos)
-                    strategy = Strategy::SIMD_BATCH;
+                else if (key.find("WORK_STEALING") != std::string::npos)
+                    strategy = Strategy::WORK_STEALING;
+                else if (key.find("PARALLEL") != std::string::npos)
+                    strategy = Strategy::PARALLEL;
+                else if (key.find("VECTORIZED") != std::string::npos)
+                    strategy = Strategy::VECTORIZED;
                 else if (key.find("SCALAR") != std::string::npos)
                     strategy = Strategy::SCALAR;
 
@@ -155,9 +155,9 @@ std::optional<std::pair<std::size_t, std::size_t>> PerformanceHistory::learnOpti
 
     // Advanced threshold detection with stability analysis
     std::size_t simd_threshold =
-        findOptimalThreshold(batch_performance, Strategy::SCALAR, Strategy::SIMD_BATCH);
+        findOptimalThreshold(batch_performance, Strategy::SCALAR, Strategy::VECTORIZED);
     std::size_t parallel_threshold =
-        findOptimalThreshold(batch_performance, Strategy::SIMD_BATCH, Strategy::PARALLEL_SIMD);
+        findOptimalThreshold(batch_performance, Strategy::VECTORIZED, Strategy::PARALLEL);
 
     return std::make_pair(simd_threshold, parallel_threshold);
 }
@@ -270,14 +270,12 @@ const char* PerformanceHistory::strategyToString(Strategy strategy) noexcept {
     switch (strategy) {
         case Strategy::SCALAR:
             return "SCALAR";
-        case Strategy::SIMD_BATCH:
-            return "SIMD_BATCH";
-        case Strategy::PARALLEL_SIMD:
-            return "PARALLEL_SIMD";
+        case Strategy::VECTORIZED:
+            return "VECTORIZED";
+        case Strategy::PARALLEL:
+            return "PARALLEL";
         case Strategy::WORK_STEALING:
             return "WORK_STEALING";
-        case Strategy::GPU_ACCELERATED:
-            return "GPU_ACCELERATED";
         default:
             return "UNKNOWN";
     }
@@ -307,12 +305,10 @@ std::size_t PerformanceHistory::findOptimalThreshold(
     Strategy baseline_strategy, Strategy target_strategy) noexcept {
     // Fallback thresholds based on strategy type
     std::size_t fallback_threshold = detail::MAX_NEWTON_ITERATIONS;  // Default for SIMD
-    if (target_strategy == Strategy::PARALLEL_SIMD)
+    if (target_strategy == Strategy::PARALLEL)
         fallback_threshold = detail::MAX_DATA_POINTS_FOR_SW_TEST;
     else if (target_strategy == Strategy::WORK_STEALING)
         fallback_threshold = 10000;
-    else if (target_strategy == Strategy::GPU_ACCELERATED)
-        fallback_threshold = 50000;
 
     // Collect crossover candidates with performance ratios
     std::vector<std::pair<std::size_t, double>> crossover_candidates;

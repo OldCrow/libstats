@@ -30,7 +30,7 @@ TEST_F(PerformanceHistoryTest, BasicRecordingAndRetrieval) {
     // Record some performance data
     history.recordPerformance(Strategy::SCALAR, DistributionType::GAUSSIAN, 100, 1000);
     history.recordPerformance(Strategy::SCALAR, DistributionType::GAUSSIAN, 200, 2000);
-    history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::GAUSSIAN, 100, 800);
+    history.recordPerformance(Strategy::VECTORIZED, DistributionType::GAUSSIAN, 100, 800);
 
     // Retrieve statistics
     auto scalar_stats = history.getPerformanceStats(Strategy::SCALAR, DistributionType::GAUSSIAN);
@@ -40,7 +40,7 @@ TEST_F(PerformanceHistoryTest, BasicRecordingAndRetrieval) {
     EXPECT_EQ(scalar_stats->min_time_ns, 1000);
     EXPECT_EQ(scalar_stats->max_time_ns, 2000);
 
-    auto simd_stats = history.getPerformanceStats(Strategy::SIMD_BATCH, DistributionType::GAUSSIAN);
+    auto simd_stats = history.getPerformanceStats(Strategy::VECTORIZED, DistributionType::GAUSSIAN);
     ASSERT_TRUE(simd_stats.has_value());
     EXPECT_EQ(simd_stats->execution_count, 1);
     EXPECT_EQ(simd_stats->getAverageTimeNs(), 800);
@@ -59,7 +59,7 @@ TEST_F(PerformanceHistoryTest, ThreadSafetyTest) {
             std::uniform_int_distribution<uint64_t> time_dist(100, 10000);
 
             for (int i = 0; i < records_per_thread; ++i) {
-                Strategy strategy = (i % 2 == 0) ? Strategy::SCALAR : Strategy::SIMD_BATCH;
+                Strategy strategy = (i % 2 == 0) ? Strategy::SCALAR : Strategy::VECTORIZED;
                 DistributionType dist_type =
                     (i % 3 == 0) ? DistributionType::GAUSSIAN : DistributionType::EXPONENTIAL;
                 size_t batch_size = 100 + static_cast<size_t>(i % 900);  // 100-999
@@ -82,7 +82,7 @@ TEST_F(PerformanceHistoryTest, ThreadSafetyTest) {
     auto scalar_gaussian =
         history.getPerformanceStats(Strategy::SCALAR, DistributionType::GAUSSIAN);
     auto simd_gaussian =
-        history.getPerformanceStats(Strategy::SIMD_BATCH, DistributionType::GAUSSIAN);
+        history.getPerformanceStats(Strategy::VECTORIZED, DistributionType::GAUSSIAN);
 
     EXPECT_TRUE(scalar_gaussian.has_value());
     EXPECT_TRUE(simd_gaussian.has_value());
@@ -95,14 +95,14 @@ TEST_F(PerformanceHistoryTest, StrategyRecommendation) {
     for (int i = 0; i < 10; ++i) {
         history.recordPerformance(Strategy::SCALAR, DistributionType::GAUSSIAN, 1000,
                                   static_cast<uint64_t>(5000 + i * 100));
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::GAUSSIAN, 1000,
+        history.recordPerformance(Strategy::VECTORIZED, DistributionType::GAUSSIAN, 1000,
                                   static_cast<uint64_t>(2000 + i * 50));
     }
 
     // Get recommendation
     auto recommendation = history.getBestStrategy(DistributionType::GAUSSIAN, 1000);
 
-    EXPECT_EQ(recommendation.recommended_strategy, Strategy::SIMD_BATCH);
+    EXPECT_EQ(recommendation.recommended_strategy, Strategy::VECTORIZED);
     EXPECT_GT(recommendation.confidence_score, 0.5);
     EXPECT_TRUE(recommendation.has_sufficient_data);
     EXPECT_LT(recommendation.expected_time_ns, 3000);  // Should be close to SIMD average
@@ -111,7 +111,7 @@ TEST_F(PerformanceHistoryTest, StrategyRecommendation) {
 TEST_F(PerformanceHistoryTest, InsufficientDataHandling) {
     // Record only a few data points
     history.recordPerformance(Strategy::SCALAR, DistributionType::GAMMA, 500, 1000);
-    history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::GAMMA, 500, 800);
+    history.recordPerformance(Strategy::VECTORIZED, DistributionType::GAMMA, 500, 800);
 
     auto recommendation = history.getBestStrategy(DistributionType::GAMMA, 500);
 
@@ -126,7 +126,7 @@ TEST_F(PerformanceHistoryTest, OptimalThresholdLearning) {
     for (int i = 0; i < 10; ++i) {
         history.recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 10,
                                   static_cast<uint64_t>(100 + i));
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 10,
+        history.recordPerformance(Strategy::VECTORIZED, DistributionType::EXPONENTIAL, 10,
                                   static_cast<uint64_t>(200 + i));
     }
 
@@ -134,15 +134,15 @@ TEST_F(PerformanceHistoryTest, OptimalThresholdLearning) {
     for (int i = 0; i < 10; ++i) {
         history.recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 1000,
                                   static_cast<uint64_t>(5000 + i * 100));
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 1000,
+        history.recordPerformance(Strategy::VECTORIZED, DistributionType::EXPONENTIAL, 1000,
                                   static_cast<uint64_t>(2000 + i * 50));
     }
 
     // Large batches: parallel is best
     for (int i = 0; i < 10; ++i) {
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::EXPONENTIAL, 10000,
+        history.recordPerformance(Strategy::VECTORIZED, DistributionType::EXPONENTIAL, 10000,
                                   static_cast<uint64_t>(15000 + i * 200));
-        history.recordPerformance(Strategy::PARALLEL_SIMD, DistributionType::EXPONENTIAL, 10000,
+        history.recordPerformance(Strategy::PARALLEL, DistributionType::EXPONENTIAL, 10000,
                                   static_cast<uint64_t>(8000 + i * 100));
     }
 
@@ -167,7 +167,7 @@ TEST_F(PerformanceHistoryTest, OptimalThresholdLearning) {
 TEST_F(PerformanceHistoryTest, ClearHistory) {
     // Record some data
     history.recordPerformance(Strategy::SCALAR, DistributionType::UNIFORM, 100, 1000);
-    history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::UNIFORM, 200, 800);
+    history.recordPerformance(Strategy::VECTORIZED, DistributionType::UNIFORM, 200, 800);
 
     EXPECT_EQ(history.getTotalExecutions(), 2);
 
@@ -193,7 +193,7 @@ TEST_F(PerformanceHistoryTest, SufficientLearningDataCheck) {
 
     // Add enough data
     for (int i = 0; i < 10; ++i) {
-        history.recordPerformance(Strategy::SIMD_BATCH, DistributionType::POISSON, 100, 800);
+        history.recordPerformance(Strategy::VECTORIZED, DistributionType::POISSON, 100, 800);
     }
     EXPECT_TRUE(history.hasSufficientLearningData(DistributionType::POISSON));
 }

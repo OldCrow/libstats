@@ -36,14 +36,26 @@ namespace stats {
 namespace detail {  // Performance utilities
 
 /**
- * @brief Execution strategies available for batch operations
+ * @brief Execution strategies for batch operations
+ *
+ * Names reflect what actually happens, not what we might wish happened:
+ *   SCALAR       — element-by-element loop, below the SIMD threshold
+ *   VECTORIZED   — batch path through VectorOps; SIMD-accelerated for
+ *                  distributions that route through VectorOps (currently
+ *                  Gaussian), scalar loops for others until Phase 6
+ *   PARALLEL     — multi-threaded via ParallelUtils::parallelFor; inner
+ *                  loops may or may not be vectorized per distribution
+ *   WORK_STEALING — work-stealing thread pool for irregular workloads
+ *
+ * GPU_ACCELERATED was removed: the implementation silently fell back to
+ * WORK_STEALING, making the name actively deceptive. If GPU support is
+ * added in the future, a new enum value should be introduced at that time.
  */
 enum class Strategy {
-    SCALAR,          ///< Single element or very small batches
-    SIMD_BATCH,      ///< SIMD vectorized for medium batches
-    PARALLEL_SIMD,   ///< Parallel + SIMD for large batches
-    WORK_STEALING,   ///< Dynamic load balancing for irregular workloads
-    GPU_ACCELERATED  ///< GPU-accelerated execution (CPU fallback if GPU unavailable)
+    SCALAR,        ///< Element-by-element loop (below SIMD threshold)
+    VECTORIZED,    ///< Batch path through VectorOps
+    PARALLEL,      ///< Multi-threaded via ParallelUtils::parallelFor
+    WORK_STEALING  ///< Work-stealing pool for irregular workloads
 };
 
 /**
@@ -136,10 +148,9 @@ class PerformanceDispatcher {
      * @brief Decision thresholds (architecture-aware with capability refinement)
      */
     struct Thresholds {
-        size_t simd_min = 8;                 ///< SIMD overhead threshold
-        size_t parallel_min = 1000;          ///< Threading overhead threshold
-        size_t work_stealing_min = 10000;    ///< Work-stealing benefit threshold
-        size_t gpu_accelerated_min = 50000;  ///< GPU acceleration threshold
+        size_t simd_min = 8;               ///< Below this, SIMD overhead exceeds benefit
+        size_t parallel_min = 1000;        ///< Below this, threading overhead exceeds benefit
+        size_t work_stealing_min = 10000;  ///< Minimum batch size where work-stealing helps
 
         // Distribution-specific overrides (architecture-dependent)
         size_t uniform_parallel_min = 65536;    ///< Simple operations need higher threshold
@@ -249,7 +260,7 @@ class PerformanceDispatcher {
 
     size_t getDistributionSpecificParallelThreshold(DistributionType dist_type) const;
     bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
-    bool shouldUseGpuAccelerated(size_t batch_size, const SystemCapabilities& system) const;
+    // shouldUseGpuAccelerated removed — GPU_ACCELERATED strategy removed from enum.
 
     /**
      * @brief Detect the highest available SIMD architecture
@@ -280,7 +291,7 @@ struct PerformanceHint {
     enum class PreferredStrategy {
         AUTO,                ///< Let system decide (default)
         FORCE_SCALAR,        ///< Force scalar implementation
-        FORCE_SIMD,          ///< Force SIMD if available
+        FORCE_VECTORIZED,    ///< Force vectorized batch path
         FORCE_PARALLEL,      ///< Force parallel execution
         MINIMIZE_LATENCY,    ///< Optimize for lowest latency
         MAXIMIZE_THROUGHPUT  ///< Optimize for highest throughput
