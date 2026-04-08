@@ -610,7 +610,8 @@ class VectorOps {
     /// @param values Input vector
     /// @param results Output vector (erf(values))
     /// @param size Number of elements
-    /// @note Uses high-precision rational approximation for accuracy
+    /// @note Uses Abramowitz & Stegun approximation (max error ~1.5e-7).
+    ///       Below the SIMD threshold, falls back to std::erf for full precision.
     static void vector_erf(const double* values, double* results, std::size_t size) noexcept;
 
     /// Check if SIMD should be used for given size

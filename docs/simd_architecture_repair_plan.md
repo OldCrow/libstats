@@ -408,3 +408,34 @@ For production use, we should use:
 3. **Performance tests**: Measure actual SIMD speedup
 4. **Edge case tests**: NaN, Inf, denormals, negative zero
 5. **Cross-platform tests**: x86 and ARM implementations
+
+---
+
+## Resolution (2026-04)
+
+### What Was Completed
+
+The original plan's highest-priority work was delivered:
+
+- **`vector_exp_avx`** — SLEEF-inspired range reduction with 10-term polynomial approximation. Benchmarked at ~19x scalar throughput on Intel AVX (no AVX2, no FMA) hardware. Used by Gaussian PDF/logPDF batch operations.
+- **`vector_log_avx`** — SLEEF-inspired `(m-1)/(m+1)` transformation with 7-term polynomial. Benchmarked at ~12x scalar throughput.
+- **`vector_erf_avx`** — Replaced a broken SLEEF-coefficient-based implementation (2.36e-2 relative error) with Abramowitz & Stegun 7.1.26 approximation (max error ~1.5e-7). Used by Gaussian CDF batch operations.
+- **`vector_pow_avx`** — Implemented via `exp(y * log(x))` with special-case handling for 0^y, 1^y, x^0.
+- **Gaussian distribution** — All batch operations (`getProbabilityBatchUnsafeImpl`, `getLogProbabilityBatchUnsafeImpl`, `getCumulativeProbabilityBatchUnsafeImpl`) route through `VectorOps`.
+
+### What Was Deferred and Why
+
+The following items from this plan were evaluated and deliberately deferred:
+
+- **High-accuracy erf (`vector_erf_accurate`)** — A dual-API was prototyped but the "accurate" version simply delegated to the fast version, making it a lie. The stub was removed. Users needing higher accuracy get `std::erf` via the scalar fallback path below the SIMD threshold.
+- **Fused pow computation** — Calling `vector_log_avx` + `vector_exp_avx` separately has function call overhead but is correct. The performance gap (~3x vs EVE) was deemed acceptable given the project's shifted priorities.
+- **Table-driven exp, FMA variants** — Require FMA support (not available on the primary development machine, an Intel Ivy Bridge Mac with AVX but no FMA). Deferred to a machine with FMA support.
+- **Safety function vectorization (`vector_safe_log`)** — No measurable benefit identified vs the current implementation.
+
+### Paradigm Shift
+
+During this work, a fundamental design tension was identified: the codebase was simultaneously trying to be a high-performance numerical library (competing with SLEEF/EVE) and a design/teaching library (demonstrating C++20 best practices). These goals produce conflicting decisions.
+
+The project has been redirected toward **Paradigm 1: a design and teaching library**. The SIMD transcendental functions (exp, log, erf, pow) remain as implemented — they are correct, well-documented, and benchmarked — but further optimization effort will not be invested in them. The next phase of work focuses on architectural honesty (strategy naming), completing the Gaussian distribution as the reference implementation, cross-platform validation, and expanding the distribution set.
+
+See the revised work plan for details.

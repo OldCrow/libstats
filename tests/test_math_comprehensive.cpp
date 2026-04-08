@@ -123,6 +123,12 @@ TEST_F(MathUtilsTest, VectorizedErf) {
     std::vector<double> output(size);
     std::vector<double> expected(size);
 
+    // vector_erf uses the Abramowitz & Stegun 7.1.26 approximation, which has
+    // a documented maximum absolute error of ~1.5e-7. The tolerance here
+    // reflects that guarantee — not an arbitrary tighter bound.
+    // For higher accuracy, the scalar fallback (below SIMD threshold) uses std::erf.
+    static constexpr double ERF_VECTORIZED_TOLERANCE = 2e-7;
+
     // Test vector_erf
     stats::detail::vector_erf(input, output);
 
@@ -132,14 +138,15 @@ TEST_F(MathUtilsTest, VectorizedErf) {
         expected[i] = stats::detail::erf(input[i]);
         double error = std::abs(output[i] - expected[i]);
         max_error = std::max(max_error, error);
-        if (error > LOOSE_TOLERANCE) {
+        if (error > ERF_VECTORIZED_TOLERANCE) {
             accurate = false;
         }
     }
 
-    EXPECT_TRUE(accurate) << "Max error: " << max_error;
+    EXPECT_TRUE(accurate) << "Max error: " << max_error << " (limit: " << ERF_VECTORIZED_TOLERANCE
+                          << ")";
 
-    // Test vector_erfc
+    // Test vector_erfc — same accuracy as vector_erf since erfc(x) = 1 - erf(x)
     stats::detail::vector_erfc(input, output);
 
     accurate = true;
@@ -148,12 +155,13 @@ TEST_F(MathUtilsTest, VectorizedErf) {
         expected[i] = stats::detail::erfc(input[i]);
         double error = std::abs(output[i] - expected[i]);
         max_error = std::max(max_error, error);
-        if (error > LOOSE_TOLERANCE) {
+        if (error > ERF_VECTORIZED_TOLERANCE) {
             accurate = false;
         }
     }
 
-    EXPECT_TRUE(accurate) << "Max error: " << max_error;
+    EXPECT_TRUE(accurate) << "Max error: " << max_error << " (limit: " << ERF_VECTORIZED_TOLERANCE
+                          << ")";
 }
 
 TEST_F(MathUtilsTest, VectorizedGamma) {

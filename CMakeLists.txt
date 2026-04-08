@@ -1361,6 +1361,21 @@ set_target_properties(
 # Platform-specific shared library properties
 if(APPLE)
     set_target_properties(libstats_shared PROPERTIES MACOSX_RPATH ON INSTALL_NAME_DIR "@rpath")
+
+    # Ad-hoc code signing for macOS Library Validation. Required on Catalina (10.15) and later:
+    # unsigned dylibs are rejected by the system's Library Validation policy. Ad-hoc signing (-s -)
+    # applies a local signature without a Developer ID, which satisfies Library Validation for
+    # locally-built libraries. This is safe on all macOS versions.
+    find_program(CODESIGN_EXECUTABLE codesign)
+    if(CODESIGN_EXECUTABLE)
+        add_custom_command(
+            TARGET libstats_shared
+            POST_BUILD
+            COMMAND ${CODESIGN_EXECUTABLE} -s - $<TARGET_FILE:libstats_shared>
+            COMMENT
+                "Ad-hoc signing ${CMAKE_SHARED_LIBRARY_PREFIX}stats${CMAKE_SHARED_LIBRARY_SUFFIX} for macOS Library Validation"
+        )
+    endif()
 elseif(UNIX AND NOT APPLE)
     set_target_properties(libstats_shared PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
 endif()

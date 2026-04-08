@@ -560,47 +560,25 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
         return vector_erf_fallback(input, output, size);
     }
 
-    // SLEEF-based implementation for high accuracy (< 1 ULP error)
-    // Uses high-degree polynomial approximations for different ranges
+    // Abramowitz & Stegun 7.1.26 approximation
+    // Maximum error: 1.5×10^−7
+    // erf(x) = 1 - 1/(1 + p*|x|)^n * exp(-x²) * P(t) for x ≥ 0
 
     const __m256d one = _mm256_set1_pd(1.0);
-    const __m256d zero = _mm256_setzero_pd();
     const __m256d sign_mask = _mm256_set1_pd(-0.0);
 
-    // Threshold for switching between approximation methods
+    // Coefficients for Abramowitz & Stegun approximation
+    const __m256d a1 = _mm256_set1_pd(0.254829592);
+    const __m256d a2 = _mm256_set1_pd(-0.284496736);
+    const __m256d a3 = _mm256_set1_pd(1.421413741);
+    const __m256d a4 = _mm256_set1_pd(-1.453152027);
+    const __m256d a5 = _mm256_set1_pd(1.061405429);
+    const __m256d p = _mm256_set1_pd(0.3275911);
+
+    // For very small x approximation: erf(x) ≈ (2/sqrt(pi)) * x
+    const __m256d two_over_sqrtpi = _mm256_set1_pd(1.12837916709551262756245475959);
     const __m256d thresh_small = _mm256_set1_pd(1e-8);
     const __m256d thresh_large = _mm256_set1_pd(6.0);
-    const __m256d thresh_medium = _mm256_set1_pd(2.5);
-
-    // SLEEF polynomial coefficients for |x| <= 2.5
-    // These are from Abramowitz and Stegun with SLEEF refinements
-    const __m256d c21 = _mm256_set1_pd(-0.2083271002525222097e-14);
-    const __m256d c20 = _mm256_set1_pd(+0.7151909970790897009e-13);
-    const __m256d c19 = _mm256_set1_pd(-0.1162238220110999364e-11);
-    const __m256d c18 = _mm256_set1_pd(+0.1186474230821585259e-10);
-    const __m256d c17 = _mm256_set1_pd(-0.8499973178354613440e-10);
-    const __m256d c16 = _mm256_set1_pd(+0.4507647462598841629e-9);
-    const __m256d c15 = _mm256_set1_pd(-0.1808044474288848915e-8);
-    const __m256d c14 = _mm256_set1_pd(+0.5435081826716212389e-8);
-    const __m256d c13 = _mm256_set1_pd(-0.1143939895758628484e-7);
-    const __m256d c12 = _mm256_set1_pd(+0.1215442362680889243e-7);
-    const __m256d c11 = _mm256_set1_pd(+0.1669878756181250355e-7);
-    const __m256d c10 = _mm256_set1_pd(-0.9808074602255194288e-7);
-    const __m256d c9 = _mm256_set1_pd(+0.1389000557865837204e-6);
-    const __m256d c8 = _mm256_set1_pd(+0.2945514529987331866e-6);
-    const __m256d c7 = _mm256_set1_pd(-0.1842918273003998283e-5);
-    const __m256d c6 = _mm256_set1_pd(+0.3417987836115362136e-5);
-    const __m256d c5 = _mm256_set1_pd(+0.3860236356493129101e-5);
-    const __m256d c4 = _mm256_set1_pd(-0.3309403072749947546e-4);
-    const __m256d c3 = _mm256_set1_pd(+0.1060862922597579532e-3);
-    const __m256d c2 = _mm256_set1_pd(+0.2323253155213076174e-3);
-    const __m256d c1 = _mm256_set1_pd(+0.1490149719145544729e-3);
-    const __m256d c0 = _mm256_set1_pd(+0.0092877958392275604405);
-    const __m256d b1 = _mm256_set1_pd(0.042275531758784692937);
-    const __m256d b0 = _mm256_set1_pd(0.07052369794346953491);
-
-    // Constant for small x approximation: erf(x) ≈ (2/sqrt(pi)) * x
-    const __m256d two_over_sqrtpi = _mm256_set1_pd(1.12837916709551262756245475959);
 
     constexpr std::size_t AVX_DOUBLE_WIDTH = arch::simd::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
@@ -612,138 +590,36 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
         __m256d sign = _mm256_and_pd(x, sign_mask);
         __m256d abs_x = _mm256_andnot_pd(sign_mask, x);
 
-        // Compute x^2, x^4, x^8, x^16 for polynomial evaluation
-        __m256d x2 = _mm256_mul_pd(abs_x, abs_x);
-        __m256d x4 = _mm256_mul_pd(x2, x2);
-        __m256d x8 = _mm256_mul_pd(x4, x4);
-        __m256d x16 = _mm256_mul_pd(x8, x8);
-
-        // Check which range we're in
+        // Check for special cases
         __m256d is_small = _mm256_cmp_pd(abs_x, thresh_small, _CMP_LT_OQ);
         __m256d is_large = _mm256_cmp_pd(abs_x, thresh_large, _CMP_GE_OQ);
-        __m256d is_medium_range = _mm256_cmp_pd(abs_x, thresh_medium, _CMP_LE_OQ);
 
-        // For better accuracy and handling of different ranges, we need to handle
-        // x <= 2.5 and x > 2.5 separately with different coefficient sets
-        // SLEEF uses different polynomial coefficients for x > 2.5
+        // Compute t = 1 / (1 + p * |x|)
+        __m256d t = _mm256_add_pd(one, _mm256_mul_pd(p, abs_x));
+        t = _mm256_div_pd(one, t);
 
-        // Check if we're in medium range (|x| <= 2.5)
-        __m256d in_medium = _mm256_cmp_pd(abs_x, thresh_medium, _CMP_LE_OQ);
+        // Evaluate polynomial using Horner's method
+        // poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))))
+        __m256d poly = a5;
+        poly = _mm256_add_pd(a4, _mm256_mul_pd(t, poly));
+        poly = _mm256_add_pd(a3, _mm256_mul_pd(t, poly));
+        poly = _mm256_add_pd(a2, _mm256_mul_pd(t, poly));
+        poly = _mm256_add_pd(a1, _mm256_mul_pd(t, poly));
+        poly = _mm256_mul_pd(t, poly);
 
-        // Select coefficients based on range - for x > 2.5, use different set
-        // These coefficients are from SLEEF lines 3499-3519 (second column when o25 is false)
-        const __m256d alt_c21 = _mm256_set1_pd(-0.4024015130752621932e-18);
-        const __m256d alt_c20 = _mm256_set1_pd(+0.3847193332817048172e-16);
-        const __m256d alt_c19 = _mm256_set1_pd(-0.1749316241455644088e-14);
-        const __m256d alt_c18 = _mm256_set1_pd(+0.5029618322872872715e-13);
-        const __m256d alt_c17 = _mm256_set1_pd(-0.1025221466851463164e-11);
-        const __m256d alt_c16 = _mm256_set1_pd(+0.1573695559331945583e-10);
-        const __m256d alt_c15 = _mm256_set1_pd(-0.1884658558040203709e-9);
-        const __m256d alt_c14 = _mm256_set1_pd(+0.1798167853032159309e-8);
-        const __m256d alt_c13 = _mm256_set1_pd(-0.1380745342355033142e-7);
-        const __m256d alt_c12 = _mm256_set1_pd(+0.8525705726469103499e-7);
-        const __m256d alt_c11 = _mm256_set1_pd(-0.4160448058101303405e-6);
-        const __m256d alt_c10 = _mm256_set1_pd(+0.1517272660008588485e-5);
-        const __m256d alt_c9 = _mm256_set1_pd(-0.3341634127317201697e-5);
-        const __m256d alt_c8 = _mm256_set1_pd(-0.2515023395879724513e-5);
-        const __m256d alt_c7 = _mm256_set1_pd(+0.6539731269664907554e-4);
-        const __m256d alt_c6 = _mm256_set1_pd(-0.3551065097428388658e-3);
-        const __m256d alt_c5 = _mm256_set1_pd(+0.1210736097958368864e-2);
-        const __m256d alt_c4 = _mm256_set1_pd(-0.2605566912579998680e-2);
-        const __m256d alt_c3 = _mm256_set1_pd(+0.1252823202436093193e-2);
-        const __m256d alt_c2 = _mm256_set1_pd(+0.1820191395263313222e-1);
-        const __m256d alt_c1 = _mm256_set1_pd(-0.1021557155453465954e+0);
+        // Compute exp(-x^2)
+        __m256d x2 = _mm256_mul_pd(abs_x, abs_x);
+        __m256d neg_x2 = _mm256_sub_pd(_mm256_setzero_pd(), x2);
 
-        // Blend coefficients based on range
-        __m256d use_c21 = _mm256_blendv_pd(alt_c21, c21, in_medium);
-        __m256d use_c20 = _mm256_blendv_pd(alt_c20, c20, in_medium);
-        __m256d use_c19 = _mm256_blendv_pd(alt_c19, c19, in_medium);
-        __m256d use_c18 = _mm256_blendv_pd(alt_c18, c18, in_medium);
-        __m256d use_c17 = _mm256_blendv_pd(alt_c17, c17, in_medium);
-        __m256d use_c16 = _mm256_blendv_pd(alt_c16, c16, in_medium);
-        __m256d use_c15 = _mm256_blendv_pd(alt_c15, c15, in_medium);
-        __m256d use_c14 = _mm256_blendv_pd(alt_c14, c14, in_medium);
-        __m256d use_c13 = _mm256_blendv_pd(alt_c13, c13, in_medium);
-        __m256d use_c12 = _mm256_blendv_pd(alt_c12, c12, in_medium);
-        __m256d use_c11 = _mm256_blendv_pd(alt_c11, c11, in_medium);
-        __m256d use_c10 = _mm256_blendv_pd(alt_c10, c10, in_medium);
-        __m256d use_c9 = _mm256_blendv_pd(alt_c9, c9, in_medium);
-        __m256d use_c8 = _mm256_blendv_pd(alt_c8, c8, in_medium);
-        __m256d use_c7 = _mm256_blendv_pd(alt_c7, c7, in_medium);
-        __m256d use_c6 = _mm256_blendv_pd(alt_c6, c6, in_medium);
-        __m256d use_c5 = _mm256_blendv_pd(alt_c5, c5, in_medium);
-        __m256d use_c4 = _mm256_blendv_pd(alt_c4, c4, in_medium);
-        __m256d use_c3 = _mm256_blendv_pd(alt_c3, c3, in_medium);
-        __m256d use_c2 = _mm256_blendv_pd(alt_c2, c2, in_medium);
-        __m256d use_c1 = _mm256_blendv_pd(alt_c1, c1, in_medium);
-        __m256d use_c0 = _mm256_blendv_pd(_mm256_set1_pd(-0.63691044383641748361),  // for x > 2.5
-                                          c0, in_medium);
-        __m256d use_b1 = _mm256_blendv_pd(_mm256_set1_pd(-1.1282926061803961737),  // for x > 2.5
-                                          b1, in_medium);
-        __m256d use_b0 =
-            _mm256_blendv_pd(_mm256_set1_pd(-1.2261313785184804967e-05),  // for x > 2.5
-                             b0, in_medium);
-
-        // Now compute POLY21 with selected coefficients
-        // Build polynomial using Estrin's method
-        __m256d p0 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c1), use_c0);
-        __m256d p1 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c3), use_c2);
-        __m256d p2 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c5), use_c4);
-        __m256d p3 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c7), use_c6);
-        __m256d poly4_low = _mm256_add_pd(_mm256_mul_pd(x2, p1), p0);
-        __m256d poly4_high = _mm256_add_pd(_mm256_mul_pd(x2, p3), p2);
-        __m256d poly8_low = _mm256_add_pd(_mm256_mul_pd(x4, poly4_high), poly4_low);
-
-        __m256d p4 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c9), use_c8);
-        __m256d p5 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c11), use_c10);
-        __m256d p6 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c13), use_c12);
-        __m256d p7 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c15), use_c14);
-        __m256d poly4_low2 = _mm256_add_pd(_mm256_mul_pd(x2, p5), p4);
-        __m256d poly4_high2 = _mm256_add_pd(_mm256_mul_pd(x2, p7), p6);
-        __m256d poly8_high = _mm256_add_pd(_mm256_mul_pd(x4, poly4_high2), poly4_low2);
-
-        __m256d p8 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c17), use_c16);
-        __m256d p9 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c19), use_c18);
-        __m256d p10 = _mm256_add_pd(_mm256_mul_pd(abs_x, use_c21), use_c20);
-        __m256d poly4_mid = _mm256_add_pd(_mm256_mul_pd(x2, p9), p8);
-        __m256d poly8_high2 = _mm256_add_pd(_mm256_mul_pd(x4, p10), poly4_mid);
-
-        __m256d poly16 = _mm256_add_pd(_mm256_mul_pd(x8, poly8_high), poly8_low);
-        __m256d t = _mm256_add_pd(_mm256_mul_pd(x16, poly8_high2), poly16);
-
-        // poly4dd approximation (simplified without double-double arithmetic)
-        __m256d t2 = _mm256_add_pd(_mm256_mul_pd(abs_x, t), use_c0);
-        t2 = _mm256_mul_pd(t2, x2);
-        t2 = _mm256_add_pd(t2, _mm256_mul_pd(abs_x, use_b1));
-        t2 = _mm256_add_pd(t2, use_b0);
-
-        // For |x| <= 2.5: compute (1 + t2*x)^16 and take reciprocal
-        // For |x| > 2.5: use exp(t2) directly
-        __m256d s2 = _mm256_add_pd(one, _mm256_mul_pd(t2, abs_x));
-        s2 = _mm256_mul_pd(s2, s2);   // ^2
-        s2 = _mm256_mul_pd(s2, s2);   // ^4
-        s2 = _mm256_mul_pd(s2, s2);   // ^8
-        s2 = _mm256_mul_pd(s2, s2);   // ^16
-        s2 = _mm256_div_pd(one, s2);  // 1/(1 + t2*x)^16
-
-        // For x > 2.5, use exp(-x^2 + t2) where t2 is the polynomial adjustment
-        // We need to compute exp(-x^2 + t2) = exp(-(x^2 - t2))
-        __m256d neg_x2_plus_t2 = _mm256_sub_pd(t2, x2);  // t2 - x^2 = -(x^2 - t2)
-
-        // Store for exp computation
+        // Call our exp implementation
         alignas(32) double exp_input[AVX_DOUBLE_WIDTH];
         alignas(32) double exp_result[AVX_DOUBLE_WIDTH];
-        _mm256_store_pd(exp_input, neg_x2_plus_t2);
-
-        // Call our exp implementation for x > 2.5 case
+        _mm256_store_pd(exp_input, neg_x2);
         vector_exp_avx(exp_input, exp_result, AVX_DOUBLE_WIDTH);
-        __m256d exp_t2 = _mm256_load_pd(exp_result);
+        __m256d exp_neg_x2 = _mm256_load_pd(exp_result);
 
-        // Select between methods based on range
-        __m256d t2_result = _mm256_blendv_pd(exp_t2, s2, in_medium);
-
-        // Final result: 1 - t2_result for medium range
-        __m256d result = _mm256_sub_pd(one, t2_result);
+        // erf(|x|) = 1 - poly * exp(-x^2)
+        __m256d result = _mm256_sub_pd(one, _mm256_mul_pd(poly, exp_neg_x2));
 
         // For very small |x|, use linear approximation
         __m256d small_result = _mm256_mul_pd(abs_x, two_over_sqrtpi);

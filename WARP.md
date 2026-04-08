@@ -10,6 +10,39 @@ libstats is a high-performance C++20 statistical distributions library with ente
 
 **Current Status**: Core delivery complete ✅ - Focus on optimization, cross-platform compatibility, and performance tuning.
 
+## Session Start: Architecture Detection
+
+At the start of each libstats development session, verify the current machine architecture before making any SIMD-related decisions, reviewing test results, or adjusting thresholds.
+
+```bash
+# Identify the CPU architecture and OS
+uname -m          # x86_64 = Intel/AMD | arm64 = Apple Silicon
+uname -s          # Darwin = macOS | Linux | MINGW = Windows
+
+# On macOS: identify the specific CPU
+sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "(not macOS or not x86)"
+
+# Check what SIMD the build detected (requires a current build)
+./build/tools/system_inspector --quick 2>/dev/null || echo "Build not current — run cmake/make first"
+```
+
+### Why This Matters
+
+The active SIMD level changes fundamentally between machines:
+
+| Architecture | SIMD Available | Active simd_*.cpp files |
+|---|---|---|
+| Intel Mac (most) | SSE2, AVX (no AVX2) | `simd_sse2.cpp`, `simd_avx.cpp` |
+| Intel Mac (Haswell+) | SSE2, AVX, AVX2 | + `simd_avx2.cpp` |
+| Apple Silicon (ARM64) | NEON only | `simd_neon.cpp` |
+| Linux x86 (typical) | SSE2, AVX, AVX2 | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
+
+SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
+- Note the change explicitly
+- Verify the build directory is current for this architecture (`cmake ..` may be needed)
+- Threshold values in `src/parallel_thresholds.cpp` may need review
+- Benchmark results are not comparable across architectures
+
 ## Essential Build Commands
 
 ### Quick Build
