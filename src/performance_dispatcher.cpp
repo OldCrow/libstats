@@ -281,7 +281,8 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
 
     auto simd_efficiency = system.simd_efficiency();
     auto threading_overhead = system.threading_overhead_ns();
-    auto memory_bandwidth = system.memory_bandwidth_gb_s();
+    // memory_bandwidth_gb_s() was used for GPU acceleration threshold adjustment.
+    // GPU_ACCELERATED strategy was removed in Phase 2, so this is no longer needed.
     auto logical_cores = system.logical_cores();
 
     // Refine SIMD thresholds based on efficiency
