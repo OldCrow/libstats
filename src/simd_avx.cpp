@@ -179,9 +179,14 @@ void VectorOps::vector_exp_avx(const double* input, double* output, std::size_t 
     const __m256d ln2_hi = _mm256_set1_pd(0.693147180369123816490e+00);         // ln(2) high part
     const __m256d ln2_lo = _mm256_set1_pd(1.90821492927058770002e-10);          // ln(2) low part
 
-    // Bounds for valid range (avoid overflow/underflow)
-    const __m256d exp_max = _mm256_set1_pd(709.782712893383996732223);  // LOG_DBL_MAX
-    const __m256d exp_min = _mm256_set1_pd(-1000.0);                    // exp underflows below this
+    // Bounds for valid range.
+    // exp_max: largest x for which exp(x) is finite (log of DBL_MAX).
+    // exp_min: -708.0, chosen so that the range-reduction exponent n = round(x/ln2) satisfies
+    //   n + 1023 >= 1 > 0, keeping the biased exponent non-negative for IEEE 754 bit manipulation.
+    //   For x < -708, exp(x) < 2.2e-308 (smallest normal double), so clamping here is correct.
+    //   Using -1000 was wrong: n + 1023 = -420 there, producing garbage from the bit shift.
+    const __m256d exp_max = _mm256_set1_pd(709.782712893383996732223);
+    const __m256d exp_min = _mm256_set1_pd(-708.0);
 
     // SLEEF polynomial coefficients for exp(s) where |s| < ln(2)/2
     // These provide < 1 ULP error for double precision
