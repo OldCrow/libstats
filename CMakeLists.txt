@@ -1740,6 +1740,31 @@ if(LIBSTATS_BUILD_TESTS)
     # Future GTest-based tests can be added here using create_libstats_gtest() Example:
     # create_libstats_gtest(test_gaussian_gtest tests/test_gaussian_gtest.cpp)
 
+    # =======================================================================
+    # TEST LABELS
+    # =======================================================================
+    # Tests containing timing-sensitive assertions (speedup thresholds, overhead ratios) are
+    # labelled "timing". These assertions can fail under CPU contention when multiple tests run in
+    # parallel. All tests are correct regardless of label; the label only affects whether timing
+    # ASSERTIONS are reliable.
+    #
+    # Usage: ctest -j8             # All tests; timing assertions may be flaky under load ctest -j8
+    # -LE timing  # Correctness only; excludes tests with timing assertions ctest -j1 -L timing   #
+    # Timing validation; run serially for accurate measurement
+    #
+    # benchmark_simd_all is labelled separately as it is never part of the standard correctness
+    # suite.
+    set_tests_properties(
+        test_gaussian_enhanced
+        test_exponential_enhanced
+        test_uniform_enhanced
+        test_poisson_enhanced
+        test_discrete_enhanced
+        test_gamma_enhanced
+        test_performance_dispatcher
+        PROPERTIES LABELS "timing")
+    set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
+
     # Test target for running all tests (organized by dependency hierarchy) This target runs ALL
     # tests including stress/diagnostic tests
     add_custom_target(
@@ -1795,12 +1820,20 @@ if(LIBSTATS_BUILD_TESTS)
                 $<$<BOOL:${HAS_PARALLEL_COMPILATION}>:test_parallel_compilation>
         COMMENT "Running ALL libstats tests in dependency order (Levels 0-7 + on-demand)")
 
-    # Separate target for standard test suite (excludes on-demand tests)
+    # Separate target for standard test suite (correctness only, parallel-safe) Excludes: on-demand
+    # tests, timing-labelled tests, benchmarks Use 'make run_tests_timing' to validate performance
+    # assertions on a quiet machine.
     add_custom_target(
         run_tests
-        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -E
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE "timing|benchmark" -E
                 "stress|comprehensive|dynamic|_fix|parallel_compilation|^test_benchmark$$"
-        COMMENT "Running standard libstats test suite (excludes on-demand tests)")
+        COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)")
+
+    # Timing validation target — runs serially for accurate measurement
+    add_custom_target(
+        run_tests_timing
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j1 -L timing
+        COMMENT "Running timing-sensitive tests serially (requires a quiet machine)")
 
     message(STATUS "Test infrastructure enabled")
 else()

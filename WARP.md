@@ -366,16 +366,35 @@ The build system supports cross-compiler compatibility testing with specialized 
 
 ### Running Tests
 ```bash
-# Run all tests
+# Run all tests (timing assertions may be flaky under parallel load)
 ctest --output-on-failure
 
-# Run specific test categories
-ctest -R "test_gaussian"
-ctest -R "test_performance"
+# Correctness only — safe to run in parallel, excludes timing-sensitive assertions
+ctest --output-on-failure -LE "timing|benchmark"
+
+# Timing validation — run serially on a quiet machine for reliable results
+ctest --output-on-failure -j1 -L timing
+
+# Or via make targets
+make run_tests          # Correctness suite (parallel-safe)
+make run_tests_timing   # Timing suite (serial, quiet machine required)
+make run_all_tests      # Everything
+
+# Run a specific test
+ctest -R test_gaussian_basic
+ctest -R test_gaussian_enhanced  # Contains timing assertions
 
 # Run cross-compiler compatibility tests
 ./scripts/test-cross-compiler.sh
 ```
+
+### Test Labels
+- **no label** — correctness tests; safe to run in parallel
+- **timing** — contains speedup/overhead assertions; run with `-j1` for reliable results
+- **benchmark** — performance benchmarks; not part of the standard test suite
+
+Timing tests fail under CPU contention because parallel strategies show less speedup
+when the machine is loaded. This is a measurement problem, not a correctness problem.
 
 ### Performance Validation
 ```bash

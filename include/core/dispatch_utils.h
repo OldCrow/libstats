@@ -229,6 +229,11 @@ class DispatchUtils {
 
             case Strategy::WORK_STEALING: {
                 // Work-stealing pool for irregular or variable-cost workloads.
+                // Thread explosion note: this pool is thread_local, so each calling
+                // thread creates its own WorkStealingPool with hardware_concurrency()
+                // workers. N concurrent WORK_STEALING batches spawn N * cores threads.
+                // Results are always correct; performance degrades under this condition.
+                // Phase 6 will introduce a shared pool to address this.
                 static thread_local WorkStealingPool default_pool;
                 work_stealing_func(dist, values, results, default_pool);
                 break;
