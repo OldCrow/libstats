@@ -49,8 +49,9 @@ constexpr size_t TEST_SIZE = 1024;  // Size for correctness tests
 [[maybe_unused]] constexpr size_t LARGE_TEST_SIZE =
     65536;  // Size for performance tests - reserved for future benchmarking features
 constexpr int TEST_ITERATIONS = 5;
-constexpr double TOLERANCE_NORMAL = 1e-14;   // Normal numerical precision
-constexpr double TOLERANCE_RELAXED = 1e-12;  // Relaxed for complex operations
+constexpr double TOLERANCE_NORMAL = 1e-14;     // Normal numerical precision
+constexpr double TOLERANCE_RELAXED = 1e-12;    // Relaxed for complex operations
+constexpr double TOLERANCE_ERF_APPROX = 2e-7;  // A&S erf approximation (documented max ~1.5e-7)
 
 // Edge case test values that are architecture-independent
 const std::vector<double> EDGE_CASES = {0.0,
@@ -354,6 +355,14 @@ class SIMDVerifier {
         size_t valid_comparisons = 0;  // Track number of non-special-case comparisons
         std::ostringstream error_stream;
 
+        // Gaussian CDF uses SIMD erf (Abramowitz & Stegun 7.1.26, max error ~1.5e-7).
+        // Use a tolerance that matches the documented accuracy rather than machine epsilon.
+        const double default_tolerance =
+            (result.distribution_name.find("Gaussian") != std::string::npos &&
+             result.operation_name == "CDF")
+                ? TOLERANCE_ERF_APPROX
+                : TOLERANCE_NORMAL;
+
         for (size_t i = 0; i < scalar_results.size(); ++i) {
             double scalar_val = scalar_results[i];
             double simd_val = simd_results[i];
@@ -383,16 +392,19 @@ class SIMDVerifier {
                 valid_comparisons++;
             }
 
-            // Calculate relative error for non-zero values
-            double tolerance = TOLERANCE_NORMAL;
-
-            // Use relaxed tolerance for complex operations or very small numbers
+            // Select tolerance: erf-derived for Gaussian CDF, relaxed for near-zero values
+            double tolerance = default_tolerance;
             if (std::abs(scalar_val) < 1e-100 || std::abs(simd_val) < 1e-100) {
                 tolerance = TOLERANCE_RELAXED;
             }
 
             bool is_error = false;
-            if (std::abs(scalar_val) > tolerance) {
+            if (tolerance >= TOLERANCE_ERF_APPROX) {
+                // Gaussian CDF uses A&S erf approximation — check absolute error only.
+                // Relative error is inappropriate here because CDF values near 0
+                // (deep tails) have tiny absolute error but large relative error.
+                is_error = (diff > tolerance);
+            } else if (std::abs(scalar_val) > tolerance) {
                 double relative_error = diff / std::abs(scalar_val);
                 if (relative_error > tolerance) {
                     is_error = true;
@@ -529,14 +541,16 @@ class SIMDVerifier {
 
         for (const auto& result : results_) {
             std::string status = result.correctness_passed ? "PASS" : "FAIL";
-            std::string max_diff_str =
-                (result.max_difference < 1e-15)
-                    ? "~0"
-                    : stats::detail::detail::formatDouble(result.max_difference, 2);
-            std::string avg_diff_str =
-                (result.avg_difference < 1e-15)
-                    ? "~0"
-                    : stats::detail::detail::formatDouble(result.avg_difference, 2);
+            // Use scientific notation for diff values (fixed format gives "0.00" for tiny values)
+            auto format_diff = [](double v) -> std::string {
+                if (v < 1e-15)
+                    return "~0";
+                std::ostringstream oss;
+                oss << std::scientific << std::setprecision(1) << v;
+                return oss.str();
+            };
+            std::string max_diff_str = format_diff(result.max_difference);
+            std::string avg_diff_str = format_diff(result.avg_difference);
             std::string speedup_str =
                 stats::detail::detail::formatDouble(result.speedup_ratio, 1) + "x";
             std::string errors_str = std::to_string(result.failed_comparisons);

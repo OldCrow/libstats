@@ -123,45 +123,35 @@ void demonstrateStrategySelection() {
 
     std::vector<size_t> batch_sizes = {100, 1000, 10000, 100000};
 
-    std::cout << std::left << std::setw(13) << "Distribution" << std::setw(12) << "Size=100"
-              << std::setw(12) << "Size=1K" << std::setw(12) << "Size=10K" << std::setw(12)
+    // Widen columns to fit full strategy display names
+    std::cout << std::left << std::setw(14) << "Distribution" << std::setw(14) << "Size=100"
+              << std::setw(14) << "Size=1K" << std::setw(14) << "Size=10K" << std::setw(14)
               << "Size=100K"
               << "\n";
 
-    std::cout << std::string(60, '-') << "\n";
+    std::cout << std::string(70, '-') << "\n";
 
     for (const auto& [name, dist_type] : distributions) {
-        std::cout << std::left << std::setw(13) << name;
+        std::cout << std::left << std::setw(14) << name;
 
         for (size_t batch_size : batch_sizes) {
             Strategy strategy = dispatcher.selectOptimalStrategy(
                 batch_size, dist_type, ComputationComplexity::MODERATE, system);
 
-            std::string strategy_str = strategyToString(strategy);
-            // Abbreviate for table display
-            if (strategy_str == "PARALLEL")
-                strategy_str = "PAR_SIMD";
-            else if (strategy_str == "VECTORIZED")
-                strategy_str = "SIMD";
-            else if (strategy_str == "WORK_STEALING")
-                strategy_str = "WORK_ST";
-            else if (strategy_str == "WORK_STEALING")
-                strategy_str = "GPU_ACC";
-            else if (strategy_str == "SCALAR")
-                strategy_str = "SCALAR";
+            // Use display strings that match the Strategy enum names
+            std::string strategy_str = stats::detail::detail::strategyToDisplayString(strategy);
 
-            std::cout << std::setw(12) << strategy_str;
+            std::cout << std::setw(14) << strategy_str;
         }
         std::cout << "\n";
     }
 
     std::cout << "\nStrategy Selection Rationale:\n";
-    std::cout << "  • Simple distributions (Uniform, Discrete) prefer SIMD at medium sizes\n";
-    std::cout << "  • Complex distributions (Gaussian, Poisson, Gamma) benefit from "
-                 "parallelization earlier\n";
-    std::cout
-        << "  • Distributions with poor vectorization (Poisson, Gamma) avoid SIMD strategies\n";
-    std::cout << "  • Decisions account for algorithmic complexity, not just batch size\n";
+    std::cout << "  • Simple distributions (Uniform, Discrete) benefit from Vectorized early\n";
+    std::cout << "  • Complex distributions (Gaussian, Poisson, Gamma) parallelize at smaller\n";
+    std::cout << "    batch sizes due to higher per-element computation cost\n";
+    std::cout << "  • Work-Stealing provides dynamic load balancing at very large batch sizes\n";
+    std::cout << "  • Decisions use a simple threshold hierarchy tuned per architecture\n";
 }
 
 void demonstrateAdaptiveLearning() {
