@@ -667,10 +667,10 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
                                                             stats::detail::Strategy::VECTORIZED);
         }
         end = std::chrono::high_resolution_clock::now();
-        result.simd_time_us = static_cast<long>(
+        result.vectorized_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Thread Pool (PARALLEL_SIMD strategy) - fallback to SCALAR
+        // 3. Parallel Batch Operations (PARALLEL strategy) - fallback to SCALAR
         std::span<const double> input_span(test_values);
 
         if (op == "PDF") {
@@ -719,7 +719,7 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.thread_pool_time_us = static_cast<long>(
+        result.parallel_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-Stealing Operations (if available) - fallback to SCALAR
@@ -774,76 +774,6 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
         }
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // 5. GPU-Accelerated Operations (if available) - fallback to SCALAR
-        if (op == "PDF") {
-            std::span<double> output_span(pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              stdUniform.getProbabilityWithStrategy(
-                                  input_span, output_span, stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                stdUniform.getProbabilityWithStrategy(input_span, output_span,
-                                                      stats::detail::Strategy::WORK_STEALING);
-            } else {
-                stdUniform.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                      std::span<double>(pdf_results),
-                                                      stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPDF") {
-            std::span<double> log_output_span(log_pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              stdUniform.getLogProbabilityWithStrategy(
-                                  input_span, log_output_span,
-                                  stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                stdUniform.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                         stats::detail::Strategy::WORK_STEALING);
-            } else {
-                stdUniform.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                         std::span<double>(log_pdf_results),
-                                                         stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              stdUniform.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span,
-                                  stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                stdUniform.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::detail::Strategy::WORK_STEALING);
-            } else {
-                stdUniform.getCumulativeProbabilityWithStrategy(
-                    std::span<const double>(test_values), std::span<double>(cdf_results),
-                    stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        }
-        result.gpu_accelerated_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // Calculate speedups (all relative to baseline)
-        result.simd_speedup = result.baseline_time_us > 0
-                                  ? static_cast<double>(result.baseline_time_us) /
-                                        static_cast<double>(result.simd_time_us)
-                                  : 0.0;
-        result.thread_pool_speedup = result.baseline_time_us > 0
-                                         ? static_cast<double>(result.baseline_time_us) /
-                                               static_cast<double>(result.thread_pool_time_us)
-                                         : 0.0;
-        result.work_stealing_speedup = result.baseline_time_us > 0
-                                           ? static_cast<double>(result.baseline_time_us) /
-                                                 static_cast<double>(result.work_stealing_time_us)
-                                           : 0.0;
-        result.gpu_accelerated_speedup =
-            result.baseline_time_us > 0 ? static_cast<double>(result.baseline_time_us) /
-                                              static_cast<double>(result.gpu_accelerated_time_us)
-                                        : 0.0;
 
         benchmark_results.push_back(result);
 

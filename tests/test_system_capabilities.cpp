@@ -179,7 +179,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
     // Test with different parameters
     auto small_strategy = dispatcher.selectOptimalStrategy(
         10, DistributionType::UNIFORM, ComputationComplexity::SIMPLE, capabilities);
-    // Accept either SCALAR or SIMD_BATCH for small batches (depends on SIMD policy)
+    // Accept either SCALAR or VECTORIZED for small batches (depends on SIMD policy)
     EXPECT_TRUE(small_strategy == Strategy::SCALAR || small_strategy == Strategy::VECTORIZED);
 
     // Large batch should consider parallel strategies (if we have multiple cores)
