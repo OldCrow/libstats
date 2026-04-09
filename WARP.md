@@ -10,6 +10,39 @@ libstats is a high-performance C++20 statistical distributions library with ente
 
 **Current Status**: Core delivery complete ✅ - Focus on optimization, cross-platform compatibility, and performance tuning.
 
+## Session Start: Architecture Detection
+
+At the start of each libstats development session, verify the current machine architecture before making any SIMD-related decisions, reviewing test results, or adjusting thresholds.
+
+```bash
+# Identify the CPU architecture and OS
+uname -m          # x86_64 = Intel/AMD | arm64 = Apple Silicon
+uname -s          # Darwin = macOS | Linux | MINGW = Windows
+
+# On macOS: identify the specific CPU
+sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "(not macOS or not x86)"
+
+# Check what SIMD the build detected (requires a current build)
+./build/tools/system_inspector --quick 2>/dev/null || echo "Build not current — run cmake/make first"
+```
+
+### Why This Matters
+
+The active SIMD level changes fundamentally between machines:
+
+| Architecture | SIMD Available | Active simd_*.cpp files |
+|---|---|---|
+| Intel Mac (most) | SSE2, AVX (no AVX2) | `simd_sse2.cpp`, `simd_avx.cpp` |
+| Intel Mac (Haswell+) | SSE2, AVX, AVX2 | + `simd_avx2.cpp` |
+| Apple Silicon (ARM64) | NEON only | `simd_neon.cpp` |
+| Linux x86 (typical) | SSE2, AVX, AVX2 | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
+
+SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
+- Note the change explicitly
+- Verify the build directory is current for this architecture (`cmake ..` may be needed)
+- Threshold values in `src/parallel_thresholds.cpp` may need review
+- Benchmark results are not comparable across architectures
+
 ## Essential Build Commands
 
 ### Quick Build
@@ -286,7 +319,7 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 
 #### Parallel Processing
 - Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`
-- Explicit control: `getProbabilityWithStrategy(spans, Strategy::PARALLEL_SIMD)`
+- Explicit control: `getProbabilityWithStrategy(spans, Strategy::PARALLEL)`
 - Performance thresholds: <8 elements (scalar), 8-1000 (SIMD), >1000 (parallel)
 
 ### Build System Customization
@@ -333,16 +366,35 @@ The build system supports cross-compiler compatibility testing with specialized 
 
 ### Running Tests
 ```bash
-# Run all tests
+# Run all tests (timing assertions may be flaky under parallel load)
 ctest --output-on-failure
 
-# Run specific test categories
-ctest -R "test_gaussian"
-ctest -R "test_performance"
+# Correctness only — safe to run in parallel, excludes timing-sensitive assertions
+ctest --output-on-failure -LE "timing|benchmark"
+
+# Timing validation — run serially on a quiet machine for reliable results
+ctest --output-on-failure -j1 -L timing
+
+# Or via make targets
+make run_tests          # Correctness suite (parallel-safe)
+make run_tests_timing   # Timing suite (serial, quiet machine required)
+make run_all_tests      # Everything
+
+# Run a specific test
+ctest -R test_gaussian_basic
+ctest -R test_gaussian_enhanced  # Contains timing assertions
 
 # Run cross-compiler compatibility tests
 ./scripts/test-cross-compiler.sh
 ```
+
+### Test Labels
+- **no label** — correctness tests; safe to run in parallel
+- **timing** — contains speedup/overhead assertions; run with `-j1` for reliable results
+- **benchmark** — performance benchmarks; not part of the standard test suite
+
+Timing tests fail under CPU contention because parallel strategies show less speedup
+when the machine is loaded. This is a measurement problem, not a correctness problem.
 
 ### Performance Validation
 ```bash

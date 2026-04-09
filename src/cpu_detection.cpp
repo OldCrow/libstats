@@ -19,8 +19,8 @@
 
 #include "../include/platform/cpu_detection.h"
 
+#include "../include/core/math_constants.h"
 #include "../include/platform/platform_constants.h"
-#include "core/mathematical_constants.h"
 
 #include <atomic>
 #include <chrono>

@@ -1,10 +1,9 @@
 #include "../include/core/performance_dispatcher.h"
 
 #include "../include/core/distribution_characteristics.h"
-#include "../include/core/mathematical_constants.h"
+#include "../include/core/math_constants.h"
 #include "../include/core/performance_history.h"
-#include "../include/core/precision_constants.h"
-#include "../include/core/threshold_constants.h"
+#include "../include/core/statistical_constants.h"
 #include "../include/platform/cpu_detection.h"
 #include "../include/platform/simd_policy.h"
 
@@ -45,46 +44,11 @@ PerformanceDispatcher::SIMDArchitecture PerformanceDispatcher::detectSIMDArchite
     }
 }
 
-// GPU fallback logging function
-static void logGPUFallback() noexcept {
-    // Only log once per application run to avoid spam
-    static std::once_flag logged;
-    std::call_once(logged, []() {
-        std::cerr << "INFO: GPU acceleration requested but not yet implemented. "
-                  << "Using optimal CPU strategy." << std::endl;
-    });
-}
-
 Strategy PerformanceDispatcher::selectOptimalStrategy(
     size_t batch_size, DistributionType dist_type,
     [[maybe_unused]] ComputationComplexity complexity, const SystemCapabilities& system) const {
-    // Use the shared global instance
     auto& performance_history = getPerformanceHistory();
-
-    // Retrieve the best strategy recommendation based on performance history
     auto recommendation = performance_history.getBestStrategy(dist_type, batch_size);
-
-    // Check if GPU acceleration was requested (this would come from explicit strategy requests)
-    if (recommendation.has_sufficient_data &&
-        recommendation.recommended_strategy == Strategy::GPU_ACCELERATED) {
-        // GPU acceleration not yet implemented - select best CPU strategy
-        logGPUFallback();
-
-        // Use same selection logic as auto-dispatch
-        auto parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
-        if (batch_size >= parallel_threshold) {
-            // For large batches, prefer work-stealing for optimal CPU performance
-            if (batch_size >= thresholds_.work_stealing_min && system.logical_cores() > 2) {
-                return Strategy::WORK_STEALING;
-            } else {
-                return Strategy::PARALLEL_SIMD;
-            }
-        } else if (batch_size >= thresholds_.simd_min) {
-            return Strategy::SIMD_BATCH;
-        } else {
-            return Strategy::SCALAR;
-        }
-    }
 
     // Use historical data if we have high confidence
     if (recommendation.has_sufficient_data &&
@@ -121,11 +85,6 @@ bool PerformanceDispatcher::shouldUseWorkStealing(
     return batch_size >= thresholds_.work_stealing_min;
 }
 
-bool PerformanceDispatcher::shouldUseGpuAccelerated(size_t batch_size,
-                                                    const SystemCapabilities& system) const {
-    return batch_size >= thresholds_.gpu_accelerated_min && system.memory_bandwidth_gb_s() >= 50.0;
-}
-
 void PerformanceDispatcher::updateThresholds(const Thresholds& new_thresholds) {
     thresholds_ = new_thresholds;
 }
@@ -145,98 +104,33 @@ PerformanceHistory& PerformanceDispatcher::getPerformanceHistory() noexcept {
 
 Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     size_t batch_size, DistributionType dist_type, const SystemCapabilities& system) const {
-    // Get empirical characteristics for this distribution
-    using namespace detail;
-    const auto& dist_chars = getCharacteristics(dist_type);
+    // Three-level threshold hierarchy. The thresholds in Thresholds have already been
+    // tuned for this machine's SIMD level and measured capabilities by
+    // refineWithCapabilities() at construction time, so the per-call decision is simple:
+    //
+    //   batch < simd_min            → SCALAR      (overhead exceeds benefit)
+    //   simd_min <= batch < parallel → VECTORIZED  (batch pays off, threading doesn\'t yet)
+    //   batch >= parallel            → PARALLEL or WORK_STEALING
+    //
+    // Distribution-specific parallel thresholds account for computational cost:
+    // Gaussian (exp/erf) parallelizes at smaller batch sizes than Uniform (arithmetic only).
 
-    // Extract system capabilities
-    auto simd_efficiency = system.simd_efficiency();
-    auto threading_overhead = system.threading_overhead_ns();
-    auto memory_bandwidth = system.memory_bandwidth_gb_s();
-
-    // Adjust system SIMD efficiency based on distribution characteristics
-    double effective_simd_efficiency = simd_efficiency * dist_chars.vectorization_efficiency;
-
-    // Get distribution-specific threshold
-    auto parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
-    auto simd_threshold = std::max(dist_chars.min_simd_threshold, thresholds_.simd_min);
-
-    // Decision logic based on empirical characteristics and system capabilities
-
-    // For very small batches, use scalar regardless of distribution
-    if (batch_size <= simd_threshold) {
+    if (batch_size < thresholds_.simd_min) {
         return Strategy::SCALAR;
     }
 
-    // Use empirical characteristics to guide strategy selection
-
-    // If effective SIMD efficiency is poor for this distribution, avoid SIMD strategies
-    if (effective_simd_efficiency < detail::WEAK_CORRELATION) {
-        // SIMD performs poorly for this distribution, prefer parallel or scalar
-        if (batch_size >= parallel_threshold &&
-            threading_overhead < (1000000.0 * dist_chars.base_complexity)) {
-            // Complex distributions justify higher threading overhead
-            return (dist_chars.parallelization_efficiency > 0.6) ? Strategy::PARALLEL_SIMD
-                                                                 : Strategy::SCALAR;
-        }
-        return Strategy::SCALAR;
-    }
-
-    // For medium batches, consider SIMD based on distribution characteristics
+    const size_t parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
     if (batch_size < parallel_threshold) {
-        // Use SIMD if the distribution vectorizes well and system supports it
-        if (effective_simd_efficiency > detail::HALF && dist_chars.vectorization_efficiency > 0.6) {
-            return Strategy::SIMD_BATCH;
-        }
-        // For distributions with poor vectorization, stick with scalar until parallel threshold
-        return Strategy::SCALAR;
+        return Strategy::VECTORIZED;
     }
 
-    // For large batches, select parallel strategy based on distribution complexity
-
-    // High threading overhead limits parallel strategies for simple distributions
-    double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity
-    if (threading_overhead > acceptable_overhead && dist_chars.base_complexity < detail::TWO) {
-        // Simple distributions with high threading overhead: prefer SIMD
-        if (effective_simd_efficiency > 0.4) {
-            return Strategy::SIMD_BATCH;
-        }
-        return Strategy::SCALAR;
-    }
-
-    // Memory-intensive operations would benefit from GPU acceleration
-    // For now, return work-stealing as GPU is not yet implemented
-    bool use_gpu_equivalent = (batch_size >= thresholds_.gpu_accelerated_min) &&
-                              (memory_bandwidth >= 50.0) &&
-                              (dist_chars.memory_access_pattern > detail::LARGE_EFFECT);
-
-    if (use_gpu_equivalent) {
-        // GPU acceleration not implemented - use best CPU alternative
+    // Work-stealing is preferred for large batches on multi-core systems: it handles
+    // variable-cost work more efficiently than a fixed partition.
+    if (batch_size >= thresholds_.work_stealing_min && system.logical_cores() > 2) {
         return Strategy::WORK_STEALING;
     }
 
-    // Work stealing benefits distributions with variable execution time
-    bool use_work_stealing =
-        (batch_size >= thresholds_.work_stealing_min) && (system.logical_cores() > 2) &&
-        (threading_overhead < acceptable_overhead) &&
-        (dist_chars.branch_prediction_cost > 1.2);  // High branching variability
-
-    if (use_work_stealing) {
-        return Strategy::WORK_STEALING;
-    }
-
-    // Default to parallel SIMD for large batches with good parallel efficiency
-    if (dist_chars.parallelization_efficiency > 0.6) {
-        return Strategy::PARALLEL_SIMD;
-    }
-
-    // Fall back to SIMD for distributions with poor parallelization but good vectorization
-    if (effective_simd_efficiency > 0.4) {
-        return Strategy::SIMD_BATCH;
-    }
-
-    // Last resort: scalar
-    return Strategy::SCALAR;
+    return Strategy::PARALLEL;
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSIMDLevel(
@@ -249,37 +143,30 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
     // Set base parallel thresholds based on SIMD level capability
     switch (level) {
         case arch::simd::SIMDPolicy::Level::AVX512:
-            thresholds.parallel_min = 500;  // Powerful SIMD reduces parallel threshold
+            thresholds.parallel_min = 500;
             thresholds.work_stealing_min = 8000;
-            thresholds.gpu_accelerated_min = 32000;
             break;
         case arch::simd::SIMDPolicy::Level::AVX2:
-            thresholds.parallel_min = detail::MAX_BISECTION_ITERATIONS;  // Good SIMD efficiency
+            thresholds.parallel_min = detail::MAX_BISECTION_ITERATIONS;
             thresholds.work_stealing_min = 10000;
-            thresholds.gpu_accelerated_min = 50000;
             break;
         case arch::simd::SIMDPolicy::Level::AVX:
-            thresholds.parallel_min =
-                detail::MAX_DATA_POINTS_FOR_SW_TEST;  // AVX often has limited efficiency
+            thresholds.parallel_min = detail::MAX_DATA_POINTS_FOR_SW_TEST;
             thresholds.work_stealing_min = 50000;
-            thresholds.gpu_accelerated_min = 200000;
             break;
         case arch::simd::SIMDPolicy::Level::SSE2:
-            thresholds.parallel_min = 2000;  // Older architecture, conservative
+            thresholds.parallel_min = 2000;
             thresholds.work_stealing_min = 20000;
-            thresholds.gpu_accelerated_min = 100000;
             break;
         case arch::simd::SIMDPolicy::Level::NEON:
-            thresholds.parallel_min = 1500;  // ARM characteristics
+            thresholds.parallel_min = 1500;
             thresholds.work_stealing_min = 15000;
-            thresholds.gpu_accelerated_min = 75000;
             break;
         case arch::simd::SIMDPolicy::Level::None:
         default:
             thresholds.simd_min = SIZE_MAX;  // Disable SIMD entirely
-            thresholds.parallel_min = 500;   // Lower threshold since SIMD unavailable
+            thresholds.parallel_min = 500;
             thresholds.work_stealing_min = detail::MAX_DATA_POINTS_FOR_SW_TEST;
-            thresholds.gpu_accelerated_min = 25000;
             break;
     }
 
@@ -394,7 +281,8 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
 
     auto simd_efficiency = system.simd_efficiency();
     auto threading_overhead = system.threading_overhead_ns();
-    auto memory_bandwidth = system.memory_bandwidth_gb_s();
+    // memory_bandwidth_gb_s() was used for GPU acceleration threshold adjustment.
+    // GPU_ACCELERATED strategy was removed in Phase 2, so this is no longer needed.
     auto logical_cores = system.logical_cores();
 
     // Refine SIMD thresholds based on efficiency
@@ -474,16 +362,6 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
             static_cast<size_t>(static_cast<double>(gamma_parallel_min) * multiplier);
     }
 
-    // Refine GPU acceleration thresholds based on memory bandwidth
-    if (memory_bandwidth < 20.0) {
-        // Low memory bandwidth, raise GPU acceleration threshold
-        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) * 1.5);
-    } else if (memory_bandwidth > detail::HUNDRED) {
-        // High memory bandwidth, lower GPU acceleration threshold
-        gpu_accelerated_min = static_cast<size_t>(static_cast<double>(gpu_accelerated_min) *
-                                                  detail::STRONG_CORRELATION);
-    }
-
     // Adjust work-stealing based on core count
     if (logical_cores <= 2) {
         // Few cores, raise work-stealing threshold significantly
@@ -500,7 +378,6 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
     parallel_min = std::max(parallel_min, static_cast<size_t>(detail::MAX_NEWTON_ITERATIONS));
     work_stealing_min =
         std::max(work_stealing_min, static_cast<size_t>(detail::MAX_BISECTION_ITERATIONS));
-    gpu_accelerated_min = std::max(gpu_accelerated_min, static_cast<size_t>(10000));
 }
 
 }  // namespace detail

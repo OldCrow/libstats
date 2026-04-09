@@ -2,7 +2,8 @@
 
 #include "../include/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
 #include "../include/common/platform_constants_fwd.h"  // Use lightweight forward declarations
-#include "../include/core/threshold_constants.h"
+#include "../include/core/math_constants.h"
+#include "../include/core/statistical_constants.h"
 
 #include <algorithm>
 #include <chrono>
@@ -26,7 +27,6 @@
     #include <sys/sysinfo.h>
     #include <unistd.h>
 #elif defined(_WIN32)
-    #include "../include/core/precision_constants.h"
 
     #include <windows.h>
 #endif

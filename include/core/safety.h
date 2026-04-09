@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../platform/simd.h"
-#include "mathematical_constants.h"
-#include "precision_constants.h"
+#include "math_constants.h"
+#include "statistical_constants.h"
 
 #include <cassert>
 #include <cmath>

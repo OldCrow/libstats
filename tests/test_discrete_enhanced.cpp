@@ -285,7 +285,7 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdDiscrete.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                std::span<double>(simd_results),
-                                               stats::detail::Strategy::SIMD_BATCH);
+                                               stats::detail::Strategy::VECTORIZED);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -296,7 +296,7 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         start = std::chrono::high_resolution_clock::now();
         stdDiscrete.getProbabilityWithStrategy(input_span, output_span,
-                                               stats::detail::Strategy::PARALLEL_SIMD);
+                                               stats::detail::Strategy::PARALLEL);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -473,8 +473,8 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
-    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "SIMD_BATCH", "SIMD_BATCH",
-                                                    "PARALLEL_SIMD"};
+    std::vector<std::string> expected_strategies = {"SCALAR", "SCALAR", "VECTORIZED", "VECTORIZED",
+                                                    "PARALLEL"};
 
     std::cout << "\n=== Auto-Dispatch Assessment (Discrete) ===\n";
 
@@ -653,32 +653,32 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PMF") {
             dice.getProbabilityWithStrategy(std::span<const double>(test_values),
                                             std::span<double>(pmf_results),
-                                            stats::detail::Strategy::SIMD_BATCH);
+                                            stats::detail::Strategy::VECTORIZED);
         } else if (op == "LogPMF") {
             dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                std::span<double>(log_pmf_results),
-                                               stats::detail::Strategy::SIMD_BATCH);
+                                               stats::detail::Strategy::VECTORIZED);
         } else if (op == "CDF") {
             dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                       std::span<double>(cdf_results),
-                                                      stats::detail::Strategy::SIMD_BATCH);
+                                                      stats::detail::Strategy::VECTORIZED);
         }
         end = std::chrono::high_resolution_clock::now();
-        result.simd_time_us = static_cast<long>(
+        result.vectorized_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Thread Pool (PARALLEL_SIMD strategy) - fallback to SCALAR
+        // 3. Parallel Batch Operations (PARALLEL strategy) - fallback to SCALAR
         std::span<const double> input_span(test_values);
 
         if (op == "PMF") {
             std::span<double> output_span(pmf_results);
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
-                              dice.getProbabilityWithStrategy(
-                                  input_span, output_span, stats::detail::Strategy::PARALLEL_SIMD);
+                              dice.getProbabilityWithStrategy(input_span, output_span,
+                                                              stats::detail::Strategy::PARALLEL);
                           }) {
                 dice.getProbabilityWithStrategy(input_span, output_span,
-                                                stats::detail::Strategy::PARALLEL_SIMD);
+                                                stats::detail::Strategy::PARALLEL);
             } else {
                 dice.getProbabilityWithStrategy(std::span<const double>(test_values),
                                                 std::span<double>(pmf_results),
@@ -689,12 +689,11 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             std::span<double> log_output_span(log_pmf_results);
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
-                              dice.getLogProbabilityWithStrategy(
-                                  input_span, log_output_span,
-                                  stats::detail::Strategy::PARALLEL_SIMD);
+                              dice.getLogProbabilityWithStrategy(input_span, log_output_span,
+                                                                 stats::detail::Strategy::PARALLEL);
                           }) {
                 dice.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                   stats::detail::Strategy::PARALLEL_SIMD);
+                                                   stats::detail::Strategy::PARALLEL);
             } else {
                 dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
                                                    std::span<double>(log_pmf_results),
@@ -706,11 +705,10 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             start = std::chrono::high_resolution_clock::now();
             if constexpr (requires {
                               dice.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span,
-                                  stats::detail::Strategy::PARALLEL_SIMD);
+                                  input_span, cdf_output_span, stats::detail::Strategy::PARALLEL);
                           }) {
                 dice.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                          stats::detail::Strategy::PARALLEL_SIMD);
+                                                          stats::detail::Strategy::PARALLEL);
             } else {
                 dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
                                                           std::span<double>(cdf_results),
@@ -718,7 +716,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             }
             end = std::chrono::high_resolution_clock::now();
         }
-        result.thread_pool_time_us = static_cast<long>(
+        result.parallel_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-Stealing Operations (if available) - fallback to SCALAR
@@ -773,76 +771,19 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 5. GPU-Accelerated Operations (if available) - fallback to SCALAR
-        if (op == "PMF") {
-            std::span<double> output_span(pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getProbabilityWithStrategy(
-                                  input_span, output_span,
-                                  stats::detail::Strategy::GPU_ACCELERATED);
-                          }) {
-                dice.getProbabilityWithStrategy(input_span, output_span,
-                                                stats::detail::Strategy::GPU_ACCELERATED);
-            } else {
-                dice.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                std::span<double>(pmf_results),
-                                                stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPMF") {
-            std::span<double> log_output_span(log_pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getLogProbabilityWithStrategy(
-                                  input_span, log_output_span,
-                                  stats::detail::Strategy::GPU_ACCELERATED);
-                          }) {
-                dice.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                   stats::detail::Strategy::GPU_ACCELERATED);
-            } else {
-                dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                   std::span<double>(log_pmf_results),
-                                                   stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span,
-                                  stats::detail::Strategy::GPU_ACCELERATED);
-                          }) {
-                dice.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                          stats::detail::Strategy::GPU_ACCELERATED);
-            } else {
-                dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                          std::span<double>(cdf_results),
-                                                          stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        }
-        result.gpu_accelerated_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // Calculate speedups (all relative to baseline)
-        result.simd_speedup = result.baseline_time_us > 0
-                                  ? static_cast<double>(result.baseline_time_us) /
-                                        static_cast<double>(result.simd_time_us)
-                                  : 0.0;
-        result.thread_pool_speedup = result.baseline_time_us > 0
-                                         ? static_cast<double>(result.baseline_time_us) /
-                                               static_cast<double>(result.thread_pool_time_us)
-                                         : 0.0;
+        // Calculate speedups relative to baseline
+        result.vectorized_speedup = result.baseline_time_us > 0
+                                        ? static_cast<double>(result.baseline_time_us) /
+                                              static_cast<double>(result.vectorized_time_us)
+                                        : 0.0;
+        result.parallel_speedup = result.baseline_time_us > 0
+                                      ? static_cast<double>(result.baseline_time_us) /
+                                            static_cast<double>(result.parallel_time_us)
+                                      : 0.0;
         result.work_stealing_speedup = result.baseline_time_us > 0
                                            ? static_cast<double>(result.baseline_time_us) /
                                                  static_cast<double>(result.work_stealing_time_us)
                                            : 0.0;
-        result.gpu_accelerated_speedup =
-            result.baseline_time_us > 0 ? static_cast<double>(result.baseline_time_us) /
-                                              static_cast<double>(result.gpu_accelerated_time_us)
-                                        : 0.0;
 
         benchmark_results.push_back(result);
 

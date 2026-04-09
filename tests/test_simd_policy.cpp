@@ -118,6 +118,7 @@ TestOptions parse_arguments(int argc, char* argv[]) {
 //==============================================================================
 
 std::string level_to_string(SIMDPolicy::Level level) {
+    // Strings must match SIMDPolicy::levelToString() exactly.
     switch (level) {
         case SIMDPolicy::Level::None:
             return "None";
@@ -130,7 +131,7 @@ std::string level_to_string(SIMDPolicy::Level level) {
         case SIMDPolicy::Level::AVX2:
             return "AVX2";
         case SIMDPolicy::Level::AVX512:
-            return "AVX512";
+            return "AVX-512";  // hyphen: matches SIMDPolicy::levelToString()
         default:
             return "Unknown";
     }

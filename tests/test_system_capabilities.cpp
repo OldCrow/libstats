@@ -174,21 +174,21 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
                                                      ComputationComplexity::MODERATE, capabilities);
 
     // Should return a valid strategy
-    EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::GPU_ACCELERATED);
+    EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::WORK_STEALING);
 
     // Test with different parameters
     auto small_strategy = dispatcher.selectOptimalStrategy(
         10, DistributionType::UNIFORM, ComputationComplexity::SIMPLE, capabilities);
-    // Accept either SCALAR or SIMD_BATCH for small batches (depends on SIMD policy)
-    EXPECT_TRUE(small_strategy == Strategy::SCALAR || small_strategy == Strategy::SIMD_BATCH);
+    // Accept either SCALAR or VECTORIZED for small batches (depends on SIMD policy)
+    EXPECT_TRUE(small_strategy == Strategy::SCALAR || small_strategy == Strategy::VECTORIZED);
 
     // Large batch should consider parallel strategies (if we have multiple cores)
     if (capabilities.physical_cores() > 1) {
         auto large_strategy = dispatcher.selectOptimalStrategy(
             100000, DistributionType::GAMMA, ComputationComplexity::COMPLEX, capabilities);
-        EXPECT_TRUE(large_strategy == Strategy::PARALLEL_SIMD ||
+        EXPECT_TRUE(large_strategy == Strategy::PARALLEL ||
                     large_strategy == Strategy::WORK_STEALING ||
-                    large_strategy == Strategy::GPU_ACCELERATED);
+                    large_strategy == Strategy::WORK_STEALING);
     }
 }
 

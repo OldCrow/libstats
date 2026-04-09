@@ -31,14 +31,12 @@ std::string strategyToString(stats::detail::Strategy strategy) {
     switch (strategy) {
         case stats::detail::Strategy::SCALAR:
             return "SCALAR";
-        case stats::detail::Strategy::SIMD_BATCH:
-            return "SIMD_BATCH";
-        case stats::detail::Strategy::PARALLEL_SIMD:
-            return "PARALLEL_SIMD";
+        case stats::detail::Strategy::VECTORIZED:
+            return "VECTORIZED";
+        case stats::detail::Strategy::PARALLEL:
+            return "PARALLEL";
         case stats::detail::Strategy::WORK_STEALING:
             return "WORK_STEALING";
-        case stats::detail::Strategy::GPU_ACCELERATED:
-            return "GPU_ACCELERATED";
         default:
             return "UNKNOWN";
     }
@@ -199,7 +197,7 @@ void demonstrate_adaptive_learning() {
     std::cout << "\nTraining the adaptive performance learning system with Gaussian N(0,1) "
                  "distribution.\n"
               << "This simulates real-world usage by:\n"
-              << "  - Testing 3 strategies: SCALAR, SIMD_BATCH, PARALLEL_SIMD\n"
+              << "  - Testing 3 strategies: SCALAR, VECTORIZED, PARALLEL\n"
               << "  - Recording performance data for 4 batch sizes: 1000, 5000, 10000, 50000\n"
               << "  - Running 6 iterations to build reliable statistics (18 samples per size)\n"
               << "  - Using random input data from Uniform(-3.0, 3.0) distribution\n"
@@ -213,8 +211,8 @@ void demonstrate_adaptive_learning() {
 
     // Record data for multiple strategies to make the learning system more realistic
     std::vector<stats::detail::Strategy> test_strategies = {stats::detail::Strategy::SCALAR,
-                                                            stats::detail::Strategy::SIMD_BATCH,
-                                                            stats::detail::Strategy::PARALLEL_SIMD};
+                                                            stats::detail::Strategy::VECTORIZED,
+                                                            stats::detail::Strategy::PARALLEL};
 
     for (int iteration = 0; iteration < 6; ++iteration) {
         std::cout << "Training iteration " << (iteration + 1) << "/6:" << std::endl;
@@ -244,10 +242,10 @@ void demonstrate_adaptive_learning() {
                         adjusted_duration =
                             static_cast<uint64_t>(static_cast<double>(duration) * 1.5);  // Slower
                         break;
-                    case stats::detail::Strategy::SIMD_BATCH:
+                    case stats::detail::Strategy::VECTORIZED:
                         adjusted_duration = static_cast<uint64_t>(duration);  // Baseline
                         break;
-                    case stats::detail::Strategy::PARALLEL_SIMD:
+                    case stats::detail::Strategy::PARALLEL:
                         if (size > 5000) {
                             adjusted_duration = static_cast<uint64_t>(
                                 static_cast<double>(duration) * 0.7);  // Faster for large sizes

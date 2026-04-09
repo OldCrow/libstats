@@ -251,6 +251,63 @@ void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
     }
 }
 
+// Transcendental functions - NEON doesn't have native support, use scalar fallback
+void VectorOps::vector_exp_neon(const double* a, double* result, std::size_t size) noexcept {
+    if (!stats::arch::supports_neon()) {
+        return vector_exp_fallback(a, result, size);
+    }
+    // NEON doesn't have native exponential instructions, use scalar implementation
+    for (std::size_t i = 0; i < size; ++i) {
+        result[i] = std::exp(a[i]);
+    }
+}
+
+void VectorOps::vector_log_neon(const double* a, double* result, std::size_t size) noexcept {
+    if (!stats::arch::supports_neon()) {
+        return vector_log_fallback(a, result, size);
+    }
+    // NEON doesn't have native logarithm instructions, use scalar implementation
+    for (std::size_t i = 0; i < size; ++i) {
+        result[i] = std::log(a[i]);
+    }
+}
+
+void VectorOps::vector_pow_neon(const double* base, double exponent, double* result,
+                                std::size_t size) noexcept {
+    if (!stats::arch::supports_neon()) {
+        return vector_pow_fallback(base, exponent, result, size);
+    }
+    // NEON doesn't have native power instructions, use scalar implementation
+    for (std::size_t i = 0; i < size; ++i) {
+        result[i] = std::pow(base[i], exponent);
+    }
+}
+
+void VectorOps::vector_pow_elementwise_neon(const double* base, const double* exponent,
+                                            double* result, std::size_t size) noexcept {
+    if (!stats::arch::supports_neon()) {
+        // Fallback to scalar implementation
+        for (std::size_t i = 0; i < size; ++i) {
+            result[i] = std::pow(base[i], exponent[i]);
+        }
+        return;
+    }
+    // NEON doesn't have native power instructions, use scalar implementation
+    for (std::size_t i = 0; i < size; ++i) {
+        result[i] = std::pow(base[i], exponent[i]);
+    }
+}
+
+void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t size) noexcept {
+    if (!stats::arch::supports_neon()) {
+        return vector_erf_fallback(a, result, size);
+    }
+    // NEON doesn't have native error function instructions, use scalar implementation
+    for (std::size_t i = 0; i < size; ++i) {
+        result[i] = std::erf(a[i]);
+    }
+}
+
 #else
 
 // Fallback implementations for non-ARM platforms
@@ -283,6 +340,31 @@ void VectorOps::scalar_multiply_neon(const double* a, double scalar, double* res
 void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept {
     scalar_add_fallback(a, scalar, result, size);
+}
+
+void VectorOps::vector_exp_neon(const double* a, double* result, std::size_t size) noexcept {
+    vector_exp_fallback(a, result, size);
+}
+
+void VectorOps::vector_log_neon(const double* a, double* result, std::size_t size) noexcept {
+    vector_log_fallback(a, result, size);
+}
+
+void VectorOps::vector_pow_neon(const double* base, double exponent, double* result,
+                                std::size_t size) noexcept {
+    vector_pow_fallback(base, exponent, result, size);
+}
+
+void VectorOps::vector_pow_elementwise_neon(const double* base, const double* exponent,
+                                            double* result, std::size_t size) noexcept {
+    // Fallback to scalar implementation for non-ARM platforms
+    for (std::size_t i = 0; i < size; ++i) {
+        result[i] = std::pow(base[i], exponent[i]);
+    }
+}
+
+void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t size) noexcept {
+    vector_erf_fallback(a, result, size);
 }
 
 #endif  // ARM platform check

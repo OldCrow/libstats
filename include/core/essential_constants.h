@@ -2,24 +2,15 @@
 
 /**
  * @file core/essential_constants.h
- * @brief Essential constants commonly needed across all libstats distributions
+ * @brief Convenience header including the two most commonly needed constant groups
  *
- * This header includes only the most frequently used constants that are needed
- * by virtually every distribution implementation. For specialized constants,
- * include the specific headers directly:
+ * Most distribution implementations and algorithms need both mathematical
+ * constants and statistical domain constants. This header provides them
+ * in a single include.
  *
- * - threshold_constants.h     - Algorithm thresholds and limits
- * - benchmark_constants.h     - Performance testing parameters
- * - robust_constants.h        - Robust estimation parameters
- * - statistical_methods_constants.h - Bayesian, bootstrap constants
- * - goodness_of_fit_constants.h - Critical values for tests
- * - probability_constants.h   - Probability bounds and limits
+ * For performance testing constants (benchmark tools only), also include
+ * performance_constants.h.
  */
 
-// The three most commonly used constants headers
-#include "mathematical_constants.h"  // π, e, sqrt(2π), common mathematical values
-#include "precision_constants.h"     // Tolerances, epsilons, convergence criteria
-#include "statistical_constants.h"   // Critical values, statistical parameters
-
-// Note: Platform constants available separately via platform headers
-// Note: Specialized constants available via their specific headers as needed
+#include "math_constants.h"         // Mathematical values, precision, numerical limits
+#include "statistical_constants.h"  // Critical values, probability bounds, thresholds

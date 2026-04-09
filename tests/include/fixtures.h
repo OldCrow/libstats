@@ -242,15 +242,13 @@ class TestDataGenerators {
  */
 struct BenchmarkResult {
     std::string operation_name;
-    long baseline_time_us;           // SCALAR strategy
-    long simd_time_us;               // SIMD_BATCH strategy
-    long thread_pool_time_us;        // PARALLEL_SIMD strategy (thread pool)
-    long work_stealing_time_us;      // WORK_STEALING strategy
-    long gpu_accelerated_time_us;    // GPU_ACCELERATED strategy (fallback to WS)
-    double simd_speedup;             // Relative to baseline
-    double thread_pool_speedup;      // Relative to baseline
-    double work_stealing_speedup;    // Relative to baseline
-    double gpu_accelerated_speedup;  // Relative to baseline
+    long baseline_time_us;         ///< SCALAR strategy
+    long vectorized_time_us;       ///< VECTORIZED strategy (VectorOps batch path)
+    long parallel_time_us;         ///< PARALLEL strategy (ParallelUtils::parallelFor)
+    long work_stealing_time_us;    ///< WORK_STEALING strategy
+    double vectorized_speedup;     ///< Relative to baseline
+    double parallel_speedup;       ///< Relative to baseline
+    double work_stealing_speedup;  ///< Relative to baseline
 };
 
 /**
@@ -269,25 +267,21 @@ class BenchmarkFormatter {
     static void printBenchmarkResults(const std::vector<BenchmarkResult>& results) {
         std::cout << "\nBenchmark Results:" << std::endl;
 
-        // Print header with better formatting
-        std::cout << std::setw(10) << "Operation" << std::setw(10) << "Baseline" << std::setw(10)
-                  << "SIMD" << std::setw(12) << "Thread-Pool" << std::setw(12) << "Work-Steal"
-                  << std::setw(12) << "GPU-Accel" << std::setw(13) << "SIMD-Speedup"
-                  << std::setw(12) << "TP-Speedup" << std::setw(12) << "WS-Speedup" << std::setw(12)
-                  << "GA-Speedup" << std::endl;
-        std::cout << std::string(120, '-') << std::endl;
+        std::cout << std::setw(10) << "Operation" << std::setw(10) << "Baseline" << std::setw(12)
+                  << "Vectorized" << std::setw(12) << "Parallel" << std::setw(12) << "Work-Steal"
+                  << std::setw(14) << "Vec-Speedup" << std::setw(12) << "Par-Speedup"
+                  << std::setw(12) << "WS-Speedup" << std::endl;
+        std::cout << std::string(104, '-') << std::endl;
 
         for (const auto& result : results) {
             std::cout << std::setw(10) << result.operation_name << std::setw(10)
-                      << result.baseline_time_us << std::setw(10) << result.simd_time_us
-                      << std::setw(12) << result.thread_pool_time_us << std::setw(12)
-                      << result.work_stealing_time_us << std::setw(12)
-                      << result.gpu_accelerated_time_us << std::setw(13) << std::fixed
-                      << std::setprecision(2) << result.simd_speedup << std::setw(12) << std::fixed
-                      << std::setprecision(2) << result.thread_pool_speedup << std::setw(12)
-                      << std::fixed << std::setprecision(2) << result.work_stealing_speedup
+                      << result.baseline_time_us << std::setw(12) << result.vectorized_time_us
+                      << std::setw(12) << result.parallel_time_us << std::setw(12)
+                      << result.work_stealing_time_us << std::setw(14) << std::fixed
+                      << std::setprecision(2) << result.vectorized_speedup << std::setw(12)
+                      << std::fixed << std::setprecision(2) << result.parallel_speedup
                       << std::setw(12) << std::fixed << std::setprecision(2)
-                      << result.gpu_accelerated_speedup << std::endl;
+                      << result.work_stealing_speedup << std::endl;
         }
     }
 
@@ -296,8 +290,8 @@ class BenchmarkFormatter {
 
         if (static_cast<std::size_t>(std::thread::hardware_concurrency()) > 2) {
             for (const auto& result : results) {
-                // Check SIMD performance
-                if (result.simd_speedup > 1.2) {
+                // Check vectorized performance
+                if (result.vectorized_speedup > 1.2) {
                     std::cout << "  ✓ " << result.operation_name << " SIMD shows good speedup"
                               << std::endl;
                 } else {
@@ -305,8 +299,8 @@ class BenchmarkFormatter {
                               << " SIMD speedup lower than expected" << std::endl;
                 }
 
-                // Check thread pool performance
-                if (result.thread_pool_speedup > 1.5) {
+                // Check parallel execution performance
+                if (result.parallel_speedup > 1.5) {
                     std::cout << "  ✓ " << result.operation_name
                               << " thread pool shows good speedup" << std::endl;
                 } else {

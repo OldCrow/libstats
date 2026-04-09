@@ -8,8 +8,7 @@
     #define LIBSTATS_SIMD_IMPLEMENTATION_COMMON_H
 
     // Core lightweight headers - always needed
-    #include "../core/mathematical_constants.h"
-    #include "../core/threshold_constants.h"
+    #include "../core/math_constants.h"  // Mathematical constants used in SIMD computations
 
     // Forward declarations for heavy headers
     #include "cpu_detection_fwd.h"

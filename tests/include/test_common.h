@@ -7,7 +7,10 @@
 #ifndef LIBSTATS_TEST_COMMON_H
     #define LIBSTATS_TEST_COMMON_H
 
-    // Google Test essentials
+// Google Test essentials
+    #include "../../include/core/math_constants.h"
+    #include "../../include/core/statistical_constants.h"
+
     #include <gtest/gtest.h>
 
     // Standard library includes commonly used in tests
@@ -22,9 +25,6 @@
 
     // Core libstats headers needed for testing
     // Use relative paths from tests/include/ to include/
-    #include "../../include/core/mathematical_constants.h"
-    #include "../../include/core/precision_constants.h"
-    #include "../../include/core/threshold_constants.h"
 
     // Forward declarations for heavy headers
     #include "../../include/common/cpu_detection_fwd.h"

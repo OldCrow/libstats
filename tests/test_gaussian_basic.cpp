@@ -218,7 +218,7 @@ int main() {
         BasicTestFormatter::printTestStart(6, "Auto-dispatch Parallel Processing");
         cout << "This test verifies smart auto-dispatch that selects optimal execution strategy"
              << endl;
-        cout << "based on batch size: SCALAR for small batches, SIMD_BATCH/PARALLEL_SIMD for large."
+        cout << "based on batch size: SCALAR for small batches, VECTORIZED/PARALLEL for large."
              << endl;
         cout << "Compares performance and verifies correctness against traditional batch methods."
              << endl;
@@ -355,8 +355,8 @@ int main() {
         double speedup =
             static_cast<double>(large_trad_time) / static_cast<double>(large_auto_time);
         cout << "Speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
-        cout << "Strategy selected: SIMD_BATCH or PARALLEL_SIMD (expected for batch size="
-             << large_size << ")" << endl;
+        cout << "Strategy selected: VECTORIZED or PARALLEL (expected for batch size=" << large_size
+             << ")" << endl;
 
         // Verify results match
         bool large_results_match = true;

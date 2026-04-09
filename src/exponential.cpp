@@ -3,13 +3,10 @@
 #include "../include/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
 #include "../include/core/validation.h"
 // Note: parallel execution included through distribution base inheritance
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "../include/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
-#include "../include/core/threshold_constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1838,7 +1835,7 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
                                                          std::span<double> results,
                                                          detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -1999,7 +1996,7 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
                                                             std::span<double> results,
                                                             detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -2160,7 +2157,7 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
 void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
     std::span<const double> values, std::span<double> results, detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 

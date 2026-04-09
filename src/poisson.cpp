@@ -1,13 +1,13 @@
 #include "../include/distributions/poisson.h"
 
+#include "../include/core/math_constants.h"
+#include "../include/core/statistical_constants.h"
+
 // Core functionality - lightweight headers
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
 #include "../include/core/safety.h"
-#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 
 // Platform headers - use forward declarations where available

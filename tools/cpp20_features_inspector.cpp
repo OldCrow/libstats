@@ -29,8 +29,16 @@
     #endif
 
     #if __has_include(<format>)
-        #include <format>
-        #define HAS_FORMAT 1
+        // std::format requires to_chars with floating-point support, which was added
+        // to macOS in 13.3 (Ventura). On earlier macOS versions, <format> is present
+        // in LLVM 22+ libc++ but unusable for floating-point formatting at runtime.
+        #if defined(__APPLE__) && defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) &&        \
+            __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 130300
+            #define HAS_FORMAT 0
+        #else
+            #include <format>
+            #define HAS_FORMAT 1
+        #endif
     #else
         #define HAS_FORMAT 0
     #endif

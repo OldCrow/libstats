@@ -4,11 +4,8 @@
 #include "../include/core/dispatch_utils.h"
 #include "../include/core/log_space_ops.h"
 #include "../include/core/math_utils.h"
-#include "../include/core/mathematical_constants.h"
-#include "../include/core/precision_constants.h"
 #include "../include/core/safety.h"
 #include "../include/core/statistical_constants.h"
-#include "../include/core/threshold_constants.h"
 #include "../include/core/validation.h"
 
 // Platform headers - use forward declarations where available
@@ -1961,7 +1958,7 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
                                                    std::span<double> results,
                                                    detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -2125,7 +2122,7 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
                                                       std::span<double> results,
                                                       detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 
@@ -2289,7 +2286,7 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
                                                              std::span<double> results,
                                                              detail::Strategy strategy) const {
     // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::GPU_ACCELERATED) {
+    if (strategy == detail::Strategy::WORK_STEALING) {
         strategy = detail::Strategy::WORK_STEALING;
     }
 

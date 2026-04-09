@@ -20,22 +20,16 @@
  * --help/-h          Show this help
  */
 
-// Include all constants headers
-// Include all constants headers
-#include "../include/core/benchmark_constants.h"            // Benchmark parameters
-#include "../include/core/constants.h"                      // Main aggregated constants
-#include "../include/core/essential_constants.h"            // Essential constants
-#include "../include/core/goodness_of_fit_constants.h"      // Goodness-of-fit tests
-#include "../include/core/mathematical_constants.h"         // Mathematical constants
-#include "../include/core/precision_constants.h"            // Precision tolerances
-#include "../include/core/probability_constants.h"          // Probability bounds
-#include "../include/core/robust_constants.h"               // Robust estimation
-#include "../include/core/statistical_constants.h"          // Statistical critical values
-#include "../include/core/statistical_methods_constants.h"  // Bayesian, bootstrap
-#include "../include/core/threshold_constants.h"            // Algorithm thresholds
-#include "../include/platform/platform_constants.h"         // Platform constants
-#include "../include/platform/simd.h"                       // SIMD constants
-#include "include/constants.h"                              // Test constants
+// Constants headers — now consolidated into three semantic groups.
+// Each group header includes its doc comment explaining what belongs there.
+#include "../include/core/constants.h"            // Umbrella header (includes all three above)
+#include "../include/core/essential_constants.h"  // Convenience header (math + statistical)
+#include "../include/core/math_constants.h"  // Mathematical values, precision, numerical limits
+#include "../include/core/performance_constants.h"  // Benchmark iteration counts and timing bounds
+#include "../include/core/statistical_constants.h"  // Critical values, probability bounds, thresholds
+#include "../include/platform/platform_constants.h"  // Platform constants (SIMD widths, etc.)
+#include "../include/platform/simd.h"                // SIMD constants
+#include "include/constants.h"                       // Test constants
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max

@@ -75,14 +75,12 @@ inline std::string strategyToString(stats::detail::Strategy strategy) {
     switch (strategy) {
         case stats::detail::Strategy::SCALAR:
             return "SCALAR";
-        case stats::detail::Strategy::SIMD_BATCH:
-            return "SIMD_BATCH";
-        case stats::detail::Strategy::PARALLEL_SIMD:
-            return "PARALLEL_SIMD";
+        case stats::detail::Strategy::VECTORIZED:
+            return "VECTORIZED";
+        case stats::detail::Strategy::PARALLEL:
+            return "PARALLEL";
         case stats::detail::Strategy::WORK_STEALING:
             return "WORK_STEALING";
-        case stats::detail::Strategy::GPU_ACCELERATED:
-            return "GPU_ACCELERATED";
         default:
             return "UNKNOWN";
     }
@@ -97,14 +95,12 @@ inline std::string strategyToDisplayString(stats::detail::Strategy strategy) {
     switch (strategy) {
         case stats::detail::Strategy::SCALAR:
             return "Scalar";
-        case stats::detail::Strategy::SIMD_BATCH:
-            return "SIMD";
-        case stats::detail::Strategy::PARALLEL_SIMD:
-            return "Parallel+SIMD";
+        case stats::detail::Strategy::VECTORIZED:
+            return "Vectorized";
+        case stats::detail::Strategy::PARALLEL:
+            return "Parallel";
         case stats::detail::Strategy::WORK_STEALING:
             return "Work-Stealing";
-        case stats::detail::Strategy::GPU_ACCELERATED:
-            return "GPU-Accelerated";
         default:
             return "Unknown";
     }

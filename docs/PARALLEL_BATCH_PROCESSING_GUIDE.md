@@ -80,8 +80,8 @@ void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::s
 ```cpp
 enum class Strategy {
     SCALAR,         // Simple loop processing (best for small batches < 8 elements)
-    SIMD_BATCH,     // Vectorized SIMD operations (best for medium batches 8-1000 elements)
-    PARALLEL_SIMD,  // Multi-threaded parallel processing (best for large batches > 1000 elements)
+    VECTORIZED,     // Vectorized SIMD operations (best for medium batches 8-1000 elements)
+    PARALLEL,  // Multi-threaded parallel processing (best for large batches > 1000 elements)
     WORK_STEALING,  // Dynamic load balancing (best for irregular workloads)
     CACHE_AWARE     // Cache-optimized processing (specialized use cases)
 };
@@ -107,7 +107,7 @@ if (result.isOk()) {
     // Fill input with test data
     std::iota(input_values.begin(), input_values.end(), -5.0);
 
-    // Auto-dispatch will select optimal strategy (likely PARALLEL_SIMD for 10k elements)
+    // Auto-dispatch will select optimal strategy (likely PARALLEL for 10k elements)
     gaussian.getProbability(std::span<const double>(input_values),
                            std::span<double>(pdf_results));
 
@@ -151,7 +151,7 @@ gaussian.getProbabilityWithStrategy(std::span<const double>(input),
 
 // Force parallel processing (useful when you know your data characteristics)
 gaussian.getProbabilityWithStrategy(std::span<const double>(input),
-                                   std::span<double>(results), Strategy::PARALLEL_SIMD);
+                                   std::span<double>(results), Strategy::PARALLEL);
 
 // Use work-stealing for irregular workloads
 gaussian.getProbabilityWithStrategy(std::span<const double>(input),
@@ -177,8 +177,8 @@ auto benchmark_strategy = [&](Strategy strategy, const std::string& name) {
 };
 
 benchmark_strategy(Strategy::SCALAR, "Scalar");
-benchmark_strategy(Strategy::SIMD_BATCH, "SIMD");
-benchmark_strategy(Strategy::PARALLEL_SIMD, "Parallel");
+benchmark_strategy(Strategy::VECTORIZED, "SIMD");
+benchmark_strategy(Strategy::PARALLEL, "Parallel");
 benchmark_strategy(Strategy::WORK_STEALING, "Work-Stealing");
 ```
 
@@ -189,10 +189,10 @@ benchmark_strategy(Strategy::WORK_STEALING, "Work-Stealing");
 | Batch Size | Recommended Strategy | Rationale |
 |------------|---------------------|-----------|
 | 1-8 elements | `SCALAR` | Loop overhead dominates, simple iteration is fastest |
-| 8-100 elements | `SIMD_BATCH` | Vectorization provides significant speedup |
-| 100-1000 elements | `SIMD_BATCH` | SIMD still optimal, parallelization overhead too high |
-| 1000-10000 elements | `PARALLEL_SIMD` | Multi-threading becomes beneficial |
-| 10000+ elements | `PARALLEL_SIMD` or `WORK_STEALING` | Full parallelization provides best throughput |
+| 8-100 elements | `VECTORIZED` | Vectorization provides significant speedup |
+| 100-1000 elements | `VECTORIZED` | SIMD still optimal, parallelization overhead too high |
+| 1000-10000 elements | `PARALLEL` | Multi-threading becomes beneficial |
+| 10000+ elements | `PARALLEL` or `WORK_STEALING` | Full parallelization provides best throughput |
 
 ### Expected Performance Gains
 
@@ -271,14 +271,14 @@ for (auto& t : threads) {
 
 - **Strengths**: Extremely fast SIMD processing due to simple integer operations
 - **Cache Behavior**: Excellent cache locality for repeated discrete values
-- **Optimal Strategy**: SIMD_BATCH for most batch sizes
+- **Optimal Strategy**: VECTORIZED for most batch sizes
 
 ```cpp
 PoissonDistribution poisson(3.0);
 std::vector<double> discrete_values = {0, 1, 2, 3, 4, 5, 1, 2, 3, 4}; // Repeated values
 std::vector<double> probabilities(discrete_values.size());
 
-// SIMD_BATCH will be extremely fast due to cache-friendly discrete lookups
+// VECTORIZED will be extremely fast due to cache-friendly discrete lookups
 poisson.getProbability(std::span<const double>(discrete_values),
                        std::span<double>(probabilities));
 ```
@@ -438,7 +438,7 @@ distribution.getProbability(std::span<const double>(values, count),
 // ✅ Or explicit strategy API
 distribution.getProbabilityWithStrategy(std::span<const double>(values, count),
                                        std::span<double>(results, count),
-                                       libstats::performance::Strategy::SIMD_BATCH);
+                                       libstats::performance::Strategy::VECTORIZED);
 ```
 
 ### From Individual Function Calls
@@ -488,8 +488,8 @@ auto test_strategy = [&](libstats::performance::Strategy strategy, const std::st
 
 std::cout << "Auto-dispatch: " << auto_time.count() << " μs" << std::endl;
 test_strategy(libstats::performance::Strategy::SCALAR, "SCALAR");
-test_strategy(libstats::performance::Strategy::SIMD_BATCH, "SIMD_BATCH");
-test_strategy(libstats::performance::Strategy::PARALLEL_SIMD, "PARALLEL_SIMD");
+test_strategy(libstats::performance::Strategy::VECTORIZED, "VECTORIZED");
+test_strategy(libstats::performance::Strategy::PARALLEL, "PARALLEL");
 ```
 
 ### Correctness Verification
@@ -507,11 +507,11 @@ bool verify_strategies(const std::vector<double>& input) {
 
     distribution.getProbabilityWithStrategy(std::span<const double>(input),
                                            std::span<double>(simd_results),
-                                           libstats::performance::Strategy::SIMD_BATCH);
+                                           libstats::performance::Strategy::VECTORIZED);
 
     distribution.getProbabilityWithStrategy(std::span<const double>(input),
                                            std::span<double>(parallel_results),
-                                           libstats::performance::Strategy::PARALLEL_SIMD);
+                                           libstats::performance::Strategy::PARALLEL);
 
     // Check for numerical differences
     for (size_t i = 0; i < input.size(); ++i) {
