@@ -1753,16 +1753,20 @@ if(LIBSTATS_BUILD_TESTS)
     # Timing validation; run serially for accurate measurement
     #
     # benchmark_simd_all is labelled separately as it is never part of the standard correctness
-    # suite.
-    set_tests_properties(
-        test_gaussian_enhanced
-        test_exponential_enhanced
-        test_uniform_enhanced
-        test_poisson_enhanced
-        test_discrete_enhanced
-        test_gamma_enhanced
-        test_performance_dispatcher
-        PROPERTIES LABELS "timing")
+    # suite. GTest-based tests only exist when GTest is available. set_tests_properties is a hard
+    # CMake error on non-existent tests, so guard this block -- unlike DEPENDS which tolerates
+    # missing targets.
+    if(GTEST_FOUND)
+        set_tests_properties(
+            test_gaussian_enhanced
+            test_exponential_enhanced
+            test_uniform_enhanced
+            test_poisson_enhanced
+            test_discrete_enhanced
+            test_gamma_enhanced
+            test_performance_dispatcher
+            PROPERTIES LABELS "timing")
+    endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 
     # Test target for running all tests (organized by dependency hierarchy) This target runs ALL
