@@ -27,6 +27,40 @@ string fix from Phase 1 (`"AVX512"` → `"AVX-512"`) will also be validated on t
 **Note:** Previous Windows testing was on an ASUS ROG Strix GL531. The Asus TUF A16 build environment
 may need to be set up from scratch (Visual Studio 2022, CMake, Git, VS Code with C/C++ + CMake Tools).
 
+### Windows Session Setup (Asus TUF A16)
+
+Before building or running tests in a new PowerShell session on Windows:
+
+```powershell
+# 1. Activate MSVC toolchain (required each session — not persistent in PowerShell)
+$vcvars = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+$envVars = cmd /c "`"$vcvars`" > nul && set"
+foreach ($line in $envVars) {
+    if ($line -match "^([^=]+)=(.*)$") {
+        [System.Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+    }
+}
+
+# 2. Set UTF-8 output (required for Unicode glyphs in tool output)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+# 3. Ensure stats.dll is accessible for dynamic linking tests
+Copy-Item "build\Release\stats.dll" -Destination "build\tests\" -Force
+
+# 4. Run correctness tests
+ctest -C Release -LE "timing|benchmark" --output-on-failure
+```
+
+**One-time setup notes:**
+- Visual Studio 2022 Build Tools (not full VS) is sufficient — `winget install Microsoft.VisualStudio.2022.BuildTools`
+- **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings)
+  SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
+- CMake 4.x installed and compatible with `cmake_minimum_required(VERSION 3.20)`
+- Configure: `cmake .. -G "Visual Studio 17 2022" -A x64`
+- Build: `cmake --build . --config Release --parallel`
+- GTest not installed — GTest-based tests silently skipped (expected, not an error)
+
 ## Session Start: Architecture Detection
 
 At the start of each libstats development session, verify the current machine architecture before making any SIMD-related decisions, reviewing test results, or adjusting thresholds.
