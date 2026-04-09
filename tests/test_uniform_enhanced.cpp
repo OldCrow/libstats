@@ -775,6 +775,20 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
+        // Calculate speedups relative to baseline
+        result.vectorized_speedup = result.baseline_time_us > 0
+                                        ? static_cast<double>(result.baseline_time_us) /
+                                              static_cast<double>(result.vectorized_time_us)
+                                        : 0.0;
+        result.parallel_speedup = result.baseline_time_us > 0
+                                      ? static_cast<double>(result.baseline_time_us) /
+                                            static_cast<double>(result.parallel_time_us)
+                                      : 0.0;
+        result.work_stealing_speedup = result.baseline_time_us > 0
+                                           ? static_cast<double>(result.baseline_time_us) /
+                                                 static_cast<double>(result.work_stealing_time_us)
+                                           : 0.0;
+
         benchmark_results.push_back(result);
 
         // Verify correctness
