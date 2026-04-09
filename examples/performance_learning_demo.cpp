@@ -37,8 +37,6 @@ std::string strategyToString(stats::detail::Strategy strategy) {
             return "PARALLEL";
         case stats::detail::Strategy::WORK_STEALING:
             return "WORK_STEALING";
-        case stats::detail::Strategy::WORK_STEALING:
-            return "WORK_STEALING";
         default:
             return "UNKNOWN";
     }

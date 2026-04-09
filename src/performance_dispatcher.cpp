@@ -104,87 +104,33 @@ PerformanceHistory& PerformanceDispatcher::getPerformanceHistory() noexcept {
 
 Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     size_t batch_size, DistributionType dist_type, const SystemCapabilities& system) const {
-    // Get empirical characteristics for this distribution
-    using namespace detail;
-    const auto& dist_chars = getCharacteristics(dist_type);
+    // Three-level threshold hierarchy. The thresholds in Thresholds have already been
+    // tuned for this machine's SIMD level and measured capabilities by
+    // refineWithCapabilities() at construction time, so the per-call decision is simple:
+    //
+    //   batch < simd_min            → SCALAR      (overhead exceeds benefit)
+    //   simd_min <= batch < parallel → VECTORIZED  (batch pays off, threading doesn\'t yet)
+    //   batch >= parallel            → PARALLEL or WORK_STEALING
+    //
+    // Distribution-specific parallel thresholds account for computational cost:
+    // Gaussian (exp/erf) parallelizes at smaller batch sizes than Uniform (arithmetic only).
 
-    // Extract system capabilities
-    auto simd_efficiency = system.simd_efficiency();
-    auto threading_overhead = system.threading_overhead_ns();
-    auto memory_bandwidth = system.memory_bandwidth_gb_s();
-
-    // Adjust system SIMD efficiency based on distribution characteristics
-    double effective_simd_efficiency = simd_efficiency * dist_chars.vectorization_efficiency;
-
-    // Get distribution-specific threshold
-    auto parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
-    auto simd_threshold = std::max(dist_chars.min_simd_threshold, thresholds_.simd_min);
-
-    // Decision logic based on empirical characteristics and system capabilities
-
-    // For very small batches, use scalar regardless of distribution
-    if (batch_size <= simd_threshold) {
+    if (batch_size < thresholds_.simd_min) {
         return Strategy::SCALAR;
     }
 
-    // Use empirical characteristics to guide strategy selection
-
-    // If effective SIMD efficiency is poor for this distribution, avoid SIMD strategies
-    if (effective_simd_efficiency < detail::WEAK_CORRELATION) {
-        // SIMD performs poorly for this distribution, prefer parallel or scalar
-        if (batch_size >= parallel_threshold &&
-            threading_overhead < (1000000.0 * dist_chars.base_complexity)) {
-            // Complex distributions justify higher threading overhead
-            return (dist_chars.parallelization_efficiency > 0.6) ? Strategy::PARALLEL
-                                                                 : Strategy::SCALAR;
-        }
-        return Strategy::SCALAR;
-    }
-
-    // For medium batches, consider SIMD based on distribution characteristics
+    const size_t parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
     if (batch_size < parallel_threshold) {
-        // Use SIMD if the distribution vectorizes well and system supports it
-        if (effective_simd_efficiency > detail::HALF && dist_chars.vectorization_efficiency > 0.6) {
-            return Strategy::VECTORIZED;
-        }
-        // For distributions with poor vectorization, stick with scalar until parallel threshold
-        return Strategy::SCALAR;
-    }
-
-    // For large batches, select parallel strategy based on distribution complexity
-
-    // High threading overhead limits parallel strategies for simple distributions
-    double acceptable_overhead = 200000.0 * dist_chars.base_complexity;  // Scale by complexity
-    if (threading_overhead > acceptable_overhead && dist_chars.base_complexity < detail::TWO) {
-        // Simple distributions with high threading overhead: prefer SIMD
-        if (effective_simd_efficiency > 0.4) {
-            return Strategy::VECTORIZED;
-        }
-        return Strategy::SCALAR;
-    }
-
-    // Work stealing benefits distributions with variable execution time
-    bool use_work_stealing =
-        (batch_size >= thresholds_.work_stealing_min) && (system.logical_cores() > 2) &&
-        (threading_overhead < acceptable_overhead) &&
-        (dist_chars.branch_prediction_cost > 1.2);  // High branching variability
-
-    if (use_work_stealing) {
-        return Strategy::WORK_STEALING;
-    }
-
-    // Default to parallel SIMD for large batches with good parallel efficiency
-    if (dist_chars.parallelization_efficiency > 0.6) {
-        return Strategy::PARALLEL;
-    }
-
-    // Fall back to SIMD for distributions with poor parallelization but good vectorization
-    if (effective_simd_efficiency > 0.4) {
         return Strategy::VECTORIZED;
     }
 
-    // Last resort: scalar
-    return Strategy::SCALAR;
+    // Work-stealing is preferred for large batches on multi-core systems: it handles
+    // variable-cost work more efficiently than a fixed partition.
+    if (batch_size >= thresholds_.work_stealing_min && system.logical_cores() > 2) {
+        return Strategy::WORK_STEALING;
+    }
+
+    return Strategy::PARALLEL;
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSIMDLevel(

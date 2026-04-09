@@ -13,9 +13,30 @@ namespace detail {  // Performance utilities
 /**
  * @brief Utility class for templated auto-dispatch of batch operations across distributions
  *
- * This utility eliminates code duplication in the auto-dispatch methods by providing
- * a common templated implementation that can be specialized for different distributions
- * and operations (getProbability, getLogProbability, getCumulativeProbability).
+ * ## Call Path
+ *
+ * Every batch operation (e.g. gaussian.getProbability(span, span)) flows through three layers:
+ *
+ *   Layer 1 — Validate:
+ *     Distribution API method (e.g. GaussianDistribution::getProbabilityBatch)
+ *     \u2193 checks spans, handles empty, forwards to DispatchUtils::autoDispatch
+ *
+ *   Layer 2 — Select strategy:
+ *     DispatchUtils::autoDispatch
+ *     \u2193 if hint is AUTO: PerformanceDispatcher::selectOptimalStrategy (threshold lookup +
+ *                             optional performance history override)
+ *       if hint is explicit: DispatchUtils::mapHintToStrategy
+ *     \u2193 DispatchUtils::executeStrategy (switches on Strategy enum)
+ *
+ *   Layer 3 — Execute:
+ *     Strategy::SCALAR       \u2192 element-by-element scalar_func loop
+ *     Strategy::VECTORIZED   \u2192 batch_func \u2192 *BatchUnsafeImpl \u2192 VectorOps (SIMD or
+ * scalar) Strategy::PARALLEL     \u2192 parallel_func \u2192 ParallelUtils::parallelFor
+ *     Strategy::WORK_STEALING \u2192 work_stealing_func \u2192 WorkStealingPool::parallelFor
+ *
+ * The GpuAcceleratedFunc template parameter and gpu_accelerated_func argument are
+ * retained for ABI compatibility and will be removed in Phase 6 when all distribution
+ * batch implementations are updated.
  */
 class DispatchUtils {
    public:
@@ -212,12 +233,10 @@ class DispatchUtils {
                 work_stealing_func(dist, values, results, default_pool);
                 break;
             }
-
-                // Note: GPU_ACCELERATED was removed from the Strategy enum.
-                // GpuAcceleratedFunc / gpu_accelerated_func are kept for ABI compatibility
-                // until Phase 6 removes them from all call sites.
-                [[maybe_unused]] auto& _gpu = gpu_accelerated_func;
         }
+        // gpu_accelerated_func is intentionally unused — GPU_ACCELERATED was removed
+        // from the Strategy enum. Retained for ABI compatibility until Phase 6.
+        (void)gpu_accelerated_func;
     }
 
     /**
