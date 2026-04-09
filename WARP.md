@@ -6,9 +6,26 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-libstats is a high-performance C++20 statistical distributions library with enterprise-grade safety features, SIMD optimization, and zero external dependencies. The project is currently in Phase 5 (optimization and cross-platform tuning) after successfully delivering all core functionality.
+libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Core delivery complete ✅ - Focus on optimization, cross-platform compatibility, and performance tuning.
+**Current Status**: Phases 1–3 complete and merged to main ✅
+Phase 4 (Cross-Platform Validation) is next.
+
+### Development Ecosystem
+
+| Machine | OS | CPU | SIMD | Notes |
+|---|---|---|---|---|
+| MacBook Pro 9,1 (2012) | macOS Catalina | Intel Ivy Bridge i7-3820QM | SSE2 + AVX | Primary dev machine |
+| MacBook Pro 14,1 (2017) | macOS Ventura | Intel Kaby Lake | SSE2 + AVX + AVX2 + FMA | AVX2/FMA validation |
+| Mac Mini M1 | macOS Tahoe | Apple Silicon M1 | NEON only | ARM/NEON path validation |
+| Asus TUF A16 (2025) | Windows 11 Pro | AMD Ryzen 7 7445 (Zen 4) | SSE2 + AVX + AVX2 + **AVX-512** | Windows/MSVC + first AVX-512 machine |
+
+**Note:** The Asus TUF A16 (Ryzen 7 7445, Zen 4) is the first machine in this ecosystem with AVX-512 support.
+This means `simd_avx512.cpp` will be exercised for the first time there. The `test_simd_policy` AVX-512
+string fix from Phase 1 (`"AVX512"` → `"AVX-512"`) will also be validated on this machine.
+
+**Note:** Previous Windows testing was on an ASUS ROG Strix GL531. The Asus TUF A16 build environment
+may need to be set up from scratch (Visual Studio 2022, CMake, Git, VS Code with C/C++ + CMake Tools).
 
 ## Session Start: Architecture Detection
 
@@ -32,10 +49,11 @@ The active SIMD level changes fundamentally between machines:
 
 | Architecture | SIMD Available | Active simd_*.cpp files |
 |---|---|---|
-| Intel Mac (most) | SSE2, AVX (no AVX2) | `simd_sse2.cpp`, `simd_avx.cpp` |
-| Intel Mac (Haswell+) | SSE2, AVX, AVX2 | + `simd_avx2.cpp` |
-| Apple Silicon (ARM64) | NEON only | `simd_neon.cpp` |
-| Linux x86 (typical) | SSE2, AVX, AVX2 | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
+| Intel Mac Ivy Bridge (2012) | SSE2, AVX | `simd_sse2.cpp`, `simd_avx.cpp` |
+| Intel Mac Kaby Lake (2017) | SSE2, AVX, AVX2, FMA | + `simd_avx2.cpp` |
+| Apple Silicon M1 | NEON only | `simd_neon.cpp` |
+| AMD Ryzen Zen 4 (A16/Windows) | SSE2, AVX, AVX2, **AVX-512** | + `simd_avx512.cpp` |
+| Linux x86 CI | SSE2, AVX, AVX2 | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
 
 SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
 - Note the change explicitly
