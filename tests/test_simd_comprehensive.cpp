@@ -553,7 +553,7 @@ void test_advanced_simd([[maybe_unused]] const TestOptions& opts) {
 
         cout << "   - Float precision operations: " << (correct ? "✓ PASSED" : "✗ FAILED") << endl;
 
-    } catch (const exception& e) {
+    } catch (const exception&) {  // e unreferenced — suppress C4101
         cout << "   - Float precision operations: ⚠ NOT IMPLEMENTED" << endl;
     }
 

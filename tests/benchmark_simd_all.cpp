@@ -37,7 +37,8 @@ double benchmark(Func f, int iterations) {
         f();
     }
     auto end = std::chrono::high_resolution_clock::now();
-    return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    // C4244: explicit cast — count() is int64_t, return type is double
+    return static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 }
 
 class SIMDBenchmark {

@@ -553,7 +553,7 @@ void test_stress(const TestConfig& config) {
             vector<thread> threads;
             for (size_t t = 0; t < config.thread_count; ++t) {
                 threads.emplace_back([&, t]() {
-                    mt19937 rng(42 + t);
+                    mt19937 rng(static_cast<uint32_t>(42 + t));  // C4267: explicit size_t→uint32_t
                     uniform_real_distribution<> mean_dist(-100, 100);
                     uniform_real_distribution<> std_dist(0.1, 10);
 
