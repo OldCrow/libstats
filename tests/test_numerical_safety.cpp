@@ -477,7 +477,7 @@ void test_benchmarks(const TestConfig& config) {
         cout << "  Scalar: " << scalar_time.count() << " μs" << endl;
         cout << "  Vector: " << vector_time.count() << " μs" << endl;
         cout << "  Speedup: " << fixed << setprecision(2)
-             << (double)scalar_time.count() / vector_time.count() << "x" << endl;
+             << static_cast<double>(scalar_time.count()) / static_cast<double>(vector_time.count()) << "x" << endl;
     }
 
     // Benchmark logSumExpArray
@@ -509,7 +509,7 @@ void test_benchmarks(const TestConfig& config) {
         cout << "  Array method: " << array_time.count() << " μs" << endl;
         cout << "  Pairwise method: " << pairwise_time.count() << " μs" << endl;
         cout << "  Speedup: " << fixed << setprecision(2)
-             << (double)pairwise_time.count() / array_time.count() << "x" << endl;
+             << static_cast<double>(pairwise_time.count()) / static_cast<double>(array_time.count()) << "x" << endl;
     }
 
     // Benchmark matrix operations
@@ -658,7 +658,7 @@ void test_stress(const TestConfig& config) {
             }
         }
 
-        cout << "  Completed: " << (config.stress_iterations - crashes) << "/"
+        cout << "  Completed: " << (config.stress_iterations - static_cast<size_t>(crashes)) << "/"
              << config.stress_iterations << endl;
         cout << "  Invalid results: " << invalid << endl;
         cout << "  Crashes: " << crashes << endl;

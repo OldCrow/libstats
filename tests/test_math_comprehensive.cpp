@@ -278,7 +278,7 @@ TEST_F(MathUtilsTest, ErfPerformance) {
     end = std::chrono::high_resolution_clock::now();
     auto vector_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-    double speedup = static_cast<double>(scalar_time.count()) / vector_time.count();
+    double speedup = static_cast<double>(scalar_time.count()) / static_cast<double>(vector_time.count());
 
     // We expect at least no significant slowdown
     EXPECT_GT(speedup, 0.5) << "Vectorized should not be significantly slower than scalar";
@@ -307,7 +307,7 @@ TEST_F(MathUtilsTest, GammaPerformance) {
     end = std::chrono::high_resolution_clock::now();
     auto vector_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-    double speedup = static_cast<double>(scalar_time.count()) / vector_time.count();
+    double speedup = static_cast<double>(scalar_time.count()) / static_cast<double>(vector_time.count());
 
     // We expect at least no significant slowdown
     EXPECT_GT(speedup, 0.5) << "Vectorized should not be significantly slower than scalar";
