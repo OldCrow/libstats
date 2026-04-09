@@ -197,7 +197,7 @@ void demonstrate_adaptive_learning() {
     std::cout << "\nTraining the adaptive performance learning system with Gaussian N(0,1) "
                  "distribution.\n"
               << "This simulates real-world usage by:\n"
-              << "  - Testing 3 strategies: SCALAR, VECTORIZED, PARALLEL_SIMD\n"
+              << "  - Testing 3 strategies: SCALAR, VECTORIZED, PARALLEL\n"
               << "  - Recording performance data for 4 batch sizes: 1000, 5000, 10000, 50000\n"
               << "  - Running 6 iterations to build reliable statistics (18 samples per size)\n"
               << "  - Using random input data from Uniform(-3.0, 3.0) distribution\n"

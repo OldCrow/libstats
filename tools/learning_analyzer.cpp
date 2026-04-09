@@ -65,13 +65,11 @@ constexpr int SAMPLES_PER_STRATEGY = 6;
 constexpr int SIMD_SPEEDUP_FACTOR = 3;
 constexpr int PARALLEL_SPEEDUP_FACTOR = 6;
 constexpr int WORK_STEALING_SPEEDUP_FACTOR = 8;
-constexpr int GPU_ACCELERATED_SPEEDUP_FACTOR = 12;
 
 // Strategy threshold sizes
-constexpr size_t MIN_SIMD_BATCH_SIZE = 32;
+constexpr size_t MIN_VECTORIZED_BATCH_SIZE = 32;
 constexpr size_t MIN_PARALLEL_BATCH_SIZE = 1000;
 constexpr size_t MIN_WORK_STEALING_BATCH_SIZE = 10000;
-constexpr size_t MIN_GPU_ACCELERATED_BATCH_SIZE = 50000;
 
 // Distribution parameters
 namespace distribution_params {
@@ -394,7 +392,7 @@ class LearningAnalyzer {
                 auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 
                 // Simulate SIMD performance for larger batches
-                if (batch_size >= MIN_SIMD_BATCH_SIZE) {
+                if (batch_size >= MIN_VECTORIZED_BATCH_SIZE) {
                     auto simd_duration = duration / SIMD_SPEEDUP_FACTOR;
                     PerformanceDispatcher::recordPerformance(
                         Strategy::VECTORIZED, dist_type, batch_size,
@@ -448,20 +446,6 @@ class LearningAnalyzer {
                           << (static_cast<std::uint64_t>(work_stealing_duration.count()) /
                               batch_size)
                           << "ns/op)" << std::endl;
-
-                if (batch_size >= MIN_GPU_ACCELERATED_BATCH_SIZE) {
-                    // Simulate gpu-accelerated
-                    auto gpu_accelerated_duration = base_duration / GPU_ACCELERATED_SPEEDUP_FACTOR;
-                    PerformanceDispatcher::recordPerformance(
-                        Strategy::WORK_STEALING, dist_type, batch_size,
-                        static_cast<std::uint64_t>(gpu_accelerated_duration.count()));
-                    std::cout << "  Mixed (gpu-accelerated): "
-                              << stats::detail::detail::formatDuration(gpu_accelerated_duration)
-                              << " ("
-                              << (static_cast<std::uint64_t>(gpu_accelerated_duration.count()) /
-                                  batch_size)
-                              << "ns/op)" << std::endl;
-                }
             }
         }
     }
@@ -732,7 +716,7 @@ class LearningAnalyzer {
             }
 
             // Test SIMD strategy for appropriate batch sizes
-            if (batch_size >= MIN_SIMD_BATCH_SIZE) {
+            if (batch_size >= MIN_VECTORIZED_BATCH_SIZE) {
                 auto start = std::chrono::high_resolution_clock::now();
                 std::vector<double> results(batch_size);
                 for (size_t i = 0; i < batch_size; ++i) {
@@ -783,25 +767,6 @@ class LearningAnalyzer {
                 PerformanceDispatcher::recordPerformance(
                     Strategy::WORK_STEALING, dist_type, batch_size,
                     static_cast<std::uint64_t>(work_stealing_duration.count()));
-            }
-
-            // Test gpu-accelerated for extremely large batch sizes
-            if (batch_size >= MIN_GPU_ACCELERATED_BATCH_SIZE) {
-                auto start = std::chrono::high_resolution_clock::now();
-                std::vector<double> results(batch_size);
-                // More complex operation for gpu-accelerated testing
-                for (size_t i = 0; i < batch_size; ++i) {
-                    results[i] =
-                        dist.getProbability(values[i]) + dist.getCumulativeProbability(values[i]);
-                }
-                auto end = std::chrono::high_resolution_clock::now();
-                auto base_duration =
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-
-                auto gpu_accelerated_duration = base_duration / GPU_ACCELERATED_SPEEDUP_FACTOR;
-                PerformanceDispatcher::recordPerformance(
-                    Strategy::WORK_STEALING, dist_type, batch_size,
-                    static_cast<std::uint64_t>(gpu_accelerated_duration.count()));
             }
         }
     }
@@ -877,8 +842,7 @@ class LearningAnalyzer {
                       << " Performance:" << std::endl;
 
             std::vector<Strategy> strategies = {Strategy::SCALAR, Strategy::VECTORIZED,
-                                                Strategy::PARALLEL, Strategy::WORK_STEALING,
-                                                Strategy::WORK_STEALING};
+                                                Strategy::PARALLEL, Strategy::WORK_STEALING};
 
             for (auto strategy : strategies) {
                 auto stats = history.getPerformanceStats(strategy, dist_type);

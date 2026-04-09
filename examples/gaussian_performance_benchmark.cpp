@@ -383,7 +383,6 @@ int main() {
     double batch_pdf_100k_scalar = 0.0;
     double batch_pdf_100k_parallel = 0.0;
     double box_muller_sampling_ops_per_sec = 0.0;
-    double gpu_accelerated_ops_per_sec = 0.0;
     double work_stealing_ops_per_sec = 0.0;
     double fitting_small_ops_per_sec = 0.0;
     double fitting_large_ops_per_sec = 0.0;
@@ -413,8 +412,6 @@ int main() {
             batch_pdf_100k_parallel = result.stats.throughput;
         } else if (result.name == "Box-Muller Sampling") {
             box_muller_sampling_ops_per_sec = result.stats.throughput;
-        } else if (result.name == "GPU-Accelerated Batch PDF") {
-            gpu_accelerated_ops_per_sec = result.stats.throughput;
         } else if (result.name == "Work-Stealing Batch PDF") {
             work_stealing_ops_per_sec = result.stats.throughput;
         } else if (result.name == "Parameter Fitting Small Dataset") {
@@ -472,8 +469,6 @@ int main() {
     std::cout << "├─ Scalar PDF:          " << std::scientific << batch_pdf_100k_scalar
               << " elements/sec" << std::endl;
     std::cout << "├─ Parallel PDF:        " << std::scientific << batch_pdf_100k_parallel
-              << " elements/sec" << std::endl;
-    std::cout << "├─ GPU-Accelerated PDF: " << std::scientific << gpu_accelerated_ops_per_sec
               << " elements/sec" << std::endl;
     std::cout << "└─ Work-Stealing PDF:   " << std::scientific << work_stealing_ops_per_sec
               << " elements/sec" << std::endl;

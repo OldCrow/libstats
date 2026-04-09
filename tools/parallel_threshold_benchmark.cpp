@@ -83,7 +83,7 @@ struct ToolBenchmarkResult {
     std::string operation_type;
     double serial_time_us;
     double parallel_time_us;
-    double simd_time_us;
+    double vectorized_time_us;
     double parallel_speedup;
     double simd_speedup;
     bool parallel_beneficial;
@@ -372,7 +372,7 @@ class ParallelThresholdBenchmark {
             performOperation(dist, input_span, output_span, operation, "simd");
         }
         auto serial_end = high_resolution_clock::now();
-        result.simd_time_us =
+        result.vectorized_time_us =
             static_cast<double>(duration_cast<microseconds>(serial_end - serial_start).count()) /
             static_cast<double>(TIMING_ITERATIONS);
 
@@ -399,8 +399,8 @@ class ParallelThresholdBenchmark {
             static_cast<double>(TIMING_ITERATIONS);
 
         // Calculate speedups
-        result.parallel_speedup = result.simd_time_us / result.parallel_time_us;
-        result.simd_speedup = result.serial_time_us / result.simd_time_us;
+        result.parallel_speedup = result.vectorized_time_us / result.parallel_time_us;
+        result.simd_speedup = result.serial_time_us / result.vectorized_time_us;
         result.parallel_beneficial = result.parallel_speedup > 1.0;
 
         return result;
@@ -474,7 +474,7 @@ class ParallelThresholdBenchmark {
                 std::cout << std::left << std::setw(20) << key << std::setw(10) << result->data_size
                           << std::setw(12) << std::fixed << std::setprecision(1)
                           << result->serial_time_us << std::setw(12) << std::fixed
-                          << std::setprecision(1) << result->simd_time_us << std::setw(12)
+                          << std::setprecision(1) << result->vectorized_time_us << std::setw(12)
                           << std::fixed << std::setprecision(1) << result->parallel_time_us
                           << std::setw(12) << std::fixed << std::setprecision(2)
                           << result->simd_speedup << std::setw(12) << std::fixed
@@ -520,7 +520,7 @@ class ParallelThresholdBenchmark {
         for (const auto& result : results_) {
             csv_file << result.distribution_type << "," << result.operation_type << ","
                      << result.data_size << "," << result.serial_time_us << ","
-                     << result.simd_time_us << "," << result.parallel_time_us << ","
+                     << result.vectorized_time_us << "," << result.parallel_time_us << ","
                      << result.simd_speedup << "," << result.parallel_speedup << ","
                      << (result.parallel_beneficial ? "true" : "false") << "\n";
         }
