@@ -2861,47 +2861,30 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
 // This section maintained for template compliance
 
 //==============================================================================
-// 18. PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
+// 18. PRIVATE BATCH IMPLEMENTATIONS
 //
-// CRITICAL SAFETY DOCUMENTATION FOR LOW-LEVEL SIMD OPERATIONS:
+// These three methods are the computational core of Gaussian batch operations.
+// They are called only after the public API validates inputs and extracts
+// cached parameters under a read lock. They accept raw pointers to avoid
+// the overhead of span bounds checking in the inner loop.
 //
-// These private implementation methods contain the actual "unsafe" raw pointer
-// operations that enable high-performance SIMD vectorization. They are called only
-// by the safe public wrapper methods above after proper validation.
+// Architecture:
+//   SIMDPolicy::shouldUseSIMD(count) decides at runtime whether SIMD is
+//   beneficial. Below the threshold (~8 elements on this machine), the scalar
+//   path avoids SIMD dispatch overhead. Above it, VectorOps calls route
+//   through simd_dispatch.cpp to the appropriate instruction set (AVX on this
+//   Intel Ivy Bridge, NEON on Apple Silicon, SSE2 as fallback).
 //
-// ⚠️  DANGER ZONE - RAW POINTER OPERATIONS ⚠️
+// In-place operations:
+//   All three methods use `results` as a workspace to avoid heap allocations.
+//   VectorOps operations are safe for in-place use (input read before write).
 //
-// WHY THESE METHODS USE RAW POINTERS:
-// 1. SIMD vectorization requires direct memory access with specific alignment
-// 2. std::vector::data() returns raw pointers for optimal SIMD performance
-// 3. SIMD intrinsics (AVX, SSE) operate on contiguous memory blocks
-// 4. Zero abstraction penalty: direct hardware instruction mapping
-//
-// SAFETY PRECAUTIONS ENFORCED:
-// 1. ✅ These methods are private - only callable from validated public interfaces
-// 2. ✅ All callers perform bounds checking before invoking these methods
-// 3. ✅ Memory alignment is handled by arch::simd::aligned_allocator
-// 4. ✅ CPU feature detection prevents crashes on unsupported hardware
-// 5. ✅ Scalar fallback path for small arrays or SIMD-unsupported systems
-//
-// SIMD OPERATION SAFETY GUARANTEES:
-// - arch::simd::VectorOps methods internally validate pointer alignment
-// - Vector operations are bounds-checked at the SIMD library level
-// - Aligned memory allocation ensures optimal cache performance
-// - Runtime CPU detection prevents using unsupported instructions
-//
-// ⚠️  DO NOT CALL THESE METHODS DIRECTLY ⚠️
-// Always use the safe public interfaces like:
-// - getProbabilityBatch() for thread-safe validation
-// - getProbabilityBatchParallel() for C++20 std::span safety
-// - getProbabilityBatchCacheAware() for additional safety checks
-//
-// FOR MAINTENANCE DEVELOPERS:
-// When modifying these methods:
-// 1. Ensure all array accesses use validated indices
-// 2. Test both SIMD and scalar code paths
-// 3. Verify alignment requirements are met
-// 4. Update unit tests for both performance and correctness
+// Adding a new distribution:
+//   Use these three methods as the template. The pattern is:
+//     scalar_add / scalar_multiply for mean/variance normalization
+//     vector_multiply for squaring
+//     vector_exp or vector_erf for transcendentals
+//   Keep the scalar fallback path consistent with the SIMD path.
 //==============================================================================
 
 void GaussianDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -3037,20 +3020,13 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
         arch::simd::VectorOps::scalar_multiply(results, reciprocal_sigma_sqrt2, results, count);
     }
 
-    // Note: We need to use a temporary for erf since arch::simd::VectorOps::vector_erf
-    // may not support in-place operation. This is unavoidable for the erf function.
-    // However, we minimize allocations by reusing the results array for intermediate steps.
+    // vector_erf is in-place safe: AVX loads each chunk before storing it,
+    // and the SSE2/scalar fallback uses std::erf element-by-element.
+    // No temporary allocation needed.
+    arch::simd::VectorOps::vector_erf(results, results, count);
 
-    // For systems where vector_erf supports in-place operations, this could be:
-    // arch::simd::VectorOps::vector_erf(results, results, count);
-    // But for safety, we allocate only one temporary array:
-    std::vector<double, arch::simd::aligned_allocator<double>> erf_values(count);
-    arch::simd::VectorOps::vector_erf(results, erf_values.data(), count);
-
-    // Final computation: results = 0.5 * (1 + erf_values)
-    // Step 1: results = 1 + erf_values
-    arch::simd::VectorOps::scalar_add(erf_values.data(), detail::ONE, results, count);
-    // Step 2: results = 0.5 * (1 + erf_values)
+    // Final: results = 0.5 * (1 + erf(normalized))
+    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
     arch::simd::VectorOps::scalar_multiply(results, detail::HALF, results, count);
 }
 
