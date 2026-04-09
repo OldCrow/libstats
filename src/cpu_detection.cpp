@@ -194,6 +194,57 @@ void detect_cache_info(Features& features) {
         }
     }
 
+    // AMD CPUs (Zen and later) do not populate CPUID leaf 4; they use the extended
+    // leaf 0x8000001D ("Cache Topology Information") which has the same bit layout.
+    // If leaf 4 returned nothing and the vendor is AuthenticAMD, try 0x8000001D.
+    bool caches_detected = (features.l1_cache_size > 0 ||
+                            features.l2_cache_size > 0 ||
+                            features.l3_cache_size > 0);
+    if (!caches_detected && features.vendor == "AuthenticAMD") {
+        safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
+        if (eax >= 0x8000001D) {
+            for (uint32_t i = 0; i < 32; ++i) {
+                safe_cpuid(0x8000001D, i, eax, ebx, ecx, edx);
+                uint32_t cache_type = eax & 0x1F;
+                if (cache_type == 0) break;  // No more cache levels
+
+                uint32_t cache_level = (eax >> 5) & 0x7;
+                uint32_t line_size = (ebx & 0xFFF) + detail::ONE_INT;
+                uint32_t partitions = ((ebx >> 12) & 0x3FF) + detail::ONE_INT;
+                uint32_t associativity = ((ebx >> 22) & 0x3FF) + detail::ONE_INT;
+                uint32_t sets = ecx + detail::ONE_INT;
+                uint32_t cache_size = line_size * partitions * associativity * sets;
+
+                if (cache_level == 1) {
+                    if (cache_type == 1) {  // L1 Data
+                        features.l1_data_cache.size = cache_size;
+                        features.l1_data_cache.line_size = line_size;
+                        features.l1_data_cache.associativity = associativity;
+                        features.l1_data_cache.sets = sets;
+                        features.l1_cache_size = cache_size;
+                    } else if (cache_type == 2) {  // L1 Instruction
+                        features.l1_instruction_cache.size = cache_size;
+                        features.l1_instruction_cache.line_size = line_size;
+                    }
+                } else if (cache_level == 2) {
+                    features.l2_cache.size = cache_size;
+                    features.l2_cache.line_size = line_size;
+                    features.l2_cache.associativity = associativity;
+                    features.l2_cache.sets = sets;
+                    features.l2_cache.is_unified = (cache_type == 3);
+                    features.l2_cache_size = cache_size;
+                } else if (cache_level == 3) {
+                    features.l3_cache.size = cache_size;
+                    features.l3_cache.line_size = line_size;
+                    features.l3_cache.associativity = associativity;
+                    features.l3_cache.sets = sets;
+                    features.l3_cache.is_unified = (cache_type == 3);
+                    features.l3_cache_size = cache_size;
+                }
+            }
+        }
+    }
+
     // Set default cache line size if not detected
     if (features.l1_data_cache.line_size == 0) {
         features.cache_line_size = arch::simd::CPU_DEFAULT_CACHE_LINE_SIZE;  // Common default
