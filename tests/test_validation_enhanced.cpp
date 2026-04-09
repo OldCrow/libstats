@@ -98,7 +98,7 @@ vector<double> generate_test_data(size_t size, double mean = 0.0, double std_dev
     return data;
 }
 
-void test_goodness_of_fit(const TestConfig& config, TestStats& stats) {
+void test_goodness_of_fit(const TestConfig& config, [[maybe_unused]] TestStats& stats) {
     cout << "\n=== Testing Goodness-of-Fit Tests ===" << endl;
 
     // Generate test data
@@ -227,7 +227,7 @@ void test_pvalue_accuracy() {
     std::cout << "\nTesting completed successfully!" << std::endl;
 }
 
-void test_bootstrap_methods(const TestConfig& config, TestStats& stats) {
+void test_bootstrap_methods(const TestConfig& config, [[maybe_unused]] TestStats& stats) {
     cout << "\n=== Testing Bootstrap Methods ===" << endl;
 
     // Generate test data

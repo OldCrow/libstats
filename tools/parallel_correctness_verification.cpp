@@ -295,7 +295,7 @@ class ParallelCorrectnessVerifier {
         const std::string& dist_name, const std::string& system_name,
         std::function<std::vector<double>(const std::vector<double>&, const std::string&)>
             compute_func) {
-        for (const std::string& operation : {"PDF", "LogPDF", "CDF"}) {
+        for (const char* operation : {"PDF", "LogPDF", "CDF"}) {
             TestResult result;
             result.distribution = dist_name;
             result.operation = operation;

@@ -125,38 +125,38 @@ class ThreadPoolTest {
                 << "  Warning: physicalCores could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(physicalCores >= 0);
+        // physicalCores is size_t (unsigned): zero means undetectable (CI/VM), not invalid
 
         if (logicalCores == 0) {
             std::cerr
                 << "  Warning: logicalCores could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(logicalCores >= 0);
+        // logicalCores is size_t (unsigned): zero means undetectable (CI/VM), not invalid
 
         if (l1CacheSize == 0) {
             std::cerr
                 << "  Warning: L1 cache size could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(l1CacheSize >= 0);
+        // l1CacheSize is size_t (unsigned): zero means undetectable, not invalid
 
         if (l2CacheSize == 0) {
             std::cerr
                 << "  Warning: L2 cache size could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(l2CacheSize >= 0);
+        // l2CacheSize is size_t (unsigned): zero means undetectable, not invalid
 
         // L3 cache might not exist or be detected on all platforms
-        assert(l3CacheSize >= 0);
+        // l3CacheSize is size_t (unsigned): always >= 0 by type
 
         if (cacheLineSize == 0) {
             std::cerr
                 << "  Warning: Cache line size could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(cacheLineSize >= 0);
+        // cacheLineSize is size_t (unsigned): zero means undetectable, not invalid
 
         // Optimal threads should always be at least 1
         assert(optimalThreads > 0);

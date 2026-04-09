@@ -401,7 +401,7 @@ void test_performance_benchmarks(const TestOptions& opts) {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum = 0.0;
     for (size_t i = 0; i < test_size; ++i) {
-        sum += data[i];
+        sum = sum + data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto sequential_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -412,7 +412,7 @@ void test_performance_benchmarks(const TestOptions& opts) {
     sum = 0.0;
     const size_t stride = arch::get_features().cache_line_size / sizeof(double);
     for (size_t i = 0; i < test_size; i += stride) {
-        sum += data[i];
+        sum = sum + data[i];
     }
     end = chrono::high_resolution_clock::now();
     auto strided_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -645,7 +645,7 @@ void output_json_summary([[maybe_unused]] const TestOptions& opts) {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum = 0.0;
     for (size_t i = 0; i < bench_size; ++i) {
-        sum += bench_data[i];
+        sum = sum + bench_data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto seq_time = chrono::duration_cast<chrono::microseconds>(end - start);

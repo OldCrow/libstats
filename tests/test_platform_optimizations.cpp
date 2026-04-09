@@ -361,7 +361,7 @@ void test_cache_aware_algorithms() {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum1 = 0.0;
     for (size_t i = 0; i < test_size; ++i) {
-        sum1 += cache_test_data[i];
+        sum1 = sum1 + cache_test_data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto sequential_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -371,7 +371,7 @@ void test_cache_aware_algorithms() {
     volatile double sum2 = 0.0;
     const size_t stride = features.cache_line_size / sizeof(double);
     for (size_t i = 0; i < test_size; i += stride) {
-        sum2 += cache_test_data[i];
+        sum2 = sum2 + cache_test_data[i];
     }
     end = chrono::high_resolution_clock::now();
     auto strided_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -482,7 +482,7 @@ void test_numa_aware_processing() {
             workers.emplace_back([&numa_test_data, start_idx, end_idx]() {
                 volatile double local_sum = 0.0;
                 for (size_t i = start_idx; i < end_idx; ++i) {
-                    local_sum += numa_test_data[i] * 1.1;
+                    local_sum = local_sum + numa_test_data[i] * 1.1;
                 }
             });
         }
@@ -758,7 +758,7 @@ void benchmark_memory_bandwidth() {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum = 0.0;
     for (size_t i = 0; i < bandwidth_size; ++i) {
-        sum += bandwidth_data[i];
+        sum = sum + bandwidth_data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto read_time = chrono::duration_cast<chrono::microseconds>(end - start);

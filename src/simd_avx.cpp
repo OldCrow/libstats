@@ -19,6 +19,7 @@
 #include "../include/common/simd_implementation_common.h"
 
 #include <cmath>
+#include <limits>       // std::numeric_limits
 #include <immintrin.h>  // AVX intrinsics
 
 namespace stats {
@@ -304,7 +305,8 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
 
     // Special value handling
     const __m256d zero = _mm256_setzero_pd();
-    const __m256d neg_inf = _mm256_set1_pd(-INFINITY);
+    const __m256d neg_inf = _mm256_set1_pd(-std::numeric_limits<double>::infinity());
+    const __m256d pos_inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
 
     constexpr std::size_t AVX_DOUBLE_WIDTH = arch::simd::AVX_DOUBLES;
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
@@ -312,10 +314,10 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
     for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
         __m256d x = _mm256_loadu_pd(&input[i]);
 
-        // Handle special cases: log(0) = -inf, log(negative) = nan
+        // Handle special cases: log(0) = -inf, log(+inf) = +inf, log(negative) = nan
         __m256d is_zero = _mm256_cmp_pd(x, zero, _CMP_EQ_OQ);
         __m256d is_negative = _mm256_cmp_pd(x, zero, _CMP_LT_OQ);
-        __m256d is_inf = _mm256_cmp_pd(x, _mm256_set1_pd(INFINITY), _CMP_EQ_OQ);
+        __m256d is_inf = _mm256_cmp_pd(x, pos_inf, _CMP_EQ_OQ);
 
         // SLEEF-inspired pure SIMD approach for exponent/mantissa extraction
         // Handle denormals by scaling
@@ -353,11 +355,11 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
         // Since we have 64-bit values in exp_low/exp_high, we need different conversion
         alignas(16) int64_t exp_low_arr[2];
         alignas(16) int64_t exp_high_arr[2];
-        _mm_store_si128((__m128i*)exp_low_arr, exp_low);
-        _mm_store_si128((__m128i*)exp_high_arr, exp_high);
+        _mm_store_si128(reinterpret_cast<__m128i*>(exp_low_arr), exp_low);
+        _mm_store_si128(reinterpret_cast<__m128i*>(exp_high_arr), exp_high);
 
-        __m128d exp_low_d = _mm_set_pd((double)exp_low_arr[1], (double)exp_low_arr[0]);
-        __m128d exp_high_d = _mm_set_pd((double)exp_high_arr[1], (double)exp_high_arr[0]);
+        __m128d exp_low_d = _mm_set_pd(static_cast<double>(exp_low_arr[1]), static_cast<double>(exp_low_arr[0]));
+        __m128d exp_high_d = _mm_set_pd(static_cast<double>(exp_high_arr[1]), static_cast<double>(exp_high_arr[0]));
         __m256d e = _mm256_set_m128d(exp_high_d, exp_low_d);
 
         // Adjust exponent for denormals
@@ -411,9 +413,10 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
         result = _mm256_add_pd(result, _mm256_mul_pd(e, ln2_lo));
         result = _mm256_add_pd(result, log_m);
 
-        // Handle special cases
+        // Handle special cases: log(0) = -inf, log(+inf) = +inf, log(negative) = nan
         result = _mm256_blendv_pd(result, neg_inf, is_zero);
-        result = _mm256_blendv_pd(result, _mm256_set1_pd(NAN), is_negative);
+        result = _mm256_blendv_pd(result, pos_inf, is_inf);
+        result = _mm256_blendv_pd(result, _mm256_set1_pd(std::numeric_limits<double>::quiet_NaN()), is_negative);
 
         _mm256_storeu_pd(&output[i], result);
     }
@@ -460,7 +463,7 @@ void VectorOps::vector_pow_avx(const double* base, double exponent, double* outp
         // pow(0, y) = 0 for y > 0, 1 for y = 0, inf for y < 0
         __m256d zero = _mm256_setzero_pd();
         __m256d one = _mm256_set1_pd(1.0);
-        __m256d inf = _mm256_set1_pd(INFINITY);
+        __m256d inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
 
         __m256d base_is_zero = _mm256_cmp_pd(base_val, zero, _CMP_EQ_OQ);
         __m256d exp_is_zero = _mm256_cmp_pd(exp_val, zero, _CMP_EQ_OQ);
@@ -508,7 +511,7 @@ void VectorOps::vector_pow_elementwise_avx(const double* base, const double* exp
 
     const __m256d zero = _mm256_setzero_pd();
     const __m256d one = _mm256_set1_pd(1.0);
-    const __m256d inf = _mm256_set1_pd(INFINITY);
+    const __m256d inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
 
     // For pow(x, y) = exp(y * log(x))
     // Use high-accuracy log and exp functions
