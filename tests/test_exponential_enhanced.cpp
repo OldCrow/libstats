@@ -313,7 +313,7 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
             static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
 
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
-        std::cout << "  SIMD Batch: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
+        std::cout << "  Vectorized: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
         std::cout << "  Parallel: " << parallel_time << "μs (" << parallel_speedup
                   << "x speedup)\n";
         std::cout << "  Work Stealing: " << work_stealing_time << "μs (" << ws_speedup
