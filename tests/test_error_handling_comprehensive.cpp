@@ -674,7 +674,7 @@ void test_benchmarks([[maybe_unused]] const TestConfig& config) {
 
         cout << "\n  Factory creation performance (" << iterations << " iterations):" << endl;
         cout << "    Average time per creation: " << static_cast<double>(create_time.count()) / static_cast<double>(iterations)
-             << " \u03bcs" << endl;
+             << " μs" << endl;
     }
 }
 
