@@ -15,7 +15,7 @@ Phases 1–3 complete and merged to main ✅.
 
 | Machine | SIMD | Correctness | simd_verification | Speedup | Branch |
 |---|---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 21/21 (pre-Phase 4) | not run | — | needs revalidation on current branch |
+| Ivy Bridge (2012 MBP) | AVX | 31/31 ✅ | 36/36 ✅ | 3.57x | `phase-4-cross-platform` @ `15f3436` |
 | Kaby Lake (2017 MBP) | AVX2 | 31/31 ✅ | 36/36 ✅ | 4.45x | `phase-4-cross-platform` @ `acff918` |
 | Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x | `phase-4-cross-platform` @ `4f1977c` |
 | Asus TUF A16 (Windows) | AVX-512 | 25/27 (static) ✅ | 36/36 ✅ | not recorded | needs revalidation on current branch |
