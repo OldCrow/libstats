@@ -8,33 +8,20 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phase 4 (Cross-Platform Validation) in progress on branch `phase-4-cross-platform`.
-Phases 1–3 complete and merged to main ✅.
+**Current Status**: Phases 1–4 complete and merged to main ✅. Phase 5 (Packaging and Installability) is next.
 
-### Phase 4 Validation Matrix
+### Phase 4 Validation Matrix (final)
 
-| Machine | SIMD | Correctness | simd_verification | Speedup | Branch |
-|---|---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 31/31 ✅ | 36/36 ✅ | 3.57x | `phase-4-cross-platform` @ `15f3436` |
-| Kaby Lake (2017 MBP) | AVX2 | 31/31 ✅ | 36/36 ✅ | 4.45x | `phase-4-cross-platform` @ `acff918` |
-| Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x | `phase-4-cross-platform` @ `4f1977c` |
-| Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x | `phase-4-cross-platform` @ `97167f6` |
-| Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — | CI |
+| Machine | SIMD | Correctness | simd_verification | Speedup |
+|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 31/31 ✅ | 36/36 ✅ | 3.57x |
+| Kaby Lake (2017 MBP) | AVX2 | 31/31 ✅ | 36/36 ✅ | 4.45x |
+| Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x |
+| Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x |
+| Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — |
 
-### Phase 4 Completed
-- AMD CPU cache detection — CPUID leaf 0x8000001D for AMD (Ryzen L3=16MB confirmed)
-- MSVC warning cleanup — C4101, C4267, C4244
-- GCC/Clang warning cleanup — volatile deprecation, type-limits, range-for binding, unused params,
-  GammaDistribution missing base init, simd_avx.cpp INFINITY/NAN float promotion and C-style casts,
-  log(+inf) correctness fix
-- ClangWarn/MSVCWarn cleanup — 29 implicit int→float conversions and old-style casts in test files
-- Windows session setup documented (below)
-- `windows-support` branch deleted (fixes already in main)
-- VectorizedThresholds test fixed for NEON (threshold/2 unreliable when threshold=2)
-
-### Phase 4 Remaining
-- AVX-512 transcendentals delegate to AVX (1.9x vs 4x expected) — deferred to Phase 6
-- AVX-512 transcendentals delegate to AVX (1.9x vs 4x expected) — deferred to Phase 6
+### Deferred Items
+- AVX-512 transcendentals delegate to AVX (1.91x vs ~4x expected) — deferred to Phase 6
 
 ### Development Ecosystem
 
