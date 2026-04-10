@@ -41,16 +41,33 @@ These tests should be included in the standard test suite, organized by dependen
 26. `test_gamma_basic` - Gamma distribution basic
 27. `test_atomic_parameters` - Atomic parameter updates
 
-### Level 6: Enhanced Distribution Tests (Advanced Features)
-28. `test_gaussian_enhanced` - Gaussian advanced features
-29. `test_exponential_enhanced` - Exponential advanced features
-30. `test_uniform_enhanced` - Uniform advanced features
-31. `test_poisson_enhanced` - Poisson advanced features
-32. `test_discrete_enhanced` - Discrete advanced features
-33. `test_gamma_enhanced` - Gamma advanced features
+### Level 4: Performance Framework Tests (GTest)
+17. `test_performance_history`
+18. `test_performance_dispatcher` (**timing**)
+19. `test_system_capabilities`
+20. `test_performance_initialization`
+
+### Level 5: Distribution Basic Tests
+21. `test_gaussian_basic`
+22. `test_exponential_basic`
+23. `test_discrete_basic`
+24. `test_atomic_parameters`
+25. `test_uniform_basic`
+26. `test_poisson_basic`
+27. `test_gamma_basic`
+
+### Level 6: Enhanced Distribution Tests (GTest, **timing** label)
+28. `test_gaussian_enhanced`
+29. `test_exponential_enhanced`
+30. `test_uniform_enhanced`
+31. `test_poisson_enhanced`
+32. `test_discrete_enhanced`
+33. `test_gamma_enhanced`
 
 ### Level 7: Integration Tests
-34. `test_dynamic_linking` - Dynamic library linking
+34. `test_dynamic_linking` — dynamic library linking
+35. `test_gaussian_basic_dynamic` — Gaussian via shared library
+36. `test_exponential_basic_dynamic` — Exponential via shared library
 
 ## On-Demand Tests (Compile but Don't Run in CTest)
 
@@ -65,9 +82,12 @@ These tests should be compiled and available but NOT included in the standard te
 - `test_copy_move_fix` - Verifies specific bug fixes
 - `test_parallel_compilation` - Tests compilation with different parallel backends
 
-### Dynamic Library Variants (Redundant with static tests)
-- `test_gaussian_basic_dynamic`
-- `test_exponential_basic_dynamic`
+### Dynamic Library Variants
+- `test_gaussian_basic_dynamic` — validates DLL linkage; included in standard suite
+- `test_exponential_basic_dynamic` — same
+
+> **Windows note**: Dynamic tests require Release-built EXEs. Debug EXE + Release DLL =
+> CRT mismatch. See WARP.md for detection and recovery.
 
 ## Recommended CTest Execution Order
 

@@ -2,16 +2,25 @@
 
 This guide explains how to set up comprehensive AVX-512 testing for the libstats project, including both compilation verification and runtime testing.
 
-## Current AVX-512 Testing Status
+## Current AVX-512 Testing Status (as of Phase 4, April 2026)
 
 ### ✅ What We Test Now
-- **NEON**: macOS (Apple Silicon) - both debug and release
-- **SSE2**: Linux GCC, Linux Clang, Windows MSVC
-- **AVX**: Linux GCC, Linux Clang, Windows MSVC
-- **AVX2**: Linux GCC, Linux Clang, Windows MSVC
+- **NEON**: macOS Apple Silicon M1 (Mac Mini, macOS Tahoe) — 31/31, simd_verification 36/36, speedup 3.15x
+- **AVX**: Intel Ivy Bridge (2012 MBP, macOS Catalina) — 31/31, simd_verification 36/36, speedup 3.57x
+- **AVX2+FMA**: Intel Kaby Lake (2017 MBP, macOS Ventura) — 31/31, simd_verification 36/36, speedup 4.45x
+- **AVX-512**: AMD Ryzen 7 7445HS / Zen 4 (Asus TUF A16, Windows 11) — 28/28, simd_verification 36/36, speedup 1.91x
+- **SSE2/AVX/AVX2** (compile + link): Linux CI (GCC 11/12, Clang 14/15, AppleClang)
 
-### ❌ What We're Missing
-- **AVX-512**: No current testing in GitHub Actions workflows
+### ⚠️ What Remains
+- **AVX-512 on CI**: GitHub Actions standard runners lack AVX-512 CPUs. AVX-512 code is compiled
+  and the dispatch logic is correct (verified on local hardware), but runtime verification only
+  happens on the Asus TUF A16 development machine, not in automated CI.
+
+### Note on speedup numbers
+The AVX-512 overall speedup of 1.91x (vs. expected ~4x) reflects that transcendental functions
+(exp, log, erf) delegate to the 4-wide AVX implementation because no portable 8-wide transcendental
+ISA exists without SVML. Arithmetic operations run at full 8-wide width. See `src/simd_avx512.cpp`
+for the full explanation.
 
 ## AVX-512 Testing Solutions
 

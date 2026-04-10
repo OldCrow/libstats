@@ -32,20 +32,24 @@ This guide provides comprehensive information about the libstats header organiza
 These headers have no internal project dependencies and provide fundamental constants and basic platform detection.
 
 #### Constants Headers
-```cpp
-// Mathematical and statistical constants
-#include "core/precision_constants.h"       // Numerical tolerances, epsilons
-#include "core/mathematical_constants.h"    // π, e, √2π, etc.
-#include "core/statistical_constants.h"     // Critical values, test parameters
 
-// Specialized constants (use only when needed)
-#include "core/probability_constants.h"     // Probability bounds, safety limits
-#include "core/threshold_constants.h"       // Algorithm thresholds
-#include "core/benchmark_constants.h"       // Performance testing parameters
-#include "core/robust_constants.h"          // Robust estimation parameters
-#include "core/statistical_methods_constants.h"  // Bayesian, bootstrap constants
-#include "core/goodness_of_fit_constants.h" // Critical values for tests
+Phase 2 consolidated 9 micro-headers into 3 semantic groups. Each group header has a
+doc comment explaining what belongs in it and why it is separate.
+
+```cpp
+// Three semantic groups — use the one(s) that match your need
+#include "core/math_constants.h"          // π, e, √2, machine epsilon, tolerances,
+                                           //   numerical method parameters, log-space limits
+#include "core/statistical_constants.h"  // Probability bounds, critical values (normal/t/chi²/F),
+                                           //   GoF tables, effect sizes, robust estimation,
+                                           //   Bayesian priors, bootstrap/CV defaults
+#include "core/performance_constants.h" // Benchmark iteration counts, timing bounds
 ```
+
+The **removed** headers (`mathematical_constants.h`, `precision_constants.h`,
+`probability_constants.h`, `threshold_constants.h`, `benchmark_constants.h`,
+`robust_constants.h`, `statistical_methods_constants.h`, `goodness_of_fit_constants.h`)
+no longer exist. Any code still referencing them predates Phase 2.
 
 #### Basic Platform
 ```cpp
@@ -63,9 +67,9 @@ These headers have no internal project dependencies and provide fundamental cons
 #include "core/essential_constants.h"       // Most common constants (precision + math + statistical)
 ```
 
-#### Complete Constants (Use sparingly)
+#### Complete Constants (umbrella)
 ```cpp
-#include "core/constants.h"                 // All 9 constants headers (umbrella)
+#include "core/constants.h"                 // All 3 constants headers (umbrella)
 ```
 
 #### Platform Foundation
