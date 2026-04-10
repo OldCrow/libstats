@@ -18,7 +18,7 @@ Phases 1–3 complete and merged to main ✅.
 | Ivy Bridge (2012 MBP) | AVX | 31/31 ✅ | 36/36 ✅ | 3.57x | `phase-4-cross-platform` @ `15f3436` |
 | Kaby Lake (2017 MBP) | AVX2 | 31/31 ✅ | 36/36 ✅ | 4.45x | `phase-4-cross-platform` @ `acff918` |
 | Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x | `phase-4-cross-platform` @ `4f1977c` |
-| Asus TUF A16 (Windows) | AVX-512 | 25/27 (static) ✅ | 36/36 ✅ | not recorded | needs revalidation on current branch |
+| Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x | `phase-4-cross-platform` @ `97167f6` |
 | Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — | CI |
 
 ### Phase 4 Completed
@@ -33,15 +33,7 @@ Phases 1–3 complete and merged to main ✅.
 - VectorizedThresholds test fixed for NEON (threshold/2 unreliable when threshold=2)
 
 ### Phase 4 Remaining
-- **Revalidate Ivy Bridge (2012 MBP)** — rebuild on `phase-4-cross-platform` for full 31-test suite,
-  simd_verification, and AVX speedup number
-- **Revalidate Windows/Ryzen (Asus TUF A16)** — rebuild to pick up warning/test fixes,
-  capture AVX-512 speedup number
-- **Windows DLL boundary crash** — `test_gaussian_basic_dynamic` and `test_exponential_basic_dynamic`
-  fail pre-existing; static tests pass; `make run_tests` excludes dynamic tests.
-  Suspected: `std::exception` crossing DLL boundary with heap mismatch under /MD.
-  Needs debug build + AppVerifier investigation.
-- **Update `docs/BUILD_SYSTEM_GUIDE.md`** with platform-specific notes
+- AVX-512 transcendentals delegate to AVX (1.9x vs 4x expected) — deferred to Phase 6
 - AVX-512 transcendentals delegate to AVX (1.9x vs 4x expected) — deferred to Phase 6
 
 ### Development Ecosystem
@@ -85,8 +77,20 @@ Copy-Item "build\Release\stats.dll" -Destination "build\tests\" -Force
 ctest -C Release -LE "timing|benchmark" --output-on-failure
 ```
 
+**Important: After any clean rebuild on Windows, verify the dynamic test EXEs are Release builds:**
+```powershell
+dumpbin /imports build\tests\test_gaussian_basic_dynamic.exe | Select-String vcruntime
+# Must show VCRUNTIME140.dll (Release), NOT VCRUNTIME140D.dll (Debug)
+# If Debug CRT is shown, the EXE is a stale Debug binary. Fix:
+#   Remove-Item build\tests\test_gaussian_basic_dynamic.exe, test_exponential_basic_dynamic.exe -Force
+#   cmake --build build --config Release --target test_gaussian_basic_dynamic test_exponential_basic_dynamic
+```
+The VS generator puts Debug and Release test EXEs in the same `build\tests\` directory.
+A stale Debug EXE + Release DLL = CRT mismatch = heap corruption crash. The `cmake --build --clean-first`
+flag cleans Release artifacts but leaves existing Debug EXEs untouched if their timestamps appear current.
+
 **One-time setup notes:**
-- Visual Studio 2022 Build Tools (not full VS) is sufficient — `winget install Microsoft.VisualStudio.2022.BuildTools`
+- Visual Studio 2022 Build Tools (not full VS) is sufficient
 - **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings)
   SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
 - CMake 4.x installed and compatible with `cmake_minimum_required(VERSION 3.20)`
