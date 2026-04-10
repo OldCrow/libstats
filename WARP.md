@@ -8,8 +8,41 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phases 1–3 complete and merged to main ✅
-Phase 4 (Cross-Platform Validation) is next.
+**Current Status**: Phase 4 (Cross-Platform Validation) in progress on branch `phase-4-cross-platform`.
+Phases 1–3 complete and merged to main ✅.
+
+### Phase 4 Validation Matrix
+
+| Machine | SIMD | Correctness | simd_verification | Speedup | Branch |
+|---|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 21/21 (pre-Phase 4) | not run | — | needs revalidation on current branch |
+| Kaby Lake (2017 MBP) | AVX2 | 31/31 ✅ | 36/36 ✅ | 4.45x | `phase-4-cross-platform` @ `acff918` |
+| Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x | `phase-4-cross-platform` @ `4f1977c` |
+| Asus TUF A16 (Windows) | AVX-512 | 25/27 (static) ✅ | 36/36 ✅ | not recorded | needs revalidation on current branch |
+| Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — | CI |
+
+### Phase 4 Completed
+- AMD CPU cache detection — CPUID leaf 0x8000001D for AMD (Ryzen L3=16MB confirmed)
+- MSVC warning cleanup — C4101, C4267, C4244
+- GCC/Clang warning cleanup — volatile deprecation, type-limits, range-for binding, unused params,
+  GammaDistribution missing base init, simd_avx.cpp INFINITY/NAN float promotion and C-style casts,
+  log(+inf) correctness fix
+- ClangWarn/MSVCWarn cleanup — 29 implicit int→float conversions and old-style casts in test files
+- Windows session setup documented (below)
+- `windows-support` branch deleted (fixes already in main)
+- VectorizedThresholds test fixed for NEON (threshold/2 unreliable when threshold=2)
+
+### Phase 4 Remaining
+- **Revalidate Ivy Bridge (2012 MBP)** — rebuild on `phase-4-cross-platform` for full 31-test suite,
+  simd_verification, and AVX speedup number
+- **Revalidate Windows/Ryzen (Asus TUF A16)** — rebuild to pick up warning/test fixes,
+  capture AVX-512 speedup number
+- **Windows DLL boundary crash** — `test_gaussian_basic_dynamic` and `test_exponential_basic_dynamic`
+  fail pre-existing; static tests pass; `make run_tests` excludes dynamic tests.
+  Suspected: `std::exception` crossing DLL boundary with heap mismatch under /MD.
+  Needs debug build + AppVerifier investigation.
+- **Update `docs/BUILD_SYSTEM_GUIDE.md`** with platform-specific notes
+- AVX-512 transcendentals delegate to AVX (1.9x vs 4x expected) — deferred to Phase 6
 
 ### Development Ecosystem
 
