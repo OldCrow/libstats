@@ -240,8 +240,58 @@ High-performance parallel and batch processing:
 - Performance optimization guidelines
 - Thread safety and memory management
 
-### 🪟 **Windows Support**
+### 🧰 **Windows Support**
 For Windows development environment setup (MSVC activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [WARP.md](WARP.md).
+
+## Installation and Consumption
+
+libstats can be consumed by external projects in three ways.
+
+### Option 1: Install and find_package
+
+```bash
+# Build and install libstats
+cd /path/to/libstats
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+cmake --install build --prefix /path/to/install
+```
+
+In your project's `CMakeLists.txt`:
+
+```cmake
+find_package(libstats REQUIRED)
+target_link_libraries(your_target PRIVATE libstats::libstats_static)
+```
+
+Configure with `-DCMAKE_PREFIX_PATH=/path/to/install`.
+
+### Option 2: FetchContent (no install needed)
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+    libstats
+    GIT_REPOSITORY https://github.com/OldCrow/libstats.git
+    GIT_TAG        main
+)
+FetchContent_MakeAvailable(libstats)
+target_link_libraries(your_target PRIVATE libstats_static)
+```
+
+### Option 3: pkg-config (Linux / Homebrew)
+
+After installing libstats:
+
+```bash
+pkg-config --cflags --libs libstats
+```
+
+### Consumer Examples
+
+See [`consumer_example/`](consumer_example/) for a complete `find_package` project and [`consumer_example_fetchcontent/`](consumer_example_fetchcontent/) for FetchContent.
+
+**Note:** Define `LIBSTATS_FULL_INTERFACE` before including `libstats/libstats.h` to get the complete API (distributions, performance framework, etc.). Without it, only forward declarations and core utilities are available.
 
 ## Roadmap
 
@@ -260,8 +310,12 @@ For Windows development environment setup (MSVC activation, DLL CRT handling, Sm
 - All compiler warnings addressed (GCC, Clang, MSVC); zero warnings under ClangStrict
 - Test labels for parallel-safe correctness runs vs timing-sensitive runs
 
-### 🔧 In progress (Phase 5)
-- Packaging: `find_package` / `FetchContent` support, pkg-config
+### ✅ Packaging and installability (Phase 5)
+- `find_package(libstats)` with exported CMake targets
+- `FetchContent` support (zero-install consumption)
+- `pkg-config` for Linux and Homebrew
+- Installed headers use `#include "libstats/core/..."` prefix
+- Consumer examples for both methods
 
 ### Planned (Phases 6–7)
 - Vectorized batch ops for all 5 non-Gaussian distributions (currently scalar loops)

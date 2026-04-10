@@ -11,15 +11,15 @@
 #include "tool_utils.h"
 
 // Additional specific distribution includes
-#include "../include/distributions/discrete.h"
-#include "../include/distributions/exponential.h"
-#include "../include/distributions/gamma.h"
-#include "../include/distributions/gaussian.h"
-#include "../include/distributions/poisson.h"
-#include "../include/distributions/uniform.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_execution.h"
-#include "../include/platform/thread_pool.h"
+#include "libstats/distributions/discrete.h"
+#include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gamma.h"
+#include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/poisson.h"
+#include "libstats/distributions/uniform.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/parallel_execution.h"
+#include "libstats/platform/thread_pool.h"
 
 // Standard library includes
 #include <algorithm>    // for std::sort, std::count_if

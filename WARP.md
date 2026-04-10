@@ -8,7 +8,8 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phases 1–4 complete and merged to main ✅. Phase 5 (Packaging and Installability) is next.
+**Current Status**: Phase 5 (Packaging and Installability) in progress on branch `phase-5-installation`.
+Phases 1–4 complete and merged to main ✅. Version 1.0.0-beta1.
 
 ### Phase 4 Validation Matrix (final)
 

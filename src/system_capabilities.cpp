@@ -1,6 +1,6 @@
-#include "../include/core/math_constants.h"
-#include "../include/core/performance_dispatcher.h"
-#include "../include/platform/cpu_detection.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/core/performance_dispatcher.h"
+#include "libstats/platform/cpu_detection.h"
 
 #include <algorithm>
 #include <chrono>

@@ -10,12 +10,12 @@
  * information criteria, and bootstrap methods.
  */
 
-#include "../distributions/discrete.h"
-#include "../distributions/exponential.h"
-#include "../distributions/gamma.h"
-#include "../distributions/gaussian.h"
-#include "../distributions/poisson.h"
-#include "../distributions/uniform.h"
+#include "libstats/distributions/discrete.h"
+#include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gamma.h"
+#include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/poisson.h"
+#include "libstats/distributions/uniform.h"
 
 #include <pair>
 #include <tuple>

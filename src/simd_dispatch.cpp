@@ -2,12 +2,12 @@
 // This file contains only the decision logic for which implementation to use
 // Enhanced with platform-specific optimizations and adaptive thresholds
 
-#include "../include/core/math_constants.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/platform_constants.h"
-#include "../include/platform/simd.h"
-#include "../include/platform/simd_policy.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/core/statistical_constants.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/platform_constants.h"
+#include "libstats/platform/simd.h"
+#include "libstats/platform/simd_policy.h"
 
 #include <algorithm>
 #include <cstring>

@@ -22,7 +22,7 @@
 #include <vector>    // for std::vector
 
 // Include the enhanced thread_pool.h with Level 0-2 integration
-#include "../include/platform/thread_pool.h"
+#include "libstats/platform/thread_pool.h"
 
 using namespace stats;
 

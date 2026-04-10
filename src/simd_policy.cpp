@@ -1,6 +1,6 @@
-#include "../include/platform/simd_policy.h"
+#include "libstats/platform/simd_policy.h"
 
-#include "../include/platform/cpu_detection.h"
+#include "libstats/platform/cpu_detection.h"
 
 #include <atomic>
 #include <cstddef>  // for SIZE_MAX

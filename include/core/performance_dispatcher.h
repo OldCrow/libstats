@@ -16,7 +16,7 @@ class SIMDPolicy;
 }  // namespace arch
 }  // namespace stats
 
-#include "../platform/simd_policy.h"
+#include "libstats/platform/simd_policy.h"
 
 /**
  * @file performance_dispatcher.h

@@ -7,7 +7,7 @@
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
-#include "../include/core/math_utils.h"
+#include "libstats/core/math_utils.h"
 
 // Standard library includes
 #include <algorithm>

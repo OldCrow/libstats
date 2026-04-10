@@ -15,7 +15,7 @@
     #endif
 #endif
 
-#include "../include/common/simd_implementation_common.h"
+#include "libstats/common/simd_implementation_common.h"
 
 // Only include NEON intrinsics on ARM platforms
 #if defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)

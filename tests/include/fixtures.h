@@ -12,7 +12,8 @@
  * Part of the stats::tests:: namespace hierarchy reorganization
  */
 
-#include "../../include/platform/work_stealing_pool.h"
+#include "libstats/core/performance_dispatcher.h"
+#include "libstats/platform/work_stealing_pool.h"
 
 #include <algorithm>
 #include <chrono>

@@ -18,13 +18,13 @@
 #include "tool_utils.h"
 
 // Additional standard library includes for SIMD verification
-#include "../include/distributions/discrete.h"
-#include "../include/distributions/exponential.h"
-#include "../include/distributions/gamma.h"
-#include "../include/distributions/gaussian.h"
-#include "../include/distributions/poisson.h"
-#include "../include/distributions/uniform.h"
-#include "../include/platform/simd.h"
+#include "libstats/distributions/discrete.h"
+#include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gamma.h"
+#include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/poisson.h"
+#include "libstats/distributions/uniform.h"
+#include "libstats/platform/simd.h"
 
 #include <algorithm>   // for std::max, std::min, std::count_if, std::clamp
 #include <chrono>      // for timing operations

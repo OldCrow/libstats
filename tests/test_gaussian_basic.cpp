@@ -1,6 +1,6 @@
 // Focused unit test for gaussian distribution
-#include "../include/distributions/gaussian.h"
 #include "include/tests.h"
+#include "libstats/distributions/gaussian.h"
 
 // Standard library includes
 #include <chrono>     // for std::chrono::high_resolution_clock, timing measurements

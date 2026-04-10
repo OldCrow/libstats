@@ -8,17 +8,14 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     target_link_libraries(${EXAMPLE_NAME} PRIVATE libstats_static)
 
     # Add include directories
-    target_include_directories(${EXAMPLE_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include
-                                                       ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    target_include_directories(
+        ${EXAMPLE_NAME} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../include
+                                ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
     # Apply same compiler flags as main library
     if(APPLE)
         target_compile_options(${EXAMPLE_NAME} PRIVATE -stdlib=libc++)
-        # Only apply Homebrew LLVM linking if it's being used
-        if(USING_HOMEBREW_LLVM AND LLVM_ROOT)
-            target_link_options(${EXAMPLE_NAME} PRIVATE -L${LLVM_ROOT}/lib/c++
-                                -Wl,-rpath,${LLVM_ROOT}/lib/c++)
-        endif()
+        # Rpath inherited from libstats_static via PUBLIC link options
     endif()
 
     # Add SIMD compile definitions

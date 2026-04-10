@@ -4,7 +4,7 @@
 #endif
 
 // Use focused header for math utilities testing
-#include "../include/core/math_utils.h"
+#include "libstats/core/math_utils.h"
 
 // Standard library includes
 #include <cmath>          // for std::abs, std::isnan, std::isinf, std::log, std::sqrt, M_PI

@@ -26,13 +26,13 @@
 #include <version>
 
 // Core libstats headers needed by all distributions
-#include "../core/distribution_base.h"
-#include "../core/distribution_interface.h"
-#include "../core/error_handling.h"
-#include "../core/essential_constants.h"
+#include "libstats/core/distribution_base.h"
+#include "libstats/core/distribution_interface.h"
+#include "libstats/core/error_handling.h"
+#include "libstats/core/essential_constants.h"
 
 // Performance and platform headers commonly used
-#include "../core/performance_dispatcher.h"
+#include "libstats/core/performance_dispatcher.h"
 
 // Utility using declarations to avoid repetition
 using std::shared_lock;

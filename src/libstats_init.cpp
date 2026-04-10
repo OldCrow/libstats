@@ -1,7 +1,7 @@
-#include "../include/core/performance_dispatcher.h"
-#include "../include/libstats.h"
-#include "../include/platform/simd_policy.h"
-#include "../include/platform/thread_pool.h"
+#include "libstats/core/performance_dispatcher.h"
+#include "libstats/libstats.h"
+#include "libstats/platform/simd_policy.h"
+#include "libstats/platform/thread_pool.h"
 
 #include <mutex>
 

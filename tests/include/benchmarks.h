@@ -12,8 +12,8 @@
  * Part of the stats::tests:: namespace hierarchy reorganization
  */
 
-#include "../../include/platform/benchmark.h"
 #include "constants.h"
+#include "libstats/platform/benchmark.h"
 
 #include <chrono>
 #include <functional>

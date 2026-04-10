@@ -10,7 +10,7 @@
  * - Accuracy verification
  */
 
-#include "../include/platform/simd.h"
+#include "libstats/platform/simd.h"
 
 #include <algorithm>
 #include <chrono>
@@ -38,7 +38,8 @@ double benchmark(Func f, int iterations) {
     }
     auto end = std::chrono::high_resolution_clock::now();
     // C4244: explicit cast — count() is int64_t, return type is double
-    return static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+    return static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 }
 
 class SIMDBenchmark {

@@ -8,8 +8,8 @@
     #define LIBSTATS_TEST_COMMON_H
 
 // Google Test essentials
-    #include "../../include/core/math_constants.h"
-    #include "../../include/core/statistical_constants.h"
+    #include "libstats/core/math_constants.h"
+    #include "libstats/core/statistical_constants.h"
 
     #include <gtest/gtest.h>
 
@@ -27,8 +27,8 @@
     // Use relative paths from tests/include/ to include/
 
     // Forward declarations for heavy headers
-    #include "../../include/common/cpu_detection_fwd.h"
-    #include "../../include/common/platform_constants_fwd.h"
+    #include "libstats/common/cpu_detection_fwd.h"
+    #include "libstats/common/platform_constants_fwd.h"
 
 namespace stats {
 namespace test {

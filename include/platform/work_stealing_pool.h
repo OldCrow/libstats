@@ -17,7 +17,7 @@
 #include "simd.h"
 
 // Level 1 infrastructure
-#include "../core/math_utils.h"
+#include "libstats/core/math_utils.h"
 
 namespace stats {
 

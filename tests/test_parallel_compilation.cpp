@@ -5,7 +5,7 @@
 // Test 1: Force C++20 std::execution
 #define LIBSTATS_HAS_STD_EXECUTION 1
 #define LIBSTATS_HAS_PARALLEL_EXECUTION 1
-#include "../include/platform/parallel_execution.h"
+#include "libstats/platform/parallel_execution.h"
 
 namespace test_std_execution {
 void test() {

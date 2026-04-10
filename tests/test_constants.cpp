@@ -22,14 +22,14 @@
 
 // Constants headers — now consolidated into three semantic groups.
 // Each group header includes its doc comment explaining what belongs there.
-#include "../include/core/constants.h"            // Umbrella header (includes all three above)
-#include "../include/core/essential_constants.h"  // Convenience header (math + statistical)
-#include "../include/core/math_constants.h"  // Mathematical values, precision, numerical limits
-#include "../include/core/performance_constants.h"  // Benchmark iteration counts and timing bounds
-#include "../include/core/statistical_constants.h"  // Critical values, probability bounds, thresholds
-#include "../include/platform/platform_constants.h"  // Platform constants (SIMD widths, etc.)
-#include "../include/platform/simd.h"                // SIMD constants
-#include "include/constants.h"                       // Test constants
+#include "include/constants.h"                  // Test constants
+#include "libstats/core/constants.h"            // Umbrella header (includes all three above)
+#include "libstats/core/essential_constants.h"  // Convenience header (math + statistical)
+#include "libstats/core/math_constants.h"       // Mathematical values, precision, numerical limits
+#include "libstats/core/performance_constants.h"  // Benchmark iteration counts and timing bounds
+#include "libstats/core/statistical_constants.h"  // Critical values, probability bounds, thresholds
+#include "libstats/platform/platform_constants.h"  // Platform constants (SIMD widths, etc.)
+#include "libstats/platform/simd.h"                // SIMD constants
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max

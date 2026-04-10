@@ -1,8 +1,8 @@
-#include "../include/core/validation.h"
+#include "libstats/core/validation.h"
 
-#include "../include/core/distribution_base.h"
-#include "../include/core/math_constants.h"
-#include "../include/core/statistical_constants.h"
+#include "libstats/core/distribution_base.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/core/statistical_constants.h"
 
 #include <algorithm>
 #include <cmath>

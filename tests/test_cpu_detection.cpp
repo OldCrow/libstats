@@ -12,9 +12,9 @@
  * - Cross-architecture consistency validation
  */
 
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_thresholds.h"
-#include "../include/platform/simd.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/parallel_thresholds.h"
+#include "libstats/platform/simd.h"
 
 #include <algorithm>
 #include <chrono>
@@ -427,13 +427,14 @@ void test_performance_benchmarks(const TestOptions& opts) {
 
     if (opts.verbose) {
         cout << "\nPerformance Analysis:" << endl;
-        double sequential_bandwidth =
-            static_cast<double>(test_size * sizeof(double)) / (static_cast<double>(sequential_time.count()) / 1e6) / 1e9;
+        double sequential_bandwidth = static_cast<double>(test_size * sizeof(double)) /
+                                      (static_cast<double>(sequential_time.count()) / 1e6) / 1e9;
         cout << "  Sequential Bandwidth: " << fixed << setprecision(2) << sequential_bandwidth
              << " GB/s" << endl;
 
         if (simd_time.count() > 0) {
-            double simd_speedup = static_cast<double>(sequential_time.count()) / static_cast<double>(simd_time.count());
+            double simd_speedup = static_cast<double>(sequential_time.count()) /
+                                  static_cast<double>(simd_time.count());
             cout << "  SIMD Speedup: " << fixed << setprecision(2) << simd_speedup << "x" << endl;
         }
     }
@@ -660,10 +661,12 @@ void output_json_summary([[maybe_unused]] const TestOptions& opts) {
     cout << "  \"performance\": {" << endl;
     cout << "    \"sequential_read_us\": " << seq_time.count() << "," << endl;
     cout << "    \"simd_multiply_us\": " << simd_time.count() << "," << endl;
-    double speedup =
-        simd_time.count() > 0 ? static_cast<double>(seq_time.count()) / static_cast<double>(simd_time.count()) : 1.0;
+    double speedup = simd_time.count() > 0 ? static_cast<double>(seq_time.count()) /
+                                                 static_cast<double>(simd_time.count())
+                                           : 1.0;
     cout << "    \"simd_speedup\": " << fixed << setprecision(2) << speedup << "," << endl;
-    double bandwidth = static_cast<double>(bench_size * sizeof(double)) / (static_cast<double>(seq_time.count()) / 1e6) / 1e9;
+    double bandwidth = static_cast<double>(bench_size * sizeof(double)) /
+                       (static_cast<double>(seq_time.count()) / 1e6) / 1e9;
     cout << "    \"memory_bandwidth_gbps\": " << fixed << setprecision(2) << bandwidth << endl;
     cout << "  }" << endl;
     cout << "}" << endl;

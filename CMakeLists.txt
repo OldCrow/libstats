@@ -140,7 +140,7 @@ endif()
 
 project(
     libstats
-    VERSION 0.9.0
+    VERSION 1.0.0
     LANGUAGES CXX)
 
 # Set default build type if none was specified
@@ -1261,51 +1261,72 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
 # architecture flags and are platform-dependent
 
 # =============================================================================
+# INCLUDE PATH SHIM FOR INSTALLED HEADER PREFIX
+# =============================================================================
+# Headers use #include "libstats/core/foo.h" for correct resolution in both build-tree and
+# install-tree. In the build tree, we create a symlink: ${CMAKE_BINARY_DIR}/include_shim/libstats ->
+# ${CMAKE_SOURCE_DIR}/include so that -I${CMAKE_BINARY_DIR}/include_shim resolves libstats/
+# correctly. In the install tree, headers are installed to include/libstats/ directly.
+set(LIBSTATS_INCLUDE_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/include_shim")
+set(LIBSTATS_INCLUDE_SHIM_LINK "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats")
+if(NOT EXISTS "${LIBSTATS_INCLUDE_SHIM_LINK}")
+    file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
+    file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}" SYMBOLIC)
+endif()
+
+# =============================================================================
 # CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
 # =============================================================================
 # Object libraries allow parallel compilation and better dependency tracking
 
 # Foundation object library (Level 0-1)
 add_library(libstats_foundation_obj OBJECT ${LIBSTATS_FOUNDATION_SOURCES})
-target_include_directories(libstats_foundation_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libstats_foundation_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                           ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # SIMD definitions will be linked through interface target
 
 # Core utilities object library (Level 2)
 add_library(libstats_core_utilities_obj OBJECT ${LIBSTATS_CORE_UTILITIES_SOURCES})
-target_include_directories(libstats_core_utilities_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libstats_core_utilities_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                               ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_core_utilities_obj libstats_foundation_obj)
 
 # Platform capabilities object library (Level 2)
 add_library(libstats_platform_obj OBJECT ${LIBSTATS_PLATFORM_SOURCES})
-target_include_directories(libstats_platform_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libstats_platform_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                         ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_platform_obj libstats_foundation_obj)
 
 # Advanced infrastructure object library (Level 3)
 add_library(libstats_infrastructure_obj OBJECT ${LIBSTATS_INFRASTRUCTURE_SOURCES})
-target_include_directories(libstats_infrastructure_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libstats_infrastructure_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                               ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_infrastructure_obj libstats_foundation_obj libstats_core_utilities_obj
                  libstats_platform_obj)
 
 # Distribution framework object library (Level 4)
 add_library(libstats_framework_obj OBJECT ${LIBSTATS_FRAMEWORK_SOURCES})
-target_include_directories(libstats_framework_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libstats_framework_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                          ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_framework_obj libstats_foundation_obj libstats_core_utilities_obj
                  libstats_platform_obj libstats_infrastructure_obj)
 
 # Distribution implementations object library (Level 5)
 add_library(libstats_distributions_obj OBJECT ${LIBSTATS_DISTRIBUTIONS_SOURCES})
-target_include_directories(libstats_distributions_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libstats_distributions_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                              ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_distributions_obj libstats_foundation_obj libstats_core_utilities_obj
                  libstats_platform_obj libstats_infrastructure_obj libstats_framework_obj)
 
 # SIMD object library (Platform-dependent, can compile in parallel)
 add_library(libstats_simd_obj OBJECT ${LIBSTATS_SIMD_SOURCES})
-target_include_directories(libstats_simd_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libstats_simd_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                     ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_simd_obj libstats_foundation_obj) # SIMD depends on CPU detection
 
@@ -1325,14 +1346,14 @@ set(LIBSTATS_ALL_OBJECTS
 # Header-only library (for header-only components)
 add_library(libstats_headers INTERFACE)
 target_include_directories(
-    libstats_headers INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                               $<INSTALL_INTERFACE:include/libstats>)
+    libstats_headers INTERFACE $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+                               $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
 
 # Static library using object libraries for better build performance
 add_library(libstats_static STATIC ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
-    libstats_static PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                           $<INSTALL_INTERFACE:include/libstats>)
+    libstats_static PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+                           $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
 if(WIN32)
     set_target_properties(
         libstats_static
@@ -1350,8 +1371,8 @@ endif()
 # Dynamic/shared library using object libraries for better build performance
 add_library(libstats_shared SHARED ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
-    libstats_shared PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                           $<INSTALL_INTERFACE:include/libstats>)
+    libstats_shared PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+                           $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
 set_target_properties(
     libstats_shared
     PROPERTIES OUTPUT_NAME "stats"
@@ -1397,12 +1418,9 @@ configure_simd_target(libstats_simd_obj)
 configure_simd_target(libstats_static)
 configure_simd_target(libstats_shared)
 
-# Platform-specific library linking configuration
-if(APPLE AND USING_HOMEBREW_LLVM)
-    # Apply Homebrew LLVM libc++ linking to the shared library
-    target_link_options(libstats_shared PRIVATE -L${LLVM_ROOT}/lib/c++
-                        -Wl,-rpath,${LLVM_ROOT}/lib/c++)
-endif()
+# Platform-specific library linking configuration Note: rpath for LLVM libc++ is handled
+# automatically by CMake via CMAKE_CXX_FLAGS (-stdlib=libc++) and the detected LLVM library path.
+# Explicit target_link_options for rpath removed to avoid duplicate warnings.
 
 # Create aliases for easier consumption
 add_library(libstats::headers ALIAS libstats_headers)
@@ -1487,14 +1505,12 @@ if(LIBSTATS_BUILD_TESTS)
         # Add include directories
         target_include_directories(
             ${TEST_NAME}
-            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src
-                    ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/include)
+            PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/tests
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/include)
 
-        # Platform-specific linking
-        if(APPLE AND USING_HOMEBREW_LLVM)
-            target_link_options(${TEST_NAME} PRIVATE -L${LLVM_ROOT}/lib/c++
-                                -Wl,-rpath,${LLVM_ROOT}/lib/c++)
-        endif()
+        # Platform-specific rpath is inherited from libstats_static/shared via PUBLIC link options.
+        # No per-target rpath needed here (adding it causes duplicate -rpath linker warnings).
 
         # Link to SIMD interface target for modern CMake approach
         if(TARGET libstats_simd_interface)
@@ -1526,14 +1542,13 @@ if(LIBSTATS_BUILD_TESTS)
 
     # Function to create a test executable linked to dynamic library.
     #
-    # Windows CRT mismatch warning: the VS generator places both Debug and Release
-    # test executables in the same build/tests/ directory. If a Debug EXE is left
-    # from a prior build session and a Release DLL is built later, the EXE links
-    # Debug CRT (VCRUNTIME140D) while the DLL uses Release CRT (VCRUNTIME140).
-    # The two CRTs use separate heaps; any cross-boundary allocation causes heap
-    # corruption. cmake --build --clean-first cleans Release artifacts but leaves
-    # existing Debug EXEs if their timestamps appear current.
-    # Fix: delete stale EXEs manually, then rebuild --config Release.
+    # Windows CRT mismatch warning: the VS generator places both Debug and Release test executables
+    # in the same build/tests/ directory. If a Debug EXE is left from a prior build session and a
+    # Release DLL is built later, the EXE links Debug CRT (VCRUNTIME140D) while the DLL uses Release
+    # CRT (VCRUNTIME140). The two CRTs use separate heaps; any cross-boundary allocation causes heap
+    # corruption. cmake --build --clean-first cleans Release artifacts but leaves existing Debug
+    # EXEs if their timestamps appear current. Fix: delete stale EXEs manually, then rebuild
+    # --config Release.
     function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
         add_executable(${TEST_NAME} ${SOURCE_FILE})
 
@@ -1861,16 +1876,14 @@ if(LIBSTATS_BUILD_TOOLS)
     function(add_libstats_tool tool_name source_file)
         add_executable(${tool_name} tools/${source_file})
         target_link_libraries(${tool_name} PRIVATE libstats_static)
-        target_include_directories(${tool_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
-                                                        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_include_directories(
+            ${tool_name} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
         # Apply same compiler flags as main library
         if(APPLE)
             target_compile_options(${tool_name} PRIVATE -stdlib=libc++)
-            if(USING_HOMEBREW_LLVM)
-                target_link_options(${tool_name} PRIVATE -L${LLVM_ROOT}/lib/c++
-                                    -Wl,-rpath,${LLVM_ROOT}/lib/c++)
-            endif()
+            # Rpath inherited from libstats_static via PUBLIC link options
         endif()
 
         # Link to SIMD interface target for modern CMake approach
@@ -1885,15 +1898,15 @@ if(LIBSTATS_BUILD_TOOLS)
     # Helper function for standalone tools that don't need libstats
     function(add_standalone_tool tool_name source_file)
         add_executable(${tool_name} tools/${source_file})
-        # No libstats linking - pure standard library tools
+        # No libstats linking - pure standard library tools Still needs include paths for
+        # tool_utils.h → libstats headers
+        target_include_directories(${tool_name} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                        ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
         # Apply same compiler flags as main library
         if(APPLE)
             target_compile_options(${tool_name} PRIVATE -stdlib=libc++)
-            if(USING_HOMEBREW_LLVM)
-                target_link_options(${tool_name} PRIVATE -L${LLVM_ROOT}/lib/c++
-                                    -Wl,-rpath,${LLVM_ROOT}/lib/c++)
-            endif()
+            # Rpath for LLVM libc++ is handled automatically by CMake
         endif()
 
         set_target_properties(${tool_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
@@ -1965,8 +1978,14 @@ install(
     INCLUDES
     DESTINATION include)
 
-# Install headers
-install(DIRECTORY include/ DESTINATION include/libstats)
+# Install headers (exclude editor artifacts and macOS metadata)
+install(
+    DIRECTORY include/
+    DESTINATION include/libstats
+    PATTERN ".DS_Store" EXCLUDE
+    PATTERN "*.bak" EXCLUDE
+    PATTERN "*.bak2" EXCLUDE
+    PATTERN ".gitkeep" EXCLUDE)
 
 # Install CMake config files for find_package support
 install(

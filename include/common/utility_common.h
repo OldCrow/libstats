@@ -31,7 +31,7 @@
 #include <vector>
 
 // Core constants - but only essential ones to avoid heavy dependencies
-#include "../core/essential_constants.h"
+#include "libstats/core/essential_constants.h"
 
 namespace stats {
 

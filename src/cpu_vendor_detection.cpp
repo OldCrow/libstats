@@ -1,5 +1,5 @@
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/cpu_vendor_constants.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/cpu_vendor_constants.h"
 
 #include <cstddef>  // for size_t
 #include <string>   // for basic_string

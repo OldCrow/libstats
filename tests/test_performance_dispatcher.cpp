@@ -4,8 +4,8 @@
 #endif
 
 // Use focused header for performance dispatcher testing
-#include "../include/core/performance_dispatcher.h"
-#include "../include/core/performance_history.h"
+#include "libstats/core/performance_dispatcher.h"
+#include "libstats/core/performance_history.h"
 
 // Standard library includes
 #include <gtest/gtest.h>

@@ -21,13 +21,13 @@
 #include <vector>    // for std::vector
 
 // Include the specific headers instead of broad constants.h
-#include "../include/core/performance_dispatcher.h"
-#include "../include/distributions/discrete.h"
-#include "../include/distributions/exponential.h"
-#include "../include/distributions/gamma.h"
-#include "../include/distributions/gaussian.h"
-#include "../include/distributions/poisson.h"
-#include "../include/distributions/uniform.h"
+#include "libstats/core/performance_dispatcher.h"
+#include "libstats/distributions/discrete.h"
+#include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gamma.h"
+#include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/poisson.h"
+#include "libstats/distributions/uniform.h"
 
 using namespace std::chrono;
 using namespace stats;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../platform/simd.h"
+#include "libstats/platform/simd.h"
 #include "math_constants.h"
 #include "statistical_constants.h"
 

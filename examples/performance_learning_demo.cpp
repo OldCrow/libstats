@@ -15,7 +15,7 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"
+#include "libstats/libstats.h"
 
 // Standard library includes
 #include <chrono>    // for timing operations

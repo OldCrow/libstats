@@ -15,8 +15,8 @@
  * --help/-h          Show this help
  */
 
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/simd_policy.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/simd_policy.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -525,7 +525,8 @@ void test_stress_conditions() {
 
         for (int i = 0; i < num_calls; ++i) {
             // Mix of different operations
-            [[maybe_unused]] bool decision = SIMDPolicy::shouldUseSIMD(static_cast<std::size_t>(i % 1000 + 1));
+            [[maybe_unused]] bool decision =
+                SIMDPolicy::shouldUseSIMD(static_cast<std::size_t>(i % 1000 + 1));
             [[maybe_unused]] SIMDPolicy::Level level = SIMDPolicy::getBestLevel();
             [[maybe_unused]] std::size_t threshold = SIMDPolicy::getMinThreshold();
 

@@ -17,10 +17,10 @@
     #define CPU_DETECTION_NO_SIMD
 #endif
 
-#include "../include/platform/cpu_detection.h"
+#include "libstats/platform/cpu_detection.h"
 
-#include "../include/core/math_constants.h"
-#include "../include/platform/platform_constants.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/platform/platform_constants.h"
 
 #include <atomic>
 #include <chrono>
@@ -197,16 +197,16 @@ void detect_cache_info(Features& features) {
     // AMD CPUs (Zen and later) do not populate CPUID leaf 4; they use the extended
     // leaf 0x8000001D ("Cache Topology Information") which has the same bit layout.
     // If leaf 4 returned nothing and the vendor is AuthenticAMD, try 0x8000001D.
-    bool caches_detected = (features.l1_cache_size > 0 ||
-                            features.l2_cache_size > 0 ||
-                            features.l3_cache_size > 0);
+    bool caches_detected =
+        (features.l1_cache_size > 0 || features.l2_cache_size > 0 || features.l3_cache_size > 0);
     if (!caches_detected && features.vendor == "AuthenticAMD") {
         safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
         if (eax >= 0x8000001D) {
             for (uint32_t i = 0; i < 32; ++i) {
                 safe_cpuid(0x8000001D, i, eax, ebx, ecx, edx);
                 uint32_t cache_type = eax & 0x1F;
-                if (cache_type == 0) break;  // No more cache levels
+                if (cache_type == 0)
+                    break;  // No more cache levels
 
                 uint32_t cache_level = (eax >> 5) & 0x7;
                 uint32_t line_size = (ebx & 0xFFF) + detail::ONE_INT;

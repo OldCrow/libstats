@@ -14,9 +14,9 @@
  * - Cross-architecture consistency validation
  */
 
-#include "../include/distributions/gaussian.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/simd.h"
+#include "libstats/distributions/gaussian.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/simd.h"
 
 // Standard library includes
 #include <chrono>    // for std::chrono::high_resolution_clock

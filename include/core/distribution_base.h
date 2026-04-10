@@ -7,14 +7,14 @@
 #include <vector>      // for std::vector
 
 // Include the common base and split components
-#include "../common/distribution_base_common.h"
 #include "distribution_interface.h"
 #include "distribution_memory.h"
 #include "distribution_validation.h"
+#include "libstats/common/distribution_base_common.h"
 
 // Platform components
-#include "../platform/platform_constants.h"
 #include "distribution_cache.h"  // Needed for ThreadSafeCacheManager
+#include "libstats/platform/platform_constants.h"
 
 namespace stats {
 

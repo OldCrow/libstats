@@ -1,9 +1,9 @@
-#include "../include/platform/thread_pool.h"
+#include "libstats/platform/thread_pool.h"
 
-#include "../include/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
-#include "../include/common/platform_constants_fwd.h"  // Use lightweight forward declarations
-#include "../include/core/math_constants.h"
-#include "../include/core/statistical_constants.h"
+#include "libstats/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
+#include "libstats/common/platform_constants_fwd.h"  // Use lightweight forward declarations
+#include "libstats/core/math_constants.h"
+#include "libstats/core/statistical_constants.h"
 
 #include <algorithm>
 #include <iostream>

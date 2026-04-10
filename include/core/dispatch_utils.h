@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../platform/thread_pool.h"  // For ParallelUtils
-#include "../platform/work_stealing_pool.h"
+#include "libstats/platform/thread_pool.h"  // For ParallelUtils
+#include "libstats/platform/work_stealing_pool.h"
 #include "performance_dispatcher.h"
 
 #include <functional>
