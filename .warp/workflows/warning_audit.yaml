@@ -1,0 +1,19 @@
+name: "libstats: Warning Audit"
+command: |-
+  cmake -S . -B build_{{build_type}} -DCMAKE_BUILD_TYPE={{build_type}} 2>&1 | tail -3 && make -C build_{{build_type}} -j$(sysctl -n hw.ncpu 2>/dev/null || nproc) 2>&1 | grep -E "warning:|error:" | grep -v "duplicate -rpath" | sort | uniq -c | sort -rn
+description: >-
+  Configure and build with a strict warning mode, then display all
+  warnings deduplicated and sorted by frequency. Uses a separate build
+  directory (build_<type>) to avoid clobbering the Dev build.
+tags:
+  - libstats
+  - warnings
+  - build
+  - quality
+arguments:
+  - name: build_type
+    description: "Warning build type (ClangWarn, MSVCWarn, GCCWarn, ClangStrict)"
+    default_value: ClangWarn
+shells:
+  - zsh
+  - bash

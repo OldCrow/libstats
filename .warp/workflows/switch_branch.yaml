@@ -1,0 +1,18 @@
+name: "libstats: Switch Branch + Rebuild"
+command: |-
+  git stash push -m "auto-stash before branch switch" 2>/dev/null; git fetch origin && git checkout {{branch}} && git pull && rm -rf build && mkdir build && cmake -S . -B build && make -C build -j$(sysctl -n hw.ncpu 2>/dev/null || nproc) 2>&1 | tail -5
+description: >-
+  Stash uncommitted changes, fetch, checkout the target branch, pull
+  latest, and do a clean rebuild. Use when resuming work on a different
+  machine or switching between feature branches.
+tags:
+  - libstats
+  - git
+  - build
+arguments:
+  - name: branch
+    description: "Branch to switch to"
+    default_value: phase-4-cross-platform
+shells:
+  - zsh
+  - bash

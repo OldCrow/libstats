@@ -37,7 +37,8 @@ double benchmark(Func f, int iterations) {
         f();
     }
     auto end = std::chrono::high_resolution_clock::now();
-    return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    // C4244: explicit cast — count() is int64_t, return type is double
+    return static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 }
 
 class SIMDBenchmark {
@@ -97,7 +98,7 @@ class SIMDBenchmark {
             result.max_error = std::max(result.max_error, error);
             total_error += error;
         }
-        result.avg_error = total_error / size_;
+        result.avg_error = total_error / static_cast<double>(size_);
         result.passed = result.max_error <= accuracy_threshold;
 
         results_.push_back(result);
@@ -372,7 +373,7 @@ class SIMDBenchmark {
         std::cout << "\nOVERALL STATISTICS:" << std::endl;
         std::cout << "  Tests passed: " << passed << "/" << results_.size() << std::endl;
         std::cout << "  Average speedup: " << std::fixed << std::setprecision(2)
-                  << total_speedup / results_.size() << "x" << std::endl;
+                  << total_speedup / static_cast<double>(results_.size()) << "x" << std::endl;
         std::cout << "  Arithmetic avg speedup: "
                   << (arithmetic_count > 0 ? arithmetic_speedup / arithmetic_count : 0.0) << "x"
                   << std::endl;

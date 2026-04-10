@@ -1,0 +1,16 @@
+name: "libstats: Validate Machine"
+command: |-
+  echo "=== Architecture ===" && uname -m && (sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "ARM64") && echo "=== SIMD Detection ===" && ./build/tools/system_inspector --quick && echo "=== Correctness Suite ===" && ctest --test-dir build --output-on-failure -LE "timing|benchmark" && echo "=== SIMD Verification ===" && ./build/tools/simd_verification
+description: >-
+  Run the full validation sequence for the current machine: architecture
+  detection, SIMD capabilities, correctness test suite (31 tests), and
+  SIMD verification (36 tests with speedup measurement). Requires a
+  current build.
+tags:
+  - libstats
+  - validation
+  - simd
+  - testing
+shells:
+  - zsh
+  - bash

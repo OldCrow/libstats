@@ -16,12 +16,18 @@ This guide provides comprehensive information about the parallel and batch proce
 
 ### Strategy Selection Logic
 
-The library automatically selects the optimal processing strategy based on:
+Strategy selection uses a threshold hierarchy tuned per architecture at startup:
 
-- **Data Size**: Small batches use scalar processing, large batches use parallel processing
-- **System Capabilities**: CPU cores, SIMD support, memory bandwidth
-- **Computational Complexity**: Simple operations favor SIMD, complex operations favor parallelism
-- **Performance History**: Adaptive learning improves strategy selection over time
+- **Below SIMD threshold** (~8 elements): `SCALAR` — dispatch overhead exceeds benefit
+- **Below parallel threshold** (varies by distribution): `VECTORIZED` — VectorOps batch path
+- **Above parallel threshold**: `PARALLEL` or `WORK_STEALING` — threading pays off
+
+The parallel threshold is distribution-specific: Gaussian (exp/erf heavy) parallelizes
+sooner than Uniform (trivial arithmetic). Thresholds are refined at startup based on
+measured thread overhead and SIMD efficiency for the current machine.
+
+An optional performance history layer can override the threshold decision when it has
+high-confidence learned data for a specific distribution and batch size.
 
 ## Public API Reference
 
@@ -53,7 +59,7 @@ hint.strategy = PerformanceHint::PreferredStrategy::AUTO;          // Default: a
 hint.strategy = PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY;  // Favor speed
 hint.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT; // Favor parallelism
 hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SCALAR;   // Force scalar processing
-hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SIMD;     // Force SIMD processing
+hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED; // Force vectorized batch path
 hint.strategy = PerformanceHint::PreferredStrategy::FORCE_PARALLEL; // Force parallel processing
 ```
 
@@ -64,26 +70,26 @@ These methods give you direct control over the processing strategy:
 ```cpp
 // Probability Density Function with explicit strategy
 void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                               libstats::performance::Strategy strategy) const;
+                               stats::detail::Strategy strategy) const;
 
 // Log Probability Density Function with explicit strategy
 void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                  libstats::performance::Strategy strategy) const;
+                                  stats::detail::Strategy strategy) const;
 
 // Cumulative Distribution Function with explicit strategy
 void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                         libstats::performance::Strategy strategy) const;
+                                         stats::detail::Strategy strategy) const;
 ```
 
 #### Available Strategies
 
 ```cpp
 enum class Strategy {
-    SCALAR,         // Simple loop processing (best for small batches < 8 elements)
-    VECTORIZED,     // Vectorized SIMD operations (best for medium batches 8-1000 elements)
-    PARALLEL,  // Multi-threaded parallel processing (best for large batches > 1000 elements)
-    WORK_STEALING,  // Dynamic load balancing (best for irregular workloads)
-    CACHE_AWARE     // Cache-optimized processing (specialized use cases)
+    SCALAR,        // Element-by-element loop (batch < simd_min threshold)
+    VECTORIZED,    // VectorOps batch path — SIMD-accelerated for Gaussian,
+                   // scalar loops for other distributions until Phase 6
+    PARALLEL,      // Multi-threaded via ParallelUtils::parallelFor
+    WORK_STEALING  // Work-stealing pool for irregular or variable workloads
 };
 ```
 
@@ -140,7 +146,7 @@ gaussian.getProbability(std::span<const double>(large_batch),
 
 ```cpp
 // Power user: explicitly control the processing strategy
-using Strategy = libstats::performance::Strategy;
+using Strategy = stats::detail::Strategy;
 
 std::vector<double> input(5000);
 std::vector<double> results(5000);
@@ -177,7 +183,7 @@ auto benchmark_strategy = [&](Strategy strategy, const std::string& name) {
 };
 
 benchmark_strategy(Strategy::SCALAR, "Scalar");
-benchmark_strategy(Strategy::VECTORIZED, "SIMD");
+benchmark_strategy(Strategy::VECTORIZED, "Vectorized");
 benchmark_strategy(Strategy::PARALLEL, "Parallel");
 benchmark_strategy(Strategy::WORK_STEALING, "Work-Stealing");
 ```
@@ -188,28 +194,38 @@ benchmark_strategy(Strategy::WORK_STEALING, "Work-Stealing");
 
 | Batch Size | Recommended Strategy | Rationale |
 |------------|---------------------|-----------|
-| 1-8 elements | `SCALAR` | Loop overhead dominates, simple iteration is fastest |
-| 8-100 elements | `VECTORIZED` | Vectorization provides significant speedup |
-| 100-1000 elements | `VECTORIZED` | SIMD still optimal, parallelization overhead too high |
-| 1000-10000 elements | `PARALLEL` | Multi-threading becomes beneficial |
-| 10000+ elements | `PARALLEL` or `WORK_STEALING` | Full parallelization provides best throughput |
+| < 8 elements | `SCALAR` | Dispatch overhead exceeds any gain |
+| 8 – ~1000 elements | `VECTORIZED` | VectorOps batch path; SIMD-accelerated for Gaussian |
+| ~1000 – 10000 elements | `PARALLEL` | Threading benefit outweighs overhead |
+| 10000+ elements | `WORK_STEALING` | Dynamic load balancing for large/irregular workloads |
 
-### Expected Performance Gains
+Exact thresholds are architecture-specific (Gaussian parallel threshold ~2500 on Intel AVX,
+higher on machines with greater thread overhead). Query `./build/tools/system_inspector`
+for thresholds on your machine.
 
-**SIMD Batch Processing:**
-- **Uniform/Discrete**: 20-70x speedup (simple range checks vectorize extremely well)
-- **Gaussian/Exponential**: 2-8x speedup (mathematical functions benefit moderately)
-- **Gamma/Poisson**: 1.5-4x speedup (complex mathematical operations)
+### Measured Performance Gains (Intel Ivy Bridge, AVX only)
 
-**Parallel Processing:**
-- **Linear Scaling**: Up to N× speedup where N = number of CPU cores
-- **Memory-Bound**: 2-4× speedup (limited by memory bandwidth)
-- **CPU-Bound**: 4-16× speedup (scales with core count)
+From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA):
 
-**Work-Stealing:**
-- **Irregular Workloads**: 10-30% better than standard parallel
-- **Uniform Workloads**: Similar to standard parallel
-- **Mixed Data**: Excellent load balancing for heterogeneous inputs
+| Distribution | Operation | SIMD Speedup | Notes |
+|---|---|---|---|
+| Uniform | PDF | 57x | Trivial bounds check, bandwidth-limited |
+| Uniform | LogPDF | 41x | |
+| Gaussian | LogPDF | 77x | Pure arithmetic, no exp/erf |
+| Gaussian | PDF | 13x | Uses vector_exp_avx |
+| Gaussian | CDF | 9x | Uses vector_erf_avx |
+| Exponential | PDF | 6–8x | |
+| Gamma/Poisson | CDF | 1–2x | Complex algorithm, minimal SIMD benefit |
+| **Overall** | **all 36** | **3.57x** | Geometric mean |
+
+Higher speedups seen on AVX2/FMA (Kaby Lake: 4.45x overall) and lower on NEON M1 (3.15x).
+AVX-512 (AMD Ryzen Zen 4) exercises 8-wide vectors; transcendentals currently delegate to AVX.
+
+**Note on non-Gaussian distributions:** Exponential, Uniform, Poisson, Discrete, and Gamma
+batch implementations currently use scalar loops in their `BatchUnsafeImpl` methods. The
+VECTORIZED strategy is still selected and dispatches through the VectorOps infrastructure,
+but the inner computation is scalar. Full vectorization of these distributions is planned
+for Phase 6.
 
 ## Advanced Features
 
@@ -438,7 +454,7 @@ distribution.getProbability(std::span<const double>(values, count),
 // ✅ Or explicit strategy API
 distribution.getProbabilityWithStrategy(std::span<const double>(values, count),
                                        std::span<double>(results, count),
-                                       libstats::performance::Strategy::VECTORIZED);
+                                       stats::detail::Strategy::VECTORIZED);
 ```
 
 ### From Individual Function Calls
@@ -472,7 +488,7 @@ auto auto_end = std::chrono::high_resolution_clock::now();
 auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(auto_end - auto_start);
 
 // Try different explicit strategies to see which matches auto-dispatch performance
-auto test_strategy = [&](libstats::performance::Strategy strategy, const std::string& name) {
+auto test_strategy = [&](stats::detail::Strategy strategy, const std::string& name) {
     auto start = std::chrono::high_resolution_clock::now();
     distribution.getProbabilityWithStrategy(std::span<const double>(input),
                                            std::span<double>(explicit_results), strategy);
@@ -487,9 +503,9 @@ auto test_strategy = [&](libstats::performance::Strategy strategy, const std::st
 };
 
 std::cout << "Auto-dispatch: " << auto_time.count() << " μs" << std::endl;
-test_strategy(libstats::performance::Strategy::SCALAR, "SCALAR");
-test_strategy(libstats::performance::Strategy::VECTORIZED, "VECTORIZED");
-test_strategy(libstats::performance::Strategy::PARALLEL, "PARALLEL");
+test_strategy(stats::detail::Strategy::SCALAR, "SCALAR");
+test_strategy(stats::detail::Strategy::VECTORIZED, "VECTORIZED");
+test_strategy(stats::detail::Strategy::PARALLEL, "PARALLEL");
 ```
 
 ### Correctness Verification
@@ -498,27 +514,27 @@ test_strategy(libstats::performance::Strategy::PARALLEL, "PARALLEL");
 // Verify that all strategies produce identical results
 bool verify_strategies(const std::vector<double>& input) {
     std::vector<double> scalar_results(input.size());
-    std::vector<double> simd_results(input.size());
+    std::vector<double> vectorized_results(input.size());
     std::vector<double> parallel_results(input.size());
 
     distribution.getProbabilityWithStrategy(std::span<const double>(input),
                                            std::span<double>(scalar_results),
-                                           libstats::performance::Strategy::SCALAR);
+                                           stats::detail::Strategy::SCALAR);
 
     distribution.getProbabilityWithStrategy(std::span<const double>(input),
-                                           std::span<double>(simd_results),
-                                           libstats::performance::Strategy::VECTORIZED);
+                                           std::span<double>(vectorized_results),
+                                           stats::detail::Strategy::VECTORIZED);
 
     distribution.getProbabilityWithStrategy(std::span<const double>(input),
                                            std::span<double>(parallel_results),
-                                           libstats::performance::Strategy::PARALLEL);
+                                           stats::detail::Strategy::PARALLEL);
 
     // Check for numerical differences
     for (size_t i = 0; i < input.size(); ++i) {
-        if (std::abs(scalar_results[i] - simd_results[i]) > 1e-12 ||
+        if (std::abs(scalar_results[i] - vectorized_results[i]) > 1e-12 ||
             std::abs(scalar_results[i] - parallel_results[i]) > 1e-12) {
             std::cout << "Mismatch at index " << i << ": scalar=" << scalar_results[i]
-                      << ", simd=" << simd_results[i] << ", parallel=" << parallel_results[i] << std::endl;
+                      << ", vectorized=" << vectorized_results[i] << ", parallel=" << parallel_results[i] << std::endl;
             return false;
         }
     }
@@ -543,7 +559,7 @@ The system is designed to scale from small embedded applications to high-perform
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-08-13
+**Document Version**: 1.1
+**Last Updated**: 2026-04-10 (Phase 2/4 updates: strategy naming, simplified selection, measured performance)
 **Covers**: Complete parallel/batch processing API and usage patterns
 **Replaces**: `batch-processing-refactoring.md`, `deprecated_batch_cleanup_process.md`

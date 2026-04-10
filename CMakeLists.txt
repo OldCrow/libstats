@@ -140,7 +140,7 @@ endif()
 
 project(
     libstats
-    VERSION 0.12.0
+    VERSION 0.9.0
     LANGUAGES CXX)
 
 # Set default build type if none was specified
@@ -1524,7 +1524,16 @@ if(LIBSTATS_BUILD_TESTS)
         configure_common_test_settings(${TEST_NAME})
     endfunction()
 
-    # Function to create a test executable linked to dynamic library
+    # Function to create a test executable linked to dynamic library.
+    #
+    # Windows CRT mismatch warning: the VS generator places both Debug and Release
+    # test executables in the same build/tests/ directory. If a Debug EXE is left
+    # from a prior build session and a Release DLL is built later, the EXE links
+    # Debug CRT (VCRUNTIME140D) while the DLL uses Release CRT (VCRUNTIME140).
+    # The two CRTs use separate heaps; any cross-boundary allocation causes heap
+    # corruption. cmake --build --clean-first cleans Release artifacts but leaves
+    # existing Debug EXEs if their timestamps appear current.
+    # Fix: delete stale EXEs manually, then rebuild --config Release.
     function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
         add_executable(${TEST_NAME} ${SOURCE_FILE})
 

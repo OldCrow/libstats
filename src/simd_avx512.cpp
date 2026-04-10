@@ -161,16 +161,32 @@ void VectorOps::scalar_add_avx512(const double* a, double scalar, double* result
     }
 }
 
-// AVX512 transcendental functions - for now, delegate to AVX implementations
-// Future: could use SVML (Intel Short Vector Math Library) for better performance
+// AVX-512 transcendental functions
+//
+// Why these delegate to AVX (4-wide) rather than using 8-wide AVX-512 intrinsics:
+//
+// The ISA has no general-purpose transcendental instructions. `_mm512_exp_pd`,
+// `_mm512_log_pd`, and `_mm512_erf_pd` exist only in SVML (Intel Short Vector Math
+// Library), which ships with ICC/oneAPI but is not available in MSVC, GCC, or Clang
+// without separately installing Intel MKL. Adding SVML as a dependency contradicts
+// the project's zero-external-dependency mandate.
+//
+// The portable alternative — hand-rolling 8-wide minimax polynomial approximations —
+// is the approach used in SLEEF and similar libraries. That work is explicitly
+// deferred to Phase 6 and documented in SIMD_OPTIMIZATION_REFERENCE.md.
+//
+// Consequence on AVX-512 hardware: arithmetic batch ops (PDF normalization, log-PDF
+// linear terms, Uniform CDF) use genuine 512-bit registers. Transcendental-heavy ops
+// (exp for PDF/CDF, erf for Gaussian CDF) silently execute at 256-bit width.
+// This accounts for the ~1.9x overall speedup vs. the ~4x expected for a fully
+// AVX-512 implementation.
 
 void VectorOps::vector_exp_avx512(const double* values, double* results,
                                   std::size_t size) noexcept {
     if (!stats::arch::supports_avx512()) {
         return vector_exp_fallback(values, results, size);
     }
-    // For now, delegate to AVX implementation
-    // Future: use _mm512_exp_pd from SVML if available
+    // Delegates to AVX (4-wide). See block comment above.
     return vector_exp_avx(values, results, size);
 }
 
@@ -179,8 +195,7 @@ void VectorOps::vector_log_avx512(const double* values, double* results,
     if (!stats::arch::supports_avx512()) {
         return vector_log_fallback(values, results, size);
     }
-    // For now, delegate to AVX implementation
-    // Future: use _mm512_log_pd from SVML if available
+    // Delegates to AVX (4-wide). See block comment above.
     return vector_log_avx(values, results, size);
 }
 
@@ -189,21 +204,19 @@ void VectorOps::vector_pow_avx512(const double* base, double exponent, double* r
     if (!stats::arch::supports_avx512()) {
         return vector_pow_fallback(base, exponent, results, size);
     }
-    // For now, delegate to AVX implementation
-    // Future: use _mm512_pow_pd from SVML if available
+    // Delegates to AVX (4-wide). See block comment above.
     return vector_pow_avx(base, exponent, results, size);
 }
 
 void VectorOps::vector_pow_elementwise_avx512(const double* base, const double* exponent,
                                               double* results, std::size_t size) noexcept {
     if (!stats::arch::supports_avx512()) {
-        // Fallback to scalar implementation
         for (std::size_t i = 0; i < size; ++i) {
             results[i] = std::pow(base[i], exponent[i]);
         }
         return;
     }
-    // For now, delegate to AVX implementation
+    // Delegates to AVX (4-wide). See block comment above.
     return vector_pow_elementwise_avx(base, exponent, results, size);
 }
 
@@ -212,8 +225,7 @@ void VectorOps::vector_erf_avx512(const double* values, double* results,
     if (!stats::arch::supports_avx512()) {
         return vector_erf_fallback(values, results, size);
     }
-    // For now, delegate to AVX implementation
-    // Future: use _mm512_erf_pd from SVML if available
+    // Delegates to AVX (4-wide). See block comment above.
     return vector_erf_avx(values, results, size);
 }
 

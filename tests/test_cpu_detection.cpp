@@ -401,7 +401,7 @@ void test_performance_benchmarks(const TestOptions& opts) {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum = 0.0;
     for (size_t i = 0; i < test_size; ++i) {
-        sum += data[i];
+        sum = sum + data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto sequential_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -412,7 +412,7 @@ void test_performance_benchmarks(const TestOptions& opts) {
     sum = 0.0;
     const size_t stride = arch::get_features().cache_line_size / sizeof(double);
     for (size_t i = 0; i < test_size; i += stride) {
-        sum += data[i];
+        sum = sum + data[i];
     }
     end = chrono::high_resolution_clock::now();
     auto strided_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -428,12 +428,12 @@ void test_performance_benchmarks(const TestOptions& opts) {
     if (opts.verbose) {
         cout << "\nPerformance Analysis:" << endl;
         double sequential_bandwidth =
-            (test_size * sizeof(double)) / (sequential_time.count() / 1e6) / 1e9;
+            static_cast<double>(test_size * sizeof(double)) / (static_cast<double>(sequential_time.count()) / 1e6) / 1e9;
         cout << "  Sequential Bandwidth: " << fixed << setprecision(2) << sequential_bandwidth
              << " GB/s" << endl;
 
         if (simd_time.count() > 0) {
-            double simd_speedup = static_cast<double>(sequential_time.count()) / simd_time.count();
+            double simd_speedup = static_cast<double>(sequential_time.count()) / static_cast<double>(simd_time.count());
             cout << "  SIMD Speedup: " << fixed << setprecision(2) << simd_speedup << "x" << endl;
         }
     }
@@ -645,7 +645,7 @@ void output_json_summary([[maybe_unused]] const TestOptions& opts) {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum = 0.0;
     for (size_t i = 0; i < bench_size; ++i) {
-        sum += bench_data[i];
+        sum = sum + bench_data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto seq_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -661,9 +661,9 @@ void output_json_summary([[maybe_unused]] const TestOptions& opts) {
     cout << "    \"sequential_read_us\": " << seq_time.count() << "," << endl;
     cout << "    \"simd_multiply_us\": " << simd_time.count() << "," << endl;
     double speedup =
-        simd_time.count() > 0 ? static_cast<double>(seq_time.count()) / simd_time.count() : 1.0;
+        simd_time.count() > 0 ? static_cast<double>(seq_time.count()) / static_cast<double>(simd_time.count()) : 1.0;
     cout << "    \"simd_speedup\": " << fixed << setprecision(2) << speedup << "," << endl;
-    double bandwidth = (bench_size * sizeof(double)) / (seq_time.count() / 1e6) / 1e9;
+    double bandwidth = static_cast<double>(bench_size * sizeof(double)) / (static_cast<double>(seq_time.count()) / 1e6) / 1e9;
     cout << "    \"memory_bandwidth_gbps\": " << fixed << setprecision(2) << bandwidth << endl;
     cout << "  }" << endl;
     cout << "}" << endl;

@@ -231,26 +231,24 @@ int main() {
                 << "  Warning: physicalCores could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(physicalCores >= 0);
+        // physicalCores is size_t (unsigned): zero means undetectable (CI/VM), not invalid
 
         if (logicalCores == 0) {
             std::cerr
                 << "  Warning: logicalCores could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(logicalCores >= 0);
+        // logicalCores is size_t (unsigned): zero means undetectable, not invalid
 
         // Cache sizes might be 0 or unavailable on VMs/CI runners
-        assert(l1CacheSize >= 0);
-        assert(l2CacheSize >= 0);
-        assert(l3CacheSize >= 0);
+        // All are size_t (unsigned): always >= 0 by type; zero means undetectable
 
         if (cacheLineSize == 0) {
             std::cerr
                 << "  Warning: Cache line size could not be detected on this platform (CI runner?)"
                 << std::endl;
         }
-        assert(cacheLineSize >= 0);
+        // cacheLineSize is size_t (unsigned): zero means undetectable, not invalid
 
         // Optimal threads should always be at least 1
         assert(optimalThreads > 0);

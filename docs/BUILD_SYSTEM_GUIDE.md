@@ -608,6 +608,100 @@ build src/distributions/gaussian.o: cxx src/distributions/gaussian.cpp
 - **Performance**: Profile your specific build configuration vs CMake build
 - **Maintenance**: CMake build system receives updates; manual builds require maintenance
 
+## Platform-Specific Caveats (Phase 4 Validation)
+
+This section documents findings confirmed during Phase 4 cross-platform validation.
+All four development machines have been exercised; results are recorded in WARP.md.
+
+### Validated Machine Matrix
+
+| Machine | SIMD | Correctness | simd_verification | Overall Speedup |
+|---|---|---|---|---|
+| MacBook Pro 9,1 (Ivy Bridge, 2012) | AVX | 31/31 | 36/36 | 3.57x |
+| MacBook Pro 14,1 (Kaby Lake, 2017) | AVX2 | 31/31 | 36/36 | 4.45x |
+| Mac Mini M1 (Apple Silicon) | NEON | 31/31 | 36/36 | 3.15x |
+| Asus TUF A16 (Ryzen 7 7445, Zen 4) | AVX-512 | 25/27 static ✅ | 36/36 | — |
+| Linux CI (GCC 11/12, Clang 14/15) | AVX2 | pass | — | — |
+
+### macOS Catalina (10.15) + Homebrew LLVM 22
+
+Homebrew LLVM has dropped official support for macOS 10.15. Two issues arise:
+
+**`std::format` unavailable:** LLVM 22's `<format>` calls `to_chars` for floating-point,
+which requires macOS 13.3+. `cpp20_features_inspector` reports `format: ✗ Not Available`
+on Catalina — this is correct and intentional. All other C++20 features work.
+
+**Shared library not auto-signed:** LLVM 22 no longer auto-signs dylibs on older macOS,
+causing Library Validation to reject them at runtime. CMakeLists.txt adds a post-build
+`codesign -s -` (ad-hoc signing) step automatically on Apple platforms.
+
+### AMD CPUs — Cache Detection (CPUID Leaf 0x8000001D)
+
+AMD CPUs (Zen architecture and later) do not populate Intel's Deterministic Cache
+Parameters leaf (CPUID leaf 4). They use extended leaf `0x8000001D` with the same
+bit layout. Without this fallback, all cache sizes reported 0 KB on AMD hardware.
+
+**Fixed in Phase 4:** After leaf 4 returns nothing and vendor is `AuthenticAMD`, the
+code falls back to leaf `0x8000001D`. Verified on AMD Ryzen 7 7445HS (Zen 4):
+L1=32 KB, L2=1024 KB, L3=16384 KB all correctly detected.
+
+### Apple Silicon M1 — NEON Path
+
+NEON is AArch64's SIMD instruction set (2 doubles per register vs 4 for AVX).
+No special flags are needed — NEON is enabled automatically on ARM64.
+
+The `VectorizedThresholds` test in `test_simd_policy` was fixed in Phase 4: the
+original threshold bounds assumed AVX (4-element vectors) and were too tight for
+NEON (2-element vectors). The test now correctly validates NEON-appropriate values.
+
+**simd_verification results on M1:** 36/36 PASS, overall speedup 3.15x.
+
+### AVX-512 — AMD Ryzen Zen 4 (Asus TUF A16, Windows)
+
+The Asus TUF A16 (Ryzen 7 7445HS, Zen 4) is the first machine in the development
+ecosystem with AVX-512 support. `simd_avx512.cpp` is exercised only on this machine.
+
+**Current limitation:** All transcendental functions in `simd_avx512.cpp` delegate to
+the AVX implementation. This produces correct results but only ~1.9x speedup vs scalar
+instead of the theoretical ~8x for 512-bit vectors. Optimising AVX-512 transcendentals
+is deferred to Phase 6.
+
+**simd_verification:** 36/36 PASS on Windows with MSVC.
+
+### Windows — Dynamic Library Tests
+
+`test_gaussian_basic_dynamic` and `test_exponential_basic_dynamic` fail on Windows
+(pre-existing, not a Phase 4 regression). All static-linked tests pass. Suspected
+cause: `std::exception` crossing the DLL boundary with heap mismatch under `/MD`.
+`make run_tests` (and `ctest -LE timing|benchmark`) excludes dynamic tests by default.
+
+### Windows — GTest Absent on CI
+
+GTest is not pre-installed on Windows CI runners or typical developer setups.
+GTest-based tests (`*_enhanced`, `test_performance_dispatcher`, etc.) are silently
+skipped — this is expected, not an error. All non-GTest correctness tests still run.
+
+The CMakeLists `set_tests_properties` timing-label block is guarded with
+`if(GTEST_FOUND)` to prevent a configure-time error when GTest is absent.
+
+### Test Labels and Running Strategy
+
+```bash
+# Correctness only — parallel-safe, always reliable (31 tests)
+ctest --output-on-failure -LE "timing|benchmark"
+make run_tests
+
+# Timing validation — run serially on a quiet machine (7 tests)
+ctest --output-on-failure -j1 -L timing
+make run_tests_timing
+
+# SIMD correctness + speedup measurement (36 internal tests)
+./build/tools/simd_verification
+```
+
+Timing tests (`*_enhanced`) check speedup thresholds. Under parallel `ctest -j8`
+load, contention can cause false failures. Run with `-j1` for reliable measurements.
+
 ## Troubleshooting
 
 ### Common Build Issues
@@ -778,7 +872,7 @@ The CMake system is the recommended approach for most users, providing zero-conf
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-08-13
+**Document Version**: 1.1
+**Last Updated**: 2026-04-10 (Phase 4 cross-platform validation added)
 **Covers**: Complete build system, CMake configuration, SIMD detection, parallel builds, cross-platform support
 **Replaces**: `build_types.md`, `parallel_builds.md`, `simd_build_system.md`

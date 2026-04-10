@@ -361,7 +361,7 @@ void test_cache_aware_algorithms() {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum1 = 0.0;
     for (size_t i = 0; i < test_size; ++i) {
-        sum1 += cache_test_data[i];
+        sum1 = sum1 + cache_test_data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto sequential_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -371,7 +371,7 @@ void test_cache_aware_algorithms() {
     volatile double sum2 = 0.0;
     const size_t stride = features.cache_line_size / sizeof(double);
     for (size_t i = 0; i < test_size; i += stride) {
-        sum2 += cache_test_data[i];
+        sum2 = sum2 + cache_test_data[i];
     }
     end = chrono::high_resolution_clock::now();
     auto strided_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -380,7 +380,7 @@ void test_cache_aware_algorithms() {
     cout << "  Strided access: " << strided_time.count() << " μs" << endl;
 
     if (strided_time.count() > 0 && sequential_time.count() > 0) {
-        double ratio = static_cast<double>(strided_time.count()) / sequential_time.count();
+        double ratio = static_cast<double>(strided_time.count()) / static_cast<double>(sequential_time.count());
         cout << "  Cache efficiency ratio: " << fixed << setprecision(2) << ratio << "x" << endl;
     }
 
@@ -423,7 +423,7 @@ void test_memory_access_patterns() {
     cout << "  Unaligned SIMD: " << unaligned_time.count() << " ns" << endl;
 
     if (aligned_time.count() > 0 && unaligned_time.count() > 0) {
-        double speedup = static_cast<double>(unaligned_time.count()) / aligned_time.count();
+        double speedup = static_cast<double>(unaligned_time.count()) / static_cast<double>(aligned_time.count());
         cout << "  Alignment speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
     }
 
@@ -482,7 +482,7 @@ void test_numa_aware_processing() {
             workers.emplace_back([&numa_test_data, start_idx, end_idx]() {
                 volatile double local_sum = 0.0;
                 for (size_t i = start_idx; i < end_idx; ++i) {
-                    local_sum += numa_test_data[i] * 1.1;
+                    local_sum = local_sum + numa_test_data[i] * 1.1;
                 }
             });
         }
@@ -616,11 +616,11 @@ void test_performance_scaling() {
         double speedup = 1.0;
 
         if (scalar_time.count() > 0) {
-            scalar_ops_per_sec = (size * 1e9) / scalar_time.count();
+            scalar_ops_per_sec = (static_cast<double>(size) * 1e9) / static_cast<double>(scalar_time.count());
         }
         if (simd_time.count() > 0) {
-            simd_ops_per_sec = (size * 1e9) / simd_time.count();
-            speedup = static_cast<double>(scalar_time.count()) / simd_time.count();
+            simd_ops_per_sec = (static_cast<double>(size) * 1e9) / static_cast<double>(simd_time.count());
+            speedup = static_cast<double>(scalar_time.count()) / static_cast<double>(simd_time.count());
         }
 
         cout << setw(10) << size << setw(15) << fixed << setprecision(0) << scalar_ops_per_sec
@@ -742,7 +742,7 @@ void benchmark_cache_blocking() {
     cout << "  Blocked multiply: " << blocked_time.count() << " μs" << endl;
 
     if (naive_time.count() > 0 && blocked_time.count() > 0) {
-        double speedup = static_cast<double>(naive_time.count()) / blocked_time.count();
+        double speedup = static_cast<double>(naive_time.count()) / static_cast<double>(blocked_time.count());
         cout << "  Cache blocking speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
     }
 }
@@ -758,7 +758,7 @@ void benchmark_memory_bandwidth() {
     auto start = chrono::high_resolution_clock::now();
     volatile double sum = 0.0;
     for (size_t i = 0; i < bandwidth_size; ++i) {
-        sum += bandwidth_data[i];
+        sum = sum + bandwidth_data[i];
     }
     auto end = chrono::high_resolution_clock::now();
     auto read_time = chrono::duration_cast<chrono::microseconds>(end - start);
@@ -775,13 +775,13 @@ void benchmark_memory_bandwidth() {
     double data_mb = (bandwidth_size * sizeof(double)) / (1024.0 * 1024.0);
 
     if (read_time.count() > 0) {
-        double read_bandwidth = data_mb / (read_time.count() / 1e6);
+        double read_bandwidth = data_mb / (static_cast<double>(read_time.count()) / 1e6);
         cout << "  Sequential read: " << fixed << setprecision(1) << read_bandwidth << " MB/s"
              << endl;
     }
 
     if (write_time.count() > 0) {
-        double write_bandwidth = data_mb / (write_time.count() / 1e6);
+        double write_bandwidth = data_mb / (static_cast<double>(write_time.count()) / 1e6);
         cout << "  Sequential write: " << fixed << setprecision(1) << write_bandwidth << " MB/s"
              << endl;
     }

@@ -38,7 +38,8 @@ GammaDistribution::GammaDistribution(double alpha, double beta) {
     updateCacheUnsafe();
 }
 
-GammaDistribution::GammaDistribution(const GammaDistribution& other) {
+GammaDistribution::GammaDistribution(const GammaDistribution& other)
+    : DistributionBase(other) {
     std::unique_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;
@@ -57,7 +58,8 @@ GammaDistribution& GammaDistribution::operator=(const GammaDistribution& other) 
     return *this;
 }
 
-GammaDistribution::GammaDistribution(GammaDistribution&& other) {
+GammaDistribution::GammaDistribution(GammaDistribution&& other)
+    : DistributionBase(std::move(other)) {
     std::scoped_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;

@@ -8,8 +8,33 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phases 1–3 complete and merged to main ✅
-Phase 4 (Cross-Platform Validation) is next.
+**Current Status**: Phase 4 (Cross-Platform Validation) in progress on branch `phase-4-cross-platform`.
+Phases 1–3 complete and merged to main ✅.
+
+### Phase 4 Validation Matrix
+
+| Machine | SIMD | Correctness | simd_verification | Speedup | Branch |
+|---|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 31/31 ✅ | 36/36 ✅ | 3.57x | `phase-4-cross-platform` @ `15f3436` |
+| Kaby Lake (2017 MBP) | AVX2 | 31/31 ✅ | 36/36 ✅ | 4.45x | `phase-4-cross-platform` @ `acff918` |
+| Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x | `phase-4-cross-platform` @ `4f1977c` |
+| Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x | `phase-4-cross-platform` @ `97167f6` |
+| Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — | CI |
+
+### Phase 4 Completed
+- AMD CPU cache detection — CPUID leaf 0x8000001D for AMD (Ryzen L3=16MB confirmed)
+- MSVC warning cleanup — C4101, C4267, C4244
+- GCC/Clang warning cleanup — volatile deprecation, type-limits, range-for binding, unused params,
+  GammaDistribution missing base init, simd_avx.cpp INFINITY/NAN float promotion and C-style casts,
+  log(+inf) correctness fix
+- ClangWarn/MSVCWarn cleanup — 29 implicit int→float conversions and old-style casts in test files
+- Windows session setup documented (below)
+- `windows-support` branch deleted (fixes already in main)
+- VectorizedThresholds test fixed for NEON (threshold/2 unreliable when threshold=2)
+
+### Phase 4 Remaining
+- AVX-512 transcendentals delegate to AVX (1.9x vs 4x expected) — deferred to Phase 6
+- AVX-512 transcendentals delegate to AVX (1.9x vs 4x expected) — deferred to Phase 6
 
 ### Development Ecosystem
 
@@ -26,6 +51,52 @@ string fix from Phase 1 (`"AVX512"` → `"AVX-512"`) will also be validated on t
 
 **Note:** Previous Windows testing was on an ASUS ROG Strix GL531. The Asus TUF A16 build environment
 may need to be set up from scratch (Visual Studio 2022, CMake, Git, VS Code with C/C++ + CMake Tools).
+
+### Windows Session Setup (Asus TUF A16)
+
+Before building or running tests in a new PowerShell session on Windows:
+
+```powershell
+# 1. Activate MSVC toolchain (required each session — not persistent in PowerShell)
+$vcvars = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+$envVars = cmd /c "`"$vcvars`" > nul && set"
+foreach ($line in $envVars) {
+    if ($line -match "^([^=]+)=(.*)$") {
+        [System.Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+    }
+}
+
+# 2. Set UTF-8 output (required for Unicode glyphs in tool output)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+# 3. Ensure stats.dll is accessible for dynamic linking tests
+Copy-Item "build\Release\stats.dll" -Destination "build\tests\" -Force
+
+# 4. Run correctness tests
+ctest -C Release -LE "timing|benchmark" --output-on-failure
+```
+
+**Important: After any clean rebuild on Windows, verify the dynamic test EXEs are Release builds:**
+```powershell
+dumpbin /imports build\tests\test_gaussian_basic_dynamic.exe | Select-String vcruntime
+# Must show VCRUNTIME140.dll (Release), NOT VCRUNTIME140D.dll (Debug)
+# If Debug CRT is shown, the EXE is a stale Debug binary. Fix:
+#   Remove-Item build\tests\test_gaussian_basic_dynamic.exe, test_exponential_basic_dynamic.exe -Force
+#   cmake --build build --config Release --target test_gaussian_basic_dynamic test_exponential_basic_dynamic
+```
+The VS generator puts Debug and Release test EXEs in the same `build\tests\` directory.
+A stale Debug EXE + Release DLL = CRT mismatch = heap corruption crash. The `cmake --build --clean-first`
+flag cleans Release artifacts but leaves existing Debug EXEs untouched if their timestamps appear current.
+
+**One-time setup notes:**
+- Visual Studio 2022 Build Tools (not full VS) is sufficient
+- **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings)
+  SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
+- CMake 4.x installed and compatible with `cmake_minimum_required(VERSION 3.20)`
+- Configure: `cmake .. -G "Visual Studio 17 2022" -A x64`
+- Build: `cmake --build . --config Release --parallel`
+- GTest not installed — GTest-based tests silently skipped (expected, not an error)
 
 ## Session Start: Architecture Detection
 

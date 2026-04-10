@@ -553,7 +553,7 @@ void test_stress(const TestConfig& config) {
             vector<thread> threads;
             for (size_t t = 0; t < config.thread_count; ++t) {
                 threads.emplace_back([&, t]() {
-                    mt19937 rng(42 + t);
+                    mt19937 rng(static_cast<uint32_t>(42 + t));  // C4267: explicit size_t→uint32_t
                     uniform_real_distribution<> mean_dist(-100, 100);
                     uniform_real_distribution<> std_dist(0.1, 10);
 
@@ -658,7 +658,7 @@ void test_benchmarks([[maybe_unused]] const TestConfig& config) {
             cout << "    Result-based API: " << result_time.count() << " μs" << endl;
             cout << "    Exception-based API: " << exception_time.count() << " μs" << endl;
             cout << "    Overhead: " << fixed << setprecision(2)
-                 << (double)result_time.count() / exception_time.count() << "x" << endl;
+                 << static_cast<double>(result_time.count()) / static_cast<double>(exception_time.count()) << "x" << endl;
         }
     }
 
@@ -666,14 +666,14 @@ void test_benchmarks([[maybe_unused]] const TestConfig& config) {
     {
         auto start = chrono::high_resolution_clock::now();
         for (size_t i = 0; i < iterations; ++i) {
-            auto r = GaussianDistribution::create(i * 0.001, 1.0 + i * 0.0001);
+            auto r = GaussianDistribution::create(static_cast<double>(i) * 0.001, 1.0 + static_cast<double>(i) * 0.0001);
             (void)r;
         }
         auto end = chrono::high_resolution_clock::now();
         auto create_time = chrono::duration_cast<chrono::microseconds>(end - start);
 
         cout << "\n  Factory creation performance (" << iterations << " iterations):" << endl;
-        cout << "    Average time per creation: " << (double)create_time.count() / iterations
+        cout << "    Average time per creation: " << static_cast<double>(create_time.count()) / static_cast<double>(iterations)
              << " μs" << endl;
     }
 }

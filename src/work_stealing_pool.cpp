@@ -33,8 +33,7 @@
 
 namespace stats {
 
-// Level 0-2 Integration Enabling - use specific namespace qualifiers to avoid conflicts
-using namespace stats::detail;
+// Bring key namespaces into scope for this translation unit.
 using namespace stats::detail;
 using namespace stats::arch::simd;
 

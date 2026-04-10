@@ -525,7 +525,7 @@ void test_stress_conditions() {
 
         for (int i = 0; i < num_calls; ++i) {
             // Mix of different operations
-            [[maybe_unused]] bool decision = SIMDPolicy::shouldUseSIMD(i % 1000 + 1);
+            [[maybe_unused]] bool decision = SIMDPolicy::shouldUseSIMD(static_cast<std::size_t>(i % 1000 + 1));
             [[maybe_unused]] SIMDPolicy::Level level = SIMDPolicy::getBestLevel();
             [[maybe_unused]] std::size_t threshold = SIMDPolicy::getMinThreshold();
 

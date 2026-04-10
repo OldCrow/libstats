@@ -8,7 +8,7 @@
 [![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#safety-features)
 [![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#performance-features)
 
-A modern, high-performance C++20 statistical distributions library providing comprehensive statistical functionality with enterprise-grade safety features and zero external dependencies.
+A modern C++20 statistical distributions library demonstrating how to build statistical software correctly — with genuine SIMD vectorization, parallel dispatch, thread safety, and zero external dependencies.
 
 **📖 Complete Documentation:** For detailed information about building, architecture, parallel processing, and platform support, see the [comprehensive guides](#documentation) below.
 
@@ -19,7 +19,7 @@ A modern, high-performance C++20 statistical distributions library providing com
 - **Statistical Moments**: Mean, variance, skewness, kurtosis with thread-safe access
 - **Random Sampling**: Integration with std:: distributions for high-quality random number generation
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
-- **Ststistical Validation**: KS and AD Goodness-of-Fit, model selection
+|- **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
 ### 📊 **Available Distributions**
 - **Gaussian (Normal)**: N(μ, σ²) - The cornerstone of statistics ✅
@@ -57,7 +57,7 @@ A modern, high-performance C++20 statistical distributions library providing com
 - **C++20 Parallel Algorithms**: Safe wrappers for `std::execution` policies
 - **Cache Optimization**: Thread-safe caching with lock-free fast paths
 
-**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/NEON instruction sets with runtime safety verification.
+**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated on Intel (Ivy Bridge/Kaby Lake), Apple Silicon (M1/NEON), AMD Ryzen Zen 4 (AVX-512), and Linux CI.
 
 ## Quick Start
 
@@ -183,17 +183,23 @@ libstats/
 ## Testing
 
 ```bash
-# Run all tests
-ctest --output-on-failure
+# Correctness suite — parallel-safe, always reliable
+make run_tests                           # or: ctest -LE "timing|benchmark"
 
-# Run specific test categories
-ctest -R "test_gaussian"
-ctest -R "test_performance"
+# Timing/speedup tests — run serially for accurate results
+make run_tests_timing                    # or: ctest -j1 -L timing
 
-# Run examples
-./examples/basic_usage
-./examples/parallel_execution_demo
+# Everything (including dynamic linking tests)
+make run_all_tests
+
+# SIMD correctness and speedup measurement
+./build/tools/simd_verification
+
+# Run a specific test
+ctest -R test_gaussian_basic
 ```
+
+Tests are labelled: **no label** = correctness (parallel-safe); **timing** = speedup assertions (run serially); **benchmark** = performance tools (not in standard suite). The `*_enhanced` GTest tests require GTest installed; they are silently skipped when GTest is absent.
 
 ### System Requirements
 - **C++20 compatible compiler**: GCC 10+, Clang 14+, MSVC 2019+
@@ -242,52 +248,29 @@ Windows development environment support:
 
 ## Roadmap
 
-### Phase 1: Core Infrastructure ✅
-- [x] Enhanced base class with thread safety
-- [x] Basic distribution set (5 distributions)
-- [x] Build system and project structure
-- [x] C++20 upgrade with concepts and spans
-- [x] Memory safety and numerical stability framework
-- [x] Parallel processing capabilities (traditional and work-stealing)
-- [x] Enterprise-grade safety features
+### ✅ Core library
+- 6 distributions (Gaussian, Exponential, Uniform, Poisson, Discrete, Gamma) — PDF/CDF/quantile/MLE/validation
+- Thread-safe with reader-writer locks and lock-free fast paths
+- SIMD batch operations (SSE2/AVX/AVX2/AVX-512/NEON) with runtime dispatch
+- Work-stealing parallel thread pool
+- Goodness-of-fit tests (KS, AD), information criteria (AIC/BIC), cross-validation, bootstrap
 
-### Phase 2: Statistical Validation ✅
-- [x] Goodness-of-fit tests (KS, AD, Chi-squared)
-- [x] Information criteria (AIC/BIC)
-- [x] Residual analysis
-- [x] Cross-validation framework
-- [x] Bootstrap confidence intervals
+### ✅ Architecture and quality (Phases 1–4)
+- Honest strategy naming: SCALAR/VECTORIZED/PARALLEL/WORK_STEALING
+- Constants consolidated from 10 micro-headers to 3 semantic groups
+- Corrected `vector_exp_avx` underflow bug; Gaussian CDF heap allocation removed
+- Cross-platform validated: Intel AVX, Apple Silicon NEON, AMD AVX-512, MSVC/Linux CI
+- All compiler warnings addressed (GCC, Clang, MSVC); zero warnings under ClangStrict
+- Test labels for parallel-safe correctness runs vs timing-sensitive runs
 
-### Phase 3: Performance Optimization ✅
-- [x] SIMD bulk operations with cross-platform detection
-- [x] Parallel algorithm implementations
-- [x] Performance benchmarking tools
-- [x] Grain size optimization tools
-- [x] CPU feature detection and adaptive constants
+### 🔧 In progress (Phase 4 tail → Phase 5)
+- Packaging: `find_package` / `FetchContent` support, pkg-config
+- Windows DLL boundary investigation (dynamic linking tests)
 
-### Phase 4: Tools and Utilities ✅
-- [x] Comprehensive performance benchmarks
-- [x] CPU information and feature detection tools
-- [x] Constants inspector for mathematical verification
-- [x] Grain size optimizer for parallel performance tuning
-- [x] Parallel threshold benchmarking
+### Planned (Phases 6–7)
+- Vectorized batch ops for all 5 non-Gaussian distributions (currently scalar loops)
+- New distributions: Student's t, Chi-squared, Beta
 
-### Phase 5: Optimization and Cross-Platform Tuning (In Progress) 🔧
-- [x] Core performance analysis tools delivered
-- [x] Parallel optimization with grain size tuning
-- [x] SIMD acceleration with runtime detection
-- [ ] Cross-platform testing (Linux, Windows)
-- [ ] Compiler compatibility testing (GCC, MSVC)
-- [ ] Memory usage optimization
-- [ ] Cache efficiency improvements
-- [ ] Build system packaging
-
-### Phase 6: Future Enhancements (Planned)
-- [ ] Additional distributions (Beta, Chi-squared, Student's t)
-- [ ] Automatic distribution selection
-- [ ] Comprehensive API documentation
-- [ ] Real-world usage examples
-- [ ] Header-only distribution option
 
 ## Contributing
 
