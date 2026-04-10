@@ -1,0 +1,18 @@
+name: "libstats: Clean Rebuild"
+command: |-
+  rm -rf build && mkdir build && cmake -S . -B build -DCMAKE_BUILD_TYPE={{build_type}} && make -C build -j$(sysctl -n hw.ncpu 2>/dev/null || nproc) 2>&1 | tail -5
+description: >-
+  Remove build directory and rebuild from scratch. Use when switching
+  branches, switching machines, or when build artifacts are stale.
+  Defaults to Dev build type.
+tags:
+  - libstats
+  - build
+  - cmake
+arguments:
+  - name: build_type
+    description: "CMake build type"
+    default_value: Dev
+shells:
+  - zsh
+  - bash
