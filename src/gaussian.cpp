@@ -2879,12 +2879,19 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
 //   All three methods use `results` as a workspace to avoid heap allocations.
 //   VectorOps operations are safe for in-place use (input read before write).
 //
-// Adding a new distribution:
-//   Use these three methods as the template. The pattern is:
-//     scalar_add / scalar_multiply for mean/variance normalization
-//     vector_multiply for squaring
-//     vector_exp or vector_erf for transcendentals
-//   Keep the scalar fallback path consistent with the SIMD path.
+// Adding a new distribution — two patterns:
+//
+//   (A) Full-domain (Gaussian-style): no out-of-support inputs.
+//       Chain scalar_add / scalar_multiply / vector_multiply / vector_exp or
+//       vector_erf directly on the results buffer. No fixup needed.
+//
+//   (B) Bounded-support (Exponential-style): compute+fixup.
+//       Run the SIMD chain unconditionally over all inputs, then a scalar
+//       pass overwrites out-of-support elements (0 or -inf). Efficient when
+//       most callers provide valid inputs, which is the common case.
+//       See ExponentialDistribution::getProbabilityBatchUnsafeImpl.
+//
+//   Keep the scalar fallback path numerically consistent with the SIMD path.
 //==============================================================================
 
 void GaussianDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,

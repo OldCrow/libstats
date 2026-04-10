@@ -2383,22 +2383,57 @@ std::istream& operator>>(std::istream& is, ExponentialDistribution& distribution
 
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
+//
+// These three methods are the computational core of Exponential batch ops.
+// Called after the public API validates inputs and extracts cached parameters
+// under a read lock. Raw pointers avoid span bounds-checking overhead.
+//
+// Architecture: compute+fixup pattern
+//   SIMD runs over the full array assuming in-support inputs (x >= 0), then a
+//   scalar pass zeroes/neginfs any negative elements. Callers of exponential
+//   distributions rarely pass x < 0, so the fixup loop is almost always a
+//   no-op in practice. This keeps the hot SIMD path branch-free.
+//
+//   PDF:    results = cached_neg_lambda * x → exp → * cached_lambda
+//             fixup: x < 0 → 0
+//   LogPDF: results = cached_neg_lambda * x → + cached_log_lambda
+//             fixup: x < 0 → -inf   (purely affine — highest SIMD gain)
+//   CDF:    results = cached_neg_lambda * x → exp → negate → + 1
+//             fixup: x < 0 → 0
+//
+// See GaussianDistribution::getProbabilityBatchUnsafeImpl for the in-place
+// workspace convention and SIMDPolicy threshold rationale.
 //==============================================================================
 
 void ExponentialDistribution::getProbabilityBatchUnsafeImpl(
     const double* values, double* results, size_t count, double cached_lambda,
     double cached_neg_lambda) const noexcept {
-    for (size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (x < detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-        } else {
-            // Fast path check for unit rate (λ = 1)
-            if (std::abs(cached_lambda - detail::ONE) <= detail::DEFAULT_TOLERANCE) {
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+
+    if (!use_simd) {
+        for (size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x < detail::ZERO_DOUBLE) {
+                results[i] = detail::ZERO_DOUBLE;
+            } else if (std::abs(cached_lambda - detail::ONE) <= detail::DEFAULT_TOLERANCE) {
                 results[i] = std::exp(-x);
             } else {
                 results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
             }
+        }
+        return;
+    }
+
+    // Step 1: results = cached_neg_lambda * x  (= -λx)
+    arch::simd::VectorOps::scalar_multiply(values, cached_neg_lambda, results, count);
+    // Step 2: results = exp(-λx)
+    arch::simd::VectorOps::vector_exp(results, results, count);
+    // Step 3: results = λ · exp(-λx)
+    arch::simd::VectorOps::scalar_multiply(results, cached_lambda, results, count);
+    // Fixup: x < 0 is outside support; PDF = 0.
+    for (size_t i = 0; i < count; ++i) {
+        if (values[i] < detail::ZERO_DOUBLE) {
+            results[i] = detail::ZERO_DOUBLE;
         }
     }
 }
@@ -2406,34 +2441,65 @@ void ExponentialDistribution::getProbabilityBatchUnsafeImpl(
 void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(
     const double* values, double* results, size_t count, double cached_log_lambda,
     double cached_neg_lambda) const noexcept {
-    for (size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (x < detail::ZERO_DOUBLE) {
-            results[i] = detail::NEGATIVE_INFINITY;
-        } else {
-            // Fast path check for unit rate (λ = 1)
-            if (std::abs(cached_log_lambda - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) {
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+
+    if (!use_simd) {
+        for (size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x < detail::ZERO_DOUBLE) {
+                results[i] = detail::NEGATIVE_INFINITY;
+            } else if (std::abs(cached_log_lambda - detail::ZERO_DOUBLE) <=
+                       detail::DEFAULT_TOLERANCE) {
                 results[i] = -x;
             } else {
                 results[i] = cached_log_lambda + cached_neg_lambda * x;
             }
+        }
+        return;
+    }
+
+    // Purely affine: log(λ) - λx. No transcendentals — maximum SIMD throughput.
+    // Step 1: results = cached_neg_lambda * x  (= -λx)
+    arch::simd::VectorOps::scalar_multiply(values, cached_neg_lambda, results, count);
+    // Step 2: results = log(λ) + (-λx)  (= log(λ) - λx)
+    arch::simd::VectorOps::scalar_add(results, cached_log_lambda, results, count);
+    // Fixup: x < 0 is outside support; LogPDF = -inf.
+    for (size_t i = 0; i < count; ++i) {
+        if (values[i] < detail::ZERO_DOUBLE) {
+            results[i] = detail::NEGATIVE_INFINITY;
         }
     }
 }
 
 void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, size_t count, double cached_neg_lambda) const noexcept {
-    for (size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (x < detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-        } else {
-            // Fast path check for unit rate (λ = 1)
-            if (std::abs(cached_neg_lambda + detail::ONE) <= detail::DEFAULT_TOLERANCE) {
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+
+    if (!use_simd) {
+        for (size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            if (x < detail::ZERO_DOUBLE) {
+                results[i] = detail::ZERO_DOUBLE;
+            } else if (std::abs(cached_neg_lambda + detail::ONE) <= detail::DEFAULT_TOLERANCE) {
                 results[i] = detail::ONE - std::exp(-x);
             } else {
                 results[i] = detail::ONE - std::exp(cached_neg_lambda * x);
             }
+        }
+        return;
+    }
+
+    // Step 1: results = cached_neg_lambda * x  (= -λx)
+    arch::simd::VectorOps::scalar_multiply(values, cached_neg_lambda, results, count);
+    // Step 2: results = exp(-λx)
+    arch::simd::VectorOps::vector_exp(results, results, count);
+    // Step 3: results = -(exp(-λx))  then  results = 1 - exp(-λx)
+    arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
+    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
+    // Fixup: x < 0 is outside support; CDF = 0.
+    for (size_t i = 0; i < count; ++i) {
+        if (values[i] < detail::ZERO_DOUBLE) {
+            results[i] = detail::ZERO_DOUBLE;
         }
     }
 }

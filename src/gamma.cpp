@@ -2514,6 +2514,26 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
 
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
+//
+// These methods are the computational core of Gamma batch ops. Called after
+// the public API validates inputs and extracts cached parameters under a read
+// lock. Raw pointers avoid span bounds-checking overhead.
+//
+// PDF/LogPDF architecture: fully vectorized log-space pipeline
+//   The previous implementation had a scalar std::log() prepass that
+//   dominated runtime. Both methods now use VectorOps::vector_log to
+//   compute log(values) across the whole batch, then apply SIMD arithmetic.
+//   Non-positive inputs produce NaN/-Inf from vector_log; a scalar fixup
+//   pass at the end corrects them. One aligned temporary holds -beta*x.
+//
+//   PDF:    results = log(x) → * alpha_minus_one → + log_constant
+//             temp = -beta*x → results += temp → vector_exp
+//             fixup: x <= 0 → 0
+//   LogPDF: same pipeline, no final exp step
+//             fixup: x <= 0 → MIN_LOG_PROBABILITY (finite proxy; matches single-value method)
+//
+// CDF: gamma_p() per element is inherently serial; only the beta*x scaling
+//   step uses SIMD. No change to getCumulativeProbabilityBatchUnsafeImpl.
 //==============================================================================
 
 void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -2521,11 +2541,9 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
                                                       [[maybe_unused]] double alpha, double beta,
                                                       double log_gamma_alpha, double alpha_log_beta,
                                                       double alpha_minus_one) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
             if (values[i] <= detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
@@ -2537,37 +2555,24 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
         return;
     }
 
-    // Runtime CPU detection passed - use vectorized implementation
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, arch::simd::aligned_allocator<double>> log_values(count);
-    std::vector<double, arch::simd::aligned_allocator<double>> exp_inputs(count);
-
-    // Step 1: Handle negative values and compute log(values)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
-            log_values[i] = detail::MIN_LOG_PROBABILITY;  // Will be set to 0 later
-        } else {
-            log_values[i] = std::log(values[i]);
-        }
-    }
-
-    // Step 2: Compute alpha_minus_one * log(values) using SIMD
-    arch::simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, exp_inputs.data(),
-                                           count);
-
-    // Step 3: Add alpha_log_beta - log_gamma_alpha
+    // Fully vectorized log-space pipeline.
+    // One aligned temporary; results serves as workspace throughout.
     const double log_constant = alpha_log_beta - log_gamma_alpha;
-    arch::simd::VectorOps::scalar_add(exp_inputs.data(), log_constant, exp_inputs.data(), count);
+    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 4: Subtract beta * values
-    arch::simd::VectorOps::scalar_multiply(values, -beta, log_values.data(), count);
-    arch::simd::VectorOps::vector_add(exp_inputs.data(), log_values.data(), exp_inputs.data(),
-                                      count);
-
-    // Step 5: Apply vectorized exponential
-    arch::simd::VectorOps::vector_exp(exp_inputs.data(), results, count);
-
-    // Step 6: Handle negative input values (set to zero) - must be done after exp
+    // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
+    arch::simd::VectorOps::vector_log(values, results, count);
+    // Step 2: results = alpha_minus_one * log(values)
+    arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
+    // Step 3: results += log_constant  (= alpha_log_beta - log_gamma_alpha)
+    arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
+    // Step 4: temp = -beta * values
+    arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
+    // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
+    arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+    // Step 6: results = exp(log-space result)
+    arch::simd::VectorOps::vector_exp(results, results, count);
+    // Fixup: x <= 0 is outside support; PDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
@@ -2581,11 +2586,9 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
                                                          double log_gamma_alpha,
                                                          double alpha_log_beta,
                                                          double alpha_minus_one) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
             if (values[i] <= detail::ZERO_DOUBLE) {
                 results[i] = detail::NEGATIVE_INFINITY;
@@ -2597,33 +2600,24 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
         return;
     }
 
-    // Runtime CPU detection passed - use vectorized implementation
-    // Create aligned temporary arrays for vectorized operations
-    std::vector<double, arch::simd::aligned_allocator<double>> log_values(count);
-    std::vector<double, arch::simd::aligned_allocator<double>> beta_scaled_values(count);
-
-    // Step 1: Handle negative values and compute log(values)
-    for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
-            log_values[i] = 0.0;  // Use 0 for now, will handle negative values at the end
-        } else {
-            log_values[i] = std::log(values[i]);
-        }
-    }
-
-    // Step 2: Compute alpha_minus_one * log(values) using SIMD
-    arch::simd::VectorOps::scalar_multiply(log_values.data(), alpha_minus_one, results, count);
-
-    // Step 3: Add alpha_log_beta - log_gamma_alpha
+    // Fully vectorized log-space computation; no exp step needed.
+    // One aligned temporary for -beta*x; results is the accumulator.
     const double log_constant = alpha_log_beta - log_gamma_alpha;
+    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+
+    // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
+    arch::simd::VectorOps::vector_log(values, results, count);
+    // Step 2: results = alpha_minus_one * log(values)
+    arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
+    // Step 3: results += log_constant
     arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
-
-    // Step 4: Subtract beta * values using SIMD
-    arch::simd::VectorOps::scalar_multiply(values, -beta, beta_scaled_values.data(), count);
-    arch::simd::VectorOps::vector_add(results, beta_scaled_values.data(), results, count);
-
-    // Step 5: Handle negative input values (set to MIN_LOG_PROBABILITY) - must be done after all
-    // SIMD ops
+    // Step 4: temp = -beta * values
+    arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
+    // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
+    arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+    // Fixup: x <= 0 is outside support. Use MIN_LOG_PROBABILITY (finite proxy for -inf)
+    // to match the single-value getLogProbability() behaviour for alpha > 1 at x = 0,
+    // which avoids -inf propagation in log-probability summation algorithms.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE) {
             results[i] = detail::MIN_LOG_PROBABILITY;

@@ -8,8 +8,8 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phase 5 (Packaging and Installability) in progress on branch `phase-5-installation`.
-Phases 1–4 complete and merged to main ✅. Version 1.0.0-beta1.
+**Current Status**: Phase 6A (SIMD Batch Ops for Non-Gaussian Distributions) complete and merged to main ✅.
+Phases 1–6A complete. Phase 6B (New Distributions: Student's t, Chi-squared, Beta) is next.
 
 ### Phase 4 Validation Matrix (final)
 
@@ -21,8 +21,35 @@ Phases 1–4 complete and merged to main ✅. Version 1.0.0-beta1.
 | Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x |
 | Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — |
 
+### Phase 6A Results (Ivy Bridge, AVX)
+SIMD batch ops added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
+All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
+
+| Distribution | Op | Speedup |
+|---|---|---|
+| Exponential | PDF | 10.5x |
+| Exponential | LogPDF | 20.8x |
+| Exponential | CDF | 10.1x |
+| Gamma | PDF | 9.7x |
+| Gamma | LogPDF | 7.1x |
+| Uniform | CDF | 25.2x |
+
+Overall `simd_verification` AVX speedup: 4.10x (was 3.84x pre-Phase 6A). 36/36 tests pass.
+
 ### Deferred Items
-- AVX-512 transcendentals delegate to AVX (1.91x vs ~4x expected) — deferred to Phase 6
+- AVX-512 transcendentals delegate to AVX (1.91x vs ~4x expected) — validate and fix on Asus A16
+- Phase 6C (possible): `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
+  branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
+  (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
+
+### Phase 6B Scope (next)
+New distributions on branch `phase-6b-new-distributions`:
+- **Student's t** — Γ((ν+1)/2) / (√(νπ) Γ(ν/2)) · (1 + x²/ν)^(-(ν+1)/2); CDF via incomplete beta
+- **Chi-squared** — thin wrapper over Gamma(α=ν/2, β=1/2); near-zero implementation cost
+- **Beta** — x^(α-1)(1-x)^(β-1)/B(α,β); CDF via regularized incomplete beta
+
+All three PDF/LogPDF are log-space computations that vectorize with existing `vector_log`/`vector_exp`
+primitives — SIMD batch ops are essentially free by following the `BatchUnsafeImpl` pattern.
 
 ### Development Ecosystem
 

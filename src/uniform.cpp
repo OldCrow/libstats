@@ -2364,6 +2364,16 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION USING VECTOROPS
+//
+// PDF and LogPDF batch kernels remain scalar: the computation is a constant
+// fill guarded by a bounds check, and there is no arithmetic to vectorize
+// without a blend/select primitive in VectorOps.
+//
+// CDF is partially vectorized. The interior is a linear function
+// (x - a) * inv_width that maps cleanly to scalar_add + scalar_multiply.
+// A scalar fixup pass then clamps values outside [a, b]. The unit-interval
+// special case collapses to the same formula (a=0, inv_width=1), so the
+// two-branch structure in the old SIMD path has been removed.
 //==============================================================================
 
 void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -2443,71 +2453,10 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
                                                                   std::size_t count, double a,
                                                                   double b,
                                                                   double inv_width) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
-        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
-        // Note: For uniform distribution CDF, computation is simple (bounds checking + linear
-        // interpolation) so SIMD rarely provides benefits, but we use centralized policy for
-        // consistency
-        const bool is_unit_interval =
-            (std::abs(a - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) &&
-            (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE);
-
-        if (is_unit_interval) {
-            // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    results[i] = detail::ZERO_DOUBLE;
-                } else if (x > detail::ONE) {
-                    results[i] = detail::ONE;
-                } else {
-                    results[i] = x;
-                }
-            }
-        } else {
-            // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
-            for (std::size_t i = 0; i < count; ++i) {
-                const double x = values[i];
-                if (x < a) {
-                    results[i] = detail::ZERO_DOUBLE;
-                } else if (x > b) {
-                    results[i] = detail::ONE;
-                } else {
-                    results[i] = (x - a) * inv_width;
-                }
-            }
-        }
-        return;
-    }
-
-    // Runtime CPU detection passed - use vectorized implementation if possible
-    // Note: For uniform distribution, vectorization typically doesn't provide significant benefits
-    // due to the simple nature of bounds checking, but we implement for consistency
-    // In practice, this will mostly fall back to scalar due to the nature of the operation
-
-    const bool is_unit_interval =
-        (std::abs(a - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE) &&
-        (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE);
-
-    // Use scalar implementation even when SIMD is available because uniform distribution
-    // operations are not amenable to vectorization (primarily branching logic)
-    if (is_unit_interval) {
-        // Unit interval case: CDF(x) = 0 for x < 0, x for 0 ≤ x ≤ 1, 1 for x > 1
-        for (std::size_t i = 0; i < count; ++i) {
-            const double x = values[i];
-            if (x < detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
-            } else if (x > detail::ONE) {
-                results[i] = detail::ONE;
-            } else {
-                results[i] = x;
-            }
-        }
-    } else {
-        // General case: CDF(x) = 0 for x < a, (x-a)/(b-a) for a ≤ x ≤ b, 1 for x > b
+        // Scalar path for small arrays.
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x < a) {
@@ -2517,6 +2466,23 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             } else {
                 results[i] = (x - a) * inv_width;
             }
+        }
+        return;
+    }
+
+    // Vectorize the linear interior (x-a)*inv_width across the full batch,
+    // then a scalar pass clamps the boundary values.
+    // The unit-interval case (a=0, inv_width=1) is handled by the same formula.
+    // Step 1: results = values - a
+    arch::simd::VectorOps::scalar_add(values, -a, results, count);
+    // Step 2: results = (values - a) * inv_width
+    arch::simd::VectorOps::scalar_multiply(results, inv_width, results, count);
+    // Clamp fixup: boundaries are 0 below a and 1 above b.
+    for (std::size_t i = 0; i < count; ++i) {
+        if (values[i] < a) {
+            results[i] = detail::ZERO_DOUBLE;
+        } else if (values[i] > b) {
+            results[i] = detail::ONE;
         }
     }
 }
