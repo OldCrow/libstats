@@ -13,7 +13,7 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats.h"
+#include "libstats/libstats.h"
 
 #include <chrono>   // for duration, duration_cast
 #include <cstddef>  // for size_t (portable alternative to stddef.h)

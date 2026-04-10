@@ -1,15 +1,15 @@
-#include "../include/distributions/gamma.h"
+#include "libstats/distributions/gamma.h"
 
 // Core functionality - lightweight headers
-#include "../include/core/dispatch_utils.h"
-#include "../include/core/log_space_ops.h"
-#include "../include/core/math_utils.h"
-#include "../include/core/safety.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/core/validation.h"
+#include "libstats/core/dispatch_utils.h"
+#include "libstats/core/log_space_ops.h"
+#include "libstats/core/math_utils.h"
+#include "libstats/core/safety.h"
+#include "libstats/core/statistical_constants.h"
+#include "libstats/core/validation.h"
 
 // Platform headers - use forward declarations where available
-#include "../include/common/cpu_detection_fwd.h"  // Lightweight CPU detection
+#include "libstats/common/cpu_detection_fwd.h"  // Lightweight CPU detection
 // Note: parallel_execution.h is transitively included via dispatch_utils.h
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include <algorithm>
@@ -38,8 +38,7 @@ GammaDistribution::GammaDistribution(double alpha, double beta) {
     updateCacheUnsafe();
 }
 
-GammaDistribution::GammaDistribution(const GammaDistribution& other)
-    : DistributionBase(other) {
+GammaDistribution::GammaDistribution(const GammaDistribution& other) : DistributionBase(other) {
     std::unique_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;

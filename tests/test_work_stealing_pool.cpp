@@ -6,7 +6,7 @@
  * as the ThreadPool implementation, plus work-stealing specific functionality.
  */
 
-#include "../include/platform/work_stealing_pool.h"
+#include "libstats/platform/work_stealing_pool.h"
 
 #include <atomic>
 #include <cassert>

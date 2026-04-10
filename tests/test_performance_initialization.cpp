@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>  // For testing framework
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"  // For stats library interface
+#include "libstats/libstats.h"  // For stats library interface
 
 #include <chrono>    // For high_resolution_clock timing
 #include <cmath>     // For std::isfinite

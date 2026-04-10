@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../common/utility_common.h"
-#include "../platform/simd.h"
+#include "libstats/common/utility_common.h"
+#include "libstats/platform/simd.h"
 #include "math_constants.h"
 #include "safety.h"
 #include "statistical_constants.h"

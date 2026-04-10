@@ -26,8 +26,8 @@
 #include <vector>
 
 // Core libstats headers common to distribution interfaces
-#include "../core/error_handling.h"       // Result types and validation
-#include "../core/essential_constants.h"  // Only essential constants
+#include "libstats/core/error_handling.h"       // Result types and validation
+#include "libstats/core/essential_constants.h"  // Only essential constants
 
 namespace stats {
 

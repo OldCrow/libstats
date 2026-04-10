@@ -12,9 +12,9 @@
  * - Advanced vectorization decision testing
  */
 
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/parallel_thresholds.h"
-#include "../include/platform/simd.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/parallel_thresholds.h"
+#include "libstats/platform/simd.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -380,7 +380,8 @@ void test_cache_aware_algorithms() {
     cout << "  Strided access: " << strided_time.count() << " μs" << endl;
 
     if (strided_time.count() > 0 && sequential_time.count() > 0) {
-        double ratio = static_cast<double>(strided_time.count()) / static_cast<double>(sequential_time.count());
+        double ratio = static_cast<double>(strided_time.count()) /
+                       static_cast<double>(sequential_time.count());
         cout << "  Cache efficiency ratio: " << fixed << setprecision(2) << ratio << "x" << endl;
     }
 
@@ -423,7 +424,8 @@ void test_memory_access_patterns() {
     cout << "  Unaligned SIMD: " << unaligned_time.count() << " ns" << endl;
 
     if (aligned_time.count() > 0 && unaligned_time.count() > 0) {
-        double speedup = static_cast<double>(unaligned_time.count()) / static_cast<double>(aligned_time.count());
+        double speedup =
+            static_cast<double>(unaligned_time.count()) / static_cast<double>(aligned_time.count());
         cout << "  Alignment speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
     }
 
@@ -616,11 +618,14 @@ void test_performance_scaling() {
         double speedup = 1.0;
 
         if (scalar_time.count() > 0) {
-            scalar_ops_per_sec = (static_cast<double>(size) * 1e9) / static_cast<double>(scalar_time.count());
+            scalar_ops_per_sec =
+                (static_cast<double>(size) * 1e9) / static_cast<double>(scalar_time.count());
         }
         if (simd_time.count() > 0) {
-            simd_ops_per_sec = (static_cast<double>(size) * 1e9) / static_cast<double>(simd_time.count());
-            speedup = static_cast<double>(scalar_time.count()) / static_cast<double>(simd_time.count());
+            simd_ops_per_sec =
+                (static_cast<double>(size) * 1e9) / static_cast<double>(simd_time.count());
+            speedup =
+                static_cast<double>(scalar_time.count()) / static_cast<double>(simd_time.count());
         }
 
         cout << setw(10) << size << setw(15) << fixed << setprecision(0) << scalar_ops_per_sec
@@ -742,7 +747,8 @@ void benchmark_cache_blocking() {
     cout << "  Blocked multiply: " << blocked_time.count() << " μs" << endl;
 
     if (naive_time.count() > 0 && blocked_time.count() > 0) {
-        double speedup = static_cast<double>(naive_time.count()) / static_cast<double>(blocked_time.count());
+        double speedup =
+            static_cast<double>(naive_time.count()) / static_cast<double>(blocked_time.count());
         cout << "  Cache blocking speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
     }
 }

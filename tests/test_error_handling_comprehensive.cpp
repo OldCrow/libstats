@@ -3,7 +3,7 @@
 // Tests all error handling mechanisms across all distributions
 
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"
+#include "libstats/libstats.h"
 
 // Standard library includes
 #include <algorithm>
@@ -658,7 +658,9 @@ void test_benchmarks([[maybe_unused]] const TestConfig& config) {
             cout << "    Result-based API: " << result_time.count() << " μs" << endl;
             cout << "    Exception-based API: " << exception_time.count() << " μs" << endl;
             cout << "    Overhead: " << fixed << setprecision(2)
-                 << static_cast<double>(result_time.count()) / static_cast<double>(exception_time.count()) << "x" << endl;
+                 << static_cast<double>(result_time.count()) /
+                        static_cast<double>(exception_time.count())
+                 << "x" << endl;
         }
     }
 
@@ -666,15 +668,17 @@ void test_benchmarks([[maybe_unused]] const TestConfig& config) {
     {
         auto start = chrono::high_resolution_clock::now();
         for (size_t i = 0; i < iterations; ++i) {
-            auto r = GaussianDistribution::create(static_cast<double>(i) * 0.001, 1.0 + static_cast<double>(i) * 0.0001);
+            auto r = GaussianDistribution::create(static_cast<double>(i) * 0.001,
+                                                  1.0 + static_cast<double>(i) * 0.0001);
             (void)r;
         }
         auto end = chrono::high_resolution_clock::now();
         auto create_time = chrono::duration_cast<chrono::microseconds>(end - start);
 
         cout << "\n  Factory creation performance (" << iterations << " iterations):" << endl;
-        cout << "    Average time per creation: " << static_cast<double>(create_time.count()) / static_cast<double>(iterations)
-             << " μs" << endl;
+        cout << "    Average time per creation: "
+             << static_cast<double>(create_time.count()) / static_cast<double>(iterations) << " μs"
+             << endl;
     }
 }
 

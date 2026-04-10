@@ -11,7 +11,7 @@
  */
 
 // Platform-specific includes and utilities
-#include "../common/platform_common.h"
+#include "libstats/common/platform_common.h"
 
 // Additional includes specific to parallel execution
 #include <algorithm>

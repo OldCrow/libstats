@@ -1,6 +1,6 @@
 // Use comprehensive library header for testing multiple distributions
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"
+#include "libstats/libstats.h"
 
 // Standard library includes
 #include <cassert>   // for assert

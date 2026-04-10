@@ -2,9 +2,9 @@
 // Consolidates tests for core/safety.h and core/log_space_ops.h
 // Provides unified testing of all numerical safety mechanisms
 
-#include "../include/core/constants.h"
-#include "../include/core/log_space_ops.h"
-#include "../include/core/safety.h"
+#include "libstats/core/constants.h"
+#include "libstats/core/log_space_ops.h"
+#include "libstats/core/safety.h"
 
 // Standard library includes
 #include <algorithm>
@@ -477,7 +477,8 @@ void test_benchmarks(const TestConfig& config) {
         cout << "  Scalar: " << scalar_time.count() << " μs" << endl;
         cout << "  Vector: " << vector_time.count() << " μs" << endl;
         cout << "  Speedup: " << fixed << setprecision(2)
-             << static_cast<double>(scalar_time.count()) / static_cast<double>(vector_time.count()) << "x" << endl;
+             << static_cast<double>(scalar_time.count()) / static_cast<double>(vector_time.count())
+             << "x" << endl;
     }
 
     // Benchmark logSumExpArray
@@ -509,7 +510,8 @@ void test_benchmarks(const TestConfig& config) {
         cout << "  Array method: " << array_time.count() << " μs" << endl;
         cout << "  Pairwise method: " << pairwise_time.count() << " μs" << endl;
         cout << "  Speedup: " << fixed << setprecision(2)
-             << static_cast<double>(pairwise_time.count()) / static_cast<double>(array_time.count()) << "x" << endl;
+             << static_cast<double>(pairwise_time.count()) / static_cast<double>(array_time.count())
+             << "x" << endl;
     }
 
     // Benchmark matrix operations

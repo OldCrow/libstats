@@ -12,7 +12,7 @@
 #include "tool_utils.h"
 
 // Additional includes for performance analysis functionality
-#include "../include/core/performance_history.h"
+#include "libstats/core/performance_history.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::max

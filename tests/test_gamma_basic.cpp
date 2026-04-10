@@ -1,6 +1,6 @@
 // Focused unit test for gamma distribution
-#include "../include/distributions/gamma.h"
 #include "include/tests.h"
+#include "libstats/distributions/gamma.h"
 
 // Standard library includes
 #include <chrono>     // for std::chrono::high_resolution_clock, timing measurements

@@ -16,12 +16,12 @@
  */
 
 // Core platform optimization headers used by most distributions
-#include "../platform/parallel_execution.h"  // Parallel execution policies (used by all)
-#include "../platform/simd.h"                // SIMD operations (used by all distributions)
-#include "../platform/work_stealing_pool.h"  // Work-stealing parallelism (used by most)
+#include "libstats/platform/parallel_execution.h"  // Parallel execution policies (used by all)
+#include "libstats/platform/simd.h"                // SIMD operations (used by all distributions)
+#include "libstats/platform/work_stealing_pool.h"  // Work-stealing parallelism (used by most)
 
 // Thread pool integration - used by distributions with heavy batch operations
-#include "../platform/thread_pool.h"  // Traditional thread pool (used by most)
+#include "libstats/platform/thread_pool.h"  // Traditional thread pool (used by most)
 
 namespace stats {
 namespace distributions {

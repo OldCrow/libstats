@@ -8,14 +8,14 @@
     #define LIBSTATS_SIMD_IMPLEMENTATION_COMMON_H
 
     // Core lightweight headers - always needed
-    #include "../core/math_constants.h"  // Mathematical constants used in SIMD computations
+    #include "libstats/core/math_constants.h"  // Mathematical constants used in SIMD computations
 
     // Forward declarations for heavy headers
     #include "cpu_detection_fwd.h"
     #include "platform_constants_fwd.h"
 
     // The main SIMD interface is still needed
-    #include "../platform/simd.h"
+    #include "libstats/platform/simd.h"
 
     // Standard library essentials for SIMD operations
     #include <cmath>

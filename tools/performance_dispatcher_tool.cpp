@@ -13,8 +13,8 @@
 #include "tool_utils.h"
 
 // Additional standard library includes for performance analysis
-#include "../include/core/performance_dispatcher.h"
-#include "../include/core/performance_history.h"
+#include "libstats/core/performance_dispatcher.h"
+#include "libstats/core/performance_history.h"
 
 #include <chrono>    // for timing operations
 #include <cstddef>   // for size_t

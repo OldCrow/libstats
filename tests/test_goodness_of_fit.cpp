@@ -1,5 +1,5 @@
-#include "../include/core/distribution_base.h"
-#include "../include/core/math_utils.h"
+#include "libstats/core/distribution_base.h"
+#include "libstats/core/math_utils.h"
 
 // Standard library includes
 #include <cmath>     // for std::sqrt, std::exp, std::erf, M_PI

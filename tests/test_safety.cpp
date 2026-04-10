@@ -1,5 +1,5 @@
-#include "../include/core/constants.h"
-#include "../include/core/safety.h"
+#include "libstats/core/constants.h"
+#include "libstats/core/safety.h"
 
 // Standard library includes
 #include <cassert>    // for assert

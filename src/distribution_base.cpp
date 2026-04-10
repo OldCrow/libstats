@@ -1,11 +1,11 @@
-#include "../include/core/distribution_base.h"
+#include "libstats/core/distribution_base.h"
 
-#include "../include/core/math_constants.h"
-#include "../include/core/math_utils.h"
-#include "../include/core/performance_dispatcher.h"
-#include "../include/core/safety.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/platform/parallel_execution.h"  // Parallel execution (full implementation)
+#include "libstats/core/math_constants.h"
+#include "libstats/core/math_utils.h"
+#include "libstats/core/performance_dispatcher.h"
+#include "libstats/core/safety.h"
+#include "libstats/core/statistical_constants.h"
+#include "libstats/platform/parallel_execution.h"  // Parallel execution (full implementation)
 
 #include <algorithm>   // for std::sort, std::abs
 #include <cmath>       // for std::log, std::exp, std::sqrt, std::isfinite

@@ -16,11 +16,11 @@
 // and has different intrinsic handling
 #endif
 
-#include "../include/common/simd_implementation_common.h"
+#include "libstats/common/simd_implementation_common.h"
 
 #include <cmath>
-#include <limits>       // std::numeric_limits
 #include <immintrin.h>  // AVX intrinsics
+#include <limits>       // std::numeric_limits
 
 namespace stats {
 namespace simd {
@@ -358,8 +358,10 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
         _mm_store_si128(reinterpret_cast<__m128i*>(exp_low_arr), exp_low);
         _mm_store_si128(reinterpret_cast<__m128i*>(exp_high_arr), exp_high);
 
-        __m128d exp_low_d = _mm_set_pd(static_cast<double>(exp_low_arr[1]), static_cast<double>(exp_low_arr[0]));
-        __m128d exp_high_d = _mm_set_pd(static_cast<double>(exp_high_arr[1]), static_cast<double>(exp_high_arr[0]));
+        __m128d exp_low_d =
+            _mm_set_pd(static_cast<double>(exp_low_arr[1]), static_cast<double>(exp_low_arr[0]));
+        __m128d exp_high_d =
+            _mm_set_pd(static_cast<double>(exp_high_arr[1]), static_cast<double>(exp_high_arr[0]));
         __m256d e = _mm256_set_m128d(exp_high_d, exp_low_d);
 
         // Adjust exponent for denormals
@@ -416,7 +418,8 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
         // Handle special cases: log(0) = -inf, log(+inf) = +inf, log(negative) = nan
         result = _mm256_blendv_pd(result, neg_inf, is_zero);
         result = _mm256_blendv_pd(result, pos_inf, is_inf);
-        result = _mm256_blendv_pd(result, _mm256_set1_pd(std::numeric_limits<double>::quiet_NaN()), is_negative);
+        result = _mm256_blendv_pd(result, _mm256_set1_pd(std::numeric_limits<double>::quiet_NaN()),
+                                  is_negative);
 
         _mm256_storeu_pd(&output[i], result);
     }

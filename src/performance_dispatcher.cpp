@@ -1,11 +1,11 @@
-#include "../include/core/performance_dispatcher.h"
+#include "libstats/core/performance_dispatcher.h"
 
-#include "../include/core/distribution_characteristics.h"
-#include "../include/core/math_constants.h"
-#include "../include/core/performance_history.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/platform/cpu_detection.h"
-#include "../include/platform/simd_policy.h"
+#include "libstats/core/distribution_characteristics.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/core/performance_history.h"
+#include "libstats/core/statistical_constants.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/simd_policy.h"
 
 #include <iostream>
 #include <mutex>

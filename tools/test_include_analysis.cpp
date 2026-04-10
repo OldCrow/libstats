@@ -1,5 +1,5 @@
 // Test file for include analysis
-#include "../include/libstats.h"
+#include "libstats/libstats.h"
 
 int main() {
     return 0;

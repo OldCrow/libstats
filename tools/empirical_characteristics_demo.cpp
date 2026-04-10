@@ -10,7 +10,7 @@
 #include "tool_utils.h"
 
 // Additional includes for empirical characteristics
-#include "../include/core/distribution_characteristics.h"
+#include "libstats/core/distribution_characteristics.h"
 
 // Standard library includes
 #include <iomanip>   // for std::setw, std::setprecision, std::fixed, std::left

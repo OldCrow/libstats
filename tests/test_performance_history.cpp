@@ -3,8 +3,8 @@
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
-#include "core/performance_dispatcher.h"  // For Strategy, DistributionType enums
-#include "core/performance_history.h"     // For PerformanceHistory class
+#include "libstats/core/performance_dispatcher.h"  // For Strategy, DistributionType enums
+#include "libstats/core/performance_history.h"     // For PerformanceHistory class
 
 #include <chrono>         // For high_resolution_clock timing
 #include <cstddef>        // For size_t

@@ -5,9 +5,9 @@
 #include <vector>
 
 // Include all three distributions
-#include "../include/distributions/exponential.h"
-#include "../include/distributions/gaussian.h"
-#include "../include/distributions/uniform.h"
+#include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/uniform.h"
 
 using namespace std;
 using namespace stats;

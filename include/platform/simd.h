@@ -1,7 +1,7 @@
 #pragma once
 
 // Common platform includes and utilities
-#include "../common/platform_common.h"
+#include "libstats/common/platform_common.h"
 
 // Additional includes specific to SIMD operations
 #include "simd_policy.h"

@@ -1,9 +1,9 @@
-#include "../include/core/log_space_ops.h"
+#include "libstats/core/log_space_ops.h"
 
-#include "../include/core/math_constants.h"
-#include "../include/core/safety.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/platform/simd_policy.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/core/safety.h"
+#include "libstats/core/statistical_constants.h"
+#include "libstats/platform/simd_policy.h"
 
 #include <algorithm>
 #include <cmath>

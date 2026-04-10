@@ -1,9 +1,9 @@
-#include "../include/common/platform_constants_fwd.h"
-#include "../include/core/math_constants.h"
-#include "../include/platform/platform_constants.h"
-#include "../include/platform/simd_policy.h"
-#include "platform/cpu_detection.h"
-#include "platform/cpu_vendor_constants.h"
+#include "libstats/common/platform_constants_fwd.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/cpu_vendor_constants.h"
+#include "libstats/platform/platform_constants.h"
+#include "libstats/platform/simd_policy.h"
 
 // Heavy STL includes are now contained in this implementation file
 #include <algorithm>

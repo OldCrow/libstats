@@ -1,8 +1,8 @@
-#include "../include/platform/parallel_thresholds.h"
+#include "libstats/platform/parallel_thresholds.h"
 
-#include "../include/core/math_constants.h"
-#include "../include/core/statistical_constants.h"
-#include "../include/platform/cpu_detection.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/core/statistical_constants.h"
+#include "libstats/platform/cpu_detection.h"
 
 #include <algorithm>
 #include <cctype>

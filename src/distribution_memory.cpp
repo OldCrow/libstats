@@ -1,4 +1,4 @@
-#include "../include/core/distribution_memory.h"
+#include "libstats/core/distribution_memory.h"
 
 namespace stats {
 

@@ -1,5 +1,5 @@
 // Use focused header for benchmark infrastructure
-#include "../include/platform/benchmark.h"
+#include "libstats/platform/benchmark.h"
 
 // Standard library includes
 #include <algorithm>  // for std::fill

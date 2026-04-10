@@ -4,7 +4,7 @@
 #endif
 
 // Use focused header for system capabilities testing
-#include "../include/core/performance_dispatcher.h"
+#include "libstats/core/performance_dispatcher.h"
 
 // Standard library includes
 #include <chrono>  // for std::chrono::microseconds

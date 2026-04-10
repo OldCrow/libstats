@@ -6,7 +6,7 @@
 
 // Test integration with main header
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"
+#include "libstats/libstats.h"
 
 int main() {
     std::cout << "=== Testing parallel_execution.h Integration ===" << std::endl;

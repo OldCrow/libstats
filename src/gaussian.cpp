@@ -1,12 +1,12 @@
-#include "../include/distributions/gaussian.h"
+#include "libstats/distributions/gaussian.h"
 
-#include "../include/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
-#include "../include/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
-#include "../include/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
-#include "../include/core/dispatch_utils.h"
+#include "libstats/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
+#include "libstats/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
+#include "libstats/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
+#include "libstats/core/dispatch_utils.h"
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
-#include "../include/core/safety.h"
-#include "../include/core/validation.h"
+#include "libstats/core/safety.h"
+#include "libstats/core/validation.h"
 // Note: simd.h still included in implementation files that actually use SIMD operations
 
 #include <algorithm>

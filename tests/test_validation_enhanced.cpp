@@ -1,9 +1,9 @@
 // Comprehensive Validation Testing Suite
 // Tests validation.h and distribution_validation.h functionality
 
-#include "../include/core/validation.h"
-#include "../include/distributions/gaussian.h"
 #include "include/tests.h"
+#include "libstats/core/validation.h"
+#include "libstats/distributions/gaussian.h"
 
 // Standard library includes
 #include <cmath>

@@ -47,12 +47,12 @@
 #endif
 
 // Core libstats headers needed by platform implementations
-#include "../core/constants.h"
-#include "../core/error_handling.h"
-#include "../core/safety.h"
+#include "libstats/core/constants.h"
+#include "libstats/core/error_handling.h"
+#include "libstats/core/safety.h"
 
 // Platform constants that are shared across platform modules
-#include "../platform/platform_constants.h"
+#include "libstats/platform/platform_constants.h"
 
 // Utility using declarations to avoid repetition across platform headers
 namespace stats {

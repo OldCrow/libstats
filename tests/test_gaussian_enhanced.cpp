@@ -4,8 +4,8 @@
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
-#include "../include/distributions/gaussian.h"
 #include "include/tests.h"
+#include "libstats/distributions/gaussian.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max

@@ -12,9 +12,9 @@
  * Part of the stats::tests:: namespace hierarchy reorganization
  */
 
-#include "../../include/platform/cpu_detection.h"
-#include "../../include/platform/cpu_vendor_constants.h"
 #include "constants.h"
+#include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/cpu_vendor_constants.h"
 
 #include <algorithm>
 #include <atomic>

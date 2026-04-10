@@ -10,7 +10,7 @@
 // and has different intrinsic handling
 #endif
 
-#include "../include/common/simd_implementation_common.h"
+#include "libstats/common/simd_implementation_common.h"
 
 #include <cmath>
 #include <immintrin.h>  // AVX-512 intrinsics

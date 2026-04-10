@@ -1,7 +1,7 @@
-#include "../include/platform/benchmark.h"
+#include "libstats/platform/benchmark.h"
 
-#include "../include/core/math_constants.h"
-#include "../include/core/statistical_constants.h"
+#include "libstats/core/math_constants.h"
+#include "libstats/core/statistical_constants.h"
 
 #include <algorithm>
 #include <cmath>

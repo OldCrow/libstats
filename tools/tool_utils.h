@@ -10,7 +10,7 @@
 
 // Use libstats.h for complete library functionality
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"
+#include "libstats/libstats.h"
 
 // Additional standard library includes for tool-specific functionality
 #include <iomanip>

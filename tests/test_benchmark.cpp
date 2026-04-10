@@ -14,7 +14,7 @@
  * --help/-h          Show this help
  */
 
-#include "../include/platform/benchmark.h"
+#include "libstats/platform/benchmark.h"
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max

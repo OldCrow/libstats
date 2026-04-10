@@ -11,9 +11,9 @@
  * @since 1.0.0
  */
 // Use focused headers for atomic parameters testing
-#include "../include/distributions/discrete.h"
-#include "../include/distributions/exponential.h"
-#include "../include/distributions/gaussian.h"
+#include "libstats/distributions/discrete.h"
+#include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gaussian.h"
 
 // Standard library includes
 #include <cassert>   // for assert

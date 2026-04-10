@@ -1,4 +1,4 @@
-#include "../include/distributions/gaussian.h"
+#include "libstats/distributions/gaussian.h"
 
 // Standard library includes
 #include <iostream>  // for std::cout, std::endl

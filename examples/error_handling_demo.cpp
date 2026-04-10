@@ -17,7 +17,7 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
-#include "../include/libstats.h"
+#include "libstats/libstats.h"
 
 // Standard library includes
 #include <algorithm>  // for std::remove_if
