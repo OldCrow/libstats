@@ -153,6 +153,7 @@
     #include "core/performance_history.h"
 
     // Distribution implementations
+    #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
     #include "distributions/exponential.h"
     #include "distributions/gamma.h"
@@ -171,6 +172,7 @@ using Uniform = UniformDistribution;
 using Poisson = PoissonDistribution;
 using Gamma = GammaDistribution;
 using Discrete = DiscreteDistribution;
+using ChiSquared = ChiSquaredDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;

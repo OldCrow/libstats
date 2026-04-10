@@ -18,6 +18,7 @@
 #include "tool_utils.h"
 
 // Additional standard library includes for SIMD verification
+#include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gamma.h"
@@ -119,6 +120,7 @@ class SIMDVerifier {
         testDiscreteDistribution();
         testPoissonDistribution();
         testGammaDistribution();
+        testChiSquaredDistribution();
 
         // Test edge cases
         testEdgeCases();
@@ -225,6 +227,17 @@ class SIMDVerifier {
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
 
         verifyDistributionOperations(dist, test_data, "Gamma");
+    }
+
+    void testChiSquaredDistribution() {
+        stats::detail::detail::subsectionHeader("ChiSquared Distribution SIMD Verification");
+        // k=2: analytically tractable (Exp(1/2)), good SIMD test case
+        auto dist = stats::ChiSquaredDistribution::create(2.0).value;
+
+        // Positive values only; chi-squared support is (0, +inf)
+        auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
+
+        verifyDistributionOperations(dist, test_data, "ChiSquared");
     }
 
     template <typename Distribution>
@@ -452,7 +465,13 @@ class SIMDVerifier {
             {"Discrete",
              [this]() { testDistributionEdgeCases(stats::Discrete(0, 10), "Discrete"); }},
             {"Poisson", [this]() { testDistributionEdgeCases(stats::Poisson(3.0), "Poisson"); }},
-            {"Gamma", [this]() { testDistributionEdgeCases(stats::Gamma(2.0, 1.0), "Gamma"); }}};
+            {"Gamma", [this]() { testDistributionEdgeCases(stats::Gamma(2.0, 1.0), "Gamma"); }},
+            {"ChiSquared", [this]() {
+                 // Use k=4 (alpha=2) to avoid the alpha=1 x=0 boundary case
+                 // where getProbability(0) returns beta (single-value special case)
+                 // while the batch fixup returns 0. Same reasoning as Gamma using alpha=2.
+                 testDistributionEdgeCases(stats::ChiSquared(4.0), "ChiSquared");
+             }}};
 
         for (const auto& test : edge_tests) {
             std::cout << "  Testing " << test.first << " edge cases...\n";
