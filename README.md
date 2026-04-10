@@ -240,11 +240,8 @@ High-performance parallel and batch processing:
 - Performance optimization guidelines
 - Thread safety and memory management
 
-### 🪟 **[WINDOWS_SUPPORT_GUIDE.md](docs/WINDOWS_SUPPORT_GUIDE.md)**
-Windows development environment support:
-- Visual Studio and MSVC configuration
-- Windows-specific SIMD optimization
-- Build instructions for Windows platforms
+### 🪟 **Windows Support**
+For Windows development environment setup (MSVC activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [WARP.md](WARP.md).
 
 ## Roadmap
 
@@ -263,9 +260,8 @@ Windows development environment support:
 - All compiler warnings addressed (GCC, Clang, MSVC); zero warnings under ClangStrict
 - Test labels for parallel-safe correctness runs vs timing-sensitive runs
 
-### 🔧 In progress (Phase 4 tail → Phase 5)
+### 🔧 In progress (Phase 5)
 - Packaging: `find_package` / `FetchContent` support, pkg-config
-- Windows DLL boundary investigation (dynamic linking tests)
 
 ### Planned (Phases 6–7)
 - Vectorized batch ops for all 5 non-Gaussian distributions (currently scalar loops)

@@ -38,85 +38,77 @@ The libstats project strategically uses two testing approaches:
   - Better integration with CI/CD systems
 - **Drawbacks**: Additional dependency, slightly slower execution
 
-### Current Framework Distribution
-- **Standalone tests**: 25 tests (service infrastructure, basic functionality)
-- **GTest tests**: 2 tests (advanced distribution methods)
-- **Total**: 27 tests
+### Current Framework Distribution (Phase 4, April 2026)
+- **Standalone tests**: 20 tests (service infrastructure, basic functionality)
+- **GTest tests**: 8 tests (enhanced distribution and performance methods; require GTest)
+- **Total registered**: 28 tests (GTest tests silently skipped when GTest is absent)
 
 ## Test Organization by Dependency Levels
 
-### Level 0: Foundational Tests (9 tests)
+### Level 0: Foundational Tests (5 tests)
 **Purpose**: Validate fundamental building blocks with no internal dependencies
 
-- **`test_cpp20_features`** - C++20 language features and standard library compatibility
 - **`test_constants`** - Mathematical constants and precision tolerances from `constants.h`
 - **`test_cpu_detection`** - Runtime CPU feature detection from `cpu_detection.h`
-- **`test_adaptive_cache`** - Advanced adaptive cache management from `adaptive_cache.h`
-- **`test_simd_integration_simple`** - Basic SIMD integration from `simd.h`
-- **`test_simd_integration`** - Comprehensive SIMD integration from `simd.h`
-- **`test_simd_operations`** - SIMD vector operations and performance validation from `simd.h`
+- **`test_simd_comprehensive`** - SIMD operations correctness and policy from `simd.h`
+- **`test_simd_policy`** - SIMD policy decisions and level detection
 - **`test_platform_optimizations`** - Platform-specific optimizations from `simd.h`
-- **`test_safe_factory`** - ABI-safe error handling with Result<T> pattern from `error_handling.h`
 
-### Level 1: Core Infrastructure Tests (5 tests)
+### Level 1: Core Infrastructure Tests (4 tests)
 **Purpose**: Validate core mathematical and safety infrastructure
 
-- **`test_safety`** - Memory safety, bounds checking, numerical stability from `safety.h`
-- **`test_math_utils`** (**GTest**) - Mathematical utilities and special functions from `math_utils.h`
-- **`test_vectorized_math`** - SIMD-optimized mathematical operations from `math_utils.h`
-- **`test_goodness_of_fit`** - Statistical validation and goodness-of-fit testing from `validation.h`
-- **`test_validation_enhanced`** - Enhanced statistical validation features from `validation.h`
+- **`test_numerical_safety`** - Consolidated safe numerical operations including log-space arithmetic
+- **`test_error_handling_comprehensive`** - Unified error handling and dual API correctness
+- **`test_math_comprehensive`** (**GTest**) - Consolidated math utilities and vectorized operations
+- **`test_validation_enhanced`** - Enhanced statistical validation features
 
 ### Level 2: Core Framework Tests
 **Purpose**: Distribution base framework (abstract base class)
 
 - **Note**: No direct tests for `distribution_base.h` - validated through Level 4 distribution implementations
 
-### Level 3: Parallel Infrastructure Tests (5 tests)
+### Level 2: Statistical Infrastructure (1 test)
+- **`test_goodness_of_fit`** - Statistical validation and goodness-of-fit testing
+
+### Level 3: Parallel Infrastructure Tests (4 tests)
 **Purpose**: Validate parallel computation and performance measurement
 
-- **`test_thread_pool`** - Basic thread pool implementation from `thread_pool.h`
-- **`test_work_stealing_pool`** - Work-stealing thread pool from `work_stealing_pool.h`
-- **`test_parallel_execution_integration`** - C++20 parallel execution policies from `parallel_execution.h`
-- **`test_parallel_execution_comprehensive`** - Comprehensive parallel execution testing from `parallel_execution.h`
-- **`test_benchmark_basic`** - Performance measurement utilities from `benchmark.h`
+- **`test_thread_pool`** - Basic thread pool implementation
+- **`test_work_stealing_pool`** - Work-stealing thread pool
+- **`test_parallel_execution_integration`** - C++20 parallel execution policies
+- **`test_benchmark_basic`** - Performance measurement utilities
 
-### Level 4: Distribution Implementation Tests (10 tests)
+### Level 4: Performance Framework Tests (4 tests)
+- **`test_performance_history`** (**GTest**) - Performance history tracking
+- **`test_performance_dispatcher`** (**GTest, timing**) - Smart auto-dispatch
+- **`test_system_capabilities`** (**GTest**) - System capability detection
+- **`test_performance_initialization`** (**GTest**) - Performance system initialization
+
+### Level 5: Distribution Basic Tests (7 tests)
 **Purpose**: Validate concrete statistical distribution implementations
 
-#### Gaussian Distribution
-- **`test_gaussian_basic`** - Fundamental operations (PDF, CDF, quantiles, basic fitting)
-- **`test_gaussian_enhanced`** (**GTest**) - Advanced statistical methods:
-  - Confidence intervals and hypothesis testing
-  - Cross-validation and bootstrap methods
-  - Robust estimation and Bayesian approaches
-  - Information criteria (AIC, BIC, DIC)
-  - Goodness-of-fit tests (KS, AD)
-  - Parallel batch operations and SIMD optimization
+- **`test_gaussian_basic`** - Fundamental operations (PDF, CDF, quantiles, fitting)
+- **`test_exponential_basic`** - Fundamental operations
+- **`test_uniform_basic`** - Fundamental operations
+- **`test_poisson_basic`** - Fundamental operations (incl. exact methods)
+- **`test_discrete_basic`** - Fundamental operations
+- **`test_gamma_basic`** - Fundamental operations
+- **`test_atomic_parameters`** - Lock-free parameter access across all distributions
 
-#### Exponential Distribution
-- **`test_exponential_basic`** - Fundamental operations (PDF, CDF, quantiles, basic fitting)
-- **`test_exponential_enhanced`** (**GTest**) - Advanced statistical methods (similar scope to Gaussian)
+### Level 6: Distribution Enhanced Tests (6 tests, GTest, timing label)
+- **`test_gaussian_enhanced`** (**GTest, timing**) - Confidence intervals, bootstrap, KS/AD, SIMD batch
+- **`test_exponential_enhanced`** (**GTest, timing**)
+- **`test_uniform_enhanced`** (**GTest, timing**)
+- **`test_poisson_enhanced`** (**GTest, timing**)
+- **`test_discrete_enhanced`** (**GTest, timing**)
+- **`test_gamma_enhanced`** (**GTest, timing**)
 
-#### Uniform Distribution
-- **`test_uniform_basic`** - Fundamental operations (PDF, CDF, quantiles, basic fitting)
-- **`test_uniform_enhanced`** (**GTest**) - Advanced statistical methods including Anderson-Darling tests
-
-#### Discrete Distribution
-- **`test_discrete_basic`** - Fundamental operations (PMF, CDF, quantiles, basic fitting)
-- **`test_discrete_enhanced`** (**GTest**) - Advanced statistical methods for discrete distributions
-
-#### Poisson Distribution
-- **`test_poisson_basic`** - Fundamental operations (PMF, CDF, quantiles, basic fitting, exact methods)
-- **`test_poisson_enhanced`** (**GTest**) - Advanced statistical methods for count data
-
-### Additional Tests: Cross-cutting Concerns (4 tests)
-**Purpose**: Integration scenarios and cross-cutting functionality
+### Level 7: Integration Tests (3 tests)
+**Purpose**: Dynamic library linking and cross-cutting functionality
 
 - **`test_dynamic_linking`** - Dynamic library linking validation
-- **`test_simd_integration_simple_dynamic`** - SIMD with dynamic linking
-- **`test_gaussian_basic_dynamic`** - Gaussian distribution with dynamic linking
-- **`test_exponential_basic_dynamic`** - Exponential distribution with dynamic linking
+- **`test_gaussian_basic_dynamic`** - Gaussian with dynamic library (Release CRT required; see WARP.md)
+- **`test_exponential_basic_dynamic`** - Exponential with dynamic library
 
 ## Consolidated Testing Strategy
 

@@ -1,20 +1,27 @@
-# SIMD Optimization Reference Document for libstats
+# SIMD Optimization Reference
 
-## Executive Summary
-This document provides detailed implementation guidance for improving libstats SIMD performance based on benchmark comparisons with SLEEF, xsimd, and EVE libraries. Each action item includes specific algorithms, reference implementations, and integration considerations.
+**Status as of Phase 4 (April 2026)**
+
+This document is a reference for **Phase 6** work. It contains algorithm details
+for the hand-rolled SIMD transcendental functions that would be needed to bring
+AVX2/AVX-512 transcendental performance to full width. Phase 6 scope is documented
+in the main work plan.
+
+The framing below is historical. Items marked ❌ below have been addressed;
+items marked ⏳ remain deferred to Phase 6.
 
 ---
 
-## 1. IMMEDIATE: Fix erf Implementation (Critical Accuracy Bug)
+## 1. ✅ erf Implementation — Resolved in Phase 1
 
-### Current Issue
-- **Problem**: 2.36e-02 relative error (unacceptable for production use)
-- **Location**: `src/simd_avx.cpp:558-765`, `src/simd_avx2.cpp`, `src/simd_avx512.cpp`
-- **Root Cause**: Incorrect polynomial evaluation at line 715, mixing coefficient sets incorrectly
+The accuracy bug described here was fixed in Phase 1. The current implementation
+uses Abramowitz & Stegun 7.1.26 with max error ~1.5×10⁻⁷, documented in both
+`src/simd_avx.cpp` and `tests/test_math_comprehensive.cpp`. `simd_verification`
+confirms 36/36 PASS including Gaussian CDF (which uses `vector_erf`).
 
-### Recommended Algorithm: Abramowitz & Stegun 7.1.26
+For reference, the algorithm that was implemented:
 
-#### Algorithm Details
+### Algorithm: Abramowitz & Stegun 7.1.26
 ```
 erf(x) = 1 - 1/(1 + p*|x|)^n * exp(-x²) * P(t) for x ≥ 0
 where:
@@ -31,6 +38,9 @@ Coefficients:
 
 Maximum error: 1.5×10⁻⁷
 ```
+
+If higher accuracy is needed in Phase 6, `std::erf` in the scalar fallback
+already delivers full double precision; the vectorized path is the tradeoff.
 
 #### Reference Implementations to Study
 
@@ -74,7 +84,7 @@ Maximum error: 1.5×10⁻⁷
 
 ---
 
-## 2. HIGH PRIORITY: Optimize Power Function (3x Performance Gap)
+## 2. ⏳ Phase 6: Power Function Optimization (3x Performance Gap)
 
 ### Current Implementation
 - **Location**: `src/simd_avx.cpp:486-556`
@@ -133,7 +143,7 @@ pow(x, y) computation:
 
 ---
 
-## 3. MEDIUM PRIORITY: Improve exp/log Functions (2x Performance Gap)
+## 3. ⏳ Phase 6: exp/log Function Optimization (2x Performance Gap)
 
 ### Exponential Function Optimization
 
@@ -180,9 +190,12 @@ pow(x, y) computation:
 
 ---
 
-## 4. ARCHITECTURAL IMPROVEMENTS
+## 4. ⏳ Phase 6 (Deferred): Architectural Options
 
 ### Template-Based SIMD (EVE Approach)
+
+> **Note**: Template-based SIMD (EVE-style) is on the explicit "not doing" list
+> for the teaching library. This section is retained as reference only.
 
 #### Benefits
 - Compile-time optimization
