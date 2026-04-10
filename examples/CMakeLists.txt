@@ -8,9 +8,8 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     target_link_libraries(${EXAMPLE_NAME} PRIVATE libstats_static)
 
     # Add include directories
-    target_include_directories(
-        ${EXAMPLE_NAME} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../include
-                                ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    target_include_directories(${EXAMPLE_NAME} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+                                                       ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
     # Apply same compiler flags as main library
     if(APPLE)
