@@ -145,9 +145,10 @@ flag cleans Release artifacts but leaves existing Debug EXEs untouched if their 
 - **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings)
   SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
 - CMake 4.x installed and compatible with `cmake_minimum_required(VERSION 3.20)`
-- Configure: `cmake .. -G "Visual Studio 17 2022" -A x64`
+- Configure: `cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake`
 - Build: `cmake --build . --config Release --parallel`
-- GTest not installed — GTest-based tests silently skipped (expected, not an error)
+- GTest installed via vcpkg (`gtest:x64-windows 1.17.0`) — all 33 correctness tests pass
+- vcpkg root: `C:\vcpkg`; toolchain file required for CMake to find GTest
 
 ## Session Start: Architecture Detection
 
