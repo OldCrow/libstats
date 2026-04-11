@@ -249,7 +249,7 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **Additional Distributions**: Beta, Chi-squared, Student's t, F-distribution
+1. **Additional Distributions**: F-distribution, Negative Binomial, Weibull, and other common families
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples
@@ -314,28 +314,22 @@ git config commit.template .gitmessage
 
 ## 🚀 Release Process
 
-Our release process is automated using semantic versioning based on commit messages.
+Releases are tagged manually by maintainers after all cross-machine validation gates pass.
 
-### Automatic Version Bumping
+### Release Checklist
 
-- **feat commits**: Trigger minor version bump (0.X.0)
-- **fix/perf commits**: Trigger patch version bump (0.0.X)
-- **BREAKING CHANGE**: Triggers major version bump (X.0.0)
+1. All target machines pass correctness suite and `simd_verification`
+2. CI/CD pipeline is green on `main`
+3. CHANGELOG.md updated with accurate release notes
+4. Version tag applied: `git tag vX.Y.Z && git push origin vX.Y.Z`
+5. GitHub Release created from the tag with CHANGELOG content
 
-### Release Workflow
+### Versioning
 
-1. Commits to `main` trigger automatic version analysis
-2. Version is bumped based on commit types since last release
-3. CHANGELOG.md is automatically generated
-4. GitHub release is created with release notes
-5. Documentation is built and deployed to GitHub Pages
-
-### Manual Releases
-
-Maintainers can trigger manual releases:
-1. Go to Actions → Release workflow
-2. Click "Run workflow"
-3. Select release type (patch/minor/major)
+Follows [Semantic Versioning](https://semver.org/):
+- **MAJOR**: Breaking API changes
+- **MINOR**: New distributions or features, backward-compatible
+- **PATCH**: Bug fixes and performance improvements
 
 ---
 
