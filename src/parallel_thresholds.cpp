@@ -184,6 +184,19 @@ std::size_t AdaptiveThresholdCalculator::getThreshold(const std::string& distrib
         } else {
             threshold = 256;
         }
+    } else if (dist_lower == "beta") {
+        // Two vector_log calls in the SIMD pipeline; bounded support [0,1]
+        if (op_lower == "pdf") {
+            threshold = 128;
+        } else if (op_lower == "logpdf") {
+            threshold = 256;
+        } else if (op_lower == "cdf") {
+            threshold = 512;  // scalar beta_i per element
+        } else if (op_lower == "batch_fit") {
+            threshold = 64;
+        } else {
+            threshold = 128;
+        }
     } else if (dist_lower == "student_t" || dist_lower == "student t") {
         // Log-space pipeline (vector_multiply + vector_log + scalar ops): similar to Gaussian
         if (op_lower == "pdf") {

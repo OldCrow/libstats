@@ -357,8 +357,7 @@ class StudentTDistribution : public DistributionBase {
     // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
 
-    /** @brief Digamma function ψ(x) via asymptotic expansion with recurrence. */
-    [[nodiscard]] static double computeDigamma(double x) noexcept;
+    // computeDigamma removed: now detail::digamma in math_utils.h
 
     //==========================================================================
     // 20. PRIVATE CACHE MANAGEMENT

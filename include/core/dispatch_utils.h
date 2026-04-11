@@ -424,5 +424,11 @@ struct DistributionTraits<class StudentTDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
 };
 
+template <>
+struct DistributionTraits<class BetaDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::BETA; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
 }  // namespace detail
 }  // namespace stats

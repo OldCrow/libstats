@@ -153,6 +153,7 @@
     #include "core/performance_history.h"
 
     // Distribution implementations
+    #include "distributions/beta.h"
     #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
     #include "distributions/exponential.h"
@@ -175,6 +176,7 @@ using Gamma = GammaDistribution;
 using Discrete = DiscreteDistribution;
 using ChiSquared = ChiSquaredDistribution;
 using StudentT = StudentTDistribution;
+using Beta = BetaDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;

@@ -358,6 +358,72 @@ double lbeta(double a, double b) noexcept {
     return std::lgamma(a) + std::lgamma(b) - std::lgamma(a + b);
 }
 
+double digamma(double x) noexcept {
+    // Digamma ψ(x) = d/dx lnΓ(x)
+    // Recurrence ψ(x+1) = ψ(x) + 1/x shifts x > 6 for the asymptotic series.
+    if (x <= detail::ZERO_DOUBLE) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    double result = detail::ZERO_DOUBLE;
+    while (x < 6.0) {
+        result -= detail::ONE / x;
+        x += detail::ONE;
+    }
+
+    // Asymptotic expansion: ψ(x) ≈ ln(x) − 1/(2x) − 1/(12x²) + 1/(120x⁴) − 1/(252x⁶)
+    const double inv_x = detail::ONE / x;
+    const double inv_x2 = inv_x * inv_x;
+    result += std::log(x) - detail::HALF * inv_x -
+              inv_x2 * (detail::ONE / 12.0 - inv_x2 * (detail::ONE / 120.0 - inv_x2 / 252.0));
+    return result;
+}
+
+double inverse_beta_i(double p, double a, double b) noexcept {
+    // Inverse regularized incomplete beta I_x(a,b) = p  =>  solve for x in (0,1).
+    // Follows the same pattern as inverse_t_cdf and inverse_chi_squared_cdf.
+    if (p <= detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    if (p >= detail::ONE)
+        return detail::ONE;
+    if (a <= detail::ZERO_DOUBLE || b <= detail::ZERO_DOUBLE) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    // Initial estimate using the normal approximation to the Beta distribution.
+    // For large a and b the Beta is approximately Normal(a/(a+b), sqrt(ab)/((a+b)*sqrt(a+b+1))).
+    const double mu = a / (a + b);
+    const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
+    double x = mu + sigma * inverse_normal_cdf(p);
+    x = std::max(1e-8, std::min(1.0 - 1e-8, x));  // clamp to (0,1)
+
+    // Newton-Raphson: x_{n+1} = x_n - (I_{x_n}(a,b) - p) / f(x_n)
+    // where f(x) = x^(a-1)(1-x)^(b-1)/B(a,b) is the Beta PDF.
+    const int max_iter = detail::MAX_NEWTON_ITERATIONS;
+    const double tol = detail::DEFAULT_TOLERANCE;
+    const double log_norm = -lbeta(a, b);  // -ln B(a,b)
+
+    for (int i = 0; i < max_iter; ++i) {
+        const double cdf_val = beta_i(x, a, b);
+        const double error = cdf_val - p;
+
+        if (std::abs(error) < tol)
+            break;
+
+        // PDF = exp((a-1)*log(x) + (b-1)*log(1-x) + log_norm)
+        const double log_pdf = (a - detail::ONE) * std::log(x) +
+                               (b - detail::ONE) * std::log(detail::ONE - x) + log_norm;
+        const double pdf_val = std::exp(log_pdf);
+
+        if (pdf_val <= detail::ZERO_DOUBLE)
+            break;
+
+        x -= error / pdf_val;
+        x = std::max(1e-10, std::min(detail::ONE - 1e-10, x));
+    }
+    return x;
+}
+
 // =============================================================================
 // NUMERICAL INTEGRATION AND ROOT FINDING
 // =============================================================================

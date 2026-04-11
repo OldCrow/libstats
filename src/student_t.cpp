@@ -2,7 +2,7 @@
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_utils.h"
-#include "libstats/core/math_utils.h"
+#include "libstats/core/math_utils.h"  // provides detail::digamma, detail::t_cdf, detail::inverse_t_cdf
 #include "libstats/core/validation.h"
 
 #include <algorithm>
@@ -344,8 +344,8 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
     double nu = nu_est;
 
     auto score = [&](double v) -> double {
-        double psi_plus = computeDigamma((v + detail::ONE) * detail::HALF);
-        double psi_half = computeDigamma(v * detail::HALF);
+        double psi_plus = detail::digamma((v + detail::ONE) * detail::HALF);
+        double psi_half = detail::digamma(v * detail::HALF);
         double s = n * (psi_plus - psi_half - detail::ONE / v);
         for (double xi2 : x2) {
             s -= std::log(detail::ONE + xi2 / v);
@@ -405,8 +405,8 @@ double StudentTDistribution::getEntropy() const {
     // where B is the beta function.
     // Simplified: H = halfNuPlusOne_*(psi(halfNuPlusOne_) - psi(halfNu_)) + lbeta(halfNu_, 0.5)
     //                 + 0.5*log(nu)
-    const double psi_plus = computeDigamma(halfNuPlusOne_);
-    const double psi_half = computeDigamma(halfNu_);
+    const double psi_plus = detail::digamma(halfNuPlusOne_);
+    const double psi_half = detail::digamma(halfNu_);
     return halfNuPlusOne_ * (psi_plus - psi_half) + detail::lbeta(halfNu_, detail::HALF) +
            detail::HALF * std::log(nu_);
 }
@@ -838,30 +838,7 @@ void StudentTDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double*
 // 19. PRIVATE COMPUTATIONAL METHODS
 //==============================================================================
 
-double StudentTDistribution::computeDigamma(double x) noexcept {
-    // Digamma ψ(x) = d/dx ln Γ(x)
-    // Use recurrence ψ(x+1) = ψ(x) + 1/x to bring x > 6 for the asymptotic series.
-    if (x <= 0.0) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    double result = 0.0;
-
-    // Recurrence: shift x to be > 6
-    while (x < 6.0) {
-        result -= detail::ONE / x;
-        x += detail::ONE;
-    }
-
-    // Asymptotic expansion for x > 6:
-    // ψ(x) ≈ ln(x) − 1/(2x) − 1/(12x²) + 1/(120x⁴) − 1/(252x⁶) + ...
-    const double inv_x = detail::ONE / x;
-    const double inv_x2 = inv_x * inv_x;
-    result += std::log(x) - detail::HALF * inv_x -
-              inv_x2 * (detail::ONE / 12.0 - inv_x2 * (detail::ONE / 120.0 - inv_x2 / 252.0));
-    return result;
-}
-
+// computeDigamma removed: promoted to detail::digamma in math_utils.
 //==============================================================================
 // 20. PRIVATE CACHE MANAGEMENT
 //==============================================================================

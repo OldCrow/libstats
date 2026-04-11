@@ -14,6 +14,7 @@ class GammaDistribution;
 class DiscreteDistribution;
 class ChiSquaredDistribution;
 class StudentTDistribution;
+class BetaDistribution;
 
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
@@ -25,6 +26,7 @@ using Gamma = GammaDistribution;
 using Discrete = DiscreteDistribution;
 using ChiSquared = ChiSquaredDistribution;
 using StudentT = StudentTDistribution;
+using Beta = BetaDistribution;
 
 // Platform classes
 class SimdProcessor;
@@ -46,7 +48,8 @@ enum class LibDistributionType {
     Gamma,
     Discrete,
     ChiSquared,
-    StudentT
+    StudentT,
+    Beta
 };
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };
