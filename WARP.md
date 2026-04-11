@@ -28,12 +28,11 @@ Phases 1–6B are functionally complete. The remaining release gate is final cro
 |---|---|---|---|---|
 | Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
 | Asus TUF A16 (Windows) | AVX-512 | 30/30 ✅ | 54/54 ✅ | 1.64x |
-| Kaby Lake (2017 MBP) | AVX2 | ❓ pending | ❓ pending | — |
+| Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
 | Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
 
-Note: Kaby Lake and M1 validated Phase 4 (6 distributions) only. Phase 6B adds
-Chi-squared, Student's t, and Beta — those distributions have not yet been
-validated on AVX2 or NEON. Required before v1.0.0 merge.
+All four machines validated. Phase 6B (9 distributions, 54 SIMD tests) is complete
+across AVX, AVX2, AVX-512, and NEON.
 
 ### Phase 6A Results (Ivy Bridge, AVX)
 SIMD batch ops added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
@@ -83,9 +82,13 @@ Asus TUF A16 (Windows, AVX-512 — first AVX-512 validation):
   Uniform LogPDF 7.5x — strong where transcendentals are not involved
 - Overall speedup limited by transcendental delegation to AVX (see Deferred Items)
 
-Pending (required before v1.0.0 merge):
-- Kaby Lake AVX2 (2017 MBP): simd_verification 54/54, correctness suite
-- Mac Mini M1 NEON: simd_verification 54/54, correctness suite
+Kaby Lake AVX2 (2017 MBP):
+- correctness suite: 33/33 PASS
+- `simd_verification`: 54/54 PASS, overall 3.49x
+- new-distribution speedups: Chi-squared PDF 13.8x/LogPDF 10.5x, Student's t PDF 6.3x/LogPDF 18.4x,
+  Beta PDF 5.3x/LogPDF 4.1x
+
+All four machines validated. No pending validation gates remain for v1.0.0 merge.
 
 ### Development Ecosystem
 
