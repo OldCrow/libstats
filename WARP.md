@@ -29,7 +29,7 @@ Phases 1–6B are functionally complete. The remaining release gate is final cro
 | Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
 | Asus TUF A16 (Windows) | AVX-512 | 30/30 ✅ | 54/54 ✅ | 1.64x |
 | Kaby Lake (2017 MBP) | AVX2 | ❓ pending | ❓ pending | — |
-| Mac Mini M1 | NEON | ❓ pending | ❓ pending | — |
+| Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
 
 Note: Kaby Lake and M1 validated Phase 4 (6 distributions) only. Phase 6B adds
 Chi-squared, Student's t, and Beta — those distributions have not yet been
