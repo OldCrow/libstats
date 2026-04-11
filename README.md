@@ -1,5 +1,6 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
+[![Version](https://img.shields.io/badge/version-v1.0.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.0.0)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -142,7 +143,7 @@ libstats/
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
-- Automatic SIMD optimization (SSE2, AVX, AVX2, NEON)
+- Automatic SIMD optimization (SSE2, AVX, AVX2, AVX-512, NEON)
 - Intelligent parallel processing with auto-dispatch
 - Thread-safe batch operations with work-stealing pools
 - Smart caching and adaptive algorithm selection
@@ -329,10 +330,10 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 - New distributions added: Student's t, Chi-squared, and Beta
 - SIMD verification expanded to cover the full current distribution set
 
-### ✅ Release gate (complete — ready to merge)
-- Cross-platform validation: Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC
-- All 54 SIMD verification tests pass on all four machines
-- Merge `phase-6b-new-distributions` to `main` and tag v1.0.0
+### ✅ Released as v1.0.0 (2026-04-11)
+- Cross-platform validated: Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC
+- 54/54 SIMD verification tests pass on all four machines
+- Tagged and released on `main`
 
 
 ## Contributing

@@ -8,10 +8,9 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phase 6B implementation is complete and fully validated.
-All four target machines (Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC)
-have passed correctness and SIMD verification on `phase-6b-new-distributions`.
-The branch is ready to merge to `main` for v1.0.0.
+**Current Status**: v1.0.0 released on `main` (2026-04-11).
+9 distributions, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
+54/54 SIMD tests passing on all four target machines.
 
 ### Phase 4 Validation Matrix (final, 6 distributions, 36 SIMD tests)
 
@@ -53,13 +52,13 @@ Overall `simd_verification` AVX speedup: 4.10x (was 3.84x pre-Phase 6A). 36/36 t
 ### Deferred Items
 - AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on A16;
   fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
-  back to the AVX implementation; deferred to post-merge
+  back to the AVX implementation; deferred post-v1.0.0
 - Phase 6C (possible): `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
 
-### Phase 6B Results (current branch)
-New distributions added on `phase-6b-new-distributions`:
+### Phase 6B Results (v1.0.0)
+New distributions added in v1.0.0:
 - **Student's t** — standalone implementation with SIMD log-space PDF/LogPDF and CDF via incomplete beta
 - **Chi-squared** — delegation wrapper over Gamma(α=ν/2, β=1/2)
 - **Beta** — standalone bounded-support distribution with two-log SIMD PDF/LogPDF and CDF via regularized incomplete beta
@@ -68,7 +67,7 @@ Shared utility additions:
 - `detail::digamma(x)` promoted into `math_utils`
 - `detail::inverse_beta_i(p, a, b)` added for Beta quantiles
 
-Validation on this branch:
+Validation (v1.0.0):
 
 Ivy Bridge AVX (primary dev machine):
 - correctness suite: 34/34 PASS
@@ -89,7 +88,7 @@ Kaby Lake AVX2 (2017 MBP):
 - new-distribution speedups: Chi-squared PDF 13.8x/LogPDF 10.5x, Student's t PDF 6.3x/LogPDF 18.4x,
   Beta PDF 5.3x/LogPDF 4.1x
 
-All four machines validated. No pending validation gates remain for v1.0.0 merge.
+All four machines validated. v1.0.0 released.
 
 ### Development Ecosystem
 

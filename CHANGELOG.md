@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (v1.0.0-pre)
+## [1.0.0] - 2026-04-11
 
 ### Added
 - `ChiSquaredDistribution`, `StudentTDistribution`, and `BetaDistribution`
@@ -16,10 +16,17 @@
 - Documentation and example surface aligned with the current 9-distribution library
 - `distribution_families_demo.cpp` added; per-distribution benchmark files removed
   from the examples build
+- Explanatory comments added to Gamma, Beta, and Student's t CDF batch
+  implementations documenting why scalar special functions cannot be vectorized
 
-### Validation
-- Correctness suite: 34/34 passing (Ivy Bridge AVX, macOS)
-- `simd_verification`: 54/54 passing (Ivy Bridge AVX, macOS)
+### Validation (all four machines, 54/54 SIMD tests)
+
+| Machine | SIMD | Correctness | simd_verification | Speedup |
+|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
+| Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
+| Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
+| Asus TUF A16 (Windows) | AVX-512/MSVC | 33/33 ✅ | 54/54 ✅ | 1.64x |
 
 ---
 
