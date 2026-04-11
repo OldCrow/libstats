@@ -12,7 +12,7 @@ libstats is a **design and teaching library**: a demonstration of how to build s
 Phases 1–6B are functionally complete. The remaining release gate is final cross-machine validation
 (especially Windows/MSVC and AVX-512 on the Asus A16), then merge to `main` for v1.0.0.
 
-### Phase 4 Validation Matrix (final)
+### Phase 4 Validation Matrix (final, 6 distributions, 36 SIMD tests)
 
 | Machine | SIMD | Correctness | simd_verification | Speedup |
 |---|---|---|---|---|
@@ -21,6 +21,19 @@ Phases 1–6B are functionally complete. The remaining release gate is final cro
 | Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x |
 | Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x |
 | Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — |
+
+### Phase 6B Validation Matrix (9 distributions, 54 SIMD tests)
+
+| Machine | SIMD | Correctness | simd_verification | Speedup |
+|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
+| Asus TUF A16 (Windows) | AVX-512 | 30/30 ✅ | 54/54 ✅ | 1.64x |
+| Kaby Lake (2017 MBP) | AVX2 | ❓ pending | ❓ pending | — |
+| Mac Mini M1 | NEON | ❓ pending | ❓ pending | — |
+
+Note: Kaby Lake and M1 validated Phase 4 (6 distributions) only. Phase 6B adds
+Chi-squared, Student's t, and Beta — those distributions have not yet been
+validated on AVX2 or NEON. Required before v1.0.0 merge.
 
 ### Phase 6A Results (Ivy Bridge, AVX)
 SIMD batch ops added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
@@ -38,7 +51,9 @@ All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
 Overall `simd_verification` AVX speedup: 4.10x (was 3.84x pre-Phase 6A). 36/36 tests pass.
 
 ### Deferred Items
-- AVX-512 transcendentals delegate to AVX (1.91x vs ~4x expected) — validate and fix on Asus A16
+- AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on A16;
+  fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
+  back to the AVX implementation; deferred to post-merge
 - Phase 6C (possible): `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
@@ -53,13 +68,24 @@ Shared utility additions:
 - `detail::digamma(x)` promoted into `math_utils`
 - `detail::inverse_beta_i(p, a, b)` added for Beta quantiles
 
-Current Ivy Bridge AVX validation on this branch:
+Validation on this branch:
+
+Ivy Bridge AVX (primary dev machine):
 - correctness suite: 34/34 PASS
-- `simd_verification`: 54/54 PASS
-- new-distribution speedups:
-  - Chi-squared: PDF 9.8x, LogPDF 7.2x, CDF 2.1x
-  - Student's t: PDF 6.8x, LogPDF 7.6x, CDF 1.4x
-  - Beta: PDF 4.7x, LogPDF 4.5x, CDF 1.2x
+- `simd_verification`: 54/54 PASS, overall 4.10x
+- new-distribution speedups: Chi-squared PDF 9.5x/LogPDF 7.0x, Student's t PDF 7.3x/LogPDF 7.6x,
+  Beta PDF 4.6x/LogPDF 4.4x
+
+Asus TUF A16 (Windows, AVX-512 — first AVX-512 validation):
+- correctness suite: 30/30 PASS (GTest tests skipped — not installed on this machine)
+- `simd_verification`: 54/54 PASS, overall 1.64x
+- AVX-512 arithmetic/log-space paths: Gaussian LogPDF 21.9x, Exponential LogPDF 11.8x,
+  Uniform LogPDF 7.5x — strong where transcendentals are not involved
+- Overall speedup limited by transcendental delegation to AVX (see Deferred Items)
+
+Pending (required before v1.0.0 merge):
+- Kaby Lake AVX2 (2017 MBP): simd_verification 54/54, correctness suite
+- Mac Mini M1 NEON: simd_verification 54/54, correctness suite
 
 ### Development Ecosystem
 
