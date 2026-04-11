@@ -760,7 +760,12 @@ std::istream& operator>>(std::istream& is, StudentTDistribution& dist) {
 //
 // PDF: steps 1–6 then vector_exp.
 //
-// CDF: scalar detail::t_cdf per element (not vectorizable; same as Gamma CDF).
+// CDF architecture: detail::t_cdf delegates to regularized incomplete beta
+//   (beta_i) via the identity t_cdf(t, ν) = 1 - 0.5·I_{x(t)}(ν/2, 1/2).
+//   beta_i uses a continued-fraction algorithm whose iteration count varies
+//   per input: the same fundamental constraint as Gamma CDF (see gamma.cpp
+//   section 18). PDF and LogPDF use a fixed 6-step pipeline and achieve
+//   4–8x SIMD speedup; this CDF path is scalar for the same reason.
 //==============================================================================
 
 void StudentTDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -828,7 +833,7 @@ void StudentTDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double*
                                                                    double* results,
                                                                    std::size_t count,
                                                                    double nu) const noexcept {
-    // CDF is inherently scalar: detail::t_cdf uses regularized incomplete beta per element.
+    // Scalar per element. See section 18 header for the explanation.
     for (std::size_t i = 0; i < count; ++i) {
         results[i] = detail::t_cdf(values[i], nu);
     }

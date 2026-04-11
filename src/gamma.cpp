@@ -2532,8 +2532,17 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
 //   LogPDF: same pipeline, no final exp step
 //             fixup: x <= 0 → MIN_LOG_PROBABILITY (finite proxy; matches single-value method)
 //
-// CDF: gamma_p() per element is inherently serial; only the beta*x scaling
-//   step uses SIMD. No change to getCumulativeProbabilityBatchUnsafeImpl.
+// CDF architecture: the regularized incomplete gamma function gamma_p() is
+//   evaluated per element via a continued-fraction or series algorithm.
+//   The number of iterations required for convergence varies with the input
+//   value — elements near the crossover between series and continued-fraction
+//   regimes or with slow convergence require significantly more work than
+//   "easy" values. This data-dependent iteration count means each SIMD lane
+//   would need a different amount of work, which cannot be expressed as a
+//   uniform sequence of SIMD operations. Vectorizing correctly would require
+//   replacing gamma_p with a fixed-iteration polynomial approximation, which
+//   is outside the scope of this library.
+//   Only the beta*x pre-scaling uses SIMD; the gamma_p loop is scalar.
 //==============================================================================
 
 void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -2651,8 +2660,10 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
     // Step 1: Compute beta * values using SIMD
     arch::simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
 
-    // Step 2: Apply regularized incomplete gamma function to each scaled value
-    // Note: This function is not easily vectorizable, so we still use scalar loop
+    // Step 2: Evaluate gamma_p per element — inherently scalar.
+    // gamma_p uses a continued fraction or series whose iteration count varies
+    // per input; no uniform SIMD sequence can express this. See section 18
+    // header for the full explanation.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;

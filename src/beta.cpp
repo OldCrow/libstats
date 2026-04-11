@@ -871,7 +871,15 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 //   Step 8: results += log_norm_const          [scalar_add]
 //
 // PDF: steps 1-8 then vector_exp.
-// CDF: scalar detail::beta_i per element.
+// CDF architecture: detail::beta_i (regularized incomplete beta) is evaluated
+//   per element via a continued-fraction algorithm. The convergence rate varies
+//   with (x, alpha, beta): some inputs converge in a few iterations, others
+//   require many more. This data-dependent iteration count prevents SIMD —
+//   there is no fixed-length uniform operation sequence to vectorize.
+//   Contrast with PDF/LogPDF above, which reduce to a fixed 8-step arithmetic
+//   + log/exp pipeline that maps directly to SIMD and achieves 3–5x speedup.
+//   Vectorizing beta_i correctly would require a fixed-iteration polynomial
+//   approximation, which is outside the scope of this library.
 //==============================================================================
 
 void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -969,6 +977,8 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
                                                                double* results, std::size_t count,
                                                                double alpha,
                                                                double beta) const noexcept {
+    // Scalar per element. See section 18 header for why beta_i cannot be
+    // vectorized without replacing it with a fixed-iteration approximation.
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (x <= detail::ZERO_DOUBLE) {
