@@ -69,7 +69,8 @@ enum class DistributionType {
     POISSON,      ///< Poisson distribution (complex)
     GAMMA,        ///< Gamma distribution (most complex)
     STUDENT_T,    ///< Student's t distribution (log+transcendental, full real-line domain)
-    BETA          ///< Beta distribution (log-space, bounded support [0,1])
+    BETA,         ///< Beta distribution (log-space, bounded support [0,1])
+    CHI_SQUARED   ///< Chi-squared distribution (delegates to Gamma; positive real-line support)
 };
 
 /**
@@ -163,6 +164,7 @@ class PerformanceDispatcher {
         size_t gamma_parallel_min = 256;        ///< Most complex distribution
         size_t student_t_parallel_min = 256;    ///< Log+transcendental, matches Gaussian
         size_t beta_parallel_min = 256;  ///< Two log calls, bounded support, matches Gaussian
+        size_t chi_squared_parallel_min = 256;  ///< Delegates to Gamma; positive real-line support
 
         /**
          * @brief Create thresholds based on SIMDPolicy level

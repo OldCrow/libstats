@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive comparison of libstats math functions with SciPy equivalents.
-This script runs the same test cases as our C++ test_math_utils to verify accuracy.
+This script runs the same test cases as our C++ test_math_comprehensive suite to verify accuracy.
 """
 
 import numpy as np

@@ -123,7 +123,7 @@ The testing infrastructure was successfully consolidated from 30 to 27 tests:
 #### What Was Merged
 - Advanced Gaussian functionality consolidated into `test_gaussian_enhanced.cpp` with comprehensive GTest coverage
 - All Phase 2 & 3 statistical methods (19 GTest test cases)
-- Mathematical function debugging consolidated into production-quality `test_math_utils.cpp`
+- Mathematical function debugging consolidated into production-quality `test_math_comprehensive.cpp`
 
 #### What Was Standardized
 - Consistent naming: `*_basic.cpp` for fundamental operations, `*_enhanced.cpp` for advanced features
@@ -304,10 +304,10 @@ make run_tests
 ### By Dependency Level
 ```bash
 # Level 0: Foundational tests
-ctest -R "test_cpp20_features|test_constants|test_cpu_detection|test_adaptive_cache|test_simd.*|test_platform.*|test_safe_factory"
+ctest -R "test_constants|test_cpu_detection|test_simd.*|test_platform.*|test_error_handling_comprehensive"
 
 # Level 1: Core infrastructure tests
-ctest -R "test_safety|test_math_utils|test_vectorized_math|test_goodness_of_fit|test_validation_enhanced"
+ctest -R "test_numerical_safety|test_math_comprehensive|test_goodness_of_fit|test_validation_enhanced"
 
 # Level 3: Parallel infrastructure tests
 ctest -R "test_thread_pool|test_work_stealing_pool|test_parallel_execution.*|test_benchmark_basic"
@@ -322,7 +322,7 @@ ctest -R ".*dynamic.*"
 ### Individual GTest Suites
 ```bash
 # Mathematical functions (23 comprehensive test cases)
-./tests/test_math_utils
+./tests/test_math_comprehensive
 
 # Advanced Gaussian methods (19 comprehensive test cases)
 ./tests/test_gaussian_enhanced
@@ -335,7 +335,7 @@ ctest -R ".*dynamic.*"
 
 - **Total Tests**: 27 (reduced from 30 after consolidation)
 - **Foundational Tests (Level 0)**: 9 tests
-- **Infrastructure Tests (Level 1)**: 5 tests (includes GTest math_utils)
+- **Infrastructure Tests (Level 1)**: 5 tests (includes GTest math_comprehensive)
 - **Framework Tests (Level 2)**: 0 tests (covered by Level 4)
 - **Parallel Tests (Level 3)**: 5 tests
 - **Distribution Tests (Level 4)**: 4 tests (includes 2 GTest suites)
@@ -379,7 +379,7 @@ ctest -R ".*dynamic.*"
 
 ### Mathematical Function Testing
 
-The `test_math_utils.cpp` GTest suite provides comprehensive validation:
+The `test_math_comprehensive.cpp` GTest suite provides comprehensive validation:
 - **Error functions**: `erf`, `erfc`, `erf_inv` with high-precision verification
 - **Gamma functions**: `gamma_p`, `gamma_q` with series vs continued fraction validation
 - **Beta functions**: `beta_i` with SciPy-verified expected values

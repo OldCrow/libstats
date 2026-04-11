@@ -205,7 +205,8 @@ for thresholds on your machine.
 
 ### Measured Performance Gains (Intel Ivy Bridge, AVX only)
 
-From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA), after Phase 6A:
+From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA), on the current
+Phase 6B branch:
 
 | Distribution | Operation | SIMD Speedup | Notes |
 |---|---|---|---|
@@ -219,8 +220,13 @@ From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA), after
 | Exponential | CDF | ~10x | vector_exp + scalar fixup (Phase 6A) |
 | Gamma | PDF | ~10x | vector_log pipeline (Phase 6A) |
 | Gamma | LogPDF | ~7x | vector_log pipeline (Phase 6A) |
-| Gamma/Poisson | CDF | 1–2x | Dominated by gamma_p/gamma_q; minimal SIMD benefit |
-| **Overall** | **all 39** | **~4.1x** | Geometric mean including ChiSquared |
+| Chi-squared | PDF | ~10x | Delegates to Gamma batch path |
+| Student's t | PDF | ~7x | One vector_log in the log-space pipeline |
+| Student's t | LogPDF | ~8x | Log-space SIMD pipeline |
+| Beta | PDF | ~5x | Two vector_log calls plus boundary fixup |
+| Beta | LogPDF | ~5x | Two-log SIMD pipeline |
+| Gamma/Poisson/Student's t/Beta | CDF | 1–2x | Dominated by scalar special functions |
+| **Overall** | **all 54** | **~2.5x** | Geometric mean across the full current suite |
 
 Higher speedups seen on AVX2/FMA (Kaby Lake: 4.45x+ overall) and different profile on NEON M1.
 AVX-512 (AMD Ryzen Zen 4) exercises 8-wide vectors; transcendentals currently delegate to AVX.
@@ -231,7 +237,8 @@ Discrete, and Uniform PDF/LogPDF remain scalar in their hot paths — those requ
 or `vector_blend` primitives not yet in `VectorOps`.
 
 **ChiSquared** delegates all batch operations to `GammaDistribution` (Delegation pattern), so
-it inherits Gamma's SIMD performance automatically.
+it inherits Gamma's SIMD performance automatically. **Student's t** and **Beta** use direct
+log-space SIMD batch paths for PDF/LogPDF while keeping scalar special-function CDF implementations.
 
 ## Advanced Features
 

@@ -430,5 +430,11 @@ struct DistributionTraits<class BetaDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
 };
 
+template <>
+struct DistributionTraits<class ChiSquaredDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::CHI_SQUARED; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
+};
+
 }  // namespace detail
 }  // namespace stats

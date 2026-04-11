@@ -8,8 +8,9 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phase 6A (SIMD Batch Ops for Non-Gaussian Distributions) complete and merged to main ✅.
-Phases 1–6A complete. Phase 6B (New Distributions: Student's t, Chi-squared, Beta) is next.
+**Current Status**: Phase 6B implementation is complete on `phase-6b-new-distributions`.
+Phases 1–6B are functionally complete. The remaining release gate is final cross-machine validation
+(especially Windows/MSVC and AVX-512 on the Asus A16), then merge to `main` for v1.0.0.
 
 ### Phase 4 Validation Matrix (final)
 
@@ -42,14 +43,23 @@ Overall `simd_verification` AVX speedup: 4.10x (was 3.84x pre-Phase 6A). 36/36 t
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
 
-### Phase 6B Scope (next)
-New distributions on branch `phase-6b-new-distributions`:
-- **Student's t** — Γ((ν+1)/2) / (√(νπ) Γ(ν/2)) · (1 + x²/ν)^(-(ν+1)/2); CDF via incomplete beta
-- **Chi-squared** — thin wrapper over Gamma(α=ν/2, β=1/2); near-zero implementation cost
-- **Beta** — x^(α-1)(1-x)^(β-1)/B(α,β); CDF via regularized incomplete beta
+### Phase 6B Results (current branch)
+New distributions added on `phase-6b-new-distributions`:
+- **Student's t** — standalone implementation with SIMD log-space PDF/LogPDF and CDF via incomplete beta
+- **Chi-squared** — delegation wrapper over Gamma(α=ν/2, β=1/2)
+- **Beta** — standalone bounded-support distribution with two-log SIMD PDF/LogPDF and CDF via regularized incomplete beta
 
-All three PDF/LogPDF are log-space computations that vectorize with existing `vector_log`/`vector_exp`
-primitives — SIMD batch ops are essentially free by following the `BatchUnsafeImpl` pattern.
+Shared utility additions:
+- `detail::digamma(x)` promoted into `math_utils`
+- `detail::inverse_beta_i(p, a, b)` added for Beta quantiles
+
+Current Ivy Bridge AVX validation on this branch:
+- correctness suite: 34/34 PASS
+- `simd_verification`: 54/54 PASS
+- new-distribution speedups:
+  - Chi-squared: PDF 9.8x, LogPDF 7.2x, CDF 2.1x
+  - Student's t: PDF 6.8x, LogPDF 7.6x, CDF 1.4x
+  - Beta: PDF 4.7x, LogPDF 4.5x, CDF 1.2x
 
 ### Development Ecosystem
 

@@ -75,6 +75,12 @@ size_t PerformanceDispatcher::getDistributionSpecificParallelThreshold(
             return thresholds_.poisson_parallel_min;
         case DistributionType::GAMMA:
             return thresholds_.gamma_parallel_min;
+        case DistributionType::STUDENT_T:
+            return thresholds_.student_t_parallel_min;
+        case DistributionType::BETA:
+            return thresholds_.beta_parallel_min;
+        case DistributionType::CHI_SQUARED:
+            return thresholds_.chi_squared_parallel_min;
         default:
             return thresholds_.parallel_min;
     }
