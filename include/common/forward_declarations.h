@@ -13,6 +13,7 @@ class PoissonDistribution;
 class GammaDistribution;
 class DiscreteDistribution;
 class ChiSquaredDistribution;
+class StudentTDistribution;
 
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
@@ -23,8 +24,9 @@ using Poisson = PoissonDistribution;
 using Gamma = GammaDistribution;
 using Discrete = DiscreteDistribution;
 using ChiSquared = ChiSquaredDistribution;
+using StudentT = StudentTDistribution;
 
-// Platform classes - forward declarations
+// Platform classes
 class SimdProcessor;
 class ParallelExecutor;
 
@@ -43,7 +45,8 @@ enum class LibDistributionType {
     Poisson,
     Gamma,
     Discrete,
-    ChiSquared
+    ChiSquared,
+    StudentT
 };
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };

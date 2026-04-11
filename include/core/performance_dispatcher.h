@@ -67,7 +67,8 @@ enum class DistributionType {
     EXPONENTIAL,  ///< Exponential distribution (moderate complexity)
     DISCRETE,     ///< Discrete uniform distribution
     POISSON,      ///< Poisson distribution (complex)
-    GAMMA         ///< Gamma distribution (most complex)
+    GAMMA,        ///< Gamma distribution (most complex)
+    STUDENT_T     ///< Student's t distribution (log+transcendental, full real-line domain)
 };
 
 /**
@@ -159,6 +160,7 @@ class PerformanceDispatcher {
         size_t discrete_parallel_min = 1024;    ///< Integer operations
         size_t poisson_parallel_min = 512;      ///< Complex discrete distribution
         size_t gamma_parallel_min = 256;        ///< Most complex distribution
+        size_t student_t_parallel_min = 256;    ///< Log+transcendental, matches Gaussian
 
         /**
          * @brief Create thresholds based on SIMDPolicy level

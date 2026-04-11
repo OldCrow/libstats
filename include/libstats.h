@@ -159,6 +159,7 @@
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/poisson.h"
+    #include "distributions/student_t.h"
     #include "distributions/uniform.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
@@ -173,6 +174,7 @@ using Poisson = PoissonDistribution;
 using Gamma = GammaDistribution;
 using Discrete = DiscreteDistribution;
 using ChiSquared = ChiSquaredDistribution;
+using StudentT = StudentTDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;

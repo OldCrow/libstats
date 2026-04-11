@@ -1256,6 +1256,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/discrete.cpp # Discrete distribution implementation
     src/gamma.cpp # Gamma distribution implementation
     src/chi_squared.cpp # Chi-squared distribution (delegation wrapper over Gamma)
+    src/student_t.cpp # Student's t distribution (full real-line, log-space SIMD)
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -1714,6 +1715,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_chi_squared_basic tests/test_chi_squared_basic.cpp)
     create_libstats_gtest(test_chi_squared_enhanced tests/test_chi_squared_enhanced.cpp)
 
+    # student_t.h - Student's t distribution (full real-line, log-space SIMD)
+    create_libstats_test(test_student_t_basic tests/test_student_t_basic.cpp)
+    create_libstats_gtest(test_student_t_enhanced tests/test_student_t_enhanced.cpp)
+
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
@@ -1786,6 +1791,7 @@ if(LIBSTATS_BUILD_TESTS)
             test_discrete_enhanced
             test_gamma_enhanced
             test_chi_squared_enhanced
+            test_student_t_enhanced
             test_performance_dispatcher
             PROPERTIES LABELS "timing")
     endif()
@@ -1827,6 +1833,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_discrete_basic
                 test_gamma_basic
                 test_chi_squared_basic
+                test_student_t_basic
                 test_atomic_parameters
                 # Level 6: Enhanced distribution tests
                 test_gaussian_enhanced
@@ -1836,6 +1843,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_discrete_enhanced
                 test_gamma_enhanced
                 test_chi_squared_enhanced
+                test_student_t_enhanced
                 # Level 7: Integration tests
                 test_dynamic_linking
                 # On-demand tests (stress, diagnostic, redundant)

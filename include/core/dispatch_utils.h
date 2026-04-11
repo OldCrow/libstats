@@ -418,5 +418,11 @@ struct DistributionTraits<class GammaDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
 };
 
+template <>
+struct DistributionTraits<class StudentTDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::STUDENT_T; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
 }  // namespace detail
 }  // namespace stats

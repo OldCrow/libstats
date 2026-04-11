@@ -24,6 +24,7 @@
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/poisson.h"
+#include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
 #include "libstats/platform/simd.h"
 
@@ -121,6 +122,7 @@ class SIMDVerifier {
         testPoissonDistribution();
         testGammaDistribution();
         testChiSquaredDistribution();
+        testStudentTDistribution();
 
         // Test edge cases
         testEdgeCases();
@@ -227,6 +229,17 @@ class SIMDVerifier {
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
 
         verifyDistributionOperations(dist, test_data, "Gamma");
+    }
+
+    void testStudentTDistribution() {
+        stats::detail::detail::subsectionHeader("StudentT Distribution SIMD Verification");
+        // nu=3: finite variance (3), good SIMD test — full real-line domain, no fixup needed
+        auto dist = stats::StudentTDistribution::create(3.0).value;
+
+        // Full real line: test data spans negative and positive values
+        auto test_data = generateTestData(-10.0, 10.0, TEST_SIZE);
+
+        verifyDistributionOperations(dist, test_data, "StudentT");
     }
 
     void testChiSquaredDistribution() {
@@ -466,9 +479,9 @@ class SIMDVerifier {
              [this]() { testDistributionEdgeCases(stats::Discrete(0, 10), "Discrete"); }},
             {"Poisson", [this]() { testDistributionEdgeCases(stats::Poisson(3.0), "Poisson"); }},
             {"Gamma", [this]() { testDistributionEdgeCases(stats::Gamma(2.0, 1.0), "Gamma"); }},
+            {"StudentT", [this]() { testDistributionEdgeCases(stats::StudentT(3.0), "StudentT"); }},
             {"ChiSquared", [this]() {
                  // Use k=4 (alpha=2) to avoid the alpha=1 x=0 boundary case
-                 // where getProbability(0) returns beta (single-value special case)
                  // while the batch fixup returns 0. Same reasoning as Gamma using alpha=2.
                  testDistributionEdgeCases(stats::ChiSquared(4.0), "ChiSquared");
              }}};
