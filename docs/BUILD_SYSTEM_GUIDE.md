@@ -687,14 +687,14 @@ The CMakeLists `set_tests_properties` timing-label block is guarded with
 ### Test Labels and Running Strategy
 
 ```bash
-# Correctness only — parallel-safe, always reliable (31 tests)
+# Correctness only — parallel-safe, always reliable (34 tests)
 ctest --output-on-failure -LE "timing|benchmark"
 make run_tests
 
 # Timing validation — run serially on a quiet machine (7 tests)
 ctest --output-on-failure -j1 -L timing
 make run_tests_timing
-
+# SIMD correctness + speedup measurement (54 internal tests)
 # SIMD correctness + speedup measurement (36 internal tests)
 ./build/tools/simd_verification
 ```

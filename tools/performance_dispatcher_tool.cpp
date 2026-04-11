@@ -27,7 +27,6 @@
 
 using namespace stats::detail;
 using namespace std::chrono;
-using namespace stats::detail;
 
 // Tool-specific simulation constants
 namespace {
@@ -100,8 +99,11 @@ class PerformanceDispatcherTool {
         // Test different batch sizes and show strategy selection
         std::vector<size_t> test_sizes = {10, 100, 1000, 10000, 100000, 1000000};
         std::vector<DistributionType> distributions = {
-            DistributionType::UNIFORM, DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL,
-            DistributionType::POISSON, DistributionType::DISCRETE, DistributionType::GAMMA};
+            DistributionType::UNIFORM,     DistributionType::GAUSSIAN,
+            DistributionType::EXPONENTIAL, DistributionType::POISSON,
+            DistributionType::DISCRETE,    DistributionType::GAMMA,
+            DistributionType::CHI_SQUARED, DistributionType::STUDENT_T,
+            DistributionType::BETA};
 
         stats::detail::detail::ColumnFormatter formatter({12, 14, 15, 18});
         std::cout << formatter.formatRow(
@@ -154,7 +156,8 @@ class PerformanceDispatcherTool {
 
         for (auto dist :
              {DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL, DistributionType::UNIFORM,
-              DistributionType::DISCRETE, DistributionType::POISSON, DistributionType::GAMMA}) {
+              DistributionType::DISCRETE, DistributionType::POISSON, DistributionType::GAMMA,
+              DistributionType::CHI_SQUARED, DistributionType::STUDENT_T, DistributionType::BETA}) {
             auto thresholds = history.learnOptimalThresholds(dist);
             if (thresholds.has_value()) {
                 std::cout << threshold_formatter.formatRow(
@@ -181,8 +184,9 @@ class PerformanceDispatcherTool {
 
         std::vector<size_t> test_sizes = {100, 1000, 10000};
         std::vector<DistributionType> rec_distributions = {
-            DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL, DistributionType::UNIFORM,
-            DistributionType::DISCRETE, DistributionType::POISSON,     DistributionType::GAMMA};
+            DistributionType::GAUSSIAN,    DistributionType::EXPONENTIAL, DistributionType::UNIFORM,
+            DistributionType::DISCRETE,    DistributionType::POISSON,     DistributionType::GAMMA,
+            DistributionType::CHI_SQUARED, DistributionType::STUDENT_T,   DistributionType::BETA};
 
         for (auto size : test_sizes) {
             for (auto dist : rec_distributions) {
@@ -214,7 +218,10 @@ class PerformanceDispatcherTool {
             {DistributionType::EXPONENTIAL, 2.5},  // Moderate - requires exp/log
             {DistributionType::GAUSSIAN, 3.0},     // Moderate - Box-Muller transform
             {DistributionType::POISSON, 4.0},      // Complex - iterative algorithms
-            {DistributionType::GAMMA, 5.0}         // Most complex - special functions
+            {DistributionType::GAMMA, 5.0},        // Most complex - special functions
+            {DistributionType::CHI_SQUARED, 5.0},  // Delegates to Gamma - same complexity
+            {DistributionType::STUDENT_T, 3.2},    // Moderate - log-space continuous
+            {DistributionType::BETA, 3.4}          // Moderate - bounded log-space continuous
         };
 
         // Distribution-specific efficiency characteristics
@@ -225,7 +232,10 @@ class PerformanceDispatcherTool {
             {DistributionType::EXPONENTIAL, {0.28, 0.18}},  // Moderate efficiency - transcendental
             {DistributionType::GAUSSIAN, {0.25, 0.15}},     // Lower efficiency - complex transform
             {DistributionType::POISSON, {0.22, 0.12}},      // Poor efficiency - iterative
-            {DistributionType::GAMMA, {0.20, 0.10}}         // Worst efficiency - special functions
+            {DistributionType::GAMMA, {0.20, 0.10}},        // Worst efficiency - special functions
+            {DistributionType::CHI_SQUARED, {0.20, 0.10}},  // Delegates to Gamma; same efficiency
+            {DistributionType::STUDENT_T, {0.24, 0.15}},    // Moderate efficiency
+            {DistributionType::BETA, {0.23, 0.14}}          // Moderate efficiency with fixup
         };
 
         // More granular sizes around potential crossover points for better threshold learning
@@ -235,8 +245,11 @@ class PerformanceDispatcherTool {
 
         // All distribution types to simulate
         std::vector<DistributionType> distributions = {
-            DistributionType::UNIFORM,  DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL,
-            DistributionType::DISCRETE, DistributionType::POISSON,  DistributionType::GAMMA};
+            DistributionType::UNIFORM,     DistributionType::GAUSSIAN,
+            DistributionType::EXPONENTIAL, DistributionType::DISCRETE,
+            DistributionType::POISSON,     DistributionType::GAMMA,
+            DistributionType::CHI_SQUARED, DistributionType::STUDENT_T,
+            DistributionType::BETA};
 
         for (auto dist_type : distributions) {
             double complexity = complexity_factors[dist_type];
@@ -304,9 +317,11 @@ class PerformanceDispatcherTool {
                       << "\n";
             std::cout << formatter.getSeparator() << "\n";
 
-            for (auto dist : {DistributionType::UNIFORM, DistributionType::GAUSSIAN,
-                              DistributionType::EXPONENTIAL, DistributionType::DISCRETE,
-                              DistributionType::POISSON, DistributionType::GAMMA}) {
+            for (auto dist :
+                 {DistributionType::UNIFORM, DistributionType::GAUSSIAN,
+                  DistributionType::EXPONENTIAL, DistributionType::DISCRETE,
+                  DistributionType::POISSON, DistributionType::GAMMA, DistributionType::CHI_SQUARED,
+                  DistributionType::STUDENT_T, DistributionType::BETA}) {
                 for (auto complexity :
                      {ComputationComplexity::SIMPLE, ComputationComplexity::COMPLEX}) {
                     auto strategy =

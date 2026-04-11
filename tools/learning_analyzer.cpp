@@ -207,8 +207,11 @@ class LearningAnalyzer {
 
         // All distribution types to simulate
         std::vector<DistributionType> distributions = {
-            DistributionType::UNIFORM,  DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL,
-            DistributionType::DISCRETE, DistributionType::POISSON,  DistributionType::GAMMA};
+            DistributionType::UNIFORM,     DistributionType::GAUSSIAN,
+            DistributionType::EXPONENTIAL, DistributionType::DISCRETE,
+            DistributionType::POISSON,     DistributionType::GAMMA,
+            DistributionType::CHI_SQUARED, DistributionType::STUDENT_T,
+            DistributionType::BETA};
 
         // Performance complexity factors for different distributions
         std::map<DistributionType, double> complexity_factors = {
@@ -217,7 +220,10 @@ class LearningAnalyzer {
             {DistributionType::EXPONENTIAL, 2.5},  // Moderate - requires exp/log
             {DistributionType::GAUSSIAN, 3.0},     // Moderate - Box-Muller transform
             {DistributionType::POISSON, 4.0},      // Complex - iterative algorithms
-            {DistributionType::GAMMA, 5.0}         // Most complex - special functions
+            {DistributionType::GAMMA, 5.0},        // Most complex - special functions
+            {DistributionType::CHI_SQUARED, 5.0},  // Delegates to Gamma - same complexity
+            {DistributionType::STUDENT_T, 3.2},    // Moderate - log-space continuous
+            {DistributionType::BETA, 3.4}          // Moderate - bounded log-space continuous
         };
 
         // Distribution-specific efficiency characteristics
@@ -227,7 +233,10 @@ class LearningAnalyzer {
             {DistributionType::EXPONENTIAL, {0.28, 0.18}},  // Moderate efficiency
             {DistributionType::GAUSSIAN, {0.25, 0.15}},     // Lower efficiency
             {DistributionType::POISSON, {0.22, 0.12}},      // Poor efficiency
-            {DistributionType::GAMMA, {0.20, 0.10}}         // Worst efficiency
+            {DistributionType::GAMMA, {0.20, 0.10}},        // Worst efficiency
+            {DistributionType::CHI_SQUARED, {0.20, 0.10}},  // Delegates to Gamma; same efficiency
+            {DistributionType::STUDENT_T, {0.24, 0.15}},    // Moderate efficiency
+            {DistributionType::BETA, {0.23, 0.14}}          // Moderate efficiency with fixup
         };
 
         // More granular sizes around potential crossover points
@@ -326,7 +335,8 @@ class LearningAnalyzer {
         std::cout << "Learned optimal thresholds for all distributions:\n";
         for (auto dist_type :
              {DistributionType::UNIFORM, DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL,
-              DistributionType::DISCRETE, DistributionType::POISSON, DistributionType::GAMMA}) {
+              DistributionType::DISCRETE, DistributionType::POISSON, DistributionType::GAMMA,
+              DistributionType::CHI_SQUARED, DistributionType::STUDENT_T, DistributionType::BETA}) {
             auto thresholds = history.learnOptimalThresholds(dist_type);
             if (thresholds.has_value()) {
                 std::cout << "  " << stats::detail::detail::distributionTypeToString(dist_type)
@@ -495,6 +505,23 @@ class LearningAnalyzer {
                                   .value;
             exerciseDistribution("Gamma", DistributionType::GAMMA, gamma_dist, batch_sizes);
         }
+
+        {
+            auto chi_sq_dist = stats::ChiSquaredDistribution::create(5.0).value;
+            exerciseDistribution("ChiSquared", DistributionType::CHI_SQUARED, chi_sq_dist,
+                                 batch_sizes);
+        }
+
+        {
+            auto student_t_dist = stats::StudentTDistribution::create(5.0).value;
+            exerciseDistribution("StudentT", DistributionType::STUDENT_T, student_t_dist,
+                                 batch_sizes);
+        }
+
+        {
+            auto beta_dist = stats::BetaDistribution::create(2.0, 5.0).value;
+            exerciseDistribution("Beta", DistributionType::BETA, beta_dist, batch_sizes);
+        }
     }
 
     void analyzePerformanceHistory() {
@@ -508,8 +535,11 @@ class LearningAnalyzer {
 
         // Test strategy recommendations for different scenarios
         std::vector<DistributionType> distributions = {
-            DistributionType::UNIFORM,  DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL,
-            DistributionType::DISCRETE, DistributionType::POISSON,  DistributionType::GAMMA};
+            DistributionType::UNIFORM,     DistributionType::GAUSSIAN,
+            DistributionType::EXPONENTIAL, DistributionType::DISCRETE,
+            DistributionType::POISSON,     DistributionType::GAMMA,
+            DistributionType::CHI_SQUARED, DistributionType::STUDENT_T,
+            DistributionType::BETA};
 
         std::vector<size_t> test_sizes = {10, 100, 1000, 5000, 25000, 100000};
 
@@ -568,8 +598,7 @@ class LearningAnalyzer {
                       << " Performance:" << std::endl;
 
             std::vector<Strategy> strategies = {Strategy::SCALAR, Strategy::VECTORIZED,
-                                                Strategy::PARALLEL, Strategy::WORK_STEALING,
-                                                Strategy::WORK_STEALING};
+                                                Strategy::PARALLEL, Strategy::WORK_STEALING};
 
             for (auto strategy : strategies) {
                 auto stats = history.getPerformanceStats(strategy, dist_type);
@@ -600,7 +629,7 @@ class LearningAnalyzer {
         // Multiple runs per batch size to generate sufficient data
         constexpr int RUNS_PER_BATCH_SIZE = 3;
         int total_operations = static_cast<int>(
-            6 * batch_sizes.size() * RUNS_PER_BATCH_SIZE);  // 6 distributions * sizes * runs
+            9 * batch_sizes.size() * RUNS_PER_BATCH_SIZE);  // 9 distributions * sizes * runs
         int completed = 0;
 
         // Enhanced testing with multiple strategies per size
@@ -671,6 +700,33 @@ class LearningAnalyzer {
                                                                    distribution_params::GAMMA_BETA)
                                       .value;
                 exerciseDistributionEnhanced("Gamma", DistributionType::GAMMA, gamma_dist,
+                                             batch_sizes);
+                std::cout << " ✓\n";
+                completed += static_cast<int>(batch_sizes.size());
+            }
+
+            {
+                std::cout << "Testing ChiSquared Distribution..." << std::flush;
+                auto chi_sq_dist = stats::ChiSquaredDistribution::create(5.0).value;
+                exerciseDistributionEnhanced("ChiSquared", DistributionType::CHI_SQUARED,
+                                             chi_sq_dist, batch_sizes);
+                std::cout << " ✓\n";
+                completed += static_cast<int>(batch_sizes.size());
+            }
+
+            {
+                std::cout << "Testing StudentT Distribution..." << std::flush;
+                auto student_t_dist = stats::StudentTDistribution::create(5.0).value;
+                exerciseDistributionEnhanced("StudentT", DistributionType::STUDENT_T,
+                                             student_t_dist, batch_sizes);
+                std::cout << " ✓\n";
+                completed += static_cast<int>(batch_sizes.size());
+            }
+
+            {
+                std::cout << "Testing Beta Distribution..." << std::flush;
+                auto beta_dist = stats::BetaDistribution::create(2.0, 5.0).value;
+                exerciseDistributionEnhanced("Beta", DistributionType::BETA, beta_dist,
                                              batch_sizes);
                 std::cout << " ✓\n";
                 completed += static_cast<int>(batch_sizes.size());
@@ -782,8 +838,11 @@ class LearningAnalyzer {
 
         // Test strategy recommendations for different scenarios
         std::vector<DistributionType> distributions = {
-            DistributionType::UNIFORM,  DistributionType::GAUSSIAN, DistributionType::EXPONENTIAL,
-            DistributionType::DISCRETE, DistributionType::POISSON,  DistributionType::GAMMA};
+            DistributionType::UNIFORM,     DistributionType::GAUSSIAN,
+            DistributionType::EXPONENTIAL, DistributionType::DISCRETE,
+            DistributionType::POISSON,     DistributionType::GAMMA,
+            DistributionType::CHI_SQUARED, DistributionType::STUDENT_T,
+            DistributionType::BETA};
 
         std::vector<size_t> test_sizes = {10, 100, 1000, 5000, 25000, 100000};
 
@@ -900,8 +959,7 @@ class LearningAnalyzer {
 
         // Strategy effectiveness analysis
         std::cout << "\nStrategy Effectiveness Summary:\n";
-        for (auto strategy : {Strategy::VECTORIZED, Strategy::PARALLEL, Strategy::WORK_STEALING,
-                              Strategy::WORK_STEALING}) {
+        for (auto strategy : {Strategy::VECTORIZED, Strategy::PARALLEL, Strategy::WORK_STEALING}) {
             int total_distributions = 0;
             int effective_distributions = 0;
 

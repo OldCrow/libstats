@@ -46,8 +46,10 @@ struct DistributionComplexity {
  * - Gaussian: Box-Muller transform (2 transcendentals + sqrt), complex control flow
  * - Poisson: Iterative algorithms with early termination, poor vectorization
  * - Gamma: Multiple special functions + iterative rejection sampling, complex
+ * - StudentT: Log-space PDF (one log per element); CDF via incomplete beta
+ * - Beta: Log-space PDF (two logs per element); bounded support fixup at boundaries
  */
-constexpr std::array<DistributionComplexity, 6> DISTRIBUTION_CHARACTERISTICS = {
+constexpr std::array<DistributionComplexity, 9> DISTRIBUTION_CHARACTERISTICS = {
     {// UNIFORM: y = a + (b-a) * uniform_random()
      // - Single multiply-add operation
      // - Perfect memory locality
@@ -142,6 +144,50 @@ constexpr std::array<DistributionComplexity, 6> DISTRIBUTION_CHARACTERISTICS = {
          .min_parallel_threshold = 3000,      // High threshold due to complexity
          .memory_access_pattern = 0.80,       // Irregular access patterns
          .branch_prediction_cost = 1.50       // Heavy branching overhead
+     },
+
+     // STUDENT_T: Log-space PDF: log(C) + (-(ν+1)/2) · log(1 + x²/ν)
+     // - One vector_log per element in SIMD PDF path
+     // - CDF via regularized incomplete beta (not vectorized)
+     // - Full real-line domain: no boundary fixup needed
+     // - Similar to Gaussian in per-element PDF cost
+     {
+         .base_complexity = 3.5,              // ~3.5x more complex than uniform
+         .vectorization_efficiency = 0.75,    // One vector_log; matches Gaussian efficiency
+         .parallelization_efficiency = 0.80,  // Good parallel efficiency
+         .min_simd_threshold = 32,            // Same as Gaussian
+         .min_parallel_threshold = 1500,      // Same as Gaussian; moderate per-element cost
+         .memory_access_pattern = 0.95,       // Sequential access; no boundary fixups
+         .branch_prediction_cost = 1.10       // Minimal branching in PDF path
+     },
+
+     // BETA: Log-space PDF: (α-1)·log(x) + (β-1)·log(1-x) + log_norm_const
+     // - Two vector_log calls per element in SIMD PDF path
+     // - CDF via regularized incomplete beta (not vectorized)
+     // - Bounded support [0,1]: fixup required at x=0 and x=1 boundaries
+     // - Slightly more expensive than Student's t due to two log calls + fixup
+     {
+         .base_complexity = 3.8,              // ~3.8x more complex than uniform
+         .vectorization_efficiency = 0.78,    // Two vector_log calls; fixup adds overhead
+         .parallelization_efficiency = 0.82,  // Good parallel efficiency
+         .min_simd_threshold = 32,            // Similar to Gaussian
+         .min_parallel_threshold = 1200,      // Two log calls — benefits from parallel sooner
+         .memory_access_pattern = 0.95,       // Sequential access; bounded support
+         .branch_prediction_cost = 1.20       // Boundary fixup at x=0 and x=1
+     },
+
+     // CHI_SQUARED: Delegation wrapper over Gamma(ν/2, 1/2)
+     // - All batch and probability operations delegate to an internal GammaDistribution
+     // - Positive real-line support (x > 0), same domain as Gamma
+     // - Computational characteristics identical to Gamma due to full delegation
+     {
+         .base_complexity = 6.5,              // ~6.5x more complex than uniform (matches Gamma)
+         .vectorization_efficiency = 0.25,    // Poor SIMD efficiency (inherited from Gamma)
+         .parallelization_efficiency = 0.65,  // Moderate parallel efficiency (inherited from Gamma)
+         .min_simd_threshold = 80,            // High threshold (matches Gamma)
+         .min_parallel_threshold = 3000,      // High threshold due to complexity (matches Gamma)
+         .memory_access_pattern = 0.80,       // Irregular access patterns (inherited from Gamma)
+         .branch_prediction_cost = 1.50       // Heavy branching overhead (inherited from Gamma)
      }}};
 
 /**
@@ -164,6 +210,12 @@ constexpr const DistributionComplexity& getCharacteristics(DistributionType dist
             return DISTRIBUTION_CHARACTERISTICS[4];
         case DistributionType::GAMMA:
             return DISTRIBUTION_CHARACTERISTICS[5];
+        case DistributionType::STUDENT_T:
+            return DISTRIBUTION_CHARACTERISTICS[6];
+        case DistributionType::BETA:
+            return DISTRIBUTION_CHARACTERISTICS[7];
+        case DistributionType::CHI_SQUARED:
+            return DISTRIBUTION_CHARACTERISTICS[8];
     }
     // Fallback to uniform characteristics
     return DISTRIBUTION_CHARACTERISTICS[0];

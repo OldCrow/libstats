@@ -12,6 +12,9 @@ class UniformDistribution;
 class PoissonDistribution;
 class GammaDistribution;
 class DiscreteDistribution;
+class ChiSquaredDistribution;
+class StudentTDistribution;
+class BetaDistribution;
 
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
@@ -21,8 +24,11 @@ using Uniform = UniformDistribution;
 using Poisson = PoissonDistribution;
 using Gamma = GammaDistribution;
 using Discrete = DiscreteDistribution;
+using ChiSquared = ChiSquaredDistribution;
+using StudentT = StudentTDistribution;
+using Beta = BetaDistribution;
 
-// Platform classes - forward declarations
+// Platform classes
 class SimdProcessor;
 class ParallelExecutor;
 
@@ -34,7 +40,17 @@ template <typename T>
 class DistributionParameter;
 
 // Common enums and constants that don't need heavy includes
-enum class LibDistributionType { Gaussian, Exponential, Uniform, Poisson, Gamma, Discrete };
+enum class LibDistributionType {
+    Gaussian,
+    Exponential,
+    Uniform,
+    Poisson,
+    Gamma,
+    Discrete,
+    ChiSquared,
+    StudentT,
+    Beta
+};
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };
 }  // namespace stats

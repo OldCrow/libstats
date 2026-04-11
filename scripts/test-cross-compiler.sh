@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# Cross-Compiler Compatibility Testing Script for libstats
-# Tests the code against multiple compiler strictness modes to catch compatibility issues
+# Cross-Compiler Build-Profile Testing Script for libstats
+# Exercises libstats warning/build profiles on the current host compiler.
+# Note: on a Clang host, GCC*/MSVC* build types validate the repo's emulated warning profiles,
+# not the real GCC or MSVC front ends. Real compiler validation still requires native GCC/MSVC runs.
 
 set -e  # Exit on any error
 
@@ -155,7 +157,7 @@ print_summary() {
 
 # Show usage if requested
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
-    echo "Cross-Compiler Compatibility Testing Script"
+    echo "Cross-Compiler Build-Profile Testing Script"
     echo
     echo "Usage: $0 [--clean] [--help]"
     echo
@@ -163,18 +165,18 @@ if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
     echo "  --clean    Remove all previous build directories before testing"
     echo "  --help     Show this help message"
     echo
-    echo "This script tests the codebase against multiple compiler configurations:"
-    echo "  • ClangStrict: Clang-specific warnings (modern C++ standards, performance) - ERRORS"
-    echo "  • ClangWarn: Clang-specific warnings (modern C++ standards, performance) - WARNINGS"
-    echo "  • GCCStrict: GCC-specific warnings (undefined behavior, duplicated conditions) - ERRORS"
-    echo "  • GCCWarn: GCC-specific warnings (undefined behavior, duplicated conditions) - WARNINGS"
-    echo "  • MSVCStrict: MSVC-like strictness (type conversions, implicit casts) - ERRORS"
-    echo "  • MSVCWarn: MSVC-like strictness (type conversions, implicit casts) - WARNINGS"
-    echo "  • Release: Standard release build (baseline compatibility)"
-    echo "  • Debug: Standard debug build (baseline compatibility)"
+    echo "This script tests the codebase against multiple build profiles:"
+    echo "  - ClangStrict: Clang-specific warnings (modern C++ standards, performance) - ERRORS"
+    echo "  - ClangWarn: Clang-specific warnings (modern C++ standards, performance) - WARNINGS"
+    echo "  - GCCStrict: GCC-style warning profile - ERRORS"
+    echo "  - GCCWarn: GCC-style warning profile - WARNINGS"
+    echo "  - MSVCStrict: MSVC-style warning profile - ERRORS"
+    echo "  - MSVCWarn: MSVC-style warning profile - WARNINGS"
+    echo "  - Release: Standard release build (baseline compatibility)"
+    echo "  - Debug: Standard debug build (baseline compatibility)"
     echo
-    echo "The script helps catch compatibility issues before deploying to different"
-    echo "platforms and compiler environments."
+    echo "The script helps catch portability and warning-profile issues early, but"
+    echo "real GCC and real MSVC validation still require native compiler runs."
     exit 0
 fi
 

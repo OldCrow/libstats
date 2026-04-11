@@ -418,5 +418,23 @@ struct DistributionTraits<class GammaDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
 };
 
+template <>
+struct DistributionTraits<class StudentTDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::STUDENT_T; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
+template <>
+struct DistributionTraits<class BetaDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::BETA; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
+template <>
+struct DistributionTraits<class ChiSquaredDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::CHI_SQUARED; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
+};
+
 }  // namespace detail
 }  // namespace stats

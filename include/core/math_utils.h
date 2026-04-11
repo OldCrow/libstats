@@ -92,6 +92,29 @@ namespace detail {
  */
 [[nodiscard]] double lbeta(double a, double b) noexcept;
 
+/**
+ * @brief Digamma function ψ(x) = d/dx ln Γ(x)
+ * @param x Input value (x > 0)
+ * @return ψ(x)
+ *
+ * Uses the asymptotic expansion ψ(x) ≈ ln(x) − 1/(2x) − 1/(12x²) + ...
+ * with recurrence ψ(x) = ψ(x+1) − 1/x to ensure x > 6 before the series.
+ */
+[[nodiscard]] double digamma(double x) noexcept;
+
+/**
+ * @brief Inverse of the regularized incomplete beta function I_x(a,b)
+ * @param p Probability value in [0,1]
+ * @param a First shape parameter (a > 0)
+ * @param b Second shape parameter (b > 0)
+ * @return x such that I_x(a,b) = p
+ *
+ * Implements the pattern established by inverse_t_cdf and inverse_chi_squared_cdf:
+ * normal-approximation initial estimate refined by Newton-Raphson with
+ * clamping to (0, 1). Used by BetaDistribution::getQuantile.
+ */
+[[nodiscard]] double inverse_beta_i(double p, double a, double b) noexcept;
+
 // =============================================================================
 // SIMD VECTORIZED SPECIAL FUNCTIONS
 // =============================================================================

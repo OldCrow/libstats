@@ -19,15 +19,18 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **Statistical Moments**: Mean, variance, skewness, kurtosis with thread-safe access
 - **Random Sampling**: Integration with std:: distributions for high-quality random number generation
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
-|- **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
+- **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
 ### 📊 **Available Distributions**
-- **Gaussian (Normal)**: N(μ, σ²) - The cornerstone of statistics ✅
-- **Exponential**: Exp(λ) - Waiting times and reliability analysis ✅
-- **Uniform**: U(a, b) - Continuous uniform random variables ✅
-- **Poisson**: P(λ) - Count data and rare events ✅
-- **Discrete**: Custom discrete distributions with arbitrary support ✅
-- **Gamma**: Γ(α, β) - Positive continuous variables ✅
+- **Gaussian (Normal)**: N(μ, σ²)
+- **Exponential**: Exp(λ)
+- **Uniform**: U(a, b)
+- **Poisson**: P(λ)
+- **Discrete**: Custom discrete distributions with arbitrary support
+- **Gamma**: Γ(α, β)
+- **Chi-squared**: χ²(ν)
+- **Student's t**: t(ν)
+- **Beta**: Beta(α, β)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -79,6 +82,8 @@ ctest --output-on-failure  # Run tests
 ```cpp
 #include "libstats.h"
 #include <iostream>
+#include <numeric>
+#include <span>
 #include <vector>
 
 int main() {
@@ -133,7 +138,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 6 distributions: Gaussian, Exponential, Uniform, Poisson, Discrete, Gamma
+- 9 distributions across continuous, bounded, and discrete families
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -168,16 +173,18 @@ libstats/
 ## Examples and Tools
 
 ### 📚 **Examples** (`examples/` directory)
-- `basic_usage.cpp` - Core functionality demonstration
-- `statistical_validation_demo.cpp` - Advanced validation and testing
-- `parallel_execution_demo.cpp` - High-performance batch processing
-- Performance benchmarks for each distribution type
+- `quick_start_tutorial.cpp` - 5-minute introduction to the core API
+- `basic_usage.cpp` - End-to-end usage of creation, evaluation, sampling, fitting, and batch APIs
+- `distribution_families_demo.cpp` - The 9 distributions organized by family: what each models, when to use it, and how to choose within a family
+- `statistical_validation_demo.cpp` - Goodness-of-fit tests, cross-validation, bootstrap CIs, and model selection
+- `parallel_execution_demo.cpp` - Batch-processing and dispatch workflow
 
 ### 🔧 **Analysis Tools** (`tools/` directory)
 - `system_inspector` - CPU capabilities and system information
-- `parallel_threshold_benchmark` - Optimal parallel threshold analysis
-- `performance_dispatcher_tool` - Algorithm performance comparison
-- `simd_verification` - SIMD correctness and performance testing
+- `simd_verification` - SIMD correctness and speedup verification
+- `parallel_threshold_benchmark` - Architecture-aware parallel threshold analysis
+- `performance_dispatcher_tool` - Dispatch strategy inspection and comparison
+- `learning_analyzer` - Performance-learning and threshold-analysis support
 
 
 ## Testing
@@ -296,7 +303,8 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 ## Roadmap
 
 ### ✅ Core library
-- 6 distributions (Gaussian, Exponential, Uniform, Poisson, Discrete, Gamma) — PDF/CDF/quantile/MLE/validation
+- 9 distributions (Gaussian, Exponential, Uniform, Poisson, Discrete, Gamma, Chi-squared, Student's t, Beta)
+- Complete PDF/CDF/quantile/MLE/validation coverage across the implemented families
 - Thread-safe with reader-writer locks and lock-free fast paths
 - SIMD batch operations (SSE2/AVX/AVX2/AVX-512/NEON) with runtime dispatch
 - Work-stealing parallel thread pool
@@ -316,10 +324,15 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 - `pkg-config` for Linux and Homebrew
 - Installed headers use `#include "libstats/core/..."` prefix
 - Consumer examples for both methods
+### ✅ SIMD and new distributions (Phases 6A–6B)
+- SIMD batch paths added for Exponential, Gamma, and Uniform where the current `VectorOps` abstraction makes them worthwhile
+- New distributions added: Student's t, Chi-squared, and Beta
+- SIMD verification expanded to cover the full current distribution set
 
-### Planned (Phases 6–7)
-- Vectorized batch ops for all 5 non-Gaussian distributions (currently scalar loops)
-- New distributions: Student's t, Chi-squared, Beta
+### ✅ Release gate (complete — ready to merge)
+- Cross-platform validation: Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC
+- All 54 SIMD verification tests pass on all four machines
+- Merge `phase-6b-new-distributions` to `main` and tag v1.0.0
 
 
 ## Contributing

@@ -1,52 +1,49 @@
-# Header Analysis Tools
+# Development Tools
 
-Quick reference for libstats header optimization tools.
+Quick reference for the actively useful tools in `tools/`.
 
-## 🚀 Quick Start (Recommended)
+## Current Tool Groups
 
-### Daily Health Check
-```bash
-python3 tools/header_dashboard.py
-```
-Shows overall header health score and quick status.
+### Runtime and platform inspection
+- `system_inspector` — inspect CPU, cache, SIMD, and runtime capability detection
+- `cpp20_features_inspector` — inspect compiler and standard-library feature support
 
-### Weekly Optimization Planning
-```bash
-python3 tools/header_insights.py
-```
-Detailed analysis with clear action plans and time estimates.
+### SIMD and performance validation
+- `simd_verification` — validate SIMD correctness and measure speedups across distributions
+- `parallel_threshold_benchmark` — inspect architecture-aware threshold behavior
+- `parallel_batch_fitting_benchmark` — benchmark batch fitting behavior across distributions
+- `parallel_correctness_verification` — validate batch correctness under parallel execution
 
-### Before/After Measurements
-```bash
-python3 tools/compilation_benchmark.py
-```
-Raw performance metrics for measuring optimization improvements.
+### Dispatch and learning analysis
+- `performance_dispatcher_tool` — inspect dispatch choices and strategy behavior
+- `learning_analyzer` — analyze adaptive learning and threshold behavior
+- `empirical_characteristics_demo` — inspect empirical complexity assumptions used by dispatch logic
 
-## 📚 Full Documentation
+### Header-analysis tools
+These remain useful for include and compilation-health work:
+- `header_dashboard.py`
+- `header_insights.py`
+- `compilation_benchmark.py`
+- `header_analysis.py`
+- `static_analysis.py`
+- `header_optimization_analysis.py`
+- `header_optimization_summary.py`
 
-See [Header Tools Guide](../docs/HEADER_TOOLS_GUIDE.md) for complete usage instructions and interpretation guide.
+See `docs/HEADER_TOOLS_GUIDE.md` for the header-analysis workflow.
 
-## 🛠️ Legacy Tools
+## Historical or specialized utilities
+Some tools exist to support older refactors, narrow investigations, or one-off cleanup work. Keep them only if they still earn their place; otherwise move them to a clearly historical area or remove them.
 
-These tools still work but are less user-friendly:
+Examples:
+- `demo_phase1_optimization.py`
+- `demo_phase2_optimization.py`
+- `replace_magic_numbers.py`
+- `replace_domain_constants.py`
+- `analyze_magic_numbers.py`
+- `find_unsafe_constructor_usage.py`
 
-- `header_analysis.py` - Include dependency analysis
-- `static_analysis.py` - Clang-based unused include detection
-- `header_optimization_analysis.py` - Comprehensive scoring
-- `demo_phase1_optimization.py` - Phase 1 optimization demo
-- `demo_phase2_optimization.py` - Phase 2 optimization demo
+## Guidance
 
-## ✅ Current Status
-
-After Phase 2 header reorganization:
-- **Header Health Score**: 81% (Excellent)
-- **Build Time**: ~3 minutes
-- **Common Headers**: 12 headers consolidated in `include/common/`
-- **Test Pass Rate**: 90% (36/40 tests passing)
-
-## 🎯 Next Steps
-
-1. Run `header_insights.py` for detailed optimization recommendations
-2. Focus on HIGH priority items (PIMPL pattern for heavy headers)
-3. Consider STL consolidation for `string`, `vector`, `cstddef`
-4. Monitor weekly with `header_dashboard.py`
+- Prefer the compiled C++ tools for release validation and performance checks.
+- Prefer the Python analysis tools for repo-maintenance work.
+- Do not treat every file in `tools/` as part of the primary supported workflow; some are archival.

@@ -8,10 +8,12 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phase 6A (SIMD Batch Ops for Non-Gaussian Distributions) complete and merged to main ✅.
-Phases 1–6A complete. Phase 6B (New Distributions: Student's t, Chi-squared, Beta) is next.
+**Current Status**: Phase 6B implementation is complete and fully validated.
+All four target machines (Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC)
+have passed correctness and SIMD verification on `phase-6b-new-distributions`.
+The branch is ready to merge to `main` for v1.0.0.
 
-### Phase 4 Validation Matrix (final)
+### Phase 4 Validation Matrix (final, 6 distributions, 36 SIMD tests)
 
 | Machine | SIMD | Correctness | simd_verification | Speedup |
 |---|---|---|---|---|
@@ -20,6 +22,18 @@ Phases 1–6A complete. Phase 6B (New Distributions: Student's t, Chi-squared, B
 | Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x |
 | Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x |
 | Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — |
+
+### Phase 6B Validation Matrix (9 distributions, 54 SIMD tests)
+
+| Machine | SIMD | Correctness | simd_verification | Speedup |
+|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
+| Asus TUF A16 (Windows) | AVX-512 | 33/33 ✅ | 54/54 ✅ | 1.64x |
+| Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
+| Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
+
+All four machines validated. Phase 6B (9 distributions, 54 SIMD tests) is complete
+across AVX, AVX2, AVX-512, and NEON.
 
 ### Phase 6A Results (Ivy Bridge, AVX)
 SIMD batch ops added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
@@ -37,19 +51,45 @@ All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
 Overall `simd_verification` AVX speedup: 4.10x (was 3.84x pre-Phase 6A). 36/36 tests pass.
 
 ### Deferred Items
-- AVX-512 transcendentals delegate to AVX (1.91x vs ~4x expected) — validate and fix on Asus A16
+- AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on A16;
+  fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
+  back to the AVX implementation; deferred to post-merge
 - Phase 6C (possible): `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
 
-### Phase 6B Scope (next)
-New distributions on branch `phase-6b-new-distributions`:
-- **Student's t** — Γ((ν+1)/2) / (√(νπ) Γ(ν/2)) · (1 + x²/ν)^(-(ν+1)/2); CDF via incomplete beta
-- **Chi-squared** — thin wrapper over Gamma(α=ν/2, β=1/2); near-zero implementation cost
-- **Beta** — x^(α-1)(1-x)^(β-1)/B(α,β); CDF via regularized incomplete beta
+### Phase 6B Results (current branch)
+New distributions added on `phase-6b-new-distributions`:
+- **Student's t** — standalone implementation with SIMD log-space PDF/LogPDF and CDF via incomplete beta
+- **Chi-squared** — delegation wrapper over Gamma(α=ν/2, β=1/2)
+- **Beta** — standalone bounded-support distribution with two-log SIMD PDF/LogPDF and CDF via regularized incomplete beta
 
-All three PDF/LogPDF are log-space computations that vectorize with existing `vector_log`/`vector_exp`
-primitives — SIMD batch ops are essentially free by following the `BatchUnsafeImpl` pattern.
+Shared utility additions:
+- `detail::digamma(x)` promoted into `math_utils`
+- `detail::inverse_beta_i(p, a, b)` added for Beta quantiles
+
+Validation on this branch:
+
+Ivy Bridge AVX (primary dev machine):
+- correctness suite: 34/34 PASS
+- `simd_verification`: 54/54 PASS, overall 4.10x
+- new-distribution speedups: Chi-squared PDF 9.5x/LogPDF 7.0x, Student's t PDF 7.3x/LogPDF 7.6x,
+  Beta PDF 4.6x/LogPDF 4.4x
+
+Asus TUF A16 (Windows, AVX-512 — first AVX-512 validation):
+- correctness suite: 33/33 PASS (GTest available via vcpkg gtest:x64-windows 1.17.0)
+- `simd_verification`: 54/54 PASS, overall 1.64x
+- AVX-512 arithmetic/log-space paths: Gaussian LogPDF 21.9x, Exponential LogPDF 11.8x,
+  Uniform LogPDF 7.5x — strong where transcendentals are not involved
+- Overall speedup limited by transcendental delegation to AVX (see Deferred Items)
+
+Kaby Lake AVX2 (2017 MBP):
+- correctness suite: 33/33 PASS
+- `simd_verification`: 54/54 PASS, overall 3.49x
+- new-distribution speedups: Chi-squared PDF 13.8x/LogPDF 10.5x, Student's t PDF 6.3x/LogPDF 18.4x,
+  Beta PDF 5.3x/LogPDF 4.1x
+
+All four machines validated. No pending validation gates remain for v1.0.0 merge.
 
 ### Development Ecosystem
 
@@ -61,8 +101,8 @@ primitives — SIMD batch ops are essentially free by following the `BatchUnsafe
 | Asus TUF A16 (2025) | Windows 11 Pro | AMD Ryzen 7 7445 (Zen 4) | SSE2 + AVX + AVX2 + **AVX-512** | Windows/MSVC + first AVX-512 machine |
 
 **Note:** The Asus TUF A16 (Ryzen 7 7445, Zen 4) is the first machine in this ecosystem with AVX-512 support.
-This means `simd_avx512.cpp` will be exercised for the first time there. The `test_simd_policy` AVX-512
-string fix from Phase 1 (`"AVX512"` → `"AVX-512"`) will also be validated on this machine.
+`simd_avx512.cpp` was exercised there for the first time in Phase 6B; 54/54 SIMD tests pass.
+The `test_simd_policy` AVX-512 string (`"AVX-512"`) was also confirmed correct.
 
 **Note:** Previous Windows testing was on an ASUS ROG Strix GL531. The Asus TUF A16 build environment
 may need to be set up from scratch (Visual Studio 2022, CMake, Git, VS Code with C/C++ + CMake Tools).
@@ -109,9 +149,10 @@ flag cleans Release artifacts but leaves existing Debug EXEs untouched if their 
 - **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings)
   SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
 - CMake 4.x installed and compatible with `cmake_minimum_required(VERSION 3.20)`
-- Configure: `cmake .. -G "Visual Studio 17 2022" -A x64`
+- Configure: `cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake`
 - Build: `cmake --build . --config Release --parallel`
-- GTest not installed — GTest-based tests silently skipped (expected, not an error)
+- GTest installed via vcpkg (`gtest:x64-windows 1.17.0`) — all 33 correctness tests pass
+- vcpkg root: `C:\vcpkg`; toolchain file required for CMake to find GTest
 
 ## Session Start: Architecture Detection
 

@@ -87,7 +87,7 @@ void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::s
 enum class Strategy {
     SCALAR,        // Element-by-element loop (batch < simd_min threshold)
     VECTORIZED,    // VectorOps batch path — SIMD-accelerated for Gaussian,
-                   // scalar loops for other distributions until Phase 6
+                   // Exponential, Gamma (PDF/LogPDF), Uniform (CDF), and ChiSquared
     PARALLEL,      // Multi-threaded via ParallelUtils::parallelFor
     WORK_STEALING  // Work-stealing pool for irregular or variable workloads
 };
@@ -205,27 +205,40 @@ for thresholds on your machine.
 
 ### Measured Performance Gains (Intel Ivy Bridge, AVX only)
 
-From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA):
+From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA), on the current
+Phase 6B branch:
 
 | Distribution | Operation | SIMD Speedup | Notes |
 |---|---|---|---|
-| Uniform | PDF | 57x | Trivial bounds check, bandwidth-limited |
-| Uniform | LogPDF | 41x | |
-| Gaussian | LogPDF | 77x | Pure arithmetic, no exp/erf |
-| Gaussian | PDF | 13x | Uses vector_exp_avx |
-| Gaussian | CDF | 9x | Uses vector_erf_avx |
-| Exponential | PDF | 6–8x | |
-| Gamma/Poisson | CDF | 1–2x | Complex algorithm, minimal SIMD benefit |
-| **Overall** | **all 36** | **3.57x** | Geometric mean |
+| Uniform | PDF | ~54x | Trivial bounds check; gain is batch-path amortization |
+| Uniform | CDF | ~25x | Linear interior vectorized; boundary scalar fixup |
+| Gaussian | LogPDF | ~52x | Purely affine, no transcendentals |
+| Gaussian | PDF | ~12x | Uses vector_exp |
+| Gaussian | CDF | ~10x | Uses vector_erf |
+| Exponential | LogPDF | ~21x | Purely affine (Phase 6A) |
+| Exponential | PDF | ~10x | vector_exp + scalar fixup (Phase 6A) |
+| Exponential | CDF | ~10x | vector_exp + scalar fixup (Phase 6A) |
+| Gamma | PDF | ~10x | vector_log pipeline (Phase 6A) |
+| Gamma | LogPDF | ~7x | vector_log pipeline (Phase 6A) |
+| Chi-squared | PDF | ~10x | Delegates to Gamma batch path |
+| Student's t | PDF | ~7x | One vector_log in the log-space pipeline |
+| Student's t | LogPDF | ~8x | Log-space SIMD pipeline |
+| Beta | PDF | ~5x | Two vector_log calls plus boundary fixup |
+| Beta | LogPDF | ~5x | Two-log SIMD pipeline |
+| Gamma/Poisson/Student's t/Beta | CDF | 1–2x | Dominated by scalar special functions |
+| **Overall** | **all 54** | **~2.5x** | Geometric mean across the full current suite |
 
-Higher speedups seen on AVX2/FMA (Kaby Lake: 4.45x overall) and lower on NEON M1 (3.15x).
+Higher speedups seen on AVX2/FMA (Kaby Lake: 4.45x+ overall) and different profile on NEON M1.
 AVX-512 (AMD Ryzen Zen 4) exercises 8-wide vectors; transcendentals currently delegate to AVX.
 
-**Note on non-Gaussian distributions:** Exponential, Uniform, Poisson, Discrete, and Gamma
-batch implementations currently use scalar loops in their `BatchUnsafeImpl` methods. The
-VECTORIZED strategy is still selected and dispatches through the VectorOps infrastructure,
-but the inner computation is scalar. Full vectorization of these distributions is planned
-for Phase 6.
+**Phase 6A vectorization status:** Exponential (all 3 ops), Gamma (PDF/LogPDF), and Uniform (CDF)
+have full SIMD batch paths via `BatchUnsafeImpl` using the compute+fixup pattern. Poisson,
+Discrete, and Uniform PDF/LogPDF remain scalar in their hot paths — those require `vector_floor`
+or `vector_blend` primitives not yet in `VectorOps`.
+
+**ChiSquared** delegates all batch operations to `GammaDistribution` (Delegation pattern), so
+it inherits Gamma's SIMD performance automatically. **Student's t** and **Beta** use direct
+log-space SIMD batch paths for PDF/LogPDF while keeping scalar special-function CDF implementations.
 
 ## Advanced Features
 

@@ -117,14 +117,20 @@ inline std::string distributionTypeToString(stats::detail::DistributionType type
             return "Uniform";
         case stats::detail::DistributionType::GAUSSIAN:
             return "Gaussian";
-        case stats::detail::DistributionType::POISSON:
-            return "Poisson";
         case stats::detail::DistributionType::EXPONENTIAL:
             return "Exponential";
         case stats::detail::DistributionType::DISCRETE:
             return "Discrete";
+        case stats::detail::DistributionType::POISSON:
+            return "Poisson";
         case stats::detail::DistributionType::GAMMA:
             return "Gamma";
+        case stats::detail::DistributionType::CHI_SQUARED:
+            return "ChiSquared";
+        case stats::detail::DistributionType::STUDENT_T:
+            return "StudentT";
+        case stats::detail::DistributionType::BETA:
+            return "Beta";
         default:
             return "Unknown";
     }

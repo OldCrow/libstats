@@ -153,11 +153,14 @@
     #include "core/performance_history.h"
 
     // Distribution implementations
+    #include "distributions/beta.h"
+    #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
     #include "distributions/exponential.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/poisson.h"
+    #include "distributions/student_t.h"
     #include "distributions/uniform.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
@@ -171,6 +174,9 @@ using Uniform = UniformDistribution;
 using Poisson = PoissonDistribution;
 using Gamma = GammaDistribution;
 using Discrete = DiscreteDistribution;
+using ChiSquared = ChiSquaredDistribution;
+using StudentT = StudentTDistribution;
+using Beta = BetaDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 0;
