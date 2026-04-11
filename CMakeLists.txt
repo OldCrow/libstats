@@ -1799,6 +1799,7 @@ if(LIBSTATS_BUILD_TESTS)
             test_student_t_enhanced
             test_beta_enhanced
             test_performance_dispatcher
+            test_system_capabilities   # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
