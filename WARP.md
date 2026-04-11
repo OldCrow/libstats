@@ -8,9 +8,10 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: Phase 6B implementation is complete on `phase-6b-new-distributions`.
-Phases 1–6B are functionally complete. The remaining release gate is final cross-machine validation
-(especially Windows/MSVC and AVX-512 on the Asus A16), then merge to `main` for v1.0.0.
+**Current Status**: Phase 6B implementation is complete and fully validated.
+All four target machines (Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC)
+have passed correctness and SIMD verification on `phase-6b-new-distributions`.
+The branch is ready to merge to `main` for v1.0.0.
 
 ### Phase 4 Validation Matrix (final, 6 distributions, 36 SIMD tests)
 
@@ -27,7 +28,7 @@ Phases 1–6B are functionally complete. The remaining release gate is final cro
 | Machine | SIMD | Correctness | simd_verification | Speedup |
 |---|---|---|---|---|
 | Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
-| Asus TUF A16 (Windows) | AVX-512 | 30/30 ✅ | 54/54 ✅ | 1.64x |
+| Asus TUF A16 (Windows) | AVX-512 | 33/33 ✅ | 54/54 ✅ | 1.64x |
 | Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
 | Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
 
@@ -76,7 +77,7 @@ Ivy Bridge AVX (primary dev machine):
   Beta PDF 4.6x/LogPDF 4.4x
 
 Asus TUF A16 (Windows, AVX-512 — first AVX-512 validation):
-- correctness suite: 30/30 PASS (GTest tests skipped — not installed on this machine)
+- correctness suite: 33/33 PASS (GTest available via vcpkg gtest:x64-windows 1.17.0)
 - `simd_verification`: 54/54 PASS, overall 1.64x
 - AVX-512 arithmetic/log-space paths: Gaussian LogPDF 21.9x, Exponential LogPDF 11.8x,
   Uniform LogPDF 7.5x — strong where transcendentals are not involved
@@ -100,8 +101,8 @@ All four machines validated. No pending validation gates remain for v1.0.0 merge
 | Asus TUF A16 (2025) | Windows 11 Pro | AMD Ryzen 7 7445 (Zen 4) | SSE2 + AVX + AVX2 + **AVX-512** | Windows/MSVC + first AVX-512 machine |
 
 **Note:** The Asus TUF A16 (Ryzen 7 7445, Zen 4) is the first machine in this ecosystem with AVX-512 support.
-This means `simd_avx512.cpp` will be exercised for the first time there. The `test_simd_policy` AVX-512
-string fix from Phase 1 (`"AVX512"` → `"AVX-512"`) will also be validated on this machine.
+`simd_avx512.cpp` was exercised there for the first time in Phase 6B; 54/54 SIMD tests pass.
+The `test_simd_policy` AVX-512 string (`"AVX-512"`) was also confirmed correct.
 
 **Note:** Previous Windows testing was on an ASUS ROG Strix GL531. The Asus TUF A16 build environment
 may need to be set up from scratch (Visual Studio 2022, CMake, Git, VS Code with C/C++ + CMake Tools).

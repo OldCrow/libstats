@@ -329,12 +329,10 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 - New distributions added: Student's t, Chi-squared, and Beta
 - SIMD verification expanded to cover the full current distribution set
 
-### Release gate before v1.0.0
-- final cross-machine validation
-- final Windows/MSVC validation
-- first full AVX-512 validation on the Asus A16
-- merge `phase-6b-new-distributions` back to `main`
-- New distributions: Student's t, Chi-squared, Beta
+### ✅ Release gate (complete — ready to merge)
+- Cross-platform validation: Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC
+- All 54 SIMD verification tests pass on all four machines
+- Merge `phase-6b-new-distributions` to `main` and tag v1.0.0
 
 
 ## Contributing
