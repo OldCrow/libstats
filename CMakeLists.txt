@@ -1092,19 +1092,28 @@ endif()
 # source-file-specific flags (cmake/SIMDDetection.cmake) - All platforms: Definitions are set by
 # SIMDDetection.cmake based on detection
 
-# Windows compilers: Use global SIMD flags for compatibility
+# Windows compilers: Use highest detected SIMD level as global flag.
+# SIMDDetection.cmake has already run by this point and set LIBSTATS_HAS_AVX512 etc.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    # MSVC x64 has comprehensive SIMD support
-    add_compile_options(/arch:AVX2)
-    message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+    if(LIBSTATS_HAS_AVX512)
+        add_compile_options(/arch:AVX512)
+        message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
+    else()
+        add_compile_options(/arch:AVX2)
+        message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+    endif()
 
 elseif(
     CMAKE_CXX_COMPILER_ID MATCHES "Clang"
     AND WIN32
     AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    # Clang-cl on Windows x64
-    add_compile_options(-mavx2)
-    message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+    if(LIBSTATS_HAS_AVX512)
+        add_compile_options(-mavx512f)
+        message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
+    else()
+        add_compile_options(-mavx2)
+        message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+    endif()
 endif()
 
 # IMPORTANT: SIMD compile definitions are handled by cmake/SIMDDetection.cmake That system detects
@@ -1169,12 +1178,20 @@ endif()
 
 # SIMD Status Messages (compiler-specific)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+    if(LIBSTATS_HAS_AVX512)
+        message(STATUS "SIMD: AVX-512/AVX2/AVX/SSE2 enabled (MSVC x64)")
+    else()
+        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+    endif()
 elseif(
     CMAKE_CXX_COMPILER_ID MATCHES "Clang"
     AND WIN32
     AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    if(LIBSTATS_HAS_AVX512)
+        message(STATUS "SIMD: AVX-512/AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    else()
+        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     # GCC SIMD status messages
     set(SIMD_FEATURES "")
