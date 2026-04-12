@@ -810,8 +810,10 @@ double inverse_t_cdf(double p, double df) noexcept {
     // Use approximate initial guess from normal distribution
     double z = inverse_normal_cdf(p);
 
-    // For large degrees of freedom, t-distribution approaches normal
-    if (df > detail::HUNDRED) {
+    // For large degrees of freedom, t-distribution approaches normal.
+    // Use 1000 as the cutoff (consistent with t_cdf) — at df=120 the
+    // normal approximation still has ~0.02 error in the tails.
+    if (df > detail::THOUSAND) {
         return z;
     }
 

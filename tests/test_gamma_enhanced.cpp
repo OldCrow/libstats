@@ -547,8 +547,11 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
         EXPECT_TRUE(results_match)
             << "Auto-dispatch results should match traditional for batch size " << batch_size;
 
-        // Auto-dispatch should be competitive or better
-        if (traditional_time == 0) {
+        // Auto-dispatch should be competitive or better.
+        // For very small traditional_time (≤ 2μs), the ratio is unreliable
+        // because dispatch overhead dominates sub-microsecond computation.
+        // Use an absolute time bound in that case, matching the == 0 path.
+        if (traditional_time <= 2) {
             EXPECT_LT(auto_time, 100)
                 << "Auto-dispatch should complete quickly for small batches (batch size "
                 << batch_size << ")";

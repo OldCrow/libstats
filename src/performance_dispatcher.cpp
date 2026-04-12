@@ -194,7 +194,7 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
     using namespace detail;
 
     // Calculate SIMD and parallel thresholds using empirical data
-    for (size_t i = 0; i < 6; ++i) {
+    for (size_t i = 0; i < DISTRIBUTION_CHARACTERISTICS.size(); ++i) {
         const auto& chars = DISTRIBUTION_CHARACTERISTICS[i];
 
         // Scale base thresholds by complexity - more complex operations need lower thresholds
@@ -206,11 +206,14 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
         size_t empirical_parallel_threshold = static_cast<size_t>(
             static_cast<double>(chars.min_parallel_threshold) * complexity_scaling);
 
-        // Assign to distribution-specific thresholds
+        // Assign to distribution-specific thresholds.
+        // Simple distributions (Uniform, Discrete) use 2x the base parallel_min
+        // because their trivial per-element cost makes threading overhead dominant
+        // at smaller batch sizes.
         switch (i) {
             case 0:  // UNIFORM
                 thresholds.uniform_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min);
+                    std::max(empirical_parallel_threshold, thresholds.parallel_min * 2);
                 break;
             case 1:  // GAUSSIAN
                 thresholds.gaussian_parallel_min =
@@ -222,7 +225,7 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
                 break;
             case 3:  // DISCRETE
                 thresholds.discrete_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min);
+                    std::max(empirical_parallel_threshold, thresholds.parallel_min * 2);
                 break;
             case 4:  // POISSON
                 thresholds.poisson_parallel_min =
@@ -230,6 +233,18 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
                 break;
             case 5:  // GAMMA
                 thresholds.gamma_parallel_min =
+                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 4);
+                break;
+            case 6:  // STUDENT_T
+                thresholds.student_t_parallel_min =
+                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
+                break;
+            case 7:  // BETA
+                thresholds.beta_parallel_min =
+                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
+                break;
+            case 8:  // CHI_SQUARED
+                thresholds.chi_squared_parallel_min =
                     std::max(empirical_parallel_threshold, thresholds.parallel_min / 4);
                 break;
         }
@@ -398,6 +413,19 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
     parallel_min = std::max(parallel_min, static_cast<size_t>(detail::MAX_NEWTON_ITERATIONS));
     work_stealing_min =
         std::max(work_stealing_min, static_cast<size_t>(detail::MAX_BISECTION_ITERATIONS));
+
+    // Ensure distribution-specific thresholds don't drop below parallel_min.
+    // Simple distributions (Uniform, Discrete) must stay at or above the base;
+    // complex ones are allowed lower thresholds but still have a floor.
+    uniform_parallel_min = std::max(uniform_parallel_min, parallel_min * 2);
+    discrete_parallel_min = std::max(discrete_parallel_min, parallel_min * 2);
+    gaussian_parallel_min = std::max(gaussian_parallel_min, parallel_min / 2);
+    exponential_parallel_min = std::max(exponential_parallel_min, parallel_min / 2);
+    student_t_parallel_min = std::max(student_t_parallel_min, parallel_min / 2);
+    beta_parallel_min = std::max(beta_parallel_min, parallel_min / 2);
+    poisson_parallel_min = std::max(poisson_parallel_min, parallel_min / 4);
+    gamma_parallel_min = std::max(gamma_parallel_min, parallel_min / 4);
+    chi_squared_parallel_min = std::max(chi_squared_parallel_min, parallel_min / 4);
 }
 
 }  // namespace detail
