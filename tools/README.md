@@ -14,8 +14,6 @@ Quick reference for the actively useful tools in `tools/`.
 - `parallel_batch_fitting_benchmark` — benchmark batch fitting behavior across distributions
 - `parallel_correctness_verification` — validate batch correctness under parallel execution
 
-### Dispatch analysis
-- `empirical_characteristics_demo` — inspect empirical complexity assumptions used by dispatch logic (will be replaced by profiling-derived lookup table)
 
 ### Header-analysis tools
 These remain useful for include and compilation-health work:

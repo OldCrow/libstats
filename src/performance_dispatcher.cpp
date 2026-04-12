@@ -1,7 +1,6 @@
 #include "libstats/core/performance_dispatcher.h"
 
 #include "libstats/core/dispatch_thresholds.h"
-#include "libstats/core/distribution_characteristics.h"
 #include "libstats/core/math_constants.h"
 #include "libstats/core/performance_history.h"
 #include "libstats/core/statistical_constants.h"
@@ -89,15 +88,6 @@ Strategy PerformanceDispatcher::selectMultiThreadedStrategy(
 #endif
 }
 
-// ── Legacy dispatch (deprecated) ───────────────────────────────────────────
-
-Strategy PerformanceDispatcher::selectOptimalStrategy(
-    size_t batch_size, DistributionType dist_type,
-    [[maybe_unused]] ComputationComplexity complexity, const SystemCapabilities& system) const {
-    // Forward to legacy capability-based path for callers not yet migrated.
-    return selectStrategyBasedOnCapabilities(batch_size, dist_type, system);
-}
-
 size_t PerformanceDispatcher::getDistributionSpecificParallelThreshold(
     DistributionType dist_type) const {
     switch (dist_type) {
@@ -146,49 +136,6 @@ PerformanceHistory& PerformanceDispatcher::getPerformanceHistory() noexcept {
     return global_performance_history;
 }
 
-Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
-    size_t batch_size, DistributionType dist_type, const SystemCapabilities& system) const {
-    // Three-level threshold hierarchy. The thresholds in Thresholds have already been
-    // tuned for this machine's SIMD level and measured capabilities by
-    // refineWithCapabilities() at construction time, so the per-call decision is simple:
-    //
-    //   batch < simd_min            → SCALAR      (overhead exceeds benefit)
-    //   simd_min <= batch < parallel → VECTORIZED  (batch pays off, threading doesn't yet)
-    //   batch >= parallel            → PARALLEL or WORK_STEALING
-    //
-    // Distribution-specific parallel thresholds account for computational cost:
-    // Gaussian (exp/erf) parallelizes at smaller batch sizes than Uniform (arithmetic only).
-    //
-    // PARALLEL is the default multi-threaded strategy. WORK_STEALING adds load-balancing
-    // overhead that only pays off for distributions with highly variable per-element cost
-    // (e.g., Poisson with mixed small/large lambda, Gamma with alpha near 0). Regular
-    // distributions (Gaussian, Exponential, Uniform, Discrete) use PARALLEL exclusively.
-
-    if (batch_size < thresholds_.simd_min) {
-        return Strategy::SCALAR;
-    }
-
-    const size_t parallel_threshold = getDistributionSpecificParallelThreshold(dist_type);
-    if (batch_size < parallel_threshold) {
-        return Strategy::VECTORIZED;
-    }
-
-    // Only use work-stealing for distributions with irregular per-element cost
-    // where load balancing provides a measurable benefit.
-    if (batch_size >= thresholds_.work_stealing_min && system.logical_cores() > 2) {
-        switch (dist_type) {
-            case DistributionType::POISSON:
-            case DistributionType::GAMMA:
-            case DistributionType::CHI_SQUARED:
-                return Strategy::WORK_STEALING;
-            default:
-                break;  // fall through to PARALLEL
-        }
-    }
-
-    return Strategy::PARALLEL;
-}
-
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSIMDLevel(
     arch::simd::SIMDPolicy::Level level, const SystemCapabilities& system) {
     Thresholds thresholds;
@@ -228,68 +175,18 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
             break;
     }
 
-    // Set distribution-specific thresholds based on empirical characteristics
-    using namespace detail;
-
-    // Calculate SIMD and parallel thresholds using empirical data
-    for (size_t i = 0; i < DISTRIBUTION_CHARACTERISTICS.size(); ++i) {
-        const auto& chars = DISTRIBUTION_CHARACTERISTICS[i];
-
-        // Scale base thresholds by complexity - more complex operations need lower thresholds
-        // to benefit from parallelization due to higher computation-to-overhead ratios
-        double complexity_scaling =
-            detail::ONE / std::max(detail::ONE, chars.base_complexity / detail::TWO);
-
-        // Use empirical minimum thresholds, scaled by system characteristics
-        size_t empirical_parallel_threshold = static_cast<size_t>(
-            static_cast<double>(chars.min_parallel_threshold) * complexity_scaling);
-
-        // Assign to distribution-specific thresholds.
-        // Simple distributions (Uniform, Discrete) use 2x the base parallel_min
-        // because their trivial per-element cost makes threading overhead dominant
-        // at smaller batch sizes.
-        switch (i) {
-            case 0:  // UNIFORM
-                thresholds.uniform_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min * 2);
-                break;
-            case 1:  // GAUSSIAN
-                thresholds.gaussian_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
-                break;
-            case 2:  // EXPONENTIAL
-                thresholds.exponential_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
-                break;
-            case 3:  // DISCRETE
-                thresholds.discrete_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min * 2);
-                break;
-            case 4:  // POISSON
-                thresholds.poisson_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 4);
-                break;
-            case 5:  // GAMMA
-                thresholds.gamma_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 4);
-                break;
-            case 6:  // STUDENT_T
-                thresholds.student_t_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
-                break;
-            case 7:  // BETA
-                thresholds.beta_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 2);
-                break;
-            case 8:  // CHI_SQUARED
-                thresholds.chi_squared_parallel_min =
-                    std::max(empirical_parallel_threshold, thresholds.parallel_min / 4);
-                break;
-        }
-    }
-
-    // Refine with measured system capabilities
-    thresholds.refineWithCapabilities(system);
+    // Distribution-specific thresholds are now handled by the constexpr lookup
+    // table in dispatch_thresholds.h. The Thresholds struct members below are
+    // populated with reasonable defaults for backward compatibility only.
+    thresholds.uniform_parallel_min = thresholds.parallel_min * 2;
+    thresholds.gaussian_parallel_min = thresholds.parallel_min;
+    thresholds.exponential_parallel_min = thresholds.parallel_min;
+    thresholds.discrete_parallel_min = thresholds.parallel_min * 2;
+    thresholds.poisson_parallel_min = thresholds.parallel_min;
+    thresholds.gamma_parallel_min = thresholds.parallel_min;
+    thresholds.student_t_parallel_min = thresholds.parallel_min;
+    thresholds.beta_parallel_min = SIZE_MAX;  // Beta: never parallel
+    thresholds.chi_squared_parallel_min = thresholds.parallel_min;
 
     return thresholds;
 }

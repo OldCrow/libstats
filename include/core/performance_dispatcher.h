@@ -241,14 +241,6 @@ class PerformanceDispatcher {
                             const SystemCapabilities& system) const;
 
     /**
-     * @brief Legacy strategy selection (deprecated — use selectStrategy instead)
-     */
-    [[deprecated("Use selectStrategy with OperationType instead")]]
-    Strategy selectOptimalStrategy(size_t batch_size, DistributionType dist_type,
-                                   ComputationComplexity complexity,
-                                   const SystemCapabilities& system) const;
-
-    /**
      * @brief Get current decision thresholds
      */
     const Thresholds& getThresholds() const noexcept { return thresholds_; }
@@ -294,12 +286,6 @@ class PerformanceDispatcher {
      */
     static Strategy selectMultiThreadedStrategy(DistributionType dist_type,
                                                 const SystemCapabilities& system) noexcept;
-
-    /**
-     * @brief Legacy capability-based selection (used by deprecated selectOptimalStrategy)
-     */
-    Strategy selectStrategyBasedOnCapabilities(size_t batch_size, DistributionType dist_type,
-                                               const SystemCapabilities& system) const;
 
     /// Cached SIMD level for table lookups
     arch::simd::SIMDPolicy::Level simd_level_;

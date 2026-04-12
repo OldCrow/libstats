@@ -1225,10 +1225,8 @@ set(LIBSTATS_CORE_UTILITIES_SOURCES
 )
 
 # Level 2: Platform Capabilities (Depends on Level 0-1)
-set(LIBSTATS_PLATFORM_SOURCES
-    src/parallel_thresholds.cpp # Architecture-specific parallel thresholds
-    src/thread_pool.cpp # Thread pool implementation
-    src/work_stealing_pool.cpp # Advanced work-stealing thread pool
+set(LIBSTATS_PLATFORM_SOURCES src/thread_pool.cpp # Thread pool implementation
+                              src/work_stealing_pool.cpp # Advanced work-stealing thread pool
 )
 
 # Level 3: Advanced Infrastructure (Depends on Level 0-2)
@@ -1935,7 +1933,6 @@ if(LIBSTATS_BUILD_TOOLS)
     # Performance & Benchmarking Tools
     add_libstats_tool(parallel_batch_fitting_benchmark parallel_batch_fitting_benchmark.cpp)
     add_libstats_tool(strategy_profile strategy_profile.cpp)
-    add_libstats_tool(empirical_characteristics_demo empirical_characteristics_demo.cpp)
     add_libstats_tool(simd_verification simd_verification.cpp)
     add_libstats_tool(parallel_correctness_verification parallel_correctness_verification.cpp)
 
@@ -1955,10 +1952,6 @@ if(LIBSTATS_BUILD_TOOLS)
     message(
         STATUS
             "  - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes"
-    )
-    message(
-        STATUS
-            "  - empirical_characteristics_demo: Demonstration of empirical distribution characteristics system replacing assumption-based performance models"
     )
     message(
         STATUS

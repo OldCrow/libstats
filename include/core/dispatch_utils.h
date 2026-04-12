@@ -24,7 +24,7 @@ namespace detail {  // Performance utilities
  *
  *   Layer 2 — Select strategy:
  *     DispatchUtils::autoDispatch
- *     \u2193 if hint is AUTO: PerformanceDispatcher::selectOptimalStrategy (threshold lookup +
+ *     \u2193 if hint is AUTO: PerformanceDispatcher::selectStrategy (threshold lookup +
  *                             optional performance history override)
  *       if hint is explicit: DispatchUtils::mapHintToStrategy
  *     \u2193 DispatchUtils::executeStrategy (switches on Strategy enum)
