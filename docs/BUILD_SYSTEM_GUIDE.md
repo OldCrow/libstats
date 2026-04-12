@@ -161,14 +161,14 @@ The build system implements a dual-layer SIMD detection system:
 - **SSE2**: Baseline (always available on 64-bit)
 - **AVX**: 256-bit vector operations
 - **AVX2**: Enhanced 256-bit integer operations
-- **AVX-512**: 512-bit vector operations (server CPUs)
+- **AVX-512**: 512-bit vector operations (Intel Skylake-X+, AMD Zen4+)
 
 #### ARM64 Platforms
 - **NEON**: ARM's SIMD instruction set
 
 ### SIMD Detection Examples
 
-#### Modern CPU (Full SIMD Support)
+#### Modern CPU (AVX2)
 ```
 -- Runtime sse2 test: PASSED
 -- SIMD: SSE2 enabled (compiler + runtime)
@@ -178,6 +178,14 @@ The build system implements a dual-layer SIMD detection system:
 -- SIMD: AVX2 enabled (compiler + runtime)
 -- SIMD detection complete:
 --   SSE2: TRUE, AVX: TRUE, AVX2: TRUE, AVX-512: FALSE
+```
+
+#### AVX-512 CPU (Intel Skylake-X+, AMD Zen4+)
+```
+-- SIMD: AVX-512 enabled (compiler + runtime)
+-- Applied MSVC x64 SIMD flags: /arch:AVX512
+-- SIMD detection complete:
+--   SSE2: TRUE, AVX: TRUE, AVX2: TRUE, AVX-512: TRUE
 ```
 
 #### Apple Silicon (ARM64)
@@ -289,7 +297,7 @@ make -j8
 
 #### Windows
 - **Compilers**: MSVC, ClangCL support
-- **SIMD Support**: x86_64 SIMD instruction sets
+- **SIMD Support**: Global compile flag follows detection — `/arch:AVX512` when AVX-512 is detected, `/arch:AVX2` otherwise. Per-source-file flags also applied via `SIMDDetection.cmake`.
 - **Threading**: Windows Thread Pool API detection
 - **Visual Studio Integration**: Full integration with VS build system
 
@@ -415,7 +423,8 @@ g++ -std=c++20 -pthread -fPIC \
 **Windows with MSVC:**
 ```bash
 cl.exe /std:c++20 /EHsc /W3 /O2 \
-  /DNOMINMAX /D_USE_MATH_DEFINES
+  /DNOMINMAX /D_USE_MATH_DEFINES \
+  /arch:AVX512   # or /arch:AVX2 — set automatically by CMake based on detection
 ```
 
 ### SIMD Compilation
@@ -431,7 +440,7 @@ cl.exe /std:c++20 /EHsc /W3 /O2 \
 # AVX2 support
 -mavx2
 
-# AVX-512 support (server CPUs)
+# AVX-512 support (Intel Skylake-X+, AMD Zen4+)
 -mavx512f
 
 # ARM NEON (Apple Silicon/ARM64)
@@ -490,9 +499,11 @@ src/distributions/*.cpp
 
 # SIMD implementations (conditional)
 src/simd_fallback.cpp     # Always
+src/simd_dispatch.cpp     # Always (runtime dispatch)
 src/simd_sse2.cpp        # If SSE2 available
 src/simd_avx.cpp         # If AVX available
 src/simd_avx2.cpp        # If AVX2 available
+src/simd_avx512.cpp      # If AVX-512 available
 src/simd_neon.cpp        # If NEON available (ARM64)
 ```
 
