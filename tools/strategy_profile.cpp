@@ -46,7 +46,7 @@ constexpr int WARMUP_ITERATIONS = 3;
 constexpr int TIMING_REPEATS = 7;
 constexpr const char* RESULTS_CSV_FILENAME = "strategy_profile_results.csv";
 
-enum class OperationType { PDF, LOG_PDF, CDF };
+enum class ProfileOperation { PDF, LOG_PDF, CDF };
 
 struct StrategyProfileResult {
     std::string distribution;
@@ -61,21 +61,21 @@ double median_us(std::vector<double>& timings) {
     return timings[timings.size() / 2];
 }
 
-std::string operation_to_string(OperationType operation) {
+std::string operation_to_string(ProfileOperation operation) {
     switch (operation) {
-        case OperationType::PDF:
+        case ProfileOperation::PDF:
             return "PDF";
-        case OperationType::LOG_PDF:
+        case ProfileOperation::LOG_PDF:
             return "LogPDF";
-        case OperationType::CDF:
+        case ProfileOperation::CDF:
             return "CDF";
         default:
             return "Unknown";
     }
 }
 
-constexpr std::array<OperationType, 3> OPERATIONS = {OperationType::PDF, OperationType::LOG_PDF,
-                                                     OperationType::CDF};
+constexpr std::array<ProfileOperation, 3> OPERATIONS = {
+    ProfileOperation::PDF, ProfileOperation::LOG_PDF, ProfileOperation::CDF};
 
 constexpr std::array<Strategy, 4> STRATEGIES = {Strategy::SCALAR, Strategy::VECTORIZED,
                                                 Strategy::PARALLEL, Strategy::WORK_STEALING};
@@ -157,7 +157,7 @@ class StrategyProfiler {
 
     template <typename Distribution>
     double benchmark_strategy(const Distribution& distribution,
-                              const std::vector<double>& input_values, OperationType operation,
+                              const std::vector<double>& input_values, ProfileOperation operation,
                               Strategy strategy) const {
         std::vector<double> output_values(input_values.size());
         std::span<const double> input_span(input_values);
@@ -182,16 +182,16 @@ class StrategyProfiler {
 
     template <typename Distribution>
     void perform_operation(const Distribution& distribution, std::span<const double> input_values,
-                           std::span<double> output_values, OperationType operation,
+                           std::span<double> output_values, ProfileOperation operation,
                            Strategy strategy) const {
         switch (operation) {
-            case OperationType::PDF:
+            case ProfileOperation::PDF:
                 distribution.getProbabilityWithStrategy(input_values, output_values, strategy);
                 break;
-            case OperationType::LOG_PDF:
+            case ProfileOperation::LOG_PDF:
                 distribution.getLogProbabilityWithStrategy(input_values, output_values, strategy);
                 break;
-            case OperationType::CDF:
+            case ProfileOperation::CDF:
                 distribution.getCumulativeProbabilityWithStrategy(input_values, output_values,
                                                                   strategy);
                 break;

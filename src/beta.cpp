@@ -518,7 +518,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                                       const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::DistributionTraits<BetaDistribution>::complexity(),
+        detail::OperationType::PDF,
         [](const BetaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -634,7 +634,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::DistributionTraits<BetaDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const BetaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -752,7 +752,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
                                                 const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::DistributionTraits<BetaDistribution>::complexity(),
+        detail::OperationType::CDF,
         [](const BetaDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

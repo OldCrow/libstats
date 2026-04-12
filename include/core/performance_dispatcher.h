@@ -18,6 +18,13 @@ class SIMDPolicy;
 
 #include "libstats/platform/simd_policy.h"
 
+// Forward declare OperationType so it can be used in selectStrategy
+namespace stats {
+namespace detail {
+enum class OperationType;
+}  // namespace detail
+}  // namespace stats
+
 /**
  * @file performance_dispatcher.h
  * @brief Intelligent auto-dispatch system for optimal performance strategy selection
@@ -222,14 +229,21 @@ class PerformanceDispatcher {
     };
 
     /**
-     * @brief Select optimal execution strategy
+     * @brief Select optimal execution strategy using profiling-derived lookup table
      *
      * @param batch_size Number of elements to process
      * @param dist_type Type of distribution
-     * @param complexity Computational complexity level
+     * @param op_type Operation type (PDF, LOG_PDF, CDF, BATCH_FIT)
      * @param system System capabilities
      * @return Optimal strategy for the given parameters
      */
+    Strategy selectStrategy(size_t batch_size, DistributionType dist_type, OperationType op_type,
+                            const SystemCapabilities& system) const;
+
+    /**
+     * @brief Legacy strategy selection (deprecated — use selectStrategy instead)
+     */
+    [[deprecated("Use selectStrategy with OperationType instead")]]
     Strategy selectOptimalStrategy(size_t batch_size, DistributionType dist_type,
                                    ComputationComplexity complexity,
                                    const SystemCapabilities& system) const;
@@ -266,28 +280,29 @@ class PerformanceDispatcher {
 
     size_t getDistributionSpecificParallelThreshold(DistributionType dist_type) const;
     bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
-    // shouldUseGpuAccelerated removed — GPU_ACCELERATED strategy removed from enum.
 
     /**
      * @brief Detect the highest available SIMD architecture
-     * @param system System capabilities for detection
-     * @return Detected SIMD architecture
      */
     static SIMDArchitecture detectSIMDArchitecture(const SystemCapabilities& system) noexcept;
 
     /**
-     * @brief Select strategy based on system capabilities and performance metrics
+     * @brief Select multi-threaded strategy (PARALLEL vs WORK_STEALING)
      *
-     * Uses measured SIMD efficiency, threading overhead, and memory bandwidth
-     * to make adaptive decisions based on actual hardware performance.
-     *
-     * @param batch_size Number of elements to process
-     * @param dist_type Type of distribution for complexity estimation
-     * @param system Measured system capabilities
-     * @return Optimal strategy for this hardware and workload
+     * The choice depends on the threading backend (GCD vs Windows TP) and
+     * whether hyperthreading is present, per four-architecture profiling data.
+     */
+    static Strategy selectMultiThreadedStrategy(DistributionType dist_type,
+                                                const SystemCapabilities& system) noexcept;
+
+    /**
+     * @brief Legacy capability-based selection (used by deprecated selectOptimalStrategy)
      */
     Strategy selectStrategyBasedOnCapabilities(size_t batch_size, DistributionType dist_type,
                                                const SystemCapabilities& system) const;
+
+    /// Cached SIMD level for table lookups
+    arch::simd::SIMDPolicy::Level simd_level_;
 };
 
 /**

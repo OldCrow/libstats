@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dispatch_thresholds.h"
 #include "libstats/platform/thread_pool.h"  // For ParallelUtils
 #include "libstats/platform/work_stealing_pool.h"
 #include "performance_dispatcher.h"
@@ -66,7 +67,7 @@ class DispatchUtils {
               typename WorkStealingFunc, typename GpuAcceleratedFunc>
     static void autoDispatch(const Distribution& dist, std::span<const double> values,
                              std::span<double> results, const PerformanceHint& hint,
-                             DistributionType dist_type, ComputationComplexity complexity,
+                             DistributionType dist_type, OperationType op_type,
                              ScalarFunc&& scalar_func, BatchFunc&& batch_func,
                              ParallelFunc&& parallel_func, WorkStealingFunc&& work_stealing_func,
                              GpuAcceleratedFunc&& gpu_accelerated_func) {
@@ -93,7 +94,7 @@ class DispatchUtils {
         auto strategy = Strategy::SCALAR;
 
         if (hint.strategy == PerformanceHint::PreferredStrategy::AUTO) {
-            strategy = dispatcher.selectOptimalStrategy(count, dist_type, complexity, system);
+            strategy = dispatcher.selectStrategy(count, dist_type, op_type, system);
         } else {
             strategy = mapHintToStrategy(hint.strategy, count);
         }

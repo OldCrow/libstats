@@ -4,6 +4,7 @@
 #include "libstats/core/statistical_constants.h"
 
 // Core functionality - lightweight headers
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
@@ -533,7 +534,7 @@ void UniformDistribution::parallelBatchFit(const std::vector<std::vector<double>
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (arch::shouldUseDistributionParallel("uniform", "batch_fit", num_datasets)) {
+    if (num_datasets >= detail::dispatch_table::BATCH_FIT_MIN) {
         // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
         ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
         const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
@@ -1334,7 +1335,7 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::DistributionTraits<UniformDistribution>::complexity(),
+        detail::OperationType::PDF,
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1479,7 +1480,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                                             const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::DistributionTraits<UniformDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1646,7 +1647,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                                                    const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::DistributionTraits<UniformDistribution>::complexity(),
+        detail::OperationType::CDF,
         [](const UniformDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

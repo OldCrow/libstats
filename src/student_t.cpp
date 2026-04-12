@@ -419,7 +419,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::DistributionTraits<StudentTDistribution>::complexity(),
+        detail::OperationType::PDF,
         [](const StudentTDistribution& dist, double value) { return dist.getProbability(value); },
         [](const StudentTDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -510,7 +510,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::DistributionTraits<StudentTDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -594,7 +594,7 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::DistributionTraits<StudentTDistribution>::complexity(),
+        detail::OperationType::CDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

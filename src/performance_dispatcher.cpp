@@ -1,5 +1,6 @@
 #include "libstats/core/performance_dispatcher.h"
 
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/distribution_characteristics.h"
 #include "libstats/core/math_constants.h"
 #include "libstats/core/performance_history.h"
@@ -16,10 +17,9 @@ namespace detail {  // Performance utilities
 PerformanceDispatcher::PerformanceDispatcher()
     : PerformanceDispatcher(SystemCapabilities::current()) {}
 
-PerformanceDispatcher::PerformanceDispatcher(const SystemCapabilities& system) {
-    // Use SIMDPolicy to get the best SIMD level and initialize thresholds accordingly
-    auto simd_level = arch::simd::SIMDPolicy::getBestLevel();
-    thresholds_ = Thresholds::createForSIMDLevel(simd_level, system);
+PerformanceDispatcher::PerformanceDispatcher(const SystemCapabilities& system)
+    : simd_level_(arch::simd::SIMDPolicy::getBestLevel()) {
+    thresholds_ = Thresholds::createForSIMDLevel(simd_level_, system);
 }
 
 PerformanceDispatcher::SIMDArchitecture PerformanceDispatcher::detectSIMDArchitecture(
@@ -44,19 +44,57 @@ PerformanceDispatcher::SIMDArchitecture PerformanceDispatcher::detectSIMDArchite
     }
 }
 
+// ── New profiling-derived dispatch ──────────────────────────────────────────
+
+Strategy PerformanceDispatcher::selectStrategy(size_t batch_size, DistributionType dist_type,
+                                               OperationType op_type,
+                                               const SystemCapabilities& system) const {
+    // 1. Below SIMD threshold → SCALAR
+    const size_t simd_min = arch::simd::SIMDPolicy::getMinThreshold();
+    if (batch_size < simd_min) {
+        return Strategy::SCALAR;
+    }
+
+    // 2. Below parallel threshold → VECTORIZED
+    const size_t parallel_threshold = getParallelThreshold(simd_level_, dist_type, op_type);
+    if (batch_size < parallel_threshold) {
+        return Strategy::VECTORIZED;
+    }
+
+    // 3. At or above parallel threshold → PARALLEL or WORK_STEALING
+    return selectMultiThreadedStrategy(dist_type, system);
+}
+
+Strategy PerformanceDispatcher::selectMultiThreadedStrategy(
+    [[maybe_unused]] DistributionType dist_type, const SystemCapabilities& system) noexcept {
+    // Four-architecture profiling shows the threading backend is the dominant
+    // factor in P-vs-WS selection:
+    //   macOS/GCD + HT:       WORK_STEALING wins (up to 7:1)
+    //   macOS/GCD + no HT:    roughly even, slight PARALLEL preference
+    //   Windows/Thread Pool:   PARALLEL wins (3.3:1)
+
+#if defined(_WIN32)
+    // Windows Thread Pool: PARALLEL dominates across distributions.
+    return Strategy::PARALLEL;
+#elif defined(__APPLE__)
+    // macOS/GCD: prefer WORK_STEALING when hyperthreading is present.
+    if (system.logical_cores() > system.physical_cores()) {
+        return Strategy::WORK_STEALING;
+    }
+    return Strategy::PARALLEL;
+#else
+    // Linux/other: default to PARALLEL (conservative; no profiling data yet).
+    (void)system;
+    return Strategy::PARALLEL;
+#endif
+}
+
+// ── Legacy dispatch (deprecated) ───────────────────────────────────────────
+
 Strategy PerformanceDispatcher::selectOptimalStrategy(
     size_t batch_size, DistributionType dist_type,
     [[maybe_unused]] ComputationComplexity complexity, const SystemCapabilities& system) const {
-    auto& performance_history = getPerformanceHistory();
-    auto recommendation = performance_history.getBestStrategy(dist_type, batch_size);
-
-    // Use historical data if we have high confidence
-    if (recommendation.has_sufficient_data &&
-        recommendation.confidence_score > detail::LARGE_EFFECT) {
-        return recommendation.recommended_strategy;
-    }
-
-    // Fallback to adaptive logic based on system capabilities
+    // Forward to legacy capability-based path for callers not yet migrated.
     return selectStrategyBasedOnCapabilities(batch_size, dist_type, system);
 }
 

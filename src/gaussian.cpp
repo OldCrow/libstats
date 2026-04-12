@@ -3,6 +3,7 @@
 #include "libstats/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
 #include "libstats/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
 #include "libstats/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "libstats/core/safety.h"
@@ -654,7 +655,7 @@ void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (arch::shouldUseDistributionParallel("gaussian", "batch_fit", num_datasets)) {
+    if (num_datasets >= detail::dispatch_table::BATCH_FIT_MIN) {
         // Thread-safe parallel execution with proper exception handling
         // Use a static mutex to synchronize access to the global thread pool from multiple threads
         static std::mutex pool_access_mutex;
@@ -1771,7 +1772,7 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
-        detail::DistributionTraits<GaussianDistribution>::complexity(),
+        detail::OperationType::PDF,
         [](const GaussianDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1943,7 +1944,7 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
-        detail::DistributionTraits<GaussianDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const GaussianDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -2122,7 +2123,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
-        detail::DistributionTraits<GaussianDistribution>::complexity(),
+        detail::OperationType::CDF,
         [](const GaussianDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
