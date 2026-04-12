@@ -121,7 +121,7 @@ namespace stats {
  * - Specialized algorithms for different λ ranges
  *
  * @author libstats Development Team
- * @version 1.0.0
+ * @version 1.1.0
  * @since 1.0.0
  */
 class PoissonDistribution : public DistributionBase {

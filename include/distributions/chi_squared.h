@@ -86,7 +86,7 @@ namespace stats {
  * - Moment generating function: (1 - 2t)^(-k/2) for t < 1/2
  *
  * @author libstats Development Team
- * @version 1.0.0
+ * @version 1.1.0
  * @since 1.0.0
  */
 class ChiSquaredDistribution : public DistributionBase {

@@ -106,7 +106,7 @@ namespace stats {
  * - Branch-free interval checking for performance
  *
  * @author libstats Development Team
- * @version 1.0.0
+ * @version 1.1.0
  * @since 1.0.0
  */
 class UniformDistribution : public DistributionBase {

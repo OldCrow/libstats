@@ -1,6 +1,6 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
-[![Version](https://img.shields.io/badge/version-v1.0.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-v1.1.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.1.0)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -328,6 +328,13 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 - SIMD batch paths added for Exponential, Gamma, and Uniform where the current `VectorOps` abstraction makes them worthwhile
 - New distributions added: Student's t, Chi-squared, and Beta
 - SIMD verification expanded to cover the full current distribution set
+
+### ✅ v1.1.0 — Profiling-derived dispatch thresholds (2026-04-12)
+- Dispatch heuristics replaced with `constexpr` lookup table derived from 6912 profiling measurements across NEON, AVX, AVX2, and AVX-512
+- AVX-512/MSVC build fix: global compile flag follows SIMDDetection results
+- Student-T MLE robustness: upper-bounded Newton-Raphson prevents divergence
+- Beta CDF batch optimisation: hoisted `lgamma` prefix
+- Canonical `strategy_profile` tool replaces ad-hoc benchmarks
 
 ### ✅ Released as v1.0.0 (2026-04-11)
 - Cross-platform validated: Ivy Bridge AVX, Kaby Lake AVX2, M1 NEON, Asus A16 AVX-512/MSVC

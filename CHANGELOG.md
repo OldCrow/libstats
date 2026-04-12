@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.1.0] - 2026-04-12
+
+### Added
+- `constexpr` dispatch threshold lookup table indexed by `(SIMDLevel, DistributionType,
+  OperationType)`, derived from 6912 empirical measurements across four architectures
+- Profiling bundles for NEON (M1), AVX (Ivy Bridge), AVX2 (Kaby Lake), AVX-512 (Zen 4)
+- Canonical `strategy_profile` tool for forced-strategy profiling across all distributions
+- `scripts/capture_dispatcher_profile.sh` and `scripts/summarize_dispatcher_profile.py`
+  for reproducible profiling workflows
+- `beta_i(x, a, b, log_beta_prefix)` overload to hoist lgamma out of batch loops
+- `NU_MAX` upper bound in Student-T MLE to prevent Newton-Raphson divergence
+
+### Changed
+- CMake global SIMD flag now follows `SIMDDetection` results: `/arch:AVX512` on MSVC
+  when AVX-512 is detected, instead of hardcoded `/arch:AVX2`
+- Test validators gain AVX-512 awareness: AMD `__AVX512F__` tier, architecture-aware
+  SIMD and parallel thresholds reflecting wide-vector crossover characteristics
+- Student-T MLE initial estimate clamped to 100; sample size in MLE test increased
+  from 500 to 2000 for cross-stdlib convergence stability
+
+### Removed
+- `AdaptiveThresholdCalculator` (`src/parallel_thresholds.cpp`,
+  `include/platform/parallel_thresholds.h`)
+- `DistributionCharacteristics` (`include/core/distribution_characteristics.h`)
+- `selectOptimalStrategy` (replaced by `selectStrategy` with `OperationType`)
+- Superseded tools: `learning_analyzer`, `parallel_threshold_benchmark`,
+  `performance_dispatcher_tool`, `empirical_characteristics_demo`
+
+### Fixed
+- AVX-512/MSVC: `__AVX512F__` now defined in all translation units (was only in
+  SIMD kernel source files due to hardcoded `/arch:AVX2`)
+- `vector<bool>` data race in `SystemCapabilitiesIntegrationTest.ThreadSafety`
+  (bit-packing caused concurrent writes to race on the same byte)
+- Threading overhead test bound widened from 100μs to 500μs (Windows scheduler jitter)
+
+### Validation
+- 45/45 tests pass on all four architectures (NEON, AVX, AVX2, AVX-512)
+- 54/54 SIMD correctness tests pass on all architectures
+- pylibstats: 168/168 tests, 85/85 SciPy comparison, 8–44× speedups over SciPy
+
+---
+
 ## [1.0.0] - 2026-04-11
 
 ### Added

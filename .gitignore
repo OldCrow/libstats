@@ -58,6 +58,7 @@ CMakeSystem.cmake
 build*/
 build/
 build_*/
+install/
 Build/
 BUILD/
 out/

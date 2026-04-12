@@ -179,10 +179,10 @@ using StudentT = StudentTDistribution;
 using Beta = BetaDistribution;
 
 // Version information
-constexpr int LIBSTATS_VERSION_MAJOR = 0;
-constexpr int LIBSTATS_VERSION_MINOR = 9;
+constexpr int LIBSTATS_VERSION_MAJOR = 1;
+constexpr int LIBSTATS_VERSION_MINOR = 1;
 constexpr int LIBSTATS_VERSION_PATCH = 0;
-constexpr const char* VERSION_STRING = "0.9.0";
+constexpr const char* VERSION_STRING = "1.1.0";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays
@@ -252,5 +252,4 @@ void initialize_performance_systems();
 
 // Backward compatibility: alias libstats to stats
 // This allows existing code using libstats:: to continue working
-// Will be deprecated in v1.0.0
 namespace libstats = stats;
