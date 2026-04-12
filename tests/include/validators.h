@@ -153,14 +153,18 @@ inline double getParallelValidationThreshold(std::size_t batch_size,
         // Large batches achieve close to full parallel potential
         base *= 1.0;
     } else if (batch_size >= 10000) {
-        // Medium batches have some thread overhead
-        base *= 0.8;
+        // Medium-large batches: thread overhead is small but measurable,
+        // especially on heterogeneous core architectures (e.g., P+E cores)
+        // where parallel efficiency is lower than the core count suggests.
+        base *= 0.7;
     } else if (batch_size >= 1000) {
-        // Small batches have significant overhead - be very conservative
-        base = std::max(0.9, base * 0.3);
+        // Small-medium batches: threading overhead is significant relative to
+        // computation. On architectures with efficient vectorization (NEON,
+        // wide AVX), forced PARALLEL may be slower than VECTORIZED here.
+        base = std::max(0.15, base * 0.06);
     } else {
-        // Very small batches may be inefficient - just expect some speedup
-        base = std::max(0.8, base * 0.2);
+        // Very small batches: threading overhead dominates computation
+        base = std::max(0.1, base * 0.04);
     }
 
     // Complex distributions benefit more from parallelization

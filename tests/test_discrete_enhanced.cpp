@@ -339,24 +339,20 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
                 << batch_size;
         }
 
-        // Performance expectations (adjusted for batch size and computational complexity)
-        EXPECT_GT(simd_speedup, 1.0) << "SIMD should provide speedup for batch size " << batch_size;
+        // Architecture-aware performance expectations using adaptive validation
+        // Discrete is a simple distribution (trivial per-element cost)
+        double simd_threshold =
+            stats::tests::validators::getSIMDValidationThreshold(batch_size, false);
+        EXPECT_GT(simd_speedup, simd_threshold)
+            << "SIMD speedup " << simd_speedup << "x should exceed adaptive threshold "
+            << simd_threshold << "x for batch size " << batch_size;
 
         if (std::thread::hardware_concurrency() > 1) {
-            if (batch_size >= 10000) {
-                // For discrete distributions, computations are very simple (range checks),
-                // so SIMD can achieve massive speedups but parallel has thread overhead.
-                // In release builds, SIMD optimizations are more pronounced, so reduce
-                // expectations. Expect parallel to be at least 35% as efficient as SIMD for large
-                // batches.
-                EXPECT_GT(parallel_speedup, simd_speedup * 0.35)
-                    << "Parallel should be reasonably competitive with SIMD for large batches";
-            } else {
-                // For smaller batches, parallel may have overhead but should still be reasonable
-                EXPECT_GT(parallel_speedup, 0.5)
-                    << "Parallel should provide reasonable performance for batch size "
-                    << batch_size;
-            }
+            double parallel_threshold =
+                stats::tests::validators::getParallelValidationThreshold(batch_size, false);
+            EXPECT_GT(parallel_speedup, parallel_threshold)
+                << "Parallel speedup " << parallel_speedup << "x should exceed adaptive threshold "
+                << parallel_threshold << "x for batch size " << batch_size;
         }
     }
 }

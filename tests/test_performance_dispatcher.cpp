@@ -54,8 +54,10 @@ TEST_F(PerformanceDispatcherTest, BasicStrategySelection) {
     PerformanceDispatcher dispatcher;
     const SystemCapabilities& system = SystemCapabilities::current();
 
-    // Very small batches should prefer scalar
-    auto strategy_small = dispatcher.selectOptimalStrategy(5, DistributionType::GAUSSIAN,
+    // Very small batches should prefer scalar.
+    // Use batch_size=3 which is below the minimum SIMD threshold on all
+    // architectures (NEON and SSE2 have the lowest at 4).
+    auto strategy_small = dispatcher.selectOptimalStrategy(3, DistributionType::GAUSSIAN,
                                                            ComputationComplexity::SIMPLE, system);
     EXPECT_EQ(strategy_small, Strategy::SCALAR);
 
