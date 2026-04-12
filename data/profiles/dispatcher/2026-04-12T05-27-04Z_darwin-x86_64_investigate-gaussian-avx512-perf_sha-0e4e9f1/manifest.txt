@@ -1,0 +1,14 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-04-12T05-27-04Z_darwin-x86_64_investigate-gaussian-avx512-perf_sha-0e4e9f1
+Captured at (UTC): 2026-04-12T05-27-04Z
+
+Files:
+- metadata.json
+- summary.json
+- crossovers.csv
+- best_strategies.csv
+- strategy_profile_results.csv
+- logs/system_inspector_performance.txt
+- logs/strategy_profile.txt

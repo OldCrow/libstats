@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-04-12T05-27-04Z",
+  "run_id": "2026-04-12T05-27-04Z_darwin-x86_64_investigate-gaussian-avx512-perf_sha-0e4e9f1",
+  "git_branch": "investigate-gaussian-avx512-perf",
+  "git_sha": "0e4e9f1",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build",
+  "build_type": "Release",
+  "cxx_compiler": "",
+  "os": "darwin",
+  "arch": "x86_64",
+  "cpu_brand": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}
