@@ -49,10 +49,10 @@ Active SIMD Level: NEON
 --- Performance Baselines ---
 Operation Type           Time (μs)     Throughput (MOps/s)
 ------------------------------------------------------------
-SIMD Multiply            258            3871
-Scalar Multiply          342            2918
+SIMD Multiply            214            4657
+Scalar Multiply          209            4764
 
-SIMD Speedup: 1.33x
+SIMD Speedup: 0.98x
 
 
 --- Performance Dispatcher Configuration ---

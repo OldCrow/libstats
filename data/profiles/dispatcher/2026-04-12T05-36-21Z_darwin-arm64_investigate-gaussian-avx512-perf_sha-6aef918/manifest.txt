@@ -1,8 +1,8 @@
 Dispatcher profile bundle
 =========================
 
-Run ID: 2026-04-12T04-42-20Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-ea57b00
-Captured at (UTC): 2026-04-12T04-42-20Z
+Run ID: 2026-04-12T05-36-21Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-6aef918
+Captured at (UTC): 2026-04-12T05-36-21Z
 
 Files:
 - metadata.json

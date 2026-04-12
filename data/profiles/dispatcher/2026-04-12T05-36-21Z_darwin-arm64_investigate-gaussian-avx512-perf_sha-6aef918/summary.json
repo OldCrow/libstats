@@ -1,14 +1,14 @@
 {
-  "run_id": "2026-04-12T04-42-20Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-ea57b00",
+  "run_id": "2026-04-12T05-36-21Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-6aef918",
   "data_source": "strategy_profile_results.csv",
   "metadata": {
-    "captured_at_utc": "2026-04-12T04-42-20Z",
-    "run_id": "2026-04-12T04-42-20Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-ea57b00",
+    "captured_at_utc": "2026-04-12T05-36-21Z",
+    "run_id": "2026-04-12T05-36-21Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-6aef918",
     "git_branch": "investigate-gaussian-avx512-perf",
-    "git_sha": "ea57b00",
+    "git_sha": "6aef918",
     "project_root": "/Users/wolfman/Development/libstats",
     "build_dir": "/Users/wolfman/Development/libstats/build",
-    "build_type": "Dev",
+    "build_type": "Release",
     "cxx_compiler": "",
     "os": "darwin",
     "arch": "arm64",
@@ -54,10 +54,10 @@
     "total_measurements": 1728
   },
   "strategy_win_counts": {
-    "VECTORIZED": 188,
-    "PARALLEL": 160,
-    "WORK_STEALING": 81,
-    "SCALAR": 3
+    "VECTORIZED": 193,
+    "PARALLEL": 121,
+    "WORK_STEALING": 113,
+    "SCALAR": 5
   },
   "crossover_summary": {
     "groups": 27,
@@ -76,44 +76,44 @@
       {
         "distribution": "ChiSquared",
         "operation": "CDF",
-        "vectorized_to_parallel": 8
-      },
-      {
-        "distribution": "ChiSquared",
-        "operation": "LogPDF",
-        "vectorized_to_parallel": 8
-      },
-      {
-        "distribution": "ChiSquared",
-        "operation": "PDF",
-        "vectorized_to_parallel": 8
-      },
-      {
-        "distribution": "Discrete",
-        "operation": "CDF",
-        "vectorized_to_parallel": 1000
-      },
-      {
-        "distribution": "Discrete",
-        "operation": "LogPDF",
-        "vectorized_to_parallel": 250000
-      },
-      {
-        "distribution": "Discrete",
-        "operation": "PDF",
-        "vectorized_to_parallel": 250000
-      },
-      {
-        "distribution": "Exponential",
-        "operation": "CDF",
-        "vectorized_to_parallel": 8
-      },
-      {
-        "distribution": "Exponential",
-        "operation": "LogPDF",
         "vectorized_to_parallel": 32
       },
       {
+        "distribution": "ChiSquared",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "ChiSquared",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "CDF",
+        "vectorized_to_parallel": 512
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 250000
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "PDF",
+        "vectorized_to_parallel": 128
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
         "distribution": "Exponential",
         "operation": "PDF",
         "vectorized_to_parallel": 8
@@ -146,7 +146,7 @@
       {
         "distribution": "Gaussian",
         "operation": "PDF",
-        "vectorized_to_parallel": 16
+        "vectorized_to_parallel": 8
       },
       {
         "distribution": "Poisson",
@@ -156,12 +156,12 @@
       {
         "distribution": "Poisson",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 16
+        "vectorized_to_parallel": 50000
       },
       {
         "distribution": "Poisson",
         "operation": "PDF",
-        "vectorized_to_parallel": 20000
+        "vectorized_to_parallel": 50000
       },
       {
         "distribution": "StudentT",
@@ -171,7 +171,7 @@
       {
         "distribution": "StudentT",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 64
+        "vectorized_to_parallel": 8
       },
       {
         "distribution": "StudentT",
@@ -181,7 +181,7 @@
       {
         "distribution": "Uniform",
         "operation": "CDF",
-        "vectorized_to_parallel": 16
+        "vectorized_to_parallel": 8
       }
     ]
   }
