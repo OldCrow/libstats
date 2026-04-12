@@ -36,7 +36,6 @@ using namespace std::chrono;
 namespace {
 constexpr size_t BASELINE_TEST_SIZE = 1000000;
 constexpr int BASELINE_ITERATIONS = 10;
-constexpr int MAX_COMPLEXITY_DEMOS = 1;  // Only show first complexity for brevity
 }  // namespace
 
 // Mode enumeration
