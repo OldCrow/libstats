@@ -184,7 +184,7 @@ The active SIMD level changes fundamentally between machines:
 SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
 - Note the change explicitly
 - Verify the build directory is current for this architecture (`cmake ..` may be needed)
-- Threshold values in `src/parallel_thresholds.cpp` may need review
+- Dispatch thresholds in `include/core/dispatch_thresholds.h` are architecture-specific
 - Benchmark results are not comparable across architectures
 
 ## Essential Build Commands
@@ -233,9 +233,11 @@ cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..
 ./build/tools/cpp20_features_inspector
 
 # Performance analysis
-./build/tools/parallel_threshold_benchmark
+./build/tools/strategy_profile
 ./build/tools/simd_verification
-./build/tools/performance_dispatcher_tool
+
+# Dispatcher profiling bundle capture
+./scripts/capture_dispatcher_profile.sh
 
 # Cross-compiler compatibility testing
 ./scripts/test-cross-compiler.sh --clean
@@ -429,7 +431,7 @@ include/
 ```
 src/
 ├── [Level 0-1] Foundation and utilities (cpu_detection.cpp, safety.cpp)
-├── [Level 2] Platform capabilities (thread_pool.cpp, parallel_thresholds.cpp)
+├── [Level 2] Platform capabilities (thread_pool.cpp, work_stealing_pool.cpp)
 ├── [Level 3] Infrastructure (benchmark.cpp, performance_dispatcher.cpp)
 ├── [Level 4] Framework (distribution_base.cpp)
 └── [Level 5] Distributions (gaussian.cpp, exponential.cpp, etc.)
@@ -464,7 +466,8 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 #### Parallel Processing
 - Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`
 - Explicit control: `getProbabilityWithStrategy(spans, Strategy::PARALLEL)`
-- Performance thresholds: <8 elements (scalar), 8-1000 (SIMD), >1000 (parallel)
+- Dispatch thresholds are per-(architecture, distribution, operation) in `dispatch_thresholds.h`
+- Thresholds derived from four-architecture profiling data in `data/profiles/dispatcher/`
 
 ### Build System Customization
 
@@ -545,8 +548,8 @@ when the machine is loaded. This is a measurement problem, not a correctness pro
 # Verify SIMD operations and performance
 ./build/tools/simd_verification
 
-# Analyze parallel thresholds
-./build/tools/parallel_threshold_benchmark
+# Profile forced strategies for threshold tuning
+./build/tools/strategy_profile
 
 # System capability analysis
 ./build/tools/system_inspector --performance

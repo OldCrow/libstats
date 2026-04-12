@@ -139,9 +139,8 @@ These help validate correctness, SIMD behavior, thresholds, and runtime capabili
 Examples:
 - `system_inspector`
 - `simd_verification`
-- `parallel_threshold_benchmark`
-- `performance_dispatcher_tool`
-- `learning_analyzer`
+- `strategy_profile`
+- `parallel_batch_fitting_benchmark`
 
 ### Historical or specialized analysis tools
 These support specific refactors or investigations and should be documented as such when retained.

@@ -1,6 +1,7 @@
 #include "libstats/distributions/gamma.h"
 
 // Core functionality - lightweight headers
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
@@ -453,7 +454,7 @@ void GammaDistribution::parallelBatchFit(const std::vector<std::vector<double>>&
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (arch::shouldUseDistributionParallel("gamma", "batch_fit", num_datasets)) {
+    if (num_datasets >= detail::dispatch_table::BATCH_FIT_MIN) {
         // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
         ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
         const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
@@ -1453,7 +1454,7 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                                        const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<GammaDistribution>::distType(),
-        detail::DistributionTraits<GammaDistribution>::complexity(),
+        detail::OperationType::PDF,
         [](const GammaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1629,7 +1630,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<GammaDistribution>::distType(),
-        detail::DistributionTraits<GammaDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const GammaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1798,7 +1799,7 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                                                  const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<GammaDistribution>::distType(),
-        detail::DistributionTraits<GammaDistribution>::complexity(),
+        detail::OperationType::CDF,
         [](const GammaDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

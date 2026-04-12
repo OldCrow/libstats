@@ -135,7 +135,7 @@ int main() {
     std::cout << "Test 6: Platform-aware adaptive features" << std::endl;
 
     // Test optimal parallel threshold
-    auto optimal_threshold = stats::arch::get_optimal_parallel_threshold("gaussian", "pdf");
+    auto optimal_threshold = stats::arch::get_min_elements_for_distribution_parallel();
     std::cout << "  - Optimal parallel threshold: " << optimal_threshold << " elements"
               << std::endl;
     assert(optimal_threshold > 0 && optimal_threshold < 100000);  // Reasonable range

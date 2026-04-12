@@ -15,6 +15,7 @@
  */
 
 #define LIBSTATS_FULL_INTERFACE
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/libstats.h"
 
 // Standard library includes
@@ -179,9 +180,8 @@ void demonstrate_performance_dispatcher() {
     std::vector<size_t> problem_sizes = {50, 500, 5000, 50000, 500000};
 
     for (auto size : problem_sizes) {
-        auto strategy = dispatcher.selectOptimalStrategy(
-            size, stats::detail::DistributionType::GAUSSIAN,
-            stats::detail::ComputationComplexity::MODERATE, capabilities);
+        auto strategy = dispatcher.selectStrategy(size, stats::detail::DistributionType::GAUSSIAN,
+                                                  stats::detail::OperationType::PDF, capabilities);
 
         std::cout << std::setw(15) << size << std::setw(20) << strategyToString(strategy)
                   << std::endl;

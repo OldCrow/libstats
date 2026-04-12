@@ -13,7 +13,6 @@
  */
 
 #include "libstats/platform/cpu_detection.h"
-#include "libstats/platform/parallel_thresholds.h"
 #include "libstats/platform/simd.h"
 
 // Standard library includes

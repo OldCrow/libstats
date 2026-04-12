@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-04-12T05-36-21Z",
+  "run_id": "2026-04-12T05-36-21Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-6aef918",
+  "git_branch": "investigate-gaussian-avx512-perf",
+  "git_sha": "6aef918",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build",
+  "build_type": "Release",
+  "cxx_compiler": "",
+  "os": "darwin",
+  "arch": "arm64",
+  "cpu_brand": "Apple M1",
+  "physical_cores": "8",
+  "logical_cores": "8"
+}

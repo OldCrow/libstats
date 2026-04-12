@@ -1,0 +1,102 @@
+
+=======================================
+  System Inspector - Performance Mode
+=======================================
+
+System capabilities analysis with performance measurements
+
+System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+
+
+--- CPU Features ---
+Feature             Support   Description                   
+------------------------------------------------------------
+AVX-512             No        Foundation instructions       
+AVX2                Yes       Advanced Vector Ext 2         
+AVX                 Yes       Advanced Vector Ext           
+SSE2                Yes       Streaming SIMD Ext 2          
+NEON                No        ARM SIMD instructions         
+FMA                 Yes       Fused Multiply-Add            
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size      
+------------------------------------------
+L1             32          64 bytes       
+L2             256         64 bytes       
+L3             8192        64 bytes       
+
+
+--- CPU Topology ---
+Hardware Threads:        8
+Logical Cores:           8
+Physical Cores:          4
+Hyperthreading:          Enabled
+
+
+--- SIMD Capabilities ---
+Instruction Support   Vector Width   Description              
+--------------------------------------------------------------
+SSE2        Yes       128-bit        Basic SIMD operations    
+AVX         Yes       256-bit        Advanced vector ext      
+AVX2        Yes       256-bit        Integer AVX operations   
+AVX-512     No        512-bit        Foundation instructions  
+NEON        No        128-bit        ARM SIMD instructions    
+
+Active SIMD Level: AVX2
+
+
+--- Performance Baselines ---
+Operation Type           Time (μs)     Throughput (MOps/s) 
+------------------------------------------------------------
+SIMD Multiply            932            1072                
+Scalar Multiply          937            1066                
+
+SIMD Speedup: 1.01x
+
+
+--- Performance Dispatcher Configuration ---
+Example Strategy Selections:
+Batch Size          Distribution   Complexity     Strategy            
+----------------------------------------------------------------------
+100                 Uniform        Simple         Vectorized          
+100                 Gaussian       Simple         Vectorized          
+100                 Exponential    Simple         Vectorized          
+100                 Poisson        Simple         Vectorized          
+100                 Discrete       Simple         Vectorized          
+1000                Uniform        Simple         Vectorized          
+1000                Gaussian       Simple         Parallel            
+1000                Exponential    Simple         Vectorized          
+1000                Poisson        Simple         Parallel            
+1000                Discrete       Simple         Vectorized          
+10000               Uniform        Simple         Parallel            
+10000               Gaussian       Simple         Parallel            
+10000               Exponential    Simple         Parallel            
+10000               Poisson        Simple         Work-Stealing       
+10000               Discrete       Simple         Parallel            
+100000              Uniform        Simple         Parallel            
+100000              Gaussian       Simple         Parallel            
+100000              Exponential    Simple         Parallel            
+100000              Poisson        Simple         Work-Stealing       
+100000              Discrete       Simple         Parallel            
+
+
+--- Platform Constants ---
+Constant                           Value          
+--------------------------------------------------
+SIMD Block Size                    4 doubles      
+Memory Alignment                   32 bytes       
+Min SIMD Size                      8 elements     
+Optimal Grain Size                 48 elements    
+Fast Transcendental Support        Yes            
+
+
+--- Adaptive Constants ---
+Constant                           Value          
+--------------------------------------------------
+Min Elements for Parallel          4096           
+Default Grain Size                 512            
+Simple Operation Grain Size        256            
+Complex Operation Grain Size       1024           
+
+System inspection completed successfully.

@@ -19,7 +19,7 @@ int main() {
 
     // Test 2: CPU-aware threshold detection
     std::cout << "Test 2: CPU-aware threshold detection - ";
-    std::size_t optimal_threshold = stats::arch::get_optimal_parallel_threshold("gaussian", "pdf");
+    std::size_t optimal_threshold = stats::arch::get_min_elements_for_distribution_parallel();
     std::size_t optimal_grain = stats::arch::get_optimal_grain_size();
     std::cout << "Threshold: " << optimal_threshold << ", Grain: " << optimal_grain << std::endl;
 

@@ -1,0 +1,103 @@
+
+=======================================
+  System Inspector - Performance Mode
+=======================================
+
+System capabilities analysis with performance measurements
+
+System: 8 logical cores, NEON SIMD, 0 KB L3 cache
+
+
+--- CPU Features ---
+Feature             Support   Description
+------------------------------------------------------------
+AVX-512             No        Foundation instructions
+AVX2                No        Advanced Vector Ext 2
+AVX                 No        Advanced Vector Ext
+SSE2                No        Streaming SIMD Ext 2
+NEON                Yes       ARM SIMD instructions
+FMA                 No        Fused Multiply-Add
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size
+------------------------------------------
+L1             64          64 bytes
+L2             4096        64 bytes
+L3             0           64 bytes
+
+
+--- CPU Topology ---
+Hardware Threads:        8
+Logical Cores:           8
+Physical Cores:          4
+Hyperthreading:          Enabled
+
+
+--- SIMD Capabilities ---
+Instruction Support   Vector Width   Description
+--------------------------------------------------------------
+SSE2        No        128-bit        Basic SIMD operations
+AVX         No        256-bit        Advanced vector ext
+AVX2        No        256-bit        Integer AVX operations
+AVX-512     No        512-bit        Foundation instructions
+NEON        Yes       128-bit        ARM SIMD instructions
+
+Active SIMD Level: NEON
+
+
+--- Performance Baselines ---
+Operation Type           Time (μs)     Throughput (MOps/s)
+------------------------------------------------------------
+SIMD Multiply            214            4657
+Scalar Multiply          209            4764
+
+SIMD Speedup: 0.98x
+
+
+--- Performance Dispatcher Configuration ---
+Example Strategy Selections:
+Batch Size          Distribution   Complexity     Strategy
+----------------------------------------------------------------------
+100                 Uniform        Simple         Vectorized
+100                 Gaussian       Simple         Vectorized
+100                 Exponential    Simple         Vectorized
+100                 Poisson        Simple         Vectorized
+100                 Discrete       Simple         Vectorized
+1000                Uniform        Simple         Vectorized
+1000                Gaussian       Simple         Parallel
+1000                Exponential    Simple         Vectorized
+1000                Poisson        Simple         Parallel
+1000                Discrete       Simple         Vectorized
+10000               Uniform        Simple         Parallel
+10000               Gaussian       Simple         Parallel
+10000               Exponential    Simple         Parallel
+10000               Poisson        Simple         Parallel
+10000               Discrete       Simple         Parallel
+100000              Uniform        Simple         Parallel
+100000              Gaussian       Simple         Parallel
+100000              Exponential    Simple         Parallel
+100000              Poisson        Simple         Work-Stealing
+100000              Discrete       Simple         Parallel
+
+
+--- Platform Constants ---
+Constant                           Value
+--------------------------------------------------
+SIMD Block Size                    48 doubles
+Memory Alignment                   128 bytes
+Min SIMD Size                      4 elements
+Optimal Grain Size                 384 elements
+Fast Transcendental Support        No
+
+
+--- Adaptive Constants ---
+Constant                           Value
+--------------------------------------------------
+Min Elements for Parallel          1536
+Default Grain Size                 256
+Simple Operation Grain Size        128
+Complex Operation Grain Size       512
+
+Warning: L2 cache larger than L3 cache - may be normal on some systems
+System inspection completed successfully.

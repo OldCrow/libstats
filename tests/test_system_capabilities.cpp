@@ -4,6 +4,7 @@
 #endif
 
 // Use focused header for system capabilities testing
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/performance_dispatcher.h"
 
 // Standard library includes
@@ -96,7 +97,12 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
     constexpr std::size_t accesses_per_thread = 1000;
 
     std::vector<std::thread> threads;
-    std::vector<bool> success(static_cast<std::size_t>(num_threads), false);
+    // std::vector<bool> packs bits — concurrent writes to different indices
+    // race on the same byte.  Use int to guarantee distinct memory locations.
+    std::vector<int> success(static_cast<std::size_t>(num_threads), 0);
+
+    // Per-thread failure reason: 0 = success, 1..6 = which check failed
+    std::vector<int> fail_reason(num_threads, 0);
 
     for (std::size_t t = 0; t < num_threads; ++t) {
         threads.emplace_back([&, t]() {
@@ -106,20 +112,19 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
                 const SystemCapabilities& caps = SystemCapabilities::current();
 
                 // Verify consistency
-                if (caps.logical_cores() == 0)
-                    thread_success = false;
-                if (caps.physical_cores() == 0)
-                    thread_success = false;
-                if (caps.physical_cores() > caps.logical_cores())
-                    thread_success = false;
-                if (caps.l1_cache_size() == 0)
-                    thread_success = false;
-
-                // Verify SIMD consistency
-                if (caps.has_avx2() && !caps.has_avx())
-                    thread_success = false;
-                if (caps.has_avx() && !caps.has_sse2())
-                    thread_success = false;
+                if (caps.logical_cores() == 0) {
+                    thread_success = false; fail_reason[t] = 1;
+                } else if (caps.physical_cores() == 0) {
+                    thread_success = false; fail_reason[t] = 2;
+                } else if (caps.physical_cores() > caps.logical_cores()) {
+                    thread_success = false; fail_reason[t] = 3;
+                } else if (caps.l1_cache_size() == 0) {
+                    thread_success = false; fail_reason[t] = 4;
+                } else if (caps.has_avx2() && !caps.has_avx()) {
+                    thread_success = false; fail_reason[t] = 5;
+                } else if (caps.has_avx() && !caps.has_sse2()) {
+                    thread_success = false; fail_reason[t] = 6;
+                }
 
                 // Small delay to increase chance of race conditions
                 if (i % 100 == 0) {
@@ -127,7 +132,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
                 }
             }
 
-            success[t] = thread_success;
+            success[t] = thread_success ? 1 : 0;
         });
     }
 
@@ -138,7 +143,9 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
 
     // All threads should have succeeded
     for (std::size_t t = 0; t < num_threads; ++t) {
-        EXPECT_TRUE(success[t]) << "Thread " << t << " failed consistency checks";
+        EXPECT_TRUE(success[t]) << "Thread " << t << " failed check #" << fail_reason[t]
+            << " (1=logical_cores, 2=physical_cores, 3=phys>logical, "
+               "4=l1_cache, 5=avx2_no_avx, 6=avx_no_sse2)";
     }
 }
 
@@ -155,7 +162,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, PerformanceCharacteristicsRealistic) {
     // Threading overhead should be measurable but not excessive
     if (capabilities.physical_cores() > 1) {
         EXPECT_GE(capabilities.threading_overhead_ns(), 10.0);      // At least 10ns
-        EXPECT_LE(capabilities.threading_overhead_ns(), 100000.0);  // At most 100μs
+        EXPECT_LE(capabilities.threading_overhead_ns(), 500000.0);  // At most 500μs (Windows SRWLOCK + scheduler jitter)
     }
 
     // Memory bandwidth should be realistic for the era
@@ -170,24 +177,23 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
     PerformanceDispatcher dispatcher;
 
     // The dispatcher should be able to use the capabilities
-    auto strategy = dispatcher.selectOptimalStrategy(1000, DistributionType::GAUSSIAN,
-                                                     ComputationComplexity::MODERATE, capabilities);
+    auto strategy = dispatcher.selectStrategy(1000, DistributionType::GAUSSIAN, OperationType::PDF,
+                                              capabilities);
 
     // Should return a valid strategy
     EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::WORK_STEALING);
 
     // Test with different parameters
-    auto small_strategy = dispatcher.selectOptimalStrategy(
-        10, DistributionType::UNIFORM, ComputationComplexity::SIMPLE, capabilities);
+    auto small_strategy =
+        dispatcher.selectStrategy(10, DistributionType::UNIFORM, OperationType::PDF, capabilities);
     // Accept either SCALAR or VECTORIZED for small batches (depends on SIMD policy)
     EXPECT_TRUE(small_strategy == Strategy::SCALAR || small_strategy == Strategy::VECTORIZED);
 
     // Large batch should consider parallel strategies (if we have multiple cores)
     if (capabilities.physical_cores() > 1) {
-        auto large_strategy = dispatcher.selectOptimalStrategy(
-            100000, DistributionType::GAMMA, ComputationComplexity::COMPLEX, capabilities);
+        auto large_strategy = dispatcher.selectStrategy(100000, DistributionType::GAMMA,
+                                                        OperationType::CDF, capabilities);
         EXPECT_TRUE(large_strategy == Strategy::PARALLEL ||
-                    large_strategy == Strategy::WORK_STEALING ||
                     large_strategy == Strategy::WORK_STEALING);
     }
 }

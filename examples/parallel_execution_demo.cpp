@@ -94,7 +94,7 @@ void demonstrate_adaptive_grain_sizing() {
     std::cout << "   Base grain size: " << stats::arch::get_optimal_grain_size()
               << " elements [Default work unit size]" << std::endl;
     std::cout << "   Parallel threshold: "
-              << stats::arch::get_optimal_parallel_threshold("gaussian", "pdf")
+              << stats::arch::get_min_elements_for_distribution_parallel()
               << " elements [Minimum size for parallel execution]" << std::endl;
     std::cout << "\n   ℹ️ Memory-bound: Larger grains reduce cache misses" << std::endl;
     std::cout << "   ℹ️ Computation-bound: Smaller grains improve load balancing" << std::endl;

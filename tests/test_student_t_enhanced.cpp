@@ -124,11 +124,15 @@ TEST_F(StudentTEnhancedTest, SetterPropagates) {
     EXPECT_TRUE(t.isCauchy());
 }
 
-// MLE on t(5) samples should recover nu in a reasonable range
+// MLE on t(5) samples should recover nu in a reasonable range.
+// Use 2000 samples so the sample excess kurtosis is stable enough for the
+// Newton-Raphson optimizer to converge, even when the stdlib's
+// std::normal_distribution / std::gamma_distribution produce a different
+// sequence from the same mt19937 seed (algorithm is implementation-defined).
 TEST_F(StudentTEnhancedTest, MLEFit) {
     mt19937 rng(123);
     auto source = StudentTDistribution::create(5.0).value;
-    const auto data = source.sample(rng, 500);
+    const auto data = source.sample(rng, 2000);
 
     auto fitted = StudentTDistribution::create(1.0).value;
     fitted.fit(data);

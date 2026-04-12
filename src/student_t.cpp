@@ -295,9 +295,16 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
 
     const double n = static_cast<double>(values.size());
 
+    // Upper bound: beyond NU_MAX the t-distribution is indistinguishable from
+    // Gaussian, and the score function flattens (psi((nu+1)/2) - psi(nu/2) ~ 1/(2*nu)),
+    // making Newton-Raphson steps unstable.
+    constexpr double NU_MAX = 1000.0;
+
     // Initial estimate: method of moments using sample kurtosis.
     // Excess kurtosis = 6/(nu-4) for nu>4, so nu = 4 + 6/kurtosis.
     // For nu <= 4, or when sample kurtosis is unavailable, start at nu=5.
+    // Clamp the initial estimate to keep the optimizer in a region with
+    // meaningful gradient — starting above ~100 risks flat-tail divergence.
     double nu_est = 5.0;
     if (values.size() >= 4) {
         double mean = std::accumulate(values.begin(), values.end(), 0.0) / n;
@@ -315,7 +322,7 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
             if (excess_kurt > detail::ZERO_DOUBLE) {
                 double nu_from_kurt = 4.0 + 6.0 / excess_kurt;
                 if (nu_from_kurt > detail::ONE && std::isfinite(nu_from_kurt)) {
-                    nu_est = nu_from_kurt;
+                    nu_est = std::min(nu_from_kurt, 100.0);
                 }
             }
         }
@@ -369,10 +376,10 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
         }
 
         double step = s / ds;
-        // Clamp step to avoid moving outside the positive domain
+        // Clamp step to avoid moving outside the valid domain
         step = std::max(step, -(nu - 0.1));
         nu -= step;
-        nu = std::max(nu, 0.1);
+        nu = std::clamp(nu, 0.1, NU_MAX);
 
         if (std::abs(step) < tol) {
             break;
@@ -419,7 +426,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::DistributionTraits<StudentTDistribution>::complexity(),
+        detail::OperationType::PDF,
         [](const StudentTDistribution& dist, double value) { return dist.getProbability(value); },
         [](const StudentTDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -510,7 +517,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::DistributionTraits<StudentTDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -594,7 +601,7 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::DistributionTraits<StudentTDistribution>::complexity(),
+        detail::OperationType::CDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

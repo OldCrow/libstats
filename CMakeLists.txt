@@ -1092,19 +1092,28 @@ endif()
 # source-file-specific flags (cmake/SIMDDetection.cmake) - All platforms: Definitions are set by
 # SIMDDetection.cmake based on detection
 
-# Windows compilers: Use global SIMD flags for compatibility
+# Windows compilers: Use highest detected SIMD level as global flag.
+# SIMDDetection.cmake has already run by this point and set LIBSTATS_HAS_AVX512 etc.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    # MSVC x64 has comprehensive SIMD support
-    add_compile_options(/arch:AVX2)
-    message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+    if(LIBSTATS_HAS_AVX512)
+        add_compile_options(/arch:AVX512)
+        message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
+    else()
+        add_compile_options(/arch:AVX2)
+        message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+    endif()
 
 elseif(
     CMAKE_CXX_COMPILER_ID MATCHES "Clang"
     AND WIN32
     AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    # Clang-cl on Windows x64
-    add_compile_options(-mavx2)
-    message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+    if(LIBSTATS_HAS_AVX512)
+        add_compile_options(-mavx512f)
+        message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
+    else()
+        add_compile_options(-mavx2)
+        message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+    endif()
 endif()
 
 # IMPORTANT: SIMD compile definitions are handled by cmake/SIMDDetection.cmake That system detects
@@ -1169,12 +1178,20 @@ endif()
 
 # SIMD Status Messages (compiler-specific)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+    if(LIBSTATS_HAS_AVX512)
+        message(STATUS "SIMD: AVX-512/AVX2/AVX/SSE2 enabled (MSVC x64)")
+    else()
+        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+    endif()
 elseif(
     CMAKE_CXX_COMPILER_ID MATCHES "Clang"
     AND WIN32
     AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    if(LIBSTATS_HAS_AVX512)
+        message(STATUS "SIMD: AVX-512/AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    else()
+        message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     # GCC SIMD status messages
     set(SIMD_FEATURES "")
@@ -1225,10 +1242,8 @@ set(LIBSTATS_CORE_UTILITIES_SOURCES
 )
 
 # Level 2: Platform Capabilities (Depends on Level 0-1)
-set(LIBSTATS_PLATFORM_SOURCES
-    src/parallel_thresholds.cpp # Architecture-specific parallel thresholds
-    src/thread_pool.cpp # Thread pool implementation
-    src/work_stealing_pool.cpp # Advanced work-stealing thread pool
+set(LIBSTATS_PLATFORM_SOURCES src/thread_pool.cpp # Thread pool implementation
+                              src/work_stealing_pool.cpp # Advanced work-stealing thread pool
 )
 
 # Level 3: Advanced Infrastructure (Depends on Level 0-2)
@@ -1799,7 +1814,7 @@ if(LIBSTATS_BUILD_TESTS)
             test_student_t_enhanced
             test_beta_enhanced
             test_performance_dispatcher
-            test_system_capabilities   # runs live SIMD/threading/bandwidth benchmarks
+            test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
@@ -1933,11 +1948,8 @@ if(LIBSTATS_BUILD_TOOLS)
     add_standalone_tool(cpp20_features_inspector cpp20_features_inspector.cpp)
 
     # Performance & Benchmarking Tools
-    add_libstats_tool(parallel_threshold_benchmark parallel_threshold_benchmark.cpp)
     add_libstats_tool(parallel_batch_fitting_benchmark parallel_batch_fitting_benchmark.cpp)
-    add_libstats_tool(performance_dispatcher_tool performance_dispatcher_tool.cpp)
-    add_libstats_tool(learning_analyzer learning_analyzer.cpp)
-    add_libstats_tool(empirical_characteristics_demo empirical_characteristics_demo.cpp)
+    add_libstats_tool(strategy_profile strategy_profile.cpp)
     add_libstats_tool(simd_verification simd_verification.cpp)
     add_libstats_tool(parallel_correctness_verification parallel_correctness_verification.cpp)
 
@@ -1952,23 +1964,11 @@ if(LIBSTATS_BUILD_TOOLS)
     )
     message(
         STATUS
-            "  - parallel_threshold_benchmark: Enhanced distribution-specific threshold optimization with adaptive learning"
-    )
-    message(
-        STATUS
             "  - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing"
     )
     message(
         STATUS
-            "  - performance_dispatcher_tool: Interactive Phase 3 performance framework demonstration"
-    )
-    message(
-        STATUS
-            "  - learning_analyzer: Unified adaptive learning analysis with both educational simulation and real execution data (consolidates threshold_learning_demo and adaptive_learning_analyzer)"
-    )
-    message(
-        STATUS
-            "  - empirical_characteristics_demo: Demonstration of empirical distribution characteristics system replacing assumption-based performance models"
+            "  - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes"
     )
     message(
         STATUS

@@ -518,7 +518,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                                       const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::DistributionTraits<BetaDistribution>::complexity(),
+        detail::OperationType::PDF,
         [](const BetaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -543,28 +543,31 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_)
+                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
+            }
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
             lock.unlock();
+            // Chunk the batch so each parallel task uses the SIMD pipeline
+            // (vector_log / vector_exp) instead of per-element scalar math.
+            constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= 0.0 || x >= 1.0) {
-                        res[i] = dist.getProbability(x);
-                    } else {
-                        res[i] = std::exp(lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x));
-                    }
+                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                    const std::size_t start = ci * CHUNK;
+                    const std::size_t len = std::min(CHUNK, count - start);
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       lnc, am1, bm1);
                 });
             } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= 0.0 || x >= 1.0) {
-                        res[i] = dist.getProbability(x);
-                    } else {
-                        res[i] = std::exp(lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x));
-                    }
-                }
+                dist.getProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, lnc, am1, bm1);
             }
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -575,17 +578,25 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_)
+                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
+            }
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
             lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0 || x >= 1.0) {
-                    res[i] = dist.getProbability(x);
-                } else {
-                    res[i] = std::exp(lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x));
-                }
+            constexpr std::size_t CHUNK = 1024;
+            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                const std::size_t start = ci * CHUNK;
+                const std::size_t len = std::min(CHUNK, count - start);
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   lnc, am1, bm1);
             });
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -596,17 +607,25 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_)
+                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
+            }
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
             lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0 || x >= 1.0) {
-                    res[i] = dist.getProbability(x);
-                } else {
-                    res[i] = std::exp(lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x));
-                }
+            constexpr std::size_t CHUNK = 1024;
+            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                const std::size_t start = ci * CHUNK;
+                const std::size_t len = std::min(CHUNK, count - start);
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   lnc, am1, bm1);
             });
         });
 }
@@ -615,7 +634,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::DistributionTraits<BetaDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const BetaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -640,28 +659,32 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_)
+                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
+            }
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
             lock.unlock();
+            // Chunk the batch so each parallel task uses the SIMD pipeline
+            // (vector_log) instead of per-element scalar math.
+            constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= 0.0 || x >= 1.0) {
-                        res[i] = dist.getLogProbability(x);
-                    } else {
-                        res[i] = lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x);
-                    }
+                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                    const std::size_t start = ci * CHUNK;
+                    const std::size_t len = std::min(CHUNK, count - start);
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, lnc, am1, bm1);
                 });
             } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= 0.0 || x >= 1.0) {
-                        res[i] = dist.getLogProbability(x);
-                    } else {
-                        res[i] = lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x);
-                    }
-                }
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, lnc, am1,
+                                                      bm1);
             }
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -672,17 +695,25 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_)
+                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
+            }
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
             lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0 || x >= 1.0) {
-                    res[i] = dist.getLogProbability(x);
-                } else {
-                    res[i] = lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x);
-                }
+            constexpr std::size_t CHUNK = 1024;
+            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                const std::size_t start = ci * CHUNK;
+                const std::size_t len = std::min(CHUNK, count - start);
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      lnc, am1, bm1);
             });
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -693,17 +724,25 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            if (!dist.cache_valid_) {
+                lock.unlock();
+                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                if (!dist.cache_valid_)
+                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
+            }
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
             lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0 || x >= 1.0) {
-                    res[i] = dist.getLogProbability(x);
-                } else {
-                    res[i] = lnc + am1 * std::log(x) + bm1 * std::log(1.0 - x);
-                }
+            constexpr std::size_t CHUNK = 1024;
+            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                const std::size_t start = ci * CHUNK;
+                const std::size_t len = std::min(CHUNK, count - start);
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      lnc, am1, bm1);
             });
         });
 }
@@ -713,7 +752,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
                                                 const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::DistributionTraits<BetaDistribution>::complexity(),
+        detail::OperationType::CDF,
         [](const BetaDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -729,14 +768,24 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
+            // Acquire cache once; hoist lgamma prefix for the batch.
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            for (std::size_t i = 0; i < count; ++i) {
-                res[i] = dist.getCumulativeProbability(vals[i]);
+            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
+            if (arch::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x <= 0.0)
+                        res[i] = 0.0;
+                    else if (x >= 1.0)
+                        res[i] = 1.0;
+                    else
+                        res[i] = detail::beta_i(x, a, b, log_prefix);
+                });
+            } else {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, a, b);
             }
-            (void)a;
-            (void)b;
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -745,8 +794,18 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            const double a = dist.alpha_, b = dist.beta_;
+            lock.unlock();
+            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = dist.getCumulativeProbability(vals[i]);
+                const double x = vals[i];
+                if (x <= 0.0)
+                    res[i] = 0.0;
+                else if (x >= 1.0)
+                    res[i] = 1.0;
+                else
+                    res[i] = detail::beta_i(x, a, b, log_prefix);
             });
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -756,8 +815,18 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
+            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+            const double a = dist.alpha_, b = dist.beta_;
+            lock.unlock();
+            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = dist.getCumulativeProbability(vals[i]);
+                const double x = vals[i];
+                if (x <= 0.0)
+                    res[i] = 0.0;
+                else if (x >= 1.0)
+                    res[i] = 1.0;
+                else
+                    res[i] = detail::beta_i(x, a, b, log_prefix);
             });
         });
 }
@@ -979,6 +1048,10 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
                                                                double beta) const noexcept {
     // Scalar per element. See section 18 header for why beta_i cannot be
     // vectorized without replacing it with a fixed-iteration approximation.
+    // Hoist the lgamma prefix: lgamma(a+b) - lgamma(a) - lgamma(b) is constant
+    // for fixed (alpha, beta), saving 3 lgamma calls per element.
+    const double log_prefix =
+        detail::lgamma(alpha + beta) - detail::lgamma(alpha) - detail::lgamma(beta);
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (x <= detail::ZERO_DOUBLE) {
@@ -986,7 +1059,7 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
         } else if (x >= detail::ONE) {
             results[i] = detail::ONE;
         } else {
-            results[i] = detail::beta_i(x, alpha, beta);
+            results[i] = detail::beta_i(x, alpha, beta, log_prefix);
         }
     }
 }

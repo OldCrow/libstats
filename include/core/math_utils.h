@@ -85,6 +85,20 @@ namespace detail {
 [[nodiscard]] double beta_i(double x, double a, double b) noexcept;
 
 /**
+ * @brief Regularized incomplete beta function with precomputed log-beta prefix
+ *
+ * Identical to beta_i(x, a, b) but skips the per-call lgamma(a+b)-lgamma(a)-lgamma(b)
+ * computation.  Use in batch loops where a and b are constant across elements.
+ *
+ * @param x Input value in [0,1]
+ * @param a First shape parameter (a > 0)
+ * @param b Second shape parameter (b > 0)
+ * @param log_beta_prefix Precomputed lgamma(a+b) - lgamma(a) - lgamma(b)
+ * @return I_x(a,b)
+ */
+[[nodiscard]] double beta_i(double x, double a, double b, double log_beta_prefix) noexcept;
+
+/**
  * @brief Natural logarithm of the beta function ln(B(a,b))
  * @param a First parameter (a > 0)
  * @param b Second parameter (b > 0)

@@ -6,6 +6,7 @@
 #include "libstats/core/validation.h"
 // Note: parallel execution included through distribution base inheritance
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"  // For DispatchUtils::autoDispatch
 
 #include <algorithm>
@@ -436,7 +437,7 @@ void ExponentialDistribution::parallelBatchFit(const std::vector<std::vector<dou
     const std::size_t num_datasets = datasets.size();
 
     // Use distribution-specific parallel thresholds for optimal work distribution
-    if (arch::shouldUseDistributionParallel("exponential", "batch_fit", num_datasets)) {
+    if (num_datasets >= detail::dispatch_table::BATCH_FIT_MIN) {
         // Thread-safe parallel execution with proper exception handling
         // Use a static mutex to synchronize access to the global thread pool from multiple threads
         static std::mutex pool_access_mutex;
@@ -1319,8 +1320,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(),
-        detail::DistributionTraits<ExponentialDistribution>::complexity(),
+        detail::DistributionTraits<ExponentialDistribution>::distType(), detail::OperationType::PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getProbability(value);
         },
@@ -1492,7 +1492,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
         detail::DistributionTraits<ExponentialDistribution>::distType(),
-        detail::DistributionTraits<ExponentialDistribution>::complexity(),
+        detail::OperationType::LOG_PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -1664,8 +1664,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                                                        const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(),
-        detail::DistributionTraits<ExponentialDistribution>::complexity(),
+        detail::DistributionTraits<ExponentialDistribution>::distType(), detail::OperationType::CDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

@@ -1,0 +1,188 @@
+{
+  "run_id": "2026-04-12T05-36-21Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-6aef918",
+  "data_source": "strategy_profile_results.csv",
+  "metadata": {
+    "captured_at_utc": "2026-04-12T05-36-21Z",
+    "run_id": "2026-04-12T05-36-21Z_darwin-arm64_investigate-gaussian-avx512-perf_sha-6aef918",
+    "git_branch": "investigate-gaussian-avx512-perf",
+    "git_sha": "6aef918",
+    "project_root": "/Users/wolfman/Development/libstats",
+    "build_dir": "/Users/wolfman/Development/libstats/build",
+    "build_type": "Release",
+    "cxx_compiler": "",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu_brand": "Apple M1",
+    "physical_cores": "8",
+    "logical_cores": "8"
+  },
+  "coverage": {
+    "distributions": [
+      "Beta",
+      "ChiSquared",
+      "Discrete",
+      "Exponential",
+      "Gamma",
+      "Gaussian",
+      "Poisson",
+      "StudentT",
+      "Uniform"
+    ],
+    "operations": [
+      "CDF",
+      "LogPDF",
+      "PDF"
+    ],
+    "batch_sizes": [
+      8,
+      16,
+      32,
+      64,
+      128,
+      256,
+      512,
+      1000,
+      2000,
+      5000,
+      10000,
+      20000,
+      50000,
+      100000,
+      250000,
+      500000
+    ],
+    "total_measurements": 1728
+  },
+  "strategy_win_counts": {
+    "VECTORIZED": 193,
+    "PARALLEL": 121,
+    "WORK_STEALING": 113,
+    "SCALAR": 5
+  },
+  "crossover_summary": {
+    "groups": 27,
+    "vectorized_never_wins": [],
+    "parallel_crossover_sizes": [
+      {
+        "distribution": "Beta",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Beta",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "ChiSquared",
+        "operation": "CDF",
+        "vectorized_to_parallel": 32
+      },
+      {
+        "distribution": "ChiSquared",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "ChiSquared",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "CDF",
+        "vectorized_to_parallel": 512
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 250000
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "PDF",
+        "vectorized_to_parallel": 128
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Gamma",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Gamma",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Gamma",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Gaussian",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Gaussian",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Gaussian",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Poisson",
+        "operation": "CDF",
+        "vectorized_to_parallel": 2000
+      },
+      {
+        "distribution": "Poisson",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 50000
+      },
+      {
+        "distribution": "Poisson",
+        "operation": "PDF",
+        "vectorized_to_parallel": 50000
+      },
+      {
+        "distribution": "StudentT",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "StudentT",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "StudentT",
+        "operation": "PDF",
+        "vectorized_to_parallel": 16
+      },
+      {
+        "distribution": "Uniform",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8
+      }
+    ]
+  }
+}

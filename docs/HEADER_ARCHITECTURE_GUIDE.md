@@ -105,9 +105,11 @@ no longer exist. Any code still referencing them predates Phase 2.
 #include "platform/simd.h"                // SIMD operations and memory management
 
 // Threading and parallelism
-#include "platform/parallel_thresholds.h"  // Architecture-specific thresholds
 #include "platform/thread_pool.h"         // Basic thread pool
 #include "platform/work_stealing_pool.h"  // Advanced work-stealing pool
+
+// Dispatch thresholds (profiling-derived)
+#include "core/dispatch_thresholds.h"     // Per-(arch, dist, op) parallel thresholds
 ```
 
 ### Level 3: Advanced Infrastructure
