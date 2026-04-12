@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-04-12T06-02-56Z",
+  "arch": "x86_64",
+  "git_branch": "investigate-gaussian-avx512-perf",
+  "os": "windows",
+  "cpu_brand": "AMD Ryzen 7 7445HS w/ Radeon 740M Graphics",
+  "build_type": "Release",
+  "cxx_compiler": "MSVC 17 2022",
+  "physical_cores": 6,
+  "build_dir": "C:\\Users\\gdwol\\Development\\libstats\\build",
+  "git_sha": "32c0819",
+  "logical_cores": 12,
+  "run_id": "2026-04-12T06-02-56Z_windows-x86_64_investigate-gaussian-avx512-perf_sha-32c0819",
+  "project_root": "C:\\Users\\gdwol\\Development\\libstats"
+}
