@@ -254,6 +254,25 @@ double beta_i(double x, double a, double b) noexcept {
     }
 }
 
+double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
+    if (x < detail::ZERO_DOUBLE || x > detail::ONE || a <= detail::ZERO_DOUBLE ||
+        b <= detail::ZERO_DOUBLE) {
+        return detail::ZERO_DOUBLE;
+    }
+    if (x == detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    if (x == detail::ONE)
+        return detail::ONE;
+
+    double bt = std::exp(log_beta_prefix + a * std::log(x) + b * std::log(detail::ONE - x));
+
+    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
+        return bt * beta_continued_fraction(x, a, b);
+    } else {
+        return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, b, a);
+    }
+}
+
 // Helper function for beta incomplete function continued fraction
 // Based on Numerical Recipes algorithm
 static double beta_continued_fraction(double x, double a, double b) noexcept {
@@ -683,10 +702,10 @@ void vector_beta_i(std::span<const double> x_values, double a, double b,
 
     const std::size_t size = x_values.size();
 
-    // For now, use scalar implementation
-    // Future enhancement: SIMD optimization of the continued fraction
+    // Hoist the lgamma prefix: constant across all elements for fixed (a, b).
+    const double log_prefix = lgamma(a + b) - lgamma(a) - lgamma(b);
     for (std::size_t i = 0; i < size; ++i) {
-        output[i] = beta_i(x_values[i], a, b);
+        output[i] = beta_i(x_values[i], a, b, log_prefix);
     }
 }
 
