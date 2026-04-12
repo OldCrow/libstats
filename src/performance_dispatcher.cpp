@@ -137,7 +137,7 @@ PerformanceHistory& PerformanceDispatcher::getPerformanceHistory() noexcept {
 }
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSIMDLevel(
-    arch::simd::SIMDPolicy::Level level, const SystemCapabilities& system) {
+    arch::simd::SIMDPolicy::Level level, [[maybe_unused]] const SystemCapabilities& system) {
     Thresholds thresholds;
 
     // Use SIMDPolicy's thresholds as foundation
