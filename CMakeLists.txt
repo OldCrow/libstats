@@ -1940,6 +1940,7 @@ if(LIBSTATS_BUILD_TOOLS)
     add_libstats_tool(empirical_characteristics_demo empirical_characteristics_demo.cpp)
     add_libstats_tool(simd_verification simd_verification.cpp)
     add_libstats_tool(parallel_correctness_verification parallel_correctness_verification.cpp)
+    add_libstats_tool(gaussian_strategy_profile gaussian_strategy_profile.cpp)
 
     message(STATUS "Tools enabled:")
     message(

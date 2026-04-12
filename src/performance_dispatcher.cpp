@@ -115,11 +115,16 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
     // refineWithCapabilities() at construction time, so the per-call decision is simple:
     //
     //   batch < simd_min            → SCALAR      (overhead exceeds benefit)
-    //   simd_min <= batch < parallel → VECTORIZED  (batch pays off, threading doesn\'t yet)
+    //   simd_min <= batch < parallel → VECTORIZED  (batch pays off, threading doesn't yet)
     //   batch >= parallel            → PARALLEL or WORK_STEALING
     //
     // Distribution-specific parallel thresholds account for computational cost:
     // Gaussian (exp/erf) parallelizes at smaller batch sizes than Uniform (arithmetic only).
+    //
+    // PARALLEL is the default multi-threaded strategy. WORK_STEALING adds load-balancing
+    // overhead that only pays off for distributions with highly variable per-element cost
+    // (e.g., Poisson with mixed small/large lambda, Gamma with alpha near 0). Regular
+    // distributions (Gaussian, Exponential, Uniform, Discrete) use PARALLEL exclusively.
 
     if (batch_size < thresholds_.simd_min) {
         return Strategy::SCALAR;
@@ -130,10 +135,17 @@ Strategy PerformanceDispatcher::selectStrategyBasedOnCapabilities(
         return Strategy::VECTORIZED;
     }
 
-    // Work-stealing is preferred for large batches on multi-core systems: it handles
-    // variable-cost work more efficiently than a fixed partition.
+    // Only use work-stealing for distributions with irregular per-element cost
+    // where load balancing provides a measurable benefit.
     if (batch_size >= thresholds_.work_stealing_min && system.logical_cores() > 2) {
-        return Strategy::WORK_STEALING;
+        switch (dist_type) {
+            case DistributionType::POISSON:
+            case DistributionType::GAMMA:
+            case DistributionType::CHI_SQUARED:
+                return Strategy::WORK_STEALING;
+            default:
+                break;  // fall through to PARALLEL
+        }
     }
 
     return Strategy::PARALLEL;
@@ -147,10 +159,12 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
     thresholds.simd_min = arch::simd::SIMDPolicy::getMinThreshold();
 
     // Set base parallel thresholds based on SIMD level capability
+    // AVX-512's wider registers process more elements per cycle, so VECTORIZED remains
+    // faster than PARALLEL up to higher batch sizes than narrower SIMD levels.
     switch (level) {
         case arch::simd::SIMDPolicy::Level::AVX512:
-            thresholds.parallel_min = 500;
-            thresholds.work_stealing_min = 8000;
+            thresholds.parallel_min = 5000;
+            thresholds.work_stealing_min = 50000;
             break;
         case arch::simd::SIMDPolicy::Level::AVX2:
             thresholds.parallel_min = detail::MAX_BISECTION_ITERATIONS;
