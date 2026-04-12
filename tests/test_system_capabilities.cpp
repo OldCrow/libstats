@@ -4,6 +4,7 @@
 #endif
 
 // Use focused header for system capabilities testing
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/performance_dispatcher.h"
 
 // Standard library includes
@@ -170,24 +171,23 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
     PerformanceDispatcher dispatcher;
 
     // The dispatcher should be able to use the capabilities
-    auto strategy = dispatcher.selectOptimalStrategy(1000, DistributionType::GAUSSIAN,
-                                                     ComputationComplexity::MODERATE, capabilities);
+    auto strategy = dispatcher.selectStrategy(1000, DistributionType::GAUSSIAN, OperationType::PDF,
+                                              capabilities);
 
     // Should return a valid strategy
     EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::WORK_STEALING);
 
     // Test with different parameters
-    auto small_strategy = dispatcher.selectOptimalStrategy(
-        10, DistributionType::UNIFORM, ComputationComplexity::SIMPLE, capabilities);
+    auto small_strategy =
+        dispatcher.selectStrategy(10, DistributionType::UNIFORM, OperationType::PDF, capabilities);
     // Accept either SCALAR or VECTORIZED for small batches (depends on SIMD policy)
     EXPECT_TRUE(small_strategy == Strategy::SCALAR || small_strategy == Strategy::VECTORIZED);
 
     // Large batch should consider parallel strategies (if we have multiple cores)
     if (capabilities.physical_cores() > 1) {
-        auto large_strategy = dispatcher.selectOptimalStrategy(
-            100000, DistributionType::GAMMA, ComputationComplexity::COMPLEX, capabilities);
+        auto large_strategy = dispatcher.selectStrategy(100000, DistributionType::GAMMA,
+                                                        OperationType::CDF, capabilities);
         EXPECT_TRUE(large_strategy == Strategy::PARALLEL ||
-                    large_strategy == Strategy::WORK_STEALING ||
                     large_strategy == Strategy::WORK_STEALING);
     }
 }

@@ -24,6 +24,7 @@
 #include <thread>
 #include <vector>  // for std::vector (keep standard portable header)
 // Use consolidated header for complete library functionality
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/performance_dispatcher.h"  // for SystemCapabilities, DistributionType
 #include "libstats/platform/platform_constants.h"  // for platform constants
 #include "libstats/platform/simd.h"                // for VectorOps
@@ -460,7 +461,7 @@ class SystemInspector {
         std::cout << "Example Strategy Selections:\n";
 
         stats::detail::detail::ColumnFormatter formatter({20, 15, 15, 20});
-        std::cout << formatter.formatRow({"Batch Size", "Distribution", "Complexity", "Strategy"})
+        std::cout << formatter.formatRow({"Batch Size", "Distribution", "Operation", "Strategy"})
                   << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
@@ -470,30 +471,18 @@ class SystemInspector {
             stats::detail::DistributionType::UNIFORM, stats::detail::DistributionType::GAUSSIAN,
             stats::detail::DistributionType::EXPONENTIAL, stats::detail::DistributionType::POISSON,
             stats::detail::DistributionType::DISCRETE};
-        std::vector<stats::detail::ComputationComplexity> complexities = {
-            stats::detail::ComputationComplexity::SIMPLE,
-            stats::detail::ComputationComplexity::MODERATE,
-            stats::detail::ComputationComplexity::COMPLEX};
 
         for (auto size : test_sizes) {
             for (auto dist : dist_types) {
-                int complexity_count = 0;
-                for (auto complexity : complexities) {
-                    stats::detail::PerformanceDispatcher dispatcher;
-                    auto strategy =
-                        dispatcher.selectOptimalStrategy(size, dist, complexity, capabilities);
+                stats::detail::PerformanceDispatcher dispatcher;
+                auto strategy = dispatcher.selectStrategy(
+                    size, dist, stats::detail::OperationType::PDF, capabilities);
 
-                    std::cout << formatter.formatRow(
-                                     {std::to_string(size),
-                                      stats::detail::detail::distributionTypeToString(dist),
-                                      stats::detail::detail::complexityToString(complexity),
-                                      stats::detail::detail::strategyToDisplayString(strategy)})
-                              << "\n";
-
-                    // Only show first complexity for brevity
-                    if (++complexity_count >= MAX_COMPLEXITY_DEMOS)
-                        break;
-                }
+                std::cout << formatter.formatRow(
+                                 {std::to_string(size),
+                                  stats::detail::detail::distributionTypeToString(dist), "PDF",
+                                  stats::detail::detail::strategyToDisplayString(strategy)})
+                          << "\n";
             }
         }
         std::cout << "\n";

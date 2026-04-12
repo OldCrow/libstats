@@ -10,6 +10,7 @@
 #include "tool_utils.h"
 
 // Additional includes for empirical characteristics
+#include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/distribution_characteristics.h"
 
 // Standard library includes
@@ -135,10 +136,9 @@ void demonstrateStrategySelection() {
         std::cout << std::left << std::setw(14) << name;
 
         for (size_t batch_size : batch_sizes) {
-            Strategy strategy = dispatcher.selectOptimalStrategy(
-                batch_size, dist_type, ComputationComplexity::MODERATE, system);
+            Strategy strategy =
+                dispatcher.selectStrategy(batch_size, dist_type, OperationType::PDF, system);
 
-            // Use display strings that match the Strategy enum names
             std::string strategy_str = stats::detail::detail::strategyToDisplayString(strategy);
 
             std::cout << std::setw(14) << strategy_str;
