@@ -183,9 +183,8 @@ libstats/
 ### 🔧 **Analysis Tools** (`tools/` directory)
 - `system_inspector` - CPU capabilities and system information
 - `simd_verification` - SIMD correctness and speedup verification
-- `parallel_threshold_benchmark` - Architecture-aware parallel threshold analysis
-- `performance_dispatcher_tool` - Dispatch strategy inspection and comparison
-- `learning_analyzer` - Performance-learning and threshold-analysis support
+- `strategy_profile` - Canonical forced-strategy profiler for dispatcher threshold tuning
+- `parallel_batch_fitting_benchmark` - Parallel batch fitting performance analysis
 
 
 ## Testing

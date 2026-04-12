@@ -1799,7 +1799,7 @@ if(LIBSTATS_BUILD_TESTS)
             test_student_t_enhanced
             test_beta_enhanced
             test_performance_dispatcher
-            test_system_capabilities   # runs live SIMD/threading/bandwidth benchmarks
+            test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
@@ -1933,14 +1933,11 @@ if(LIBSTATS_BUILD_TOOLS)
     add_standalone_tool(cpp20_features_inspector cpp20_features_inspector.cpp)
 
     # Performance & Benchmarking Tools
-    add_libstats_tool(parallel_threshold_benchmark parallel_threshold_benchmark.cpp)
     add_libstats_tool(parallel_batch_fitting_benchmark parallel_batch_fitting_benchmark.cpp)
-    add_libstats_tool(performance_dispatcher_tool performance_dispatcher_tool.cpp)
-    add_libstats_tool(learning_analyzer learning_analyzer.cpp)
+    add_libstats_tool(strategy_profile strategy_profile.cpp)
     add_libstats_tool(empirical_characteristics_demo empirical_characteristics_demo.cpp)
     add_libstats_tool(simd_verification simd_verification.cpp)
     add_libstats_tool(parallel_correctness_verification parallel_correctness_verification.cpp)
-    add_libstats_tool(gaussian_strategy_profile gaussian_strategy_profile.cpp)
 
     message(STATUS "Tools enabled:")
     message(
@@ -1953,19 +1950,11 @@ if(LIBSTATS_BUILD_TOOLS)
     )
     message(
         STATUS
-            "  - parallel_threshold_benchmark: Enhanced distribution-specific threshold optimization with adaptive learning"
-    )
-    message(
-        STATUS
             "  - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing"
     )
     message(
         STATUS
-            "  - performance_dispatcher_tool: Interactive Phase 3 performance framework demonstration"
-    )
-    message(
-        STATUS
-            "  - learning_analyzer: Unified adaptive learning analysis with both educational simulation and real execution data (consolidates threshold_learning_demo and adaptive_learning_analyzer)"
+            "  - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes"
     )
     message(
         STATUS

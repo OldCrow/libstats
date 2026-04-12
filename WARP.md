@@ -233,9 +233,11 @@ cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..
 ./build/tools/cpp20_features_inspector
 
 # Performance analysis
-./build/tools/parallel_threshold_benchmark
+./build/tools/strategy_profile
 ./build/tools/simd_verification
-./build/tools/performance_dispatcher_tool
+
+# Dispatcher profiling bundle capture
+./scripts/capture_dispatcher_profile.sh
 
 # Cross-compiler compatibility testing
 ./scripts/test-cross-compiler.sh --clean
@@ -545,8 +547,8 @@ when the machine is loaded. This is a measurement problem, not a correctness pro
 # Verify SIMD operations and performance
 ./build/tools/simd_verification
 
-# Analyze parallel thresholds
-./build/tools/parallel_threshold_benchmark
+# Profile forced strategies for threshold tuning
+./build/tools/strategy_profile
 
 # System capability analysis
 ./build/tools/system_inspector --performance

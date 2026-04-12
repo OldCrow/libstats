@@ -10,14 +10,12 @@ Quick reference for the actively useful tools in `tools/`.
 
 ### SIMD and performance validation
 - `simd_verification` — validate SIMD correctness and measure speedups across distributions
-- `parallel_threshold_benchmark` — inspect architecture-aware threshold behavior
+- `strategy_profile` — canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes
 - `parallel_batch_fitting_benchmark` — benchmark batch fitting behavior across distributions
 - `parallel_correctness_verification` — validate batch correctness under parallel execution
 
-### Dispatch and learning analysis
-- `performance_dispatcher_tool` — inspect dispatch choices and strategy behavior
-- `learning_analyzer` — analyze adaptive learning and threshold behavior
-- `empirical_characteristics_demo` — inspect empirical complexity assumptions used by dispatch logic
+### Dispatch analysis
+- `empirical_characteristics_demo` — inspect empirical complexity assumptions used by dispatch logic (will be replaced by profiling-derived lookup table)
 
 ### Header-analysis tools
 These remain useful for include and compilation-health work:
@@ -45,5 +43,6 @@ Examples:
 ## Guidance
 
 - Prefer the compiled C++ tools for release validation and performance checks.
+- For dispatcher threshold tuning, prefer `strategy_profile` as the canonical raw data source.
 - Prefer the Python analysis tools for repo-maintenance work.
 - Do not treat every file in `tools/` as part of the primary supported workflow; some are archival.
