@@ -1,4 +1,15 @@
 # Changelog
+## [1.1.2] - 2026-04-26
+
+### Fixed
+- Windows dynamic tests now copy `stats.dll` next to each dynamic test executable
+  during post-build, removing runtime loader failures (`0xc0000135`) when DLL
+  search paths are not preconfigured.
+- Test executable outputs are now separated by build configuration
+  (`tests/Debug`, `tests/Release`, etc.), preventing stale Debug/Release binary
+  collisions in Visual Studio multi-config builds.
+- CTest test registration now uses `$<TARGET_FILE:...>` so each test resolves to
+  the correct per-configuration binary path.
 ## [1.1.1] - 2026-04-26
 
 ### Fixed

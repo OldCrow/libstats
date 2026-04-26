@@ -140,7 +140,7 @@ endif()
 
 project(
     libstats
-    VERSION 1.1.1
+    VERSION 1.1.2
     LANGUAGES CXX)
 
 # Set default build type if none was specified
@@ -1514,8 +1514,12 @@ if(LIBSTATS_BUILD_TESTS)
         set_target_properties(
             ${TEST_NAME}
             PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
-                       RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests
-                       RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests)
+                       RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_BINARY_DIR}/tests/Debug
+                       RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_BINARY_DIR}/tests/Release
+                       RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO
+                       ${CMAKE_CURRENT_BINARY_DIR}/tests/RelWithDebInfo
+                       RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL
+                       ${CMAKE_CURRENT_BINARY_DIR}/tests/MinSizeRel)
 
         # Apply same compiler flags as main library
         if(APPLE)
@@ -1537,7 +1541,7 @@ if(LIBSTATS_BUILD_TESTS)
         endif()
 
         # Add to test suite
-        add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/tests/${TEST_NAME})
+        add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
 
         # Set working directory for tests
         set_tests_properties(${TEST_NAME} PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -1561,13 +1565,9 @@ if(LIBSTATS_BUILD_TESTS)
 
     # Function to create a test executable linked to dynamic library.
     #
-    # Windows CRT mismatch warning: the VS generator places both Debug and Release test executables
-    # in the same build/tests/ directory. If a Debug EXE is left from a prior build session and a
-    # Release DLL is built later, the EXE links Debug CRT (VCRUNTIME140D) while the DLL uses Release
-    # CRT (VCRUNTIME140). The two CRTs use separate heaps; any cross-boundary allocation causes heap
-    # corruption. cmake --build --clean-first cleans Release artifacts but leaves existing Debug
-    # EXEs if their timestamps appear current. Fix: delete stale EXEs manually, then rebuild
-    # --config Release.
+    # On Windows, copy stats.dll next to each dynamic test EXE so runtime loading does not depend
+    # on PATH. Combined with per-config output directories above, this avoids both STATUS_DLL_NOT_FOUND
+    # and stale Debug/Release binary collisions.
     function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
         add_executable(${TEST_NAME} ${SOURCE_FILE})
 
@@ -1576,6 +1576,15 @@ if(LIBSTATS_BUILD_TESTS)
 
         # Apply common test settings
         configure_common_test_settings(${TEST_NAME})
+
+        if(WIN32)
+            add_custom_command(
+                TARGET ${TEST_NAME}
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libstats_shared>
+                        $<TARGET_FILE_DIR:${TEST_NAME}>
+                COMMENT "Copying shared libstats runtime next to ${TEST_NAME}")
+        endif()
     endfunction()
 
     # Function to create a GTest-based test executable
