@@ -140,7 +140,7 @@ endif()
 
 project(
     libstats
-    VERSION 1.1.4
+    VERSION 1.1.5
     LANGUAGES CXX)
 
 # Build examples by default only for top-level builds.

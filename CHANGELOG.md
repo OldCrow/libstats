@@ -1,4 +1,10 @@
 # Changelog
+## [1.1.5] - 2026-04-26
+
+### Changed
+- Version and release metadata update only.
+- No functional code changes from `1.1.4`; this release aligns downstream
+  packaging flow for `pylibstats`.
 ## [1.1.4] - 2026-04-26
 
 ### Fixed
