@@ -290,7 +290,7 @@ bool test_sse2() {
     __m128d b = _mm_set1_pd(2.0);
     __m128d c = _mm_add_pd(a, b);
     double result[2];
-    _mm_store_pd(result, c);
+    _mm_storeu_pd(result, c);
     return (result[0] == 3.0 && result[1] == 3.0);
 }
 "
@@ -353,7 +353,7 @@ bool test_avx() {
     __m256d b = _mm256_set1_pd(2.0);
     __m256d c = _mm256_add_pd(a, b);
     double result[4];
-    _mm256_store_pd(result, c);
+    _mm256_storeu_pd(result, c);
     return (result[0] == 3.0 && result[1] == 3.0 && result[2] == 3.0 && result[3] == 3.0);
 }
 "
@@ -428,7 +428,7 @@ bool test_avx2() {
     __m256d c = _mm256_set1_pd(3.0);
     __m256d result = _mm256_fmadd_pd(a, b, c);
     double values[4];
-    _mm256_store_pd(values, result);
+    _mm256_storeu_pd(values, result);
     return (values[0] == 5.0 && values[1] == 5.0 && values[2] == 5.0 && values[3] == 5.0);
 }
 "
@@ -475,7 +475,7 @@ bool test_avx2() {
         if(COMPILER_SUPPORTS_AVX512)
             test_runtime_cpu_feature(
                 "avx512"
-                "#include <immintrin.h>\nbool test_avx512() {\n    __m512d a = _mm512_set1_pd(1.0);\n    __m512d b = _mm512_set1_pd(2.0);\n    __m512d c = _mm512_add_pd(a, b);\n    double result[8];\n    _mm512_store_pd(result, c);\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\n    return true;\n}"
+                "#include <immintrin.h>\\nbool test_avx512() {\\n    __m512d a = _mm512_set1_pd(1.0);\\n    __m512d b = _mm512_set1_pd(2.0);\\n    __m512d c = _mm512_add_pd(a, b);\\n    double result[8];\\n    _mm512_storeu_pd(result, c);\\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\\n    return true;\\n}"
                 RUNTIME_SUPPORTS_AVX512
                 "/arch:AVX512")
             if(RUNTIME_SUPPORTS_AVX512)
@@ -510,7 +510,7 @@ bool test_avx2() {
         if(COMPILER_SUPPORTS_AVX512)
             test_runtime_cpu_feature(
                 "avx512"
-                "#include <immintrin.h>\nbool test_avx512() {\n    __m512d a = _mm512_set1_pd(1.0);\n    __m512d b = _mm512_set1_pd(2.0);\n    __m512d c = _mm512_add_pd(a, b);\n    double result[8];\n    _mm512_store_pd(result, c);\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\n    return true;\n}"
+                "#include <immintrin.h>\\nbool test_avx512() {\\n    __m512d a = _mm512_set1_pd(1.0);\\n    __m512d b = _mm512_set1_pd(2.0);\\n    __m512d c = _mm512_add_pd(a, b);\\n    double result[8];\\n    _mm512_storeu_pd(result, c);\\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\\n    return true;\\n}"
                 RUNTIME_SUPPORTS_AVX512
                 "-mavx512f")
             if(RUNTIME_SUPPORTS_AVX512)
@@ -620,6 +620,38 @@ bool test_neon() {
 
     # Apply any environment variable overrides
     apply_cross_compilation_overrides()
+
+    # AVX2 transcendental helpers delegate to AVX implementations.
+    # Keep source and definition sets consistent if AVX2 is enabled.
+    if(LIBSTATS_HAS_AVX2 AND NOT LIBSTATS_HAS_AVX)
+        message(
+            WARNING
+                "AVX2 was enabled while AVX was disabled; forcing AVX for consistent SIMD symbol resolution"
+        )
+        set(LIBSTATS_HAS_AVX
+            TRUE
+            CACHE BOOL "AVX support available (forced by AVX2 dependency)" FORCE)
+        get_property(
+            _sources
+            CACHE LIBSTATS_SIMD_SOURCES
+            PROPERTY VALUE)
+        get_property(
+            _definitions
+            CACHE LIBSTATS_SIMD_DEFINITIONS
+            PROPERTY VALUE)
+        if(NOT "src/simd_avx.cpp" IN_LIST _sources)
+            list(APPEND _sources "src/simd_avx.cpp")
+        endif()
+        if(NOT "LIBSTATS_HAS_AVX=1" IN_LIST _definitions)
+            list(APPEND _definitions "LIBSTATS_HAS_AVX=1")
+        endif()
+        set(LIBSTATS_SIMD_SOURCES
+            "${_sources}"
+            CACHE INTERNAL "List of SIMD source files to compile" FORCE)
+        set(LIBSTATS_SIMD_DEFINITIONS
+            "${_definitions}"
+            CACHE INTERNAL "List of SIMD compile definitions" FORCE)
+    endif()
 
     # Always include fallback implementation
     get_property(

@@ -1,13 +1,15 @@
 // CRITICAL: Ensure CPU detection code uses NO advanced SIMD instructions
 // This file detects CPU features and must not use the features it's detecting!
 // Use compiler-specific approaches to disable SIMD in CPU detection code
-#if defined(__clang__)
+#if (defined(__clang__) &&                                                                   \
+     (defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)))
     // Clang: use function attributes to disable SIMD per function
     #define CPU_DETECTION_NO_SIMD                                                                  \
         __attribute__((                                                                            \
             target("no-avx512f,no-avx512cd,no-avx512bw,no-avx512dq,no-avx512vl,no-avx2,no-avx,no-" \
                    "sse4.2,no-sse4.1,no-ssse3,no-sse3")))
-#elif defined(__GNUC__)
+#elif (defined(__GNUC__) &&                                                                   \
+       (defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)))
     // GCC: use pragma to disable SIMD globally for this file
     #pragma GCC push_options
     #pragma GCC target(                                                                            \

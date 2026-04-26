@@ -1,4 +1,16 @@
 # Changelog
+## [1.1.3] - 2026-04-26
+
+### Fixed
+- `cpu_detection.cpp` now applies x86-only SIMD target pragmas only on x86/x64,
+  preventing ARM/aarch64 compile failures from invalid `no-avx*` target attributes.
+- SIMD runtime probe kernels now use unaligned stores (`*_storeu_*`) to avoid
+  false negatives or crashes caused by stack alignment assumptions.
+- SIMD source/definition consistency now forces AVX when AVX2 is enabled, so
+  AVX2 transcendental wrappers always resolve AVX helper symbols.
+- Added `LIBSTATS_BUILD_EXAMPLES` with an embedded-build-safe default (`OFF`
+  when consumed as a subproject), so FetchContent consumers no longer build
+  examples unless explicitly requested.
 ## [1.1.2] - 2026-04-26
 
 ### Fixed

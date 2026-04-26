@@ -140,8 +140,16 @@ endif()
 
 project(
     libstats
-    VERSION 1.1.2
+    VERSION 1.1.3
     LANGUAGES CXX)
+
+# Build examples by default only for top-level builds.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(LIBSTATS_BUILD_EXAMPLES_DEFAULT ON)
+else()
+    set(LIBSTATS_BUILD_EXAMPLES_DEFAULT OFF)
+endif()
+option(LIBSTATS_BUILD_EXAMPLES "Build examples" ${LIBSTATS_BUILD_EXAMPLES_DEFAULT})
 
 # Set default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -1999,7 +2007,9 @@ if(LIBSTATS_BUILD_TOOLS)
 endif()
 
 # Examples
-add_subdirectory(examples)
+if(LIBSTATS_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # Install targets
 install(
