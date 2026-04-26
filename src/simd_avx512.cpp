@@ -1,15 +1,6 @@
 // AVX-512-specific SIMD implementations
 // This file is compiled ONLY with AVX-512 flags and includes runtime safety checks
 
-#if defined(__GNUC__) && !defined(__clang__)
-    #pragma GCC target("avx512f")
-#elif defined(__clang__)
-    #pragma clang attribute push(__attribute__((target("avx512f"))), apply_to = function)
-#elif defined(_MSC_VER)
-// MSVC doesn't need target pragmas - uses /arch flags in CMake
-// and has different intrinsic handling
-#endif
-
 #include "libstats/common/simd_implementation_common.h"
 
 #include <cmath>
@@ -232,7 +223,3 @@ void VectorOps::vector_erf_avx512(const double* values, double* results,
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats
-
-#ifdef __clang__
-    #pragma clang attribute pop
-#endif

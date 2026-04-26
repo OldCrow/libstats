@@ -1,17 +1,6 @@
 // SSE2-specific SIMD implementations
 // This file is compiled ONLY with SSE2 flags to ensure safety
 
-#if defined(__GNUC__) && !defined(__clang__)
-    #pragma GCC target("sse2")
-    #pragma GCC target("no-avx512f,no-avx2,no-avx")
-#elif defined(__clang__)
-    // Clang uses different target attribute syntax
-    #pragma clang attribute push(__attribute__((target("sse2"))), apply_to = function)
-#elif defined(_MSC_VER)
-// MSVC doesn't need target pragmas - uses /arch flags in CMake
-// and has different intrinsic handling
-#endif
-
 #include "libstats/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
 #include "libstats/common/platform_constants_fwd.h"  // Use lightweight forward declarations
 #include "libstats/core/math_constants.h"
@@ -233,7 +222,3 @@ void VectorOps::vector_erf_sse2(const double* values, double* results, std::size
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats
-
-#ifdef __clang__
-    #pragma clang attribute pop
-#endif

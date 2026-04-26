@@ -6,16 +6,6 @@
 // licensed under the Boost Software License 1.0. The Boost license is fully
 // compatible with our MIT License.
 
-#if defined(__GNUC__) && !defined(__clang__)
-    #pragma GCC target("avx")
-    #pragma GCC target("no-avx512f,no-avx2")
-#elif defined(__clang__)
-    #pragma clang attribute push(__attribute__((target("avx"))), apply_to = function)
-#elif defined(_MSC_VER)
-// MSVC doesn't need target pragmas - uses /arch flags in CMake
-// and has different intrinsic handling
-#endif
-
 #include "libstats/common/simd_implementation_common.h"
 
 #include <cmath>
@@ -654,7 +644,3 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats
-
-#ifdef __clang__
-    #pragma clang attribute pop
-#endif

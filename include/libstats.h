@@ -181,8 +181,8 @@ using Beta = BetaDistribution;
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 1;
 constexpr int LIBSTATS_VERSION_MINOR = 1;
-constexpr int LIBSTATS_VERSION_PATCH = 3;
-constexpr const char* VERSION_STRING = "1.1.3";
+constexpr int LIBSTATS_VERSION_PATCH = 4;
+constexpr const char* VERSION_STRING = "1.1.4";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays

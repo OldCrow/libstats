@@ -156,6 +156,39 @@ function(apply_cross_compilation_overrides)
         message(STATUS "SIMD: NEON forced to TRUE via environment")
     endif()
 
+    # Enforce dependency consistency for SIMD source/definition wiring.
+    # AVX-512 code depends on AVX2 symbols, and AVX2 code depends on AVX symbols.
+    if(LIBSTATS_HAS_AVX512 AND NOT LIBSTATS_HAS_AVX2)
+        message(
+            WARNING
+                "AVX-512 was enabled while AVX2 was disabled; forcing AVX2 for consistent SIMD symbol resolution"
+        )
+        set(LIBSTATS_HAS_AVX2
+            TRUE
+            CACHE BOOL "AVX2 support available (forced by AVX-512 dependency)" FORCE)
+        if(NOT "src/simd_avx2.cpp" IN_LIST _sources)
+            list(APPEND _sources "src/simd_avx2.cpp")
+        endif()
+        if(NOT "LIBSTATS_HAS_AVX2=1" IN_LIST _definitions)
+            list(APPEND _definitions "LIBSTATS_HAS_AVX2=1")
+        endif()
+    endif()
+    if(LIBSTATS_HAS_AVX2 AND NOT LIBSTATS_HAS_AVX)
+        message(
+            WARNING
+                "AVX2 was enabled while AVX was disabled; forcing AVX for consistent SIMD symbol resolution"
+        )
+        set(LIBSTATS_HAS_AVX
+            TRUE
+            CACHE BOOL "AVX support available (forced by AVX2 dependency)" FORCE)
+        if(NOT "src/simd_avx.cpp" IN_LIST _sources)
+            list(APPEND _sources "src/simd_avx.cpp")
+        endif()
+        if(NOT "LIBSTATS_HAS_AVX=1" IN_LIST _definitions)
+            list(APPEND _definitions "LIBSTATS_HAS_AVX=1")
+        endif()
+    endif()
+
     # Update cache with modified lists
     set(LIBSTATS_SIMD_SOURCES
         "${_sources}"
@@ -621,37 +654,6 @@ bool test_neon() {
     # Apply any environment variable overrides
     apply_cross_compilation_overrides()
 
-    # AVX2 transcendental helpers delegate to AVX implementations.
-    # Keep source and definition sets consistent if AVX2 is enabled.
-    if(LIBSTATS_HAS_AVX2 AND NOT LIBSTATS_HAS_AVX)
-        message(
-            WARNING
-                "AVX2 was enabled while AVX was disabled; forcing AVX for consistent SIMD symbol resolution"
-        )
-        set(LIBSTATS_HAS_AVX
-            TRUE
-            CACHE BOOL "AVX support available (forced by AVX2 dependency)" FORCE)
-        get_property(
-            _sources
-            CACHE LIBSTATS_SIMD_SOURCES
-            PROPERTY VALUE)
-        get_property(
-            _definitions
-            CACHE LIBSTATS_SIMD_DEFINITIONS
-            PROPERTY VALUE)
-        if(NOT "src/simd_avx.cpp" IN_LIST _sources)
-            list(APPEND _sources "src/simd_avx.cpp")
-        endif()
-        if(NOT "LIBSTATS_HAS_AVX=1" IN_LIST _definitions)
-            list(APPEND _definitions "LIBSTATS_HAS_AVX=1")
-        endif()
-        set(LIBSTATS_SIMD_SOURCES
-            "${_sources}"
-            CACHE INTERNAL "List of SIMD source files to compile" FORCE)
-        set(LIBSTATS_SIMD_DEFINITIONS
-            "${_definitions}"
-            CACHE INTERNAL "List of SIMD compile definitions" FORCE)
-    endif()
 
     # Always include fallback implementation
     get_property(

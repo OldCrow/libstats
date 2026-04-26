@@ -1,4 +1,18 @@
 # Changelog
+## [1.1.4] - 2026-04-26
+
+### Fixed
+- Removed per-file SIMD target pragmas from SIMD implementation translation
+  units (`simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp`, `simd_avx512.cpp`,
+  `simd_neon.cpp`) and now rely on `SIMDDetection.cmake` per-source compile flags
+  as the single source of truth, preventing architecture/compiler pragma drift.
+- Fixed GCC SIMD pragma scope symmetry in `cpu_detection.cpp` by guarding
+  `#pragma GCC pop_options` with the same x86/x64 constraint used for
+  `#pragma GCC push_options`, eliminating unmatched pragma behavior on non-x86
+  builds.
+- Hardened SIMD dependency normalization in `SIMDDetection.cmake` so
+  `AVX-512 -> AVX2 -> AVX` source and definition dependencies are enforced in one
+  place, including cross-compilation override flows.
 ## [1.1.3] - 2026-04-26
 
 ### Fixed
