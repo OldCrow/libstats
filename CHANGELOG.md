@@ -1,4 +1,18 @@
 # Changelog
+## [1.1.6] - 2026-04-26
+
+### Fixed
+- Catalina fallback path in `src/exponential.cpp` now uses argument-aware
+  wrappers so modern toolchains keep `std::ranges::*` calls while older
+  libc++ environments safely use iterator-based `std::all_of`/`std::sort`.
+- `run_all_tests` in `CMakeLists.txt` now conditionally depends on
+  `test_work_stealing_pool` only when that target is available, matching
+  `<concepts>/<ranges>` capability gating.
+- `run_tests` in `CMakeLists.txt` now escapes regex pipes correctly so CTest
+  filter expressions are not interpreted as shell pipelines.
+- `tests/test_performance_dispatcher.cpp` edge-case expectation now follows
+  `getParallelThreshold(...)` policy instead of hardcoding parallel execution
+  for huge `UNIFORM/PDF` batches.
 ## [1.1.5] - 2026-04-26
 
 ### Changed

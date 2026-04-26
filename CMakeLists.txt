@@ -14,6 +14,8 @@ option(LIBSTATS_FORCE_TBB
 
 # Automatic parallel job detection for optimal build performance
 include(ProcessorCount)
+include(CheckCXXSourceCompiles)
+include(CheckIncludeFileCXX)
 ProcessorCount(CPU_COUNT)
 if(CPU_COUNT EQUAL 0)
     # Fallback if detection fails
@@ -140,7 +142,7 @@ endif()
 
 project(
     libstats
-    VERSION 1.1.5
+    VERSION 1.1.6
     LANGUAGES CXX)
 
 # Build examples by default only for top-level builds.
@@ -176,6 +178,46 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Detect support for requires-expressions (if constexpr (requires {...})). AppleClang 12 on Catalina
+# supports concept declarations/constraints but not requires-expressions, so tests/tools using that
+# syntax must be gated.
+check_cxx_source_compiles(
+    "
+template <typename T>
+int probe() {
+    if constexpr (requires(T t) { t + 1; }) {
+        return 1;
+    }
+    return 0;
+}
+int main() {
+    return probe<int>();
+}
+"
+    LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+    message(STATUS "C++20 requires-expressions: available")
+else()
+    message(
+        STATUS
+            "C++20 requires-expressions: unavailable - skipping requires-expression-dependent tests/tools"
+    )
+endif()
+
+# Detect standard library headers needed by tests that include them directly.
+check_include_file_cxx("concepts" LIBSTATS_CMAKE_HAS_CONCEPTS_HEADER)
+check_include_file_cxx("ranges" LIBSTATS_CMAKE_HAS_RANGES_HEADER)
+if(LIBSTATS_CMAKE_HAS_CONCEPTS_HEADER)
+    message(STATUS "C++20 <concepts> header: available")
+else()
+    message(STATUS "C++20 <concepts> header: unavailable")
+endif()
+if(LIBSTATS_CMAKE_HAS_RANGES_HEADER)
+    message(STATUS "C++20 <ranges> header: available")
+else()
+    message(STATUS "C++20 <ranges> header: unavailable")
+endif()
 
 # Platform-specific configurations
 if(APPLE)
@@ -1100,8 +1142,8 @@ endif()
 # source-file-specific flags (cmake/SIMDDetection.cmake) - All platforms: Definitions are set by
 # SIMDDetection.cmake based on detection
 
-# Windows compilers: Use highest detected SIMD level as global flag.
-# SIMDDetection.cmake has already run by this point and set LIBSTATS_HAS_AVX512 etc.
+# Windows compilers: Use highest detected SIMD level as global flag. SIMDDetection.cmake has already
+# run by this point and set LIBSTATS_HAS_AVX512 etc.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     if(LIBSTATS_HAS_AVX512)
         add_compile_options(/arch:AVX512)
@@ -1290,11 +1332,10 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
 # INCLUDE PATH SHIM FOR INSTALLED HEADER PREFIX
 # =============================================================================
 # Headers use #include "libstats/core/foo.h" for correct resolution in both build-tree and
-# install-tree. In the build tree, we materialize:
-#   ${CMAKE_BINARY_DIR}/include_shim/libstats/*
-# as a copied tree of ${CMAKE_SOURCE_DIR}/include/*. This avoids Windows symlink traversal
-# issues ("untrusted mount point") observed in some environments.
-# In the install tree, headers are installed to include/libstats/ directly.
+# install-tree. In the build tree, we materialize: ${CMAKE_BINARY_DIR}/include_shim/libstats/* as a
+# copied tree of ${CMAKE_SOURCE_DIR}/include/*. This avoids Windows symlink traversal issues
+# ("untrusted mount point") observed in some environments. In the install tree, headers are
+# installed to include/libstats/ directly.
 set(LIBSTATS_INCLUDE_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/include_shim")
 set(LIBSTATS_INCLUDE_SHIM_LINK "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats")
 file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
@@ -1302,9 +1343,7 @@ file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
 file(REMOVE_RECURSE "${LIBSTATS_INCLUDE_SHIM_LINK}")
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/include"
-            "${LIBSTATS_INCLUDE_SHIM_LINK}"
-    RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_COPY_RESULT
-)
+            "${LIBSTATS_INCLUDE_SHIM_LINK}" RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_COPY_RESULT)
 if(NOT LIBSTATS_INCLUDE_SHIM_COPY_RESULT EQUAL 0)
     message(FATAL_ERROR "Failed to materialize include shim at ${LIBSTATS_INCLUDE_SHIM_LINK}")
 endif()
@@ -1573,8 +1612,8 @@ if(LIBSTATS_BUILD_TESTS)
 
     # Function to create a test executable linked to dynamic library.
     #
-    # On Windows, copy stats.dll next to each dynamic test EXE so runtime loading does not depend
-    # on PATH. Combined with per-config output directories above, this avoids both STATUS_DLL_NOT_FOUND
+    # On Windows, copy stats.dll next to each dynamic test EXE so runtime loading does not depend on
+    # PATH. Combined with per-config output directories above, this avoids both STATUS_DLL_NOT_FOUND
     # and stale Debug/Release binary collisions.
     function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
         add_executable(${TEST_NAME} ${SOURCE_FILE})
@@ -1678,7 +1717,15 @@ if(LIBSTATS_BUILD_TESTS)
     # LEVEL 2b: Platform Capabilities thread_pool.h and work_stealing_pool.h - Thread pool
     # implementations
     create_libstats_test(test_thread_pool tests/test_thread_pool.cpp)
-    create_libstats_test(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
+    if(LIBSTATS_CMAKE_HAS_CONCEPTS_HEADER AND LIBSTATS_CMAKE_HAS_RANGES_HEADER)
+        create_libstats_test(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
+        set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST TRUE)
+    else()
+        set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST FALSE)
+        message(
+            STATUS
+                "Skipping test_work_stealing_pool (requires both <concepts> and <ranges> headers)")
+    endif()
 
     # =======================================================================
     # LEVEL 3 TESTS: Advanced Infrastructure
@@ -1731,11 +1778,15 @@ if(LIBSTATS_BUILD_TESTS)
 
     # exponential.h - Exponential distribution implementation (CONSOLIDATED)
     create_libstats_test(test_exponential_basic tests/test_exponential_basic.cpp)
-    create_libstats_gtest(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
+    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+        create_libstats_gtest(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
+    endif()
 
     # discrete.h - Discrete uniform distribution implementation (CONSOLIDATED)
     create_libstats_test(test_discrete_basic tests/test_discrete_basic.cpp)
-    create_libstats_gtest(test_discrete_enhanced tests/test_discrete_enhanced.cpp)
+    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+        create_libstats_gtest(test_discrete_enhanced tests/test_discrete_enhanced.cpp)
+    endif()
 
     # Atomic parameters test - Test lock-free parameter access and invalidation for all
     # distributions
@@ -1743,15 +1794,21 @@ if(LIBSTATS_BUILD_TESTS)
 
     # uniform.h - Uniform distribution implementation
     create_libstats_test(test_uniform_basic tests/test_uniform_basic.cpp)
-    create_libstats_gtest(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
+    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+        create_libstats_gtest(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
+    endif()
 
     # poisson.h - Poisson distribution implementation
     create_libstats_test(test_poisson_basic tests/test_poisson_basic.cpp)
-    create_libstats_gtest(test_poisson_enhanced tests/test_poisson_enhanced.cpp)
+    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+        create_libstats_gtest(test_poisson_enhanced tests/test_poisson_enhanced.cpp)
+    endif()
 
     # gamma.h - Gamma distribution implementation
     create_libstats_test(test_gamma_basic tests/test_gamma_basic.cpp)
-    create_libstats_gtest(test_gamma_enhanced tests/test_gamma_enhanced.cpp)
+    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+        create_libstats_gtest(test_gamma_enhanced tests/test_gamma_enhanced.cpp)
+    endif()
 
     # chi_squared.h - Chi-squared distribution (delegation wrapper over Gamma)
     create_libstats_test(test_chi_squared_basic tests/test_chi_squared_basic.cpp)
@@ -1830,18 +1887,15 @@ if(LIBSTATS_BUILD_TESTS)
     # missing targets.
     if(GTEST_FOUND)
         set_tests_properties(
-            test_gaussian_enhanced
-            test_exponential_enhanced
-            test_uniform_enhanced
-            test_poisson_enhanced
-            test_discrete_enhanced
-            test_gamma_enhanced
-            test_chi_squared_enhanced
-            test_student_t_enhanced
-            test_beta_enhanced
-            test_performance_dispatcher
+            test_gaussian_enhanced test_chi_squared_enhanced test_student_t_enhanced
+            test_beta_enhanced test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
+        if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+            set_tests_properties(
+                test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
+                test_discrete_enhanced test_gamma_enhanced PROPERTIES LABELS "timing")
+        endif()
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 
@@ -1865,7 +1919,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_goodness_of_fit
                 # Level 3: Parallel infrastructure tests
                 test_thread_pool
-                test_work_stealing_pool
+                $<$<BOOL:${LIBSTATS_HAS_WORK_STEALING_POOL_TEST}>:test_work_stealing_pool>
                 test_parallel_execution_integration
                 test_benchmark_basic
                 # Level 4: Performance framework tests
@@ -1886,11 +1940,11 @@ if(LIBSTATS_BUILD_TESTS)
                 test_atomic_parameters
                 # Level 6: Enhanced distribution tests
                 test_gaussian_enhanced
-                test_exponential_enhanced
-                test_uniform_enhanced
-                test_poisson_enhanced
-                test_discrete_enhanced
-                test_gamma_enhanced
+                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_exponential_enhanced>
+                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_uniform_enhanced>
+                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_poisson_enhanced>
+                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_discrete_enhanced>
+                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_gamma_enhanced>
                 test_student_t_enhanced
                 test_beta_enhanced
                 test_chi_squared_enhanced
@@ -1911,8 +1965,8 @@ if(LIBSTATS_BUILD_TESTS)
     # assertions on a quiet machine.
     add_custom_target(
         run_tests
-        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE "timing|benchmark" -E
-                "stress|comprehensive|dynamic|_fix|parallel_compilation|^test_benchmark$$"
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE "timing\\|benchmark" -E
+                "stress\\|comprehensive\\|dynamic\\|_fix\\|parallel_compilation\\|^test_benchmark$"
         COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)")
 
     # Timing validation target — runs serially for accurate measurement
@@ -1971,7 +2025,14 @@ if(LIBSTATS_BUILD_TOOLS)
 
     # System Information & Diagnostics Tools
     add_libstats_tool(system_inspector system_inspector.cpp)
-    add_standalone_tool(cpp20_features_inspector cpp20_features_inspector.cpp)
+    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+        add_standalone_tool(cpp20_features_inspector cpp20_features_inspector.cpp)
+    else()
+        message(
+            STATUS
+                "  - cpp20_features_inspector: skipped (requires-expressions unsupported by compiler)"
+        )
+    endif()
 
     # Performance & Benchmarking Tools
     add_libstats_tool(parallel_batch_fitting_benchmark parallel_batch_fitting_benchmark.cpp)
@@ -1984,10 +2045,12 @@ if(LIBSTATS_BUILD_TOOLS)
         STATUS
             "  - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)"
     )
-    message(
-        STATUS
-            "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests"
-    )
+    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
+        message(
+            STATUS
+                "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests"
+        )
+    endif()
     message(
         STATUS
             "  - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing"

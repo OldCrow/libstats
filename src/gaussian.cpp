@@ -12,8 +12,10 @@
 
 #include <algorithm>
 #include <cmath>
-// Removed unused headers: <concepts>, <ranges>, <version>
 #include <numeric>
+#if LIBSTATS_HAS_STD_RANGES_HEADER
+    #include <ranges>
+#endif
 #include <span>  // C++20 span - used for batch operations
 #include <vector>
 
@@ -571,6 +573,7 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
             double chunk_m2 = detail::ZERO_DOUBLE;
 
             // Welford's algorithm on chunk - C++20 safe iteration
+#if LIBSTATS_HAS_STD_RANGES_HEADER
             auto chunk_range = values | std::views::drop(start_idx) | std::views::take(chunk_size);
             std::size_t local_count = 0;
             for (const double value : chunk_range) {
@@ -581,6 +584,18 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
                 const double delta2 = value - chunk_mean;
                 chunk_m2 += delta * delta2;
             }
+#else
+            std::size_t local_count = 0;
+            for (std::size_t value_idx = start_idx; value_idx < end_idx; ++value_idx) {
+                const double value = values[value_idx];
+                ++local_count;
+                const double delta = value - chunk_mean;
+                const double count_inv = detail::ONE / static_cast<double>(local_count);
+                chunk_mean += delta * count_inv;
+                const double delta2 = value - chunk_mean;
+                chunk_m2 += delta * delta2;
+            }
+#endif
 
             chunk_means[chunk_idx] = chunk_mean;
             chunk_m2s[chunk_idx] = chunk_m2;

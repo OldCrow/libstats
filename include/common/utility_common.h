@@ -23,11 +23,27 @@
 #include <algorithm>  // Common algorithms
 #include <cassert>    // Assertions for safety checks
 #include <cmath>      // Mathematical functions
-#include <concepts>   // For C++20 concepts in math_utils
+#if __has_include(<concepts>)
+    #include <concepts>  // For C++20 concepts in math_utils
+    #define LIBSTATS_HAS_STD_CONCEPTS_HEADER 1
+#else
+    #define LIBSTATS_HAS_STD_CONCEPTS_HEADER 0
+#endif
+
+// Catalina-specific language compatibility:
+// AppleClang 12 on Catalina rejects partial concept argument syntax like
+// `template <MathFunction<double> F>`, while newer AppleClang releases accept it.
+#if defined(__APPLE__) && defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) &&                \
+    (__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ <= 101500)
+    #define LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK 1
+#else
+    #define LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK 0
+#endif
 #include <functional>
 #include <span>
 #include <stdexcept>  // Exception types
 #include <string>
+#include <type_traits>
 #include <vector>
 
 // Core constants - but only essential ones to avoid heavy dependencies
@@ -39,16 +55,20 @@ namespace stats {
 class DistributionBase;
 
 // C++20 concepts for type safety - moved to top level for broader access
+#if LIBSTATS_HAS_STD_CONCEPTS_HEADER
 template <typename T>
-concept FloatingPoint = std::floating_point<T> && requires(T t) {
-    std::isfinite(t);
-    std::isnan(t);
-    std::isinf(t);
-};
+concept FloatingPoint = std::floating_point<T>;
 
 template <typename F, typename T>
 concept MathFunction =
     std::invocable<F, T> && std::convertible_to<std::invoke_result_t<F, T>, double>;
+#else
+template <typename T>
+concept FloatingPoint = std::is_floating_point_v<T>;
+
+template <typename F, typename T>
+concept MathFunction = std::is_invocable_r_v<double, F, T>;
+#endif
 
 namespace safety {
 // Forward declarations for safety utilities

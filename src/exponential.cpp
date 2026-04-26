@@ -17,9 +17,19 @@
 #include <iostream>
 #include <numeric>
 #include <random>
-#include <ranges>  // C++20 ranges
+#if LIBSTATS_HAS_STD_RANGES_HEADER
+    #include <ranges>  // C++20 ranges
+#endif
 #include <sstream>
 #include <vector>
+#if LIBSTATS_HAS_STD_RANGES_HEADER
+    #define LIBSTATS_ALL_OF(range, predicate) std::ranges::all_of((range), (predicate))
+    #define LIBSTATS_SORT(range) std::ranges::sort((range))
+#else
+    #define LIBSTATS_ALL_OF(range, predicate)                                                      \
+        std::all_of((range).begin(), (range).end(), (predicate))
+    #define LIBSTATS_SORT(range) std::sort((range).begin(), (range).end())
+#endif
 
 namespace stats {
 
@@ -405,7 +415,7 @@ void ExponentialDistribution::fit(const std::vector<double>& values) {
 
     // C++20 best practices: Use ranges and views for safe validation
     // Check for non-positive values using ranges algorithms
-    if (!std::ranges::all_of(values, [](double value) { return value > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(values, [](double value) { return value > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument("Exponential distribution requires positive values");
     }
 
@@ -590,7 +600,7 @@ std::pair<double, double> ExponentialDistribution::confidenceIntervalRate(
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -645,7 +655,7 @@ std::tuple<double, double, bool> ExponentialDistribution::likelihoodRatioTest(
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -684,7 +694,7 @@ std::pair<double, double> ExponentialDistribution::bayesianEstimation(
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -736,13 +746,13 @@ double ExponentialDistribution::robustEstimation(const std::vector<double>& data
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
 
     std::vector<double> sorted_data = data;
-    std::ranges::sort(sorted_data);
+    LIBSTATS_SORT(sorted_data);
 
     const std::size_t n = sorted_data.size();
     const std::size_t trim_count =
@@ -789,7 +799,7 @@ double ExponentialDistribution::methodOfMomentsEstimation(const std::vector<doub
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -807,7 +817,7 @@ double ExponentialDistribution::lMomentsEstimation(const std::vector<double>& da
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -815,7 +825,7 @@ double ExponentialDistribution::lMomentsEstimation(const std::vector<double>& da
     // For exponential distribution, L₁ = mean = 1/λ
     // So this is equivalent to method of moments for exponential
     std::vector<double> sorted_data = data;
-    std::ranges::sort(sorted_data);
+    LIBSTATS_SORT(sorted_data);
 
     const std::size_t n = sorted_data.size();
     double l1 = detail::ZERO_DOUBLE;  // First L-moment (mean)
@@ -839,7 +849,7 @@ std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariation
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -897,7 +907,7 @@ std::tuple<double, double, bool> ExponentialDistribution::kolmogorovSmirnovTest(
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -929,7 +939,7 @@ std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -985,7 +995,7 @@ std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCr
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -1075,7 +1085,7 @@ std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossVali
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -1145,7 +1155,7 @@ std::tuple<double, double, double, double> ExponentialDistribution::computeInfor
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }
@@ -1194,7 +1204,7 @@ std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceI
     }
 
     // Check for positive values
-    if (!std::ranges::all_of(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
+    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
         throw std::invalid_argument(
             "All data values must be positive for exponential distribution");
     }

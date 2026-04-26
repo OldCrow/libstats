@@ -93,7 +93,23 @@ class MemoryPool {
 inline void* libstats_aligned_alloc(std::size_t alignment, std::size_t size) {
 #ifdef _WIN32
     return _aligned_malloc(size, alignment);
-#elif defined(__unix__) || defined(__APPLE__)
+#elif defined(__APPLE__)
+    #if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) &&                                  \
+        __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ <= 101500
+    // Catalina compatibility: older libc++ may not provide std::aligned_alloc.
+    if (alignment < sizeof(void*)) {
+        alignment = sizeof(void*);
+    }
+    size = (size + alignment - 1) & ~(alignment - 1);
+    void* ptr = nullptr;
+    if (posix_memalign(&ptr, alignment, size) != 0) {
+        return nullptr;
+    }
+    return ptr;
+    #else
+    return std::aligned_alloc(alignment, size);
+    #endif
+#elif defined(__unix__)
     return std::aligned_alloc(alignment, size);
 #else
     #error "No aligned_alloc implementation for this platform."

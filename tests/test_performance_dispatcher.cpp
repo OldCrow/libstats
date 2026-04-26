@@ -189,9 +189,21 @@ TEST_F(PerformanceDispatcherTest, EdgeCases) {
     EXPECT_EQ(single_strategy, Strategy::SCALAR);
 
     // Extremely large batch size
-    auto huge_strategy = dispatcher.selectStrategy(SIZE_MAX / 2, DistributionType::UNIFORM,
+    constexpr size_t huge_batch_size = SIZE_MAX / 2;
+    auto huge_strategy = dispatcher.selectStrategy(huge_batch_size, DistributionType::UNIFORM,
                                                    OperationType::PDF, system);
-    EXPECT_TRUE(huge_strategy == Strategy::PARALLEL || huge_strategy == Strategy::WORK_STEALING);
+
+    const auto parallel_threshold =
+        getParallelThreshold(stats::arch::simd::SIMDPolicy::getBestLevel(),
+                             DistributionType::UNIFORM, OperationType::PDF);
+
+    if (parallel_threshold == SIZE_MAX) {
+        // Profiling policy says UNIFORM/PDF should never parallelize on this SIMD profile.
+        EXPECT_EQ(huge_strategy, Strategy::VECTORIZED);
+    } else {
+        EXPECT_TRUE(huge_strategy == Strategy::PARALLEL ||
+                    huge_strategy == Strategy::WORK_STEALING);
+    }
 }
 
 TEST_F(PerformanceDispatcherTest, ThreadSafety) {

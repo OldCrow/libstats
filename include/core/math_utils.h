@@ -212,6 +212,21 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
 // NUMERICAL INTEGRATION
 // =============================================================================
 
+#if LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK
+    #define LIBSTATS_MATHFUNC_TEMPLATE_1(name)                                                     \
+        template <typename name>                                                                   \
+            requires MathFunction<name, double>
+    #define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
+        template <typename name1, typename name2>                                                  \
+            requires MathFunction<name1, double> && MathFunction<name2, double>
+    #define LIBSTATS_CONSTRAINED_NODISCARD
+#else
+    #define LIBSTATS_MATHFUNC_TEMPLATE_1(name) template <MathFunction<double> name>
+    #define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
+        template <MathFunction<double> name1, MathFunction<double> name2>
+    #define LIBSTATS_CONSTRAINED_NODISCARD [[nodiscard]]
+#endif
+
 /**
  * @brief Adaptive Simpson's rule for numerical integration
  * @param func Function to integrate
@@ -221,10 +236,11 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
  * @param max_depth Maximum recursion depth
  * @return Integral approximation
  */
-template <MathFunction<double> F>
-[[nodiscard]] double adaptive_simpson(F&& func, double lower_bound, double upper_bound,
-                                      double tolerance = detail::DEFAULT_TOLERANCE,
-                                      int max_depth = 20) noexcept;
+LIBSTATS_MATHFUNC_TEMPLATE_1(F)
+LIBSTATS_CONSTRAINED_NODISCARD double adaptive_simpson(F&& func, double lower_bound,
+                                                       double upper_bound,
+                                                       double tolerance = detail::DEFAULT_TOLERANCE,
+                                                       int max_depth = 20) noexcept;
 
 /**
  * @brief Gauss-Legendre quadrature for smooth functions
@@ -234,9 +250,10 @@ template <MathFunction<double> F>
  * @param n_points Number of quadrature points (8, 16, 32, 64)
  * @return Integral approximation
  */
-template <MathFunction<double> F>
-[[nodiscard]] double gauss_legendre(F&& func, double lower_bound, double upper_bound,
-                                    int n_points = 16) noexcept;
+LIBSTATS_MATHFUNC_TEMPLATE_1(F)
+LIBSTATS_CONSTRAINED_NODISCARD double gauss_legendre(F&& func, double lower_bound,
+                                                     double upper_bound,
+                                                     int n_points = 16) noexcept;
 
 // =============================================================================
 // ROOT FINDING AND OPTIMIZATION
@@ -251,10 +268,11 @@ template <MathFunction<double> F>
  * @param max_iterations Maximum number of iterations
  * @return Root approximation
  */
-template <MathFunction<double> F, MathFunction<double> DF>
-[[nodiscard]] double newton_raphson(F&& func, DF&& derivative, double initial_guess,
-                                    double tolerance = detail::DEFAULT_TOLERANCE,
-                                    int max_iterations = 100) noexcept;
+LIBSTATS_MATHFUNC_TEMPLATE_2(F, DF)
+LIBSTATS_CONSTRAINED_NODISCARD double newton_raphson(F&& func, DF&& derivative,
+                                                     double initial_guess,
+                                                     double tolerance = detail::DEFAULT_TOLERANCE,
+                                                     int max_iterations = 100) noexcept;
 
 /**
  * @brief Brent's method for root finding (robust bracketing method)
@@ -266,10 +284,10 @@ template <MathFunction<double> F, MathFunction<double> DF>
  * @param max_iterations Maximum number of iterations
  * @return Root approximation
  */
-template <MathFunction<double> F>
-[[nodiscard]] double brent_root(F&& func, double lower_bound, double upper_bound,
-                                double tolerance = detail::DEFAULT_TOLERANCE,
-                                int max_iterations = 100) noexcept;
+LIBSTATS_MATHFUNC_TEMPLATE_1(F)
+LIBSTATS_CONSTRAINED_NODISCARD double brent_root(F&& func, double lower_bound, double upper_bound,
+                                                 double tolerance = detail::DEFAULT_TOLERANCE,
+                                                 int max_iterations = 100) noexcept;
 
 /**
  * @brief Golden section search for univariate optimization
@@ -279,9 +297,10 @@ template <MathFunction<double> F>
  * @param tolerance Convergence tolerance
  * @return Minimum location
  */
-template <MathFunction<double> F>
-[[nodiscard]] double golden_section_search(F&& func, double lower_bound, double upper_bound,
-                                           double tolerance = detail::DEFAULT_TOLERANCE) noexcept;
+LIBSTATS_MATHFUNC_TEMPLATE_1(F)
+LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
+    F&& func, double lower_bound, double upper_bound,
+    double tolerance = detail::DEFAULT_TOLERANCE) noexcept;
 
 // =============================================================================
 // STATISTICAL DISTRIBUTION FUNCTIONS
@@ -489,7 +508,7 @@ namespace detail {
  */
 template <typename T>
     requires FloatingPoint<T>
-[[nodiscard]] constexpr bool is_safe_float(T x) noexcept {
+LIBSTATS_CONSTRAINED_NODISCARD constexpr bool is_safe_float(T x) noexcept {
     return std::isfinite(x) && std::abs(x) < detail::MAX_DISTRIBUTION_PARAMETER;
 }
 
@@ -502,7 +521,7 @@ template <typename T>
  */
 template <typename T>
     requires FloatingPoint<T>
-[[nodiscard]] constexpr T clamp_safe(T x, T min_val, T max_val) noexcept {
+LIBSTATS_CONSTRAINED_NODISCARD constexpr T clamp_safe(T x, T min_val, T max_val) noexcept {
     if (std::isnan(x)) [[unlikely]] {
         return min_val;
     }
@@ -518,12 +537,17 @@ template <typename T>
  */
 template <typename T>
     requires FloatingPoint<T>
-[[nodiscard]] constexpr T safe_divide(T numerator, T denominator, T default_value = T{0}) noexcept {
+LIBSTATS_CONSTRAINED_NODISCARD constexpr T safe_divide(T numerator, T denominator,
+                                                       T default_value = T{0}) noexcept {
     if (std::abs(denominator) < detail::ZERO || std::isnan(denominator)) {
         return default_value;
     }
     return numerator / denominator;
 }
+
+#undef LIBSTATS_MATHFUNC_TEMPLATE_1
+#undef LIBSTATS_MATHFUNC_TEMPLATE_2
+#undef LIBSTATS_CONSTRAINED_NODISCARD
 
 /**
  * @brief Compute log(sum(exp(x_i))) with numerical stability (LogSumExp)
