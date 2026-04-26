@@ -140,7 +140,7 @@ endif()
 
 project(
     libstats
-    VERSION 1.1.0
+    VERSION 1.1.1
     LANGUAGES CXX)
 
 # Set default build type if none was specified
@@ -1282,14 +1282,23 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
 # INCLUDE PATH SHIM FOR INSTALLED HEADER PREFIX
 # =============================================================================
 # Headers use #include "libstats/core/foo.h" for correct resolution in both build-tree and
-# install-tree. In the build tree, we create a symlink: ${CMAKE_BINARY_DIR}/include_shim/libstats ->
-# ${CMAKE_SOURCE_DIR}/include so that -I${CMAKE_BINARY_DIR}/include_shim resolves libstats/
-# correctly. In the install tree, headers are installed to include/libstats/ directly.
+# install-tree. In the build tree, we materialize:
+#   ${CMAKE_BINARY_DIR}/include_shim/libstats/*
+# as a copied tree of ${CMAKE_SOURCE_DIR}/include/*. This avoids Windows symlink traversal
+# issues ("untrusted mount point") observed in some environments.
+# In the install tree, headers are installed to include/libstats/ directly.
 set(LIBSTATS_INCLUDE_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/include_shim")
 set(LIBSTATS_INCLUDE_SHIM_LINK "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats")
-if(NOT EXISTS "${LIBSTATS_INCLUDE_SHIM_LINK}")
-    file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
-    file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}" SYMBOLIC)
+file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
+# Refresh shim on each configure to avoid stale headers.
+file(REMOVE_RECURSE "${LIBSTATS_INCLUDE_SHIM_LINK}")
+execute_process(
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/include"
+            "${LIBSTATS_INCLUDE_SHIM_LINK}"
+    RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_COPY_RESULT
+)
+if(NOT LIBSTATS_INCLUDE_SHIM_COPY_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to materialize include shim at ${LIBSTATS_INCLUDE_SHIM_LINK}")
 endif()
 
 # =============================================================================

@@ -1,6 +1,6 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
-[![Version](https://img.shields.io/badge/version-v1.1.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.1.0)
+[![Version](https://img.shields.io/badge/version-v1.1.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.1.1)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)

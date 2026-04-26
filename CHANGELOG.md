@@ -1,4 +1,11 @@
 # Changelog
+## [1.1.1] - 2026-04-26
+
+### Fixed
+- Build-tree include shim generation now copies headers into
+  `${build}/include_shim/libstats` instead of creating a symbolic link.
+  This fixes Windows environments where symlink traversal can fail with
+  untrusted mount point behavior during subdirectory/FetchContent builds.
 
 ## [1.1.0] - 2026-04-12
 
