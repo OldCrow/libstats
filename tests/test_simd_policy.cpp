@@ -242,26 +242,35 @@ void test_simd_level_detection() {
         bool cpu_supports_avx = stats::arch::supports_avx();
         bool cpu_supports_sse2 = stats::arch::supports_sse2();
         bool cpu_supports_neon = stats::arch::supports_neon();
-
-        // Validate consistency
-        if (policy_level == SIMDPolicy::Level::AVX512) {
-            assert(cpu_supports_avx512);
-        } else if (policy_level == SIMDPolicy::Level::AVX2) {
-            assert(cpu_supports_avx2);
-            assert(!cpu_supports_avx512);  // Should choose highest available
-        } else if (policy_level == SIMDPolicy::Level::AVX) {
-            assert(cpu_supports_avx);
-            assert(!cpu_supports_avx2 && !cpu_supports_avx512);
-        } else if (policy_level == SIMDPolicy::Level::SSE2) {
-            assert(cpu_supports_sse2);
-            // In CI environments, higher-level flags might be present but not runtime-available
-            // So we only assert that SSE2 is supported, not that higher levels are absent
-            // This is more robust for virtualized/containerized environments
-        } else if (policy_level == SIMDPolicy::Level::NEON) {
-            assert(cpu_supports_neon);
-            // NEON systems typically don't have x86 SIMD
-            assert(!cpu_supports_sse2 && !cpu_supports_avx);
+        // Validate consistency against the highest runtime-supported level that this
+        // build actually enabled via LIBSTATS_HAS_* definitions.
+        SIMDPolicy::Level expected_level = SIMDPolicy::Level::None;
+#if defined(LIBSTATS_HAS_AVX512)
+        if (cpu_supports_avx512) {
+            expected_level = SIMDPolicy::Level::AVX512;
         }
+#endif
+#if defined(LIBSTATS_HAS_AVX2)
+        if (expected_level == SIMDPolicy::Level::None && cpu_supports_avx2) {
+            expected_level = SIMDPolicy::Level::AVX2;
+        }
+#endif
+#if defined(LIBSTATS_HAS_AVX)
+        if (expected_level == SIMDPolicy::Level::None && cpu_supports_avx) {
+            expected_level = SIMDPolicy::Level::AVX;
+        }
+#endif
+#if defined(LIBSTATS_HAS_SSE2)
+        if (expected_level == SIMDPolicy::Level::None && cpu_supports_sse2) {
+            expected_level = SIMDPolicy::Level::SSE2;
+        }
+#endif
+#if defined(LIBSTATS_HAS_NEON)
+        if (expected_level == SIMDPolicy::Level::None && cpu_supports_neon) {
+            expected_level = SIMDPolicy::Level::NEON;
+        }
+#endif
+        assert(policy_level == expected_level);
 
         std::cout << "   ✓ Level consistency with CPU detection passed\n";
         std::cout << "     CPU AVX512: " << (cpu_supports_avx512 ? "YES" : "NO") << "\n";
