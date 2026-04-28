@@ -12,6 +12,36 @@ libstats is a **design and teaching library**: a demonstration of how to build s
 9 distributions, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
 54/54 SIMD tests passing on all four target machines.
 
+## Session Start Baseline Workflow (Required)
+
+At the start of every session, perform these steps in order:
+
+1. Verify machine architecture before making SIMD assumptions.
+2. Select the matching build path (macOS vs Windows/MSVC, Intel vs Apple Silicon, Catalina vs non-Catalina).
+3. Reconfigure/rebuild when the machine or architecture differs from the previous session context.
+
+Quick architecture checks:
+
+```bash
+# macOS/Linux shells
+uname -m
+uname -s
+sysctl -n machdep.cpu.brand_string 2>/dev/null || true
+```
+
+```powershell
+# PowerShell (Windows)
+[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+[System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+$env:PROCESSOR_IDENTIFIER
+```
+
+Platform routing rules:
+- **macOS (non-Catalina):** Use the standard CMake flow in the `Essential Build Commands` section.
+- **macOS Catalina (10.15):** No separate bootstrap script is required in `libstats`, but keep Catalina caveats in `docs/BUILD_SYSTEM_GUIDE.md` in mind (notably Homebrew LLVM 22 `std::format` behavior and dylib code-signing expectations).
+- **Windows/MSVC:** Follow `Windows Session Setup (Asus TUF A16)` and use Visual Studio 2022 x64 Release commands.
+- **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
+
 ### Phase 4 Validation Matrix (final, 6 distributions, 36 SIMD tests)
 
 | Machine | SIMD | Correctness | simd_verification | Speedup |
@@ -153,7 +183,7 @@ flag cleans Release artifacts but leaves existing Debug EXEs untouched if their 
 - GTest installed via vcpkg (`gtest:x64-windows 1.17.0`) — all 33 correctness tests pass
 - vcpkg root: `C:\vcpkg`; toolchain file required for CMake to find GTest
 
-## Session Start: Architecture Detection
+## Session Start Step 1: Architecture Detection
 
 At the start of each libstats development session, verify the current machine architecture before making any SIMD-related decisions, reviewing test results, or adjusting thresholds.
 
