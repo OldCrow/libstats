@@ -1519,58 +1519,55 @@ if(LIBSTATS_BUILD_TESTS)
     # Create tests directory in build folder
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)
 
-    # Find GTest (Homebrew installation) First, try to use Homebrew's GTest installation directly
-    # Check both Intel and ARM64 paths
-    set(GTEST_ROOT_INTEL "/usr/local/opt/googletest")
-    set(GTEST_ROOT_ARM "/opt/homebrew/opt/googletest")
+    # GTest detection — three-step: generic find_package, then Apple/Homebrew probe,
+    # then FetchContent as a self-contained fallback (matches libhmm test pattern).
 
-    # Determine which Homebrew path to use
-    if(EXISTS "${GTEST_ROOT_ARM}/lib/cmake/GTest")
-        set(GTEST_ROOT "${GTEST_ROOT_ARM}")
-        message(STATUS "Using ARM64 Homebrew GTest path")
-    elseif(EXISTS "${GTEST_ROOT_INTEL}/lib/cmake/GTest")
-        set(GTEST_ROOT "${GTEST_ROOT_INTEL}")
-        message(STATUS "Using Intel Homebrew GTest path")
-    else()
-        set(GTEST_ROOT "${GTEST_ROOT_ARM}")
-        message(STATUS "Using default ARM64 Homebrew GTest path (may not exist)")
+    # Step 1: plain find_package — covers vcpkg, system installs, and previously cached results.
+    if(NOT GTest_FOUND)
+        find_package(GTest QUIET)
     endif()
-
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${GTEST_ROOT}")
-
-    # Try find_package first with explicit path
-    find_package(GTest QUIET HINTS ${GTEST_ROOT}/lib/cmake/GTest)
-
     if(GTest_FOUND OR TARGET GTest::gtest)
         set(GTEST_FOUND TRUE)
         message(STATUS "GTest found via find_package")
-    else()
-        # Fallback to pkg-config
-        find_package(PkgConfig QUIET)
-        if(PkgConfig_FOUND)
-            # Set PKG_CONFIG_PATH to include Homebrew's pkgconfig directory
-            set(ENV{PKG_CONFIG_PATH} "${GTEST_ROOT}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-            pkg_check_modules(GTEST QUIET gtest)
-            pkg_check_modules(GTEST_MAIN QUIET gtest_main)
-            if(GTEST_FOUND)
-                message(STATUS "GTest found via pkg-config")
-            endif()
-        endif()
+    endif()
 
-        # Manual fallback if both methods fail
-        if(NOT GTEST_FOUND)
-            # Check if the Homebrew installation exists manually
-            if(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS
-                                                         "${GTEST_ROOT}/include/gtest/gtest.h")
+    # Step 2: macOS only — probe architecture-appropriate Homebrew path.
+    if(NOT GTEST_FOUND AND APPLE)
+        if(EXISTS "/opt/homebrew/opt/googletest/lib/cmake/GTest")
+            set(GTEST_ROOT "/opt/homebrew/opt/googletest")
+        elseif(EXISTS "/usr/local/opt/googletest/lib/cmake/GTest")
+            set(GTEST_ROOT "/usr/local/opt/googletest")
+        endif()
+        if(DEFINED GTEST_ROOT)
+            find_package(GTest QUIET HINTS "${GTEST_ROOT}/lib/cmake/GTest")
+            if(GTest_FOUND OR TARGET GTest::gtest)
+                set(GTEST_FOUND TRUE)
+                message(STATUS "GTest found via Homebrew at ${GTEST_ROOT}")
+            elseif(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS "${GTEST_ROOT}/include/gtest/gtest.h")
                 set(GTEST_FOUND TRUE)
                 set(GTEST_INCLUDE_DIRS "${GTEST_ROOT}/include")
                 set(GTEST_LIBRARIES "${GTEST_ROOT}/lib/libgtest.a")
                 set(GTEST_MAIN_LIBRARIES "${GTEST_ROOT}/lib/libgtest_main.a")
                 message(STATUS "GTest found manually at ${GTEST_ROOT}")
-            else()
-                message(STATUS "GTest not found - GTest-based tests will be skipped")
             endif()
         endif()
+    endif()
+
+    # Step 3: FetchContent fallback — self-contained for CI and machines without a system GTest.
+    if(NOT GTEST_FOUND AND NOT TARGET GTest::gtest AND NOT TARGET gtest)
+        message(STATUS "GTest not found locally - fetching via FetchContent")
+        include(FetchContent)
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG        v1.17.0
+            GIT_SHALLOW    TRUE)
+        # Prevent GTest from overriding the project's CRT choice on Windows.
+        set(gtest_force_shared_crt
+            ON
+            CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+        set(GTEST_FOUND TRUE)
     endif()
 
     # Common test configuration function - reduces code duplication across test types
