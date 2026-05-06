@@ -49,9 +49,11 @@ if(CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "MinGW 
 endif()
 
 # Set parallel options for CMake build command (for use with cmake --build)
-set(CMAKE_BUILD_PARALLEL_LEVEL
-    ${CPU_COUNT}
-    CACHE STRING "Number of parallel build jobs" FORCE)
+if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
+    set(CMAKE_BUILD_PARALLEL_LEVEL
+        ${CPU_COUNT}
+        CACHE STRING "Number of parallel build jobs")
+endif()
 if(LIBSTATS_VERBOSE_BUILD)
     message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
 endif()
@@ -131,8 +133,8 @@ function(detect_homebrew_llvm)
     endif()
 endfunction()
 
-# Apply Homebrew LLVM detection (macOS/Linux only)
-if(APPLE OR (UNIX AND NOT WIN32))
+# Apply Homebrew LLVM detection (macOS only — Homebrew paths are macOS-specific)
+if(APPLE)
     detect_homebrew_llvm()
 
     if(USING_HOMEBREW_LLVM AND LIBSTATS_USE_HOMEBREW_LLVM)
@@ -292,7 +294,9 @@ if(APPLE)
             if(TBB_FOUND)
                 include_directories(${TBB_INCLUDE_DIRS})
                 link_directories(${TBB_LIBRARY_DIRS})
-                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                set(CMAKE_CXX_FLAGS
+                    "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
+                    PARENT_SCOPE)
                 set(LIBSTATS_HAS_TBB TRUE)
                 message(
                     STATUS "    ✓ TBB found via pkg-config - parallel execution policies enhanced")
@@ -475,7 +479,9 @@ elseif(UNIX AND NOT APPLE)
                 if(TBB_FOUND)
                     include_directories(${TBB_INCLUDE_DIRS})
                     link_directories(${TBB_LIBRARY_DIRS})
-                    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                    set(CMAKE_CXX_FLAGS
+                        "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
+                        PARENT_SCOPE)
                     set(LIBSTATS_HAS_TBB
                         TRUE
                         CACHE BOOL "Intel TBB support available")
@@ -708,15 +714,6 @@ elseif(WIN32)
     # Execute comprehensive threading detection for Windows
     detect_threading_systems_windows()
 
-    # Find GTest using find_package (no Homebrew or pkg-config on Windows)
-    find_package(GTest QUIET)
-    if(GTest_FOUND)
-        set(GTEST_FOUND TRUE)
-        message(STATUS "GTest found via find_package (Windows)")
-    else()
-        set(GTEST_FOUND FALSE)
-        message(STATUS "GTest not found - GTest-based tests will be skipped (Windows)")
-    endif()
 endif()
 
 # SIMD feature detection and compilation flags Use our comprehensive SIMD detection system
@@ -724,9 +721,6 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
 
 # Set options for SIMD detection behavior
 option(LIBSTATS_ENABLE_RUNTIME_CHECKS "Enable runtime CPU checks even when cross-compiling" OFF)
-option(LIBSTATS_CONSERVATIVE_SIMD "Use conservative SIMD settings (disable newer instruction sets)"
-       OFF)
-
 # Perform comprehensive SIMD detection
 detect_simd_features()
 
@@ -762,7 +756,9 @@ function(detect_tbb_unified)
             if(TBB_FOUND)
                 include_directories(${TBB_INCLUDE_DIRS})
                 link_directories(${TBB_LIBRARY_DIRS})
-                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                set(CMAKE_CXX_FLAGS
+                    "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
+                    PARENT_SCOPE)
                 set(LIBSTATS_HAS_TBB TRUE)
                 if(LIBSTATS_VERBOSE_BUILD)
                     message(STATUS "  ✓ TBB found via pkg-config")
@@ -961,11 +957,6 @@ set(LIBSTATS_MSVC_ENHANCED_WARNINGS
     /we4005 # Macro redefinition (can catch ODR issues)
     /we4229 # Anachronism used: modifiers on data are ignored
     /we4239 # Nonstandard extension used (can catch duplicate definitions)
-)
-
-# MSVC-specific linker flags for ODR detection
-set(LIBSTATS_MSVC_ODR_LINKER_FLAGS /FORCE:MULTIPLE # Force link even with multiply-defined symbols
-                                                   # (to catch ODR issues)
 )
 
 # Optimization levels for different build types
@@ -1488,9 +1479,11 @@ endif()
 
 # Create SIMD interface target for modern CMake approach
 create_simd_interface_target()
+# Apply per-source-file SIMD compile flags once (file-global properties).
+apply_simd_source_flags()
 
-# Configure SIMD compilation for all object libraries and final targets This ensures SIMD-specific
-# compile flags are applied correctly to each component
+# Link the SIMD interface target to every object library and final library so all TUs
+# receive the LIBSTATS_HAS_* compile definitions.
 configure_simd_target(libstats_foundation_obj)
 configure_simd_target(libstats_core_utilities_obj)
 configure_simd_target(libstats_platform_obj)

@@ -741,8 +741,9 @@ function(create_simd_interface_target)
     message(STATUS "SIMD interface target created with definitions: ${_definitions}")
 endfunction()
 
-# Function to configure SIMD compilation for a target using modern CMake approach
-function(configure_simd_target TARGET_NAME)
+# Apply per-source-file SIMD compile flags. These are file-global properties and need to be set
+# only once; call this function once after create_simd_interface_target().
+function(apply_simd_source_flags)
     get_property(
         _sse2
         CACHE LIBSTATS_HAS_SSE2
@@ -764,12 +765,6 @@ function(configure_simd_target TARGET_NAME)
         CACHE LIBSTATS_HAS_NEON
         PROPERTY VALUE)
 
-    # Link to SIMD interface target for definitions (modern CMake approach)
-    if(TARGET libstats_simd_interface)
-        target_link_libraries(${TARGET_NAME} PRIVATE libstats::simd)
-    endif()
-
-    # Configure source-specific SIMD compilation flags
     if(_sse2)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
@@ -818,5 +813,13 @@ function(configure_simd_target TARGET_NAME)
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_neon.cpp"
                                         PROPERTIES COMPILE_FLAGS "-mfpu=neon")
         endif()
+    endif()
+endfunction()
+
+# Link the SIMD interface target (with its compile definitions) to a specific library or object
+# target. Call this for every target that compiles any source in the project.
+function(configure_simd_target TARGET_NAME)
+    if(TARGET libstats_simd_interface)
+        target_link_libraries(${TARGET_NAME} PRIVATE libstats::simd)
     endif()
 endfunction()
