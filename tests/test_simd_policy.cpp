@@ -234,7 +234,7 @@ void test_simd_level_detection() {
 
     // Test 2: Level consistency with runtime CPU detection
     {
-        SIMDPolicy::Level policy_level = SIMDPolicy::getBestLevel();
+        [[maybe_unused]] SIMDPolicy::Level policy_level = SIMDPolicy::getBestLevel();
 
         // Compare with direct CPU detection
         bool cpu_supports_avx512 = stats::arch::supports_avx512();

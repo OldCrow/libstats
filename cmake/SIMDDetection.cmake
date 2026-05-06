@@ -506,11 +506,21 @@ bool test_avx2() {
                 "SIMDDetection: check_cxx_compiler_flag('/arch:AVX512') result = ${COMPILER_SUPPORTS_AVX512}"
         )
         if(COMPILER_SUPPORTS_AVX512)
-            test_runtime_cpu_feature(
-                "avx512"
-                "#include <immintrin.h>\\nbool test_avx512() {\\n    __m512d a = _mm512_set1_pd(1.0);\\n    __m512d b = _mm512_set1_pd(2.0);\\n    __m512d c = _mm512_add_pd(a, b);\\n    double result[8];\\n    _mm512_storeu_pd(result, c);\\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\\n    return true;\\n}"
-                RUNTIME_SUPPORTS_AVX512
-                "/arch:AVX512")
+            # check_cxx_compiler_flag only tests that MSVC accepts the flag syntax, not
+            # that the build machine's CPU can execute the resulting instructions.
+            # Use check_cxx_source_runs (compile + execute) to verify actual CPU support.
+            include(CheckCXXSourceRuns)
+            set(_avx512_saved_req_flags "${CMAKE_REQUIRED_FLAGS}")
+            set(CMAKE_REQUIRED_FLAGS "/arch:AVX512")
+            check_cxx_source_runs(
+                "#include <intrin.h>
+int main() {
+    __m512d x = _mm512_setzero_pd();
+    (void)x;
+    return 0;
+}"
+                RUNTIME_SUPPORTS_AVX512)
+            set(CMAKE_REQUIRED_FLAGS "${_avx512_saved_req_flags}")
             if(RUNTIME_SUPPORTS_AVX512)
                 set(LIBSTATS_HAS_AVX512
                     TRUE
@@ -531,9 +541,9 @@ bool test_avx2() {
                 set(LIBSTATS_SIMD_DEFINITIONS
                     "${_definitions}"
                     CACHE INTERNAL "List of SIMD compile definitions" FORCE)
-                message(STATUS "SIMD: AVX-512 enabled (compiler + runtime)")
+                message(STATUS "SIMD: AVX-512 enabled (compiler + runtime, CPU verified)")
             else()
-                message(STATUS "SIMD: AVX-512 disabled (runtime check failed)")
+                message(STATUS "SIMD: AVX-512 disabled (CPU does not support it)")
             endif()
         else()
             message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
@@ -543,7 +553,16 @@ bool test_avx2() {
         if(COMPILER_SUPPORTS_AVX512)
             test_runtime_cpu_feature(
                 "avx512"
-                "#include <immintrin.h>\\nbool test_avx512() {\\n    __m512d a = _mm512_set1_pd(1.0);\\n    __m512d b = _mm512_set1_pd(2.0);\\n    __m512d c = _mm512_add_pd(a, b);\\n    double result[8];\\n    _mm512_storeu_pd(result, c);\\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\\n    return true;\\n}"
+                "#include <immintrin.h>
+bool test_avx512() {
+    __m512d a = _mm512_set1_pd(1.0);
+    __m512d b = _mm512_set1_pd(2.0);
+    __m512d c = _mm512_add_pd(a, b);
+    double result[8];
+    _mm512_storeu_pd(result, c);
+    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;
+    return true;
+}"
                 RUNTIME_SUPPORTS_AVX512
                 "-mavx512f")
             if(RUNTIME_SUPPORTS_AVX512)
@@ -722,8 +741,9 @@ function(create_simd_interface_target)
     message(STATUS "SIMD interface target created with definitions: ${_definitions}")
 endfunction()
 
-# Function to configure SIMD compilation for a target using modern CMake approach
-function(configure_simd_target TARGET_NAME)
+# Apply per-source-file SIMD compile flags. These are file-global properties and need to be set
+# only once; call this function once after create_simd_interface_target().
+function(apply_simd_source_flags)
     get_property(
         _sse2
         CACHE LIBSTATS_HAS_SSE2
@@ -745,12 +765,6 @@ function(configure_simd_target TARGET_NAME)
         CACHE LIBSTATS_HAS_NEON
         PROPERTY VALUE)
 
-    # Link to SIMD interface target for definitions (modern CMake approach)
-    if(TARGET libstats_simd_interface)
-        target_link_libraries(${TARGET_NAME} PRIVATE libstats::simd)
-    endif()
-
-    # Configure source-specific SIMD compilation flags
     if(_sse2)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
@@ -799,5 +813,13 @@ function(configure_simd_target TARGET_NAME)
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_neon.cpp"
                                         PROPERTIES COMPILE_FLAGS "-mfpu=neon")
         endif()
+    endif()
+endfunction()
+
+# Link the SIMD interface target (with its compile definitions) to a specific library or object
+# target. Call this for every target that compiles any source in the project.
+function(configure_simd_target TARGET_NAME)
+    if(TARGET libstats_simd_interface)
+        target_link_libraries(${TARGET_NAME} PRIVATE libstats::simd)
     endif()
 endfunction()

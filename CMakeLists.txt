@@ -8,6 +8,17 @@ endif()
 # Verbose messaging control
 option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 
+# Compiler selection: opt in to Homebrew LLVM on macOS. WARNING: enabling this requires ALL
+# consumers (shared libraries, Python extensions, test executables) to link the same Homebrew
+# libc++. If any consumer uses Apple libc++ instead, C++ exceptions and std::type_info records will
+# not match across the boundary, causing silent catch failures. The default (OFF) uses system
+# AppleClang with Apple libc++ and GCD for parallelism, which is ABI-safe for all consumers. Only
+# set this to ON if you own the entire toolchain and have verified ABI consistency end-to-end.
+option(
+    LIBSTATS_USE_HOMEBREW_LLVM
+    "Use Homebrew LLVM instead of system AppleClang on macOS (requires matching libc++ in all consumers)"
+    OFF)
+
 # Threading system preference control
 option(LIBSTATS_FORCE_TBB
        "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)" OFF)
@@ -38,9 +49,11 @@ if(CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "MinGW 
 endif()
 
 # Set parallel options for CMake build command (for use with cmake --build)
-set(CMAKE_BUILD_PARALLEL_LEVEL
-    ${CPU_COUNT}
-    CACHE STRING "Number of parallel build jobs" FORCE)
+if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
+    set(CMAKE_BUILD_PARALLEL_LEVEL
+        ${CPU_COUNT}
+        CACHE STRING "Number of parallel build jobs")
+endif()
 if(LIBSTATS_VERBOSE_BUILD)
     message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
 endif()
@@ -120,18 +133,24 @@ function(detect_homebrew_llvm)
     endif()
 endfunction()
 
-# Apply Homebrew LLVM detection (macOS/Linux only)
-if(APPLE OR (UNIX AND NOT WIN32))
+# Apply Homebrew LLVM detection (macOS only — Homebrew paths are macOS-specific)
+if(APPLE)
     detect_homebrew_llvm()
 
-    if(USING_HOMEBREW_LLVM)
-        # Configure Homebrew LLVM
+    if(USING_HOMEBREW_LLVM AND LIBSTATS_USE_HOMEBREW_LLVM)
+        # Opt-in: use Homebrew LLVM. All consumers must link the same Homebrew libc++.
         set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
         set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
         set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
+        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT} (LIBSTATS_USE_HOMEBREW_LLVM=ON)")
     else()
-        # Fallback to system compiler
+        # Default: system AppleClang with Apple libc++ - ABI-safe for all consumers.
+        if(USING_HOMEBREW_LLVM)
+            message(
+                STATUS
+                    "Homebrew LLVM found but not used (LIBSTATS_USE_HOMEBREW_LLVM=OFF) - using system AppleClang for ABI safety"
+            )
+        endif()
         find_program(CMAKE_C_COMPILER clang)
         find_program(CMAKE_CXX_COMPILER clang++)
         if(LIBSTATS_VERBOSE_BUILD)
@@ -224,9 +243,9 @@ if(APPLE)
     # macOS specific configuration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 
-    if(USING_HOMEBREW_LLVM)
-        # Homebrew LLVM specific configuration - Force LLVM libc++ to get C++20 execution policies
-        # Note: rpath will be set per-target to avoid duplication warnings
+    if(USING_HOMEBREW_LLVM AND LIBSTATS_USE_HOMEBREW_LLVM)
+        # Opt-in Homebrew LLVM configuration: force LLVM libc++ headers for std::execution policies.
+        # Note: rpath will be set per-target to avoid duplication warnings.
 
         # CRITICAL: Include LLVM libc++ headers BEFORE system headers to get C++20 execution
         # policies
@@ -241,8 +260,9 @@ if(APPLE)
         # Enable experimental PSTL support in LLVM libc++
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LIBCPP_HAS_EXPERIMENTAL_PSTL=1")
     else()
-        # System compiler configuration - use system libc++
-        message(STATUS "Using system libc++ with Apple Clang")
+        # Default: system AppleClang with Apple libc++. Parallelism uses GCD (already implemented in
+        # parallel_execution.h). ABI-safe for all consumers.
+        message(STATUS "Using system libc++ with Apple Clang (GCD parallel path active)")
     endif()
 
     # Comprehensive Threading System Detection with Caching Cache results to avoid repeated
@@ -274,7 +294,9 @@ if(APPLE)
             if(TBB_FOUND)
                 include_directories(${TBB_INCLUDE_DIRS})
                 link_directories(${TBB_LIBRARY_DIRS})
-                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                set(CMAKE_CXX_FLAGS
+                    "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
+                    PARENT_SCOPE)
                 set(LIBSTATS_HAS_TBB TRUE)
                 message(
                     STATUS "    ✓ TBB found via pkg-config - parallel execution policies enhanced")
@@ -457,7 +479,9 @@ elseif(UNIX AND NOT APPLE)
                 if(TBB_FOUND)
                     include_directories(${TBB_INCLUDE_DIRS})
                     link_directories(${TBB_LIBRARY_DIRS})
-                    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                    set(CMAKE_CXX_FLAGS
+                        "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
+                        PARENT_SCOPE)
                     set(LIBSTATS_HAS_TBB
                         TRUE
                         CACHE BOOL "Intel TBB support available")
@@ -690,15 +714,6 @@ elseif(WIN32)
     # Execute comprehensive threading detection for Windows
     detect_threading_systems_windows()
 
-    # Find GTest using find_package (no Homebrew or pkg-config on Windows)
-    find_package(GTest QUIET)
-    if(GTest_FOUND)
-        set(GTEST_FOUND TRUE)
-        message(STATUS "GTest found via find_package (Windows)")
-    else()
-        set(GTEST_FOUND FALSE)
-        message(STATUS "GTest not found - GTest-based tests will be skipped (Windows)")
-    endif()
 endif()
 
 # SIMD feature detection and compilation flags Use our comprehensive SIMD detection system
@@ -706,9 +721,6 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
 
 # Set options for SIMD detection behavior
 option(LIBSTATS_ENABLE_RUNTIME_CHECKS "Enable runtime CPU checks even when cross-compiling" OFF)
-option(LIBSTATS_CONSERVATIVE_SIMD "Use conservative SIMD settings (disable newer instruction sets)"
-       OFF)
-
 # Perform comprehensive SIMD detection
 detect_simd_features()
 
@@ -744,7 +756,9 @@ function(detect_tbb_unified)
             if(TBB_FOUND)
                 include_directories(${TBB_INCLUDE_DIRS})
                 link_directories(${TBB_LIBRARY_DIRS})
-                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}")
+                set(CMAKE_CXX_FLAGS
+                    "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
+                    PARENT_SCOPE)
                 set(LIBSTATS_HAS_TBB TRUE)
                 if(LIBSTATS_VERBOSE_BUILD)
                     message(STATUS "  ✓ TBB found via pkg-config")
@@ -943,11 +957,6 @@ set(LIBSTATS_MSVC_ENHANCED_WARNINGS
     /we4005 # Macro redefinition (can catch ODR issues)
     /we4229 # Anachronism used: modifiers on data are ignored
     /we4239 # Nonstandard extension used (can catch duplicate definitions)
-)
-
-# MSVC-specific linker flags for ODR detection
-set(LIBSTATS_MSVC_ODR_LINKER_FLAGS /FORCE:MULTIPLE # Force link even with multiply-defined symbols
-                                                   # (to catch ODR issues)
 )
 
 # Optimization levels for different build types
@@ -1470,9 +1479,11 @@ endif()
 
 # Create SIMD interface target for modern CMake approach
 create_simd_interface_target()
+# Apply per-source-file SIMD compile flags once (file-global properties).
+apply_simd_source_flags()
 
-# Configure SIMD compilation for all object libraries and final targets This ensures SIMD-specific
-# compile flags are applied correctly to each component
+# Link the SIMD interface target to every object library and final library so all TUs receive the
+# LIBSTATS_HAS_* compile definitions.
 configure_simd_target(libstats_foundation_obj)
 configure_simd_target(libstats_core_utilities_obj)
 configure_simd_target(libstats_platform_obj)
@@ -1501,58 +1512,58 @@ if(LIBSTATS_BUILD_TESTS)
     # Create tests directory in build folder
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)
 
-    # Find GTest (Homebrew installation) First, try to use Homebrew's GTest installation directly
-    # Check both Intel and ARM64 paths
-    set(GTEST_ROOT_INTEL "/usr/local/opt/googletest")
-    set(GTEST_ROOT_ARM "/opt/homebrew/opt/googletest")
+    # GTest detection — three-step: generic find_package, then Apple/Homebrew probe, then
+    # FetchContent as a self-contained fallback (matches libhmm test pattern).
 
-    # Determine which Homebrew path to use
-    if(EXISTS "${GTEST_ROOT_ARM}/lib/cmake/GTest")
-        set(GTEST_ROOT "${GTEST_ROOT_ARM}")
-        message(STATUS "Using ARM64 Homebrew GTest path")
-    elseif(EXISTS "${GTEST_ROOT_INTEL}/lib/cmake/GTest")
-        set(GTEST_ROOT "${GTEST_ROOT_INTEL}")
-        message(STATUS "Using Intel Homebrew GTest path")
-    else()
-        set(GTEST_ROOT "${GTEST_ROOT_ARM}")
-        message(STATUS "Using default ARM64 Homebrew GTest path (may not exist)")
+    # Step 1: plain find_package — covers vcpkg, system installs, and previously cached results.
+    if(NOT GTest_FOUND)
+        find_package(GTest QUIET)
     endif()
-
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${GTEST_ROOT}")
-
-    # Try find_package first with explicit path
-    find_package(GTest QUIET HINTS ${GTEST_ROOT}/lib/cmake/GTest)
-
     if(GTest_FOUND OR TARGET GTest::gtest)
         set(GTEST_FOUND TRUE)
         message(STATUS "GTest found via find_package")
-    else()
-        # Fallback to pkg-config
-        find_package(PkgConfig QUIET)
-        if(PkgConfig_FOUND)
-            # Set PKG_CONFIG_PATH to include Homebrew's pkgconfig directory
-            set(ENV{PKG_CONFIG_PATH} "${GTEST_ROOT}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-            pkg_check_modules(GTEST QUIET gtest)
-            pkg_check_modules(GTEST_MAIN QUIET gtest_main)
-            if(GTEST_FOUND)
-                message(STATUS "GTest found via pkg-config")
-            endif()
-        endif()
+    endif()
 
-        # Manual fallback if both methods fail
-        if(NOT GTEST_FOUND)
-            # Check if the Homebrew installation exists manually
-            if(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS
-                                                         "${GTEST_ROOT}/include/gtest/gtest.h")
+    # Step 2: macOS only — probe architecture-appropriate Homebrew path.
+    if(NOT GTEST_FOUND AND APPLE)
+        if(EXISTS "/opt/homebrew/opt/googletest/lib/cmake/GTest")
+            set(GTEST_ROOT "/opt/homebrew/opt/googletest")
+        elseif(EXISTS "/usr/local/opt/googletest/lib/cmake/GTest")
+            set(GTEST_ROOT "/usr/local/opt/googletest")
+        endif()
+        if(DEFINED GTEST_ROOT)
+            find_package(GTest QUIET HINTS "${GTEST_ROOT}/lib/cmake/GTest")
+            if(GTest_FOUND OR TARGET GTest::gtest)
+                set(GTEST_FOUND TRUE)
+                message(STATUS "GTest found via Homebrew at ${GTEST_ROOT}")
+            elseif(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS
+                                                             "${GTEST_ROOT}/include/gtest/gtest.h")
                 set(GTEST_FOUND TRUE)
                 set(GTEST_INCLUDE_DIRS "${GTEST_ROOT}/include")
                 set(GTEST_LIBRARIES "${GTEST_ROOT}/lib/libgtest.a")
                 set(GTEST_MAIN_LIBRARIES "${GTEST_ROOT}/lib/libgtest_main.a")
                 message(STATUS "GTest found manually at ${GTEST_ROOT}")
-            else()
-                message(STATUS "GTest not found - GTest-based tests will be skipped")
             endif()
         endif()
+    endif()
+
+    # Step 3: FetchContent fallback — self-contained for CI and machines without a system GTest.
+    if(NOT GTEST_FOUND
+       AND NOT TARGET GTest::gtest
+       AND NOT TARGET gtest)
+        message(STATUS "GTest not found locally - fetching via FetchContent")
+        include(FetchContent)
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG v1.17.0
+            GIT_SHALLOW TRUE)
+        # Prevent GTest from overriding the project's CRT choice on Windows.
+        set(gtest_force_shared_crt
+            ON
+            CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+        set(GTEST_FOUND TRUE)
     endif()
 
     # Common test configuration function - reduces code duplication across test types
@@ -1887,8 +1898,12 @@ if(LIBSTATS_BUILD_TESTS)
     # missing targets.
     if(GTEST_FOUND)
         set_tests_properties(
-            test_gaussian_enhanced test_chi_squared_enhanced test_student_t_enhanced
-            test_beta_enhanced test_performance_dispatcher
+            test_math_comprehensive # vectorized math speedup assertions
+            test_gaussian_enhanced
+            test_chi_squared_enhanced
+            test_student_t_enhanced
+            test_beta_enhanced
+            test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
         if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)

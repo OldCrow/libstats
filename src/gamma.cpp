@@ -1959,11 +1959,6 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
 void GammaDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                    std::span<double> results,
                                                    detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GammaDistribution& dist, double value) { return dist.getProbability(value); },
@@ -2123,11 +2118,6 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
 void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                       std::span<double> results,
                                                       detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GammaDistribution& dist, double value) { return dist.getLogProbability(value); },
@@ -2287,11 +2277,6 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
 void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                                              std::span<double> results,
                                                              detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const GammaDistribution& dist, double value) {

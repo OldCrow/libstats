@@ -1843,11 +1843,6 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
 void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                          std::span<double> results,
                                                          detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const ExponentialDistribution& dist, double value) {
@@ -2004,11 +1999,6 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
 void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                             std::span<double> results,
                                                             detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const ExponentialDistribution& dist, double value) {
@@ -2165,11 +2155,6 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
 
 void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
     std::span<const double> values, std::span<double> results, detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const ExponentialDistribution& dist, double value) {
