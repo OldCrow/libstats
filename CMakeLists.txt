@@ -1482,8 +1482,8 @@ create_simd_interface_target()
 # Apply per-source-file SIMD compile flags once (file-global properties).
 apply_simd_source_flags()
 
-# Link the SIMD interface target to every object library and final library so all TUs
-# receive the LIBSTATS_HAS_* compile definitions.
+# Link the SIMD interface target to every object library and final library so all TUs receive the
+# LIBSTATS_HAS_* compile definitions.
 configure_simd_target(libstats_foundation_obj)
 configure_simd_target(libstats_core_utilities_obj)
 configure_simd_target(libstats_platform_obj)
@@ -1512,8 +1512,8 @@ if(LIBSTATS_BUILD_TESTS)
     # Create tests directory in build folder
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)
 
-    # GTest detection — three-step: generic find_package, then Apple/Homebrew probe,
-    # then FetchContent as a self-contained fallback (matches libhmm test pattern).
+    # GTest detection — three-step: generic find_package, then Apple/Homebrew probe, then
+    # FetchContent as a self-contained fallback (matches libhmm test pattern).
 
     # Step 1: plain find_package — covers vcpkg, system installs, and previously cached results.
     if(NOT GTest_FOUND)
@@ -1536,7 +1536,8 @@ if(LIBSTATS_BUILD_TESTS)
             if(GTest_FOUND OR TARGET GTest::gtest)
                 set(GTEST_FOUND TRUE)
                 message(STATUS "GTest found via Homebrew at ${GTEST_ROOT}")
-            elseif(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS "${GTEST_ROOT}/include/gtest/gtest.h")
+            elseif(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS
+                                                             "${GTEST_ROOT}/include/gtest/gtest.h")
                 set(GTEST_FOUND TRUE)
                 set(GTEST_INCLUDE_DIRS "${GTEST_ROOT}/include")
                 set(GTEST_LIBRARIES "${GTEST_ROOT}/lib/libgtest.a")
@@ -1547,14 +1548,16 @@ if(LIBSTATS_BUILD_TESTS)
     endif()
 
     # Step 3: FetchContent fallback — self-contained for CI and machines without a system GTest.
-    if(NOT GTEST_FOUND AND NOT TARGET GTest::gtest AND NOT TARGET gtest)
+    if(NOT GTEST_FOUND
+       AND NOT TARGET GTest::gtest
+       AND NOT TARGET gtest)
         message(STATUS "GTest not found locally - fetching via FetchContent")
         include(FetchContent)
         FetchContent_Declare(
             googletest
             GIT_REPOSITORY https://github.com/google/googletest.git
-            GIT_TAG        v1.17.0
-            GIT_SHALLOW    TRUE)
+            GIT_TAG v1.17.0
+            GIT_SHALLOW TRUE)
         # Prevent GTest from overriding the project's CRT choice on Windows.
         set(gtest_force_shared_crt
             ON
@@ -1895,8 +1898,12 @@ if(LIBSTATS_BUILD_TESTS)
     # missing targets.
     if(GTEST_FOUND)
         set_tests_properties(
-            test_gaussian_enhanced test_chi_squared_enhanced test_student_t_enhanced
-            test_beta_enhanced test_performance_dispatcher
+            test_math_comprehensive # vectorized math speedup assertions
+            test_gaussian_enhanced
+            test_chi_squared_enhanced
+            test_student_t_enhanced
+            test_beta_enhanced
+            test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
         if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)

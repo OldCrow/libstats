@@ -246,7 +246,10 @@ jobs:
     - name: Generate coverage report
       run: |
         # Explicitly use gcov-11 for coverage collection
-        lcov --gcov-tool gcov-11 --directory build --capture --output-file coverage.info
+        # --ignore-errors gcov suppresses missing .gcno errors for CMakeTmp probe
+        # artifacts generated during configure-time SIMD detection; those files
+        # have no corresponding .gcno because CMakeTmp is cleaned up after cmake.
+        lcov --gcov-tool gcov-11 --directory build --capture --output-file coverage.info --ignore-errors gcov
         lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info --ignore-errors unused
         lcov --list coverage.info
 
