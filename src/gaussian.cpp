@@ -1222,12 +1222,11 @@ std::pair<double, double> GaussianDistribution::lMomentsEstimation(
     const size_t n = sorted_data.size();
 
     // Calculate L-moments
-    double l1 = detail::ZERO_DOUBLE;  // L-mean
     double l2 = detail::ZERO_DOUBLE;  // L-scale
 
     // L1 (L-mean) = mean of order statistics
-    l1 = std::accumulate(sorted_data.begin(), sorted_data.end(), detail::ZERO_DOUBLE) /
-         static_cast<double>(n);
+    double l1 = std::accumulate(sorted_data.begin(), sorted_data.end(), detail::ZERO_DOUBLE) /
+                static_cast<double>(n);
 
     // L2 (L-scale) = 0.5 * E[X_{2:2} - X_{1:2}]
     for (size_t i = 0; i < n; ++i) {
@@ -2813,7 +2812,7 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
     }
     line = line.substr(start);
 
-    if (line.find("GaussianDistribution(") != 0) {
+    if (!line.starts_with("GaussianDistribution(")) {
         is.setstate(std::ios::failbit);
         return is;
     }

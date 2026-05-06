@@ -24,7 +24,9 @@ struct SIMDState {
 
     void initialize() {
         // Detect best level inline since detectBestLevel is private
-        SIMDPolicy::Level detected_level = SIMDPolicy::Level::None;
+        // (No initializer needed: every code path — including the final unconditional
+        //  else — assigns detected_level before it is read.)
+        SIMDPolicy::Level detected_level;
 
 #if defined(LIBSTATS_HAS_AVX512)
         if (stats::arch::supports_avx512()) {

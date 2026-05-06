@@ -584,11 +584,11 @@ double calculate_ks_statistic(const std::vector<double>& data,
 
     // Calculate KS statistic: max |F_n(x) - F(x)|
     for (std::size_t i = 0; i < sorted_data.size(); ++i) {
-        double empirical_cdf = static_cast<double>(i + 1) / n;
+        double ecdf_i = static_cast<double>(i + 1) / n;  // empirical CDF at step i
         double theoretical_cdf = dist.getCumulativeProbability(sorted_data[i]);
 
         // Check both F_n(x) - F(x) and F(x) - F_{n-1}(x)
-        double diff1 = std::abs(empirical_cdf - theoretical_cdf);
+        double diff1 = std::abs(ecdf_i - theoretical_cdf);
         double diff2 = std::abs(theoretical_cdf - static_cast<double>(i) / n);
 
         max_diff = std::max(max_diff, std::max(diff1, diff2));

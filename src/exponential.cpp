@@ -2333,7 +2333,7 @@ std::istream& operator>>(std::istream& is, ExponentialDistribution& distribution
 
     // Skip whitespace and read the first part
     is >> token;
-    if (token.find("ExponentialDistribution(") != 0) {
+    if (!token.starts_with("ExponentialDistribution(")) {
         is.setstate(std::ios::failbit);
         return is;
     }
