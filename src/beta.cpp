@@ -897,7 +897,7 @@ std::ostream& operator<<(std::ostream& os, const BetaDistribution& dist) {
 std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
     std::string token;
     is >> token;
-    if (token.find("BetaDistribution(") != 0) {
+    if (!token.starts_with("BetaDistribution(")) {
         is.setstate(std::ios::failbit);
         return is;
     }

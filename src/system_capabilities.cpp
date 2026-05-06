@@ -29,6 +29,9 @@ double benchmarkSIMDEfficiency() {
             results[j] = data[j] * detail::TWO + detail::ONE;
         }
     }
+    // Prevent dead-code elimination of the benchmark loop.
+    volatile double bench_sink = results[BENCHMARK_ARRAY_SIZE / 2];
+    (void)bench_sink;
     auto end = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);

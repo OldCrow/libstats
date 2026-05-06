@@ -101,7 +101,7 @@ WorkStealingPool::~WorkStealingPool() {
     }
 
     // Wait for all threads to finish
-    for (auto& worker : workers_) {
+    for (const auto& worker : workers_) {
         if (worker && worker->worker.joinable()) {
             worker->worker.join();
         }
@@ -166,7 +166,7 @@ WorkStealingPool::Statistics WorkStealingPool::getStatistics() const {
 }
 
 void WorkStealingPool::resetStatistics() {
-    for (auto& worker : workers_) {
+    for (const auto& worker : workers_) {
         worker->tasksExecuted.store(detail::ZERO_INT, std::memory_order_relaxed);
         worker->workSteals.store(detail::ZERO_INT, std::memory_order_relaxed);
         worker->failedSteals.store(detail::ZERO_INT, std::memory_order_relaxed);

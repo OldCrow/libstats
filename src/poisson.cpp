@@ -2792,7 +2792,7 @@ std::istream& operator>>(std::istream& is, PoissonDistribution& distribution) {
 
     // Skip whitespace and read the first part
     is >> token;
-    if (token.find("Poisson(") != 0) {
+    if (!token.starts_with("Poisson(")) {
         is.setstate(std::ios::failbit);
         return is;
     }

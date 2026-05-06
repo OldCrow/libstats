@@ -466,13 +466,15 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             const double nhnpo = dist.negHalfNuPlusOne_;
             const double inv_nu = dist.invNu_;
             lock.unlock();
+            // std::log1p(x²/ν) avoids catastrophic cancellation when x²/ν ≈ 0;
+            // log(1 + x²/ν) loses precision there. See <cmath>: log1p(x) = log(1+x).
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = std::exp(lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu));
+                    res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
-                    res[i] = std::exp(lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu));
+                    res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
                 }
             }
         },
@@ -490,7 +492,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             const double inv_nu = dist.invNu_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = std::exp(lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu));
+                res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
             });
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -507,7 +509,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             const double inv_nu = dist.invNu_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = std::exp(lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu));
+                res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
             });
         });
 }
@@ -552,11 +554,11 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu);
+                    res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
-                    res[i] = lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu);
+                    res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
                 }
             }
         },
@@ -574,7 +576,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             const double inv_nu = dist.invNu_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu);
+                res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
             });
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -591,7 +593,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             const double inv_nu = dist.invNu_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = lnc + nhnpo * std::log(1.0 + vals[i] * vals[i] * inv_nu);
+                res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
             });
         });
 }
@@ -724,7 +726,7 @@ std::istream& operator>>(std::istream& is, StudentTDistribution& dist) {
     double nu;
 
     is >> token;
-    if (token.find("StudentTDistribution(") != 0) {
+    if (!token.starts_with("StudentTDistribution(")) {
         is.setstate(std::ios::failbit);
         return is;
     }

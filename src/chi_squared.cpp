@@ -209,7 +209,7 @@ std::istream& operator>>(std::istream& is, ChiSquaredDistribution& dist) {
     double k;
 
     is >> token;
-    if (token.find("ChiSquaredDistribution(") != 0) {
+    if (!token.starts_with("ChiSquaredDistribution(")) {
         is.setstate(std::ios::failbit);
         return is;
     }

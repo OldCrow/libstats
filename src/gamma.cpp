@@ -2450,7 +2450,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
     // Read "GammaDistribution(alpha="
     is >> temp;  // "GammaDistribution(alpha=value,"
 
-    if (temp.find("GammaDistribution(alpha=") == 0) {
+    if (temp.starts_with("GammaDistribution(alpha=")) {
         // Extract alpha value
         size_t equals_pos = temp.find('=');
         size_t comma_pos = temp.find(',');
@@ -2461,7 +2461,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
 
             // Read "beta=value)"
             is >> temp;
-            if (temp.find("beta=") == 0) {
+            if (temp.starts_with("beta=")) {
                 size_t beta_equals_pos = temp.find('=');
                 size_t close_paren_pos = temp.find(')');
                 if (beta_equals_pos != std::string::npos && close_paren_pos != std::string::npos) {

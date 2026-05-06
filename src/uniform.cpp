@@ -2285,7 +2285,7 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 
     // Skip whitespace and read the first part
     is >> token;
-    if (token.find("UniformDistribution(") != 0) {
+    if (!token.starts_with("UniformDistribution(")) {
         is.setstate(std::ios::failbit);
         return is;
     }
