@@ -1,3 +1,23 @@
+## [1.1.7](https://github.com/OldCrow/libstats/compare/v1.1.6...v1.1.7) (2026-05-06)
+
+### 🐛 Bug Fixes
+
+* audit and correct eight CMake build system issues ([2135ccf](https://github.com/OldCrow/libstats/commit/2135ccf7138f74957952c94a9210656a05d2f3cb))
+* correct AVX-512 detection on MSVC and GCC/Clang ([24c355b](https://github.com/OldCrow/libstats/commit/24c355b2b482719fbc5496090339ca50ed14f42a)), closes [#include](https://github.com/OldCrow/libstats/issues/include)
+* correct GTest detection on Windows; add FetchContent fallback ([2ee131c](https://github.com/OldCrow/libstats/commit/2ee131c299059fad5bcdea8f3c99a000175c6da4))
+* default to AppleClang on macOS; fix Phase 1 correctness bugs ([d50b0f1](https://github.com/OldCrow/libstats/commit/d50b0f1d7cc70a7a7bac7ce436faab1bd414b806))
+* label test_math_comprehensive as timing; fix coverage lcov --ignore-errors ([6791b3d](https://github.com/OldCrow/libstats/commit/6791b3d0c821dc83e1ae0047759a270a0bbc8d3a))
+* suppress unused-variable warning in test_simd_policy Release build ([8359ca4](https://github.com/OldCrow/libstats/commit/8359ca404bbf76e4e7708a94e2fd472f3161ddaa))
+
+### 📚 Documentation
+
+* add session-start architecture and build routing to WARP ([bbf78b0](https://github.com/OldCrow/libstats/commit/bbf78b04ae743c830a2821df6c8493e3400b1cdb))
+
+### 👷 CI/CD
+
+* add --ignore-errors mismatch to lcov capture ([c9d9654](https://github.com/OldCrow/libstats/commit/c9d9654d682405c98eea9499c2d1d2d902357f8c))
+* exclude timing tests from CI; bump Clang matrix from 14/15 to 16/17 ([f5b798a](https://github.com/OldCrow/libstats/commit/f5b798a401668fdd47002198634343eb9cf9aeac))
+
 # Changelog
 ## [1.1.6] - 2026-04-26
 
