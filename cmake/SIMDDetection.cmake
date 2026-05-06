@@ -506,11 +506,21 @@ bool test_avx2() {
                 "SIMDDetection: check_cxx_compiler_flag('/arch:AVX512') result = ${COMPILER_SUPPORTS_AVX512}"
         )
         if(COMPILER_SUPPORTS_AVX512)
-            test_runtime_cpu_feature(
-                "avx512"
-                "#include <immintrin.h>\\nbool test_avx512() {\\n    __m512d a = _mm512_set1_pd(1.0);\\n    __m512d b = _mm512_set1_pd(2.0);\\n    __m512d c = _mm512_add_pd(a, b);\\n    double result[8];\\n    _mm512_storeu_pd(result, c);\\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\\n    return true;\\n}"
-                RUNTIME_SUPPORTS_AVX512
-                "/arch:AVX512")
+            # check_cxx_compiler_flag only tests that MSVC accepts the flag syntax, not
+            # that the build machine's CPU can execute the resulting instructions.
+            # Use check_cxx_source_runs (compile + execute) to verify actual CPU support.
+            include(CheckCXXSourceRuns)
+            set(_avx512_saved_req_flags "${CMAKE_REQUIRED_FLAGS}")
+            set(CMAKE_REQUIRED_FLAGS "/arch:AVX512")
+            check_cxx_source_runs(
+                "#include <intrin.h>
+int main() {
+    __m512d x = _mm512_setzero_pd();
+    (void)x;
+    return 0;
+}"
+                RUNTIME_SUPPORTS_AVX512)
+            set(CMAKE_REQUIRED_FLAGS "${_avx512_saved_req_flags}")
             if(RUNTIME_SUPPORTS_AVX512)
                 set(LIBSTATS_HAS_AVX512
                     TRUE
@@ -531,9 +541,9 @@ bool test_avx2() {
                 set(LIBSTATS_SIMD_DEFINITIONS
                     "${_definitions}"
                     CACHE INTERNAL "List of SIMD compile definitions" FORCE)
-                message(STATUS "SIMD: AVX-512 enabled (compiler + runtime)")
+                message(STATUS "SIMD: AVX-512 enabled (compiler + runtime, CPU verified)")
             else()
-                message(STATUS "SIMD: AVX-512 disabled (runtime check failed)")
+                message(STATUS "SIMD: AVX-512 disabled (CPU does not support it)")
             endif()
         else()
             message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
@@ -543,7 +553,16 @@ bool test_avx2() {
         if(COMPILER_SUPPORTS_AVX512)
             test_runtime_cpu_feature(
                 "avx512"
-                "#include <immintrin.h>\\nbool test_avx512() {\\n    __m512d a = _mm512_set1_pd(1.0);\\n    __m512d b = _mm512_set1_pd(2.0);\\n    __m512d c = _mm512_add_pd(a, b);\\n    double result[8];\\n    _mm512_storeu_pd(result, c);\\n    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;\\n    return true;\\n}"
+                "#include <immintrin.h>
+bool test_avx512() {
+    __m512d a = _mm512_set1_pd(1.0);
+    __m512d b = _mm512_set1_pd(2.0);
+    __m512d c = _mm512_add_pd(a, b);
+    double result[8];
+    _mm512_storeu_pd(result, c);
+    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;
+    return true;
+}"
                 RUNTIME_SUPPORTS_AVX512
                 "-mavx512f")
             if(RUNTIME_SUPPORTS_AVX512)
