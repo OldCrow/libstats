@@ -249,7 +249,7 @@ jobs:
         # --ignore-errors gcov suppresses missing .gcno errors for CMakeTmp probe
         # artifacts generated during configure-time SIMD detection; those files
         # have no corresponding .gcno because CMakeTmp is cleaned up after cmake.
-        lcov --gcov-tool gcov-11 --directory build --capture --output-file coverage.info --ignore-errors gcov
+        lcov --gcov-tool gcov-11 --directory build --capture --output-file coverage.info --ignore-errors gcov,mismatch
         lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info --ignore-errors unused
         lcov --list coverage.info
 
