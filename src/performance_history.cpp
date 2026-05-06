@@ -70,8 +70,8 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
     std::unique_lock<std::timed_mutex> lock(data_mutex_);
 
     // Check all available strategies
-    for (auto strategy : {Strategy::SCALAR, Strategy::VECTORIZED, Strategy::PARALLEL,
-                          Strategy::WORK_STEALING, Strategy::WORK_STEALING}) {
+    for (auto strategy :
+         {Strategy::SCALAR, Strategy::VECTORIZED, Strategy::PARALLEL, Strategy::WORK_STEALING}) {
         std::string key = generateKey(strategy, distribution_type, batch_category);
         auto it = performance_data_.find(key);
 
@@ -130,11 +130,9 @@ std::optional<std::pair<std::size_t, std::size_t>> PerformanceHistory::learnOpti
             if (last_underscore != std::string::npos) {
                 std::size_t batch_category = std::stoull(key.substr(last_underscore + 1));
 
-                // Determine strategy from key - improved parsing
+                // Determine strategy from key
                 Strategy strategy = Strategy::SCALAR;
                 if (key.find("WORK_STEALING") != std::string::npos)
-                    strategy = Strategy::WORK_STEALING;
-                else if (key.find("WORK_STEALING") != std::string::npos)
                     strategy = Strategy::WORK_STEALING;
                 else if (key.find("PARALLEL") != std::string::npos)
                     strategy = Strategy::PARALLEL;

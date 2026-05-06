@@ -1,14 +1,14 @@
 // CRITICAL: Ensure CPU detection code uses NO advanced SIMD instructions
 // This file detects CPU features and must not use the features it's detecting!
 // Use compiler-specific approaches to disable SIMD in CPU detection code
-#if (defined(__clang__) &&                                                                   \
+#if (defined(__clang__) &&                                                                         \
      (defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)))
     // Clang: use function attributes to disable SIMD per function
     #define CPU_DETECTION_NO_SIMD                                                                  \
         __attribute__((                                                                            \
             target("no-avx512f,no-avx512cd,no-avx512bw,no-avx512dq,no-avx512vl,no-avx2,no-avx,no-" \
                    "sse4.2,no-sse4.1,no-ssse3,no-sse3")))
-#elif (defined(__GNUC__) &&                                                                   \
+#elif (defined(__GNUC__) &&                                                                        \
        (defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)))
     // GCC: use pragma to disable SIMD globally for this file
     #pragma GCC push_options
@@ -451,16 +451,18 @@ Features detect_x86_features() {
         features.avx512f = (ebx & (1 << 16)) != 0;
     }
 
-    // Get brand string if available
+    // Get brand string if available. Each CPUID call returns 4 × 4-byte registers
+    // (eax, ebx, ecx, edx) = 16 bytes of brand string per call, three calls total.
     safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
     if (eax >= 0x80000004) {
+        uint32_t regs[4];
         char brand[49] = {0};
-        safe_cpuid(0x80000002, 0, eax, ebx, ecx, edx);
-        memcpy(brand, &eax, 16);
-        safe_cpuid(0x80000003, 0, eax, ebx, ecx, edx);
-        memcpy(brand + 16, &eax, 16);
-        safe_cpuid(0x80000004, 0, eax, ebx, ecx, edx);
-        memcpy(brand + 32, &eax, 16);
+        safe_cpuid(0x80000002, 0, regs[0], regs[1], regs[2], regs[3]);
+        memcpy(brand, regs, 16);
+        safe_cpuid(0x80000003, 0, regs[0], regs[1], regs[2], regs[3]);
+        memcpy(brand + 16, regs, 16);
+        safe_cpuid(0x80000004, 0, regs[0], regs[1], regs[2], regs[3]);
+        memcpy(brand + 32, regs, 16);
         features.brand = brand;
     }
 
@@ -1021,7 +1023,7 @@ bool is_modern_intel() {
 }  // namespace stats
 
 // Restore original compiler SIMD settings (only needed for GCC)
-#if (defined(__GNUC__) && !defined(__clang__) &&                                             \
+#if (defined(__GNUC__) && !defined(__clang__) &&                                                   \
      (defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)))
     #pragma GCC pop_options
 #endif

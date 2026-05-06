@@ -8,6 +8,17 @@ endif()
 # Verbose messaging control
 option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 
+# Compiler selection: opt in to Homebrew LLVM on macOS. WARNING: enabling this requires ALL
+# consumers (shared libraries, Python extensions, test executables) to link the same Homebrew
+# libc++. If any consumer uses Apple libc++ instead, C++ exceptions and std::type_info records will
+# not match across the boundary, causing silent catch failures. The default (OFF) uses system
+# AppleClang with Apple libc++ and GCD for parallelism, which is ABI-safe for all consumers. Only
+# set this to ON if you own the entire toolchain and have verified ABI consistency end-to-end.
+option(
+    LIBSTATS_USE_HOMEBREW_LLVM
+    "Use Homebrew LLVM instead of system AppleClang on macOS (requires matching libc++ in all consumers)"
+    OFF)
+
 # Threading system preference control
 option(LIBSTATS_FORCE_TBB
        "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)" OFF)
@@ -124,14 +135,20 @@ endfunction()
 if(APPLE OR (UNIX AND NOT WIN32))
     detect_homebrew_llvm()
 
-    if(USING_HOMEBREW_LLVM)
-        # Configure Homebrew LLVM
+    if(USING_HOMEBREW_LLVM AND LIBSTATS_USE_HOMEBREW_LLVM)
+        # Opt-in: use Homebrew LLVM. All consumers must link the same Homebrew libc++.
         set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
         set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
         set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT}")
+        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT} (LIBSTATS_USE_HOMEBREW_LLVM=ON)")
     else()
-        # Fallback to system compiler
+        # Default: system AppleClang with Apple libc++ - ABI-safe for all consumers.
+        if(USING_HOMEBREW_LLVM)
+            message(
+                STATUS
+                    "Homebrew LLVM found but not used (LIBSTATS_USE_HOMEBREW_LLVM=OFF) - using system AppleClang for ABI safety"
+            )
+        endif()
         find_program(CMAKE_C_COMPILER clang)
         find_program(CMAKE_CXX_COMPILER clang++)
         if(LIBSTATS_VERBOSE_BUILD)
@@ -224,9 +241,9 @@ if(APPLE)
     # macOS specific configuration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 
-    if(USING_HOMEBREW_LLVM)
-        # Homebrew LLVM specific configuration - Force LLVM libc++ to get C++20 execution policies
-        # Note: rpath will be set per-target to avoid duplication warnings
+    if(USING_HOMEBREW_LLVM AND LIBSTATS_USE_HOMEBREW_LLVM)
+        # Opt-in Homebrew LLVM configuration: force LLVM libc++ headers for std::execution policies.
+        # Note: rpath will be set per-target to avoid duplication warnings.
 
         # CRITICAL: Include LLVM libc++ headers BEFORE system headers to get C++20 execution
         # policies
@@ -241,8 +258,9 @@ if(APPLE)
         # Enable experimental PSTL support in LLVM libc++
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LIBCPP_HAS_EXPERIMENTAL_PSTL=1")
     else()
-        # System compiler configuration - use system libc++
-        message(STATUS "Using system libc++ with Apple Clang")
+        # Default: system AppleClang with Apple libc++. Parallelism uses GCD (already implemented in
+        # parallel_execution.h). ABI-safe for all consumers.
+        message(STATUS "Using system libc++ with Apple Clang (GCD parallel path active)")
     endif()
 
     # Comprehensive Threading System Detection with Caching Cache results to avoid repeated

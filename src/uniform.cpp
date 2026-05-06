@@ -1826,11 +1826,6 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
 void UniformDistribution::getProbabilityWithStrategy(std::span<const double> values,
                                                      std::span<double> results,
                                                      detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
@@ -1960,11 +1955,6 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
 void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
                                                         std::span<double> results,
                                                         detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
@@ -2112,11 +2102,6 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
 void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                                                std::span<double> results,
                                                                detail::Strategy strategy) const {
-    // GPU acceleration fallback - GPU implementation not yet available, use optimal CPU strategy
-    if (strategy == detail::Strategy::WORK_STEALING) {
-        strategy = detail::Strategy::WORK_STEALING;
-    }
-
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const UniformDistribution& dist, double value) {
