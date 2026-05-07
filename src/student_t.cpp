@@ -494,23 +494,6 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
             });
-        },
-        [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            const double lnc = dist.logNormConst_;
-            const double nhnpo = dist.negHalfNuPlusOne_;
-            const double inv_nu = dist.invNu_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
-            });
         });
 }
 
@@ -578,23 +561,6 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
             });
-        },
-        [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            const double lnc = dist.logNormConst_;
-            const double nhnpo = dist.negHalfNuPlusOne_;
-            const double inv_nu = dist.invNu_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
-            });
         });
 }
 
@@ -626,20 +592,6 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             for (std::size_t i = 0; i < count; ++i) {
                 res[i] = detail::t_cdf(vals[i], cached_nu);
             }
-        },
-        [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            const double cached_nu = dist.nu_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = detail::t_cdf(vals[i], cached_nu); });
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {

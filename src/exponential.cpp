@@ -1450,49 +1450,6 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                     res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
                 }
             });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
-            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU
-            // performance
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing (GPU fallback)
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = std::exp(-x);
-                } else {
-                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-                }
-            });
         });
 }
 
@@ -1613,49 +1570,6 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_rate) {
-                    res[i] = -x;
-                } else {
-                    res[i] = cached_log_lambda + cached_neg_lambda * x;
-                }
-            });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
-            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU
-            // performance
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < detail::ZERO_DOUBLE) {
@@ -1791,48 +1705,6 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                     res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
-            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU
-            // performance
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing (GPU fallback)
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = detail::ONE - std::exp(-x);
-                } else {
-                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
-                }
-            });
         });
 }
 
@@ -1940,49 +1812,6 @@ void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double>
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = std::exp(-x);
-                } else {
-                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-                }
-            });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
-            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU
-            // performance
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < detail::ZERO_DOUBLE) {
@@ -2107,49 +1936,6 @@ void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const doub
                     res[i] = cached_log_lambda + cached_neg_lambda * x;
                 }
             });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
-            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU
-            // performance
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) processing
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing (GPU fallback)
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_rate) {
-                    res[i] = -x;
-                } else {
-                    res[i] = cached_log_lambda + cached_neg_lambda * x;
-                }
-            });
         });
 }
 
@@ -2249,48 +2035,6 @@ void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = detail::ONE - std::exp(-x);
-                } else {
-                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
-                }
-            });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: forwards to work-stealing until GPU implementation available
-            // NOTE: GPU acceleration not yet implemented - using work-stealing for optimal CPU
-            // performance
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated (work-stealing fallback) processing
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing (GPU fallback)
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < detail::ZERO_DOUBLE) {

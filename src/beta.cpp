@@ -598,35 +598,6 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
-        },
-        [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size())
-                throw std::invalid_argument("Span size mismatch");
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
-            constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
-                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
-                                                   lnc, am1, bm1);
-            });
         });
 }
 
@@ -715,35 +686,6 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
-        },
-        [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size())
-                throw std::invalid_argument("Span size mismatch");
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
-            constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
-                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
-                                                      lnc, am1, bm1);
-            });
         });
 }
 
@@ -786,27 +728,6 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             } else {
                 dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, a, b);
             }
-        },
-        [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size())
-                throw std::invalid_argument("Span size mismatch");
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            const double a = dist.alpha_, b = dist.beta_;
-            lock.unlock();
-            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0)
-                    res[i] = 0.0;
-                else if (x >= 1.0)
-                    res[i] = 1.0;
-                else
-                    res[i] = detail::beta_i(x, a, b, log_prefix);
-            });
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {

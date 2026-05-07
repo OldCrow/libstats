@@ -1908,48 +1908,6 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                     res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
                 }
             });
-        },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_mean = dist.mean_;
-            const double cached_norm_constant = dist.normalizationConstant_;
-            const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-            const bool cached_is_standard_normal = dist.isStandardNormal_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    const double sq_diff = vals[i] * vals[i];
-                    res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
-                } else {
-                    const double diff = vals[i] - cached_mean;
-                    const double sq_diff = diff * diff;
-                    res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-                }
-            });
         });
 }
 
@@ -2086,49 +2044,6 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
-        },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_mean = dist.mean_;
-            const double cached_log_std = dist.logStandardDeviation_;
-            const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-            const bool cached_is_standard_normal = dist.isStandardNormal_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    const double sq_diff = vals[i] * vals[i];
-                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
-                } else {
-                    const double diff = vals[i] - cached_mean;
-                    const double sq_diff = diff * diff;
-                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
-                             cached_neg_half_inv_var * sq_diff;
-                }
-            });
         });
 }
 
@@ -2246,45 +2161,6 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
-                } else {
-                    const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
-                }
-            });
-        },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_mean = dist.mean_;
-            const double cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-            const bool cached_is_standard_normal = dist.isStandardNormal_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
@@ -2412,49 +2288,6 @@ void GaussianDistribution::getProbabilityWithStrategy(std::span<const double> va
                     res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
                 }
             });
-        },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_mean = dist.mean_;
-            const double cached_log_std = dist.logStandardDeviation_;
-            const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-            const bool cached_is_standard_normal = dist.isStandardNormal_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    const double sq_diff = vals[i] * vals[i];
-                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
-                } else {
-                    const double diff = vals[i] - cached_mean;
-                    const double sq_diff = diff * diff;
-                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
-                             cached_neg_half_inv_var * sq_diff;
-                }
-            });
         });
 }
 
@@ -2575,49 +2408,6 @@ void GaussianDistribution::getLogProbabilityWithStrategy(std::span<const double>
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
-        },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_mean = dist.mean_;
-            const double cached_log_std = dist.logStandardDeviation_;
-            const double cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-            const bool cached_is_standard_normal = dist.isStandardNormal_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    const double sq_diff = vals[i] * vals[i];
-                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
-                } else {
-                    const double diff = vals[i] - cached_mean;
-                    const double sq_diff = diff * diff;
-                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
-                             cached_neg_half_inv_var * sq_diff;
-                }
-            });
         });
 }
 
@@ -2720,45 +2510,6 @@ void GaussianDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
-                } else {
-                    const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
-                }
-            });
-        },
-        [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_mean = dist.mean_;
-            const double cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-            const bool cached_is_standard_normal = dist.isStandardNormal_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
                     res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));

@@ -1579,50 +1579,6 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                                       cached_beta * x - cached_log_gamma_alpha);
                 }
             });
-        },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // Cache-Aware lambda: For continuous distributions, caching is counterproductive
-            // Fallback to parallel execution which is faster and more predictable
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel processing
-            [[maybe_unused]] const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            // This approach avoids the cache contention issues that caused performance regression
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
-                                      cached_beta * x - cached_log_gamma_alpha);
-                }
-            });
         });
 }
 
@@ -1741,47 +1697,6 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else {
-                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
-                             cached_alpha_minus_one * std::log(x) - cached_beta * x;
-                }
-            });
-        },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_beta = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= detail::ZERO_DOUBLE) {
@@ -1911,44 +1826,6 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                     res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
             });
-        },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                }
-            });
         });
 }
 
@@ -2061,48 +1938,6 @@ void GammaDistribution::getProbabilityWithStrategy(std::span<const double> value
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
-                                      cached_beta * x - cached_log_gamma_alpha);
-                }
-            });
-        },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            [[maybe_unused]] const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= detail::ZERO_DOUBLE) {
@@ -2229,48 +2064,6 @@ void GammaDistribution::getLogProbabilityWithStrategy(std::span<const double> va
                              cached_alpha_minus_one * std::log(x) - cached_beta * x;
                 }
             });
-        },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            [[maybe_unused]] const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else {
-                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
-                             cached_alpha_minus_one * std::log(x) - cached_beta * x;
-                }
-            });
         });
 }
 
@@ -2370,44 +2163,6 @@ void GammaDistribution::getCumulativeProbabilityWithStrategy(std::span<const dou
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                }
-            });
-        },
-        [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= detail::ZERO_DOUBLE) {
