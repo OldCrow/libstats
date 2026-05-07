@@ -1434,44 +1434,6 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                 const double x = vals[i];
                 res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
             });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: Use work-stealing pool for optimal performance
-            // This replaces the previous cache-aware implementation that caused 100x performance
-            // regression
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            // This approach avoids the cache contention issues that caused performance regression
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
-            });
         });
 }
 
@@ -1587,48 +1549,6 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < cached_a || x > cached_b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_interval) {
-                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                } else {
-                    res[i] = cached_log_inv_width;
-                }
-            });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x < cached_a || x > cached_b) {
@@ -1772,50 +1692,6 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     res[i] = (x - cached_a) * cached_inv_width;
                 }
             });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated processing
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < cached_a) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (x > cached_b) {
-                    res[i] = detail::ONE;
-                } else if (cached_is_unit_interval) {
-                    res[i] = x;  // CDF(x) = x for U(0,1)
-                } else {
-                    res[i] = (x - cached_a) * cached_inv_width;
-                }
-            });
         });
 }
 
@@ -1910,41 +1786,6 @@ void UniformDistribution::getProbabilityWithStrategy(std::span<const double> val
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width
-                                                                      : detail::ZERO_DOUBLE;
-            });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width
                                                                       : detail::ZERO_DOUBLE;
@@ -2046,47 +1887,6 @@ void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> 
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < cached_a || vals[i] > cached_b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_interval) {
-                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                } else {
-                    res[i] = cached_log_inv_width;
-                }
-            });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < cached_a || vals[i] > cached_b) {
                     res[i] = detail::NEGATIVE_INFINITY;
@@ -2206,50 +2006,6 @@ void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
                     res[i] = vals[i];  // CDF(x) = x for U(0,1)
                 } else {
                     res[i] = (vals[i] - cached_a) * cached_inv_width;
-                }
-            });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < cached_a) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (x > cached_b) {
-                    res[i] = detail::ONE;
-                } else if (cached_is_unit_interval) {
-                    res[i] = x;  // CDF(x) = x for U(0,1)
-                } else {
-                    res[i] = (x - cached_a) * cached_inv_width;
                 }
             });
         });

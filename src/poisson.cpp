@@ -1801,62 +1801,6 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                     res[i] = std::exp(log_result);
                 }
             });
-        },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_lambda = dist.lambda_;
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_exp_neg_lambda = dist.expNegLambda_;
-            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                if (k == 0) {
-                    res[i] = cached_exp_neg_lambda;
-                } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                           k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                             PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                } else {
-                    double log_result = k * cached_log_lambda - cached_lambda -
-                                        PoissonDistribution::logFactorial(k);
-                    res[i] = std::exp(log_result);
-                }
-            });
         });
 }
 
@@ -1999,52 +1943,6 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                 res[i] =
                     k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
             });
-        },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_lambda = dist.lambda_;
-            const double cached_log_lambda = dist.logLambda_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
-                    return;
-                }
-
-                // log P(X = k) = k * log(λ) - λ - log(k!)
-                res[i] =
-                    k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
-            });
         });
 }
 
@@ -2166,50 +2064,6 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
-                    return;
-                }
-
-                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = detail::gamma_q(k + 1, cached_lambda);
-            });
-        },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: Use pool.parallelFor for GPU acceleration pattern
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel processing
-            const double cached_lambda = dist.lambda_;
-            lock.unlock();
-
-            // Use pool.parallelFor for GPU acceleration pattern
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;
@@ -2372,62 +2226,6 @@ void PoissonDistribution::getProbabilityWithStrategy(std::span<const double> val
                     res[i] = std::exp(log_result);
                 }
             });
-        },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_lambda = dist.lambda_;
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_exp_neg_lambda = dist.expNegLambda_;
-            [[maybe_unused]] const bool cached_is_small_lambda = dist.isSmallLambda_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                if (k == 0) {
-                    res[i] = cached_exp_neg_lambda;
-                } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                           k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                             PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                } else {
-                    double log_result = k * cached_log_lambda - cached_lambda -
-                                        PoissonDistribution::logFactorial(k);
-                    res[i] = std::exp(log_result);
-                }
-            });
         });
 }
 
@@ -2549,52 +2347,6 @@ void PoissonDistribution::getLogProbabilityWithStrategy(std::span<const double> 
                 res[i] =
                     k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
             });
-        },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_lambda = dist.lambda_;
-            const double cached_log_lambda = dist.logLambda_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
-                    return;
-                }
-
-                // log P(X = k) = k * log(λ) - λ - log(k!)
-                res[i] =
-                    k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
-            });
         });
 }
 
@@ -2696,50 +2448,6 @@ void PoissonDistribution::getCumulativeProbabilityWithStrategy(std::span<const d
             lock.unlock();
 
             // Direct work-stealing execution
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
-                    return;
-                }
-
-                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = detail::gamma_q(k + 1, cached_lambda);
-            });
-        },
-        [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const double cached_lambda = dist.lambda_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;

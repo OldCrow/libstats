@@ -35,9 +35,10 @@ namespace detail {  // Performance utilities
  * scalar) Strategy::PARALLEL     \u2192 parallel_func \u2192 ParallelUtils::parallelFor
  *     Strategy::WORK_STEALING \u2192 work_stealing_func \u2192 WorkStealingPool::parallelFor
  *
- * The GpuAcceleratedFunc template parameter and gpu_accelerated_func argument are
- * retained for ABI compatibility and will be removed in Phase 6 when all distribution
- * batch implementations are updated.
+ * The GPU_ACCELERATED strategy slot has been removed. The GpuAcceleratedFunc
+ * template parameter and corresponding lambda are no longer accepted by these
+ * templates. See issue #23 for the rationale and prerequisites for any future
+ * GPU backend.
  */
 class DispatchUtils {
    public:
@@ -49,7 +50,6 @@ class DispatchUtils {
      * @tparam BatchFunc Function type for SIMD batch operations
      * @tparam ParallelFunc Function type for parallel operations
      * @tparam WorkStealingFunc Function type for work-stealing operations
-     * @tparam GpuAcceleratedFunc Function type for GPU-accelerated operations
      *
      * @param dist Reference to the distribution instance
      * @param values Input values span
@@ -61,16 +61,14 @@ class DispatchUtils {
      * @param batch_func Function to call for SIMD batch operations
      * @param parallel_func Function to call for parallel operations
      * @param work_stealing_func Function to call for work-stealing operations
-     * @param gpu_accelerated_func Function to call for GPU-accelerated operations
      */
     template <typename Distribution, typename ScalarFunc, typename BatchFunc, typename ParallelFunc,
-              typename WorkStealingFunc, typename GpuAcceleratedFunc>
+              typename WorkStealingFunc>
     static void autoDispatch(const Distribution& dist, std::span<const double> values,
                              std::span<double> results, const PerformanceHint& hint,
                              DistributionType dist_type, OperationType op_type,
                              ScalarFunc&& scalar_func, BatchFunc&& batch_func,
-                             ParallelFunc&& parallel_func, WorkStealingFunc&& work_stealing_func,
-                             GpuAcceleratedFunc&& gpu_accelerated_func) {
+                             ParallelFunc&& parallel_func, WorkStealingFunc&& work_stealing_func) {
         // Validate input
         if (values.size() != results.size()) {
             throw std::invalid_argument("Input and output spans must have the same size");
@@ -103,8 +101,7 @@ class DispatchUtils {
         executeStrategy(strategy, dist, values, results, count,
                         std::forward<ScalarFunc>(scalar_func), std::forward<BatchFunc>(batch_func),
                         std::forward<ParallelFunc>(parallel_func),
-                        std::forward<WorkStealingFunc>(work_stealing_func),
-                        std::forward<GpuAcceleratedFunc>(gpu_accelerated_func));
+                        std::forward<WorkStealingFunc>(work_stealing_func));
     }
 
     /**
@@ -140,7 +137,6 @@ class DispatchUtils {
      * @tparam BatchFunc Function type for SIMD batch operations
      * @tparam ParallelFunc Function type for parallel operations
      * @tparam WorkStealingFunc Function type for work-stealing operations
-     * @tparam GpuAcceleratedFunc Function type for GPU-accelerated operations
      *
      * @param dist Reference to the distribution instance
      * @param values Input values span
@@ -150,16 +146,14 @@ class DispatchUtils {
      * @param batch_func Function to call for SIMD batch operations
      * @param parallel_func Function to call for parallel operations
      * @param work_stealing_func Function to call for work-stealing operations
-     * @param gpu_accelerated_func Function to call for GPU-accelerated operations
      */
     template <typename Distribution, typename ScalarFunc, typename BatchFunc, typename ParallelFunc,
-              typename WorkStealingFunc, typename GpuAcceleratedFunc>
+              typename WorkStealingFunc>
     static void executeWithStrategy(const Distribution& dist, std::span<const double> values,
                                     std::span<double> results, Strategy strategy,
                                     ScalarFunc&& scalar_func, BatchFunc&& batch_func,
                                     ParallelFunc&& parallel_func,
-                                    WorkStealingFunc&& work_stealing_func,
-                                    GpuAcceleratedFunc&& gpu_accelerated_func) {
+                                    WorkStealingFunc&& work_stealing_func) {
         // Validate input
         if (values.size() != results.size()) {
             throw std::invalid_argument("Input and output spans must have the same size");
@@ -173,8 +167,7 @@ class DispatchUtils {
         executeStrategy(strategy, dist, values, results, count,
                         std::forward<ScalarFunc>(scalar_func), std::forward<BatchFunc>(batch_func),
                         std::forward<ParallelFunc>(parallel_func),
-                        std::forward<WorkStealingFunc>(work_stealing_func),
-                        std::forward<GpuAcceleratedFunc>(gpu_accelerated_func));
+                        std::forward<WorkStealingFunc>(work_stealing_func));
     }
 
    private:
@@ -203,12 +196,12 @@ class DispatchUtils {
      * @brief Executes the selected strategy with appropriate function calls
      */
     template <typename Distribution, typename ScalarFunc, typename BatchFunc, typename ParallelFunc,
-              typename WorkStealingFunc, typename GpuAcceleratedFunc>
+              typename WorkStealingFunc>
     static void executeStrategy(Strategy strategy, const Distribution& dist,
                                 std::span<const double> values, std::span<double> results,
                                 size_t count, ScalarFunc&& scalar_func, BatchFunc&& batch_func,
-                                ParallelFunc&& parallel_func, WorkStealingFunc&& work_stealing_func,
-                                GpuAcceleratedFunc&& gpu_accelerated_func) {
+                                ParallelFunc&& parallel_func,
+                                WorkStealingFunc&& work_stealing_func) {
         switch (strategy) {
             case Strategy::SCALAR:
                 // Use simple loop for tiny batches (< 8 elements)
@@ -240,9 +233,6 @@ class DispatchUtils {
                 break;
             }
         }
-        // gpu_accelerated_func is intentionally unused — GPU_ACCELERATED was removed
-        // from the Strategy enum. Retained for ABI compatibility until Phase 6.
-        (void)gpu_accelerated_func;
     }
 
     /**
@@ -319,8 +309,7 @@ class DispatchUtils {
         }
     }
 
-    // executeBatchGpuAccelerated removed — GPU_ACCELERATED strategy removed from enum.
-    // Callers should use executeBatchWorkStealing directly.
+    // GPU_ACCELERATED strategy slot removed. See issue #23 for future GPU backend prerequisites.
 
     /**
      * @brief Common cache validation and parameter extraction pattern

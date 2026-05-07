@@ -1839,46 +1839,6 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                     res[i] = detail::ZERO_DOUBLE;
                 }
             });
-        },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const double cached_prob = dist.probability_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
-                    const int k = static_cast<int>(x);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::ZERO_DOUBLE;
-                }
-            });
         });
 }
 
@@ -2008,51 +1968,6 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                 if (std::floor(vals[i]) == vals[i] &&
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
-                    if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
-                } else {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                }
-            });
-        },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const double cached_log_prob = dist.logProbability_;
-            const bool cached_is_binary = dist.isBinary_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
-                    const int k = static_cast<int>(x);
                     if (k >= cached_a && k <= cached_b) {
                         res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
                     } else {
@@ -2208,54 +2123,6 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                     }
                 }
             });
-        },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const int cached_range = dist.range_;
-            const bool cached_is_binary = dist.isBinary_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < static_cast<double>(cached_a)) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (x >= static_cast<double>(cached_b)) {
-                    res[i] = detail::ONE;
-                } else {
-                    const int k = static_cast<int>(std::floor(x));
-                    if (cached_is_binary) {
-                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                    } else {
-                        const int numerator = k - cached_a + detail::ONE_INT;
-                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
-                }
-            });
         });
 }
 
@@ -2362,46 +2229,6 @@ void DiscreteDistribution::getProbabilityWithStrategy(std::span<const double> va
                 if (std::floor(vals[i]) == vals[i] &&
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::ZERO_DOUBLE;
-                }
-            });
-        },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const double cached_prob = dist.probability_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
-                    const int k = static_cast<int>(x);
                     res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
                 } else {
                     res[i] = detail::ZERO_DOUBLE;
@@ -2527,51 +2354,6 @@ void DiscreteDistribution::getLogProbabilityWithStrategy(std::span<const double>
                     res[i] = detail::NEGATIVE_INFINITY;
                 }
             });
-        },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const double cached_log_prob = dist.logProbability_;
-            const bool cached_is_binary = dist.isBinary_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::floor(x) == x && DiscreteDistribution::isValidIntegerValue(x)) {
-                    const int k = static_cast<int>(x);
-                    if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
-                } else {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                }
-            });
         });
 }
 
@@ -2688,54 +2470,6 @@ void DiscreteDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
                     res[i] = detail::ONE;
                 } else {
                     const int k = static_cast<int>(std::floor(vals[i]));
-                    if (cached_is_binary) {
-                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                    } else {
-                        const int numerator = k - cached_a + detail::ONE_INT;
-                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
-                }
-            });
-        },
-        [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // GPU-Accelerated lambda: should use pool.parallelFor for dynamic load balancing
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe GPU-accelerated access
-            const int cached_a = dist.a_;
-            const int cached_b = dist.b_;
-            const int cached_range = dist.range_;
-            const bool cached_is_binary = dist.isBinary_;
-            lock.unlock();
-
-            // Use work-stealing pool for optimal load balancing and performance
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < static_cast<double>(cached_a)) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (x >= static_cast<double>(cached_b)) {
-                    res[i] = detail::ONE;
-                } else {
-                    const int k = static_cast<int>(std::floor(x));
                     if (cached_is_binary) {
                         res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     } else {
