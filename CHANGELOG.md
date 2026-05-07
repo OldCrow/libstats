@@ -1,3 +1,13 @@
+## [1.1.8](https://github.com/OldCrow/libstats/compare/v1.1.7...v1.1.8) (2026-05-07)
+
+### 🐛 Bug Fixes
+
+* remove dead GPU dispatch slot from autoDispatch and all distributions ([cc3c1c3](https://github.com/OldCrow/libstats/commit/cc3c1c3bd89f8c1320e93b45fb1344f0673739ae)), closes [#23](https://github.com/OldCrow/libstats/issues/23) [#23](https://github.com/OldCrow/libstats/issues/23)
+
+### ♻️ Refactoring
+
+* **phase2-3:** correctness and static-analysis cleanup ([7a234df](https://github.com/OldCrow/libstats/commit/7a234df677d02f299e8c86d5d4cc69fd171f5be4))
+
 ## [1.1.7](https://github.com/OldCrow/libstats/compare/v1.1.6...v1.1.7) (2026-05-06)
 
 ### 🐛 Bug Fixes
