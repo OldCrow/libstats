@@ -157,10 +157,10 @@ inline VoidResult validateUniformParameters(double a, double b) noexcept {
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateDiscreteParameters(int a, int b) noexcept {
-    if (a > b) {
+    if (a >= b) {
         return VoidResult::makeError(
             ValidationError::InvalidRange,
-            "Upper bound (b) must be greater than or equal to lower bound (a)");
+            "Upper bound (b) must be strictly greater than lower bound (a)");
     }
 
     // Check for integer overflow in range calculation

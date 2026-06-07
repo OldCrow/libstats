@@ -331,6 +331,18 @@ class ChiSquaredDistribution : public DistributionBase {
     void fit(const std::vector<double>& values) override;
 
     /**
+     * @brief Parallel batch fitting for multiple datasets.
+     *
+     * Efficiently fits chi-squared parameters to multiple independent datasets
+     * in parallel. Delegates to detail::batchFitParallel.
+     *
+     * @param datasets Vector of datasets, each with independent observations
+     * @param results  Vector to store fitted ChiSquaredDistribution objects
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                  std::vector<ChiSquaredDistribution>& results);
+
+    /**
      * @brief Reset to default parameters (k = 1).
      */
     void reset() noexcept override;

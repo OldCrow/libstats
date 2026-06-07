@@ -1,4 +1,5 @@
 #include "libstats/distributions/chi_squared.h"
+#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -160,6 +161,12 @@ void ChiSquaredDistribution::fit(const std::vector<double>& values) {
     const double sum = std::accumulate(values.begin(), values.end(), detail::ZERO_DOUBLE);
     const double k_hat = sum / static_cast<double>(values.size());
     setK(k_hat);
+}
+
+void ChiSquaredDistribution::parallelBatchFit(
+    const std::vector<std::vector<double>>& datasets,
+    std::vector<ChiSquaredDistribution>& results) {
+    detail::batchFitParallel(datasets, results);
 }
 
 void ChiSquaredDistribution::reset() noexcept {

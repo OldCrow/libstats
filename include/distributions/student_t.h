@@ -249,6 +249,18 @@ class StudentTDistribution : public DistributionBase {
      */
     void fit(const std::vector<double>& values) override;
 
+    /**
+     * @brief Parallel batch fitting for multiple datasets.
+     *
+     * Efficiently fits Student's t parameters to multiple independent datasets
+     * in parallel. Delegates to detail::batchFitParallel.
+     *
+     * @param datasets Vector of datasets, each with independent observations
+     * @param results  Vector to store fitted StudentTDistribution objects
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                  std::vector<StudentTDistribution>& results);
+
     /** @brief Reset to default parameters (ν = 1, Cauchy distribution). */
     void reset() noexcept override;
 

@@ -10,7 +10,7 @@
  */
 
 // Standard library includes
-#include <cassert>   // for assert
+#include <gtest/gtest.h>
 #include <chrono>    // for std::chrono::high_resolution_clock
 #include <cmath>     // for mathematical functions
 #include <future>    // for std::future, std::async
@@ -27,12 +27,11 @@
 using namespace stats;
 
 class ThreadPoolTest {
-   private:
+   public:
     static constexpr double TOLERANCE = 1e-9;
     static constexpr std::size_t LARGE_SIZE = 10000;
     static constexpr std::size_t SMALL_SIZE = 100;
 
-   public:
     void runAllTests() {
         std::cout << "=== Comprehensive ThreadPool Level 0-2 Integration Test ===" << std::endl;
 
@@ -51,10 +50,9 @@ class ThreadPoolTest {
         testDocumentationExamples();
 
         std::cout << "\n🎉 All ThreadPool Level 0-2 integration tests passed!" << std::endl;
-        std::cout << "✓ Priority #1 implementation is complete and working correctly" << std::endl;
+        std::cout << "  ✓ Priority #1 implementation is complete and working correctly" << std::endl;
     }
 
-   private:
     void testLevel0ConstantsIntegration() {
         std::cout << "\n=== Test 1: Level 0 Constants Integration ===" << std::endl;
 
@@ -72,11 +70,11 @@ class ThreadPoolTest {
         std::cout << "  Memory alignment: " << memoryAlignment << " bytes" << std::endl;
 
         // Verify constants are reasonable
-        assert(parallelThreshold > 0);
-        assert(distributionThreshold > 0);
-        assert(defaultGrainSize > 0);
-        assert(simdBlockSize > 0);
-        assert(memoryAlignment > 0);
+        EXPECT_TRUE(parallelThreshold > 0);
+        EXPECT_TRUE(distributionThreshold > 0);
+        EXPECT_TRUE(defaultGrainSize > 0);
+        EXPECT_TRUE(simdBlockSize > 0);
+        EXPECT_TRUE(memoryAlignment > 0);
 
         // Test that small arrays don't use parallelization
         std::vector<int> smallData(parallelThreshold - 1);
@@ -159,11 +157,11 @@ class ThreadPoolTest {
         // cacheLineSize is size_t (unsigned): zero means undetectable, not invalid
 
         // Optimal threads should always be at least 1
-        assert(optimalThreads > 0);
+        EXPECT_TRUE(optimalThreads > 0);
 
         // Test that hyperthreading affects thread count calculation
         if (features.topology.hyperthreading) {
-            assert(optimalThreads <= physicalCores);
+            EXPECT_TRUE(optimalThreads <= physicalCores);
         }
 
         std::cout << "  ✓ CPU detection integration working correctly" << std::endl;
@@ -184,9 +182,9 @@ class ThreadPoolTest {
         std::cout << "  Optimal alignment: " << alignment << " bytes" << std::endl;
 
         // Verify SIMD detection is working
-        assert(simdWidth > 0);
-        assert(floatWidth > 0);
-        assert(alignment > 0);
+        EXPECT_TRUE(simdWidth > 0);
+        EXPECT_TRUE(floatWidth > 0);
+        EXPECT_TRUE(alignment > 0);
 
         // Test that grain size alignment considers SIMD width
         auto grainSize = arch::get_default_grain_size();
@@ -194,8 +192,8 @@ class ThreadPoolTest {
         std::cout << "  Base grain size: " << grainSize << std::endl;
         std::cout << "  SIMD-aligned grain size: " << alignedGrainSize << std::endl;
 
-        assert(alignedGrainSize >= grainSize);
-        assert(alignedGrainSize % simdWidth == 0);
+        EXPECT_TRUE(alignedGrainSize >= grainSize);
+        EXPECT_TRUE(alignedGrainSize % simdWidth == 0);
 
         std::cout << "  ✓ SIMD awareness working correctly" << std::endl;
     }
@@ -216,11 +214,11 @@ class ThreadPoolTest {
             std::cout << "  Safe sqrt(-1): " << safeSqrtValue << std::endl;
 
             // Verify safety functions work
-            assert(std::isfinite(finiteValue));
-            assert(clampedProb <= 1.0);
-            assert(clampedProb >= 0.0);
-            assert(std::isfinite(safeExpValue));
-            assert(safeSqrtValue == 0.0);  // sqrt(-1) should return 0
+            EXPECT_TRUE(std::isfinite(finiteValue));
+            EXPECT_TRUE(clampedProb <= 1.0);
+            EXPECT_TRUE(clampedProb >= 0.0);
+            EXPECT_TRUE(std::isfinite(safeExpValue));
+            EXPECT_TRUE(safeSqrtValue == 0.0);  // sqrt(-1) should return 0
 
             // Test finite value checking
             detail::check_finite(finiteValue, "test value");
@@ -228,7 +226,7 @@ class ThreadPoolTest {
             std::cout << "  ✓ Safety integration working correctly" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "  ✗ Safety integration failed: " << e.what() << std::endl;
-            assert(false);
+            EXPECT_TRUE(false);
         }
     }
 
@@ -240,10 +238,10 @@ class ThreadPoolTest {
             auto success = VoidResult::ok(true);
             auto error = VoidResult::makeError(ValidationError::InvalidParameter, "Test error");
 
-            assert(success.isOk());
-            assert(!success.isError());
-            assert(!error.isOk());
-            assert(error.isError());
+            EXPECT_TRUE(success.isOk());
+            EXPECT_TRUE(!success.isError());
+            EXPECT_TRUE(!error.isOk());
+            EXPECT_TRUE(error.isError());
 
             std::cout << "  Success result: " << (success.isOk() ? "OK" : "Error") << std::endl;
             std::cout << "  Error result: " << (error.isError() ? "Error" : "OK") << std::endl;
@@ -251,13 +249,13 @@ class ThreadPoolTest {
 
             // Test error string conversion
             auto errorString = errorToString(ValidationError::InvalidParameter);
-            assert(!errorString.empty());
+            EXPECT_TRUE(!errorString.empty());
             std::cout << "  Error string: " << errorString << std::endl;
 
             std::cout << "  ✓ Error handling integration working correctly" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "  ✗ Error handling integration failed: " << e.what() << std::endl;
-            assert(false);
+            EXPECT_TRUE(false);
         }
     }
 
@@ -276,15 +274,15 @@ class ThreadPoolTest {
         std::cout << "  Task 1 result: " << result1 << std::endl;
         std::cout << "  Task 2 result: " << result2 << std::endl;
 
-        assert(result1 == 42);
-        assert(result2 == 42);
+        EXPECT_TRUE(result1 == 42);
+        EXPECT_TRUE(result2 == 42);
 
         // Test void task submission
         bool taskExecuted = false;
         pool.submitVoid([&taskExecuted]() { taskExecuted = true; });
         pool.waitForAll();
 
-        assert(taskExecuted);
+        EXPECT_TRUE(taskExecuted);
         std::cout << "  Void task executed: " << (taskExecuted ? "Yes" : "No") << std::endl;
 
         // Test pool properties
@@ -323,7 +321,7 @@ class ThreadPoolTest {
                   << std::endl;
         std::cout << "  Results correct: " << (correct ? "Yes" : "No") << std::endl;
 
-        assert(correct);
+        EXPECT_TRUE(correct);
 
         // Test with custom grain size
         std::fill(results.begin(), results.end(), 0);
@@ -338,7 +336,7 @@ class ThreadPoolTest {
             }
         }
 
-        assert(correct);
+        EXPECT_TRUE(correct);
         std::cout << "  Custom grain size test: " << (correct ? "Passed" : "Failed") << std::endl;
 
         std::cout << "  ✓ ParallelFor integration working correctly" << std::endl;
@@ -387,7 +385,7 @@ class ThreadPoolTest {
                   << std::endl;
         std::cout << "  Results correct: " << (correct ? "Yes" : "No") << std::endl;
 
-        assert(correct);
+        EXPECT_TRUE(correct);
 
         // Test with different function
         ParallelUtils::parallelTransform(input.data(), output.data(), size,
@@ -407,7 +405,7 @@ class ThreadPoolTest {
             }
         }
 
-        assert(correct);
+        EXPECT_TRUE(correct);
         std::cout << "  SQRT transform test: " << (correct ? "Passed" : "Failed") << std::endl;
 
         std::cout << "  ✓ SIMD-aware parallel transform working correctly" << std::endl;
@@ -439,7 +437,7 @@ class ThreadPoolTest {
         std::cout << "  Sum: " << sum << " (expected: " << expected << ")" << std::endl;
         std::cout << "  Results correct: " << (correct ? "Yes" : "No") << std::endl;
 
-        assert(correct);
+        EXPECT_TRUE(correct);
 
         // Test with different operation (product of first N natural numbers)
         const std::size_t smallSize = 10;
@@ -456,7 +454,7 @@ class ThreadPoolTest {
         std::cout << "  Product test: " << product << " (expected: " << expectedProduct << ")"
                   << std::endl;
 
-        assert(correct);
+        EXPECT_TRUE(correct);
         std::cout << "  ✓ Parallel reduce integration working correctly" << std::endl;
     }
 
@@ -501,7 +499,7 @@ class ThreadPoolTest {
         std::cout << "  Results match: " << (correct ? "Yes" : "No") << std::endl;
         std::cout << "  Results reasonable: " << (reasonable ? "Yes" : "No") << std::endl;
 
-        assert(correct);
+        EXPECT_TRUE(correct);
 
         // Test parallel sum as well
         double parallelSum = ParallelUtils::parallelSum(std::span<const double>(data));
@@ -509,7 +507,7 @@ class ThreadPoolTest {
         bool sumCorrect = std::abs(parallelSum - sequentialSum) < 1e-6;
 
         std::cout << "  Parallel sum test: " << (sumCorrect ? "Passed" : "Failed") << std::endl;
-        assert(sumCorrect);
+        EXPECT_TRUE(sumCorrect);
 
         // Test parallel variance
         double parallelVar = ParallelUtils::parallelVariance(std::span<const double>(data));
@@ -525,7 +523,7 @@ class ThreadPoolTest {
         bool varCorrect = std::abs(parallelVar - sequentialVar) < 1e-6;
         std::cout << "  Parallel variance test: " << (varCorrect ? "Passed" : "Failed")
                   << std::endl;
-        assert(varCorrect);
+        EXPECT_TRUE(varCorrect);
 
         std::cout << "  ✓ Parallel statistical operations working correctly" << std::endl;
     }
@@ -545,12 +543,12 @@ class ThreadPoolTest {
                   << std::endl;
 
         // Test that the calculation is reasonable
-        assert(optimalThreads > 0);
-        assert(optimalThreads <= logicalCores);
+        EXPECT_TRUE(optimalThreads > 0);
+        EXPECT_TRUE(optimalThreads <= logicalCores);
 
         if (features.topology.hyperthreading) {
             // For CPU-intensive tasks, should prefer physical cores
-            assert(optimalThreads <= physicalCores);
+            EXPECT_TRUE(optimalThreads <= physicalCores);
         }
 
         std::cout << "  ✓ Optimal thread count calculation working correctly" << std::endl;
@@ -596,7 +594,7 @@ class ThreadPoolTest {
         bool correct = std::abs(sequentialSum - parallelSum) < 1e-6;
         std::cout << "  Results match: " << (correct ? "Yes" : "No") << std::endl;
 
-        assert(correct);
+        EXPECT_TRUE(correct);
 
         std::cout << "  ✓ Performance scaling working correctly" << std::endl;
 
@@ -651,7 +649,7 @@ class ThreadPoolTest {
         std::cout << "  Expected speedup achieved: " << (largeSpeedup > 1.5 ? "Yes" : "No")
                   << std::endl;
 
-        assert(largeCorrect);
+        EXPECT_TRUE(largeCorrect);
 
         // For multi-core systems, we should see significant speedup with large datasets
         if (ThreadPool::getOptimalThreadCount() > 1) {
@@ -679,7 +677,7 @@ class ThreadPoolTest {
             });
 
             double mean = future.get();
-            assert(std::abs(mean - 3.0) < TOLERANCE);
+            EXPECT_TRUE(std::abs(mean - 3.0) < TOLERANCE);
             std::cout << "  Example 1 mean: " << mean << std::endl;
         }
 
@@ -709,7 +707,7 @@ class ThreadPoolTest {
                 }
             }
 
-            assert(correct);
+            EXPECT_TRUE(correct);
             std::cout << "  Example 2 SIMD transform: " << (correct ? "Passed" : "Failed")
                       << std::endl;
         }
@@ -728,7 +726,7 @@ class ThreadPoolTest {
             double expected = (1.0 + 1000.0) / 2.0;
             [[maybe_unused]] bool correct = std::abs(mean - expected) < TOLERANCE;
 
-            assert(correct);
+            EXPECT_TRUE(correct);
             std::cout << "  Example 3 parallel mean: " << mean << " (expected: " << expected << ")"
                       << std::endl;
         }
@@ -737,13 +735,17 @@ class ThreadPoolTest {
     }
 };
 
-int main() {
-    try {
-        ThreadPoolTest test;
-        test.runAllTests();
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "\n❌ Test failed: " << e.what() << std::endl;
-        return 1;
-    }
-}
+
+TEST(ThreadPoolIntegration, Level0Constants)       { ThreadPoolTest t; t.testLevel0ConstantsIntegration(); }
+TEST(ThreadPoolIntegration, CpuDetection)          { ThreadPoolTest t; t.testCpuDetectionIntegration(); }
+TEST(ThreadPoolIntegration, SimdAwareness)          { ThreadPoolTest t; t.testSIMDAwareness(); }
+TEST(ThreadPoolIntegration, SafetyIntegration)      { ThreadPoolTest t; t.testSafetyIntegration(); }
+TEST(ThreadPoolIntegration, ErrorHandling)          { ThreadPoolTest t; t.testErrorHandlingIntegration(); }
+TEST(ThreadPoolIntegration, BasicFunctionality)     { ThreadPoolTest t; t.testBasicThreadPoolFunctionality(); }
+TEST(ThreadPoolIntegration, ParallelFor)            { ThreadPoolTest t; t.testParallelForIntegration(); }
+TEST(ThreadPoolIntegration, ParallelTransformSIMD)  { ThreadPoolTest t; t.testParallelTransformSIMD(); }
+TEST(ThreadPoolIntegration, ParallelReduce)         { ThreadPoolTest t; t.testParallelReduceIntegration(); }
+TEST(ThreadPoolIntegration, ParallelStatOperation)  { ThreadPoolTest t; t.testParallelStatOperation(); }
+TEST(ThreadPoolIntegration, OptimalThreadCount)     { ThreadPoolTest t; t.testOptimalThreadCountCalculation(); }
+TEST(ThreadPoolIntegration, PerformanceScaling)     { ThreadPoolTest t; t.testPerformanceScaling(); }
+TEST(ThreadPoolIntegration, DocumentationExamples)  { ThreadPoolTest t; t.testDocumentationExamples(); }

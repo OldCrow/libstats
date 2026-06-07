@@ -243,9 +243,6 @@ inline constexpr double LOG_SUM_EXP_THRESHOLD = -50.0;
 /// Switch from linear to log-space when values drop below this
 inline constexpr double LOG_SPACE_THRESHOLD = 1.0e-50;
 
-/// Lookup table size for log-space operations
-inline constexpr std::size_t LOG_SPACE_LOOKUP_TABLE_SIZE = 1024;
-
 /// Continued fraction: treat as "large" above this value
 inline constexpr double LARGE_CONTINUED_FRACTION_VALUE = 1e30;
 
