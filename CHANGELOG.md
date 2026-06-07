@@ -1,3 +1,23 @@
+## [1.1.9](https://github.com/OldCrow/libstats/compare/v1.1.8...v1.1.9) (2026-06-07)
+
+### 🐛 Bug Fixes
+
+* remove imprecise log-space lookup table; reject discrete equal bounds ([c269c79](https://github.com/OldCrow/libstats/commit/c269c79a12a433db11b735ac6401a8b182d70ed8)), closes [#19](https://github.com/OldCrow/libstats/issues/19) [#19](https://github.com/OldCrow/libstats/issues/19)
+
+### 📚 Documentation
+
+* fix switch_branch workflow default branch ([6823d45](https://github.com/OldCrow/libstats/commit/6823d4546e7bf3c6795b71a18475327c423af81e))
+* update AGENTS.md and workflows for v1.1.8 state ([34dbe55](https://github.com/OldCrow/libstats/commit/34dbe555bd5865314b0e0dffc81f7cd9115f2dc1))
+
+### ♻️ Refactoring
+
+* collapse 4x CCN-35 dispatch threshold functions into shared impl ([#21](https://github.com/OldCrow/libstats/issues/21)) ([cea6d48](https://github.com/OldCrow/libstats/commit/cea6d48c7016848568ed29e1f98802bba8ac4c16))
+* replace categorizeBatchSize() if/else ladder with table + lower_bound ([#20](https://github.com/OldCrow/libstats/issues/20)) ([596d2fc](https://github.com/OldCrow/libstats/commit/596d2fcbd25baf24f614159a5e75af013f59cc6d))
+
+### ✅ Tests
+
+* **quality:** migrate 11 assert-based tests to GTest ([#19](https://github.com/OldCrow/libstats/issues/19)) ([4dac9df](https://github.com/OldCrow/libstats/commit/4dac9df8266491eeb71769ebbbc9b9f0f96dd12a))
+
 ## [1.1.8](https://github.com/OldCrow/libstats/compare/v1.1.7...v1.1.8) (2026-05-07)
 
 ### 🐛 Bug Fixes
