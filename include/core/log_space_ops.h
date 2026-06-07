@@ -4,7 +4,6 @@
 #include "math_constants.h"
 #include "statistical_constants.h"
 
-#include <array>
 #include <cmath>
 #include <limits>
 
@@ -13,19 +12,15 @@ namespace stats {
 /**
  * @brief High-performance log-space arithmetic operations
  *
- * This class provides optimized implementations of log-space arithmetic
- * operations commonly used in statistical calculations. Key optimizations include:
- * - Precomputed lookup tables for frequently used values
- * - SIMD-vectorized operations
- * - Numerically stable log-sum-exp implementations
- * - Efficient handling of log(0) cases
+ * This class provides numerically stable log-space arithmetic operations
+ * commonly used in statistical calculations:
+ * - Numerically stable log-sum-exp (scalar and array)
+ * - SIMD-vectorized array operations via the max-shift trick
+ * - Efficient handling of log(0) via LOG_ZERO sentinel
  *
  * @note THREAD SAFETY:
- * - All operations are thread-safe after initialization
- * - Initialization is automatically thread-safe via std::once_flag
- * - Multiple threads can safely call all static methods concurrently
- * - The global initializer ensures tables are ready when library is loaded
- * - No additional synchronization is required for normal usage
+ * - All operations are thread-safe without any initialization requirement
+ * - @c initialize() is a no-op retained for API compatibility
  */
 class LogSpaceOps {
    public:
@@ -35,27 +30,22 @@ class LogSpaceOps {
     /// Threshold below which exp() terms are considered negligible
     static constexpr double LOG_SUM_THRESHOLD = detail::LOG_SUM_EXP_THRESHOLD;
 
-    /// Size of precomputed lookup tables
-    static constexpr std::size_t LOOKUP_TABLE_SIZE = detail::LOG_SPACE_LOOKUP_TABLE_SIZE;
-
     /**
-     * @brief Initialize precomputed lookup tables
-     * Call this once at program startup for optimal performance
+     * @brief No-op retained for API compatibility.
      *
-     * @note THREAD SAFETY:
-     * - This method is thread-safe and can be called from multiple threads
-     * - Uses std::once_flag internally to ensure initialization happens exactly once
-     * - Safe to call multiple times - subsequent calls are no-ops
-     * - The global initializer calls this automatically when the library is loaded
-     * - Manual calls are optional but can be used for explicit control
+     * The lookup-table optimization previously populated here was removed
+     * because 1024-point linear interpolation over [-50,0] only achieves
+     * ~6e-5 accuracy — insufficient for 1e-9 tolerances. All operations
+     * now use @c std::log1p / @c std::exp directly.
      */
     static void initialize();
 
     /**
      * @brief Numerically stable log-sum-exp: log(exp(a) + exp(b))
      *
-     * Highly optimized version using lookup tables and avoiding
-     * expensive exp/log operations when possible.
+     * Uses the max-shift trick to avoid catastrophic cancellation, then
+     * computes the correction via std::log1p(std::exp(diff)) for full
+     * machine-precision accuracy.
      *
      * @param logA First log value
      * @param logB Second log value
@@ -129,13 +119,6 @@ class LogSpaceOps {
     static double safeLog(double prob) noexcept { return (prob > 0.0) ? std::log(prob) : LOG_ZERO; }
 
    private:
-    /// Precomputed lookup table for log(1 + exp(x)) for x in [-50, 0]
-    static std::array<double, LOOKUP_TABLE_SIZE> logOnePlusExpTable_;
-    static bool initialized_;
-
-    /// Internal helper for lookup table access
-    static double lookupLogOnePlusExp(double x) noexcept;
-
     /// SIMD implementations
     static double logSumExpArraySIMD(const double* logValues, std::size_t size) noexcept;
     static double logSumExpArrayScalar(const double* logValues, std::size_t size) noexcept;

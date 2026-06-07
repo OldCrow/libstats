@@ -2755,9 +2755,9 @@ void DiscreteDistribution::updateCacheUnsafe() const noexcept {
 
 // Static validation method moved from header for better compile times
 void DiscreteDistribution::validateParameters(int a, int b) {
-    if (a > b) {
+    if (a >= b) {
         throw std::invalid_argument(
-            "Upper bound (b) must be greater than or equal to lower bound (a)");
+            "Upper bound (b) must be strictly greater than lower bound (a)");
     }
     // Check for integer overflow in range calculation
     if (b > INT_MAX - 1 || a < INT_MIN + 1) {

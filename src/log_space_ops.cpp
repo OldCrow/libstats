@@ -12,34 +12,10 @@
 namespace stats {
 
 // =============================================================================
-// STATIC MEMBER INITIALIZATION
+// INITIALIZATION (no-op — lookup table removed)
 // =============================================================================
 
-std::array<double, LogSpaceOps::LOOKUP_TABLE_SIZE> LogSpaceOps::logOnePlusExpTable_{};
-bool LogSpaceOps::initialized_ = false;
-
-// =============================================================================
-// INITIALIZATION
-// =============================================================================
-
-void LogSpaceOps::initialize() {
-    if (initialized_) {
-        return;
-    }
-
-    // Precompute log(1 + exp(x)) for x in [-50, 0]
-    // This covers the range where numerical precision matters most
-    constexpr double x_min = -detail::FIFTY;
-    constexpr double x_max = 0.0;
-    constexpr double step = (x_max - x_min) / (LOOKUP_TABLE_SIZE - 1);
-
-    for (std::size_t i = 0; i < LOOKUP_TABLE_SIZE; ++i) {
-        double x = x_min + static_cast<double>(i) * step;
-        logOnePlusExpTable_[i] = std::log1p(std::exp(x));
-    }
-
-    initialized_ = true;
-}
+void LogSpaceOps::initialize() {}
 
 // =============================================================================
 // CORE LOG-SPACE OPERATIONS
@@ -59,19 +35,17 @@ double LogSpaceOps::logSumExp(double logA, double logB) noexcept {
         std::swap(logA, logB);
     }
 
-    double diff = logB - logA;
+    double diff = logB - logA;  // diff is in (-inf, 0]
 
     // If the difference is too large, the smaller term is negligible
     if (diff < LOG_SUM_THRESHOLD) {
         return logA;
     }
 
-    // Use lookup table for common range
-    if (diff >= -detail::FIFTY && diff <= detail::ZERO_DOUBLE) {
-        return logA + lookupLogOnePlusExp(diff);
-    }
-
-    // Fallback to direct computation
+    // Always use the numerically-exact direct computation.
+    // The lookup table (1024 points over [-50,0], step ~0.049) only achieves
+    // ~6e-5 interpolation accuracy — insufficient for the 1e-9 tolerances
+    // required by log-space arithmetic tests and downstream callers.
     return logA + std::log1p(std::exp(diff));
 }
 
@@ -152,40 +126,6 @@ void LogSpaceOps::logMatrixVectorMultiplyTransposed(const double* logMatrix,
             }
         }
     }
-}
-
-// =============================================================================
-// INTERNAL HELPER FUNCTIONS
-// =============================================================================
-
-double LogSpaceOps::lookupLogOnePlusExp(double x) noexcept {
-    // x should be in [-50, 0] for the lookup table
-    if (x < -detail::FIFTY) {
-        return std::exp(x);  // log(1 + exp(x)) ≈ exp(x) for very small x
-    }
-    if (x > detail::ZERO_DOUBLE) {
-        return x + std::log1p(std::exp(-x));  // Use alternative form for x > 0
-    }
-
-    // Linear interpolation in lookup table
-    constexpr double x_min = -detail::FIFTY;
-    constexpr double x_max = 0.0;
-    constexpr double step = (x_max - x_min) / (LOOKUP_TABLE_SIZE - 1);
-
-    const double index_real = (x - x_min) / step;
-    const std::size_t index_low = static_cast<std::size_t>(std::floor(index_real));
-    const std::size_t index_high = std::min(index_low + 1, LOOKUP_TABLE_SIZE - 1);
-
-    if (index_low >= LOOKUP_TABLE_SIZE - 1) {
-        return logOnePlusExpTable_[LOOKUP_TABLE_SIZE - detail::ONE_INT];
-    }
-
-    // Linear interpolation
-    const double frac = index_real - static_cast<double>(index_low);
-    const double low_val = logOnePlusExpTable_[index_low];
-    const double high_val = logOnePlusExpTable_[index_high];
-
-    return low_val + frac * (high_val - low_val);
 }
 
 // =============================================================================
