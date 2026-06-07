@@ -1,6 +1,6 @@
-# WARP.md
+# AGENTS.md
 
-This file provides guidance to WARP (warp.dev) when working with code in this repository.
+This file provides project-scoped guidance to Warp (warp.dev) agents working in this repository.
 
 # libstats - Modern C++20 Statistical Distributions Library
 
@@ -8,9 +8,10 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.0.0 released on `main` (2026-04-11).
+**Current Status**: v1.1.8 released on `main`.
 9 distributions, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
 54/54 SIMD tests passing on all four target machines.
+v1.1.7–v1.1.8: AppleClang default on macOS, CMake/GTest/AVX-512 build fixes, dead GPU dispatch slot removed.
 
 ## Session Start Baseline Workflow (Required)
 
@@ -247,7 +248,7 @@ cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..
 
 ### Build System Features
 - **Automatic parallel detection**: Detects CPU cores and configures optimal builds
-- **Compiler auto-detection**: Finds and configures Homebrew LLVM on macOS automatically
+- **Compiler detection**: Defaults to system AppleClang on macOS (ABI-safe); Homebrew LLVM available via `-DLIBSTATS_USE_HOMEBREW_LLVM=ON`
 - **SIMD optimization**: Runtime CPU feature detection with fallbacks
 - **Cross-platform**: Native Windows, macOS, Linux support
 
@@ -428,13 +429,16 @@ Level 5: Complete Library Interface (libstats.h)
 
 ### Core Components
 
-#### Statistical Distributions (6 implemented)
+#### Statistical Distributions (9 implemented)
 1. **Gaussian** (Normal) - N(μ, σ²)
 2. **Exponential** - Exp(λ)
 3. **Uniform** - U(a, b)
 4. **Poisson** - P(λ)
 5. **Discrete** - Custom discrete distributions
 6. **Gamma** - Γ(α, β)
+7. **Chi-squared** - χ²(ν) — delegation wrapper over Gamma(α=ν/2, β=1/2)
+8. **Student's t** - t(ν) — SIMD log-space PDF/LogPDF and CDF via incomplete beta
+9. **Beta** - Beta(α, β) — two-log SIMD PDF/LogPDF and CDF via regularized incomplete beta
 
 Each provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
 
@@ -535,7 +539,7 @@ The build system supports cross-compiler compatibility testing with specialized 
 - Large batch operations (>1000 elements) benefit significantly from parallel execution
 
 ### Platform-Specific Notes
-- **macOS**: Homebrew LLVM preferred for C++20 execution policies
+- **macOS**: System AppleClang is the default (ABI-safe for all consumers); use `-DLIBSTATS_USE_HOMEBREW_LLVM=ON` only when Homebrew libc++ is needed across the entire toolchain
 - **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`
 - **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
 
@@ -586,3 +590,12 @@ when the machine is loaded. This is a measurement problem, not a correctness pro
 ```
 
 The testing infrastructure ensures correctness across all optimization levels and provides regression detection for performance-critical paths.
+
+## Warp Workflows
+
+Saved workflows in `.warp/workflows/` are available directly in the Warp terminal for common tasks:
+
+- **libstats: Clean Rebuild** — remove `build/` and rebuild from scratch; accepts `build_type` arg (default: `Dev`)
+- **libstats: Validate Machine** — architecture detection, SIMD capabilities, correctness suite, and `simd_verification`; requires a current build
+- **libstats: Switch Branch + Rebuild** — stash uncommitted changes, fetch, checkout target branch, pull, and clean rebuild in one step
+- **libstats: Warning Audit** — build with a strict warning mode and display deduplicated warning counts; accepts `build_type` arg (default: `ClangWarn`)
