@@ -12,7 +12,7 @@ tags:
 arguments:
   - name: branch
     description: "Branch to switch to"
-    default_value: phase-4-cross-platform
+    default_value: main
 shells:
   - zsh
   - bash
