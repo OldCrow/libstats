@@ -2,15 +2,14 @@
 
 ## Purpose
 
-libstats is a modern C++20 statistical distributions library built as a design and teaching project. The goal is to show how to build statistical software correctly: complete statistical interfaces, careful numerical behavior, thread safety, SIMD-aware batch processing, and cross-platform portability without external runtime dependencies.
-
-This document is the current high-level concept for the project. It is not a historical implementation sketch.
+libstats is a modern C++20 statistical distributions library built as a design and teaching project. The goal is to show how to build statistical software correctly: complete statistical interfaces, careful numerical behaviour, thread safety, SIMD-aware batch processing, and cross-platform portability without external runtime dependencies.
 
 ## Current Status
 
-The library is feature-complete through Phase 6B.
+The library is feature-complete and stable at **v1.2.0**.
 
-Implemented distribution set:
+Nine distributions are fully implemented and validated across four target architectures:
+
 - Gaussian
 - Exponential
 - Uniform
@@ -21,48 +20,59 @@ Implemented distribution set:
 - Student's t
 - Beta
 
-The remaining work before a v1.0.0 release is release-gate validation rather than feature development:
-- final cross-machine validation
-- final Windows/MSVC validation
-- first full AVX-512 validation on the Asus A16
-- merge of `phase-6b-new-distributions` back to `main`
+All nine distributions share a uniform API including PDF, log-PDF, CDF, quantiles, moments, MLE parameter fitting, random sampling, SIMD batch operations, parallel batch operations, and `parallelBatchFit` for fitting multiple independent datasets in parallel.
+
+Cross-platform SIMD validation status (54/54 SIMD tests, all four machines):
+
+| Machine | SIMD | Correctness | simd_verification | Speedup |
+|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
+| Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
+| Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
+| Asus TUF A16 (Windows) | AVX-512 | 33/33 ✅ | 54/54 ✅ | 1.64x |
 
 ## Design Goals
 
 ### 1. Complete statistical interfaces
 
-Each distribution should provide more than random sampling. The intended interface includes:
-- probability evaluation
-- cumulative probability evaluation
-- quantiles
-- statistical moments
-- random sampling
-- parameter estimation
-- validation support
+Each distribution provides more than random sampling. The interface for every distribution includes:
+
+- probability evaluation (PDF, log-PDF)
+- cumulative probability evaluation (CDF)
+- quantiles (inverse CDF)
+- statistical moments (mean, variance, skewness, kurtosis)
+- random sampling (scalar and batch)
+- parameter estimation (MLE via `fit()`)
+- parallel batch fitting (`parallelBatchFit`)
+- thread-safe parameter mutation with cache invalidation
+- validation support (Result<T> factory, trySet* setters)
 
 ### 2. Modern C++20 without external dependencies
 
-The library uses the standard library only. It relies on modern C++20 features where they improve clarity or safety, but the design stays grounded in portability and maintainability.
+The library uses the standard library only. It relies on modern C++20 features where they improve clarity or safety, staying grounded in portability and maintainability.
 
 ### 3. Real performance work, not decorative optimization
 
-Performance is part of the project concept, not an afterthought. That includes:
-- runtime SIMD dispatch
-- vectorized batch operations where they are genuinely useful
-- parallel batch execution with architecture-aware thresholds
-- performance tooling to validate dispatch choices and speedups
+Performance is part of the project concept, not an afterthought:
+
+- runtime SIMD dispatch (SSE2/AVX/AVX2/AVX-512/NEON)
+- vectorized batch operations where they provide genuine speedups
+- parallel batch execution with empirically-derived architecture-aware thresholds
+- performance tooling to validate dispatch choices and measure speedups
 
 ### 4. Teach through structure
 
-The codebase is meant to be readable as well as usable. Architectural choices should illustrate good design patterns:
-- delegation where mathematical identity makes duplication unnecessary
+The codebase is meant to be readable as well as usable. Architectural choices illustrate good design patterns:
+
+- delegation where mathematical identity makes duplication unnecessary (Chi-squared over Gamma)
 - log-space computation where numerical stability matters
 - layered infrastructure instead of ad hoc optimization
 - explicit validation and measurable performance claims
+- template helpers to eliminate structural duplication across distributions
 
 ## Distribution Families
 
-The implemented distributions now cover four useful teaching families.
+The nine distributions span four useful statistical families.
 
 ### Symmetric, unbounded continuous
 - Gaussian
@@ -81,91 +91,69 @@ The implemented distributions now cover four useful teaching families.
 - Poisson
 - Discrete
 
-This family view is often more useful than treating each distribution as an isolated feature. It also provides a better structure for examples and documentation.
-
 ## Architecture
 
-The project uses a layered architecture.
+The project uses a six-level layered architecture.
 
-### Foundation
+### Level 0: Foundation
 Platform detection, constants, and low-level safety utilities.
 
-### Core utilities
+### Level 1: Core utilities
 Mathematical utilities, validation, numerical safety, log-space operations, and shared statistical helpers.
 
-### Infrastructure
+### Level 2: Infrastructure
 Performance dispatch, benchmarking, threshold management, system capability detection, caching, and initialization support.
 
-### Distribution framework
+### Level 3: Distribution framework
 Base classes and common abstractions used by concrete distributions.
 
-### Concrete distributions
+### Level 4: Concrete distributions
 Individual distribution implementations, each using the common framework while keeping family-specific math local and readable.
+
+### Level 5: Complete library interface
+The umbrella header `libstats.h` and supporting configuration.
 
 ## Performance Model
 
 Performance decisions are made at runtime based on problem size and machine capabilities.
 
-The library supports:
-- scalar execution for small workloads
-- SIMD/vectorized execution for medium workloads
-- parallel execution for larger workloads
-- work-stealing for large or irregular workloads
+The library supports four execution strategies:
 
-The core performance idea is that batch APIs should make optimization accessible without burdening normal users with low-level strategy decisions. Power users can still override strategy selection when needed.
+- **SCALAR** — single-element operations for tiny workloads
+- **VECTORIZED** — SIMD batch operations for medium workloads
+- **PARALLEL** — multi-threaded execution for larger workloads
+- **WORK_STEALING** — dynamic load balancing for large or irregular workloads
 
-## Repository Surface
+Strategy selection uses empirically-derived per-architecture thresholds (from profiling bundles across four machines) stored as a constexpr lookup table in `include/core/dispatch_thresholds.h`. Power users can override strategy selection explicitly via `getXxxWithStrategy()` variants.
+
+## Repository Structure
 
 ### Core directories
 - `include/` — public headers and internal header structure
 - `src/` — implementation files
-- `tests/` — correctness, integration, and enhanced tests
+- `tests/` — correctness, integration, and enhanced tests (all GTest-based)
 - `examples/` — usage-oriented demonstrations
 - `tools/` — analysis, validation, and benchmarking utilities
 - `docs/` — focused guides and reference material
 - `scripts/` — build and maintenance helpers
+- `data/profiles/dispatcher/` — profiling bundles for empirical threshold derivation
 
 ### User-facing entry points
 - `include/libstats.h` — umbrella header
 - `README.md` — project overview and onboarding
-- `WARP.md` — repository-specific development guidance
+- `AGENTS.md` — repository-specific development guidance for agents
 
-## Tooling Concept
+## Tooling
 
 The repo includes tools for two distinct jobs.
 
 ### Development and validation tools
-These help validate correctness, SIMD behavior, thresholds, and runtime capabilities.
-Examples:
-- `system_inspector`
-- `simd_verification`
-- `strategy_profile`
-- `parallel_batch_fitting_benchmark`
+Validate correctness, SIMD behaviour, thresholds, and runtime capabilities:
 
-### Historical or specialized analysis tools
-These support specific refactors or investigations and should be documented as such when retained.
-The project should distinguish clearly between active tools and archival or one-off utilities.
+- `system_inspector` — hardware and capability diagnostics
+- `simd_verification` — correctness and speedup validation across all distributions
+- `strategy_profile` — forced-strategy profiling for threshold tuning
+- `parallel_batch_fitting_benchmark` — parallel MLE performance analysis
 
-## Testing Concept
-
-Testing is intentionally layered.
-
-- distribution-specific tests validate math and API behavior
-- cross-cutting tests validate safety, dispatch, initialization, and infrastructure
-- SIMD verification validates both correctness and measured speedups
-- timing-sensitive tests are separated from correctness tests so noisy machines do not create false failures
-
-The intended release standard is not just "builds successfully" but "builds, passes correctness tests, and passes architecture-appropriate validation tools."
-
-## Release Gate for v1.0.0
-
-The project is ready for final release validation when these are all true:
-- documentation matches the implemented library
-- examples reflect the implemented distribution families
-- stale or superseded tests/tools are cleaned up or explicitly marked historical
-- correctness suite passes
-- SIMD verification passes
-- Windows/MSVC validation passes
-- AVX-512 validation on the Asus A16 is complete
-
-At that point, the codebase is ready to merge to `main` and tag v1.0.0.
+### Test infrastructure
+All tests use GTest and are registered with CTest. Tests are labelled `timing` when they contain speedup assertions sensitive to CPU load; correctness tests carry no label and are safe to run in parallel (`ctest -j8 -LE timing`).

@@ -353,15 +353,15 @@ export CMAKE_CXX_STANDARD=20
 
 ## 8. Gradual Warning Enforcement
 
-### Phase 1: Baseline (Current)
+### Baseline
 - Warnings reported but not failing
 - Collect data on warning types
 
-### Phase 2: Fix Critical (1-2 weeks)
+### Fix Critical
 - Fix all error-prone warnings
 - Enable `-Werror` for critical warnings
 
-### Phase 3: Full Enforcement (Before v1.0)
+### Full Enforcement
 - Fix all warnings
 - Enable `-Werror` globally
 - Add to PR requirements

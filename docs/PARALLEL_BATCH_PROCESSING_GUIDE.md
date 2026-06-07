@@ -205,8 +205,7 @@ for thresholds on your machine.
 
 ### Measured Performance Gains (Intel Ivy Bridge, AVX only)
 
-From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA), on the current
-Phase 6B branch:
+From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA), v1.2.0:
 
 | Distribution | Operation | SIMD Speedup | Notes |
 |---|---|---|---|
@@ -215,11 +214,11 @@ Phase 6B branch:
 | Gaussian | LogPDF | ~52x | Purely affine, no transcendentals |
 | Gaussian | PDF | ~12x | Uses vector_exp |
 | Gaussian | CDF | ~10x | Uses vector_erf |
-| Exponential | LogPDF | ~21x | Purely affine (Phase 6A) |
-| Exponential | PDF | ~10x | vector_exp + scalar fixup (Phase 6A) |
-| Exponential | CDF | ~10x | vector_exp + scalar fixup (Phase 6A) |
-| Gamma | PDF | ~10x | vector_log pipeline (Phase 6A) |
-| Gamma | LogPDF | ~7x | vector_log pipeline (Phase 6A) |
+| Exponential | LogPDF | ~21x | Purely affine |
+| Exponential | PDF | ~10x | vector_exp + scalar fixup |
+| Exponential | CDF | ~10x | vector_exp + scalar fixup |
+| Gamma | PDF | ~10x | vector_log pipeline |
+| Gamma | LogPDF | ~7x | vector_log pipeline |
 | Chi-squared | PDF | ~10x | Delegates to Gamma batch path |
 | Student's t | PDF | ~7x | One vector_log in the log-space pipeline |
 | Student's t | LogPDF | ~8x | Log-space SIMD pipeline |
@@ -231,7 +230,7 @@ Phase 6B branch:
 Higher speedups seen on AVX2/FMA (Kaby Lake: 4.45x+ overall) and different profile on NEON M1.
 AVX-512 (AMD Ryzen Zen 4) exercises 8-wide vectors; transcendentals currently delegate to AVX.
 
-**Phase 6A vectorization status:** Exponential (all 3 ops), Gamma (PDF/LogPDF), and Uniform (CDF)
+**SIMD vectorization status:** Exponential (all 3 ops), Gamma (PDF/LogPDF), and Uniform (CDF)
 have full SIMD batch paths via `BatchUnsafeImpl` using the compute+fixup pattern. Poisson,
 Discrete, and Uniform PDF/LogPDF remain scalar in their hot paths — those require `vector_floor`
 or `vector_blend` primitives not yet in `VectorOps`.
@@ -293,6 +292,33 @@ for (auto& t : threads) {
     t.join();
 }
 ```
+
+## Parallel Batch Fitting
+
+All nine distributions support `parallelBatchFit` for fitting distribution parameters to
+multiple independent datasets simultaneously, using the shared `detail::batchFitParallel`
+helper from `include/core/parallel_batch_fit.h`.
+
+```cpp
+// Fit Gaussian parameters to 100 independent datasets in parallel
+std::vector<std::vector<double>> datasets(100);
+for (auto& ds : datasets) {
+    ds.resize(1000);
+    // ... fill each dataset ...
+}
+
+std::vector<stats::GaussianDistribution> fitted(100);
+stats::GaussianDistribution::parallelBatchFit(datasets, fitted);
+// fitted[i] now holds parameters estimated from datasets[i]
+```
+
+**Available on all 9 distributions**: Gaussian, Exponential, Uniform, Discrete, Poisson,
+Gamma, Chi-squared, Student's t, and Beta all implement `parallelBatchFit`.
+
+The implementation uses the global ThreadPool for datasets ≥ 8 (configurable via
+`dispatch_table::BATCH_FIT_MIN`). Smaller counts run serially. Exceptions from individual
+fits are captured per-chunk and re-thrown after all futures complete; a serial fallback
+runs if the thread pool itself fails to initialise.
 
 ## Distribution-Specific Considerations
 
@@ -572,7 +598,7 @@ The system is designed to scale from small embedded applications to high-perform
 
 ---
 
-**Document Version**: 1.1
-**Last Updated**: 2026-04-10 (Phase 2/4 updates: strategy naming, simplified selection, measured performance)
+**Document Version**: 1.2
+**Last Updated**: 2026-06-07 (v1.2.0: Phase labels removed; parallelBatchFit section added)
 **Covers**: Complete parallel/batch processing API and usage patterns
 **Replaces**: `batch-processing-refactoring.md`, `deprecated_batch_cleanup_process.md`

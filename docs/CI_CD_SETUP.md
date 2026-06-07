@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the continuous integration and continuous deployment (CI/CD) infrastructure for the LibStats project, introduced in version v0.9.1.5.
+This document describes the CI/CD infrastructure for the libstats project.
 
 ## GitHub Actions Workflow
 
@@ -115,13 +115,13 @@ Pre-commit hooks configuration:
 
 ## Future Enhancements
 
-### v0.9.1.5 (Current)
+### Historical
 - ✅ Basic CI infrastructure
 - ✅ Multi-platform builds
 - ✅ Code quality tools
 - ✅ Coverage reporting
 
-### Completed (v0.9.1.5 Final)
+### Completed
 - ✅ Include What You Use (IWYU) configuration
 - ✅ Pre-commit hooks for local validation
 

@@ -248,7 +248,7 @@ High-performance parallel and batch processing:
 - Thread safety and memory management
 
 ### 🧰 **Windows Support**
-For Windows development environment setup (MSVC activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [WARP.md](WARP.md).
+For Windows development environment setup (MSVC activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [AGENTS.md](AGENTS.md).
 
 ## Installation and Consumption
 
@@ -318,7 +318,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 - All compiler warnings addressed (GCC, Clang, MSVC); zero warnings under ClangStrict
 - Test labels for parallel-safe correctness runs vs timing-sensitive runs
 
-### ✅ Packaging and installability (Phase 5)
+### ✅ Packaging and installability
 - `find_package(libstats)` with exported CMake targets
 - `FetchContent` support (zero-install consumption)
 - `pkg-config` for Linux and Homebrew

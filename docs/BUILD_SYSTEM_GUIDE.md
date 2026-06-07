@@ -523,14 +523,14 @@ ranlib libstats.a
 
 **Linux:**
 ```bash
-g++ -shared -fPIC -o libstats.so.0.8.3 *.o
-ln -sf libstats.so.0.8.3 libstats.so
+g++ -shared -fPIC -o libstats.so.1.2.0 *.o
+ln -sf libstats.so.1.2.0 libstats.so
 ```
 
 **macOS:**
 ```bash
-clang++ -dynamiclib -o libstats.0.8.3.dylib *.o
-ln -sf libstats.0.8.3.dylib libstats.dylib
+clang++ -dynamiclib -o libstats.1.2.0.dylib *.o
+ln -sf libstats.1.2.0.dylib libstats.dylib
 ```
 
 **Windows:**
@@ -619,10 +619,10 @@ build src/distributions/gaussian.o: cxx src/distributions/gaussian.cpp
 - **Performance**: Profile your specific build configuration vs CMake build
 - **Maintenance**: CMake build system receives updates; manual builds require maintenance
 
-## Platform-Specific Caveats (Phase 4 Validation)
+## Platform-Specific Caveats
 
-This section documents findings confirmed during Phase 4 cross-platform validation.
-All four development machines have been exercised; results are recorded in WARP.md.
+This section documents findings confirmed during cross-platform validation.
+All four development machines have been exercised; results are recorded in AGENTS.md.
 
 ### Validated Machine Matrix
 
@@ -652,7 +652,7 @@ AMD CPUs (Zen architecture and later) do not populate Intel's Deterministic Cach
 Parameters leaf (CPUID leaf 4). They use extended leaf `0x8000001D` with the same
 bit layout. Without this fallback, all cache sizes reported 0 KB on AMD hardware.
 
-**Fixed in Phase 4:** After leaf 4 returns nothing and vendor is `AuthenticAMD`, the
+**Fixed:** After leaf 4 returns nothing and vendor is `AuthenticAMD`, the
 code falls back to leaf `0x8000001D`. Verified on AMD Ryzen 7 7445HS (Zen 4):
 L1=32 KB, L2=1024 KB, L3=16384 KB all correctly detected.
 
@@ -661,7 +661,7 @@ L1=32 KB, L2=1024 KB, L3=16384 KB all correctly detected.
 NEON is AArch64's SIMD instruction set (2 doubles per register vs 4 for AVX).
 No special flags are needed — NEON is enabled automatically on ARM64.
 
-The `VectorizedThresholds` test in `test_simd_policy` was fixed in Phase 4: the
+The `VectorizedThresholds` test in `test_simd_policy` was fixed: the
 original threshold bounds assumed AVX (4-element vectors) and were too tight for
 NEON (2-element vectors). The test now correctly validates NEON-appropriate values.
 
@@ -675,14 +675,14 @@ ecosystem with AVX-512 support. `simd_avx512.cpp` is exercised only on this mach
 **Current limitation:** All transcendental functions in `simd_avx512.cpp` delegate to
 the AVX implementation. This produces correct results but only ~1.9x speedup vs scalar
 instead of the theoretical ~8x for 512-bit vectors. Optimising AVX-512 transcendentals
-is deferred to Phase 6.
+is deferred (see AGENTS.md Deferred Items).
 
 **simd_verification:** 36/36 PASS on Windows with MSVC.
 
 ### Windows — Dynamic Library Tests
 
 `test_gaussian_basic_dynamic` and `test_exponential_basic_dynamic` fail on Windows
-(pre-existing, not a Phase 4 regression). All static-linked tests pass. Suspected
+(pre-existing). All static-linked tests pass. Suspected
 cause: `std::exception` crossing the DLL boundary with heap mismatch under `/MD`.
 `make run_tests` (and `ctest -LE timing|benchmark`) excludes dynamic tests by default.
 
@@ -884,6 +884,6 @@ The CMake system is the recommended approach for most users, providing zero-conf
 ---
 
 **Document Version**: 1.1
-**Last Updated**: 2026-04-10 (Phase 4 cross-platform validation added)
+**Last Updated**: 2026-06-07
 **Covers**: Complete build system, CMake configuration, SIMD detection, parallel builds, cross-platform support
 **Replaces**: `build_types.md`, `parallel_builds.md`, `simd_build_system.md`

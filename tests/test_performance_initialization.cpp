@@ -57,18 +57,14 @@ TEST_F(PerformanceInitializationTest, MultipleInitializationCallsAreSafe) {
     auto duration2 = std::chrono::duration_cast<std::chrono::nanoseconds>(end2 - start2).count();
     auto duration3 = std::chrono::duration_cast<std::chrono::nanoseconds>(end3 - start3).count();
 
-    std::cout << "Initialization call timings:" << std::endl;
+    std::cout << "Initialization call timings (informational):" << std::endl;
     std::cout << "  First test call:  " << duration1 << " ns" << std::endl;
     std::cout << "  Second test call: " << duration2 << " ns" << std::endl;
     std::cout << "  Third test call:  " << duration3 << " ns" << std::endl;
 
-    // Since all calls are fast path, just verify they complete in reasonable time
-    // (under 10 microseconds is very reasonable for a static flag check)
-    EXPECT_LT(duration1, 10000);  // Should complete in under 10μs
-    EXPECT_LT(duration2, 10000);  // Should complete in under 10μs
-    EXPECT_LT(duration3, 10000);  // Should complete in under 10μs
-
     // Verify the function doesn't crash when called multiple times (idempotent)
+    // Timing is printed above for informational purposes only; no assertion is made
+    // because scheduler jitter on shared CI runners can produce arbitrary spikes.
     EXPECT_NO_THROW(stats::initialize_performance_systems());
     EXPECT_NO_THROW(stats::initialize_performance_systems());
 }

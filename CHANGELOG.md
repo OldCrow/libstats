@@ -1,3 +1,39 @@
+## [1.2.0] - 2026-06-08
+
+### Added
+- `detail::batchFitParallel` template helper in `include/core/parallel_batch_fit.h`;
+  replaces six hand-rolled `parallelBatchFit` copies across Gaussian, Exponential,
+  Uniform, Poisson, Gamma, and Discrete
+- `parallelBatchFit` added to the three previously-missing distributions:
+  `ChiSquaredDistribution`, `StudentTDistribution`, and `BetaDistribution`
+- 11 legacy assert-based tests migrated to GTest `TEST()` suites, integrated into
+  CMake via `create_libstats_gtest()` and registered with CTest
+
+### Changed
+- `categorizeBatchSize` replaced: if/else ladder → sorted constexpr array +
+  `std::lower_bound`, reducing complexity from O(N) to O(log N)
+- Four near-identical `getDispatchThreshold` overloads collapsed into one function
+  with per-architecture data tables (issues #20, #21)
+
+### Fixed
+- `LogSpaceOps::logSumExp` no longer uses the 1024-entry lookup table; replaced
+  with `std::log1p(std::exp(diff))` for full double-precision accuracy (~6e-5
+  error eliminated)
+- `DiscreteDistribution` parameter validation now rejects equal-bounds intervals
+  (`a >= b` fails; previously only `a > b` was rejected)
+
+### Documentation
+- Removed obsolete files: `VERSIONING.md` (pre-1.0 development), `docs/test_organization.md`
+- `PROJECT_CONCEPT.md` rewritten to reflect shipped v1.2.0 library; all Phase/roadmap
+  language removed
+- `AGENTS.md`, `README.md`, and all `docs/` files updated: Phase references removed,
+  WARP.md → AGENTS.md, v0.x version strings removed, parallelBatchFit availability
+  on all 9 distributions documented
+
+### Validation
+- 54/54 SIMD tests pass on all four architectures (AVX, AVX2, AVX-512, NEON)
+- 23/23 correctness tests + 11/11 GTest-migrated tests pass
+
 ## [1.1.9](https://github.com/OldCrow/libstats/compare/v1.1.8...v1.1.9) (2026-06-07)
 
 ### 🐛 Bug Fixes

@@ -8,10 +8,13 @@ This file provides project-scoped guidance to Warp (warp.dev) agents working in 
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.1.8 released on `main`.
+**Current Status**: v1.2.0 released on `main`.
 9 distributions, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
 54/54 SIMD tests passing on all four target machines.
-v1.1.7–v1.1.8: AppleClang default on macOS, CMake/GTest/AVX-512 build fixes, dead GPU dispatch slot removed.
+v1.2.0: all 11 standalone tests migrated to GTest (#19), `categorizeBatchSize` complexity
+reduced (#20), dispatch threshold functions consolidated (#21), shared `parallelBatchFit`
+helper extracted and added to all 9 distributions (#18), two pre-existing bugs fixed
+(LogSpaceOps lookup table precision, DiscreteDistribution equal-bounds validation).
 
 ## Session Start Baseline Workflow (Required)
 
@@ -43,17 +46,7 @@ Platform routing rules:
 - **Windows/MSVC:** Follow `Windows Session Setup (Asus TUF A16)` and use Visual Studio 2022 x64 Release commands.
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Phase 4 Validation Matrix (final, 6 distributions, 36 SIMD tests)
-
-| Machine | SIMD | Correctness | simd_verification | Speedup |
-|---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 31/31 ✅ | 36/36 ✅ | 3.57x |
-| Kaby Lake (2017 MBP) | AVX2 | 31/31 ✅ | 36/36 ✅ | 4.45x |
-| Mac Mini M1 | NEON | 31/31 ✅ | 36/36 ✅ | 3.15x |
-| Asus TUF A16 (Windows) | AVX-512 | 28/28 ✅ | 36/36 ✅ | 1.91x |
-| Linux CI (GCC/Clang) | AVX2 | pass ✅ | — | — |
-
-### Phase 6B Validation Matrix (9 distributions, 54 SIMD tests)
+### Current Validation Matrix (9 distributions, 54 SIMD tests)
 
 | Machine | SIMD | Correctness | simd_verification | Speedup |
 |---|---|---|---|---|
@@ -62,11 +55,10 @@ Platform routing rules:
 | Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
 | Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
 
-All four machines validated. Phase 6B (9 distributions, 54 SIMD tests) is complete
-across AVX, AVX2, AVX-512, and NEON.
+All four machines validated. 9 distributions, 54/54 SIMD tests, all architectures.
 
-### Phase 6A Results (Ivy Bridge, AVX)
-SIMD batch ops added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
+### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
+Vectorized batch kernels added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
 All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
 
 | Distribution | Op | Speedup |
@@ -78,17 +70,17 @@ All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
 | Gamma | LogPDF | 7.1x |
 | Uniform | CDF | 25.2x |
 
-Overall `simd_verification` AVX speedup: 4.10x (was 3.84x pre-Phase 6A). 36/36 tests pass.
+Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
 
 ### Deferred Items
 - AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on A16;
   fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
-  back to the AVX implementation; deferred post-v1.0.0
-- Phase 6C (possible): `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
+  back to the AVX implementation; deferred post-v1.2.0
+- Future: `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
 
-### Phase 6B Results (v1.0.0)
+### Distributions Added in v1.0.0
 New distributions added in v1.0.0:
 - **Student's t** — standalone implementation with SIMD log-space PDF/LogPDF and CDF via incomplete beta
 - **Chi-squared** — delegation wrapper over Gamma(α=ν/2, β=1/2)
@@ -119,7 +111,7 @@ Kaby Lake AVX2 (2017 MBP):
 - new-distribution speedups: Chi-squared PDF 13.8x/LogPDF 10.5x, Student's t PDF 6.3x/LogPDF 18.4x,
   Beta PDF 5.3x/LogPDF 4.1x
 
-All four machines validated. v1.0.0 released.
+All four machines validated at v1.0.0.
 
 ### Development Ecosystem
 
@@ -131,8 +123,8 @@ All four machines validated. v1.0.0 released.
 | Asus TUF A16 (2025) | Windows 11 Pro | AMD Ryzen 7 7445 (Zen 4) | SSE2 + AVX + AVX2 + **AVX-512** | Windows/MSVC + first AVX-512 machine |
 
 **Note:** The Asus TUF A16 (Ryzen 7 7445, Zen 4) is the first machine in this ecosystem with AVX-512 support.
-`simd_avx512.cpp` was exercised there for the first time in Phase 6B; 54/54 SIMD tests pass.
-The `test_simd_policy` AVX-512 string (`"AVX-512"`) was also confirmed correct.
+`simd_avx512.cpp` was first exercised there at v1.0.0; 54/54 SIMD tests pass.
+The `test_simd_policy` AVX-512 string (`"AVX-512"`) was confirmed correct.
 
 **Note:** Previous Windows testing was on an ASUS ROG Strix GL531. The Asus TUF A16 build environment
 may need to be set up from scratch (Visual Studio 2022, CMake, Git, VS Code with C/C++ + CMake Tools).
@@ -486,9 +478,10 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 3. Implement the standardized test patterns (`*_basic.cpp` and `*_enhanced.cpp`)
 
 #### Testing Strategy
-- **Level 0-3**: Service-level tests with `main()` functions (fast, minimal dependencies)
-- **Level 4-5**: GTest-based tests for complex statistical methods
-- **Coverage**: 27 tests total (25 standalone + 2 GTest)
+- **All levels**: GTest-based tests registered with CTest
+- Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
+- Timing tests: run `ctest -j1 -L timing` on a quiet machine
+- **Coverage**: 23 correctness tests + timing/benchmark suite
 
 ### Performance Optimization
 
