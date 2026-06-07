@@ -1,15 +1,10 @@
 /**
  * @file test_work_stealing_pool.cpp
- * @brief Comprehensive test suite for WorkStealingPool with Level 0-2 integration
- *
- * This test suite verifies that the WorkStealingPool has the same Level 0-2 integration
- * as the ThreadPool implementation, plus work-stealing specific functionality.
+ * @brief GTest suite for WorkStealingPool with Level 0-2 integration
  */
-
 #include "libstats/platform/work_stealing_pool.h"
 
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <concepts>
@@ -21,247 +16,143 @@
 #include <span>
 #include <vector>
 
+#include <gtest/gtest.h>
+
 using namespace stats;
 
-// C++20 concept for testing
 template <typename T>
 concept Numeric = std::integral<T> || std::floating_point<T>;
 
-int main() {
-    std::cout << "=== WorkStealingPool Test with C++20 ===\n\n";
-    std::cout << "C++ Standard: " << __cplusplus << "\n\n";
+TEST(WorkStealingPool, BasicTaskSubmission) {
+    WorkStealingPool pool(4);
+    std::atomic<int> counter{0};
 
-    // Test 1: Basic task submission and execution
-    std::cout << "Test 1: Basic task submission\n";
-    {
-        WorkStealingPool pool(4);  // 4 worker threads
-        std::atomic<int> counter{0};
-
-        // Submit 10 simple tasks
-        for (int i = 0; i < 10; ++i) {
-            pool.submit([&counter, i]() {
-                counter.fetch_add(1);
-                std::cout << "  Task " << i << " executed\n";
-            });
-        }
-
-        pool.waitForAll();
-        assert(counter.load() == 10);
-        std::cout << "  ✓ All 10 tasks executed successfully\n\n";
+    for (int i = 0; i < 10; ++i) {
+        pool.submit([&counter, i]() {
+            counter.fetch_add(1);
+            std::cout << "  Task " << i << " executed\n";
+        });
     }
 
-    // Test 2: C++20 ranges with parallel computation
-    std::cout << "Test 2: C++20 ranges with work stealing\n";
-    {
-        WorkStealingPool pool(4);
+    pool.waitForAll();
+    EXPECT_EQ(counter.load(), 10);
+    std::cout << "  All 10 tasks executed successfully\n";
+}
 
-        // Create data using C++20 ranges
-        std::vector<int> data;
-        auto range = std::views::iota(0, 1000) | std::views::transform([](int i) { return i * 2; });
-        std::ranges::copy(range, std::back_inserter(data));
+TEST(WorkStealingPool, CppRangesWithWorkStealing) {
+    WorkStealingPool pool(4);
 
-        std::atomic<long long> sum{0};
+    std::vector<int> data;
+    auto range = std::views::iota(0, 1000) | std::views::transform([](int i) { return i * 2; });
+    std::ranges::copy(range, std::back_inserter(data));
 
-        // Process data in parallel chunks
-        const size_t chunkSize = 100;
-        for (size_t start = 0; start < data.size(); start += chunkSize) {
-            size_t end = std::min(start + chunkSize, data.size());
-
-            pool.submit([&data, &sum, start, end]() {
-                long long localSum = 0;
-                for (size_t i = start; i < end; ++i) {
-                    localSum += data[i];
-                }
-                sum.fetch_add(localSum);
-            });
-        }
-
-        pool.waitForAll();
-
-        // Verify result
-        long long expectedSum = 0;
-        for (auto value : data) {
-            expectedSum += value;
-        }
-
-        assert(sum.load() == expectedSum);
-        std::cout << "  ✓ Parallel sum: " << sum.load() << " (expected: " << expectedSum << ")\n\n";
+    std::atomic<long long> sum{0};
+    const size_t chunkSize = 100;
+    for (size_t start = 0; start < data.size(); start += chunkSize) {
+        size_t end = std::min(start + chunkSize, data.size());
+        pool.submit([&data, &sum, start, end]() {
+            long long local = 0;
+            for (size_t i = start; i < end; ++i)
+                local += data[i];
+            sum.fetch_add(local);
+        });
     }
 
-    // Test 3: ParallelFor with C++20 concepts
-    std::cout << "Test 3: ParallelFor with concepts\n";
-    {
-        WorkStealingPool pool(4);
+    pool.waitForAll();
 
-        // Template function using C++20 concepts
-        auto process_numeric = [&pool]<Numeric T>(std::vector<T>& vec, T multiplier) {
-            pool.parallelFor(0, vec.size(), [&vec, multiplier](size_t i) { vec[i] *= multiplier; });
-        };
+    long long expected = 0;
+    for (auto v : data) expected += v;
+    EXPECT_EQ(sum.load(), expected);
+    std::cout << "  Parallel sum: " << sum.load() << " (expected: " << expected << ")\n";
+}
 
-        std::vector<int> int_data(1000);
-        std::iota(int_data.begin(), int_data.end(), 1);
+TEST(WorkStealingPool, ParallelForWithConcepts) {
+    WorkStealingPool pool(4);
 
-        process_numeric(int_data, 3);
+    auto process_numeric = [&pool]<Numeric T>(std::vector<T>& vec, T multiplier) {
+        pool.parallelFor(0, vec.size(), [&vec, multiplier](size_t i) { vec[i] *= multiplier; });
+    };
 
-        // Verify first few elements
-        assert(int_data[0] == 3);       // 1 * 3
-        assert(int_data[1] == 6);       // 2 * 3
-        assert(int_data[999] == 3000);  // 1000 * 3
+    std::vector<int> int_data(1000);
+    std::iota(int_data.begin(), int_data.end(), 1);
+    process_numeric(int_data, 3);
 
-        std::cout << "  ✓ Concept-based parallelFor processed 1000 elements\n\n";
+    EXPECT_EQ(int_data[0], 3);
+    EXPECT_EQ(int_data[1], 6);
+    EXPECT_EQ(int_data[999], 3000);
+    std::cout << "  Concept-based parallelFor processed 1000 elements\n";
+}
+
+TEST(WorkStealingPool, PerformanceAndStatistics) {
+    unsigned int thread_count = std::max(2u, std::thread::hardware_concurrency());
+    WorkStealingPool pool(thread_count);
+    const int numTasks = 1000;
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < numTasks; ++i) {
+        pool.submit([i]() {
+            auto work = std::views::iota(0, (i % 10 + 1) * 100)
+                      | std::views::transform([](int x) { return x * x; })
+                      | std::views::take(50);
+            volatile long long s = 0;
+            for (auto v : work) s = s + v;
+        });
+    }
+    pool.waitForAll();
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto stats = pool.getStatistics();
+    std::cout << "  Execution: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+              << " ms, steals: " << stats.workSteals << "\n";
+
+    EXPECT_EQ(static_cast<int>(stats.tasksExecuted), numTasks);
+}
+
+TEST(WorkStealingPool, GlobalUtilities) {
+    std::atomic<int> counter{0};
+
+    std::vector<int> indices;
+    std::ranges::copy(std::views::iota(0, 50), std::back_inserter(indices));
+
+    for ([[maybe_unused]] auto i : indices) {
+        stats::workStealingSubmit([&counter]() { counter.fetch_add(1); });
     }
 
-    // Test 4: Work stealing statistics with performance measurement
-    std::cout << "Test 4: Performance and statistics\n";
-    {
-        // Ensure we have at least 1 thread (hardware_concurrency can return 0)
-        unsigned int thread_count = std::thread::hardware_concurrency();
-        if (thread_count == 0)
-            thread_count = 2;  // Default to 2 if detection fails
-        WorkStealingPool pool(thread_count);
-        const int numTasks = 1000;
+    stats::workStealingWaitForAll();
+    EXPECT_EQ(counter.load(), 50);
+    std::cout << "  Global utilities executed " << counter.load() << " tasks\n";
+}
 
-        auto start_time = std::chrono::high_resolution_clock::now();
+TEST(WorkStealingPool, Level0ConstantsIntegration) {
+    auto parallelThreshold      = arch::get_min_elements_for_parallel();
+    auto distributionThreshold  = arch::get_min_elements_for_distribution_parallel();
+    auto defaultGrainSize       = arch::get_default_grain_size();
+    auto simdBlockSize          = arch::get_optimal_simd_block_size();
+    auto memoryAlignment        = arch::get_optimal_alignment();
 
-        // Submit variable-work tasks to trigger stealing
-        for (int i = 0; i < numTasks; ++i) {
-            pool.submit([i]() {
-                // Variable work amounts using C++20 features
-                auto work_amount = std::views::iota(0, (i % 10 + 1) * 100) |
-                                   std::views::transform([](int x) { return x * x; }) |
-                                   std::views::take(50);
+    EXPECT_GT(parallelThreshold, 0u);
+    EXPECT_GT(distributionThreshold, 0u);
+    EXPECT_GT(defaultGrainSize, 0u);
+    EXPECT_GT(simdBlockSize, 0u);
+    EXPECT_GT(memoryAlignment, 0u);
 
-                volatile long long sum = 0;
-                for (auto value : work_amount) {
-                    sum = sum + value;
-                }
-            });
-        }
+    std::cout << "  Min parallel: " << parallelThreshold
+              << ", grain: " << defaultGrainSize
+              << ", alignment: " << memoryAlignment << " bytes\n";
+}
 
-        pool.waitForAll();
+TEST(WorkStealingPool, CPUDetectionIntegration) {
+    const auto& features    = arch::get_features();
+    auto optimalThreads     = WorkStealingPool::getOptimalThreadCount();
 
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    EXPECT_GT(optimalThreads, 0u);
 
-        auto stats = pool.getStatistics();
-        std::cout << "  Execution time: " << duration.count() << " ms\n";
-        std::cout << "  Tasks executed: " << stats.tasksExecuted << "\n";
-        std::cout << "  Work steals: " << stats.workSteals << "\n";
-        std::cout << "  Steal success rate: " << (stats.stealSuccessRate * 100) << "%\n";
-        std::cout << "  Hardware threads: " << std::thread::hardware_concurrency() << "\n";
-
-        assert(stats.tasksExecuted == numTasks);
-        std::cout << "  ✓ All tasks completed with work stealing active\n\n";
+    if (features.topology.hyperthreading && features.topology.logical_cores > 0) {
+        EXPECT_LE(optimalThreads, features.topology.logical_cores);
     }
 
-    // Test 5: Global utilities with C++20 features
-    std::cout << "Test 5: Global utilities\n";
-    {
-        std::atomic<int> counter{0};
-
-        // Use C++20 ranges to generate task indices
-        std::vector<int> task_indices;
-        auto range = std::views::iota(0, 50);
-        std::ranges::copy(range, std::back_inserter(task_indices));
-
-        for ([[maybe_unused]] auto i : task_indices) {
-            stats::workStealingSubmit([&counter]() { counter.fetch_add(1); });
-        }
-
-        stats::workStealingWaitForAll();
-        assert(counter.load() == 50);
-        std::cout << "  ✓ Global utilities executed " << counter.load() << " tasks\n\n";
-    }
-
-    // Test 6: Level 0 Constants Integration
-    std::cout << "Test 6: Level 0 Constants Integration\n";
-    {
-        // Test that constants are properly used
-        auto parallelThreshold = arch::get_min_elements_for_parallel();
-        auto distributionThreshold = arch::get_min_elements_for_distribution_parallel();
-        auto defaultGrainSize = arch::get_default_grain_size();
-        auto simdBlockSize = arch::get_optimal_simd_block_size();
-        auto memoryAlignment = arch::get_optimal_alignment();
-
-        std::cout << "  Min parallel size: " << parallelThreshold << std::endl;
-        std::cout << "  Min distribution parallel size: " << distributionThreshold << std::endl;
-        std::cout << "  Default grain size: " << defaultGrainSize << std::endl;
-        std::cout << "  SIMD block size: " << simdBlockSize << std::endl;
-        std::cout << "  Memory alignment: " << memoryAlignment << " bytes" << std::endl;
-
-        // Verify constants are reasonable
-        assert(parallelThreshold > 0);
-        assert(distributionThreshold > 0);
-        assert(defaultGrainSize > 0);
-        assert(simdBlockSize > 0);
-        assert(memoryAlignment > 0);
-
-        std::cout << "  ✓ Constants integration working correctly\n\n";
-    }
-
-    // Test 7: CPU Detection Integration
-    std::cout << "Test 7: CPU Detection Integration\n";
-    {
-        const auto& features = arch::get_features();
-        auto physicalCores = features.topology.physical_cores;
-        auto logicalCores = features.topology.logical_cores;
-        auto l1CacheSize = features.l1_cache_size;
-        auto l2CacheSize = features.l2_cache_size;
-        auto l3CacheSize = features.l3_cache_size;
-        auto cacheLineSize = features.cache_line_size;
-        auto optimalThreads = WorkStealingPool::getOptimalThreadCount();
-
-        std::cout << "  Physical cores: " << physicalCores << std::endl;
-        std::cout << "  Logical cores: " << logicalCores << std::endl;
-        std::cout << "  L1 cache: " << (l1CacheSize > 0 ? l1CacheSize / 1024 : 0) << " KB"
-                  << std::endl;
-        std::cout << "  L2 cache: " << (l2CacheSize > 0 ? l2CacheSize / 1024 : 0) << " KB"
-                  << std::endl;
-        std::cout << "  L3 cache: " << (l3CacheSize > 0 ? l3CacheSize / 1024 / 1024 : 0) << " MB"
-                  << std::endl;
-        std::cout << "  Cache line size: " << cacheLineSize << " bytes" << std::endl;
-        std::cout << "  Optimal threads: " << optimalThreads << std::endl;
-        std::cout << "  Has hyperthreading: " << (features.topology.hyperthreading ? "Yes" : "No")
-                  << std::endl;
-
-        // Be lenient for CI/VM environments where CPU detection might not fully work
-        if (physicalCores == 0) {
-            std::cerr
-                << "  Warning: physicalCores could not be detected on this platform (CI runner?)"
-                << std::endl;
-        }
-        // physicalCores is size_t (unsigned): zero means undetectable (CI/VM), not invalid
-
-        if (logicalCores == 0) {
-            std::cerr
-                << "  Warning: logicalCores could not be detected on this platform (CI runner?)"
-                << std::endl;
-        }
-        // logicalCores is size_t (unsigned): zero means undetectable, not invalid
-
-        // Cache sizes might be 0 or unavailable on VMs/CI runners
-        // All are size_t (unsigned): always >= 0 by type; zero means undetectable
-
-        if (cacheLineSize == 0) {
-            std::cerr
-                << "  Warning: Cache line size could not be detected on this platform (CI runner?)"
-                << std::endl;
-        }
-        // cacheLineSize is size_t (unsigned): zero means undetectable, not invalid
-
-        // Optimal threads should always be at least 1
-        assert(optimalThreads > 0);
-
-        if (features.topology.hyperthreading) {
-            // Work stealing pools can use logical cores effectively
-            assert(optimalThreads <= logicalCores);
-        }
-
-        std::cout << "  ✓ CPU detection integration working correctly\n\n";
-    }
-
-    std::cout << "🎉 All WorkStealingPool tests passed with Level 0-2 integration!\n";
-
-    return 0;
+    std::cout << "  Physical: " << features.topology.physical_cores
+              << ", Logical: " << features.topology.logical_cores
+              << ", Optimal: " << optimalThreads << "\n";
 }

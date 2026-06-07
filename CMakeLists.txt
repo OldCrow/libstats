@@ -1690,11 +1690,11 @@ if(LIBSTATS_BUILD_TESTS)
     # These test platform capabilities and constants - most critical
 
     # Basic constants and platform tests
-    create_libstats_test(test_constants tests/test_constants.cpp)
+    create_libstats_gtest(test_constants tests/test_constants.cpp)
     create_libstats_test(test_cpu_detection tests/test_cpu_detection.cpp)
     create_libstats_test(test_simd_comprehensive tests/test_simd_comprehensive.cpp)
-    create_libstats_test(test_platform_optimizations tests/test_platform_optimizations.cpp)
-    create_libstats_test(test_simd_policy tests/test_simd_policy.cpp)
+    create_libstats_gtest(test_platform_optimizations tests/test_platform_optimizations.cpp)
+    create_libstats_gtest(test_simd_policy tests/test_simd_policy.cpp)
 
     # SIMD benchmark test (on-demand only, not in regular test suite due to runtime)
     create_libstats_test(benchmark_simd_all tests/benchmark_simd_all.cpp)
@@ -1705,11 +1705,11 @@ if(LIBSTATS_BUILD_TESTS)
     # Core mathematical and safety functionality
 
     # Consolidated numerical safety (safety.h + log_space_ops.h)
-    create_libstats_test(test_numerical_safety tests/test_numerical_safety.cpp)
+    create_libstats_gtest(test_numerical_safety tests/test_numerical_safety.cpp)
 
     # Consolidated error handling (error_handling.h)
-    create_libstats_test(test_error_handling_comprehensive
-                         tests/test_error_handling_comprehensive.cpp)
+    create_libstats_gtest(test_error_handling_comprehensive
+                          tests/test_error_handling_comprehensive.cpp)
 
     # Consolidated math utilities (math_utils.h)
     create_libstats_gtest(test_math_comprehensive tests/test_math_comprehensive.cpp)
@@ -1727,9 +1727,9 @@ if(LIBSTATS_BUILD_TESTS)
 
     # LEVEL 2b: Platform Capabilities thread_pool.h and work_stealing_pool.h - Thread pool
     # implementations
-    create_libstats_test(test_thread_pool tests/test_thread_pool.cpp)
+    create_libstats_gtest(test_thread_pool tests/test_thread_pool.cpp)
     if(LIBSTATS_CMAKE_HAS_CONCEPTS_HEADER AND LIBSTATS_CMAKE_HAS_RANGES_HEADER)
-        create_libstats_test(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
+        create_libstats_gtest(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
         set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST TRUE)
     else()
         set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST FALSE)
@@ -1746,16 +1746,16 @@ if(LIBSTATS_BUILD_TESTS)
     # Performance Infrastructure
 
     # parallel_execution.h - C++20 parallel execution with automatic fallback
-    create_libstats_test(test_parallel_execution_integration
-                         tests/test_parallel_execution_integration.cpp)
-    create_libstats_test(test_parallel_execution_comprehensive
-                         tests/test_parallel_execution_comprehensive.cpp)
+    create_libstats_gtest(test_parallel_execution_integration
+                          tests/test_parallel_execution_integration.cpp)
+    create_libstats_gtest(test_parallel_execution_comprehensive
+                          tests/test_parallel_execution_comprehensive.cpp)
 
     # benchmark.h - Performance measurement utilities
     create_libstats_test(test_benchmark_basic tests/test_benchmark_basic.cpp)
 
     # benchmark.h - Comprehensive benchmark infrastructure testing
-    create_libstats_test(test_benchmark tests/test_benchmark.cpp)
+    create_libstats_gtest(test_benchmark tests/test_benchmark.cpp)
 
     # PHASE 3 PERFORMANCE OPTIMIZATION FRAMEWORK (NEW TESTS) performance_history.h - Performance
     # data collection and analysis
@@ -1801,7 +1801,7 @@ if(LIBSTATS_BUILD_TESTS)
 
     # Atomic parameters test - Test lock-free parameter access and invalidation for all
     # distributions
-    create_libstats_test(test_atomic_parameters tests/test_atomic_parameters.cpp)
+    create_libstats_gtest(test_atomic_parameters tests/test_atomic_parameters.cpp)
 
     # uniform.h - Uniform distribution implementation
     create_libstats_test(test_uniform_basic tests/test_uniform_basic.cpp)

@@ -7,8 +7,9 @@
 
 // Standard library includes
 #include <algorithm>
+#include <gtest/gtest.h>
 #include <atomic>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -24,44 +25,14 @@ using namespace stats;
 using namespace std;
 
 // Test configuration
-struct TestConfig {
-    bool test_all = true;
-    bool test_factory = false;
-    bool test_dual_api = false;
-    bool test_validation = false;
-    bool test_distributions = false;
-    bool test_stress = false;
-    bool test_benchmarks = false;
-    bool verbose = false;
-    vector<string> specific_distributions;
-    size_t stress_iterations = 1000;
-    size_t thread_count = 4;
-};
+;
 
 // Test statistics
 struct TestStats {
-    int total_tests = 0;
-    int passed = 0;
-    int failed = 0;
-
-    void record(bool success, const string& test_name) {
-        total_tests++;
-        if (success) {
-            passed++;
-            cout << "  ✓ " << test_name << endl;
-        } else {
-            failed++;
-            cout << "  ✗ " << test_name << " FAILED" << endl;
-        }
+    void record(bool success, const std::string& test_name) {
+        EXPECT_TRUE(success) << test_name;
     }
-
-    void print_summary(const string& category) {
-        cout << "\n" << category << " Results: " << passed << "/" << total_tests << " passed";
-        if (failed > 0) {
-            cout << " (" << failed << " failed)";
-        }
-        cout << endl;
-    }
+    void print_summary([[maybe_unused]] const std::string& category) {}
 };
 
 // Helper function for comparing doubles
@@ -74,7 +45,7 @@ bool approx_equal(T a, T b, T epsilon = 1e-10) {
 // SAFE FACTORY METHOD TESTS
 //==============================================================================
 
-void test_factory_methods(const TestConfig& config) {
+void test_factory_methods() {
     cout << "\n=== Testing Safe Factory Methods ===" << endl;
     TestStats stats;
 
@@ -107,7 +78,7 @@ void test_factory_methods(const TestConfig& config) {
         auto badResult4 = GaussianDistribution::create(0.0, numeric_limits<double>::quiet_NaN());
         stats.record(badResult4.isError(), "Gaussian rejects NaN standard deviation");
 
-        if (config.verbose && badResult1.isError()) {
+        if (false && badResult1.isError()) {
             cout << "    Error message: " << badResult1.message << endl;
         }
     }
@@ -179,7 +150,7 @@ void test_factory_methods(const TestConfig& config) {
 // DUAL API TESTS
 //==============================================================================
 
-void test_dual_api([[maybe_unused]] const TestConfig& config) {
+void test_dual_api() {
     cout << "\n=== Testing Dual API (Exception/Result) ===" << endl;
     TestStats stats;
 
@@ -335,7 +306,7 @@ void test_dual_api([[maybe_unused]] const TestConfig& config) {
 // PARAMETER VALIDATION TESTS
 //==============================================================================
 
-void test_parameter_validation(const TestConfig& config) {
+void test_parameter_validation() {
     cout << "\n=== Testing Parameter Validation ===" << endl;
     TestStats stats;
 
@@ -390,7 +361,7 @@ void test_parameter_validation(const TestConfig& config) {
     }
 
     // Test error message quality
-    if (config.verbose) {
+    if (false) {
         cout << "\n  Sample error messages:" << endl;
 
         auto badGauss = GaussianDistribution::create(0.0, -1.0);
@@ -416,8 +387,7 @@ void test_parameter_validation(const TestConfig& config) {
 // DISTRIBUTION-SPECIFIC ERROR HANDLING TESTS
 //==============================================================================
 
-void test_specific_distribution(const string& dist_name, TestStats& stats,
-                                [[maybe_unused]] const TestConfig& config) {
+void test_specific_distribution(const string& dist_name, TestStats& stats) {
     if (dist_name == "gaussian" || dist_name == "all") {
         auto result = GaussianDistribution::create(0.0, 1.0);
         if (result.isOk()) {
@@ -514,18 +484,18 @@ void test_specific_distribution(const string& dist_name, TestStats& stats,
     }
 }
 
-void test_distributions(const TestConfig& config) {
+void test_distributions() {
     cout << "\n=== Testing Distribution-Specific Error Handling ===" << endl;
     TestStats stats;
 
-    if (config.specific_distributions.empty()) {
+    if (std::vector<std::string>().empty()) {
         // Test all distributions
-        test_specific_distribution("all", stats, config);
+        test_specific_distribution("all", stats);
     } else {
         // Test specific distributions
-        for (const auto& dist : config.specific_distributions) {
+        for (const auto& dist : std::vector<std::string>()) {
             cout << "\n  Testing " << dist << ":" << endl;
-            test_specific_distribution(dist, stats, config);
+            test_specific_distribution(dist, stats);
         }
     }
 
@@ -536,9 +506,9 @@ void test_distributions(const TestConfig& config) {
 // STRESS TESTS
 //==============================================================================
 
-void test_stress(const TestConfig& config) {
+void test_stress() {
     cout << "\n=== Stress Testing Error Handling ===" << endl;
-    cout << "Running " << config.stress_iterations << " iterations with " << config.thread_count
+    cout << "Running " << 1000 << " iterations with " << 4
          << " threads" << endl;
 
     atomic<int> successes(0);
@@ -551,13 +521,13 @@ void test_stress(const TestConfig& config) {
             auto dist = make_shared<GaussianDistribution>(std::move(result.value));
 
             vector<thread> threads;
-            for (size_t t = 0; t < config.thread_count; ++t) {
+            for (size_t t = 0; t < 4; ++t) {
                 threads.emplace_back([&, t]() {
                     mt19937 rng(static_cast<uint32_t>(42 + t));  // C4267: explicit size_t→uint32_t
                     uniform_real_distribution<> mean_dist(-100, 100);
                     uniform_real_distribution<> std_dist(0.1, 10);
 
-                    for (size_t i = 0; i < config.stress_iterations / config.thread_count; ++i) {
+                    for (size_t i = 0; i < 1000 / 4; ++i) {
                         // Randomly choose between valid and invalid updates
                         if (rng() % 2 == 0) {
                             auto r = dist->trySetParameters(mean_dist(rng), std_dist(rng));
@@ -593,7 +563,7 @@ void test_stress(const TestConfig& config) {
         int factory_successes = 0;
         int factory_failures = 0;
 
-        for (size_t i = 0; i < config.stress_iterations; ++i) {
+        for (size_t i = 0; i < 1000; ++i) {
             double p1 = param_dist(rng);
             double p2 = param_dist(rng);
 
@@ -626,7 +596,7 @@ void test_stress(const TestConfig& config) {
 // PERFORMANCE BENCHMARKS
 //==============================================================================
 
-void test_benchmarks([[maybe_unused]] const TestConfig& config) {
+void test_benchmarks() {
     cout << "\n=== Performance Benchmarks ===" << endl;
 
     const size_t iterations = 100000;
@@ -686,131 +656,14 @@ void test_benchmarks([[maybe_unused]] const TestConfig& config) {
 // MAIN FUNCTION AND ARGUMENT PARSING
 //==============================================================================
 
-void print_usage(const char* program_name) {
-    cout << "Usage: " << program_name << " [options]\n\n";
-    cout << "Comprehensive Error Handling Test Suite\n";
-    cout << "Tests safe factory methods and dual API across all distributions\n\n";
-    cout << "Options:\n";
-    cout << "  --all/-a              Test all components (default)\n";
-    cout << "  --factory/-f          Test safe factory methods\n";
-    cout << "  --dual-api/-d         Test dual API (exception/Result)\n";
-    cout << "  --validation/-v       Test parameter validation\n";
-    cout << "  --distributions/-D    Test specific distribution(s)\n";
-    cout << "  --stress/-s           Run concurrent stress tests\n";
-    cout << "  --benchmarks/-b       Run performance benchmarks\n";
-    cout << "  --verbose/-V          Enable verbose output\n";
-    cout << "  --dist NAME           Test specific distribution (can be repeated)\n";
-    cout << "  --iterations N        Set stress test iterations (default: 1000)\n";
-    cout << "  --threads N           Set thread count for stress tests (default: 4)\n";
-    cout << "  --help/-h             Show this help\n\n";
-    cout << "Available distributions:\n";
-    cout << "  gaussian, uniform, exponential, poisson, discrete, gamma\n\n";
-    cout << "Examples:\n";
-    cout << "  " << program_name << "                    # Test everything\n";
-    cout << "  " << program_name << " --factory --dual-api # Test APIs\n";
-    cout << "  " << program_name << " --dist gaussian --dist uniform\n";
-    cout << "  " << program_name << " --stress --iterations 10000 --threads 8\n";
-}
 
-TestConfig parse_args(int argc, char* argv[]) {
-    TestConfig config;
 
-    if (argc == 1) {
-        return config;  // Default: test all
-    }
 
-    config.test_all = false;  // If args provided, don't test all by default
 
-    for (int i = 1; i < argc; ++i) {
-        string arg = argv[i];
 
-        if (arg == "--help" || arg == "-h") {
-            print_usage(argv[0]);
-            exit(0);
-        } else if (arg == "--all" || arg == "-a") {
-            config.test_all = true;
-        } else if (arg == "--factory" || arg == "-f") {
-            config.test_factory = true;
-        } else if (arg == "--dual-api" || arg == "-d") {
-            config.test_dual_api = true;
-        } else if (arg == "--validation" || arg == "-v") {
-            config.test_validation = true;
-        } else if (arg == "--distributions" || arg == "-D") {
-            config.test_distributions = true;
-        } else if (arg == "--stress" || arg == "-s") {
-            config.test_stress = true;
-        } else if (arg == "--benchmarks" || arg == "-b") {
-            config.test_benchmarks = true;
-        } else if (arg == "--verbose" || arg == "-V") {
-            config.verbose = true;
-        } else if (arg == "--dist" && i + 1 < argc) {
-            config.specific_distributions.push_back(argv[++i]);
-            config.test_distributions = true;
-        } else if (arg == "--iterations" && i + 1 < argc) {
-            config.stress_iterations = stoul(argv[++i]);
-        } else if (arg == "--threads" && i + 1 < argc) {
-            config.thread_count = stoul(argv[++i]);
-        } else {
-            cerr << "Unknown option: " << arg << endl;
-            print_usage(argv[0]);
-            exit(1);
-        }
-    }
-
-    // If no specific tests selected, test all
-    if (!config.test_factory && !config.test_dual_api && !config.test_validation &&
-        !config.test_distributions && !config.test_stress && !config.test_benchmarks) {
-        config.test_all = true;
-    }
-
-    return config;
-}
-
-int main(int argc, char* argv[]) {
-    TestConfig config = parse_args(argc, argv);
-
-    cout << "=== Comprehensive Error Handling Test Suite ===" << endl;
-    cout << "Testing safe factory methods and dual API\n" << endl;
-
-    int total_sections = 0;
-
-    try {
-        if (config.test_all || config.test_factory) {
-            test_factory_methods(config);
-            total_sections++;
-        }
-
-        if (config.test_all || config.test_dual_api) {
-            test_dual_api(config);
-            total_sections++;
-        }
-
-        if (config.test_all || config.test_validation) {
-            test_parameter_validation(config);
-            total_sections++;
-        }
-
-        if (config.test_all || config.test_distributions) {
-            test_distributions(config);
-            total_sections++;
-        }
-
-        if (config.test_stress) {  // Only run if explicitly requested
-            test_stress(config);
-            total_sections++;
-        }
-
-        if (config.test_all || config.test_benchmarks) {
-            test_benchmarks(config);
-            total_sections++;
-        }
-
-        cout << "\n=== Test Suite Complete ===" << endl;
-        cout << "Tested " << total_sections << " component(s)" << endl;
-
-        return 0;
-    } catch (const exception& e) {
-        cerr << "Test failed with exception: " << e.what() << endl;
-        return 1;
-    }
-}
+TEST(ErrorHandling, FactoryMethods)          { test_factory_methods(); }
+TEST(ErrorHandling, DualApi)                 { test_dual_api(); }
+TEST(ErrorHandling, ParameterValidation)     { test_parameter_validation(); }
+TEST(ErrorHandling, DistributionSpecific)    { test_distributions(); }
+TEST(ErrorHandling, StressTests)             { test_stress(); }
+TEST(ErrorHandling, Benchmarks)              { test_benchmarks(); }

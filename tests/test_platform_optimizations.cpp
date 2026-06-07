@@ -17,7 +17,7 @@
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
-#include <cassert>    // for assert
+#include <gtest/gtest.h>
 #include <chrono>     // for std::chrono::high_resolution_clock
 #include <exception>  // for std::exception
 #include <iomanip>    // for std::setprecision
@@ -35,37 +35,15 @@ using namespace stats::arch;
 using namespace stats::arch::simd;
 using namespace std;
 
-// Test options structure
-struct TestOptions {
-    bool json = false;
-    bool help = false;
-    bool verbose = false;
-};
-
-// Forward declarations for test functions
-TestOptions parse_args(int argc, char* argv[]);
-void print_help();
-void output_json_summary();
-void test_basic_platform_info();
-void test_cache_aware_algorithms();
-void test_memory_access_patterns();
-void test_numa_aware_processing();
-void test_platform_constants_validation();
-void test_advanced_vectorization_decisions();
-void test_cross_architecture_consistency();
-void test_simd_threshold_alignment();
-void test_performance_scaling();
-void test_adaptive_optimization();
+// Forward declarations for benchmark helpers
 void benchmark_cache_blocking();
 void benchmark_memory_bandwidth();
 
-// Helper functions
 template <typename T>
 void fill_random_data(vector<T>& data, T min_val = T(0), T max_val = T(1)) {
     random_device rd;
     mt19937 gen(rd());
     uniform_real_distribution<T> dis(min_val, max_val);
-
     for (auto& val : data) {
         val = dis(gen);
     }
@@ -86,112 +64,12 @@ size_t get_l3_cache_elements() {
     return features.l3_cache.size / sizeof(double);
 }
 
-// Global variables for test tracking
-struct TestResults {
-    bool basic_platform_info = false;
-    bool platform_constants_validation = false;
-    bool advanced_vectorization_decisions = false;
-    bool simd_threshold_alignment = false;
-    bool cache_aware_algorithms = false;
-    bool memory_access_patterns = false;
-    bool numa_aware_processing = false;
-    bool cross_architecture_consistency = false;
-    bool performance_scaling = false;
-    bool adaptive_optimization = false;
-
-    bool all_passed() const {
-        return basic_platform_info && platform_constants_validation &&
-               advanced_vectorization_decisions && simd_threshold_alignment &&
-               cache_aware_algorithms && memory_access_patterns && numa_aware_processing &&
-               cross_architecture_consistency && performance_scaling && adaptive_optimization;
-    }
-};
-
-static TestResults g_test_results;
-static TestOptions g_options;
-
-int main(int argc, char* argv[]) {
-    g_options = parse_args(argc, argv);
-
-    if (g_options.help) {
-        print_help();
-        return 0;
-    }
-
-    if (!g_options.json) {
-        cout << "=== COMPREHENSIVE PLATFORM OPTIMIZATION TEST SUITE ===" << endl;
-        cout << "=======================================================" << endl;
-    }
-
-    // Prepare to optionally silence stdout during test execution in JSON mode
-    std::streambuf* old_buf = nullptr;
-    struct NullBuffer : std::streambuf {
-        int overflow(int c) override { return c; }
-    } null_buf;
-    if (g_options.json && !g_options.verbose) {
-        old_buf = cout.rdbuf(&null_buf);
-    }
-
-    try {
-        test_basic_platform_info();
-        g_test_results.basic_platform_info = true;
-
-        test_platform_constants_validation();
-        g_test_results.platform_constants_validation = true;
-
-        test_advanced_vectorization_decisions();
-        g_test_results.advanced_vectorization_decisions = true;
-
-        test_simd_threshold_alignment();
-        g_test_results.simd_threshold_alignment = true;
-
-        test_cache_aware_algorithms();
-        g_test_results.cache_aware_algorithms = true;
-
-        test_memory_access_patterns();
-        g_test_results.memory_access_patterns = true;
-
-        test_numa_aware_processing();
-        g_test_results.numa_aware_processing = true;
-
-        test_cross_architecture_consistency();
-        g_test_results.cross_architecture_consistency = true;
-
-        test_performance_scaling();
-        g_test_results.performance_scaling = true;
-
-        test_adaptive_optimization();
-        g_test_results.adaptive_optimization = true;
-
-        if (g_options.json) {
-            // Restore stdout before printing JSON
-            if (old_buf)
-                cout.rdbuf(old_buf);
-            output_json_summary();
-        } else {
-            cout << "\n=== ALL PLATFORM OPTIMIZATION TESTS PASSED SUCCESSFULLY ===" << endl;
-        }
-        return 0;
-
-    } catch (const exception& e) {
-        if (g_options.json) {
-            // Restore stdout before printing JSON
-            if (old_buf)
-                cout.rdbuf(old_buf);
-            output_json_summary();
-        } else {
-            cerr << "\nError in platform optimization tests: " << e.what() << endl;
-        }
-        return 1;
-    }
-}
-
 void test_basic_platform_info() {
     cout << "\n=== BASIC PLATFORM INFORMATION ===" << endl;
 
     // Test platform optimization info
     string platform_info = VectorOps::get_platform_optimization_info();
-    assert(!platform_info.empty());
+    EXPECT_TRUE(!platform_info.empty());
     cout << "✓ Platform info: " << platform_info << endl;
 
     // Test platform capabilities
@@ -205,10 +83,10 @@ void test_basic_platform_info() {
     cout << "  - Optimal alignment: " << stats::arch::optimal_alignment() << " bytes" << endl;
 
     // Verify basic consistency
-    assert(VectorOps::supports_vectorization());
-    assert(VectorOps::double_vector_width() > 0);
-    assert(float_vector_width() > 0);
-    assert(stats::arch::optimal_alignment() > 0 &&
+    EXPECT_TRUE(VectorOps::supports_vectorization());
+    EXPECT_TRUE(VectorOps::double_vector_width() > 0);
+    EXPECT_TRUE(float_vector_width() > 0);
+    EXPECT_TRUE(stats::arch::optimal_alignment() > 0 &&
            (stats::arch::optimal_alignment() & (stats::arch::optimal_alignment() - 1)) == 0);
 }
 
@@ -224,12 +102,12 @@ void test_platform_constants_validation() {
     auto prefetch_dist = tuned::prefetch_distance();
 
     // Validate ranges
-    assert(matrix_block > 0 && matrix_block <= 512);     // Reasonable matrix block sizes
-    assert(simd_width > 0 && simd_width <= 64);          // Reasonable SIMD widths
-    assert(min_threshold > 0 && min_threshold <= 1024);  // Reasonable SIMD threshold
-    assert(cache_step > 0);
-    assert(l1_doubles > 1000);  // At least 8KB worth of doubles
-    assert(prefetch_dist > 0 && prefetch_dist <= 512);
+    EXPECT_TRUE(matrix_block > 0 && matrix_block <= 512);     // Reasonable matrix block sizes
+    EXPECT_TRUE(simd_width > 0 && simd_width <= 64);          // Reasonable SIMD widths
+    EXPECT_TRUE(min_threshold > 0 && min_threshold <= 1024);  // Reasonable SIMD threshold
+    EXPECT_TRUE(cache_step > 0);
+    EXPECT_TRUE(l1_doubles > 1000);  // At least 8KB worth of doubles
+    EXPECT_TRUE(prefetch_dist > 0 && prefetch_dist <= 512);
 
     cout << "✓ Platform constants validation:" << endl;
     cout << "  - Matrix block size: " << matrix_block << " (valid range)" << endl;
@@ -240,8 +118,8 @@ void test_platform_constants_validation() {
     cout << "  - Prefetch distance: " << prefetch_dist << endl;
 
     // Cross-validate constants make sense together
-    assert(matrix_block >= simd_width);                 // Block size should be at least SIMD width
-    assert(l1_doubles >= matrix_block * matrix_block);  // L1 should fit matrix blocks
+    EXPECT_TRUE(matrix_block >= simd_width);                 // Block size should be at least SIMD width
+    EXPECT_TRUE(l1_doubles >= matrix_block * matrix_block);  // L1 should fit matrix blocks
 
     cout << "✓ Cross-validation of constants passed" << endl;
 }
@@ -262,7 +140,7 @@ void test_advanced_vectorization_decisions() {
 
         // Large sizes should definitely use SIMD
         if (size >= 1024) {
-            assert(should_vectorize);
+            EXPECT_TRUE(should_vectorize);
         }
     }
 
@@ -273,13 +151,13 @@ void test_advanced_vectorization_decisions() {
     bool null_decision = VectorOps::should_use_vectorized_path(100, nullptr);
     cout << "  Null pointer: " << (null_decision ? "SIMD" : "Scalar") << " (should be Scalar)"
          << endl;
-    assert(!null_decision);
+    EXPECT_TRUE(!null_decision);
 
     // Zero size should return false
     vector<double> dummy_data(10);
     bool zero_decision = VectorOps::should_use_vectorized_path(0, dummy_data.data());
     cout << "  Zero size: " << (zero_decision ? "SIMD" : "Scalar") << " (should be Scalar)" << endl;
-    assert(!zero_decision);
+    EXPECT_TRUE(!zero_decision);
 
     cout << "✓ Advanced vectorization decisions passed" << endl;
 }
@@ -404,7 +282,7 @@ void test_memory_access_patterns() {
     vector<double, aligned_allocator<double>> aligned_data(1024, 1.0);
     bool alignment_check = is_aligned(aligned_data.data());
     cout << "  Aligned allocator: " << (alignment_check ? "PASS" : "FAIL") << endl;
-    assert(alignment_check);
+    EXPECT_TRUE(alignment_check);
 
     // Test SIMD operations on aligned vs unaligned data
     vector<double> unaligned_data(1024, 1.0);
@@ -507,12 +385,12 @@ void test_numa_aware_processing() {
     cout << "  Default grain size: " << grain_size << endl;
 
     // Thresholds should be reasonable for the number of cores
-    assert(min_parallel > 0);
-    assert(grain_size > 0);
+    EXPECT_TRUE(min_parallel > 0);
+    EXPECT_TRUE(grain_size > 0);
     // Note: grain_size can be larger than min_parallel for efficiency
     // Each thread should work on grain_size elements, while min_parallel
     // is just the threshold to start using parallel processing
-    assert(grain_size >= min_parallel / 32);  // Reasonable lower bound check
+    EXPECT_TRUE(grain_size >= min_parallel / 32);  // Reasonable lower bound check
 
     cout << "✓ NUMA-aware processing validation completed" << endl;
 }
@@ -536,15 +414,15 @@ void test_cross_architecture_consistency() {
     cout << "  Memory alignment: " << alignment << " bytes" << endl;
 
     // Consistency checks
-    assert(double_width > 0);
-    assert(float_width > 0);
-    assert(float_width >= double_width);                          // Floats should pack more densely
-    assert(alignment > 0 && (alignment & (alignment - 1)) == 0);  // Power of 2
+    EXPECT_TRUE(double_width > 0);
+    EXPECT_TRUE(float_width > 0);
+    EXPECT_TRUE(float_width >= double_width);                          // Floats should pack more densely
+    EXPECT_TRUE(alignment > 0 && (alignment & (alignment - 1)) == 0);  // Power of 2
 
     // Platform-specific validation
     if (features.vendor == "Apple") {
         cout << "\nApple Silicon specific checks:" << endl;
-        assert(features.neon);  // Apple Silicon should have NEON
+        EXPECT_TRUE(features.neon);  // Apple Silicon should have NEON
         cout << "  ✓ NEON support confirmed" << endl;
 
         // Apple Silicon typically has lower thread creation overhead
@@ -555,11 +433,11 @@ void test_cross_architecture_consistency() {
     } else if (features.vendor == "GenuineIntel") {
         cout << "\nIntel specific checks:" << endl;
         if (features.avx2) {
-            assert(double_width >= 4);  // AVX2 should give at least 256-bit vectors
+            EXPECT_TRUE(double_width >= 4);  // AVX2 should give at least 256-bit vectors
             cout << "  ✓ AVX2 vector width confirmed" << endl;
         }
         if (features.avx512f) {
-            assert(double_width >= 8);  // AVX-512 should give 512-bit vectors
+            EXPECT_TRUE(double_width >= 8);  // AVX-512 should give 512-bit vectors
             cout << "  ✓ AVX-512 vector width confirmed" << endl;
         }
 
@@ -576,7 +454,7 @@ void test_cross_architecture_consistency() {
     VectorOps::scalar_multiply(consistency_test.data(), 2.0, consistency_test.data(), 16);
 
     // Verify the operation worked
-    assert(abs(consistency_test[0] - 2.0) < 1e-10);
+    EXPECT_TRUE(abs(consistency_test[0] - 2.0) < 1e-10);
 
     cout << "✓ Cross-architecture consistency validation completed" << endl;
 }
@@ -668,7 +546,7 @@ void test_adaptive_optimization() {
     cout << "  Min SIMD threshold: " << min_simd_elements << " elements" << endl;
 
     // Minimum should be some multiple of SIMD width
-    assert(min_simd_elements >= simd_width);
+    EXPECT_TRUE(min_simd_elements >= simd_width);
     cout << "  ✓ SIMD threshold aligns with vector width" << endl;
 
     // Thread-based adaptations
@@ -792,139 +670,14 @@ void benchmark_memory_bandwidth() {
     }
 }
 
-// Command-line parsing implementation
-TestOptions parse_args(int argc, char* argv[]) {
-    TestOptions options;
 
-    for (int i = 1; i < argc; ++i) {
-        string arg = argv[i];
-        if (arg == "--json" || arg == "-j") {
-            options.json = true;
-        } else if (arg == "--help" || arg == "-h") {
-            options.help = true;
-        } else if (arg == "--verbose" || arg == "-v") {
-            options.verbose = true;
-        } else {
-            cerr << "Unknown option: " << arg << endl;
-            options.help = true;
-        }
-    }
-
-    return options;
-}
-
-// Help text implementation
-void print_help() {
-    cout << "Platform Optimization Test Suite" << endl;
-    cout << "\nUsage: test_platform_optimizations [options]" << endl;
-    cout << "\nOptions:" << endl;
-    cout << "  -j, --json      Output results in JSON format for CI integration" << endl;
-    cout << "  -v, --verbose   Enable verbose output (currently same as default)" << endl;
-    cout << "  -h, --help      Show this help message" << endl;
-    cout << "\nThis test suite validates platform-specific optimizations including:" << endl;
-    cout << "  - Cache-aware algorithms and blocking strategies" << endl;
-    cout << "  - NUMA-aware processing validation" << endl;
-    cout << "  - Platform-specific constants validation" << endl;
-    cout << "  - Memory access pattern optimization" << endl;
-    cout << "  - SIMD consistency and threshold alignment" << endl;
-    cout << "  - Cross-architecture performance comparison" << endl;
-    cout << "  - Advanced vectorization decision testing" << endl;
-    cout << "  - Performance scaling analysis" << endl;
-    cout << "  - Adaptive optimization validation" << endl;
-}
-
-// JSON output implementation
-void output_json_summary() {
-    const auto& features = get_features();
-
-    cout << "{" << endl;
-    cout << "  \"test_name\": \"platform_optimizations\"," << endl;
-    cout << "  \"version\": \"1.0\"," << endl;
-    cout << "  \"timestamp\": \""
-         << chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch())
-                .count()
-         << "\"," << endl;
-
-    // Test status
-    cout << "  \"test_status\": {" << endl;
-    cout << "    \"overall_pass\": " << (g_test_results.all_passed() ? "true" : "false") << ","
-         << endl;
-    cout << "    \"basic_platform_info\": "
-         << (g_test_results.basic_platform_info ? "true" : "false") << "," << endl;
-    cout << "    \"platform_constants_validation\": "
-         << (g_test_results.platform_constants_validation ? "true" : "false") << "," << endl;
-    cout << "    \"advanced_vectorization_decisions\": "
-         << (g_test_results.advanced_vectorization_decisions ? "true" : "false") << "," << endl;
-    cout << "    \"simd_threshold_alignment\": "
-         << (g_test_results.simd_threshold_alignment ? "true" : "false") << "," << endl;
-    cout << "    \"cache_aware_algorithms\": "
-         << (g_test_results.cache_aware_algorithms ? "true" : "false") << "," << endl;
-    cout << "    \"memory_access_patterns\": "
-         << (g_test_results.memory_access_patterns ? "true" : "false") << "," << endl;
-    cout << "    \"numa_aware_processing\": "
-         << (g_test_results.numa_aware_processing ? "true" : "false") << "," << endl;
-    cout << "    \"cross_architecture_consistency\": "
-         << (g_test_results.cross_architecture_consistency ? "true" : "false") << "," << endl;
-    cout << "    \"performance_scaling\": "
-         << (g_test_results.performance_scaling ? "true" : "false") << "," << endl;
-    cout << "    \"adaptive_optimization\": "
-         << (g_test_results.adaptive_optimization ? "true" : "false") << "," << endl;
-    cout << "    \"exit_code\": " << (g_test_results.all_passed() ? "0" : "1") << endl;
-    cout << "  }," << endl;
-
-    // Platform information
-    cout << "  \"platform_info\": {" << endl;
-    cout << "    \"cpu_vendor\": \"" << features.vendor << "\"," << endl;
-    cout << "    \"architecture\": \"" << best_simd_level() << "\"," << endl;
-    cout << "    \"simd_level\": \"" << VectorOps::get_active_simd_level() << "\"," << endl;
-    cout << "    \"double_vector_width\": " << VectorOps::double_vector_width() << "," << endl;
-    cout << "    \"float_vector_width\": " << float_vector_width() << "," << endl;
-    cout << "    \"optimal_alignment\": " << stats::arch::optimal_alignment() << "," << endl;
-    cout << "    \"supports_vectorization\": "
-         << (VectorOps::supports_vectorization() ? "true" : "false") << "," << endl;
-    cout << "    \"physical_cores\": " << features.topology.physical_cores << "," << endl;
-    cout << "    \"logical_cores\": " << features.topology.logical_cores << "," << endl;
-    cout << "    \"cpu_packages\": " << features.topology.packages << "," << endl;
-    cout << "    \"hyperthreading\": " << (features.topology.hyperthreading ? "true" : "false")
-         << endl;
-    cout << "  }," << endl;
-
-    // Cache information
-    cout << "  \"cache_info\": {" << endl;
-    cout << "    \"l1_data_size\": " << features.l1_data_cache.size << "," << endl;
-    cout << "    \"l1_instruction_size\": " << features.l1_instruction_cache.size << "," << endl;
-    cout << "    \"l2_size\": " << features.l2_cache.size << "," << endl;
-    cout << "    \"l3_size\": " << features.l3_cache.size << "," << endl;
-    cout << "    \"cache_line_size\": " << features.cache_line_size << endl;
-    cout << "  }," << endl;
-
-    // Platform optimization thresholds
-    cout << "  \"optimization_thresholds\": {" << endl;
-    cout << "    \"min_simd_size\": " << VectorOps::min_simd_size() << "," << endl;
-    cout << "    \"simd_policy_threshold\": " << SIMDPolicy::getMinThreshold() << "," << endl;
-    cout << "    \"matrix_block_size\": " << tuned::matrix_block_size() << "," << endl;
-    cout << "    \"simd_loop_width\": " << tuned::simd_loop_width() << "," << endl;
-    cout << "    \"cache_friendly_step\": " << tuned::cache_friendly_step() << "," << endl;
-    cout << "    \"l1_cache_doubles\": " << tuned::l1_cache_doubles() << "," << endl;
-    cout << "    \"prefetch_distance\": " << tuned::prefetch_distance() << "," << endl;
-    cout << "    \"min_elements_for_parallel\": " << get_min_elements_for_parallel() << "," << endl;
-    cout << "    \"default_grain_size\": " << get_default_grain_size() << "," << endl;
-    cout << "    \"optimal_block_size\": " << VectorOps::get_optimal_block_size() << endl;
-    cout << "  }," << endl;
-
-    // Feature flags
-    cout << "  \"feature_flags\": {" << endl;
-    cout << "    \"sse2\": " << (features.sse2 ? "true" : "false") << "," << endl;
-    cout << "    \"sse3\": " << (features.sse3 ? "true" : "false") << "," << endl;
-    cout << "    \"ssse3\": " << (features.ssse3 ? "true" : "false") << "," << endl;
-    cout << "    \"sse4_1\": " << (features.sse4_1 ? "true" : "false") << "," << endl;
-    cout << "    \"sse4_2\": " << (features.sse4_2 ? "true" : "false") << "," << endl;
-    cout << "    \"avx\": " << (features.avx ? "true" : "false") << "," << endl;
-    cout << "    \"avx2\": " << (features.avx2 ? "true" : "false") << "," << endl;
-    cout << "    \"avx512f\": " << (features.avx512f ? "true" : "false") << "," << endl;
-    cout << "    \"fma\": " << (features.fma ? "true" : "false") << "," << endl;
-    cout << "    \"neon\": " << (features.neon ? "true" : "false") << endl;
-    cout << "  }" << endl;
-
-    cout << "}" << endl;
-}
+TEST(PlatformOptimizations, BasicPlatformInfo)           { test_basic_platform_info(); }
+TEST(PlatformOptimizations, PlatformConstantsValidation) { test_platform_constants_validation(); }
+TEST(PlatformOptimizations, AdvancedVectorizationDecisions){ test_advanced_vectorization_decisions(); }
+TEST(PlatformOptimizations, SimdThresholdAlignment)      { test_simd_threshold_alignment(); }
+TEST(PlatformOptimizations, CacheAwareAlgorithms)        { test_cache_aware_algorithms(); }
+TEST(PlatformOptimizations, MemoryAccessPatterns)        { test_memory_access_patterns(); }
+TEST(PlatformOptimizations, NumaAwareProcessing)         { test_numa_aware_processing(); }
+TEST(PlatformOptimizations, CrossArchitectureConsistency){ test_cross_architecture_consistency(); }
+TEST(PlatformOptimizations, PerformanceScaling)          { test_performance_scaling(); }
+TEST(PlatformOptimizations, AdaptiveOptimization)        { test_adaptive_optimization(); }

@@ -18,7 +18,7 @@
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max
-#include <cassert>    // for assert
+#include <gtest/gtest.h>
 #include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::milliseconds
 #include <cmath>      // for std::abs
 #include <cstddef>    // for std::size_t
@@ -33,81 +33,11 @@ using namespace stats;
 // COMMAND-LINE ARGUMENT PARSING
 //==============================================================================
 
-struct TestOptions {
-    bool test_all = false;
-    bool test_timer = false;
-    bool test_stats = false;
-    bool test_benchmark = false;
-    bool test_comparison = false;
-    bool test_throughput = false;
-    bool test_stress = false;
-    bool show_help = false;
-};
+;
 
-void print_help() {
-    std::cout << "Usage: test_benchmark [options]\n\n";
-    std::cout << "Test platform/benchmark.h infrastructure with selective options:\n\n";
-    std::cout << "Options:\n";
-    std::cout << "  --all/-a           Test all benchmark components (default)\n";
-    std::cout << "  --timer/-t         Test Timer class functionality\n";
-    std::cout << "  --stats/-s         Test BenchmarkStats calculations\n";
-    std::cout << "  --benchmark/-b     Test Benchmark class operations\n";
-    std::cout << "  --comparison/-c    Test benchmark result comparisons\n";
-    std::cout << "  --throughput/-T    Test throughput measurements\n";
-    std::cout << "  --stress/-S        Run stress tests with large iterations\n";
-    std::cout << "  --help/-h          Show this help\n\n";
-    std::cout << "Examples:\n";
-    std::cout << "  test_benchmark                    # Test all components\n";
-    std::cout << "  test_benchmark --timer --stats   # Test Timer and BenchmarkStats\n";
-    std::cout << "  test_benchmark -b -c             # Test Benchmark class and comparisons\n";
-    std::cout << "  test_benchmark --stress           # Run stress tests\n";
-}
 
-TestOptions parse_arguments(int argc, char* argv[]) {
-    TestOptions options;
-    bool any_specific_test = false;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string arg(argv[i]);
 
-        if (arg == "--all" || arg == "-a") {
-            options.test_all = true;
-        } else if (arg == "--timer" || arg == "-t") {
-            options.test_timer = true;
-            any_specific_test = true;
-        } else if (arg == "--stats" || arg == "-s") {
-            options.test_stats = true;
-            any_specific_test = true;
-        } else if (arg == "--benchmark" || arg == "-b") {
-            options.test_benchmark = true;
-            any_specific_test = true;
-        } else if (arg == "--comparison" || arg == "-c") {
-            options.test_comparison = true;
-            any_specific_test = true;
-        } else if (arg == "--throughput" || arg == "-T") {
-            options.test_throughput = true;
-            any_specific_test = true;
-        } else if (arg == "--stress" || arg == "-S") {
-            options.test_stress = true;
-            any_specific_test = true;
-        } else if (arg == "--help" || arg == "-h") {
-            options.show_help = true;
-            return options;
-        } else {
-            std::cerr << "Unknown option: " << arg << "\n";
-            std::cerr << "Use --help/-h for usage information.\n";
-            options.show_help = true;
-            return options;
-        }
-    }
-
-    // If no specific tests requested, default to all
-    if (!any_specific_test && !options.test_all) {
-        options.test_all = true;
-    }
-
-    return options;
-}
 
 //==============================================================================
 // TEST FUNCTIONS
@@ -121,32 +51,32 @@ void test_timer_functionality() {
         Timer timer;
 
         // Timer should not be running initially
-        assert(!timer.isRunning());
-        assert(timer.elapsed() == 0.0);
+        EXPECT_TRUE(!timer.isRunning());
+        EXPECT_TRUE(timer.elapsed() == 0.0);
 
         // Start timer
         timer.start();
-        assert(timer.isRunning());
+        EXPECT_TRUE(timer.isRunning());
 
         // Small delay
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         // Check elapsed time
         [[maybe_unused]] double elapsed1 = timer.elapsed();
-        assert(elapsed1 > 0.0);
-        assert(timer.isRunning());  // Should still be running
+        EXPECT_TRUE(elapsed1 > 0.0);
+        EXPECT_TRUE(timer.isRunning());  // Should still be running
 
         // Another small delay
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         // Elapsed should increase
         [[maybe_unused]] double elapsed2 = timer.elapsed();
-        assert(elapsed2 > elapsed1);
+        EXPECT_TRUE(elapsed2 > elapsed1);
 
         // Stop timer
         [[maybe_unused]] double final_time = timer.stop();
-        assert(!timer.isRunning());
-        assert(final_time >= elapsed2);
+        EXPECT_TRUE(!timer.isRunning());
+        EXPECT_TRUE(final_time >= elapsed2);
 
         std::cout << "   ✓ Basic timer functionality passed\n";
     }
@@ -161,13 +91,13 @@ void test_timer_functionality() {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             double time = timer.stop();
             times.push_back(time);
-            assert(time > 0.0);
+            EXPECT_TRUE(time > 0.0);
         }
 
         // All times should be positive and reasonably consistent
         for ([[maybe_unused]] auto time : times) {
-            assert(time > 0.0);
-            assert(time < 1.0);  // Should be less than 1 second
+            EXPECT_TRUE(time > 0.0);
+            EXPECT_TRUE(time < 1.0);  // Should be less than 1 second
         }
 
         std::cout << "   ✓ Multiple timer cycles passed\n";
@@ -188,7 +118,7 @@ void test_timer_functionality() {
 
         // Timer should be reasonably accurate (within 20% due to scheduler variance)
         double relative_error = std::abs(timer_elapsed - reference_elapsed) / reference_elapsed;
-        assert(relative_error < 0.5);  // Allow 50% variance for CI environments
+        EXPECT_TRUE(relative_error < 0.5);  // Allow 50% variance for CI environments
 
         std::cout << "   ✓ Timer precision test passed (error: " << (relative_error * 100)
                   << "%)\n";
@@ -213,9 +143,9 @@ void test_benchmark_stats() {
 
         // Test toString functionality
         std::string stats_str = stats.toString();
-        assert(!stats_str.empty());
-        assert(stats_str.find("1.5") != std::string::npos);  // Should contain mean
-        assert(stats_str.find("100") != std::string::npos);  // Should contain sample count
+        EXPECT_TRUE(!stats_str.empty());
+        EXPECT_TRUE(stats_str.find("1.5") != std::string::npos);  // Should contain mean
+        EXPECT_TRUE(stats_str.find("100") != std::string::npos);  // Should contain sample count
 
         std::cout << "   ✓ BenchmarkStats structure test passed\n";
     }
@@ -229,7 +159,7 @@ void test_benchmark_stats() {
         stats.throughput = 0.0;
 
         std::string stats_str = stats.toString();
-        assert(!stats_str.empty());  // Should handle edge cases gracefully
+        EXPECT_TRUE(!stats_str.empty());  // Should handle edge cases gracefully
 
         std::cout << "   ✓ BenchmarkStats edge cases passed\n";
     }
@@ -257,11 +187,11 @@ void test_benchmark_class() {
 
         // Run benchmark
         auto results = bench.runAll();
-        assert(!results.empty());
-        assert(results.size() == 1);
-        assert(results[0].name == "simple_add");
-        assert(results[0].stats.samples > 0);
-        assert(results[0].stats.mean > 0.0);
+        EXPECT_TRUE(!results.empty());
+        EXPECT_TRUE(results.size() == 1);
+        EXPECT_TRUE(results[0].name == "simple_add");
+        EXPECT_TRUE(results[0].stats.samples > 0);
+        EXPECT_TRUE(results[0].stats.mean > 0.0);
 
         std::cout << "   ✓ Basic benchmark functionality passed\n";
     }
@@ -278,7 +208,7 @@ void test_benchmark_class() {
             "test2", []() { std::this_thread::sleep_for(std::chrono::microseconds(200)); }, 5);
 
         auto results = bench.runAll();
-        assert(results.size() == 2);
+        EXPECT_TRUE(results.size() == 2);
 
         // test2 should generally take longer than test1
         // (though this might be flaky in CI environments)
@@ -289,7 +219,7 @@ void test_benchmark_class() {
             if (result.name == "test2")
                 found_test2 = true;
         }
-        assert(found_test1 && found_test2);
+        EXPECT_TRUE(found_test1 && found_test2);
 
         std::cout << "   ✓ Multiple benchmark tests passed\n";
     }
@@ -313,9 +243,9 @@ void test_benchmark_class() {
         );
 
         auto results = bench.runAll();
-        assert(!results.empty());
-        assert(setup_count == 3);     // Should run setup 3 times
-        assert(teardown_count == 3);  // Should run teardown 3 times
+        EXPECT_TRUE(!results.empty());
+        EXPECT_TRUE(setup_count == 3);     // Should run setup 3 times
+        EXPECT_TRUE(teardown_count == 3);  // Should run teardown 3 times
 
         std::cout << "   ✓ Setup/teardown functionality passed\n";
     }
@@ -352,7 +282,7 @@ void test_benchmark_comparison() {
         Benchmark::compareResults(baseline, comparison, oss);
 
         std::string comparison_output = oss.str();
-        assert(!comparison_output.empty());
+        EXPECT_TRUE(!comparison_output.empty());
 
         std::cout << "   ✓ Benchmark comparison functionality passed\n";
     }
@@ -381,16 +311,16 @@ void test_throughput_measurements() {
             5, operations_per_iteration);
 
         auto results = bench.runAll();
-        assert(!results.empty());
+        EXPECT_TRUE(!results.empty());
 
         const auto& result = results[0];
-        assert(result.stats.throughput > 0.0);
+        EXPECT_TRUE(result.stats.throughput > 0.0);
 
         // Throughput should be operations per second
         double expected_ops_per_sec = operations_per_iteration / result.stats.mean;
         [[maybe_unused]] double relative_error =
             std::abs(result.stats.throughput - expected_ops_per_sec) / expected_ops_per_sec;
-        assert(relative_error < 0.1);  // Within 10%
+        EXPECT_TRUE(relative_error < 0.1);  // Within 10%
 
         std::cout << "   ✓ Throughput calculation test passed\n";
         std::cout << "     Throughput: " << result.stats.throughput << " ops/sec\n";
@@ -421,9 +351,9 @@ void test_stress_conditions() {
         auto results = bench.runAll();
         double total_time = stress_timer.stop();
 
-        assert(!results.empty());
-        assert(results[0].stats.samples == 100);
-        assert(total_time < 10.0);  // Should complete in reasonable time
+        EXPECT_TRUE(!results.empty());
+        EXPECT_TRUE(results[0].stats.samples == 100);
+        EXPECT_TRUE(total_time < 10.0);  // Should complete in reasonable time
 
         std::cout << "   ✓ High iteration stress test passed (" << total_time << "s)\n";
     }
@@ -447,9 +377,9 @@ void test_stress_conditions() {
             10);
 
         auto results = bench.runAll();
-        assert(!results.empty());
-        assert(results[0].stats.mean > 0.0);
-        assert(results[0].stats.stddev >= 0.0);
+        EXPECT_TRUE(!results.empty());
+        EXPECT_TRUE(results[0].stats.mean > 0.0);
+        EXPECT_TRUE(results[0].stats.stddev >= 0.0);
 
         std::cout << "   ✓ Memory allocation stress test passed\n";
     }
@@ -461,75 +391,10 @@ void test_stress_conditions() {
 // MAIN FUNCTION
 //==============================================================================
 
-int main(int argc, char* argv[]) {
-    TestOptions options = parse_arguments(argc, argv);
 
-    if (options.show_help) {
-        print_help();
-        return 0;
-    }
-
-    std::cout << "Testing platform/benchmark.h infrastructure...\n\n";
-
-    int tests_run = 0;
-    int tests_passed = 0;
-
-    try {
-        // Run selected tests
-        if (options.test_all || options.test_timer) {
-            test_timer_functionality();
-            tests_run++;
-            tests_passed++;
-        }
-
-        if (options.test_all || options.test_stats) {
-            test_benchmark_stats();
-            tests_run++;
-            tests_passed++;
-        }
-
-        if (options.test_all || options.test_benchmark) {
-            test_benchmark_class();
-            tests_run++;
-            tests_passed++;
-        }
-
-        if (options.test_all || options.test_comparison) {
-            test_benchmark_comparison();
-            tests_run++;
-            tests_passed++;
-        }
-
-        if (options.test_all || options.test_throughput) {
-            test_throughput_measurements();
-            tests_run++;
-            tests_passed++;
-        }
-
-        if (options.test_all || options.test_stress) {
-            test_stress_conditions();
-            tests_run++;
-            tests_passed++;
-        }
-
-        // Print summary
-        std::cout << "=== Test Summary ===\n";
-        std::cout << "Tests run: " << tests_run << "\n";
-        std::cout << "Tests passed: " << tests_passed << "\n";
-
-        if (tests_passed == tests_run && tests_run > 0) {
-            std::cout << "✓ All benchmark infrastructure tests passed!\n";
-            return 0;
-        } else if (tests_run == 0) {
-            std::cout << "No tests were run. Use --help for usage information.\n";
-            return 1;
-        } else {
-            std::cout << "✗ Some tests failed!\n";
-            return 1;
-        }
-
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << "\n";
-        return 1;
-    }
-}
+TEST(BenchmarkInfrastructure, TimerFunctionality)    { test_timer_functionality(); }
+TEST(BenchmarkInfrastructure, BenchmarkStats)        { test_benchmark_stats(); }
+TEST(BenchmarkInfrastructure, BenchmarkClass)        { test_benchmark_class(); }
+TEST(BenchmarkInfrastructure, Comparison)            { test_benchmark_comparison(); }
+TEST(BenchmarkInfrastructure, ThroughputMeasurements){ test_throughput_measurements(); }
+TEST(BenchmarkInfrastructure, StressConditions)      { test_stress_conditions(); }

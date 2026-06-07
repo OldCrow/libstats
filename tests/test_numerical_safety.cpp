@@ -8,7 +8,8 @@
 
 // Standard library includes
 #include <algorithm>
-#include <cassert>
+#include <gtest/gtest.h>
+#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -26,44 +27,14 @@ using namespace stats::detail;
 using namespace std;
 
 // Test configuration
-struct TestConfig {
-    bool test_all = true;
-    bool test_scalar = false;
-    bool test_vector = false;
-    bool test_log_space = false;
-    bool test_edge_cases = false;
-    bool test_benchmarks = false;
-    bool test_precision = false;
-    bool test_stress = false;
-    bool verbose = false;
-    size_t benchmark_size = 10000;
-    size_t stress_iterations = 1000;
-};
+;
 
 // Test statistics
 struct TestStats {
-    int total_tests = 0;
-    int passed = 0;
-    int failed = 0;
-
-    void record(bool success, const string& test_name) {
-        total_tests++;
-        if (success) {
-            passed++;
-            cout << "  ✓ " << test_name << endl;
-        } else {
-            failed++;
-            cout << "  ✗ " << test_name << " FAILED" << endl;
-        }
+    void record(bool success, const std::string& test_name) {
+        EXPECT_TRUE(success) << test_name;
     }
-
-    void print_summary(const string& category) {
-        cout << "\n" << category << " Results: " << passed << "/" << total_tests << " passed";
-        if (failed > 0) {
-            cout << " (" << failed << " failed)";
-        }
-        cout << endl;
-    }
+    void print_summary([[maybe_unused]] const std::string& category) {}
 };
 
 // Helper functions
@@ -91,7 +62,7 @@ double reference_log_sum_exp(double log_a, double log_b) {
 // SCALAR SAFETY FUNCTION TESTS
 //==============================================================================
 
-void test_scalar_safety([[maybe_unused]] const TestConfig& config) {
+void test_scalar_safety() {
     cout << "\n=== Testing Scalar Safety Functions ===" << endl;
     TestStats stats;
 
@@ -173,7 +144,7 @@ void test_scalar_safety([[maybe_unused]] const TestConfig& config) {
 // VECTORIZED SAFETY FUNCTION TESTS
 //==============================================================================
 
-void test_vector_safety(const TestConfig& config) {
+void test_vector_safety() {
     cout << "\n=== Testing Vectorized Safety Functions ===" << endl;
     TestStats stats;
 
@@ -232,7 +203,7 @@ void test_vector_safety(const TestConfig& config) {
     }
 
     // Test large array consistency
-    if (config.verbose) {
+    if (false) {
         cout << "  Testing large array consistency..." << endl;
     }
     {
@@ -276,7 +247,7 @@ void test_vector_safety(const TestConfig& config) {
 // LOG-SPACE OPERATIONS TESTS
 //==============================================================================
 
-void test_log_space_operations([[maybe_unused]] const TestConfig& config) {
+void test_log_space_operations() {
     cout << "\n=== Testing Log-Space Operations ===" << endl;
     TestStats stats;
 
@@ -377,7 +348,7 @@ void test_log_space_operations([[maybe_unused]] const TestConfig& config) {
 // EDGE CASES TESTS
 //==============================================================================
 
-void test_edge_cases([[maybe_unused]] const TestConfig& config) {
+void test_edge_cases() {
     cout << "\n=== Testing Edge Cases ===" << endl;
     TestStats stats;
 
@@ -445,11 +416,11 @@ void test_edge_cases([[maybe_unused]] const TestConfig& config) {
 // PERFORMANCE BENCHMARKS
 //==============================================================================
 
-void test_benchmarks(const TestConfig& config) {
+void test_benchmarks() {
     cout << "\n=== Performance Benchmarks ===" << endl;
-    cout << "Benchmark size: " << config.benchmark_size << " elements\n" << endl;
+    cout << "Benchmark size: " << 10000 << " elements\n" << endl;
 
-    const size_t size = config.benchmark_size;
+    const size_t size = 10000;
     vector<double> input(size);
     vector<double> output(size);
 
@@ -543,7 +514,7 @@ void test_benchmarks(const TestConfig& config) {
 // PRECISION TESTS
 //==============================================================================
 
-void test_precision(const TestConfig& config) {
+void test_precision() {
     cout << "\n=== Precision and Accuracy Tests ===" << endl;
 
     mt19937 rng(42);
@@ -586,7 +557,7 @@ void test_precision(const TestConfig& config) {
             double exp_result = safe_exp(log_result);
             if (!approx_equal(exp_result, val, 1e-10)) {
                 all_precise = false;
-                if (config.verbose) {
+                if (false) {
                     cout << "  Precision loss: exp(safe_log(" << val << ")) = " << exp_result
                          << endl;
                 }
@@ -611,9 +582,9 @@ void test_precision(const TestConfig& config) {
 // STRESS TESTS
 //==============================================================================
 
-void test_stress(const TestConfig& config) {
+void test_stress() {
     cout << "\n=== Stress Tests ===" << endl;
-    cout << "Running " << config.stress_iterations << " iterations..." << endl;
+    cout << "Running " << 1000 << " iterations..." << endl;
 
     mt19937 rng(42);
     uniform_real_distribution<> dist(-100, 100);
@@ -624,7 +595,7 @@ void test_stress(const TestConfig& config) {
         int crashes = 0;
         int invalid = 0;
 
-        for (size_t i = 0; i < config.stress_iterations; ++i) {
+        for (size_t i = 0; i < 1000; ++i) {
             vector<double> extreme_values = {LogSpaceOps::LOG_ZERO,
                                              numeric_limits<double>::max(),
                                              -numeric_limits<double>::max(),
@@ -660,8 +631,8 @@ void test_stress(const TestConfig& config) {
             }
         }
 
-        cout << "  Completed: " << (config.stress_iterations - static_cast<size_t>(crashes)) << "/"
-             << config.stress_iterations << endl;
+        cout << "  Completed: " << (1000 - static_cast<size_t>(crashes)) << "/"
+             << 1000 << endl;
         cout << "  Invalid results: " << invalid << endl;
         cout << "  Crashes: " << crashes << endl;
     }
@@ -697,7 +668,7 @@ void test_stress(const TestConfig& config) {
     }
 
     // Thread safety stress test (if applicable)
-    if (config.verbose) {
+    if (false) {
         cout << "\nNote: Thread safety testing would require multi-threading support" << endl;
     }
 }
@@ -706,132 +677,15 @@ void test_stress(const TestConfig& config) {
 // MAIN FUNCTION AND ARGUMENT PARSING
 //==============================================================================
 
-void print_usage(const char* program_name) {
-    cout << "Usage: " << program_name << " [options]\n\n";
-    cout << "Comprehensive Numerical Safety Test Suite\n";
-    cout << "Tests core/safety.h and core/log_space_ops.h functionality\n\n";
-    cout << "Options:\n";
-    cout << "  --all/-a              Test all components (default)\n";
-    cout << "  --scalar/-s           Test scalar safety functions\n";
-    cout << "  --vector/-v           Test vectorized safety functions\n";
-    cout << "  --log-space/-l        Test log-space operations\n";
-    cout << "  --edge-cases/-e       Test edge cases\n";
-    cout << "  --benchmarks/-b       Run performance benchmarks\n";
-    cout << "  --precision/-p        Test numerical precision\n";
-    cout << "  --stress/-S           Run stress tests\n";
-    cout << "  --verbose/-V          Enable verbose output\n";
-    cout << "  --size N              Set benchmark array size (default: 10000)\n";
-    cout << "  --iterations N        Set stress test iterations (default: 1000)\n";
-    cout << "  --help/-h             Show this help\n\n";
-    cout << "Examples:\n";
-    cout << "  " << program_name << "                    # Test everything\n";
-    cout << "  " << program_name << " --scalar --vector   # Test safety functions\n";
-    cout << "  " << program_name << " --log-space --benchmarks\n";
-    cout << "  " << program_name << " --stress --iterations 10000\n";
-}
 
-TestConfig parse_args(int argc, char* argv[]) {
-    TestConfig config;
 
-    if (argc == 1) {
-        return config;  // Default: test all
-    }
 
-    config.test_all = false;  // If args provided, don't test all by default
 
-    for (int i = 1; i < argc; ++i) {
-        string arg = argv[i];
 
-        if (arg == "--help" || arg == "-h") {
-            print_usage(argv[0]);
-            exit(0);
-        } else if (arg == "--all" || arg == "-a") {
-            config.test_all = true;
-        } else if (arg == "--scalar" || arg == "-s") {
-            config.test_scalar = true;
-        } else if (arg == "--vector" || arg == "-v") {
-            config.test_vector = true;
-        } else if (arg == "--log-space" || arg == "-l") {
-            config.test_log_space = true;
-        } else if (arg == "--edge-cases" || arg == "-e") {
-            config.test_edge_cases = true;
-        } else if (arg == "--benchmarks" || arg == "-b") {
-            config.test_benchmarks = true;
-        } else if (arg == "--precision" || arg == "-p") {
-            config.test_precision = true;
-        } else if (arg == "--stress" || arg == "-S") {
-            config.test_stress = true;
-        } else if (arg == "--verbose" || arg == "-V") {
-            config.verbose = true;
-        } else if (arg == "--size" && i + 1 < argc) {
-            config.benchmark_size = stoul(argv[++i]);
-        } else if (arg == "--iterations" && i + 1 < argc) {
-            config.stress_iterations = stoul(argv[++i]);
-        } else {
-            cerr << "Unknown option: " << arg << endl;
-            print_usage(argv[0]);
-            exit(1);
-        }
-    }
-
-    // If no specific tests selected, test all
-    if (!config.test_scalar && !config.test_vector && !config.test_log_space &&
-        !config.test_edge_cases && !config.test_benchmarks && !config.test_precision &&
-        !config.test_stress) {
-        config.test_all = true;
-    }
-
-    return config;
-}
-
-int main(int argc, char* argv[]) {
-    TestConfig config = parse_args(argc, argv);
-
-    cout << "=== Numerical Safety Test Suite ===" << endl;
-    cout << "Testing core/safety.h and core/log_space_ops.h\n" << endl;
-
-    // Initialize log-space operations
-    LogSpaceOps::initialize();
-
-    int total_sections = 0;
-
-    if (config.test_all || config.test_scalar) {
-        test_scalar_safety(config);
-        total_sections++;
-    }
-
-    if (config.test_all || config.test_vector) {
-        test_vector_safety(config);
-        total_sections++;
-    }
-
-    if (config.test_all || config.test_log_space) {
-        test_log_space_operations(config);
-        total_sections++;
-    }
-
-    if (config.test_all || config.test_edge_cases) {
-        test_edge_cases(config);
-        total_sections++;
-    }
-
-    if (config.test_all || config.test_precision) {
-        test_precision(config);
-        total_sections++;
-    }
-
-    if (config.test_all || config.test_benchmarks) {
-        test_benchmarks(config);
-        total_sections++;
-    }
-
-    if (config.test_stress) {  // Only run if explicitly requested
-        test_stress(config);
-        total_sections++;
-    }
-
-    cout << "\n=== Test Suite Complete ===" << endl;
-    cout << "Tested " << total_sections << " component(s)" << endl;
-
-    return 0;
-}
+TEST(NumericalSafety, ScalarSafety)       { test_scalar_safety(); }
+TEST(NumericalSafety, VectorSafety)       { test_vector_safety(); }
+TEST(NumericalSafety, LogSpaceOperations) { test_log_space_operations(); }
+TEST(NumericalSafety, EdgeCases)          { test_edge_cases(); }
+TEST(NumericalSafety, Precision)          { test_precision(); }
+TEST(NumericalSafety, Benchmarks)         { test_benchmarks(); }
+TEST(NumericalSafety, StressTests)        { test_stress(); }
