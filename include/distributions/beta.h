@@ -236,6 +236,18 @@ class BetaDistribution : public DistributionBase {
      */
     void fit(const std::vector<double>& values) override;
 
+    /**
+     * @brief Parallel batch fitting for multiple datasets.
+     *
+     * Efficiently fits Beta parameters to multiple independent datasets
+     * in parallel. Delegates to detail::batchFitParallel.
+     *
+     * @param datasets Vector of datasets, each with independent observations
+     * @param results  Vector to store fitted BetaDistribution objects
+     */
+    static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                  std::vector<BetaDistribution>& results);
+
     /** @brief Reset to default (α = β = 1, Uniform). */
     void reset() noexcept override;
 

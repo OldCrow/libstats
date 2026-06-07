@@ -1,4 +1,5 @@
 #include "libstats/distributions/poisson.h"
+#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/core/math_constants.h"
 #include "libstats/core/statistical_constants.h"
@@ -475,52 +476,10 @@ void PoissonDistribution::fit(const std::vector<double>& values) {
     setLambda(sample_mean);
 }
 
-void PoissonDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
-                                           std::vector<PoissonDistribution>& results) {
-    if (datasets.empty()) {
-        // Handle empty datasets gracefully
-        results.clear();
-        return;
-    }
-
-    // Ensure results vector has correct size
-    if (results.size() != datasets.size()) {
-        results.resize(datasets.size());
-    }
-
-    const std::size_t num_datasets = datasets.size();
-
-    // Use distribution-specific parallel thresholds for optimal work distribution
-    if (num_datasets >= detail::dispatch_table::BATCH_FIT_MIN) {
-        // Direct parallel execution without internal thresholds - bypass ParallelUtils limitation
-        ThreadPool& pool = ParallelUtils::getGlobalThreadPool();
-        const std::size_t optimal_grain_size = std::max(std::size_t{1}, num_datasets / 8);
-        std::vector<std::future<void>> futures;
-        futures.reserve((num_datasets + optimal_grain_size - 1) / optimal_grain_size);
-
-        for (std::size_t i = 0; i < num_datasets; i += optimal_grain_size) {
-            const std::size_t chunk_end = std::min(i + optimal_grain_size, num_datasets);
-
-            auto future = pool.submit([&datasets, &results, i, chunk_end]() {
-                for (std::size_t j = i; j < chunk_end; ++j) {
-                    results[j].fit(datasets[j]);
-                }
-            });
-
-            futures.push_back(std::move(future));
-        }
-
-        // Wait for all chunks to complete
-        for (auto& future : futures) {
-            future.wait();
-        }
-
-    } else {
-        // Serial processing for small numbers of datasets
-        for (std::size_t i = 0; i < num_datasets; ++i) {
-            results[i].fit(datasets[i]);
-        }
-    }
+void PoissonDistribution::parallelBatchFit(
+    const std::vector<std::vector<double>>& datasets,
+    std::vector<PoissonDistribution>& results) {
+    detail::batchFitParallel(datasets, results);
 }
 
 void PoissonDistribution::reset() noexcept {
