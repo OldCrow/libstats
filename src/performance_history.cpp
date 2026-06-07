@@ -4,6 +4,7 @@
 #include "libstats/core/statistical_constants.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <vector>
 
@@ -178,90 +179,22 @@ std::string PerformanceHistory::generateKey(Strategy strategy, DistributionType 
 }
 
 std::size_t PerformanceHistory::categorizeBatchSize(std::size_t batch_size) noexcept {
-    // Enhanced categorization with better granularity around threshold boundaries
-    // Focus on preserving critical crossover points
-    if (batch_size <= 8)
-        return 8;
-    else if (batch_size <= 10)
-        return 10;
-    else if (batch_size <= 16)
-        return 16;
-    else if (batch_size <= 20)
-        return 20;
-    else if (batch_size <= 25)
-        return 25;
-    else if (batch_size <= 32)
-        return 32;
-    else if (batch_size <= 40)
-        return 40;
-    else if (batch_size <= 50)
-        return 50;
-    else if (batch_size <= 64)
-        return 64;
-    else if (batch_size <= 80)
-        return 80;
-    else if (batch_size <= detail::MAX_NEWTON_ITERATIONS)
-        return detail::MAX_NEWTON_ITERATIONS;
-    else if (batch_size <= 128)
-        return 128;
-    else if (batch_size <= 160)
-        return 160;
-    else if (batch_size <= 200)
-        return 200;
-    else if (batch_size <= 250)
-        return 250;
-    else if (batch_size <= 320)
-        return 320;
-    else if (batch_size <= 400)
-        return 400;
-    else if (batch_size <= 500)
-        return 500;
-    else if (batch_size <= 640)
-        return 640;
-    else if (batch_size <= 800)
-        return 800;
-    else if (batch_size <= detail::MAX_BISECTION_ITERATIONS)
-        return detail::MAX_BISECTION_ITERATIONS;
-    else if (batch_size <= 1280)
-        return 1280;
-    else if (batch_size <= 1600)
-        return 1600;
-    else if (batch_size <= 2000)
-        return 2000;
-    else if (batch_size <= 2500)
-        return 2500;
-    else if (batch_size <= 3200)
-        return 3200;
-    else if (batch_size <= 4000)
-        return 4000;
-    else if (batch_size <= detail::MAX_DATA_POINTS_FOR_SW_TEST)
-        return detail::MAX_DATA_POINTS_FOR_SW_TEST;
-    else if (batch_size <= 6400)
-        return 6400;
-    else if (batch_size <= 8000)
-        return 8000;
-    else if (batch_size <= 10000)
-        return 10000;
-    else if (batch_size <= 12800)
-        return 12800;
-    else if (batch_size <= 16000)
-        return 16000;
-    else if (batch_size <= 20000)
-        return 20000;
-    else if (batch_size <= 25000)
-        return 25000;
-    else if (batch_size <= 32000)
-        return 32000;
-    else if (batch_size <= 40000)
-        return 40000;
-    else if (batch_size <= 50000)
-        return 50000;
-    else if (batch_size <= 64000)
-        return 64000;
-    else if (batch_size <= 80000)
-        return 80000;
-    else
-        return 100000;
+    // Bucket boundaries in ascending order. Each value is both the threshold
+    // and the category label returned for all batch sizes up to that boundary.
+    // std::lower_bound selects the smallest bucket >= batch_size in O(log N).
+    static constexpr std::array<std::size_t, 41> kBuckets = {
+        8,     10,    16,    20,    25,
+        32,    40,    50,    64,    80,
+        100,   128,   160,   200,   250,
+        320,   400,   500,   640,   800,
+        1000,  1280,  1600,  2000,  2500,
+        3200,  4000,  5000,  6400,  8000,
+        10000, 12800, 16000, 20000, 25000,
+        32000, 40000, 50000, 64000, 80000,
+        100000
+    };
+    auto it = std::lower_bound(kBuckets.begin(), kBuckets.end(), batch_size);
+    return (it != kBuckets.end()) ? *it : kBuckets.back();
 }
 
 const char* PerformanceHistory::strategyToString(Strategy strategy) noexcept {
