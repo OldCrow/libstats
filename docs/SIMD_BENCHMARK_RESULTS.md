@@ -2,12 +2,12 @@
 
 > **⚠️ Historical document — do not use as current performance claims.**
 >
-> These benchmarks were produced before the Phase 1 paradigm shift (September 2025).
+> These benchmarks were produced before the major architecture refactor (September 2025).
 > The benchmark tools (`tools/simd_library_benchmark.cpp`, `tools/build_simd_benchmark.sh`)
-> were removed in Phase 1 as part of the decision to stop competing with SLEEF/EVE/xsimd.
+> were removed as part of the decision to stop competing with SLEEF/EVE/xsimd.
 > The build instructions below no longer work.
 >
-> The current authoritative performance numbers are in `WARP.md` (Phase 4 validation matrix).
+> The current authoritative performance numbers are in `AGENTS.md` (Current Validation Matrix).
 > `simd_verification` is the supported tool for verifying correctness and measuring speedup.
 
 ---

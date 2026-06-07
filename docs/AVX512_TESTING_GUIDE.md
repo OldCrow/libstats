@@ -2,7 +2,7 @@
 
 This guide explains how to set up comprehensive AVX-512 testing for the libstats project, including both compilation verification and runtime testing.
 
-## Current AVX-512 Testing Status (as of Phase 4, April 2026)
+## AVX-512 Testing Status
 
 ### ✅ What We Test Now
 - **NEON**: macOS Apple Silicon M1 (Mac Mini, macOS Tahoe) — 31/31, simd_verification 36/36, speedup 3.15x

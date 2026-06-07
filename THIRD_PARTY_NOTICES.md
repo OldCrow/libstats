@@ -1,19 +1,25 @@
 # Third Party Notices
 
-This project incorporates or derives work from the following third-party projects:
+This project incorporates or derives work from the following third-party projects.
+
+---
 
 ## SLEEF (SIMD Library for Evaluating Elementary Functions)
 
-**Project**: https://github.com/shibatch/sleef
-**License**: Boost Software License 1.0
-**Usage**: Some algorithms and polynomial coefficients in our SIMD implementations are inspired by or derived from SLEEF.
+**Project**: https://github.com/shibatch/sleef  
+**License**: Boost Software License 1.0 (see full text below)  
+**Usage**: Polynomial coefficients and range-reduction constants in the AVX
+vectorized `exp` and `log` implementations are derived from SLEEF.
 
-The following files contain SLEEF-inspired code:
-- `src/simd_avx.cpp` - AVX implementations of transcendental functions (exp, log, pow, erf)
-- `src/simd_avx2.cpp` - AVX2 implementations (if applicable)
-- `src/simd_sse.cpp` - SSE implementations (if applicable)
+Affected file:
+- `src/simd_avx.cpp` — AVX `vector_exp_avx` and `vector_log_avx`
+  (SLEEF `xexp_u10`/`xlog_u1` polynomial coefficients and constants)
 
-### Boost Software License - Version 1.0
+`src/simd_avx2.cpp` and `src/simd_avx512.cpp` delegate their transcendental
+calls to the AVX implementation above and contain no additional SLEEF-derived
+code of their own.
+
+### SLEEF License (Boost Software License - Version 1.0)
 
 ```
 Boost Software License - Version 1.0 - August 17th, 2003
@@ -41,6 +47,55 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## License Compatibility Note
+The Boost Software License 1.0 is the license used by the SLEEF project. It
+is unrelated to the Boost C++ Libraries. BSL-1.0 is fully compatible with the
+MIT License used by libstats.
 
-The Boost Software License 1.0 is fully compatible with the MIT License used by libstats. The Boost license is one of the most permissive open-source licenses and allows derivative works to be redistributed under different licenses, including the MIT License.
+---
+
+## Abramowitz & Stegun
+
+**Reference**: Abramowitz, M. and Stegun, I.A. (eds.), *Handbook of Mathematical
+Functions*, National Bureau of Standards Applied Mathematics Series 55,
+1964. Public domain (US Government publication).
+
+**Usage**: The AVX vectorized `erf` approximation (`vector_erf_avx` in
+`src/simd_avx.cpp`) uses the rational polynomial from §7.1.26 with
+coefficients `p=0.3275911`, `a1..a5 = {0.254829592, -0.284496736,
+1.421413741, -1.453152027, 1.061405429}`. Maximum error: 1.5×10⁻⁷.
+
+No license is required for public-domain material; attribution is included
+for scientific accuracy.
+
+---
+
+## Numerical Recipes (algorithmic reference only)
+
+**Reference**: Press, W.H. et al., *Numerical Recipes in C++*, Cambridge
+University Press, 3rd edition 2007.
+
+**Usage**: The following functions in `src/math_utils.cpp` use the same
+standard numerical methods described in Numerical Recipes:
+- `erf_inv` — rational approximation for the inverse error function
+  (Moro/Acklam method, also described in NR)
+- `beta_continued_fraction` — Lentz modified continued-fraction evaluation
+  of the regularized incomplete beta function
+- `gamma_p_series` — power-series expansion of the regularized incomplete
+  gamma function
+
+These algorithms are classical results (Lentz 1976; series predating NR)
+and are described in many references. The implementations in this library
+are original code written independently; no code was copied from the NR
+publication. NR is listed here as an acknowledgment of the algorithmic
+references consulted during development.
+
+---
+
+## Design references (no code derived)
+
+The following libraries were studied for design patterns and performance
+techniques during development. No algorithms, coefficients, or code from
+these projects appear in libstats.
+
+- **EVE** (Expressive Vector Engine) — https://github.com/jfalcou/eve
+- **Google Highway** — https://github.com/google/highway

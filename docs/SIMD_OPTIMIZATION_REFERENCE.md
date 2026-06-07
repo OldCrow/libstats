@@ -1,20 +1,27 @@
 # SIMD Optimization Reference
 
-**Status as of Phase 4 (April 2026)**
+> **Note**: This document records SIMD optimization analysis and decisions made
+> during development. Items marked ✅ are resolved; items marked ⏳ remain deferred
+> as of v1.2.0. The implementation roadmap at the end of this document was the
+> original planning timeline; the work described there is now complete or deferred
+> indefinitely. See AGENTS.md for the current deferred-items list.
 
-This document is a reference for **Phase 6** work. It contains algorithm details
+
+**Status as of v1.0.0**
+
+This document records SIMD optimization analysis for the development phase. It contains algorithm details
 for the hand-rolled SIMD transcendental functions that would be needed to bring
-AVX2/AVX-512 transcendental performance to full width. Phase 6 scope is documented
+AVX2/AVX-512 transcendental performance to full width. These items are documented
 in the main work plan.
 
 The framing below is historical. Items marked ❌ below have been addressed;
-items marked ⏳ remain deferred to Phase 6.
+items marked ⏳ remain deferred.
 
 ---
 
-## 1. ✅ erf Implementation — Resolved in Phase 1
+## 1. ✅ erf Implementation — Resolved
 
-The accuracy bug described here was fixed in Phase 1. The current implementation
+The accuracy bug described here is fixed. The current implementation
 uses Abramowitz & Stegun 7.1.26 with max error ~1.5×10⁻⁷, documented in both
 `src/simd_avx.cpp` and `tests/test_math_comprehensive.cpp`. `simd_verification`
 confirms 36/36 PASS including Gaussian CDF (which uses `vector_erf`).
@@ -39,7 +46,7 @@ Coefficients:
 Maximum error: 1.5×10⁻⁷
 ```
 
-If higher accuracy is needed in Phase 6, `std::erf` in the scalar fallback
+If higher accuracy is needed in future, `std::erf` in the scalar fallback
 already delivers full double precision; the vectorized path is the tradeoff.
 
 #### Reference Implementations to Study
@@ -84,7 +91,7 @@ already delivers full double precision; the vectorized path is the tradeoff.
 
 ---
 
-## 2. ⏳ Phase 6: Power Function Optimization (3x Performance Gap)
+## 2. ⏳ Deferred: Power Function Optimization (3x Performance Gap)
 
 ### Current Implementation
 - **Location**: `src/simd_avx.cpp:486-556`
@@ -143,7 +150,7 @@ pow(x, y) computation:
 
 ---
 
-## 3. ⏳ Phase 6: exp/log Function Optimization (2x Performance Gap)
+## 3. ⏳ Deferred: exp/log Function Optimization (2x Performance Gap)
 
 ### Exponential Function Optimization
 
@@ -190,7 +197,7 @@ pow(x, y) computation:
 
 ---
 
-## 4. ⏳ Phase 6 (Deferred): Architectural Options
+## 4. ⏳ Deferred: Architectural Options
 
 ### Template-Based SIMD (EVE Approach)
 
@@ -279,105 +286,3 @@ namespace libstats::simd {
 ---
 
 ## 6. IMPLEMENTATION CHECKLIST
-
-### Phase 1: Immediate Fixes (Week 1)
-- [ ] Fix erf implementation in all SIMD variants
-- [ ] Add comprehensive erf test cases
-- [ ] Verify accuracy < 1e-7 relative error
-- [ ] Update benchmark to validate fix
-
-### Phase 2: Performance Optimization (Week 2-3)
-- [ ] Inline pow computation
-- [ ] Optimize exp with table lookup
-- [ ] Optimize log with faster range reduction
-- [ ] Implement FMA variants where available
-
-### Phase 3: Architectural Improvements (Week 4-6)
-- [ ] Design template-based SIMD interface
-- [ ] Implement multiple accuracy modes
-- [ ] Create compile-time dispatch system
-- [ ] Document performance/accuracy trade-offs
-
-### Phase 4: Integration and Testing (Week 7-8)
-- [ ] Integrate with distribution implementations
-- [ ] Full accuracy validation suite
-- [ ] Performance regression tests
-- [ ] Documentation and examples
-
----
-
-## 7. REFERENCE RESOURCES
-
-### Source Code Locations
-
-1. **SLEEF**:
-   - GitHub: `github.com/shibatch/sleef`
-   - Key files: `src/libm/sleefsimdsp.c`, `src/libm/sleefsimddp.c`
-
-2. **EVE**:
-   - GitHub: `github.com/jfalcou/eve`
-   - Key files: `include/eve/module/math/`
-
-3. **xsimd**:
-   - GitHub: `github.com/xtensor-stack/xsimd`
-   - Key files: `include/xsimd/arch/`
-
-### Documentation and Papers
-
-1. **"Computer Approximations"** by Hart et al.
-   - Polynomial and rational approximations
-
-2. **"Elementary Functions: Algorithms and Implementation"** by Muller
-   - Comprehensive coverage of transcendental functions
-
-3. **Intel Optimization Manual**
-   - Volume 1, Chapter 11: SIMD optimization techniques
-
-4. **ARM NEON Programmer's Guide**
-   - SIMD optimization for ARM architectures
-
-### Testing Resources
-
-1. **MPFR** (mpfr.org)
-   - Arbitrary precision reference implementation
-
-2. **TestFloat** (berkeley.edu)
-   - IEEE 754 compliance testing
-
-3. **CORE-MATH** (core-math.gitlabpages.inria.fr)
-   - Correctly rounded mathematical functions
-
----
-
-## 8. PLATFORM-SPECIFIC CONSIDERATIONS
-
-### x86/x64 (SSE2, AVX, AVX2, AVX512)
-- Use `_mm_prefetch` for data prefetching
-- Align data to 32/64 byte boundaries
-- Consider AVX-512 mask registers for conditional operations
-
-### ARM (NEON)
-- Different polynomial coefficients may be optimal
-- Use `vfmaq_f64` for fused multiply-add
-- Consider SVE/SVE2 for newer ARM processors
-
-### Cross-Platform
-- Maintain scalar fallback for all operations
-- Use runtime CPU detection for dispatch
-- Test on minimum supported hardware
-
----
-
-## Document Maintenance
-
-**Last Updated**: 2025-01-06
-**Version**: 1.0
-**Authors**: AI Assistant with wolfman
-
-### Revision History
-- v1.0 (2025-01-06): Initial comprehensive reference based on benchmark analysis
-
-### Future Updates Needed
-- Add specific line numbers from reference implementations
-- Include performance measurements from implemented optimizations
-- Add code snippets from successful optimizations

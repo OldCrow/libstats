@@ -27,13 +27,13 @@ This guide provides comprehensive information about the libstats header organiza
 
 **Location**: `include/core/*_constants.h`, `include/platform/simd_policy.h`
 
-> **✅ Phase 2 Update**: Some foundation headers have been moved to `include/common/` for better organization.
+> **✅ Updated**: Some foundation headers have been moved to `include/common/` for better organization.
 
 These headers have no internal project dependencies and provide fundamental constants and basic platform detection.
 
 #### Constants Headers
 
-Phase 2 consolidated 9 micro-headers into 3 semantic groups. Each group header has a
+A consolidation reduced 9 micro-headers into 3 semantic groups. Each group header has a
 doc comment explaining what belongs in it and why it is separate.
 
 ```cpp
@@ -49,7 +49,7 @@ doc comment explaining what belongs in it and why it is separate.
 The **removed** headers (`mathematical_constants.h`, `precision_constants.h`,
 `probability_constants.h`, `threshold_constants.h`, `benchmark_constants.h`,
 `robust_constants.h`, `statistical_methods_constants.h`, `goodness_of_fit_constants.h`)
-no longer exist. Any code still referencing them predates Phase 2.
+no longer exist.
 
 #### Basic Platform
 ```cpp
@@ -60,7 +60,7 @@ no longer exist. Any code still referencing them predates Phase 2.
 
 **Location**: `include/core/essential_constants.h`, `include/core/constants.h`, `include/platform/cpu_detection.h`
 
-> **✅ Phase 2 Update**: Some platform constants have been moved to `include/common/` - use the new paths where applicable.
+> **✅ Updated**: Some platform constants have been moved to `include/common/` - use the new paths where applicable.
 
 #### Essential Constants (Recommended)
 ```cpp
@@ -78,7 +78,7 @@ no longer exist. Any code still referencing them predates Phase 2.
 #include "platform/platform_constants.h"   // Platform-specific optimization constants (via common/)
 ```
 
-> **✅ Phase 2 Update**: `platform_constants.h` now pulls from `common/platform_constants_fwd.h` and `common/platform_common.h`
+> **✅ Updated**: `platform_constants.h` now pulls from `common/platform_constants_fwd.h` and `common/platform_common.h`
 
 ### Level 2: Core Utilities and Platform Capabilities
 
@@ -151,7 +151,7 @@ no longer exist. Any code still referencing them predates Phase 2.
 
 **Location**: `include/common/*_common.h`, `include/core/*_common.h`, `include/distributions/distribution_platform_common.h`
 
-> **✅ Phase 2 Update**: Major header reorganization completed - common shared headers consolidated in `include/common/`
+> **✅ Updated**: Major header reorganization completed - common shared headers consolidated in `include/common/`
 
 #### Distribution Development (Recommended Pattern)
 ```cpp
@@ -177,7 +177,7 @@ no longer exist. Any code still referencing them predates Phase 2.
 #include "common/platform_common.h"           // Platform-specific common headers (MOVED)
 ```
 
-> **✅ Phase 2 Update**: Common shared headers moved to `include/common/` for better organization
+> **✅ Updated**: Common shared headers moved to `include/common/` for better organization
 
 ### Level 6: Concrete Distributions
 
@@ -209,7 +209,7 @@ no longer exist. Any code still referencing them predates Phase 2.
 #pragma once
 
 // Use consolidated headers for common functionality
-#include "../common/distribution_common.h"    // UPDATED PATH (Phase 2)
+#include "../common/distribution_common.h"    // UPDATED PATH
 #include "distribution_platform_common.h"
 
 // Add specific headers only when needed
@@ -222,7 +222,7 @@ class MyDistribution : public DistributionBase {
 };
 ```
 
-> **✅ Phase 2 Update**: `distribution_common.h` moved to `include/common/` directory
+> **✅ Updated**: `distribution_common.h` moved to `include/common/` directory
 
 #### Key Benefits of This Pattern
 - **~60% fewer includes** compared to individual headers
@@ -247,7 +247,7 @@ class MyDistribution : public DistributionBase {
 #include "../include/libstats.h"
 
 // For tools that need only specific distributions:
-#include "../include/common/distribution_common.h"  // UPDATED PATH (Phase 2)
+#include "../include/common/distribution_common.h"  // UPDATED PATH
 #include "../include/distributions/gaussian.h"     // Only what's needed
 
 // For performance analysis tools:
@@ -271,7 +271,7 @@ class MyDistribution : public DistributionBase {
 #include "../include/libstats.h"
 
 // For focused unit tests:
-#include "../include/common/distribution_common.h"  // UPDATED PATH (Phase 2)
+#include "../include/common/distribution_common.h"  // UPDATED PATH
 #include "../include/distributions/gaussian.h"     // Test target
 
 // For performance tests:
@@ -367,7 +367,7 @@ if (libstats::cpu::supports_avx()) {
 #include "../platform/simd.h"
 #include "../platform/parallel_execution.h"
 
-// NEW PATTERN (Phase 2):
+// NEW PATTERN:
 #include "../common/distribution_common.h"         // UPDATED PATH - replaces first 8 includes
 #include "distribution_platform_common.h"         // Replaces platform includes
 ```
@@ -381,12 +381,12 @@ if (libstats::cpu::supports_avx()) {
 
 ### Achieved Improvements
 
-#### Phase 1 (Cache Consolidation)
+#### Cache Consolidation
 - **6 files changed**: 722 insertions, 29 deletions in consolidation
 - **100% build success** with zero functionality loss
 - **100% test pass rate** after consolidation
 
-#### Phase 2 (Common Header Reorganization)
+#### Common Header Reorganization
 - **16 header files** in `include/common/` for shared functionality
 - **All include paths updated** across codebase (30+ files affected)
 - **Cache infrastructure** maintained in `core/distribution_cache.h`
@@ -469,5 +469,4 @@ For most development scenarios, using the consolidated headers (`distribution_co
 
 **Document Version**: 2.1
 **Last Updated**: 2025-09-01
-**Covers**: Phase 1 cache consolidation, Phase 2 common header reorganization, and updated usage guidelines
-**Next Review**: After v0.13.0 pre-release work
+**Covers**: Header architecture, include paths, and common header consolidation

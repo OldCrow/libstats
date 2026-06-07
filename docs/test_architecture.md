@@ -38,7 +38,7 @@ The libstats project strategically uses two testing approaches:
   - Better integration with CI/CD systems
 - **Drawbacks**: Additional dependency, slightly slower execution
 
-### Current Framework Distribution (Phase 4, April 2026)
+### Current Framework Distribution
 - **Standalone tests**: 20 tests (service infrastructure, basic functionality)
 - **GTest tests**: 8 tests (enhanced distribution and performance methods; require GTest)
 - **Total registered**: 28 tests (GTest tests silently skipped when GTest is absent)
@@ -107,7 +107,7 @@ The libstats project strategically uses two testing approaches:
 **Purpose**: Dynamic library linking and cross-cutting functionality
 
 - **`test_dynamic_linking`** - Dynamic library linking validation
-- **`test_gaussian_basic_dynamic`** - Gaussian with dynamic library (Release CRT required; see WARP.md)
+- **`test_gaussian_basic_dynamic`** - Gaussian with dynamic library (Release CRT required; see AGENTS.md)
 - **`test_exponential_basic_dynamic`** - Exponential with dynamic library
 
 ## Consolidated Testing Strategy
@@ -122,7 +122,7 @@ The testing infrastructure was successfully consolidated from 30 to 27 tests:
 
 #### What Was Merged
 - Advanced Gaussian functionality consolidated into `test_gaussian_enhanced.cpp` with comprehensive GTest coverage
-- All Phase 2 & 3 statistical methods (19 GTest test cases)
+- All statistical methods test cases
 - Mathematical function debugging consolidated into production-quality `test_math_comprehensive.cpp`
 
 #### What Was Standardized
@@ -130,7 +130,7 @@ The testing infrastructure was successfully consolidated from 30 to 27 tests:
 - Clear separation of concerns between basic and advanced functionality
 - Modern C++20 practices with proper GTest integration
 
-## Unified Test Infrastructure (Phase 3E)
+## Unified Test Infrastructure
 
 ### Test Infrastructure Namespace (`stats::tests::`)
 
