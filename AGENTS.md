@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides project-scoped guidance to Warp (warp.dev) agents working in this repository.
+This file provides project-scoped guidance to AI agents and contributors working in this repository.
 
 # libstats - Modern C++20 Statistical Distributions Library
 
@@ -40,10 +40,28 @@ sysctl -n machdep.cpu.brand_string 2>/dev/null || true
 $env:PROCESSOR_IDENTIFIER
 ```
 
-Platform routing rules:
+### Why SIMD Detection Matters
+
+The active SIMD tier changes fundamentally between machines. SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
+- Note the change explicitly.
+- Verify the build directory is current for this architecture (`cmake ..` may be needed).
+- Dispatch thresholds in `include/core/dispatch_thresholds.h` are architecture-specific.
+- Benchmark results are not comparable across architectures.
+
+| SIMD Tier | Example CPUs | Active simd_*.cpp files |
+|---|---|---|
+| SSE2 + AVX | Intel Ivy Bridge and earlier | `simd_sse2.cpp`, `simd_avx.cpp` |
+| SSE2 + AVX + AVX2 + FMA | Intel Haswell / Kaby Lake and newer | + `simd_avx2.cpp` |
+| NEON only | Apple Silicon (M1 and newer) | `simd_neon.cpp` |
+| SSE2 + AVX + AVX2 + **AVX-512** | AMD Zen 4 (e.g. Ryzen 7000-series) | + `simd_avx512.cpp` |
+| SSE2 + AVX + AVX2 | Linux x86 CI | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
+
+The machines in the Development Ecosystem table are examples; any CPU with the same SIMD capabilities follows the same code paths.
+
+Platform routing rules (OS/toolchain selection — SIMD tier is determined automatically at compile time by CPU feature detection):
 - **macOS (non-Catalina):** Use the standard CMake flow in the `Essential Build Commands` section.
 - **macOS Catalina (10.15):** No separate bootstrap script is required in `libstats`, but keep Catalina caveats in `docs/BUILD_SYSTEM_GUIDE.md` in mind (notably Homebrew LLVM 22 `std::format` behavior and dylib code-signing expectations).
-- **Windows/MSVC:** Follow `Windows Session Setup (Asus TUF A16)` and use Visual Studio 2022 x64 Release commands.
+- **Windows/MSVC:** Follow `Windows Session Setup` below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
 ### Current Validation Matrix (9 distributions, 54 SIMD tests)
@@ -73,7 +91,7 @@ All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
 Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
 
 ### Deferred Items
-- AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on A16;
+- AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on AMD Ryzen 7 7445 (AVX-512, Windows);
   fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
   back to the AVX implementation; deferred post-v1.2.0
 - Future: `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
@@ -126,15 +144,19 @@ All four machines validated at v1.0.0.
 `simd_avx512.cpp` was first exercised there at v1.0.0; 54/54 SIMD tests pass.
 The `test_simd_policy` AVX-512 string (`"AVX-512"`) was confirmed correct.
 
-**Note:** Previous Windows testing was on an ASUS ROG Strix GL531. The Asus TUF A16 build environment
-may need to be set up from scratch (Visual Studio 2022, CMake, Git, VS Code with C/C++ + CMake Tools).
+**Note:** If setting up a fresh Windows machine, the build environment must be configured from scratch; see the one-time setup notes below.
 
-### Windows Session Setup (Asus TUF A16)
+### Windows Session Setup
+
+> **Windows tool paths vary** by installation method (direct installer, `winget`, `chocolatey`, Microsoft Store, etc.). The paths below are common defaults — adjust for your installation. VS Build Tools and full VS editions use different default directories; see the one-time setup notes below for alternatives and auto-detection.
 
 Before building or running tests in a new PowerShell session on Windows:
 
 ```powershell
 # 1. Activate MSVC toolchain (required each session — not persistent in PowerShell)
+# Default path for VS 2022 Build Tools. For full VS (Community/Professional/Enterprise),
+# replace "BuildTools" with your edition under "C:\Program Files\Microsoft Visual Studio\2022\".
+# See One-time setup notes below for auto-detection via vswhere.exe.
 $vcvars = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
 $envVars = cmd /c "`"$vcvars`" > nul && set"
 foreach ($line in $envVars) {
@@ -151,7 +173,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 Copy-Item "build\Release\stats.dll" -Destination "build\tests\" -Force
 
 # 4. Run correctness tests
-ctest -C Release -LE "timing|benchmark" --output-on-failure
+ctest --test-dir build -C Release -LE "timing|benchmark" --output-on-failure
 ```
 
 **Important: After any clean rebuild on Windows, verify the dynamic test EXEs are Release builds:**
@@ -167,59 +189,30 @@ A stale Debug EXE + Release DLL = CRT mismatch = heap corruption crash. The `cma
 flag cleans Release artifacts but leaves existing Debug EXEs untouched if their timestamps appear current.
 
 **One-time setup notes:**
-- Visual Studio 2022 Build Tools (not full VS) is sufficient
-- **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings)
+- Visual Studio 2022 Build Tools (not full IDE) is sufficient. Install from https://aka.ms/vs/17/release/vs_buildtools.exe, or `winget install Microsoft.VisualStudio.2022.BuildTools`, or `choco install visualstudio2022buildtools`.
+  - Build Tools default path: `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\`
+  - Full VS (Community/Professional/Enterprise) default path: `C:\Program Files\Microsoft Visual Studio\2022\{edition}\`
+  - Auto-detect installation path (any edition): `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`
+- **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings).
   SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
-- CMake 4.x installed and compatible with `cmake_minimum_required(VERSION 3.20)`
+- CMake ≥ 3.20 required. Install from https://cmake.org/download/, `winget install Kitware.CMake`, or `choco install cmake`.
+- vcpkg for GTest: `git clone https://github.com/microsoft/vcpkg C:\vcpkg && C:\vcpkg\bootstrap-vcpkg.bat`. The path `C:\vcpkg` is a convention; if installed via `winget install Microsoft.vcpkg` or `choco install vcpkg` the location will differ — run `where vcpkg` to find it.
 - Configure: `cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake`
+  (adjust the toolchain path if vcpkg is not at `C:\vcpkg`)
 - Build: `cmake --build . --config Release --parallel`
 - GTest installed via vcpkg (`gtest:x64-windows 1.17.0`) — all 33 correctness tests pass
-- vcpkg root: `C:\vcpkg`; toolchain file required for CMake to find GTest
-
-## Session Start Step 1: Architecture Detection
-
-At the start of each libstats development session, verify the current machine architecture before making any SIMD-related decisions, reviewing test results, or adjusting thresholds.
-
-```bash
-# Identify the CPU architecture and OS
-uname -m          # x86_64 = Intel/AMD | arm64 = Apple Silicon
-uname -s          # Darwin = macOS | Linux | MINGW = Windows
-
-# On macOS: identify the specific CPU
-sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "(not macOS or not x86)"
-
-# Check what SIMD the build detected (requires a current build)
-./build/tools/system_inspector --quick 2>/dev/null || echo "Build not current — run cmake/make first"
-```
-
-### Why This Matters
-
-The active SIMD level changes fundamentally between machines:
-
-| Architecture | SIMD Available | Active simd_*.cpp files |
-|---|---|---|
-| Intel Mac Ivy Bridge (2012) | SSE2, AVX | `simd_sse2.cpp`, `simd_avx.cpp` |
-| Intel Mac Kaby Lake (2017) | SSE2, AVX, AVX2, FMA | + `simd_avx2.cpp` |
-| Apple Silicon M1 | NEON only | `simd_neon.cpp` |
-| AMD Ryzen Zen 4 (A16/Windows) | SSE2, AVX, AVX2, **AVX-512** | + `simd_avx512.cpp` |
-| Linux x86 CI | SSE2, AVX, AVX2 | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
-
-SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
-- Note the change explicitly
-- Verify the build directory is current for this architecture (`cmake ..` may be needed)
-- Dispatch thresholds in `include/core/dispatch_thresholds.h` are architecture-specific
-- Benchmark results are not comparable across architectures
 
 ## Essential Build Commands
 
 ### Quick Build
 ```bash
-# Standard development build (default 'Dev' build type)
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-ctest --output-on-failure
+# macOS/Linux — standard development build (default 'Dev' build type)
+cmake -B build
+cmake --build build --parallel   # equivalent to make -j$(nproc)
+ctest --test-dir build --output-on-failure
 ```
+
+Windows: use the commands in the `Windows Session Setup` section above.
 
 ### Common Build Configurations
 ```bash
@@ -541,22 +534,23 @@ The build system supports cross-compiler compatibility testing with specialized 
 ### Running Tests
 ```bash
 # Run all tests (timing assertions may be flaky under parallel load)
-ctest --output-on-failure
+ctest --test-dir build --output-on-failure
 
 # Correctness only — safe to run in parallel, excludes timing-sensitive assertions
-ctest --output-on-failure -LE "timing|benchmark"
+ctest --test-dir build --output-on-failure -LE "timing|benchmark"
 
 # Timing validation — run serially on a quiet machine for reliable results
-ctest --output-on-failure -j1 -L timing
+ctest --test-dir build --output-on-failure -j1 -L timing
 
-# Or via make targets
+# Or via make targets (macOS/Linux with Makefile generator only)
 make run_tests          # Correctness suite (parallel-safe)
 make run_tests_timing   # Timing suite (serial, quiet machine required)
 make run_all_tests      # Everything
+# Windows equivalent: cmake --build build --target run_tests --config Release
 
 # Run a specific test
-ctest -R test_gaussian_basic
-ctest -R test_gaussian_enhanced  # Contains timing assertions
+ctest --test-dir build -R test_gaussian_basic
+ctest --test-dir build -R test_gaussian_enhanced  # Contains timing assertions
 
 # Run cross-compiler compatibility tests
 ./scripts/test-cross-compiler.sh
@@ -584,7 +578,9 @@ when the machine is loaded. This is a measurement problem, not a correctness pro
 
 The testing infrastructure ensures correctness across all optimization levels and provides regression detection for performance-critical paths.
 
-## Warp Workflows
+## Warp Terminal Saved Workflows (warp.dev only)
+
+> **Note for non-Warp users:** These workflows are available only in the Warp terminal. Users of other tools (Claude Code, Cursor, bare shells, etc.) should run the equivalent shell commands listed elsewhere in this file.
 
 Saved workflows in `.warp/workflows/` are available directly in the Warp terminal for common tasks:
 
