@@ -1,0 +1,188 @@
+#define LIBSTATS_ENABLE_GTEST_INTEGRATION
+#ifdef _MSC_VER
+    #pragma warning(push)
+    #pragma warning(disable : 4996)
+#endif
+
+#include "include/tests.h"
+#include "libstats/distributions/von_mises.h"
+
+#include <cmath>
+#include <gtest/gtest.h>
+#include <limits>
+#include <random>
+#include <span>
+#include <vector>
+
+using namespace std;
+using namespace stats;
+
+namespace stats {
+
+class VonMisesEnhancedTest : public ::testing::Test {
+   protected:
+    void SetUp() override {
+        auto r = stats::VonMisesDistribution::create(0.0, 1.0);
+        ASSERT_TRUE(r.isOk());
+        vm01_ = std::move(r.value);
+    }
+    VonMisesDistribution vm01_;  // VM(μ=0, κ=1)
+};
+
+// kappa=0 → uniform: PDF = 1/(2π) everywhere
+TEST_F(VonMisesEnhancedTest, UniformCase) {
+    auto u = VonMisesDistribution::create(0.0, 0.0).value;
+    EXPECT_TRUE(u.isUniform());
+    const double inv2pi = 1.0 / (2.0 * M_PI);
+    for (double x : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
+        EXPECT_NEAR(u.getProbability(x), inv2pi, 1e-8) << "PDF not uniform at x=" << x;
+    }
+    EXPECT_NEAR(u.getVariance(), 1.0, 1e-10);
+    EXPECT_NEAR(u.getEntropy(), std::log(2.0 * M_PI), 1e-10);
+}
+
+// PDF is maximised at mu, minimised at mu+pi
+TEST_F(VonMisesEnhancedTest, ModeAtMu) {
+    for (double mu : {-1.5, 0.0, 1.0}) {
+        auto d = VonMisesDistribution::create(mu, 3.0).value;
+        EXPECT_NEAR(d.getMean(), mu, 1e-14) << "getMean() != mu for mu=" << mu;
+        EXPECT_GT(d.getProbability(mu), d.getProbability(mu + M_PI > M_PI
+                                                              ? mu + M_PI - 2.0 * M_PI
+                                                              : mu + M_PI))
+            << "PDF(mu) should exceed PDF(mu+pi) for mu=" << mu;
+    }
+}
+
+// Circular variance in [0,1]; increases as kappa decreases
+TEST_F(VonMisesEnhancedTest, CircularVarianceMonotone) {
+    const auto d0  = VonMisesDistribution::create(0.0, 0.0).value;
+    const auto d1  = VonMisesDistribution::create(0.0, 1.0).value;
+    const auto d5  = VonMisesDistribution::create(0.0, 5.0).value;
+    const auto d20 = VonMisesDistribution::create(0.0, 20.0).value;
+    EXPECT_NEAR(d0.getVariance(), 1.0, 1e-10);
+    EXPECT_GT(d0.getVariance(), d1.getVariance());
+    EXPECT_GT(d1.getVariance(), d5.getVariance());
+    EXPECT_GT(d5.getVariance(), d20.getVariance());
+    EXPECT_GE(d20.getVariance(), 0.0);
+}
+
+// log(PDF) == LogPDF
+TEST_F(VonMisesEnhancedTest, LogPDFConsistency) {
+    for (double x : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
+        const double pdf  = vm01_.getProbability(x);
+        const double lpdf = vm01_.getLogProbability(x);
+        EXPECT_NEAR(std::log(pdf), lpdf, 1e-12) << "at x=" << x;
+    }
+}
+
+// Mu wrapping: stored value always in (-pi, pi]
+TEST_F(VonMisesEnhancedTest, AngleWrapping) {
+    for (double mu : {-10.0, -4.0, 4.0, 7.0, 100.0}) {
+        auto d = VonMisesDistribution::create(mu, 1.0).value;
+        EXPECT_GT(d.getMu(), -M_PI)  << "Mu below -pi for input=" << mu;
+        EXPECT_LE(d.getMu(),  M_PI)  << "Mu above +pi for input=" << mu;
+    }
+}
+
+// Batch matches scalar (LogPDF)
+TEST_F(VonMisesEnhancedTest, BatchMatchesScalarLogPDF) {
+    const size_t N = 200;
+    vector<double> xs(N), out_b(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N - 1);
+    vm01_.getLogProbability(span<const double>(xs), span<double>(out_b));
+    for (size_t i = 0; i < N; ++i) {
+        EXPECT_NEAR(out_b[i], vm01_.getLogProbability(xs[i]), 1e-12) << "i=" << i;
+    }
+}
+
+// VECTORIZED == SCALAR (no SIMD for Von Mises, but both paths should agree)
+TEST_F(VonMisesEnhancedTest, VectorizedEqualsScalar) {
+    const size_t N = 500;
+    vector<double> xs(N), out_vec(N), out_scl(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
+    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
+                                        detail::Strategy::VECTORIZED);
+    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
+                                        detail::Strategy::SCALAR);
+    for (size_t i = 0; i < N; ++i)
+        EXPECT_DOUBLE_EQ(out_vec[i], out_scl[i]) << "i=" << i;
+}
+
+// Quantile round-trip: CDF(quantile(p)) = p
+TEST_F(VonMisesEnhancedTest, QuantileRoundTrip) {
+    for (double p : {0.1, 0.25, 0.5, 0.75, 0.9}) {
+        const double q = vm01_.getQuantile(p);
+        EXPECT_GT(q, -M_PI);
+        EXPECT_LE(q,  M_PI);
+        EXPECT_NEAR(vm01_.getCumulativeProbability(q), p, 1e-4) << "at p=" << p;
+    }
+}
+
+// MLE recovers true parameters from samples
+TEST_F(VonMisesEnhancedTest, MLEFit) {
+    mt19937 rng(42);
+    auto source = VonMisesDistribution::create(1.2, 3.0).value;
+    const auto data = source.sample(rng, 500);
+    auto fitted = VonMisesDistribution::create(0.0, 1.0).value;
+    fitted.fit(data);
+    EXPECT_NEAR(fitted.getMu(),    1.2, 0.3) << "Fitted mu should be near 1.2";
+    EXPECT_NEAR(fitted.getKappa(), 3.0, 1.0) << "Fitted kappa should be near 3.0";
+}
+
+// Setter propagates to cache
+TEST_F(VonMisesEnhancedTest, SetterPropagates) {
+    auto d = VonMisesDistribution::create(0.0, 0.0).value;
+    EXPECT_TRUE(d.isUniform());
+    d.setKappa(2.0);
+    EXPECT_FALSE(d.isUniform());
+    EXPECT_LT(d.getVariance(), 1.0);
+    d.setParameters(0.0, 0.0);
+    EXPECT_TRUE(d.isUniform());
+}
+
+// Invalid parameters rejected
+TEST_F(VonMisesEnhancedTest, InvalidParameters) {
+    EXPECT_TRUE(VonMisesDistribution::create(
+        std::numeric_limits<double>::infinity(), 1.0).isError());
+    EXPECT_TRUE(VonMisesDistribution::create(
+        std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
+    EXPECT_TRUE(VonMisesDistribution::create(0.0, -1.0).isError());
+    EXPECT_FALSE(VonMisesDistribution::create(0.0, 0.0).isError());  // kappa=0 is valid
+
+    auto d = VonMisesDistribution::create(0.0, 1.0).value;
+    EXPECT_TRUE(d.trySetKappa(-0.1).isError());
+    EXPECT_DOUBLE_EQ(d.getKappa(), 1.0);
+}
+
+// Parallel batch LogPDF must produce same results as scalar (labelled timing)
+TEST_F(VonMisesEnhancedTest, ParallelBatchCorrectness) {
+    const size_t N = 5000;
+    vector<double> xs(N), out_par(N), out_scl(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
+
+    const auto t0 = std::chrono::high_resolution_clock::now();
+    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_par),
+                                        detail::Strategy::PARALLEL);
+    const auto t1 = std::chrono::high_resolution_clock::now();
+    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
+                                        detail::Strategy::SCALAR);
+    const auto t2 = std::chrono::high_resolution_clock::now();
+
+    const double par_us = static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us = static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+
+    std::cout << "Von Mises LogPDF PARALLEL vs SCALAR: "
+              << par_us << "μs vs " << scl_us << "μs (n=" << N << ")\n";
+    std::cout << "Note: VECTORIZED == scalar loop (no vector_cos); "
+              << "PARALLEL provides true multi-core throughput.\n";
+
+    for (size_t i = 0; i < N; ++i)
+        ASSERT_NEAR(out_par[i], out_scl[i], 1e-12) << "parallel mismatch at i=" << i;
+}
+
+}  // namespace stats

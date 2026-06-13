@@ -238,6 +238,20 @@ else()
     message(STATUS "C++20 <ranges> header: unavailable")
 endif()
 
+# Detect whether std::cyl_bessel_i is available (C++17 §29.9.3).
+# GCC 6.1+, MSVC 2017 15.5+ support it; AppleClang / macOS libc++ does not.
+# VonMisesDistribution falls back to A&S polynomial approximations when absent.
+check_cxx_source_compiles(
+    "#include <cmath>
+int main() { (void)std::cyl_bessel_i(0.0, 1.0); return 0; }"
+    LIBSTATS_HAS_CXX17_BESSEL)
+if(LIBSTATS_HAS_CXX17_BESSEL)
+    message(STATUS "std::cyl_bessel_i (C++17 special functions): available")
+    add_compile_definitions(LIBSTATS_HAS_CXX17_BESSEL)
+else()
+    message(STATUS "std::cyl_bessel_i: unavailable -- Bessel A&S fallback active")
+endif()
+
 # Platform-specific configurations
 if(APPLE)
     # macOS specific configuration
@@ -1336,6 +1350,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/pareto.cpp    # Pareto distribution (log-only pipeline, power-law tail, x >= scale)
     src/weibull.cpp   # Weibull distribution (log+exp pipeline, reliability engineering)
     src/rayleigh.cpp  # Rayleigh distribution (x² pipeline, signal processing)
+    src/von_mises.cpp # Von Mises distribution (circular, cos kernel; Bessel functions)
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -1853,6 +1868,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_rayleigh_basic tests/test_rayleigh_basic.cpp)
     create_libstats_gtest(test_rayleigh_enhanced tests/test_rayleigh_enhanced.cpp)
 
+    # von_mises.h - Von Mises distribution (circular, Bessel functions; PARALLEL preferred)
+    create_libstats_test(test_von_mises_basic tests/test_von_mises_basic.cpp)
+    create_libstats_gtest(test_von_mises_enhanced tests/test_von_mises_enhanced.cpp)
+
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
@@ -1927,6 +1946,7 @@ if(LIBSTATS_BUILD_TESTS)
             test_pareto_enhanced
             test_weibull_enhanced
             test_rayleigh_enhanced
+            test_von_mises_enhanced
             test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
@@ -1980,6 +2000,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_pareto_basic
                 test_weibull_basic
                 test_rayleigh_basic
+                test_von_mises_basic
                 test_atomic_parameters
                 # Level 6: Enhanced distribution tests
                 test_gaussian_enhanced
@@ -1995,6 +2016,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_pareto_enhanced
                 test_weibull_enhanced
                 test_rayleigh_enhanced
+                test_von_mises_enhanced
                 # Level 7: Integration tests
                 test_dynamic_linking
                 # On-demand tests (stress, diagnostic, redundant)

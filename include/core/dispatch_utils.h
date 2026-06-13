@@ -450,5 +450,11 @@ struct DistributionTraits<class RayleighDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
 };
 
+template <>
+struct DistributionTraits<class VonMisesDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::VON_MISES; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
+};
+
 }  // namespace detail
 }  // namespace stats

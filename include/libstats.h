@@ -166,6 +166,7 @@
     #include "distributions/pareto.h"
     #include "distributions/weibull.h"
     #include "distributions/rayleigh.h"
+    #include "distributions/von_mises.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
 // Main namespace for the statistical library
@@ -185,6 +186,7 @@ using LogNormal = LogNormalDistribution;
 using Pareto = ParetoDistribution;
 using Weibull = WeibullDistribution;
 using Rayleigh = RayleighDistribution;
+using VonMises = VonMisesDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 1;

@@ -19,6 +19,7 @@ class LogNormalDistribution;
 class ParetoDistribution;
 class WeibullDistribution;
 class RayleighDistribution;
+class VonMisesDistribution;
 
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
@@ -35,6 +36,7 @@ using LogNormal = LogNormalDistribution;
 using Pareto = ParetoDistribution;
 using Weibull = WeibullDistribution;
 using Rayleigh = RayleighDistribution;
+using VonMises = VonMisesDistribution;
 
 // Platform classes
 class SimdProcessor;
@@ -61,7 +63,8 @@ enum class LibDistributionType {
     LogNormal,
     Pareto,
     Weibull,
-    Rayleigh
+    Rayleigh,
+    VonMises
 };
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };

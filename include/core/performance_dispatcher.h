@@ -82,7 +82,8 @@ enum class DistributionType {
     LOG_NORMAL,   ///< Log-normal distribution (log+exp pipeline, positive real-line support)
     PARETO,       ///< Pareto distribution (log-only pipeline, power-law tail, x >= scale)
     WEIBULL,      ///< Weibull distribution (log+exp pipeline, two-stage power, x >= 0)
-    RAYLEIGH      ///< Rayleigh distribution (x² pipeline, positive real-line support)
+    RAYLEIGH,     ///< Rayleigh distribution (x² pipeline, positive real-line support)
+    VON_MISES     ///< Von Mises distribution (circular, cos kernel; PARALLEL preferred)
 };
 
 /**
@@ -181,6 +182,7 @@ class PerformanceDispatcher {
         size_t pareto_parallel_min = 512;     ///< Log-only, similar complexity to Exponential
         size_t weibull_parallel_min = 256;    ///< Log+two-exp, similar complexity to Gaussian
         size_t rayleigh_parallel_min = 512;   ///< x²+exp, similar complexity to Exponential
+        size_t von_mises_parallel_min = 512;  ///< cos per element; no SIMD, PARALLEL preferred
 
         /**
          * @brief Create thresholds based on SIMDPolicy level

@@ -288,4 +288,22 @@ inline VoidResult validateRayleighParameters(double sigma) noexcept {
     return VoidResult::ok(true);
 }
 
+/**
+ * @brief Validate Von Mises distribution parameters without throwing exceptions
+ * @param mu Mean direction (must be finite)
+ * @param kappa Concentration parameter (must be non-negative and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateVonMisesParameters(double mu, double kappa) noexcept {
+    if (std::isnan(mu) || std::isinf(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidMean,
+                                     "Mu (mean direction) must be a finite real number");
+    }
+    if (std::isnan(kappa) || std::isinf(kappa) || kappa < 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Kappa (concentration) must be a non-negative finite number");
+    }
+    return VoidResult::ok(true);
+}
+
 }  // namespace stats
