@@ -44,10 +44,8 @@ TEST_F(LogNormalEnhancedTest, StandardCDFAtOne) {
 TEST_F(LogNormalEnhancedTest, MedianEqualsExpMu) {
     for (double mu : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
         auto d = LogNormalDistribution::create(mu, 1.0).value;
-        EXPECT_NEAR(d.getQuantile(0.5), std::exp(mu), 1e-8)
-            << "median != exp(mu) for mu=" << mu;
-        EXPECT_NEAR(d.getMedian(), std::exp(mu), 1e-12)
-            << "getMedian() != exp(mu) for mu=" << mu;
+        EXPECT_NEAR(d.getQuantile(0.5), std::exp(mu), 1e-8) << "median != exp(mu) for mu=" << mu;
+        EXPECT_NEAR(d.getMedian(), std::exp(mu), 1e-12) << "getMedian() != exp(mu) for mu=" << mu;
     }
 }
 
@@ -77,7 +75,7 @@ TEST_F(LogNormalEnhancedTest, VarianceFormula) {
 // log(PDF(x)) == LogPDF(x)
 TEST_F(LogNormalEnhancedTest, LogPDFConsistency) {
     for (double x : {0.1, 0.5, 1.0, 2.0, 5.0, 10.0}) {
-        const double pdf  = std_ln_.getProbability(x);
+        const double pdf = std_ln_.getProbability(x);
         const double lpdf = std_ln_.getLogProbability(x);
         EXPECT_NEAR(std::log(pdf), lpdf, 1e-10) << "at x=" << x;
     }
@@ -86,11 +84,10 @@ TEST_F(LogNormalEnhancedTest, LogPDFConsistency) {
 // Out-of-support: PDF and CDF return 0
 TEST_F(LogNormalEnhancedTest, OutOfSupport) {
     EXPECT_EQ(std_ln_.getProbability(-1.0), 0.0);
-    EXPECT_EQ(std_ln_.getProbability(0.0),  0.0);
+    EXPECT_EQ(std_ln_.getProbability(0.0), 0.0);
     EXPECT_EQ(std_ln_.getCumulativeProbability(-1.0), 0.0);
-    EXPECT_EQ(std_ln_.getCumulativeProbability(0.0),  0.0);
-    EXPECT_EQ(std_ln_.getLogProbability(-1.0),
-              -std::numeric_limits<double>::infinity());
+    EXPECT_EQ(std_ln_.getCumulativeProbability(0.0), 0.0);
+    EXPECT_EQ(std_ln_.getLogProbability(-1.0), -std::numeric_limits<double>::infinity());
 }
 
 // Quantile round-trip: CDF(quantile(p)) = p
@@ -114,11 +111,11 @@ TEST_F(LogNormalEnhancedTest, BatchMatchesScalar) {
     std_ln_.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
 
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(pdf_b[i],  std_ln_.getProbability(xs[i]),           1e-10) << "PDF i=" << i;
-        EXPECT_NEAR(lpdf_b[i], std_ln_.getLogProbability(xs[i]),        1e-10) << "LogPDF i=" << i;
+        EXPECT_NEAR(pdf_b[i], std_ln_.getProbability(xs[i]), 1e-10) << "PDF i=" << i;
+        EXPECT_NEAR(lpdf_b[i], std_ln_.getLogProbability(xs[i]), 1e-10) << "LogPDF i=" << i;
         // CDF tolerance relaxed to 2e-7: SIMD vector_erf uses A&S approximation
         // (documented max error ~1.5e-7) vs std::erf in the scalar path.
-        EXPECT_NEAR(cdf_b[i],  std_ln_.getCumulativeProbability(xs[i]), 2e-7)  << "CDF i=" << i;
+        EXPECT_NEAR(cdf_b[i], std_ln_.getCumulativeProbability(xs[i]), 2e-7) << "CDF i=" << i;
     }
 }
 
@@ -126,7 +123,8 @@ TEST_F(LogNormalEnhancedTest, BatchMatchesScalar) {
 TEST_F(LogNormalEnhancedTest, VectorizedMatchesScalar) {
     const size_t N = 1024;
     vector<double> xs(N), out_vec(N), out_scl(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
 
     std_ln_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
                                           detail::Strategy::VECTORIZED);
@@ -137,9 +135,9 @@ TEST_F(LogNormalEnhancedTest, VectorizedMatchesScalar) {
     }
 
     std_ln_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                                  detail::Strategy::VECTORIZED);
+                                                 detail::Strategy::VECTORIZED);
     std_ln_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                                  detail::Strategy::SCALAR);
+                                                 detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i) {
         // erf SIMD approx vs std::erf; tighter than A&S tolerance for most values
         EXPECT_NEAR(out_vec[i], out_scl[i], 2e-7) << "CDF SIMD mismatch at i=" << i;
@@ -155,7 +153,7 @@ TEST_F(LogNormalEnhancedTest, MLEFit) {
     auto fitted = LogNormalDistribution::create(0.0, 1.0).value;
     fitted.fit(data);
 
-    EXPECT_NEAR(fitted.getMu(),    1.5, 0.2) << "Fitted mu should be near 1.5";
+    EXPECT_NEAR(fitted.getMu(), 1.5, 0.2) << "Fitted mu should be near 1.5";
     EXPECT_NEAR(fitted.getSigma(), 0.4, 0.1) << "Fitted sigma should be near 0.4";
 }
 
@@ -174,15 +172,15 @@ TEST_F(LogNormalEnhancedTest, SetterPropagates) {
 TEST_F(LogNormalEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(LogNormalDistribution::create(0.0, 0.0).isError());
     EXPECT_TRUE(LogNormalDistribution::create(0.0, -1.0).isError());
-    EXPECT_TRUE(LogNormalDistribution::create(
-        std::numeric_limits<double>::infinity(), 1.0).isError());
-    EXPECT_TRUE(LogNormalDistribution::create(
-        std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
+    EXPECT_TRUE(
+        LogNormalDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError());
+    EXPECT_TRUE(
+        LogNormalDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
 
     auto d = LogNormalDistribution::create(0.0, 1.0).value;
     EXPECT_TRUE(d.trySetSigma(-1.0).isError());
     EXPECT_TRUE(d.trySetMu(std::numeric_limits<double>::infinity()).isError());
-    EXPECT_DOUBLE_EQ(d.getMu(),    0.0);
+    EXPECT_DOUBLE_EQ(d.getMu(), 0.0);
     EXPECT_DOUBLE_EQ(d.getSigma(), 1.0);
 }
 
@@ -191,7 +189,8 @@ TEST_F(LogNormalEnhancedTest, InvalidParameters) {
 TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
     const size_t N = 50000;
     vector<double> xs(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
     vector<double> out(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
@@ -205,11 +204,9 @@ TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double vec_us =
-        static_cast<double>(
-            std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
     const double scl_us =
-        static_cast<double>(
-            std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
 
     const double speedup = scl_us / std::max(vec_us, 1.0);
     std::cout << "LogNormal LogPDF VECTORIZED speedup: " << speedup << "x "

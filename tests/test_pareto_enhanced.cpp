@@ -78,7 +78,7 @@ TEST_F(ParetoEnhancedTest, VarianceFormula) {
 // log(PDF(x)) == LogPDF(x) for in-support values
 TEST_F(ParetoEnhancedTest, LogPDFConsistency) {
     for (double x : {1.0, 1.5, 2.0, 5.0, 10.0, 100.0}) {
-        const double pdf  = p12_.getProbability(x);
+        const double pdf = p12_.getProbability(x);
         const double lpdf = p12_.getLogProbability(x);
         EXPECT_NEAR(std::log(pdf), lpdf, 1e-10) << "at x=" << x;
     }
@@ -86,8 +86,8 @@ TEST_F(ParetoEnhancedTest, LogPDFConsistency) {
 
 // Out-of-support: PDF=0, CDF=0, LogPDF=-inf for x < scale
 TEST_F(ParetoEnhancedTest, OutOfSupport) {
-    EXPECT_EQ(p12_.getProbability(0.0),  0.0);
-    EXPECT_EQ(p12_.getProbability(0.9),  0.0);
+    EXPECT_EQ(p12_.getProbability(0.0), 0.0);
+    EXPECT_EQ(p12_.getProbability(0.9), 0.0);
     EXPECT_EQ(p12_.getCumulativeProbability(0.0), 0.0);
     EXPECT_EQ(p12_.getCumulativeProbability(0.5), 0.0);
     EXPECT_EQ(p12_.getLogProbability(0.5), -std::numeric_limits<double>::infinity());
@@ -131,9 +131,9 @@ TEST_F(ParetoEnhancedTest, BatchMatchesScalar) {
     p12_.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
 
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(pdf_b[i],  p12_.getProbability(xs[i]),           1e-12) << "PDF i=" << i;
-        EXPECT_NEAR(lpdf_b[i], p12_.getLogProbability(xs[i]),        1e-12) << "LogPDF i=" << i;
-        EXPECT_NEAR(cdf_b[i],  p12_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
+        EXPECT_NEAR(pdf_b[i], p12_.getProbability(xs[i]), 1e-12) << "PDF i=" << i;
+        EXPECT_NEAR(lpdf_b[i], p12_.getLogProbability(xs[i]), 1e-12) << "LogPDF i=" << i;
+        EXPECT_NEAR(cdf_b[i], p12_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
     }
 }
 
@@ -141,7 +141,8 @@ TEST_F(ParetoEnhancedTest, BatchMatchesScalar) {
 TEST_F(ParetoEnhancedTest, VectorizedMatchesScalar) {
     const size_t N = 1024;
     vector<double> xs(N), out_vec(N), out_scl(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 1.0 + 0.05 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 1.0 + 0.05 * static_cast<double>(i + 1);
 
     p12_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
                                        detail::Strategy::VECTORIZED);
@@ -152,9 +153,9 @@ TEST_F(ParetoEnhancedTest, VectorizedMatchesScalar) {
     }
 
     p12_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                               detail::Strategy::VECTORIZED);
+                                              detail::Strategy::VECTORIZED);
     p12_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                               detail::Strategy::SCALAR);
+                                              detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF SIMD mismatch at i=" << i;
     }
@@ -188,11 +189,11 @@ TEST_F(ParetoEnhancedTest, SetterPropagates) {
 // Invalid parameters rejected
 TEST_F(ParetoEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(ParetoDistribution::create(-1.0, 1.0).isError());
-    EXPECT_TRUE(ParetoDistribution::create(0.0,  1.0).isError());
+    EXPECT_TRUE(ParetoDistribution::create(0.0, 1.0).isError());
     EXPECT_TRUE(ParetoDistribution::create(1.0, -1.0).isError());
-    EXPECT_TRUE(ParetoDistribution::create(1.0,  0.0).isError());
-    EXPECT_TRUE(ParetoDistribution::create(
-        std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
+    EXPECT_TRUE(ParetoDistribution::create(1.0, 0.0).isError());
+    EXPECT_TRUE(
+        ParetoDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
 
     auto d = ParetoDistribution::create(1.0, 2.0).value;
     EXPECT_TRUE(d.trySetAlpha(-1.0).isError());
@@ -206,7 +207,8 @@ TEST_F(ParetoEnhancedTest, InvalidParameters) {
 TEST_F(ParetoEnhancedTest, VectorizedSpeedup) {
     const size_t N = 50000;
     vector<double> xs(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 1.0 + 0.001 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 1.0 + 0.001 * static_cast<double>(i + 1);
     vector<double> out(N), scl(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
@@ -217,10 +219,10 @@ TEST_F(ParetoEnhancedTest, VectorizedSpeedup) {
                                        detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
-    const double vec_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+    const double vec_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
     const double speedup = scl_us / std::max(vec_us, 1.0);
 
     std::cout << "Pareto LogPDF VECTORIZED speedup: " << speedup << "x "

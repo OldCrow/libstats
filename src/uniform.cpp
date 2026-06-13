@@ -1,7 +1,7 @@
 #include "libstats/distributions/uniform.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/core/math_constants.h"
+#include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/statistical_constants.h"
 
 // Core functionality - lightweight headers
@@ -519,9 +519,8 @@ void UniformDistribution::fit(const std::vector<double>& values) {
     setBounds(fitted_a, fitted_b);
 }
 
-void UniformDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<UniformDistribution>& results) {
+void UniformDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                           std::vector<UniformDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

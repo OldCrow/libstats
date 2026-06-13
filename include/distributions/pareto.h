@@ -99,8 +99,7 @@ class ParetoDistribution : public DistributionBase {
                                                            double alpha = detail::ONE) noexcept {
         auto validation = validateParetoParameters(scale, alpha);
         if (validation.isError()) {
-            return Result<ParetoDistribution>::makeError(validation.error_code,
-                                                         validation.message);
+            return Result<ParetoDistribution>::makeError(validation.error_code, validation.message);
         }
         return Result<ParetoDistribution>::ok(createUnchecked(scale, alpha));
     }
@@ -175,9 +174,7 @@ class ParetoDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "ParetoDistribution";
-    }
+    [[nodiscard]] std::string getDistributionName() const override { return "ParetoDistribution"; }
 
     /** @brief Pareto is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
@@ -394,8 +391,7 @@ class ParetoDistribution : public DistributionBase {
 
     static void validateParameters(double scale, double alpha) {
         if (std::isnan(scale) || std::isinf(scale) || scale <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument(
-                "Scale (minimum value) must be a positive finite number");
+            throw std::invalid_argument("Scale (minimum value) must be a positive finite number");
         }
         if (std::isnan(alpha) || std::isinf(alpha) || alpha <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Alpha (shape) must be a positive finite number");

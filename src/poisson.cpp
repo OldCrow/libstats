@@ -1,7 +1,7 @@
 #include "libstats/distributions/poisson.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/core/math_constants.h"
+#include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/statistical_constants.h"
 
 // Core functionality - lightweight headers
@@ -476,9 +476,8 @@ void PoissonDistribution::fit(const std::vector<double>& values) {
     setLambda(sample_mean);
 }
 
-void PoissonDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<PoissonDistribution>& results) {
+void PoissonDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                           std::vector<PoissonDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

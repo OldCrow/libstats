@@ -1,4 +1,5 @@
 #include "libstats/distributions/discrete.h"
+
 #include "libstats/core/parallel_batch_fit.h"
 
 // Core functionality - lightweight headers
@@ -638,9 +639,8 @@ void DiscreteDistribution::fit(const std::vector<double>& values) {
     cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-void DiscreteDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<DiscreteDistribution>& results) {
+void DiscreteDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                            std::vector<DiscreteDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

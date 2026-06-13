@@ -22,18 +22,26 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
 - **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
-### 📊 **Available Distributions**
-- **Gaussian (Normal)**: N(μ, σ²)
-- **Exponential**: Exp(λ)
-- **Uniform**: U(a, b)
-- **Poisson**: P(λ)
-- **Discrete**: Custom discrete distributions with arbitrary support
-- **Gamma**: Γ(α, β)
-- **Chi-squared**: χ²(ν)
-- **Student's t**: t(ν)
-- **Beta**: Beta(α, β)
-- **Log-Normal**: LogNormal(μ, σ)
-- **Pareto**: Pareto(x_m, α)
+### 📊 **Available Distributions** (14 across 6 families)
+
+**Symmetric, unbounded continuous**
+- Gaussian (Normal) N(μ, σ²) · Student's t t(ν)
+
+**Positive-support continuous** (x ≥ 0)
+- Exponential Exp(λ) · Gamma Γ(α, β) · Chi-squared χ²(ν)
+- Log-Normal LogN(μ, σ) · Weibull W(k, λ) · Rayleigh R(σ)
+
+**Heavy-tailed / power-law** (x ≥ x_m)
+- Pareto Pareto(x_m, α)
+
+**Bounded continuous**
+- Uniform U(a, b) · Beta Beta(α, β)
+
+**Circular / directional**
+- Von Mises VM(μ, κ)
+
+**Discrete**
+- Poisson P(λ) · Discrete (integer range)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -141,7 +149,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 11 distributions across continuous, bounded, discrete, and power-law families
+- 14 distributions across 6 families (symmetric, positive-support, power-law, bounded, circular, discrete)
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -178,7 +186,7 @@ libstats/
 ### 📚 **Examples** (`examples/` directory)
 - `quick_start_tutorial.cpp` - 5-minute introduction to the core API
 - `basic_usage.cpp` - End-to-end usage of creation, evaluation, sampling, fitting, and batch APIs
-- `distribution_families_demo.cpp` - The 11 distributions organized by family: what each models, when to use it, and how to choose within a family
+- `distribution_families_demo.cpp` - The 14 distributions organized by family: what each models, when to use it, and how to choose within a family
 - `statistical_validation_demo.cpp` - Goodness-of-fit tests, cross-validation, bootstrap CIs, and model selection
 - `parallel_execution_demo.cpp` - Batch-processing and dispatch workflow
 
@@ -304,9 +312,9 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-The library is at **v1.2.0** on `main`, with Log-Normal and Pareto added since that release.
+The library is at **v1.2.0** on `main`, with Log-Normal, Pareto, Weibull, Rayleigh, and Von Mises added since that release.
 
-**11 distributions** — Gaussian, Exponential, Uniform, Poisson, Discrete, Gamma, Chi-squared, Student's t, Beta, Log-Normal, Pareto — each with a complete interface:
+**14 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
 - SIMD batch operations (SSE2/AVX/AVX2/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds

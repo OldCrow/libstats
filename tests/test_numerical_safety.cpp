@@ -8,12 +8,11 @@
 
 // Standard library includes
 #include <algorithm>
-#include <gtest/gtest.h>
-#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <gtest/gtest.h>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -31,9 +30,7 @@ using namespace std;
 
 // Test statistics
 struct TestStats {
-    void record(bool success, const std::string& test_name) {
-        EXPECT_TRUE(success) << test_name;
-    }
+    void record(bool success, const std::string& test_name) { EXPECT_TRUE(success) << test_name; }
     void print_summary([[maybe_unused]] const std::string& category) {}
 };
 
@@ -631,8 +628,7 @@ void test_stress() {
             }
         }
 
-        cout << "  Completed: " << (1000 - static_cast<size_t>(crashes)) << "/"
-             << 1000 << endl;
+        cout << "  Completed: " << (1000 - static_cast<size_t>(crashes)) << "/" << 1000 << endl;
         cout << "  Invalid results: " << invalid << endl;
         cout << "  Crashes: " << crashes << endl;
     }
@@ -677,15 +673,24 @@ void test_stress() {
 // MAIN FUNCTION AND ARGUMENT PARSING
 //==============================================================================
 
-
-
-
-
-
-TEST(NumericalSafety, ScalarSafety)       { test_scalar_safety(); }
-TEST(NumericalSafety, VectorSafety)       { test_vector_safety(); }
-TEST(NumericalSafety, LogSpaceOperations) { test_log_space_operations(); }
-TEST(NumericalSafety, EdgeCases)          { test_edge_cases(); }
-TEST(NumericalSafety, Precision)          { test_precision(); }
-TEST(NumericalSafety, Benchmarks)         { test_benchmarks(); }
-TEST(NumericalSafety, StressTests)        { test_stress(); }
+TEST(NumericalSafety, ScalarSafety) {
+    test_scalar_safety();
+}
+TEST(NumericalSafety, VectorSafety) {
+    test_vector_safety();
+}
+TEST(NumericalSafety, LogSpaceOperations) {
+    test_log_space_operations();
+}
+TEST(NumericalSafety, EdgeCases) {
+    test_edge_cases();
+}
+TEST(NumericalSafety, Precision) {
+    test_precision();
+}
+TEST(NumericalSafety, Benchmarks) {
+    test_benchmarks();
+}
+TEST(NumericalSafety, StressTests) {
+    test_stress();
+}

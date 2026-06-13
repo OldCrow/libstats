@@ -246,7 +246,7 @@ class BetaDistribution : public DistributionBase {
      * @param results  Vector to store fitted BetaDistribution objects
      */
     static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
-                                  std::vector<BetaDistribution>& results);
+                                 std::vector<BetaDistribution>& results);
 
     /** @brief Reset to default (α = β = 1, Uniform). */
     void reset() noexcept override;

@@ -68,7 +68,7 @@ TEST_F(WeibullEnhancedTest, MomentFormulas) {
 // log(PDF) == LogPDF
 TEST_F(WeibullEnhancedTest, LogPDFConsistency) {
     for (double x : {0.1, 0.5, 1.0, 2.0, 5.0}) {
-        const double pdf  = w21_.getProbability(x);
+        const double pdf = w21_.getProbability(x);
         const double lpdf = w21_.getLogProbability(x);
         EXPECT_NEAR(std::log(pdf), lpdf, 1e-10) << "at x=" << x;
     }
@@ -95,14 +95,15 @@ TEST_F(WeibullEnhancedTest, QuantileRoundTrip) {
 TEST_F(WeibullEnhancedTest, BatchMatchesScalar) {
     const size_t N = 200;
     vector<double> xs(N), pdf_b(N), lpdf_b(N), cdf_b(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.05 + 0.05 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.05 + 0.05 * static_cast<double>(i + 1);
     w21_.getProbability(span<const double>(xs), span<double>(pdf_b));
     w21_.getLogProbability(span<const double>(xs), span<double>(lpdf_b));
     w21_.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(pdf_b[i],  w21_.getProbability(xs[i]),           1e-12) << "PDF i=" << i;
-        EXPECT_NEAR(lpdf_b[i], w21_.getLogProbability(xs[i]),        1e-12) << "LogPDF i=" << i;
-        EXPECT_NEAR(cdf_b[i],  w21_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
+        EXPECT_NEAR(pdf_b[i], w21_.getProbability(xs[i]), 1e-12) << "PDF i=" << i;
+        EXPECT_NEAR(lpdf_b[i], w21_.getLogProbability(xs[i]), 1e-12) << "LogPDF i=" << i;
+        EXPECT_NEAR(cdf_b[i], w21_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
     }
 }
 
@@ -110,7 +111,8 @@ TEST_F(WeibullEnhancedTest, BatchMatchesScalar) {
 TEST_F(WeibullEnhancedTest, VectorizedMatchesScalar) {
     const size_t N = 1024;
     vector<double> xs(N), out_vec(N), out_scl(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.01 + 0.01 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.01 + 0.01 * static_cast<double>(i + 1);
 
     w21_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
                                        detail::Strategy::VECTORIZED);
@@ -120,9 +122,9 @@ TEST_F(WeibullEnhancedTest, VectorizedMatchesScalar) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF SIMD mismatch at i=" << i;
 
     w21_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                               detail::Strategy::VECTORIZED);
+                                              detail::Strategy::VECTORIZED);
     w21_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                               detail::Strategy::SCALAR);
+                                              detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF SIMD mismatch at i=" << i;
 }
@@ -153,8 +155,8 @@ TEST_F(WeibullEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(WeibullDistribution::create(0.0, 1.0).isError());
     EXPECT_TRUE(WeibullDistribution::create(-1.0, 1.0).isError());
     EXPECT_TRUE(WeibullDistribution::create(1.0, 0.0).isError());
-    EXPECT_TRUE(WeibullDistribution::create(
-        std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
+    EXPECT_TRUE(
+        WeibullDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
 
     auto d = WeibullDistribution::create(2.0, 1.0).value;
     EXPECT_TRUE(d.trySetShape(-1.0).isError());
@@ -167,7 +169,8 @@ TEST_F(WeibullEnhancedTest, InvalidParameters) {
 TEST_F(WeibullEnhancedTest, VectorizedSpeedup) {
     const size_t N = 50000;
     vector<double> xs(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
     vector<double> out(N), scl(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
@@ -178,10 +181,10 @@ TEST_F(WeibullEnhancedTest, VectorizedSpeedup) {
                                        detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
-    const double vec_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+    const double vec_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
     const double speedup = scl_us / std::max(vec_us, 1.0);
     std::cout << "Weibull LogPDF VECTORIZED speedup: " << speedup << "x "
               << "(VECTORIZED " << vec_us << "μs, SCALAR " << scl_us << "μs)\n";

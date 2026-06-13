@@ -29,7 +29,8 @@ int main() {
         auto default_w = stats::WeibullDistribution::create().value;
         BasicTestFormatter::printProperty("Default shape", default_w.getShape());
         BasicTestFormatter::printProperty("Default scale", default_w.getScale());
-        BasicTestFormatter::printProperty("isExponential (expect 1)", (int)default_w.isExponential());
+        BasicTestFormatter::printProperty("isExponential (expect 1)",
+                                          static_cast<int>(default_w.isExponential()));
 
         auto w22 = stats::WeibullDistribution::create(2.0, 2.0).value;
         BasicTestFormatter::printProperty("W(2,2) shape", w22.getShape());
@@ -66,7 +67,7 @@ int main() {
         cout << "Is discrete: " << (w.isDiscrete() ? "YES" : "NO") << endl;
 
         const bool mean_ok = std::abs(w.getMean() - 1.0) < 1e-10;
-        const bool var_ok  = std::abs(w.getVariance() - 1.0) < 1e-10;
+        const bool var_ok = std::abs(w.getVariance() - 1.0) < 1e-10;
         cout << "Mean == 1.0: " << (mean_ok ? "PASS" : "FAIL") << endl;
         cout << "Variance == 1.0: " << (var_ok ? "PASS" : "FAIL") << endl;
 
@@ -81,7 +82,7 @@ int main() {
         w.setScale(3.0);
         BasicTestFormatter::printProperty("After setScale(3): scale", w.getScale());
         w.setParameters(1.0, 1.0);
-        BasicTestFormatter::printProperty("After reset: isExponential", (int)w.isExponential());
+        BasicTestFormatter::printProperty("After reset: isExponential", static_cast<int>(w.isExponential()));
 
         auto vr = w.trySetShape(-1.0);
         cout << "trySetShape(-1) isError: " << (vr.isError() ? "YES" : "NO") << endl;
@@ -118,7 +119,8 @@ int main() {
         auto w31 = WeibullDistribution::create(3.0, 1.0).value;
         const double cdf_at_scale = w31.getCumulativeProbability(1.0);
         BasicTestFormatter::printProperty("CDF(scale=1;any k) expect 1-1/e", cdf_at_scale);
-        cout << "CDF(scale) == 1-1/e: " << (std::abs(cdf_at_scale - (1.0 - exp_neg1)) < 1e-12 ? "PASS" : "FAIL") << endl;
+        cout << "CDF(scale) == 1-1/e: "
+             << (std::abs(cdf_at_scale - (1.0 - exp_neg1)) < 1e-12 ? "PASS" : "FAIL") << endl;
 
         // Out-of-support
         BasicTestFormatter::printProperty("PDF(-1) expect 0", w11.getProbability(-1.0));
@@ -126,14 +128,15 @@ int main() {
 
         // LogPDF consistency
         const double pdf_v = w11.getProbability(2.0);
-        const double lp_v  = w11.getLogProbability(2.0);
+        const double lp_v = w11.getLogProbability(2.0);
         const bool lp_ok = std::abs(std::log(pdf_v) - lp_v) < 1e-12;
         cout << "log(PDF) == LogPDF: " << (lp_ok ? "PASS" : "FAIL") << endl;
 
         // Quantile: Weibull(1,1) → ln(2)
         const double q50 = w11.getQuantile(0.5);
         BasicTestFormatter::printProperty("Quantile(0.5; k=1,λ=1) expect ln(2)≈0.6931", q50);
-        cout << "Quantile(0.5) == ln(2): " << (std::abs(q50 - std::log(2.0)) < 1e-10 ? "PASS" : "FAIL") << endl;
+        cout << "Quantile(0.5) == ln(2): "
+             << (std::abs(q50 - std::log(2.0)) < 1e-10 ? "PASS" : "FAIL") << endl;
 
         // Utility methods
         BasicTestFormatter::printProperty("Mode (k=1: 0)", w11.getMode());
@@ -160,7 +163,11 @@ int main() {
 
         const auto samples = sample_dist.sample(rng, 500);
         bool all_pos = true;
-        for (double sv : samples) if (sv <= 0.0) { all_pos = false; break; }
+        for (double sv : samples)
+            if (sv <= 0.0) {
+                all_pos = false;
+                break;
+            }
         cout << "All samples > 0: " << (all_pos ? "PASS" : "FAIL") << endl;
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
@@ -173,11 +180,13 @@ int main() {
         cout << "MLE: Newton-Raphson on profile score for k; closed-form for λ." << endl;
 
         auto fit_dist = WeibullDistribution::create(1.0, 1.0).value;
-        auto source   = WeibullDistribution::create(2.0, 3.0).value;
+        auto source = WeibullDistribution::create(2.0, 3.0).value;
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
-        BasicTestFormatter::printProperty("Fitted shape (from W(2,3), expect ~2)", fit_dist.getShape());
-        BasicTestFormatter::printProperty("Fitted scale (from W(2,3), expect ~3)", fit_dist.getScale());
+        BasicTestFormatter::printProperty("Fitted shape (from W(2,3), expect ~2)",
+                                          fit_dist.getShape());
+        BasicTestFormatter::printProperty("Fitted scale (from W(2,3), expect ~3)",
+                                          fit_dist.getScale());
 
         fit_dist.reset();
         BasicTestFormatter::printProperty("After reset: shape (expect 1)", fit_dist.getShape());
@@ -202,28 +211,33 @@ int main() {
 
         bool batch_ok = true;
         for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_b[i]  - batch_dist.getProbability(xs[i]))           > 1e-12 ||
-                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i]))        > 1e-12 ||
-                std::abs(cdf_b[i]  - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
-                batch_ok = false; break;
+            if (std::abs(pdf_b[i] - batch_dist.getProbability(xs[i])) > 1e-12 ||
+                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i])) > 1e-12 ||
+                std::abs(cdf_b[i] - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
+                batch_ok = false;
+                break;
             }
         }
         cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
 
         const size_t N = 2000;
         vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i) large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
+        for (size_t i = 0; i < N; ++i)
+            large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
         batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(vec_out),
-                                                  stats::detail::Strategy::VECTORIZED);
-        batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(scl_out),
-                                                  stats::detail::Strategy::SCALAR);
+                                                 span<double>(vec_out),
+                                                 stats::detail::Strategy::VECTORIZED);
+        batch_dist.getLogProbabilityWithStrategy(
+            span<const double>(large_in), span<double>(scl_out), stats::detail::Strategy::SCALAR);
         bool large_ok = true;
         for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-10) { large_ok = false; break; }
+            if (std::abs(vec_out[i] - scl_out[i]) > 1e-10) {
+                large_ok = false;
+                break;
+            }
         }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL") << endl;
+        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
+             << endl;
 
         BasicTestFormatter::printTestSuccess("Batch operation tests passed");
         BasicTestFormatter::printNewline();
@@ -243,7 +257,8 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         auto in_dist = WeibullDistribution::create().value;
         ss.seekg(0);
-        if (ss >> in_dist) cout << "Stream round-trip shape: " << in_dist.getShape() << endl;
+        if (ss >> in_dist)
+            cout << "Stream round-trip shape: " << in_dist.getShape() << endl;
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();
@@ -254,9 +269,11 @@ int main() {
         BasicTestFormatter::printTestStart(8, "Error Handling");
 
         auto err1 = WeibullDistribution::create(-1.0, 1.0);
-        if (err1.isError()) BasicTestFormatter::printTestSuccess("shape=-1 rejected: " + err1.message);
+        if (err1.isError())
+            BasicTestFormatter::printTestSuccess("shape=-1 rejected: " + err1.message);
         auto err2 = WeibullDistribution::create(1.0, 0.0);
-        if (err2.isError()) BasicTestFormatter::printTestSuccess("scale=0 rejected: " + err2.message);
+        if (err2.isError())
+            BasicTestFormatter::printTestSuccess("scale=0 rejected: " + err2.message);
 
         BasicTestFormatter::printTestSuccess("All error handling tests passed");
         BasicTestFormatter::printNewline();

@@ -55,7 +55,7 @@ int main() {
         // Rayleigh(1): mean = √(π/2) ≈ 1.2533, variance = (4−π)/2 ≈ 0.4292
         auto r = stats::RayleighDistribution::create(1.0).value;
         const double expected_mean = std::sqrt(M_PI / 2.0);
-        const double expected_var  = (4.0 - M_PI) / 2.0;
+        const double expected_var = (4.0 - M_PI) / 2.0;
 
         BasicTestFormatter::printProperty("sigma", r.getSigma());
         BasicTestFormatter::printProperty("Mean (expect √(π/2)≈1.2533)", r.getMean());
@@ -65,7 +65,7 @@ int main() {
         cout << "Is discrete: " << (r.isDiscrete() ? "YES" : "NO") << endl;
 
         const bool mean_ok = std::abs(r.getMean() - expected_mean) < 1e-10;
-        const bool var_ok  = std::abs(r.getVariance() - expected_var) < 1e-10;
+        const bool var_ok = std::abs(r.getVariance() - expected_var) < 1e-10;
         cout << "Mean == √(π/2): " << (mean_ok ? "PASS" : "FAIL") << endl;
         cout << "Variance == (4-π)/2: " << (var_ok ? "PASS" : "FAIL") << endl;
 
@@ -111,8 +111,10 @@ int main() {
         // CDF(σ) independent of σ
         for (double sigma : {0.5, 1.0, 2.0, 5.0}) {
             auto rd = RayleighDistribution::create(sigma).value;
-            const bool cdf_sigma_ok = std::abs(rd.getCumulativeProbability(sigma) - (1.0 - exp_neg_half)) < 1e-12;
-            cout << "CDF(sigma=" << sigma << " at x=sigma) == 1-exp(-0.5): " << (cdf_sigma_ok ? "PASS" : "FAIL") << endl;
+            const bool cdf_sigma_ok =
+                std::abs(rd.getCumulativeProbability(sigma) - (1.0 - exp_neg_half)) < 1e-12;
+            cout << "CDF(sigma=" << sigma
+                 << " at x=sigma) == 1-exp(-0.5): " << (cdf_sigma_ok ? "PASS" : "FAIL") << endl;
         }
 
         // Out-of-support
@@ -121,7 +123,7 @@ int main() {
 
         // LogPDF consistency
         const double pdf_v = r1.getProbability(2.0);
-        const double lp_v  = r1.getLogProbability(2.0);
+        const double lp_v = r1.getLogProbability(2.0);
         const bool lp_ok = std::abs(std::log(pdf_v) - lp_v) < 1e-12;
         cout << "log(PDF) == LogPDF: " << (lp_ok ? "PASS" : "FAIL") << endl;
 
@@ -156,7 +158,11 @@ int main() {
 
         const auto samples = sample_dist.sample(rng, 500);
         bool all_pos = true;
-        for (double sv : samples) if (sv <= 0.0) { all_pos = false; break; }
+        for (double sv : samples)
+            if (sv <= 0.0) {
+                all_pos = false;
+                break;
+            }
         cout << "All samples > 0: " << (all_pos ? "PASS" : "FAIL") << endl;
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
@@ -169,10 +175,11 @@ int main() {
         cout << "MLE: σ̂ = √(Σxᵢ²/(2n)). Single pass, no iteration." << endl;
 
         auto fit_dist = RayleighDistribution::create(1.0).value;
-        auto source   = RayleighDistribution::create(3.0).value;
+        auto source = RayleighDistribution::create(3.0).value;
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
-        BasicTestFormatter::printProperty("Fitted sigma (from R(3), expect ~3)", fit_dist.getSigma());
+        BasicTestFormatter::printProperty("Fitted sigma (from R(3), expect ~3)",
+                                          fit_dist.getSigma());
 
         fit_dist.reset();
         BasicTestFormatter::printProperty("After reset: sigma (expect 1)", fit_dist.getSigma());
@@ -196,28 +203,33 @@ int main() {
 
         bool batch_ok = true;
         for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_b[i]  - batch_dist.getProbability(xs[i]))           > 1e-12 ||
-                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i]))        > 1e-12 ||
-                std::abs(cdf_b[i]  - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
-                batch_ok = false; break;
+            if (std::abs(pdf_b[i] - batch_dist.getProbability(xs[i])) > 1e-12 ||
+                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i])) > 1e-12 ||
+                std::abs(cdf_b[i] - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
+                batch_ok = false;
+                break;
             }
         }
         cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
 
         const size_t N = 2000;
         vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i) large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
+        for (size_t i = 0; i < N; ++i)
+            large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
         batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(vec_out),
-                                                  stats::detail::Strategy::VECTORIZED);
-        batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(scl_out),
-                                                  stats::detail::Strategy::SCALAR);
+                                                 span<double>(vec_out),
+                                                 stats::detail::Strategy::VECTORIZED);
+        batch_dist.getLogProbabilityWithStrategy(
+            span<const double>(large_in), span<double>(scl_out), stats::detail::Strategy::SCALAR);
         bool large_ok = true;
         for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-10) { large_ok = false; break; }
+            if (std::abs(vec_out[i] - scl_out[i]) > 1e-10) {
+                large_ok = false;
+                break;
+            }
         }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL") << endl;
+        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
+             << endl;
 
         BasicTestFormatter::printTestSuccess("Batch operation tests passed");
         BasicTestFormatter::printNewline();
@@ -237,7 +249,8 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         auto in_dist = RayleighDistribution::create().value;
         ss.seekg(0);
-        if (ss >> in_dist) cout << "Stream round-trip sigma: " << in_dist.getSigma() << endl;
+        if (ss >> in_dist)
+            cout << "Stream round-trip sigma: " << in_dist.getSigma() << endl;
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();
@@ -248,9 +261,11 @@ int main() {
         BasicTestFormatter::printTestStart(8, "Error Handling");
 
         auto err1 = RayleighDistribution::create(-1.0);
-        if (err1.isError()) BasicTestFormatter::printTestSuccess("sigma=-1 rejected: " + err1.message);
+        if (err1.isError())
+            BasicTestFormatter::printTestSuccess("sigma=-1 rejected: " + err1.message);
         auto err2 = RayleighDistribution::create(0.0);
-        if (err2.isError()) BasicTestFormatter::printTestSuccess("sigma=0 rejected: " + err2.message);
+        if (err2.isError())
+            BasicTestFormatter::printTestSuccess("sigma=0 rejected: " + err2.message);
 
         BasicTestFormatter::printTestSuccess("All error handling tests passed");
         BasicTestFormatter::printNewline();

@@ -17,9 +17,9 @@
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
-#include <gtest/gtest.h>
 #include <chrono>     // for std::chrono::high_resolution_clock
 #include <exception>  // for std::exception
+#include <gtest/gtest.h>
 #include <iomanip>    // for std::setprecision
 #include <iostream>   // for std::cout, std::cerr, std::endl
 #include <memory>     // for std::unique_ptr, std::make_unique
@@ -87,7 +87,7 @@ void test_basic_platform_info() {
     EXPECT_TRUE(VectorOps::double_vector_width() > 0);
     EXPECT_TRUE(float_vector_width() > 0);
     EXPECT_TRUE(stats::arch::optimal_alignment() > 0 &&
-           (stats::arch::optimal_alignment() & (stats::arch::optimal_alignment() - 1)) == 0);
+                (stats::arch::optimal_alignment() & (stats::arch::optimal_alignment() - 1)) == 0);
 }
 
 void test_platform_constants_validation() {
@@ -118,7 +118,7 @@ void test_platform_constants_validation() {
     cout << "  - Prefetch distance: " << prefetch_dist << endl;
 
     // Cross-validate constants make sense together
-    EXPECT_TRUE(matrix_block >= simd_width);                 // Block size should be at least SIMD width
+    EXPECT_TRUE(matrix_block >= simd_width);  // Block size should be at least SIMD width
     EXPECT_TRUE(l1_doubles >= matrix_block * matrix_block);  // L1 should fit matrix blocks
 
     cout << "✓ Cross-validation of constants passed" << endl;
@@ -416,7 +416,7 @@ void test_cross_architecture_consistency() {
     // Consistency checks
     EXPECT_TRUE(double_width > 0);
     EXPECT_TRUE(float_width > 0);
-    EXPECT_TRUE(float_width >= double_width);                          // Floats should pack more densely
+    EXPECT_TRUE(float_width >= double_width);  // Floats should pack more densely
     EXPECT_TRUE(alignment > 0 && (alignment & (alignment - 1)) == 0);  // Power of 2
 
     // Platform-specific validation
@@ -670,14 +670,33 @@ void benchmark_memory_bandwidth() {
     }
 }
 
-
-TEST(PlatformOptimizations, BasicPlatformInfo)           { test_basic_platform_info(); }
-TEST(PlatformOptimizations, PlatformConstantsValidation) { test_platform_constants_validation(); }
-TEST(PlatformOptimizations, AdvancedVectorizationDecisions){ test_advanced_vectorization_decisions(); }
-TEST(PlatformOptimizations, SimdThresholdAlignment)      { test_simd_threshold_alignment(); }
-TEST(PlatformOptimizations, CacheAwareAlgorithms)        { test_cache_aware_algorithms(); }
-TEST(PlatformOptimizations, MemoryAccessPatterns)        { test_memory_access_patterns(); }
-TEST(PlatformOptimizations, NumaAwareProcessing)         { test_numa_aware_processing(); }
-TEST(PlatformOptimizations, CrossArchitectureConsistency){ test_cross_architecture_consistency(); }
-TEST(PlatformOptimizations, PerformanceScaling)          { test_performance_scaling(); }
-TEST(PlatformOptimizations, AdaptiveOptimization)        { test_adaptive_optimization(); }
+TEST(PlatformOptimizations, BasicPlatformInfo) {
+    test_basic_platform_info();
+}
+TEST(PlatformOptimizations, PlatformConstantsValidation) {
+    test_platform_constants_validation();
+}
+TEST(PlatformOptimizations, AdvancedVectorizationDecisions) {
+    test_advanced_vectorization_decisions();
+}
+TEST(PlatformOptimizations, SimdThresholdAlignment) {
+    test_simd_threshold_alignment();
+}
+TEST(PlatformOptimizations, CacheAwareAlgorithms) {
+    test_cache_aware_algorithms();
+}
+TEST(PlatformOptimizations, MemoryAccessPatterns) {
+    test_memory_access_patterns();
+}
+TEST(PlatformOptimizations, NumaAwareProcessing) {
+    test_numa_aware_processing();
+}
+TEST(PlatformOptimizations, CrossArchitectureConsistency) {
+    test_cross_architecture_consistency();
+}
+TEST(PlatformOptimizations, PerformanceScaling) {
+    test_performance_scaling();
+}
+TEST(PlatformOptimizations, AdaptiveOptimization) {
+    test_adaptive_optimization();
+}

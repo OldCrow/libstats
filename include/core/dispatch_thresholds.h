@@ -83,53 +83,53 @@ struct ArchTable {
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
 // data/profiles/dispatcher/2026-04-12T05-36-21Z_darwin-arm64_…_sha-6aef918
 constexpr ArchTable kNeon = {
-    /* uniform     */ {NEVER,  NEVER,  20000},
-    /* gaussian    */ {50000,  100000, 10000},
-    /* exponential */ {50000,  100000, 20000},
+    /* uniform     */ {NEVER, NEVER, 20000},
+    /* gaussian    */ {50000, 100000, 10000},
+    /* exponential */ {50000, 100000, 20000},
     /* discrete    */ {250000, 250000, 100000},
-    /* poisson     */ {20000,  50000,  2000},
-    /* gamma       */ {20000,  20000,  2000},
-    /* student_t   */ {20000,  50000,  250000},
-    /* chi_squared */ {20000,  50000,  2000},
+    /* poisson     */ {20000, 50000, 2000},
+    /* gamma       */ {20000, 20000, 2000},
+    /* student_t   */ {20000, 50000, 250000},
+    /* chi_squared */ {20000, 50000, 2000},
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
 // data/profiles/dispatcher/2026-04-12T05-55-52Z_darwin-x86_64_…_sha-e75c6e3
 constexpr ArchTable kAvx = {
-    /* uniform     */ {NEVER,  NEVER,  10000},
-    /* gaussian    */ {20000,  50000,  20000},
-    /* exponential */ {20000,  100000, 20000},
-    /* discrete    */ {50000,  50000,  50000},
-    /* poisson     */ {2000,   10000,  5000},
-    /* gamma       */ {20000,  20000,  2000},
+    /* uniform     */ {NEVER, NEVER, 10000},
+    /* gaussian    */ {20000, 50000, 20000},
+    /* exponential */ {20000, 100000, 20000},
+    /* discrete    */ {50000, 50000, 50000},
+    /* poisson     */ {2000, 10000, 5000},
+    /* gamma       */ {20000, 20000, 2000},
     /* student_t   */ {100000, 100000, 100000},
-    /* chi_squared */ {20000,  20000,  2000},
+    /* chi_squared */ {20000, 20000, 2000},
 };
 
 // --- AVX2 (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
 // data/profiles/dispatcher/2026-04-12T05-27-04Z_darwin-x86_64_…_sha-0e4e9f1
 constexpr ArchTable kAvx2 = {
-    /* uniform     */ {NEVER,  NEVER,  20000},
-    /* gaussian    */ {50000,  250000, 50000},
-    /* exponential */ {50000,  250000, 50000},
-    /* discrete    */ {100000, 50000,  50000},
-    /* poisson     */ {10000,  20000,  2000},
-    /* gamma       */ {50000,  50000,  5000},
+    /* uniform     */ {NEVER, NEVER, 20000},
+    /* gaussian    */ {50000, 250000, 50000},
+    /* exponential */ {50000, 250000, 50000},
+    /* discrete    */ {100000, 50000, 50000},
+    /* poisson     */ {10000, 20000, 2000},
+    /* gamma       */ {50000, 50000, 5000},
     /* student_t   */ {100000, 100000, NEVER},
-    /* chi_squared */ {50000,  100000, 2000},
+    /* chi_squared */ {50000, 100000, 2000},
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
 // data/profiles/dispatcher/2026-04-12T06-02-56Z_windows-x86_64_…_sha-32c0819
 constexpr ArchTable kAvx512 = {
-    /* uniform     */ {100000, 50000,  50000},
-    /* gaussian    */ {100000, NEVER,  50000},
-    /* exponential */ {50000,  250000, 100000},
-    /* discrete    */ {50000,  250000, 50000},
-    /* poisson     */ {10000,  20000,  10000},
-    /* gamma       */ {20000,  50000,  2000},
-    /* student_t   */ {20000,  250000, NEVER},
-    /* chi_squared */ {50000,  50000,  5000},
+    /* uniform     */ {100000, 50000, 50000},
+    /* gaussian    */ {100000, NEVER, 50000},
+    /* exponential */ {50000, 250000, 100000},
+    /* discrete    */ {50000, 250000, 50000},
+    /* poisson     */ {10000, 20000, 10000},
+    /* gamma       */ {20000, 50000, 2000},
+    /* student_t   */ {20000, 250000, NEVER},
+    /* chi_squared */ {50000, 50000, 5000},
 };
 
 /**
@@ -138,29 +138,51 @@ constexpr ArchTable kAvx512 = {
  * Replaces four structurally identical 35-CCN functions. Only the data
  * (kNeon / kAvx / kAvx2 / kAvx512) differs between architectures.
  */
-constexpr std::size_t parallelThresholdFromTable(const ArchTable& table,
-                                                  DistributionType dist,
-                                                  OperationType op) noexcept {
-    if (op == OperationType::BATCH_FIT) return BATCH_FIT_MIN;
-    if (dist == DistributionType::BETA)  return NEVER;
+constexpr std::size_t parallelThresholdFromTable(const ArchTable& table, DistributionType dist,
+                                                 OperationType op) noexcept {
+    if (op == OperationType::BATCH_FIT)
+        return BATCH_FIT_MIN;
+    if (dist == DistributionType::BETA)
+        return NEVER;
 
     const ThresholdRow* row = nullptr;
     switch (dist) {
-        case DistributionType::UNIFORM:      row = &table.uniform;      break;
-        case DistributionType::GAUSSIAN:     row = &table.gaussian;     break;
-        case DistributionType::EXPONENTIAL:  row = &table.exponential;  break;
-        case DistributionType::DISCRETE:     row = &table.discrete;     break;
-        case DistributionType::POISSON:      row = &table.poisson;      break;
-        case DistributionType::GAMMA:        row = &table.gamma;        break;
-        case DistributionType::STUDENT_T:    row = &table.student_t;    break;
-        case DistributionType::CHI_SQUARED:  row = &table.chi_squared;  break;
-        default:                             return NEVER;
+        case DistributionType::UNIFORM:
+            row = &table.uniform;
+            break;
+        case DistributionType::GAUSSIAN:
+            row = &table.gaussian;
+            break;
+        case DistributionType::EXPONENTIAL:
+            row = &table.exponential;
+            break;
+        case DistributionType::DISCRETE:
+            row = &table.discrete;
+            break;
+        case DistributionType::POISSON:
+            row = &table.poisson;
+            break;
+        case DistributionType::GAMMA:
+            row = &table.gamma;
+            break;
+        case DistributionType::STUDENT_T:
+            row = &table.student_t;
+            break;
+        case DistributionType::CHI_SQUARED:
+            row = &table.chi_squared;
+            break;
+        default:
+            return NEVER;
     }
     switch (op) {
-        case OperationType::PDF:     return row->pdf;
-        case OperationType::LOG_PDF: return row->log_pdf;
-        case OperationType::CDF:     return row->cdf;
-        default:                     return NEVER;
+        case OperationType::PDF:
+            return row->pdf;
+        case OperationType::LOG_PDF:
+            return row->log_pdf;
+        case OperationType::CDF:
+            return row->cdf;
+        default:
+            return NEVER;
     }
 }
 
@@ -185,8 +207,10 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
 
 // --- No SIMD: conservative high thresholds ---
 constexpr std::size_t none_parallel_threshold(DistributionType dist, OperationType op) {
-    if (op == OperationType::BATCH_FIT) return BATCH_FIT_MIN;
-    if (dist == DistributionType::BETA)  return NEVER;
+    if (op == OperationType::BATCH_FIT)
+        return BATCH_FIT_MIN;
+    if (dist == DistributionType::BETA)
+        return NEVER;
     // Without SIMD, VECTORIZED is just a scalar loop via the batch path.
     // Parallel helps earlier because there is no SIMD advantage to protect.
     return 5000;

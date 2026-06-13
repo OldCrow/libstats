@@ -1,10 +1,10 @@
 #include "libstats/distributions/pareto.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
+#include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/validation.h"
 
 #include <algorithm>
@@ -28,19 +28,18 @@ ParetoDistribution::ParetoDistribution(double scale, double alpha)
     updateCacheUnsafe();
 }
 
-ParetoDistribution::ParetoDistribution(const ParetoDistribution& other)
-    : DistributionBase(other) {
+ParetoDistribution::ParetoDistribution(const ParetoDistribution& other) : DistributionBase(other) {
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     scale_ = other.scale_;
     alpha_ = other.alpha_;
-    logScale_        = other.logScale_;
-    logAlpha_        = other.logAlpha_;
+    logScale_ = other.logScale_;
+    logAlpha_ = other.logAlpha_;
     negAlphaPlusOne_ = other.negAlphaPlusOne_;
-    logNormConst_    = other.logNormConst_;
-    negAlpha_        = other.negAlpha_;
-    invAlpha_        = other.invAlpha_;
-    mean_            = other.mean_;
-    variance_        = other.variance_;
+    logNormConst_ = other.logNormConst_;
+    negAlpha_ = other.negAlpha_;
+    invAlpha_ = other.invAlpha_;
+    mean_ = other.mean_;
+    variance_ = other.variance_;
     atomicScale_.store(scale_, std::memory_order_release);
     atomicAlpha_.store(alpha_, std::memory_order_release);
 }
@@ -52,15 +51,15 @@ ParetoDistribution& ParetoDistribution::operator=(const ParetoDistribution& othe
         std::lock(lock1, lock2);
         scale_ = other.scale_;
         alpha_ = other.alpha_;
-        logScale_        = other.logScale_;
-        logAlpha_        = other.logAlpha_;
+        logScale_ = other.logScale_;
+        logAlpha_ = other.logAlpha_;
         negAlphaPlusOne_ = other.negAlphaPlusOne_;
-        logNormConst_    = other.logNormConst_;
-        negAlpha_        = other.negAlpha_;
-        invAlpha_        = other.invAlpha_;
-        mean_            = other.mean_;
-        variance_        = other.variance_;
-        cache_valid_     = false;
+        logNormConst_ = other.logNormConst_;
+        negAlpha_ = other.negAlpha_;
+        invAlpha_ = other.invAlpha_;
+        mean_ = other.mean_;
+        variance_ = other.variance_;
+        cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicScale_.store(scale_, std::memory_order_release);
         atomicAlpha_.store(alpha_, std::memory_order_release);
@@ -73,14 +72,14 @@ ParetoDistribution::ParetoDistribution(ParetoDistribution&& other) noexcept
     std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     scale_ = other.scale_;
     alpha_ = other.alpha_;
-    logScale_        = other.logScale_;
-    logAlpha_        = other.logAlpha_;
+    logScale_ = other.logScale_;
+    logAlpha_ = other.logAlpha_;
     negAlphaPlusOne_ = other.negAlphaPlusOne_;
-    logNormConst_    = other.logNormConst_;
-    negAlpha_        = other.negAlpha_;
-    invAlpha_        = other.invAlpha_;
-    mean_            = other.mean_;
-    variance_        = other.variance_;
+    logNormConst_ = other.logNormConst_;
+    negAlpha_ = other.negAlpha_;
+    invAlpha_ = other.invAlpha_;
+    mean_ = other.mean_;
+    variance_ = other.variance_;
     other.scale_ = detail::ONE;
     other.alpha_ = detail::ONE;
     other.cache_valid_ = false;
@@ -101,17 +100,17 @@ ParetoDistribution& ParetoDistribution::operator=(ParetoDistribution&& other) no
             if (std::try_lock(lock1, lock2) == -1) {
                 scale_ = other.scale_;
                 alpha_ = other.alpha_;
-                logScale_        = other.logScale_;
-                logAlpha_        = other.logAlpha_;
+                logScale_ = other.logScale_;
+                logAlpha_ = other.logAlpha_;
                 negAlphaPlusOne_ = other.negAlphaPlusOne_;
-                logNormConst_    = other.logNormConst_;
-                negAlpha_        = other.negAlpha_;
-                invAlpha_        = other.invAlpha_;
-                mean_            = other.mean_;
-                variance_        = other.variance_;
+                logNormConst_ = other.logNormConst_;
+                negAlpha_ = other.negAlpha_;
+                invAlpha_ = other.invAlpha_;
+                mean_ = other.mean_;
+                variance_ = other.variance_;
                 other.scale_ = detail::ONE;
                 other.alpha_ = detail::ONE;
-                cache_valid_       = false;
+                cache_valid_ = false;
                 other.cache_valid_ = false;
                 atomicScale_.store(scale_, std::memory_order_release);
                 atomicAlpha_.store(alpha_, std::memory_order_release);
@@ -125,7 +124,7 @@ ParetoDistribution& ParetoDistribution::operator=(ParetoDistribution&& other) no
             alpha_ = other.alpha_;
             other.scale_ = detail::ONE;
             other.alpha_ = detail::ONE;
-            cache_valid_       = false;
+            cache_valid_ = false;
             other.cache_valid_ = false;
             atomicScale_.store(scale_, std::memory_order_release);
             atomicAlpha_.store(alpha_, std::memory_order_release);
@@ -143,7 +142,7 @@ ParetoDistribution ParetoDistribution::createUnchecked(double scale, double alph
 }
 
 ParetoDistribution::ParetoDistribution(double scale, double alpha,
-                                        bool /*bypassValidation*/) noexcept
+                                       bool /*bypassValidation*/) noexcept
     : DistributionBase(), scale_(scale), alpha_(alpha) {
     updateCacheUnsafe();
 }
@@ -188,7 +187,8 @@ double ParetoDistribution::getMean() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -200,7 +200,8 @@ double ParetoDistribution::getVariance() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -212,14 +213,16 @@ double ParetoDistribution::getSkewness() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
-    if (alpha_ <= detail::THREE) return std::numeric_limits<double>::infinity();
+    if (alpha_ <= detail::THREE)
+        return std::numeric_limits<double>::infinity();
     // 2(1+α)/(α−3) * sqrt((α−2)/α)
-    return detail::TWO * (detail::ONE + alpha_) / (alpha_ - detail::THREE)
-         * std::sqrt((alpha_ - detail::TWO) / alpha_);
+    return detail::TWO * (detail::ONE + alpha_) / (alpha_ - detail::THREE) *
+           std::sqrt((alpha_ - detail::TWO) / alpha_);
 }
 
 double ParetoDistribution::getKurtosis() const noexcept {
@@ -227,16 +230,18 @@ double ParetoDistribution::getKurtosis() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
-    if (alpha_ <= detail::FOUR) return std::numeric_limits<double>::infinity();
+    if (alpha_ <= detail::FOUR)
+        return std::numeric_limits<double>::infinity();
     // 6(α³+α²−6α−2) / (α(α−3)(α−4))
     const double a2 = alpha_ * alpha_;
     const double a3 = a2 * alpha_;
-    return detail::SIX * (a3 + a2 - detail::SIX * alpha_ - detail::TWO)
-         / (alpha_ * (alpha_ - detail::THREE) * (alpha_ - detail::FOUR));
+    return detail::SIX * (a3 + a2 - detail::SIX * alpha_ - detail::TWO) /
+           (alpha_ * (alpha_ - detail::THREE) * (alpha_ - detail::FOUR));
 }
 
 //==============================================================================
@@ -245,7 +250,8 @@ double ParetoDistribution::getKurtosis() const noexcept {
 
 VoidResult ParetoDistribution::trySetScale(double scale) noexcept {
     auto v = validateParetoParameters(scale, getAlpha());
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     scale_ = scale;
     cache_valid_ = false;
@@ -257,7 +263,8 @@ VoidResult ParetoDistribution::trySetScale(double scale) noexcept {
 
 VoidResult ParetoDistribution::trySetAlpha(double alpha) noexcept {
     auto v = validateParetoParameters(getScale(), alpha);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     alpha_ = alpha;
     cache_valid_ = false;
@@ -269,7 +276,8 @@ VoidResult ParetoDistribution::trySetAlpha(double alpha) noexcept {
 
 VoidResult ParetoDistribution::trySetParameters(double scale, double alpha) noexcept {
     auto v = validateParetoParameters(scale, alpha);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     scale_ = scale;
     alpha_ = alpha;
@@ -294,11 +302,13 @@ double ParetoDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
-    if (x < scale_) return detail::ZERO_DOUBLE;
+    if (x < scale_)
+        return detail::ZERO_DOUBLE;
     return std::exp(getLogProbability(x));
 }
 
@@ -307,11 +317,13 @@ double ParetoDistribution::getLogProbability(double x) const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
-    if (x < scale_) return detail::NEGATIVE_INFINITY;
+    if (x < scale_)
+        return detail::NEGATIVE_INFINITY;
     return logNormConst_ + negAlphaPlusOne_ * std::log(x);
 }
 
@@ -320,27 +332,30 @@ double ParetoDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
-    if (x < scale_) return detail::ZERO_DOUBLE;
+    if (x < scale_)
+        return detail::ZERO_DOUBLE;
     // 1 − (x_m/x)^α = 1 − exp(α·log(x_m/x))
     return detail::ONE - std::pow(scale_ / x, alpha_);
 }
 
 double ParetoDistribution::getQuantile(double p) const {
     if (p < detail::ZERO_DOUBLE || p >= detail::ONE) {
-        throw std::invalid_argument(
-            "Probability must be in [0, 1) for Pareto distribution");
+        throw std::invalid_argument("Probability must be in [0, 1) for Pareto distribution");
     }
-    if (p == detail::ZERO_DOUBLE) return scale_;
+    if (p == detail::ZERO_DOUBLE)
+        return scale_;
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -353,17 +368,17 @@ double ParetoDistribution::sample(std::mt19937& rng) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
-    const double cached_scale    = scale_;
+    const double cached_scale = scale_;
     const double cached_inv_alpha = invAlpha_;
     lock.unlock();
 
     // Inverse CDF method: x_m / U^(1/α) where U ~ Uniform(0, 1)
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
-                                                   detail::ONE);
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
     return cached_scale * std::pow(uniform(rng), -cached_inv_alpha);
 }
 
@@ -375,16 +390,16 @@ std::vector<double> ParetoDistribution::sample(std::mt19937& rng, size_t n) cons
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
-    const double cached_scale     = scale_;
+    const double cached_scale = scale_;
     const double cached_inv_alpha = invAlpha_;
     lock.unlock();
 
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
-                                                   detail::ONE);
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
     for (size_t i = 0; i < n; ++i) {
         samples.push_back(cached_scale * std::pow(uniform(rng), -cached_inv_alpha));
     }
@@ -424,7 +439,7 @@ void ParetoDistribution::fit(const std::vector<double>& values) {
 }
 
 void ParetoDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
-                                           std::vector<ParetoDistribution>& results) {
+                                          std::vector<ParetoDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 
@@ -473,7 +488,8 @@ double ParetoDistribution::getMedian() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -486,7 +502,8 @@ double ParetoDistribution::getEntropy() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -498,12 +515,10 @@ double ParetoDistribution::getEntropy() const noexcept {
 // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
 //==============================================================================
 
-void ParetoDistribution::getProbability(std::span<const double> values,
-                                        std::span<double> results,
+void ParetoDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<ParetoDistribution>::distType(),
+        *this, values, results, hint, detail::DistributionTraits<ParetoDistribution>::distType(),
         detail::OperationType::PDF,
         [](const ParetoDistribution& d, double x) { return d.getProbability(x); },
         [](const ParetoDistribution& d, const double* vals, double* res, size_t count) {
@@ -511,7 +526,8 @@ void ParetoDistribution::getProbability(std::span<const double> values,
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -519,59 +535,58 @@ void ParetoDistribution::getProbability(std::span<const double> values,
             lock.unlock();
             d.getProbabilityBatchUnsafeImpl(vals, res, count, scale, neg_ap1, lnc);
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            if (count == 0) return;
+            if (count == 0)
+                return;
 
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
-            const double scale = d.scale_, lnc = d.logNormConst_,
-                         neg_ap1 = d.negAlphaPlusOne_;
+            const double scale = d.scale_, lnc = d.logNormConst_, neg_ap1 = d.negAlphaPlusOne_;
             lock.unlock();
 
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = (x < scale) ? detail::ZERO_DOUBLE
-                                         : std::exp(lnc + neg_ap1 * std::log(x));
+                    res[i] =
+                        (x < scale) ? detail::ZERO_DOUBLE : std::exp(lnc + neg_ap1 * std::log(x));
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = (x < scale) ? detail::ZERO_DOUBLE
-                                         : std::exp(lnc + neg_ap1 * std::log(x));
+                    res[i] =
+                        (x < scale) ? detail::ZERO_DOUBLE : std::exp(lnc + neg_ap1 * std::log(x));
                 }
             }
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
 
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
-            const double scale = d.scale_, lnc = d.logNormConst_,
-                         neg_ap1 = d.negAlphaPlusOne_;
+            const double scale = d.scale_, lnc = d.logNormConst_, neg_ap1 = d.negAlphaPlusOne_;
             lock.unlock();
 
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x < scale) ? detail::ZERO_DOUBLE
-                                     : std::exp(lnc + neg_ap1 * std::log(x));
+                res[i] = (x < scale) ? detail::ZERO_DOUBLE : std::exp(lnc + neg_ap1 * std::log(x));
             });
             pool.waitForAll();
         });
@@ -581,8 +596,7 @@ void ParetoDistribution::getLogProbability(std::span<const double> values,
                                            std::span<double> results,
                                            const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<ParetoDistribution>::distType(),
+        *this, values, results, hint, detail::DistributionTraits<ParetoDistribution>::distType(),
         detail::OperationType::LOG_PDF,
         [](const ParetoDistribution& d, double x) { return d.getLogProbability(x); },
         [](const ParetoDistribution& d, const double* vals, double* res, size_t count) {
@@ -590,7 +604,8 @@ void ParetoDistribution::getLogProbability(std::span<const double> values,
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -598,59 +613,56 @@ void ParetoDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
             d.getLogProbabilityBatchUnsafeImpl(vals, res, count, scale, neg_ap1, lnc);
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            if (count == 0) return;
+            if (count == 0)
+                return;
 
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
-            const double scale = d.scale_, lnc = d.logNormConst_,
-                         neg_ap1 = d.negAlphaPlusOne_;
+            const double scale = d.scale_, lnc = d.logNormConst_, neg_ap1 = d.negAlphaPlusOne_;
             lock.unlock();
 
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = (x < scale) ? detail::NEGATIVE_INFINITY
-                                         : lnc + neg_ap1 * std::log(x);
+                    res[i] = (x < scale) ? detail::NEGATIVE_INFINITY : lnc + neg_ap1 * std::log(x);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = (x < scale) ? detail::NEGATIVE_INFINITY
-                                         : lnc + neg_ap1 * std::log(x);
+                    res[i] = (x < scale) ? detail::NEGATIVE_INFINITY : lnc + neg_ap1 * std::log(x);
                 }
             }
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
 
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
-            const double scale = d.scale_, lnc = d.logNormConst_,
-                         neg_ap1 = d.negAlphaPlusOne_;
+            const double scale = d.scale_, lnc = d.logNormConst_, neg_ap1 = d.negAlphaPlusOne_;
             lock.unlock();
 
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x < scale) ? detail::NEGATIVE_INFINITY
-                                     : lnc + neg_ap1 * std::log(x);
+                res[i] = (x < scale) ? detail::NEGATIVE_INFINITY : lnc + neg_ap1 * std::log(x);
             });
             pool.waitForAll();
         });
@@ -660,40 +672,39 @@ void ParetoDistribution::getCumulativeProbability(std::span<const double> values
                                                   std::span<double> results,
                                                   const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<ParetoDistribution>::distType(),
+        *this, values, results, hint, detail::DistributionTraits<ParetoDistribution>::distType(),
         detail::OperationType::CDF,
-        [](const ParetoDistribution& d, double x) {
-            return d.getCumulativeProbability(x);
-        },
+        [](const ParetoDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const ParetoDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
-            const double scale      = d.scale_;
-            const double log_scale  = d.logScale_;
-            const double neg_alpha  = d.negAlpha_;
+            const double scale = d.scale_;
+            const double log_scale = d.logScale_;
+            const double neg_alpha = d.negAlpha_;
             lock.unlock();
             d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, scale, log_scale,
-                                                       neg_alpha);
+                                                      neg_alpha);
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            if (count == 0) return;
+            if (count == 0)
+                return;
 
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -714,15 +725,16 @@ void ParetoDistribution::getCumulativeProbability(std::span<const double> values
                 }
             }
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
 
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -731,8 +743,8 @@ void ParetoDistribution::getCumulativeProbability(std::span<const double> values
 
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x < scale) ? detail::ZERO_DOUBLE
-                                     : detail::ONE - std::pow(scale / x, alpha);
+                res[i] =
+                    (x < scale) ? detail::ZERO_DOUBLE : detail::ONE - std::pow(scale / x, alpha);
             });
             pool.waitForAll();
         });
@@ -753,7 +765,8 @@ void ParetoDistribution::getProbabilityWithStrategy(std::span<const double> valu
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -761,14 +774,14 @@ void ParetoDistribution::getProbabilityWithStrategy(std::span<const double> valu
             lock.unlock();
             d.getProbabilityBatchUnsafeImpl(vals, res, count, sc, nap1, lnc);
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -779,14 +792,15 @@ void ParetoDistribution::getProbabilityWithStrategy(std::span<const double> valu
                 res[i] = (x < sc) ? detail::ZERO_DOUBLE : std::exp(lnc + nap1 * std::log(x));
             });
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -811,7 +825,8 @@ void ParetoDistribution::getLogProbabilityWithStrategy(std::span<const double> v
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -819,14 +834,14 @@ void ParetoDistribution::getLogProbabilityWithStrategy(std::span<const double> v
             lock.unlock();
             d.getLogProbabilityBatchUnsafeImpl(vals, res, count, sc, nap1, lnc);
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -837,14 +852,15 @@ void ParetoDistribution::getLogProbabilityWithStrategy(std::span<const double> v
                 res[i] = (x < sc) ? detail::NEGATIVE_INFINITY : lnc + nap1 * std::log(x);
             });
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -858,20 +874,19 @@ void ParetoDistribution::getLogProbabilityWithStrategy(std::span<const double> v
         });
 }
 
-void ParetoDistribution::getCumulativeProbabilityWithStrategy(
-    std::span<const double> values, std::span<double> results,
-    detail::Strategy strategy) const {
+void ParetoDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
+                                                              std::span<double> results,
+                                                              detail::Strategy strategy) const {
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
-        [](const ParetoDistribution& d, double x) {
-            return d.getCumulativeProbability(x);
-        },
+        [](const ParetoDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const ParetoDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -879,14 +894,14 @@ void ParetoDistribution::getCumulativeProbabilityWithStrategy(
             lock.unlock();
             d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, sc, ls, na);
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -897,14 +912,15 @@ void ParetoDistribution::getCumulativeProbabilityWithStrategy(
                 res[i] = (x < sc) ? detail::ZERO_DOUBLE : detail::ONE - std::pow(sc / x, al);
             });
         },
-        [](const ParetoDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
+                if (!d.cache_valid_)
+                    const_cast<ParetoDistribution&>(d).updateCacheUnsafe();
                 ulock.unlock();
                 lock.lock();
             }
@@ -926,8 +942,8 @@ bool ParetoDistribution::operator==(const ParetoDistribution& other) const {
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
-    return std::fabs(scale_ - other.scale_) < detail::ULTRA_HIGH_PRECISION_TOLERANCE
-        && std::fabs(alpha_ - other.alpha_) < detail::ULTRA_HIGH_PRECISION_TOLERANCE;
+    return std::fabs(scale_ - other.scale_) < detail::ULTRA_HIGH_PRECISION_TOLERANCE &&
+           std::fabs(alpha_ - other.alpha_) < detail::ULTRA_HIGH_PRECISION_TOLERANCE;
 }
 
 bool ParetoDistribution::operator!=(const ParetoDistribution& other) const {
@@ -949,12 +965,12 @@ std::istream& operator>>(std::istream& is, ParetoDistribution& d) {
         is.setstate(std::ios::failbit);
         return is;
     }
-    const size_t sc_pos    = token.find("scale=");
-    const size_t comma     = token.find(",", sc_pos);
-    const size_t al_pos    = token.find("alpha=");
-    const size_t close     = token.find(")", al_pos);
-    if (sc_pos == std::string::npos || comma == std::string::npos
-        || al_pos == std::string::npos || close == std::string::npos) {
+    const size_t sc_pos = token.find("scale=");
+    const size_t comma = token.find(",", sc_pos);
+    const size_t al_pos = token.find("alpha=");
+    const size_t close = token.find(")", al_pos);
+    if (sc_pos == std::string::npos || comma == std::string::npos || al_pos == std::string::npos ||
+        close == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
@@ -962,7 +978,8 @@ std::istream& operator>>(std::istream& is, ParetoDistribution& d) {
         const double sc = std::stod(token.substr(sc_pos + 6, comma - sc_pos - 6));
         const double al = std::stod(token.substr(al_pos + 6, close - al_pos - 6));
         auto result = d.trySetParameters(sc, al);
-        if (result.isError()) is.setstate(std::ios::failbit);
+        if (result.isError())
+            is.setstate(std::ios::failbit);
     } catch (...) {
         is.setstate(std::ios::failbit);
     }
@@ -990,10 +1007,8 @@ std::istream& operator>>(std::istream& is, ParetoDistribution& d) {
 //==============================================================================
 
 void ParetoDistribution::getProbabilityBatchUnsafeImpl(
-    const double* values, double* results, std::size_t count,
-    double cached_scale, double cached_neg_alpha_p1,
-    double cached_log_norm_const) const noexcept {
-
+    const double* values, double* results, std::size_t count, double cached_scale,
+    double cached_neg_alpha_p1, double cached_log_norm_const) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -1002,8 +1017,7 @@ void ParetoDistribution::getProbabilityBatchUnsafeImpl(
             if (x < cached_scale) {
                 results[i] = detail::ZERO_DOUBLE;
             } else {
-                results[i] = std::exp(cached_log_norm_const
-                                      + cached_neg_alpha_p1 * std::log(x));
+                results[i] = std::exp(cached_log_norm_const + cached_neg_alpha_p1 * std::log(x));
             }
         }
         return;
@@ -1020,15 +1034,14 @@ void ParetoDistribution::getProbabilityBatchUnsafeImpl(
 
     // Fixup: x < scale is outside support; PDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < cached_scale) results[i] = detail::ZERO_DOUBLE;
+        if (values[i] < cached_scale)
+            results[i] = detail::ZERO_DOUBLE;
     }
 }
 
 void ParetoDistribution::getLogProbabilityBatchUnsafeImpl(
-    const double* values, double* results, std::size_t count,
-    double cached_scale, double cached_neg_alpha_p1,
-    double cached_log_norm_const) const noexcept {
-
+    const double* values, double* results, std::size_t count, double cached_scale,
+    double cached_neg_alpha_p1, double cached_log_norm_const) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -1052,15 +1065,14 @@ void ParetoDistribution::getLogProbabilityBatchUnsafeImpl(
 
     // Fixup: x < scale is outside support; LogPDF = −∞.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < cached_scale) results[i] = detail::NEGATIVE_INFINITY;
+        if (values[i] < cached_scale)
+            results[i] = detail::NEGATIVE_INFINITY;
     }
 }
 
 void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
-    const double* values, double* results, std::size_t count,
-    double cached_scale, double cached_log_scale,
-    double cached_neg_alpha) const noexcept {
-
+    const double* values, double* results, std::size_t count, double cached_scale,
+    double cached_log_scale, double cached_neg_alpha) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -1071,8 +1083,8 @@ void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             if (x < cached_scale) {
                 results[i] = detail::ZERO_DOUBLE;
             } else {
-                results[i] = detail::ONE
-                           - std::exp(cached_alpha * (cached_log_scale - std::log(x)));
+                results[i] =
+                    detail::ONE - std::exp(cached_alpha * (cached_log_scale - std::log(x)));
             }
         }
         return;
@@ -1093,7 +1105,8 @@ void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 
     // Fixup: x < scale is outside support; CDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < cached_scale) results[i] = detail::ZERO_DOUBLE;
+        if (values[i] < cached_scale)
+            results[i] = detail::ZERO_DOUBLE;
     }
 }
 
@@ -1102,17 +1115,16 @@ void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 //==============================================================================
 
 void ParetoDistribution::updateCacheUnsafe() const noexcept {
-    logScale_        = std::log(scale_);
-    logAlpha_        = std::log(alpha_);
+    logScale_ = std::log(scale_);
+    logAlpha_ = std::log(alpha_);
     negAlphaPlusOne_ = -(alpha_ + detail::ONE);
-    logNormConst_    = logAlpha_ + alpha_ * logScale_;
-    negAlpha_        = -alpha_;
-    invAlpha_        = detail::ONE / alpha_;
+    logNormConst_ = logAlpha_ + alpha_ * logScale_;
+    negAlpha_ = -alpha_;
+    invAlpha_ = detail::ONE / alpha_;
 
     // Mean: α·x_m/(α−1) for α > 1; +∞ otherwise.
-    mean_ = (alpha_ > detail::ONE)
-                ? alpha_ * scale_ / (alpha_ - detail::ONE)
-                : std::numeric_limits<double>::infinity();
+    mean_ = (alpha_ > detail::ONE) ? alpha_ * scale_ / (alpha_ - detail::ONE)
+                                   : std::numeric_limits<double>::infinity();
 
     // Variance: x_m²·α/((α−1)²·(α−2)) for α > 2; +∞ otherwise.
     if (alpha_ > detail::TWO) {

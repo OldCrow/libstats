@@ -1,11 +1,11 @@
 #include "libstats/distributions/von_mises.h"
-#include "libstats/core/bessel.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/core/bessel.h"
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
+#include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/validation.h"
 
 #include <algorithm>
@@ -24,10 +24,13 @@ namespace stats {
 //==============================================================================
 
 double VonMisesDistribution::wrapAngle(double x) noexcept {
-    if (!std::isfinite(x)) return x;
+    if (!std::isfinite(x))
+        return x;
     x = std::fmod(x, detail::TWO_PI);
-    if (x <= -detail::PI) x += detail::TWO_PI;
-    if (x >   detail::PI) x -= detail::TWO_PI;
+    if (x <= -detail::PI)
+        x += detail::TWO_PI;
+    if (x > detail::PI)
+        x -= detail::TWO_PI;
     return x;
 }
 
@@ -43,33 +46,41 @@ double VonMisesDistribution::wrapAngle(double x) noexcept {
 namespace {
 
 [[nodiscard]] double kappa_from_r_bar(double R_bar) noexcept {
-    if (R_bar <= 0.0) return 0.0;
-    if (R_bar >= 1.0) return 1.0e6;  // effectively point mass
+    if (R_bar <= 0.0)
+        return 0.0;
+    if (R_bar >= 1.0)
+        return 1.0e6;  // effectively point mass
 
     double kappa;
     if (R_bar < 0.53) {
-        kappa = detail::TWO * R_bar
-              + R_bar * R_bar * R_bar
-              + (5.0 / 6.0) * R_bar * R_bar * R_bar * R_bar * R_bar;
+        kappa = detail::TWO * R_bar + R_bar * R_bar * R_bar +
+                (5.0 / 6.0) * R_bar * R_bar * R_bar * R_bar * R_bar;
     } else if (R_bar < 0.85) {
         kappa = -0.4 + 1.39 * R_bar + 0.43 / (detail::ONE - R_bar);
     } else {
         const double r = R_bar;
         kappa = detail::ONE / (r * r * r - 4.0 * r * r + 3.0 * r);
     }
-    if (kappa < 0.0) kappa = 0.0;
+    if (kappa < 0.0)
+        kappa = 0.0;
 
     for (int iter = 0; iter < 20 && kappa > 0.0; ++iter) {
         const double i0 = detail::bessel_i0(kappa);
         const double i1 = detail::bessel_i1(kappa);
-        if (i0 <= 0.0) break;
-        const double A  = i1 / i0;
+        if (i0 <= 0.0)
+            break;
+        const double A = i1 / i0;
         const double Ap = detail::ONE - A * A - A / kappa;
-        if (std::fabs(Ap) < 1e-15) break;
+        if (std::fabs(Ap) < 1e-15)
+            break;
         const double dk = (A - R_bar) / Ap;
         kappa -= dk;
-        if (kappa < 0.0) { kappa = 0.0; break; }
-        if (std::fabs(dk) < 1e-12 * (detail::ONE + kappa)) break;
+        if (kappa < 0.0) {
+            kappa = 0.0;
+            break;
+        }
+        if (std::fabs(dk) < 1e-12 * (detail::ONE + kappa))
+            break;
     }
     return kappa;
 }
@@ -89,11 +100,11 @@ VonMisesDistribution::VonMisesDistribution(double mu, double kappa)
 VonMisesDistribution::VonMisesDistribution(const VonMisesDistribution& other)
     : DistributionBase(other) {
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
-    mu_               = other.mu_;
-    kappa_            = other.kappa_;
-    logNormaliser_    = other.logNormaliser_;
+    mu_ = other.mu_;
+    kappa_ = other.kappa_;
+    logNormaliser_ = other.logNormaliser_;
     circularVariance_ = other.circularVariance_;
-    isUniform_        = other.isUniform_;
+    isUniform_ = other.isUniform_;
     atomicMu_.store(mu_, std::memory_order_release);
     atomicKappa_.store(kappa_, std::memory_order_release);
 }
@@ -103,12 +114,12 @@ VonMisesDistribution& VonMisesDistribution::operator=(const VonMisesDistribution
         std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
         std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
         std::lock(lock1, lock2);
-        mu_               = other.mu_;
-        kappa_            = other.kappa_;
-        logNormaliser_    = other.logNormaliser_;
+        mu_ = other.mu_;
+        kappa_ = other.kappa_;
+        logNormaliser_ = other.logNormaliser_;
         circularVariance_ = other.circularVariance_;
-        isUniform_        = other.isUniform_;
-        cache_valid_      = false;
+        isUniform_ = other.isUniform_;
+        cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicMu_.store(mu_, std::memory_order_release);
         atomicKappa_.store(kappa_, std::memory_order_release);
@@ -119,13 +130,13 @@ VonMisesDistribution& VonMisesDistribution::operator=(const VonMisesDistribution
 VonMisesDistribution::VonMisesDistribution(VonMisesDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
     std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
-    mu_               = other.mu_;
-    kappa_            = other.kappa_;
-    logNormaliser_    = other.logNormaliser_;
+    mu_ = other.mu_;
+    kappa_ = other.kappa_;
+    logNormaliser_ = other.logNormaliser_;
     circularVariance_ = other.circularVariance_;
-    isUniform_        = other.isUniform_;
-    other.mu_         = detail::ZERO_DOUBLE;
-    other.kappa_      = detail::ONE;
+    isUniform_ = other.isUniform_;
+    other.mu_ = detail::ZERO_DOUBLE;
+    other.kappa_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
     atomicMu_.store(mu_, std::memory_order_release);
@@ -142,27 +153,28 @@ VonMisesDistribution& VonMisesDistribution::operator=(VonMisesDistribution&& oth
             std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
             std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
             if (std::try_lock(lock1, lock2) == -1) {
-                mu_               = other.mu_;
-                kappa_            = other.kappa_;
-                logNormaliser_    = other.logNormaliser_;
+                mu_ = other.mu_;
+                kappa_ = other.kappa_;
+                logNormaliser_ = other.logNormaliser_;
                 circularVariance_ = other.circularVariance_;
-                isUniform_        = other.isUniform_;
-                other.mu_         = detail::ZERO_DOUBLE;
-                other.kappa_      = detail::ONE;
-                cache_valid_       = false;
+                isUniform_ = other.isUniform_;
+                other.mu_ = detail::ZERO_DOUBLE;
+                other.kappa_ = detail::ONE;
+                cache_valid_ = false;
                 other.cache_valid_ = false;
                 atomicMu_.store(mu_, std::memory_order_release);
                 atomicKappa_.store(kappa_, std::memory_order_release);
                 success = true;
             }
-        } catch (...) {}
+        } catch (...) {
+        }
 
         if (!success) {
-            mu_    = other.mu_;
+            mu_ = other.mu_;
             kappa_ = other.kappa_;
-            other.mu_    = detail::ZERO_DOUBLE;
+            other.mu_ = detail::ZERO_DOUBLE;
             other.kappa_ = detail::ONE;
-            cache_valid_       = false;
+            cache_valid_ = false;
             other.cache_valid_ = false;
             atomicMu_.store(mu_, std::memory_order_release);
             atomicKappa_.store(kappa_, std::memory_order_release);
@@ -180,7 +192,7 @@ VonMisesDistribution VonMisesDistribution::createUnchecked(double mu, double kap
 }
 
 VonMisesDistribution::VonMisesDistribution(double mu, double kappa,
-                                             bool /*bypassValidation*/) noexcept
+                                           bool /*bypassValidation*/) noexcept
     : DistributionBase(), mu_(mu), kappa_(kappa) {
     updateCacheUnsafe();
 }
@@ -214,7 +226,7 @@ void VonMisesDistribution::setKappa(double kappa) {
 void VonMisesDistribution::setParameters(double mu, double kappa) {
     validateParameters(mu, kappa);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mu_    = wrapAngle(mu);
+    mu_ = wrapAngle(mu);
     kappa_ = kappa;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -232,7 +244,8 @@ double VonMisesDistribution::getVariance() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -245,7 +258,8 @@ double VonMisesDistribution::getVariance() const noexcept {
 
 VoidResult VonMisesDistribution::trySetMu(double mu) noexcept {
     auto v = validateVonMisesParameters(mu, getKappa());
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = wrapAngle(mu);
     cache_valid_ = false;
@@ -257,7 +271,8 @@ VoidResult VonMisesDistribution::trySetMu(double mu) noexcept {
 
 VoidResult VonMisesDistribution::trySetKappa(double kappa) noexcept {
     auto v = validateVonMisesParameters(getMu(), kappa);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     kappa_ = kappa;
     cache_valid_ = false;
@@ -269,9 +284,10 @@ VoidResult VonMisesDistribution::trySetKappa(double kappa) noexcept {
 
 VoidResult VonMisesDistribution::trySetParameters(double mu, double kappa) noexcept {
     auto v = validateVonMisesParameters(mu, kappa);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mu_    = wrapAngle(mu);
+    mu_ = wrapAngle(mu);
     kappa_ = kappa;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -290,13 +306,15 @@ VoidResult VonMisesDistribution::validateCurrentParameters() const noexcept {
 //==============================================================================
 
 double VonMisesDistribution::getProbability(double x) const {
-    if (!std::isfinite(x)) return detail::ZERO_DOUBLE;
+    if (!std::isfinite(x))
+        return detail::ZERO_DOUBLE;
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -304,13 +322,15 @@ double VonMisesDistribution::getProbability(double x) const {
 }
 
 double VonMisesDistribution::getLogProbability(double x) const noexcept {
-    if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;
+    if (!std::isfinite(x))
+        return detail::NEGATIVE_INFINITY;
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
@@ -318,7 +338,8 @@ double VonMisesDistribution::getLogProbability(double x) const noexcept {
 }
 
 double VonMisesDistribution::getCumulativeProbability(double x) const {
-    if (!std::isfinite(x)) return std::isnan(x) ? detail::ZERO_DOUBLE : detail::ONE;
+    if (!std::isfinite(x))
+        return std::isnan(x) ? detail::ZERO_DOUBLE : detail::ONE;
 
     const double v = wrapAngle(x);
 
@@ -326,12 +347,13 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
     const double kappa = kappa_;
-    const double mu    = mu_;
+    const double mu = mu_;
     const double lnorm = logNormaliser_;
     lock.unlock();
 
@@ -339,14 +361,14 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
     constexpr int N = 512;
     const double a = -detail::PI;
     const double h = (v - a) / static_cast<double>(N);
-    if (std::fabs(h) < 1e-15) return detail::ZERO_DOUBLE;
+    if (std::fabs(h) < 1e-15)
+        return detail::ZERO_DOUBLE;
 
-    auto pdf = [&](double t) {
-        return std::exp(kappa * std::cos(t - mu) - lnorm);
-    };
+    auto pdf = [&](double t) { return std::exp(kappa * std::cos(t - mu) - lnorm); };
 
     double sum = detail::HALF * (pdf(a) + pdf(v));
-    for (int i = 1; i < N; ++i) sum += pdf(a + static_cast<double>(i) * h);
+    for (int i = 1; i < N; ++i)
+        sum += pdf(a + static_cast<double>(i) * h);
     return std::clamp(sum * h, detail::ZERO_DOUBLE, detail::ONE);
 }
 
@@ -354,8 +376,10 @@ double VonMisesDistribution::getQuantile(double p) const {
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1]");
     }
-    if (p == detail::ZERO_DOUBLE) return -detail::PI;
-    if (p == detail::ONE)         return  detail::PI;
+    if (p == detail::ZERO_DOUBLE)
+        return -detail::PI;
+    if (p == detail::ONE)
+        return detail::PI;
 
     // Bisection on CDF in (−π, π].
     double lo = -detail::PI, hi = detail::PI;
@@ -365,7 +389,8 @@ double VonMisesDistribution::getQuantile(double p) const {
             lo = mid;
         else
             hi = mid;
-        if ((hi - lo) < 1e-12) break;
+        if ((hi - lo) < 1e-12)
+            break;
     }
     return (lo + hi) * detail::HALF;
 }
@@ -375,12 +400,13 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
     const double kappa = kappa_;
-    const double mu    = mu_;
+    const double mu = mu_;
     lock.unlock();
 
     // Near-uniform case (κ ≈ 0): sample uniformly on the circle.
@@ -394,15 +420,15 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
     //            the von Mises distribution. Applied Statistics 28(2), 152–157.
     const double tau = detail::ONE + std::sqrt(detail::ONE + 4.0 * kappa * kappa);
     const double rho = (tau - std::sqrt(detail::TWO * tau)) / (detail::TWO * kappa);
-    const double r   = (detail::ONE + rho * rho) / (detail::TWO * rho);
+    const double r = (detail::ONE + rho * rho) / (detail::TWO * rho);
 
     std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
 
     for (;;) {
         const double u1 = u01(rng);
-        const double z  = std::cos(detail::PI * u1);
-        const double f  = (detail::ONE + r * z) / (r + z);
-        const double c  = kappa * (r - f);
+        const double z = std::cos(detail::PI * u1);
+        const double f = (detail::ONE + r * z) / (r + z);
+        const double c = kappa * (r - f);
         const double u2 = u01(rng);
 
         bool accept = false;
@@ -413,7 +439,7 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
         }
 
         if (accept) {
-            const double u3    = u01(rng);
+            const double u3 = u01(rng);
             const double angle = (u3 > detail::HALF) ? std::acos(f) : -std::acos(f);
             return wrapAngle(mu + angle);
         }
@@ -423,7 +449,8 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
 std::vector<double> VonMisesDistribution::sample(std::mt19937& rng, size_t n) const {
     std::vector<double> samples;
     samples.reserve(n);
-    for (size_t i = 0; i < n; ++i) samples.push_back(sample(rng));
+    for (size_t i = 0; i < n; ++i)
+        samples.push_back(sample(rng));
     return samples;
 }
 
@@ -441,8 +468,8 @@ void VonMisesDistribution::fit(const std::vector<double>& values) {
         S += std::sin(x);
         C += std::cos(x);
     }
-    const double n     = static_cast<double>(values.size());
-    const double mu_hat    = wrapAngle(std::atan2(S / n, C / n));
+    const double n = static_cast<double>(values.size());
+    const double mu_hat = wrapAngle(std::atan2(S / n, C / n));
     const double R_bar = std::sqrt(S * S + C * C) / n;
     const double kappa_hat = kappa_from_r_bar(R_bar);
 
@@ -450,13 +477,13 @@ void VonMisesDistribution::fit(const std::vector<double>& values) {
 }
 
 void VonMisesDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
-                                              std::vector<VonMisesDistribution>& results) {
+                                            std::vector<VonMisesDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 
 void VonMisesDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    mu_    = detail::ZERO_DOUBLE;
+    mu_ = detail::ZERO_DOUBLE;
     kappa_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -501,17 +528,19 @@ double VonMisesDistribution::getEntropy() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         ulock.unlock();
         lock.lock();
     }
     // H = log(2π) − log I₀(κ) + κ·I₁(κ)/I₀(κ)
     // At κ=0: H = log(2π) − log(1) + 0 = log(2π) ✓ (uniform on the circle)
-    if (isUniform_) return detail::LN_2PI;
+    if (isUniform_)
+        return detail::LN_2PI;
     const double log_i0 = detail::log_bessel_i0(kappa_);
-    const double i0     = detail::bessel_i0(kappa_);
-    const double i1     = detail::bessel_i1(kappa_);
-    const double A1     = (i0 > 0.0) ? i1 / i0 : 0.0;
+    const double i0 = detail::bessel_i0(kappa_);
+    const double i1 = detail::bessel_i1(kappa_);
+    const double A1 = (i0 > 0.0) ? i1 / i0 : 0.0;
     return detail::LN_2PI - log_i0 + kappa_ * A1;
 }
 
@@ -519,12 +548,10 @@ double VonMisesDistribution::getEntropy() const noexcept {
 // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
 //==============================================================================
 
-void VonMisesDistribution::getProbability(std::span<const double> values,
-                                           std::span<double> results,
-                                           const detail::PerformanceHint& hint) const {
+void VonMisesDistribution::getProbability(std::span<const double> values, std::span<double> results,
+                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<VonMisesDistribution>::distType(),
+        *this, values, results, hint, detail::DistributionTraits<VonMisesDistribution>::distType(),
         detail::OperationType::PDF,
         [](const VonMisesDistribution& d, double x) { return d.getProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
@@ -532,72 +559,74 @@ void VonMisesDistribution::getProbability(std::span<const double> values,
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             d.getProbabilityBatchImpl(vals, res, count, k, mu, lnorm);
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            if (count == 0) return;
+            if (count == 0)
+                return;
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = std::isfinite(x)
-                                 ? std::exp(k * std::cos(x - mu) - lnorm)
-                                 : detail::ZERO_DOUBLE;
+                    res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
+                                              : detail::ZERO_DOUBLE;
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = std::isfinite(x)
-                                 ? std::exp(k * std::cos(x - mu) - lnorm)
-                                 : detail::ZERO_DOUBLE;
+                    res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
+                                              : detail::ZERO_DOUBLE;
                 }
             }
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = std::isfinite(x)
-                             ? std::exp(k * std::cos(x - mu) - lnorm)
-                             : detail::ZERO_DOUBLE;
+                res[i] =
+                    std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm) : detail::ZERO_DOUBLE;
             });
             pool.waitForAll();
         });
 }
 
 void VonMisesDistribution::getLogProbability(std::span<const double> values,
-                                              std::span<double> results,
-                                              const detail::PerformanceHint& hint) const {
+                                             std::span<double> results,
+                                             const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<VonMisesDistribution>::distType(),
+        *this, values, results, hint, detail::DistributionTraits<VonMisesDistribution>::distType(),
         detail::OperationType::LOG_PDF,
         [](const VonMisesDistribution& d, double x) { return d.getLogProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
@@ -605,80 +634,85 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             d.getLogProbabilityBatchImpl(vals, res, count, k, mu, lnorm);
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            if (count == 0) return;
+            if (count == 0)
+                return;
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = std::isfinite(x) ? k * std::cos(x - mu) - lnorm
-                                              : detail::NEGATIVE_INFINITY;
+                    res[i] =
+                        std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = std::isfinite(x) ? k * std::cos(x - mu) - lnorm
-                                              : detail::NEGATIVE_INFINITY;
+                    res[i] =
+                        std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
                 }
             }
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = std::isfinite(x) ? k * std::cos(x - mu) - lnorm
-                                          : detail::NEGATIVE_INFINITY;
+                res[i] =
+                    std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
             });
             pool.waitForAll();
         });
 }
 
 void VonMisesDistribution::getCumulativeProbability(std::span<const double> values,
-                                                     std::span<double> results,
-                                                     const detail::PerformanceHint& hint) const {
+                                                    std::span<double> results,
+                                                    const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<VonMisesDistribution>::distType(),
+        *this, values, results, hint, detail::DistributionTraits<VonMisesDistribution>::distType(),
         detail::OperationType::CDF,
         [](const VonMisesDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
             d.getCumulativeProbabilityBatchImpl(vals, res, count);
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            if (count == 0) return;
+            if (count == 0)
+                return;
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     res[i] = d.getCumulativeProbability(vals[i]);
@@ -688,12 +722,11 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
                     res[i] = d.getCumulativeProbability(vals[i]);
             }
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = d.getCumulativeProbability(vals[i]);
-            });
+            pool.parallelFor(std::size_t{0}, count,
+                             [&](std::size_t i) { res[i] = d.getCumulativeProbability(vals[i]); });
             pool.waitForAll();
         });
 }
@@ -703,8 +736,8 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
 //==============================================================================
 
 void VonMisesDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                       std::span<double> results,
-                                                       detail::Strategy strategy) const {
+                                                      std::span<double> results,
+                                                      detail::Strategy strategy) const {
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const VonMisesDistribution& d, double x) { return d.getProbability(x); },
@@ -713,8 +746,10 @@ void VonMisesDistribution::getProbabilityWithStrategy(std::span<const double> va
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
@@ -726,41 +761,45 @@ void VonMisesDistribution::getProbabilityWithStrategy(std::span<const double> va
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
-                                          : detail::ZERO_DOUBLE;
+                res[i] =
+                    std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm) : detail::ZERO_DOUBLE;
             });
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
-                                          : detail::ZERO_DOUBLE;
+                res[i] =
+                    std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm) : detail::ZERO_DOUBLE;
             });
             pool.waitForAll();
         });
 }
 
 void VonMisesDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                          std::span<double> results,
-                                                          detail::Strategy strategy) const {
+                                                         std::span<double> results,
+                                                         detail::Strategy strategy) const {
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const VonMisesDistribution& d, double x) { return d.getLogProbability(x); },
@@ -769,8 +808,10 @@ void VonMisesDistribution::getLogProbabilityWithStrategy(std::span<const double>
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
@@ -782,41 +823,45 @@ void VonMisesDistribution::getLogProbabilityWithStrategy(std::span<const double>
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = std::isfinite(x) ? k * std::cos(x - mu) - lnorm
-                                          : detail::NEGATIVE_INFINITY;
+                res[i] =
+                    std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
             });
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
             if (!d.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_) const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock(); lock.lock();
+                if (!d.cache_valid_)
+                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                ulock.unlock();
+                lock.lock();
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = std::isfinite(x) ? k * std::cos(x - mu) - lnorm
-                                          : detail::NEGATIVE_INFINITY;
+                res[i] =
+                    std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
             });
             pool.waitForAll();
         });
 }
 
-void VonMisesDistribution::getCumulativeProbabilityWithStrategy(
-    std::span<const double> values, std::span<double> results,
-    detail::Strategy strategy) const {
+void VonMisesDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
+                                                                std::span<double> results,
+                                                                detail::Strategy strategy) const {
     detail::DispatchUtils::executeWithStrategy(
         *this, values, results, strategy,
         [](const VonMisesDistribution& d, double x) { return d.getCumulativeProbability(x); },
@@ -829,12 +874,11 @@ void VonMisesDistribution::getCumulativeProbabilityWithStrategy(
                 res[i] = d.getCumulativeProbability(vals[i]);
             });
         },
-        [](const VonMisesDistribution& d, std::span<const double> vals,
-           std::span<double> res, WorkStealingPool& pool) {
+        [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = d.getCumulativeProbability(vals[i]);
-            });
+            pool.parallelFor(std::size_t{0}, count,
+                             [&](std::size_t i) { res[i] = d.getCumulativeProbability(vals[i]); });
             pool.waitForAll();
         });
 }
@@ -847,8 +891,8 @@ bool VonMisesDistribution::operator==(const VonMisesDistribution& other) const {
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
-    return std::fabs(mu_    - other.mu_)    < detail::ULTRA_HIGH_PRECISION_TOLERANCE
-        && std::fabs(kappa_ - other.kappa_) < detail::ULTRA_HIGH_PRECISION_TOLERANCE;
+    return std::fabs(mu_ - other.mu_) < detail::ULTRA_HIGH_PRECISION_TOLERANCE &&
+           std::fabs(kappa_ - other.kappa_) < detail::ULTRA_HIGH_PRECISION_TOLERANCE;
 }
 
 bool VonMisesDistribution::operator!=(const VonMisesDistribution& other) const {
@@ -870,20 +914,21 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
         is.setstate(std::ios::failbit);
         return is;
     }
-    const size_t mu_pos    = token.find("mu=");
-    const size_t comma     = token.find(",", mu_pos);
+    const size_t mu_pos = token.find("mu=");
+    const size_t comma = token.find(",", mu_pos);
     const size_t kappa_pos = token.find("kappa=");
-    const size_t close     = token.find(")", kappa_pos);
-    if (mu_pos == std::string::npos || comma == std::string::npos
-        || kappa_pos == std::string::npos || close == std::string::npos) {
+    const size_t close = token.find(")", kappa_pos);
+    if (mu_pos == std::string::npos || comma == std::string::npos ||
+        kappa_pos == std::string::npos || close == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
     try {
-        const double mu    = std::stod(token.substr(mu_pos + 3, comma - mu_pos - 3));
+        const double mu = std::stod(token.substr(mu_pos + 3, comma - mu_pos - 3));
         const double kappa = std::stod(token.substr(kappa_pos + 6, close - kappa_pos - 6));
         auto result = d.trySetParameters(mu, kappa);
-        if (result.isError()) is.setstate(std::ios::failbit);
+        if (result.isError())
+            is.setstate(std::ios::failbit);
     } catch (...) {
         is.setstate(std::ios::failbit);
     }
@@ -899,10 +944,10 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 // check and lock acquisition inside each call.
 //==============================================================================
 
-void VonMisesDistribution::getLogProbabilityBatchImpl(
-    const double* values, double* results, std::size_t count,
-    double cached_kappa, double cached_mu,
-    double cached_log_normaliser) const noexcept {
+void VonMisesDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
+                                                      std::size_t count, double cached_kappa,
+                                                      double cached_mu,
+                                                      double cached_log_normaliser) const noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         results[i] = std::isfinite(x)
@@ -911,21 +956,20 @@ void VonMisesDistribution::getLogProbabilityBatchImpl(
     }
 }
 
-void VonMisesDistribution::getProbabilityBatchImpl(
-    const double* values, double* results, std::size_t count,
-    double cached_kappa, double cached_mu,
-    double cached_log_normaliser) const noexcept {
+void VonMisesDistribution::getProbabilityBatchImpl(const double* values, double* results,
+                                                   std::size_t count, double cached_kappa,
+                                                   double cached_mu,
+                                                   double cached_log_normaliser) const noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         results[i] = std::isfinite(x)
-                         ? std::exp(cached_kappa * std::cos(x - cached_mu)
-                                    - cached_log_normaliser)
+                         ? std::exp(cached_kappa * std::cos(x - cached_mu) - cached_log_normaliser)
                          : detail::ZERO_DOUBLE;
     }
 }
 
-void VonMisesDistribution::getCumulativeProbabilityBatchImpl(
-    const double* values, double* results, std::size_t count) const noexcept {
+void VonMisesDistribution::getCumulativeProbabilityBatchImpl(const double* values, double* results,
+                                                             std::size_t count) const noexcept {
     for (std::size_t i = 0; i < count; ++i)
         results[i] = getCumulativeProbability(values[i]);
 }

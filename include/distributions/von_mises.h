@@ -87,8 +87,7 @@ class VonMisesDistribution : public DistributionBase {
      *
      * Implementation in .cpp.
      */
-    explicit VonMisesDistribution(double mu    = detail::ZERO_DOUBLE,
-                                   double kappa = detail::ONE);
+    explicit VonMisesDistribution(double mu = detail::ZERO_DOUBLE, double kappa = detail::ONE);
 
     /** @brief Thread-safe copy constructor. Implementation in .cpp. */
     VonMisesDistribution(const VonMisesDistribution& other);
@@ -115,13 +114,12 @@ class VonMisesDistribution : public DistributionBase {
      * @param kappa Concentration κ ≥ 0
      * @return Result containing a valid VonMisesDistribution or error info
      */
-    [[nodiscard]] static Result<VonMisesDistribution> create(
-        double mu    = detail::ZERO_DOUBLE,
-        double kappa = detail::ONE) noexcept {
+    [[nodiscard]] static Result<VonMisesDistribution> create(double mu = detail::ZERO_DOUBLE,
+                                                             double kappa = detail::ONE) noexcept {
         auto validation = validateVonMisesParameters(mu, kappa);
         if (validation.isError()) {
             return Result<VonMisesDistribution>::makeError(validation.error_code,
-                                                            validation.message);
+                                                           validation.message);
         }
         return Result<VonMisesDistribution>::ok(createUnchecked(mu, kappa));
     }

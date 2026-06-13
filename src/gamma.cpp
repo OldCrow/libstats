@@ -1,4 +1,5 @@
 #include "libstats/distributions/gamma.h"
+
 #include "libstats/core/parallel_batch_fit.h"
 
 // Core functionality - lightweight headers
@@ -439,9 +440,8 @@ void GammaDistribution::fit(const std::vector<double>& values) {
     fitMaximumLikelihood(values);
 }
 
-void GammaDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<GammaDistribution>& results) {
+void GammaDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                         std::vector<GammaDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

@@ -128,7 +128,7 @@ inline double getSIMDValidationThreshold(std::size_t batch_size,
 #if defined(__AVX512F__)
         base *= 1.05;  // AVX-512 amortisation already near-optimal at smaller sizes
 #else
-        base *= 1.2;   // Narrower SIMD still benefits from large-batch amortisation
+        base *= 1.2;  // Narrower SIMD still benefits from large-batch amortisation
 #endif
     } else if (batch_size >= 10000) {
         base *= 1.1;
@@ -141,7 +141,7 @@ inline double getSIMDValidationThreshold(std::size_t batch_size,
     // because the scalar portion occupies a larger fraction of the wider pipeline.
     if (is_complex_distribution) {
 #if defined(__AVX512F__)
-        base *= 0.7;   // Scalar bottlenecks (lgamma, factorial) dominate wide pipeline
+        base *= 0.7;  // Scalar bottlenecks (lgamma, factorial) dominate wide pipeline
 #else
         base *= 1.15;  // Moderate SIMD still hides some scalar cost
 #endif

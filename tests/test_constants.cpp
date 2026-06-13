@@ -33,13 +33,13 @@
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max
-#include <gtest/gtest.h>
 #include <cmath>      // for std::abs, std::log, std::exp
 #include <cstddef>    // for std::size_t
-#include <iostream>   // for std::cout, std::endl
-#include <limits>     // for std::numeric_limits
-#include <string>     // for std::string
-#include <vector>     // for std::vector
+#include <gtest/gtest.h>
+#include <iostream>  // for std::cout, std::endl
+#include <limits>    // for std::numeric_limits
+#include <string>    // for std::string
+#include <vector>    // for std::vector
 
 void test_math_constants() {
     using namespace stats::detail;
@@ -52,8 +52,9 @@ void test_math_constants() {
     // Test newly added mathematical constants
     EXPECT_TRUE(std::abs(PHI - 1.6180339887498948482045868343656381) < HIGH_PRECISION_TOLERANCE);
     EXPECT_TRUE(std::abs(EULER_MASCHERONI - 0.5772156649015328606065120900824024) <
-           HIGH_PRECISION_TOLERANCE);
-    EXPECT_TRUE(std::abs(CATALAN - 0.9159655941772190150546035149323841) < HIGH_PRECISION_TOLERANCE);
+                HIGH_PRECISION_TOLERANCE);
+    EXPECT_TRUE(std::abs(CATALAN - 0.9159655941772190150546035149323841) <
+                HIGH_PRECISION_TOLERANCE);
     EXPECT_TRUE(std::abs(APERY - 1.2020569031595942853997381615114499) < HIGH_PRECISION_TOLERANCE);
 
     // Test derived constants
@@ -98,7 +99,8 @@ void test_probability_constants() {
 
     // Test relationship between probability and log probability
     // Note: MIN_LOG_PROBABILITY is a safety clamp, not the actual log(MIN_PROBABILITY)
-    EXPECT_TRUE(std::log(MIN_PROBABILITY) > MIN_LOG_PROBABILITY);  // log(1e-300) ≈ -690.78 > -4605.0
+    EXPECT_TRUE(std::log(MIN_PROBABILITY) >
+                MIN_LOG_PROBABILITY);  // log(1e-300) ≈ -690.78 > -4605.0
     EXPECT_TRUE(std::exp(MAX_LOG_PROBABILITY) <= MAX_PROBABILITY + 1e-15);
 
     std::cout << "   ✓ Probability constants tests passed" << std::endl;
@@ -270,8 +272,9 @@ void test_parallel_constants() {
 
     // Test logical relationships (using accessor functions)
     EXPECT_TRUE(stats::arch::get_min_elements_for_distribution_parallel() <=
-           stats::arch::get_min_elements_for_parallel());
-    EXPECT_TRUE(stats::arch::get_simple_operation_grain_size() <= stats::arch::get_default_grain_size());
+                stats::arch::get_min_elements_for_parallel());
+    EXPECT_TRUE(stats::arch::get_simple_operation_grain_size() <=
+                stats::arch::get_default_grain_size());
     EXPECT_TRUE(stats::arch::get_monte_carlo_grain_size() <= stats::arch::get_max_grain_size());
 
     // Test SSE parallel constants
@@ -593,26 +596,49 @@ void test_compile_time_validation() {
 
 ;
 
-
-
-
-
 //==============================================================================
 // MAIN FUNCTION WITH COMMAND-LINE SUPPORT
 //==============================================================================
 
-
-TEST(Constants, MathConstants)              { test_math_constants(); }
-TEST(Constants, ProbabilityConstants)       { test_probability_constants(); }
-TEST(Constants, PrecisionConstants)         { test_precision_constants(); }
-TEST(Constants, SimdConstants)              { test_simd_constants(); }
-TEST(Constants, PlatformOptimizations)      { test_platform_optimizations(); }
-TEST(Constants, ParallelConstants)          { test_parallel_constants(); }
-TEST(Constants, StatisticalCriticalValues)  { test_statistical_critical_values(); }
-TEST(Constants, ThresholdConstants)         { test_threshold_constants(); }
-TEST(Constants, BenchmarkConstants)         { test_benchmark_constants(); }
-TEST(Constants, RobustConstants)            { test_robust_constants(); }
-TEST(Constants, GoodnessOfFitConstants)     { test_goodness_of_fit_constants(); }
-TEST(Constants, StatisticalMethods)         { test_statistical_methods_constants(); }
-TEST(Constants, TestInfrastructure)         { test_test_infrastructure_constants(); }
-TEST(Constants, CompileTimeValidation)      { test_compile_time_validation(); }
+TEST(Constants, MathConstants) {
+    test_math_constants();
+}
+TEST(Constants, ProbabilityConstants) {
+    test_probability_constants();
+}
+TEST(Constants, PrecisionConstants) {
+    test_precision_constants();
+}
+TEST(Constants, SimdConstants) {
+    test_simd_constants();
+}
+TEST(Constants, PlatformOptimizations) {
+    test_platform_optimizations();
+}
+TEST(Constants, ParallelConstants) {
+    test_parallel_constants();
+}
+TEST(Constants, StatisticalCriticalValues) {
+    test_statistical_critical_values();
+}
+TEST(Constants, ThresholdConstants) {
+    test_threshold_constants();
+}
+TEST(Constants, BenchmarkConstants) {
+    test_benchmark_constants();
+}
+TEST(Constants, RobustConstants) {
+    test_robust_constants();
+}
+TEST(Constants, GoodnessOfFitConstants) {
+    test_goodness_of_fit_constants();
+}
+TEST(Constants, StatisticalMethods) {
+    test_statistical_methods_constants();
+}
+TEST(Constants, TestInfrastructure) {
+    test_test_infrastructure_constants();
+}
+TEST(Constants, CompileTimeValidation) {
+    test_compile_time_validation();
+}

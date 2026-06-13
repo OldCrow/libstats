@@ -59,6 +59,20 @@ All distributions in the libstats library are **mutable** - they support paramet
 - `setAlpha(double alpha)` - Set shape parameter (must be positive)
 - `setParameters(double scale, double alpha)` - Set both parameters
 
+### 12. Weibull Distribution
+- `setShape(double shape)` - Set shape parameter k (must be positive)
+- `setScale(double scale)` - Set scale parameter λ (must be positive)
+- `setParameters(double shape, double scale)` - Set both parameters
+
+### 13. Rayleigh Distribution
+- `setSigma(double sigma)` - Set scale parameter σ (must be positive)
+- `setParameters(double sigma)` - Alias for setSigma
+
+### 14. Von Mises Distribution
+- `setMu(double mu)` - Set mean direction μ (any finite real; wrapped to (−π, π])
+- `setKappa(double kappa)` - Set concentration κ (≥ 0)
+- `setParameters(double mu, double kappa)` - Set both parameters
+
 ## Cache Invalidation
 
 All distributions implement automatic cache invalidation when parameters are modified:

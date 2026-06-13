@@ -1,9 +1,9 @@
 #include "libstats/distributions/student_t.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"  // provides detail::digamma, detail::t_cdf, detail::inverse_t_cdf
+#include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/validation.h"
 
 #include <algorithm>
@@ -390,9 +390,8 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
     setNu(nu);
 }
 
-void StudentTDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<StudentTDistribution>& results) {
+void StudentTDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                            std::vector<StudentTDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

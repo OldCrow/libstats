@@ -159,14 +159,14 @@
     #include "distributions/exponential.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
-    #include "distributions/poisson.h"
-    #include "distributions/student_t.h"
-    #include "distributions/uniform.h"
     #include "distributions/lognormal.h"
     #include "distributions/pareto.h"
-    #include "distributions/weibull.h"
+    #include "distributions/poisson.h"
     #include "distributions/rayleigh.h"
+    #include "distributions/student_t.h"
+    #include "distributions/uniform.h"
     #include "distributions/von_mises.h"
+    #include "distributions/weibull.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
 // Main namespace for the statistical library

@@ -192,6 +192,9 @@ no longer exist.
 #include "distributions/discrete.h"        // Discrete distribution
 #include "distributions/lognormal.h"       // Log-Normal distribution
 #include "distributions/pareto.h"          // Pareto distribution
+#include "distributions/weibull.h"         // Weibull distribution
+#include "distributions/rayleigh.h"        // Rayleigh distribution
+#include "distributions/von_mises.h"       // Von Mises distribution (circular)
 ```
 
 ### Level 7: Complete Library Interface

@@ -62,10 +62,10 @@ TEST(ParallelExecutionIntegration, BasicAlgorithms) {
 TEST(ParallelExecutionIntegration, ThresholdDecisions) {
     [[maybe_unused]] bool should_use_small = stats::arch::should_use_parallel(10);
     [[maybe_unused]] bool should_use_large = stats::arch::should_use_parallel(10000);
-    [[maybe_unused]] bool should_use_dist  = stats::arch::should_use_distribution_parallel(1000);
-    std::cout << "  - Small (10): "     << (should_use_small ? "parallel" : "serial") << std::endl;
-    std::cout << "  - Large (10000): "  << (should_use_large ? "parallel" : "serial") << std::endl;
-    std::cout << "  - Dist (1000): "    << (should_use_dist  ? "parallel" : "serial") << std::endl;
+    [[maybe_unused]] bool should_use_dist = stats::arch::should_use_distribution_parallel(1000);
+    std::cout << "  - Small (10): " << (should_use_small ? "parallel" : "serial") << std::endl;
+    std::cout << "  - Large (10000): " << (should_use_large ? "parallel" : "serial") << std::endl;
+    std::cout << "  - Dist (1000): " << (should_use_dist ? "parallel" : "serial") << std::endl;
     // All queries must complete without crash; no strict direction requirement.
 }
 

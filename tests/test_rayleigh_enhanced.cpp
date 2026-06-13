@@ -49,19 +49,18 @@ TEST_F(RayleighEnhancedTest, CDFAtSigma) {
 
 // Mean = σ·√(π/2), Variance = σ²·(4−π)/2
 TEST_F(RayleighEnhancedTest, MomentFormulas) {
-    EXPECT_NEAR(r1_.getMean(),     std::sqrt(M_PI / 2.0),   1e-12);
-    EXPECT_NEAR(r1_.getVariance(), (4.0 - M_PI) / 2.0,      1e-12);
-    EXPECT_NEAR(r1_.getMode(),     1.0,                      1e-14);
-    EXPECT_NEAR(r1_.getMedian(),   std::sqrt(2.0 * M_LN2),  1e-12);
+    EXPECT_NEAR(r1_.getMean(), std::sqrt(M_PI / 2.0), 1e-12);
+    EXPECT_NEAR(r1_.getVariance(), (4.0 - M_PI) / 2.0, 1e-12);
+    EXPECT_NEAR(r1_.getMode(), 1.0, 1e-14);
+    EXPECT_NEAR(r1_.getMedian(), std::sqrt(2.0 * M_LN2), 1e-12);
 }
 
 // Skewness and kurtosis are constants
 TEST_F(RayleighEnhancedTest, ConstantSkewnessKurtosis) {
-    const double expected_skew = 2.0 * std::sqrt(M_PI) * (M_PI - 3.0)
-                                 / std::pow(4.0 - M_PI, 1.5);
+    const double expected_skew = 2.0 * std::sqrt(M_PI) * (M_PI - 3.0) / std::pow(4.0 - M_PI, 1.5);
     const double four_minus_pi = 4.0 - M_PI;
-    const double expected_kurt = -(6.0 * M_PI * M_PI - 24.0 * M_PI + 16.0)
-                                 / (four_minus_pi * four_minus_pi);
+    const double expected_kurt =
+        -(6.0 * M_PI * M_PI - 24.0 * M_PI + 16.0) / (four_minus_pi * four_minus_pi);
     EXPECT_NEAR(r1_.getSkewness(), expected_skew, 1e-10);
     EXPECT_NEAR(r1_.getKurtosis(), expected_kurt, 1e-10);
 
@@ -74,7 +73,7 @@ TEST_F(RayleighEnhancedTest, ConstantSkewnessKurtosis) {
 // log(PDF) == LogPDF
 TEST_F(RayleighEnhancedTest, LogPDFConsistency) {
     for (double x : {0.5, 1.0, 2.0, 3.0, 5.0}) {
-        const double pdf  = r1_.getProbability(x);
+        const double pdf = r1_.getProbability(x);
         const double lpdf = r1_.getLogProbability(x);
         EXPECT_NEAR(std::log(pdf), lpdf, 1e-12) << "at x=" << x;
     }
@@ -82,8 +81,8 @@ TEST_F(RayleighEnhancedTest, LogPDFConsistency) {
 
 // Out-of-support
 TEST_F(RayleighEnhancedTest, OutOfSupport) {
-    EXPECT_EQ(r1_.getProbability(0.0),           0.0);
-    EXPECT_EQ(r1_.getProbability(-1.0),          0.0);
+    EXPECT_EQ(r1_.getProbability(0.0), 0.0);
+    EXPECT_EQ(r1_.getProbability(-1.0), 0.0);
     EXPECT_EQ(r1_.getCumulativeProbability(0.0), 0.0);
     EXPECT_EQ(r1_.getLogProbability(0.0), -std::numeric_limits<double>::infinity());
 }
@@ -101,14 +100,15 @@ TEST_F(RayleighEnhancedTest, QuantileRoundTrip) {
 TEST_F(RayleighEnhancedTest, BatchMatchesScalar) {
     const size_t N = 200;
     vector<double> xs(N), pdf_b(N), lpdf_b(N), cdf_b(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.05 + 0.1 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.05 + 0.1 * static_cast<double>(i + 1);
     r1_.getProbability(span<const double>(xs), span<double>(pdf_b));
     r1_.getLogProbability(span<const double>(xs), span<double>(lpdf_b));
     r1_.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(pdf_b[i],  r1_.getProbability(xs[i]),           1e-12) << "PDF i=" << i;
-        EXPECT_NEAR(lpdf_b[i], r1_.getLogProbability(xs[i]),        1e-12) << "LogPDF i=" << i;
-        EXPECT_NEAR(cdf_b[i],  r1_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
+        EXPECT_NEAR(pdf_b[i], r1_.getProbability(xs[i]), 1e-12) << "PDF i=" << i;
+        EXPECT_NEAR(lpdf_b[i], r1_.getLogProbability(xs[i]), 1e-12) << "LogPDF i=" << i;
+        EXPECT_NEAR(cdf_b[i], r1_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
     }
 }
 
@@ -116,7 +116,8 @@ TEST_F(RayleighEnhancedTest, BatchMatchesScalar) {
 TEST_F(RayleighEnhancedTest, VectorizedMatchesScalar) {
     const size_t N = 1024;
     vector<double> xs(N), out_vec(N), out_scl(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
 
     r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
                                       detail::Strategy::VECTORIZED);
@@ -126,9 +127,9 @@ TEST_F(RayleighEnhancedTest, VectorizedMatchesScalar) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF mismatch at i=" << i;
 
     r1_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                              detail::Strategy::VECTORIZED);
+                                             detail::Strategy::VECTORIZED);
     r1_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                              detail::Strategy::SCALAR);
+                                             detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF mismatch at i=" << i;
 }
@@ -157,8 +158,7 @@ TEST_F(RayleighEnhancedTest, SetterPropagates) {
 TEST_F(RayleighEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(RayleighDistribution::create(-1.0).isError());
     EXPECT_TRUE(RayleighDistribution::create(0.0).isError());
-    EXPECT_TRUE(RayleighDistribution::create(
-        std::numeric_limits<double>::quiet_NaN()).isError());
+    EXPECT_TRUE(RayleighDistribution::create(std::numeric_limits<double>::quiet_NaN()).isError());
 
     auto d = RayleighDistribution::create(1.0).value;
     EXPECT_TRUE(d.trySetSigma(-1.0).isError());
@@ -169,7 +169,8 @@ TEST_F(RayleighEnhancedTest, InvalidParameters) {
 TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
     const size_t N = 50000;
     vector<double> xs(N);
-    for (size_t i = 0; i < N; ++i) xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
     vector<double> out(N), scl(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
@@ -180,10 +181,10 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
                                       detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
-    const double vec_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+    const double vec_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
     const double speedup = scl_us / std::max(vec_us, 1.0);
     std::cout << "Rayleigh LogPDF VECTORIZED speedup: " << speedup << "x "
               << "(VECTORIZED " << vec_us << "μs, SCALAR " << scl_us << "μs)\n";

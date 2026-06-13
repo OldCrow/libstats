@@ -183,16 +183,10 @@ std::size_t PerformanceHistory::categorizeBatchSize(std::size_t batch_size) noex
     // and the category label returned for all batch sizes up to that boundary.
     // std::lower_bound selects the smallest bucket >= batch_size in O(log N).
     static constexpr std::array<std::size_t, 41> kBuckets = {
-        8,     10,    16,    20,    25,
-        32,    40,    50,    64,    80,
-        100,   128,   160,   200,   250,
-        320,   400,   500,   640,   800,
-        1000,  1280,  1600,  2000,  2500,
-        3200,  4000,  5000,  6400,  8000,
-        10000, 12800, 16000, 20000, 25000,
-        32000, 40000, 50000, 64000, 80000,
-        100000
-    };
+        8,     10,    16,    20,    25,    32,    40,    50,    64,    80,    100,
+        128,   160,   200,   250,   320,   400,   500,   640,   800,   1000,  1280,
+        1600,  2000,  2500,  3200,  4000,  5000,  6400,  8000,  10000, 12800, 16000,
+        20000, 25000, 32000, 40000, 50000, 64000, 80000, 100000};
     auto it = std::lower_bound(kBuckets.begin(), kBuckets.end(), batch_size);
     return (it != kBuckets.end()) ? *it : kBuckets.back();
 }

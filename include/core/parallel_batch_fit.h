@@ -41,7 +41,7 @@ namespace detail {
  */
 template <typename DistT>
 void batchFitParallel(const std::vector<std::vector<double>>& datasets,
-                       std::vector<DistT>& results) {
+                      std::vector<DistT>& results) {
     if (datasets.empty()) {
         results.clear();
         return;
@@ -78,31 +78,30 @@ void batchFitParallel(const std::vector<std::vector<double>>& datasets,
                 const std::size_t chunk_start = i;
                 const std::size_t chunk_end = std::min(i + grain_size, num_datasets);
 
-                futures.push_back(pool_ptr->submit(
-                    [&datasets, &results, chunk_start, chunk_end,
-                     &has_error, &error_mutex, &error_message]() {
-                        try {
-                            for (std::size_t j = chunk_start; j < chunk_end; ++j) {
-                                results[j].fit(datasets[j]);
-                            }
-                        } catch (const std::exception& e) {
-                            std::lock_guard<std::mutex> lk(error_mutex);
-                            if (!has_error.load()) {
-                                error_message = "Parallel batch fit error in chunk [" +
-                                    std::to_string(chunk_start) + ", " +
-                                    std::to_string(chunk_end) + "): " + e.what();
-                                has_error.store(true, std::memory_order_release);
-                            }
-                        } catch (...) {
-                            std::lock_guard<std::mutex> lk(error_mutex);
-                            if (!has_error.load()) {
-                                error_message = "Unknown error in parallel batch fit chunk [" +
-                                    std::to_string(chunk_start) + ", " +
-                                    std::to_string(chunk_end) + ")";
-                                has_error.store(true, std::memory_order_release);
-                            }
+                futures.push_back(pool_ptr->submit([&datasets, &results, chunk_start, chunk_end,
+                                                    &has_error, &error_mutex, &error_message]() {
+                    try {
+                        for (std::size_t j = chunk_start; j < chunk_end; ++j) {
+                            results[j].fit(datasets[j]);
                         }
-                    }));
+                    } catch (const std::exception& e) {
+                        std::lock_guard<std::mutex> lk(error_mutex);
+                        if (!has_error.load()) {
+                            error_message = "Parallel batch fit error in chunk [" +
+                                            std::to_string(chunk_start) + ", " +
+                                            std::to_string(chunk_end) + "): " + e.what();
+                            has_error.store(true, std::memory_order_release);
+                        }
+                    } catch (...) {
+                        std::lock_guard<std::mutex> lk(error_mutex);
+                        if (!has_error.load()) {
+                            error_message = "Unknown error in parallel batch fit chunk [" +
+                                            std::to_string(chunk_start) + ", " +
+                                            std::to_string(chunk_end) + ")";
+                            has_error.store(true, std::memory_order_release);
+                        }
+                    }
+                }));
             }
 
             bool all_completed = true;
@@ -134,10 +133,9 @@ void batchFitParallel(const std::vector<std::vector<double>>& datasets,
                 try {
                     results[i].fit(datasets[i]);
                 } catch (const std::exception& fit_error) {
-                    throw std::runtime_error(
-                        "Serial fallback failed for dataset " + std::to_string(i) +
-                        ": " + fit_error.what() +
-                        " (original parallel error: " + e.what() + ")");
+                    throw std::runtime_error("Serial fallback failed for dataset " +
+                                             std::to_string(i) + ": " + fit_error.what() +
+                                             " (original parallel error: " + e.what() + ")");
                 }
             }
         }
@@ -148,7 +146,7 @@ void batchFitParallel(const std::vector<std::vector<double>>& datasets,
                 results[i].fit(datasets[i]);
             } catch (const std::exception& e) {
                 throw std::runtime_error("Serial batch fit failed for dataset " +
-                    std::to_string(i) + ": " + e.what());
+                                         std::to_string(i) + ": " + e.what());
             }
         }
     }

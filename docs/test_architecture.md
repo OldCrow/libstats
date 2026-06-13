@@ -87,7 +87,7 @@ The libstats project strategically uses two testing approaches:
 - **`test_system_capabilities`** (**GTest**) - System capability detection
 - **`test_performance_initialization`** (**GTest**) - Performance system initialization
 
-### Level 5: Distribution Basic Tests (11 tests + atomic)
+### Level 5: Distribution Basic Tests (14 tests + atomic)
 **Purpose**: Validate concrete statistical distribution implementations
 
 - **`test_gaussian_basic`** - Fundamental operations (PDF, CDF, quantiles, fitting)
@@ -101,9 +101,12 @@ The libstats project strategically uses two testing approaches:
 - **`test_beta_basic`** - Fundamental operations
 - **`test_lognormal_basic`** - Fundamental operations
 - **`test_pareto_basic`** - Fundamental operations
+- **`test_weibull_basic`** - Fundamental operations
+- **`test_rayleigh_basic`** - Fundamental operations
+- **`test_von_mises_basic`** - Fundamental operations (circular, Bessel cache)
 - **`test_atomic_parameters`** - Lock-free parameter access across all distributions
 
-### Level 6: Distribution Enhanced Tests (11 tests, GTest, timing label)
+### Level 6: Distribution Enhanced Tests (14 tests, GTest, timing label)
 - **`test_gaussian_enhanced`** (**GTest, timing**) - Confidence intervals, bootstrap, KS/AD, SIMD batch
 - **`test_exponential_enhanced`** (**GTest, timing**)
 - **`test_uniform_enhanced`** (**GTest, timing**)
@@ -115,6 +118,9 @@ The libstats project strategically uses two testing approaches:
 - **`test_beta_enhanced`** (**GTest, timing**)
 - **`test_lognormal_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
 - **`test_pareto_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
+- **`test_weibull_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
+- **`test_rayleigh_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
+- **`test_von_mises_enhanced`** (**GTest, timing**) - PARALLEL correctness; Bessel cache behaviour
 
 ### Level 7: Integration Tests (3 tests)
 **Purpose**: Dynamic library linking and cross-cutting functionality
@@ -175,6 +181,9 @@ Each basic test follows this standardized 7-10 test structure:
 **✅ Beta Distribution** — two-log SIMD pipeline; regularized incomplete beta CDF/quantile
 **✅ Log-Normal Distribution** — 6-step SIMD LogPDF; closed-form MLE via log-space Gaussian transform
 **✅ Pareto Distribution** — 3-step SIMD LogPDF (simplest pipeline); closed-form two-step MLE
+**✅ Weibull Distribution** — 8-step SIMD LogPDF; Newton–Raphson profile score MLE; `isExponential()` flag
+**✅ Rayleigh Distribution** — 5-step SIMD LogPDF (x² pipeline); closed-form MLE
+**✅ Von Mises Distribution** — circular; Bessel-based normaliser cached; Mardia–Jupp + Newton–Raphson MLE
 
 #### Consistent Output Format
 
@@ -325,11 +334,11 @@ ctest -R ".*dynamic.*"
 
 ## Test Execution Statistics
 
-- **Correctness suite** (`ctest -LE "timing|benchmark"`): 34 tests — always parallel-safe
-- **Timing suite** (`ctest -j1 -L timing`): 14 GTest tests with SIMD speedup assertions
+- **Correctness suite** (`ctest -LE "timing|benchmark"`): 37 tests — always parallel-safe
+- **Timing suite** (`ctest -j1 -L timing`): 17 GTest tests with SIMD speedup assertions
 - **Benchmark**: 1 test (`benchmark_simd_all`)
 - **Success Rate**: 100% on all registered targets
-- **Execution Time**: ~18 seconds for the correctness suite
+- **Execution Time**: ~40 seconds for the correctness suite
 
 ## Developer Guidelines
 

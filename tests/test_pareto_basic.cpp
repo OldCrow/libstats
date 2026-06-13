@@ -60,7 +60,7 @@ int main() {
         // Pareto(1, 3): mean = 3/(3-1)=1.5, variance = 1*3/((3-1)^2*(3-2)) = 3/4
         auto p = stats::ParetoDistribution::create(1.0, 3.0).value;
         const double expected_mean = 3.0 / 2.0;
-        const double expected_var  = 1.0 * 3.0 / (4.0 * 1.0);
+        const double expected_var = 1.0 * 3.0 / (4.0 * 1.0);
 
         BasicTestFormatter::printProperty("scale", p.getScale());
         BasicTestFormatter::printProperty("alpha", p.getAlpha());
@@ -72,17 +72,16 @@ int main() {
         BasicTestFormatter::printProperty("Support lower (expect 1.0)", p.getSupportLowerBound());
 
         const bool mean_ok = std::abs(p.getMean() - expected_mean) < 1e-10;
-        const bool var_ok  = std::abs(p.getVariance() - expected_var) < 1e-10;
+        const bool var_ok = std::abs(p.getVariance() - expected_var) < 1e-10;
         cout << "Mean correct: " << (mean_ok ? "PASS" : "FAIL") << endl;
         cout << "Variance correct: " << (var_ok ? "PASS" : "FAIL") << endl;
 
         // α ≤ 1: infinite mean; α ≤ 2: infinite variance
         auto p_alpha1 = ParetoDistribution::create(1.0, 1.0).value;
-        cout << "α=1 mean = +∞: "
-             << (std::isinf(p_alpha1.getMean()) ? "PASS" : "FAIL") << endl;
+        cout << "α=1 mean = +∞: " << (std::isinf(p_alpha1.getMean()) ? "PASS" : "FAIL") << endl;
         auto p_alpha2 = ParetoDistribution::create(1.0, 2.0).value;
-        cout << "α=2 variance = +∞: "
-             << (std::isinf(p_alpha2.getVariance()) ? "PASS" : "FAIL") << endl;
+        cout << "α=2 variance = +∞: " << (std::isinf(p_alpha2.getVariance()) ? "PASS" : "FAIL")
+             << endl;
 
         // Setters
         p.setScale(2.0);
@@ -131,11 +130,12 @@ int main() {
         cout << "CDF(scale) == 0: " << (cdf_at_scale == 0.0 ? "PASS" : "FAIL") << endl;
 
         // Out-of-support
-        BasicTestFormatter::printProperty("PDF(0.5) expect 0 (below scale)", p12b.getProbability(0.5));
+        BasicTestFormatter::printProperty("PDF(0.5) expect 0 (below scale)",
+                                          p12b.getProbability(0.5));
         BasicTestFormatter::printProperty("CDF(0.5) expect 0", p12b.getCumulativeProbability(0.5));
 
         // LogPDF consistency
-        const double pdf_v  = p12b.getProbability(3.0);
+        const double pdf_v = p12b.getProbability(3.0);
         const double lpdf_v = p12b.getLogProbability(3.0);
         const bool lp_ok = std::abs(std::log(pdf_v) - lpdf_v) < 1e-12;
         cout << "log(PDF) == LogPDF: " << (lp_ok ? "PASS" : "FAIL") << endl;
@@ -175,7 +175,11 @@ int main() {
 
         const auto samples = sample_dist.sample(rng, 500);
         bool all_in_support = true;
-        for (double sv : samples) if (sv < 1.0) { all_in_support = false; break; }
+        for (double sv : samples)
+            if (sv < 1.0) {
+                all_in_support = false;
+                break;
+            }
         cout << "All samples >= scale: " << (all_in_support ? "PASS" : "FAIL") << endl;
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
@@ -188,7 +192,7 @@ int main() {
         cout << "MLE: scale_hat=min(xi), alpha_hat=n/sum(log(xi/scale_hat))." << endl;
 
         auto fit_dist = ParetoDistribution::create(1.0, 1.0).value;
-        auto source   = ParetoDistribution::create(1.0, 3.0).value;
+        auto source = ParetoDistribution::create(1.0, 3.0).value;
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted scale (from Pareto(1,3), expect ~1)",
@@ -220,9 +224,9 @@ int main() {
 
         bool batch_ok = true;
         for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_b[i]  - batch_dist.getProbability(xs[i]))           > 1e-12 ||
-                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i]))        > 1e-12 ||
-                std::abs(cdf_b[i]  - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
+            if (std::abs(pdf_b[i] - batch_dist.getProbability(xs[i])) > 1e-12 ||
+                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i])) > 1e-12 ||
+                std::abs(cdf_b[i] - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
                 batch_ok = false;
                 break;
             }
@@ -232,16 +236,19 @@ int main() {
         // VECTORIZED vs SCALAR on a larger batch
         const size_t N = 2000;
         vector<double> large_in(N), large_vec(N), large_scl(N);
-        for (size_t i = 0; i < N; ++i) large_in[i] = 1.0 + 0.01 * static_cast<double>(i);
+        for (size_t i = 0; i < N; ++i)
+            large_in[i] = 1.0 + 0.01 * static_cast<double>(i);
         batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(large_vec),
-                                                  stats::detail::Strategy::VECTORIZED);
-        batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(large_scl),
-                                                  stats::detail::Strategy::SCALAR);
+                                                 span<double>(large_vec),
+                                                 stats::detail::Strategy::VECTORIZED);
+        batch_dist.getLogProbabilityWithStrategy(
+            span<const double>(large_in), span<double>(large_scl), stats::detail::Strategy::SCALAR);
         bool large_ok = true;
         for (size_t i = 0; i < N; ++i) {
-            if (std::abs(large_vec[i] - large_scl[i]) > 1e-10) { large_ok = false; break; }
+            if (std::abs(large_vec[i] - large_scl[i]) > 1e-10) {
+                large_ok = false;
+                break;
+            }
         }
         cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
              << endl;
@@ -290,8 +297,7 @@ int main() {
         if (err2.isError()) {
             BasicTestFormatter::printTestSuccess("alpha=0 rejected: " + err2.message);
         }
-        auto err3 = ParetoDistribution::create(
-            std::numeric_limits<double>::quiet_NaN(), 1.0);
+        auto err3 = ParetoDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0);
         if (err3.isError()) {
             BasicTestFormatter::printTestSuccess("scale=NaN rejected: " + err3.message);
         }

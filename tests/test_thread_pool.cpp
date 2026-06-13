@@ -10,10 +10,10 @@
  */
 
 // Standard library includes
+#include <chrono>  // for std::chrono::high_resolution_clock
+#include <cmath>   // for mathematical functions
+#include <future>  // for std::future, std::async
 #include <gtest/gtest.h>
-#include <chrono>    // for std::chrono::high_resolution_clock
-#include <cmath>     // for mathematical functions
-#include <future>    // for std::future, std::async
 #include <iomanip>   // for std::setprecision
 #include <iostream>  // for std::cout, std::endl
 #include <numeric>   // for std::iota, std::accumulate
@@ -50,7 +50,8 @@ class ThreadPoolTest {
         testDocumentationExamples();
 
         std::cout << "\n🎉 All ThreadPool Level 0-2 integration tests passed!" << std::endl;
-        std::cout << "  ✓ Priority #1 implementation is complete and working correctly" << std::endl;
+        std::cout << "  ✓ Priority #1 implementation is complete and working correctly"
+                  << std::endl;
     }
 
     void testLevel0ConstantsIntegration() {
@@ -735,17 +736,55 @@ class ThreadPoolTest {
     }
 };
 
-
-TEST(ThreadPoolIntegration, Level0Constants)       { ThreadPoolTest t; t.testLevel0ConstantsIntegration(); }
-TEST(ThreadPoolIntegration, CpuDetection)          { ThreadPoolTest t; t.testCpuDetectionIntegration(); }
-TEST(ThreadPoolIntegration, SimdAwareness)          { ThreadPoolTest t; t.testSIMDAwareness(); }
-TEST(ThreadPoolIntegration, SafetyIntegration)      { ThreadPoolTest t; t.testSafetyIntegration(); }
-TEST(ThreadPoolIntegration, ErrorHandling)          { ThreadPoolTest t; t.testErrorHandlingIntegration(); }
-TEST(ThreadPoolIntegration, BasicFunctionality)     { ThreadPoolTest t; t.testBasicThreadPoolFunctionality(); }
-TEST(ThreadPoolIntegration, ParallelFor)            { ThreadPoolTest t; t.testParallelForIntegration(); }
-TEST(ThreadPoolIntegration, ParallelTransformSIMD)  { ThreadPoolTest t; t.testParallelTransformSIMD(); }
-TEST(ThreadPoolIntegration, ParallelReduce)         { ThreadPoolTest t; t.testParallelReduceIntegration(); }
-TEST(ThreadPoolIntegration, ParallelStatOperation)  { ThreadPoolTest t; t.testParallelStatOperation(); }
-TEST(ThreadPoolIntegration, OptimalThreadCount)     { ThreadPoolTest t; t.testOptimalThreadCountCalculation(); }
-TEST(ThreadPoolIntegration, PerformanceScaling)     { ThreadPoolTest t; t.testPerformanceScaling(); }
-TEST(ThreadPoolIntegration, DocumentationExamples)  { ThreadPoolTest t; t.testDocumentationExamples(); }
+TEST(ThreadPoolIntegration, Level0Constants) {
+    ThreadPoolTest t;
+    t.testLevel0ConstantsIntegration();
+}
+TEST(ThreadPoolIntegration, CpuDetection) {
+    ThreadPoolTest t;
+    t.testCpuDetectionIntegration();
+}
+TEST(ThreadPoolIntegration, SimdAwareness) {
+    ThreadPoolTest t;
+    t.testSIMDAwareness();
+}
+TEST(ThreadPoolIntegration, SafetyIntegration) {
+    ThreadPoolTest t;
+    t.testSafetyIntegration();
+}
+TEST(ThreadPoolIntegration, ErrorHandling) {
+    ThreadPoolTest t;
+    t.testErrorHandlingIntegration();
+}
+TEST(ThreadPoolIntegration, BasicFunctionality) {
+    ThreadPoolTest t;
+    t.testBasicThreadPoolFunctionality();
+}
+TEST(ThreadPoolIntegration, ParallelFor) {
+    ThreadPoolTest t;
+    t.testParallelForIntegration();
+}
+TEST(ThreadPoolIntegration, ParallelTransformSIMD) {
+    ThreadPoolTest t;
+    t.testParallelTransformSIMD();
+}
+TEST(ThreadPoolIntegration, ParallelReduce) {
+    ThreadPoolTest t;
+    t.testParallelReduceIntegration();
+}
+TEST(ThreadPoolIntegration, ParallelStatOperation) {
+    ThreadPoolTest t;
+    t.testParallelStatOperation();
+}
+TEST(ThreadPoolIntegration, OptimalThreadCount) {
+    ThreadPoolTest t;
+    t.testOptimalThreadCountCalculation();
+}
+TEST(ThreadPoolIntegration, PerformanceScaling) {
+    ThreadPoolTest t;
+    t.testPerformanceScaling();
+}
+TEST(ThreadPoolIntegration, DocumentationExamples) {
+    ThreadPoolTest t;
+    t.testDocumentationExamples();
+}

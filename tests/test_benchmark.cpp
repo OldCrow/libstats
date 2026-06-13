@@ -18,14 +18,14 @@
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max
-#include <gtest/gtest.h>
 #include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::milliseconds
 #include <cmath>      // for std::abs
 #include <cstddef>    // for std::size_t
-#include <iostream>   // for std::cout, std::cerr, std::endl
-#include <string>     // for std::string
-#include <thread>     // for std::this_thread::sleep_for
-#include <vector>     // for std::vector
+#include <gtest/gtest.h>
+#include <iostream>  // for std::cout, std::cerr, std::endl
+#include <string>    // for std::string
+#include <thread>    // for std::this_thread::sleep_for
+#include <vector>    // for std::vector
 
 using namespace stats;
 
@@ -34,10 +34,6 @@ using namespace stats;
 //==============================================================================
 
 ;
-
-
-
-
 
 //==============================================================================
 // TEST FUNCTIONS
@@ -391,10 +387,21 @@ void test_stress_conditions() {
 // MAIN FUNCTION
 //==============================================================================
 
-
-TEST(BenchmarkInfrastructure, TimerFunctionality)    { test_timer_functionality(); }
-TEST(BenchmarkInfrastructure, BenchmarkStats)        { test_benchmark_stats(); }
-TEST(BenchmarkInfrastructure, BenchmarkClass)        { test_benchmark_class(); }
-TEST(BenchmarkInfrastructure, Comparison)            { test_benchmark_comparison(); }
-TEST(BenchmarkInfrastructure, ThroughputMeasurements){ test_throughput_measurements(); }
-TEST(BenchmarkInfrastructure, StressConditions)      { test_stress_conditions(); }
+TEST(BenchmarkInfrastructure, TimerFunctionality) {
+    test_timer_functionality();
+}
+TEST(BenchmarkInfrastructure, BenchmarkStats) {
+    test_benchmark_stats();
+}
+TEST(BenchmarkInfrastructure, BenchmarkClass) {
+    test_benchmark_class();
+}
+TEST(BenchmarkInfrastructure, Comparison) {
+    test_benchmark_comparison();
+}
+TEST(BenchmarkInfrastructure, ThroughputMeasurements) {
+    test_throughput_measurements();
+}
+TEST(BenchmarkInfrastructure, StressConditions) {
+    test_stress_conditions();
+}

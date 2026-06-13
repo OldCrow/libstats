@@ -111,7 +111,8 @@ void demo_symmetric_continuous() {
     for (double nu : {2.0, 5.0, 15.0, 30.0}) {
         auto t = stats::StudentTDistribution::create(nu).value;
         double p = 2.0 * (1.0 - t.getCumulativeProbability(2.5));
-        std::cout << "  Student's t(nu=" << std::setw(2) << (int)nu << "):  " << p * 100 << "%\n";
+        std::cout << "  Student's t(nu=" << std::setw(2) << static_cast<int>(nu) << "):  " << p * 100
+                  << "%\n";
     }
     std::cout << "\nRule of thumb: use Student's t when n < 30 and sigma is\n"
               << "estimated from data.\n";
@@ -329,7 +330,7 @@ void demo_discrete() {
     std::cout << "  lambda = 6 calls / 30 min\n";
     std::cout << "  P(calls >= 10)   = " << p_over << "\n";
     std::cout << "  P(calls = 6)     = " << calls.getProbability(6) << "  (PMF at mode)\n";
-    std::cout << "  90th percentile  = " << (int)calls.getQuantile(0.90) << " calls\n";
+    std::cout << "  90th percentile  = " << static_cast<int>(calls.getQuantile(0.90)) << " calls\n";
 
     // --- Discrete uniform ---------------------------------------------------
     subsection("Discrete uniform distribution");
@@ -390,7 +391,7 @@ int main() {
     demo_batch_api();
 
     std::cout << "\n" << std::string(72, '=') << "\n";
-    std::cout << "9 distributions across 4 families.\n";
+    std::cout << "14 distributions across 6 families.\n";
     std::cout << "See the individual distribution headers for the full API surface.\n";
     std::cout << std::string(72, '=') << "\n";
 

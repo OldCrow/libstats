@@ -1,9 +1,9 @@
 #include "libstats/distributions/exponential.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
+#include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/validation.h"
 // Note: parallel execution included through distribution base inheritance
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
@@ -432,9 +432,8 @@ void ExponentialDistribution::fit(const std::vector<double>& values) {
     setLambda(detail::ONE / sample_mean);
 }
 
-void ExponentialDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<ExponentialDistribution>& results) {
+void ExponentialDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                               std::vector<ExponentialDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

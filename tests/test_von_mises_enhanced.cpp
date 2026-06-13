@@ -46,18 +46,17 @@ TEST_F(VonMisesEnhancedTest, ModeAtMu) {
     for (double mu : {-1.5, 0.0, 1.0}) {
         auto d = VonMisesDistribution::create(mu, 3.0).value;
         EXPECT_NEAR(d.getMean(), mu, 1e-14) << "getMean() != mu for mu=" << mu;
-        EXPECT_GT(d.getProbability(mu), d.getProbability(mu + M_PI > M_PI
-                                                              ? mu + M_PI - 2.0 * M_PI
-                                                              : mu + M_PI))
+        EXPECT_GT(d.getProbability(mu),
+                  d.getProbability(mu + M_PI > M_PI ? mu + M_PI - 2.0 * M_PI : mu + M_PI))
             << "PDF(mu) should exceed PDF(mu+pi) for mu=" << mu;
     }
 }
 
 // Circular variance in [0,1]; increases as kappa decreases
 TEST_F(VonMisesEnhancedTest, CircularVarianceMonotone) {
-    const auto d0  = VonMisesDistribution::create(0.0, 0.0).value;
-    const auto d1  = VonMisesDistribution::create(0.0, 1.0).value;
-    const auto d5  = VonMisesDistribution::create(0.0, 5.0).value;
+    const auto d0 = VonMisesDistribution::create(0.0, 0.0).value;
+    const auto d1 = VonMisesDistribution::create(0.0, 1.0).value;
+    const auto d5 = VonMisesDistribution::create(0.0, 5.0).value;
     const auto d20 = VonMisesDistribution::create(0.0, 20.0).value;
     EXPECT_NEAR(d0.getVariance(), 1.0, 1e-10);
     EXPECT_GT(d0.getVariance(), d1.getVariance());
@@ -69,7 +68,7 @@ TEST_F(VonMisesEnhancedTest, CircularVarianceMonotone) {
 // log(PDF) == LogPDF
 TEST_F(VonMisesEnhancedTest, LogPDFConsistency) {
     for (double x : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
-        const double pdf  = vm01_.getProbability(x);
+        const double pdf = vm01_.getProbability(x);
         const double lpdf = vm01_.getLogProbability(x);
         EXPECT_NEAR(std::log(pdf), lpdf, 1e-12) << "at x=" << x;
     }
@@ -79,8 +78,8 @@ TEST_F(VonMisesEnhancedTest, LogPDFConsistency) {
 TEST_F(VonMisesEnhancedTest, AngleWrapping) {
     for (double mu : {-10.0, -4.0, 4.0, 7.0, 100.0}) {
         auto d = VonMisesDistribution::create(mu, 1.0).value;
-        EXPECT_GT(d.getMu(), -M_PI)  << "Mu below -pi for input=" << mu;
-        EXPECT_LE(d.getMu(),  M_PI)  << "Mu above +pi for input=" << mu;
+        EXPECT_GT(d.getMu(), -M_PI) << "Mu below -pi for input=" << mu;
+        EXPECT_LE(d.getMu(), M_PI) << "Mu above +pi for input=" << mu;
     }
 }
 
@@ -115,7 +114,7 @@ TEST_F(VonMisesEnhancedTest, QuantileRoundTrip) {
     for (double p : {0.1, 0.25, 0.5, 0.75, 0.9}) {
         const double q = vm01_.getQuantile(p);
         EXPECT_GT(q, -M_PI);
-        EXPECT_LE(q,  M_PI);
+        EXPECT_LE(q, M_PI);
         EXPECT_NEAR(vm01_.getCumulativeProbability(q), p, 1e-4) << "at p=" << p;
     }
 }
@@ -127,7 +126,7 @@ TEST_F(VonMisesEnhancedTest, MLEFit) {
     const auto data = source.sample(rng, 500);
     auto fitted = VonMisesDistribution::create(0.0, 1.0).value;
     fitted.fit(data);
-    EXPECT_NEAR(fitted.getMu(),    1.2, 0.3) << "Fitted mu should be near 1.2";
+    EXPECT_NEAR(fitted.getMu(), 1.2, 0.3) << "Fitted mu should be near 1.2";
     EXPECT_NEAR(fitted.getKappa(), 3.0, 1.0) << "Fitted kappa should be near 3.0";
 }
 
@@ -144,10 +143,10 @@ TEST_F(VonMisesEnhancedTest, SetterPropagates) {
 
 // Invalid parameters rejected
 TEST_F(VonMisesEnhancedTest, InvalidParameters) {
-    EXPECT_TRUE(VonMisesDistribution::create(
-        std::numeric_limits<double>::infinity(), 1.0).isError());
-    EXPECT_TRUE(VonMisesDistribution::create(
-        std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
+    EXPECT_TRUE(
+        VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError());
+    EXPECT_TRUE(
+        VonMisesDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
     EXPECT_TRUE(VonMisesDistribution::create(0.0, -1.0).isError());
     EXPECT_FALSE(VonMisesDistribution::create(0.0, 0.0).isError());  // kappa=0 is valid
 
@@ -171,13 +170,13 @@ TEST_F(VonMisesEnhancedTest, ParallelBatchCorrectness) {
                                         detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
-    const double par_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+    const double par_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
 
-    std::cout << "Von Mises LogPDF PARALLEL vs SCALAR: "
-              << par_us << "μs vs " << scl_us << "μs (n=" << N << ")\n";
+    std::cout << "Von Mises LogPDF PARALLEL vs SCALAR: " << par_us << "μs vs " << scl_us
+              << "μs (n=" << N << ")\n";
     std::cout << "Note: VECTORIZED == scalar loop (no vector_cos); "
               << "PARALLEL provides true multi-core throughput.\n";
 

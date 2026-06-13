@@ -1,9 +1,9 @@
 #include "libstats/distributions/beta.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"  // beta_i, inverse_beta_i, lbeta, digamma
+#include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/validation.h"
 
 #include <algorithm>
@@ -485,9 +485,8 @@ void BetaDistribution::fit(const std::vector<double>& values) {
     setParameters(alpha_cur, beta_cur);
 }
 
-void BetaDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<BetaDistribution>& results) {
+void BetaDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                        std::vector<BetaDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

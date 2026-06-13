@@ -18,8 +18,8 @@ TEST(ParallelExecutionComprehensive, GCDAlgorithms) {
     EXPECT_EQ(count_result, 4);
     std::cout << "  - safe_count (GCD): PASSED" << std::endl;
 
-    auto count_if_result = stats::arch::safe_count_if(
-        count_data.begin(), count_data.end(), [](int x) { return x > 2; });
+    auto count_if_result = stats::arch::safe_count_if(count_data.begin(), count_data.end(),
+                                                      [](int x) { return x > 2; });
     EXPECT_EQ(count_if_result, 3);
     std::cout << "  - safe_count_if (GCD): PASSED" << std::endl;
 
@@ -82,8 +82,8 @@ TEST(ParallelExecutionComprehensive, PerformanceCharacteristics) {
     auto perf_sum = stats::arch::safe_reduce(perf_data.begin(), perf_data.end(), 0.0);
     auto t1 = std::chrono::high_resolution_clock::now();
     std::cout << "  - Parallel reduce of 50k elements took: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count()
-              << " us" << std::endl;
+              << std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count() << " us"
+              << std::endl;
 
     double expected = (50000.0 * 50001.0) / 2.0;
     EXPECT_NEAR(perf_sum, expected, 1.0);
@@ -107,19 +107,22 @@ TEST(ParallelExecutionComprehensive, PlatformAdaptiveFeatures) {
     EXPECT_GT(threshold, 0u);
     EXPECT_LT(threshold, 100000u);
 
-    auto default_grain  = stats::arch::get_default_grain_size();
-    auto optimal_grain  = stats::arch::get_optimal_grain_size();
-    auto simple_grain   = stats::arch::get_simple_operation_grain_size();
-    EXPECT_GT(default_grain, 0u);  EXPECT_LT(default_grain, 50000u);
-    EXPECT_GT(optimal_grain, 0u);  EXPECT_LT(optimal_grain, 50000u);
-    EXPECT_GT(simple_grain,  0u);  EXPECT_LT(simple_grain,  50000u);
+    auto default_grain = stats::arch::get_default_grain_size();
+    auto optimal_grain = stats::arch::get_optimal_grain_size();
+    auto simple_grain = stats::arch::get_simple_operation_grain_size();
+    EXPECT_GT(default_grain, 0u);
+    EXPECT_LT(default_grain, 50000u);
+    EXPECT_GT(optimal_grain, 0u);
+    EXPECT_LT(optimal_grain, 50000u);
+    EXPECT_GT(simple_grain, 0u);
+    EXPECT_LT(simple_grain, 50000u);
 
-    auto memory_grain  = stats::arch::get_adaptive_grain_size(0, 10000);
+    auto memory_grain = stats::arch::get_adaptive_grain_size(0, 10000);
     auto compute_grain = stats::arch::get_adaptive_grain_size(1, 10000);
-    auto mixed_grain   = stats::arch::get_adaptive_grain_size(2, 10000);
-    EXPECT_GE(memory_grain,  simple_grain);
+    auto mixed_grain = stats::arch::get_adaptive_grain_size(2, 10000);
+    EXPECT_GE(memory_grain, simple_grain);
     EXPECT_GE(compute_grain, simple_grain);
-    EXPECT_GE(mixed_grain,   simple_grain);
+    EXPECT_GE(mixed_grain, simple_grain);
     EXPECT_GE(compute_grain, memory_grain);
 
     auto threads_small = stats::arch::get_optimal_thread_count(1000);

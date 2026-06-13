@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <concepts>
+#include <gtest/gtest.h>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
@@ -15,8 +16,6 @@
 #include <ranges>
 #include <span>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 using namespace stats;
 
@@ -61,7 +60,8 @@ TEST(WorkStealingPool, CppRangesWithWorkStealing) {
     pool.waitForAll();
 
     long long expected = 0;
-    for (auto v : data) expected += v;
+    for (auto v : data)
+        expected += v;
     EXPECT_EQ(sum.load(), expected);
     std::cout << "  Parallel sum: " << sum.load() << " (expected: " << expected << ")\n";
 }
@@ -91,11 +91,11 @@ TEST(WorkStealingPool, PerformanceAndStatistics) {
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < numTasks; ++i) {
         pool.submit([i]() {
-            auto work = std::views::iota(0, (i % 10 + 1) * 100)
-                      | std::views::transform([](int x) { return x * x; })
-                      | std::views::take(50);
+            auto work = std::views::iota(0, (i % 10 + 1) * 100) |
+                        std::views::transform([](int x) { return x * x; }) | std::views::take(50);
             volatile long long s = 0;
-            for (auto v : work) s = s + v;
+            for (auto v : work)
+                s = s + v;
         });
     }
     pool.waitForAll();
@@ -125,11 +125,11 @@ TEST(WorkStealingPool, GlobalUtilities) {
 }
 
 TEST(WorkStealingPool, Level0ConstantsIntegration) {
-    auto parallelThreshold      = arch::get_min_elements_for_parallel();
-    auto distributionThreshold  = arch::get_min_elements_for_distribution_parallel();
-    auto defaultGrainSize       = arch::get_default_grain_size();
-    auto simdBlockSize          = arch::get_optimal_simd_block_size();
-    auto memoryAlignment        = arch::get_optimal_alignment();
+    auto parallelThreshold = arch::get_min_elements_for_parallel();
+    auto distributionThreshold = arch::get_min_elements_for_distribution_parallel();
+    auto defaultGrainSize = arch::get_default_grain_size();
+    auto simdBlockSize = arch::get_optimal_simd_block_size();
+    auto memoryAlignment = arch::get_optimal_alignment();
 
     EXPECT_GT(parallelThreshold, 0u);
     EXPECT_GT(distributionThreshold, 0u);
@@ -137,14 +137,13 @@ TEST(WorkStealingPool, Level0ConstantsIntegration) {
     EXPECT_GT(simdBlockSize, 0u);
     EXPECT_GT(memoryAlignment, 0u);
 
-    std::cout << "  Min parallel: " << parallelThreshold
-              << ", grain: " << defaultGrainSize
+    std::cout << "  Min parallel: " << parallelThreshold << ", grain: " << defaultGrainSize
               << ", alignment: " << memoryAlignment << " bytes\n";
 }
 
 TEST(WorkStealingPool, CPUDetectionIntegration) {
-    const auto& features    = arch::get_features();
-    auto optimalThreads     = WorkStealingPool::getOptimalThreadCount();
+    const auto& features = arch::get_features();
+    auto optimalThreads = WorkStealingPool::getOptimalThreadCount();
 
     EXPECT_GT(optimalThreads, 0u);
 
@@ -153,6 +152,6 @@ TEST(WorkStealingPool, CPUDetectionIntegration) {
     }
 
     std::cout << "  Physical: " << features.topology.physical_cores
-              << ", Logical: " << features.topology.logical_cores
-              << ", Optimal: " << optimalThreads << "\n";
+              << ", Logical: " << features.topology.logical_cores << ", Optimal: " << optimalThreads
+              << "\n";
 }

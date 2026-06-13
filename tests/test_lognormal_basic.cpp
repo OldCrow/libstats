@@ -28,13 +28,13 @@ int main() {
 
         // Default constructor: μ=0, σ=1
         auto default_ln = stats::LogNormalDistribution::create().value;
-        BasicTestFormatter::printProperty("Default mu",  default_ln.getMu());
+        BasicTestFormatter::printProperty("Default mu", default_ln.getMu());
         BasicTestFormatter::printProperty("Default sigma", default_ln.getSigma());
-        BasicTestFormatter::printProperty("isStandard", (int)default_ln.isStandard());
+        BasicTestFormatter::printProperty("isStandard", static_cast<int>(default_ln.isStandard()));
 
         // Parameterized
         auto ln23 = stats::LogNormalDistribution::create(2.0, 3.0).value;
-        BasicTestFormatter::printProperty("LN(2,3) mu",    ln23.getMu());
+        BasicTestFormatter::printProperty("LN(2,3) mu", ln23.getMu());
         BasicTestFormatter::printProperty("LN(2,3) sigma", ln23.getSigma());
 
         // Copy
@@ -63,9 +63,9 @@ int main() {
         // LogNormal(0, 1): mean = exp(0.5) ≈ 1.6487, median = exp(0) = 1
         auto ln = stats::LogNormalDistribution::create(0.0, 1.0).value;
         const double expected_mean = std::exp(0.5);
-        const double expected_var  = (std::exp(1.0) - 1.0) * std::exp(1.0);
+        const double expected_var = (std::exp(1.0) - 1.0) * std::exp(1.0);
 
-        BasicTestFormatter::printProperty("mu",    ln.getMu());
+        BasicTestFormatter::printProperty("mu", ln.getMu());
         BasicTestFormatter::printProperty("sigma", ln.getSigma());
         BasicTestFormatter::printProperty("Mean (expect exp(0.5)≈1.6487)", ln.getMean());
         BasicTestFormatter::printProperty("Variance", ln.getVariance());
@@ -75,7 +75,7 @@ int main() {
         BasicTestFormatter::printProperty("Support lower (0)", ln.getSupportLowerBound());
 
         const bool mean_ok = std::abs(ln.getMean() - expected_mean) < 1e-10;
-        const bool var_ok  = std::abs(ln.getVariance() - expected_var) < 1e-10;
+        const bool var_ok = std::abs(ln.getVariance() - expected_var) < 1e-10;
         cout << "Mean correct: " << (mean_ok ? "PASS" : "FAIL") << endl;
         cout << "Variance correct: " << (var_ok ? "PASS" : "FAIL") << endl;
 
@@ -86,7 +86,7 @@ int main() {
         BasicTestFormatter::printProperty("After setSigma(2): sigma", ln.getSigma());
         ln.setParameters(0.0, 1.0);
         BasicTestFormatter::printProperty("After reset setParameters: isStandard",
-                                          (int)ln.isStandard());
+                                          static_cast<int>(ln.isStandard()));
 
         // Result-based setters
         auto vr = ln.trySetSigma(-1.0);
@@ -128,7 +128,7 @@ int main() {
         BasicTestFormatter::printProperty("CDF(0)  expect 0", std_ln.getCumulativeProbability(0.0));
 
         // LogPDF consistency
-        const double pdf_v  = std_ln.getProbability(2.0);
+        const double pdf_v = std_ln.getProbability(2.0);
         const double lpdf_v = std_ln.getLogProbability(2.0);
         const bool lp_ok = std::abs(std::log(pdf_v) - lpdf_v) < 1e-12;
         cout << "log(PDF) == LogPDF: " << (lp_ok ? "PASS" : "FAIL") << endl;
@@ -170,7 +170,11 @@ int main() {
         BasicTestFormatter::printProperty("Sample mean n=500 (expect ~exp(0.5)≈1.649)", smean);
 
         bool all_positive = true;
-        for (double sv : samples) if (sv <= 0.0) { all_positive = false; break; }
+        for (double sv : samples)
+            if (sv <= 0.0) {
+                all_positive = false;
+                break;
+            }
         cout << "All samples > 0: " << (all_positive ? "PASS" : "FAIL") << endl;
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
@@ -193,7 +197,7 @@ int main() {
                                           fit_dist.getSigma());
 
         fit_dist.reset();
-        BasicTestFormatter::printProperty("After reset: mu (expect 0)",    fit_dist.getMu());
+        BasicTestFormatter::printProperty("After reset: mu (expect 0)", fit_dist.getMu());
         BasicTestFormatter::printProperty("After reset: sigma (expect 1)", fit_dist.getSigma());
         cout << "isStandard after reset: " << (fit_dist.isStandard() ? "YES" : "NO") << endl;
         cout << "toString: " << fit_dist.toString() << endl;
@@ -217,12 +221,12 @@ int main() {
 
         bool batch_ok = true;
         for (size_t i = 0; i < xs.size(); ++i) {
-            const double scalar_pdf  = batch_dist.getProbability(xs[i]);
+            const double scalar_pdf = batch_dist.getProbability(xs[i]);
             const double scalar_lpdf = batch_dist.getLogProbability(xs[i]);
-            const double scalar_cdf  = batch_dist.getCumulativeProbability(xs[i]);
-            if (std::abs(pdf_b[i]  - scalar_pdf)  > 1e-12 ||
+            const double scalar_cdf = batch_dist.getCumulativeProbability(xs[i]);
+            if (std::abs(pdf_b[i] - scalar_pdf) > 1e-12 ||
                 std::abs(lpdf_b[i] - scalar_lpdf) > 1e-12 ||
-                std::abs(cdf_b[i]  - scalar_cdf)  > 1e-8) {
+                std::abs(cdf_b[i] - scalar_cdf) > 1e-8) {
                 batch_ok = false;
                 break;
             }
@@ -232,16 +236,19 @@ int main() {
         // Large batch via explicit VECTORIZED strategy
         const size_t N = 2000;
         vector<double> large_in(N), large_out(N), large_scalar(N);
-        for (size_t i = 0; i < N; ++i) large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
-        batch_dist.getProbabilityWithStrategy(span<const double>(large_in),
-                                              span<double>(large_out),
+        for (size_t i = 0; i < N; ++i)
+            large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
+        batch_dist.getProbabilityWithStrategy(span<const double>(large_in), span<double>(large_out),
                                               stats::detail::Strategy::VECTORIZED);
         batch_dist.getProbabilityWithStrategy(span<const double>(large_in),
                                               span<double>(large_scalar),
                                               stats::detail::Strategy::SCALAR);
         bool large_ok = true;
         for (size_t i = 0; i < N; ++i) {
-            if (std::abs(large_out[i] - large_scalar[i]) > 1e-10) { large_ok = false; break; }
+            if (std::abs(large_out[i] - large_scalar[i]) > 1e-10) {
+                large_ok = false;
+                break;
+            }
         }
         cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
              << endl;
@@ -292,8 +299,7 @@ int main() {
             BasicTestFormatter::printTestSuccess("sigma=0 rejected: " + err2.message);
         }
 
-        auto err3 = LogNormalDistribution::create(
-            std::numeric_limits<double>::infinity(), 1.0);
+        auto err3 = LogNormalDistribution::create(std::numeric_limits<double>::infinity(), 1.0);
         if (err3.isError()) {
             BasicTestFormatter::printTestSuccess("mu=Inf rejected: " + err3.message);
         }

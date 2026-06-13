@@ -259,7 +259,7 @@ class StudentTDistribution : public DistributionBase {
      * @param results  Vector to store fitted StudentTDistribution objects
      */
     static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
-                                  std::vector<StudentTDistribution>& results);
+                                 std::vector<StudentTDistribution>& results);
 
     /** @brief Reset to default parameters (ν = 1, Cauchy distribution). */
     void reset() noexcept override;

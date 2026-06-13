@@ -88,7 +88,9 @@ enum class Strategy {
     SCALAR,        // Element-by-element loop (batch < simd_min threshold)
     VECTORIZED,    // VectorOps batch path — SIMD-accelerated for all distributions
                    // with a fixed-step VectorOps pipeline: Gaussian, Exponential,
-                   // Gamma, Uniform, Chi-squared, Student's t, Beta, Log-Normal, Pareto
+                   // Gamma, Uniform, Chi-squared, Student's t, Beta, Log-Normal,
+                   // Pareto, Weibull, Rayleigh.
+                   // Exception: Von Mises uses a scalar loop (no vector_cos)
     PARALLEL,      // Multi-threaded via ParallelUtils::parallelFor
     WORK_STEALING  // Work-stealing pool for irregular or variable workloads
 };

@@ -113,17 +113,23 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
 
                 // Verify consistency
                 if (caps.logical_cores() == 0) {
-                    thread_success = false; fail_reason[t] = 1;
+                    thread_success = false;
+                    fail_reason[t] = 1;
                 } else if (caps.physical_cores() == 0) {
-                    thread_success = false; fail_reason[t] = 2;
+                    thread_success = false;
+                    fail_reason[t] = 2;
                 } else if (caps.physical_cores() > caps.logical_cores()) {
-                    thread_success = false; fail_reason[t] = 3;
+                    thread_success = false;
+                    fail_reason[t] = 3;
                 } else if (caps.l1_cache_size() == 0) {
-                    thread_success = false; fail_reason[t] = 4;
+                    thread_success = false;
+                    fail_reason[t] = 4;
                 } else if (caps.has_avx2() && !caps.has_avx()) {
-                    thread_success = false; fail_reason[t] = 5;
+                    thread_success = false;
+                    fail_reason[t] = 5;
                 } else if (caps.has_avx() && !caps.has_sse2()) {
-                    thread_success = false; fail_reason[t] = 6;
+                    thread_success = false;
+                    fail_reason[t] = 6;
                 }
 
                 // Small delay to increase chance of race conditions
@@ -144,8 +150,8 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
     // All threads should have succeeded
     for (std::size_t t = 0; t < num_threads; ++t) {
         EXPECT_TRUE(success[t]) << "Thread " << t << " failed check #" << fail_reason[t]
-            << " (1=logical_cores, 2=physical_cores, 3=phys>logical, "
-               "4=l1_cache, 5=avx2_no_avx, 6=avx_no_sse2)";
+                                << " (1=logical_cores, 2=physical_cores, 3=phys>logical, "
+                                   "4=l1_cache, 5=avx2_no_avx, 6=avx_no_sse2)";
     }
 }
 
@@ -161,8 +167,9 @@ TEST_F(SystemCapabilitiesIntegrationTest, PerformanceCharacteristicsRealistic) {
 
     // Threading overhead should be measurable but not excessive
     if (capabilities.physical_cores() > 1) {
-        EXPECT_GE(capabilities.threading_overhead_ns(), 10.0);      // At least 10ns
-        EXPECT_LE(capabilities.threading_overhead_ns(), 500000.0);  // At most 500μs (Windows SRWLOCK + scheduler jitter)
+        EXPECT_GE(capabilities.threading_overhead_ns(), 10.0);  // At least 10ns
+        EXPECT_LE(capabilities.threading_overhead_ns(),
+                  500000.0);  // At most 500μs (Windows SRWLOCK + scheduler jitter)
     }
 
     // Memory bandwidth should be realistic for the era

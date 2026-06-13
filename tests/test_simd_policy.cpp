@@ -20,11 +20,11 @@
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
-#include <gtest/gtest.h>
 #include <cmath>      // for mathematical functions
-#include <iostream>   // for std::cout, std::cerr, std::endl
-#include <string>     // for std::string
-#include <vector>     // for std::vector
+#include <gtest/gtest.h>
+#include <iostream>  // for std::cout, std::cerr, std::endl
+#include <string>    // for std::string
+#include <vector>    // for std::vector
 
 using namespace stats::arch::simd;
 
@@ -33,10 +33,6 @@ using namespace stats::arch::simd;
 //==============================================================================
 
 ;
-
-
-
-
 
 //==============================================================================
 // HELPER FUNCTIONS
@@ -94,14 +90,14 @@ void test_core_policy_decisions() {
         // Validate logical consistency
         if (threshold > 1) {
             EXPECT_TRUE(!below_threshold ||
-                   threshold <= 1);  // Below threshold should be false (unless threshold is 1)
+                        threshold <= 1);  // Below threshold should be false (unless threshold is 1)
         }
         EXPECT_TRUE(at_threshold ||
-               SIMDPolicy::getBestLevel() ==
-                   SIMDPolicy::Level::None);  // At threshold should be true unless no SIMD
+                    SIMDPolicy::getBestLevel() ==
+                        SIMDPolicy::Level::None);  // At threshold should be true unless no SIMD
         EXPECT_TRUE(above_threshold ||
-               SIMDPolicy::getBestLevel() ==
-                   SIMDPolicy::Level::None);  // Above threshold should be true unless no SIMD
+                    SIMDPolicy::getBestLevel() ==
+                        SIMDPolicy::Level::None);  // Above threshold should be true unless no SIMD
 
         std::cout << "   ✓ Basic shouldUseSIMD decisions passed\n";
         std::cout << "     Threshold: " << threshold << " elements\n";
@@ -236,9 +232,9 @@ void test_threshold_calculations() {
             EXPECT_TRUE(!SIMDPolicy::shouldUseSIMD(threshold - 1));
         }
         EXPECT_TRUE(SIMDPolicy::shouldUseSIMD(threshold) ||
-               SIMDPolicy::getBestLevel() == SIMDPolicy::Level::None);
+                    SIMDPolicy::getBestLevel() == SIMDPolicy::Level::None);
         EXPECT_TRUE(SIMDPolicy::shouldUseSIMD(threshold + 100) ||
-               SIMDPolicy::getBestLevel() == SIMDPolicy::Level::None);
+                    SIMDPolicy::getBestLevel() == SIMDPolicy::Level::None);
 
         std::cout << "   ✓ Basic threshold properties passed\n";
         std::cout << "     Minimum threshold: " << threshold << " elements\n";
@@ -495,11 +491,24 @@ void test_stress_conditions() {
 // MAIN FUNCTION
 //==============================================================================
 
-
-TEST(SimdPolicy, CorePolicyDecisions)      { test_core_policy_decisions(); }
-TEST(SimdPolicy, SimdLevelDetection)       { test_simd_level_detection(); }
-TEST(SimdPolicy, ThresholdCalculations)    { test_threshold_calculations(); }
-TEST(SimdPolicy, AlignmentRequirements)    { test_alignment_requirements(); }
-TEST(SimdPolicy, CapabilityReporting)      { test_capability_reporting(); }
-TEST(SimdPolicy, CrossPlatformConsistency) { test_cross_platform_consistency(); }
-TEST(SimdPolicy, StressConditions)         { test_stress_conditions(); }
+TEST(SimdPolicy, CorePolicyDecisions) {
+    test_core_policy_decisions();
+}
+TEST(SimdPolicy, SimdLevelDetection) {
+    test_simd_level_detection();
+}
+TEST(SimdPolicy, ThresholdCalculations) {
+    test_threshold_calculations();
+}
+TEST(SimdPolicy, AlignmentRequirements) {
+    test_alignment_requirements();
+}
+TEST(SimdPolicy, CapabilityReporting) {
+    test_capability_reporting();
+}
+TEST(SimdPolicy, CrossPlatformConsistency) {
+    test_cross_platform_consistency();
+}
+TEST(SimdPolicy, StressConditions) {
+    test_stress_conditions();
+}

@@ -27,13 +27,13 @@ int main() {
         cout << "Default (mu=0, kappa=1). Support: (-pi, pi]." << endl;
 
         auto default_vm = stats::VonMisesDistribution::create().value;
-        BasicTestFormatter::printProperty("Default mu",    default_vm.getMu());
+        BasicTestFormatter::printProperty("Default mu", default_vm.getMu());
         BasicTestFormatter::printProperty("Default kappa", default_vm.getKappa());
-        BasicTestFormatter::printProperty("isUniform (expect 0)", (int)default_vm.isUniform());
+        BasicTestFormatter::printProperty("isUniform (expect 0)", static_cast<int>(default_vm.isUniform()));
 
         // kappa=0 → uniform
         auto vm0 = stats::VonMisesDistribution::create(0.0, 0.0).value;
-        BasicTestFormatter::printProperty("kappa=0 isUniform", (int)vm0.isUniform());
+        BasicTestFormatter::printProperty("kappa=0 isUniform", static_cast<int>(vm0.isUniform()));
 
         auto copy_vm = vm0;
         BasicTestFormatter::printProperty("Copy kappa", copy_vm.getKappa());
@@ -57,7 +57,7 @@ int main() {
         cout << "Angle wrapping: mu is always stored in (-pi, pi]." << endl;
 
         auto vm = stats::VonMisesDistribution::create(0.0, 1.0).value;
-        BasicTestFormatter::printProperty("mu",    vm.getMu());
+        BasicTestFormatter::printProperty("mu", vm.getMu());
         BasicTestFormatter::printProperty("kappa", vm.getKappa());
         BasicTestFormatter::printPropertyInt("Num parameters (expect 2)", vm.getNumParameters());
         cout << "Name: " << vm.getDistributionName() << endl;
@@ -72,13 +72,14 @@ int main() {
         BasicTestFormatter::printProperty("setKappa(2): kappa", vm.getKappa());
 
         vm.setParameters(0.0, 1.0);
-        BasicTestFormatter::printProperty("After reset setParameters: isUniform", (int)vm.isUniform());
+        BasicTestFormatter::printProperty("After reset setParameters: isUniform",
+                                          static_cast<int>(vm.isUniform()));
 
         // Variance (circular): at kappa=0 → 1.0; at kappa→∞ → 0
         auto vm_uniform = VonMisesDistribution::create(0.0, 0.0).value;
-        auto vm_conc    = VonMisesDistribution::create(0.0, 10.0).value;
+        auto vm_conc = VonMisesDistribution::create(0.0, 10.0).value;
         const double var_uniform = vm_uniform.getVariance();
-        const double var_conc    = vm_conc.getVariance();
+        const double var_conc = vm_conc.getVariance();
         BasicTestFormatter::printProperty("Circ variance (kappa=0, expect 1)", var_uniform);
         BasicTestFormatter::printProperty("Circ variance (kappa=10, expect <0.1)", var_conc);
         const bool var_ok = (std::abs(var_uniform - 1.0) < 1e-10) && (var_conc < 0.1);
@@ -87,7 +88,8 @@ int main() {
         auto vr = vm.trySetKappa(-1.0);
         cout << "trySetKappa(-1) isError: " << (vr.isError() ? "YES" : "NO") << endl;
 
-        if (!wrapped_ok || !var_ok) throw std::runtime_error("Parameter test failed");
+        if (!wrapped_ok || !var_ok)
+            throw std::runtime_error("Parameter test failed");
 
         BasicTestFormatter::printTestSuccess("All setter/getter tests passed");
         BasicTestFormatter::printNewline();
@@ -116,7 +118,7 @@ int main() {
 
         // kappa=1, mu=0: PDF(0) > PDF(pi) (mode at mu)
         auto vm1 = VonMisesDistribution::create(0.0, 1.0).value;
-        const double pdf_at_mu  = vm1.getProbability(0.0);
+        const double pdf_at_mu = vm1.getProbability(0.0);
         const double pdf_at_opp = vm1.getProbability(M_PI);
         BasicTestFormatter::printProperty("PDF(0; kappa=1) mode", pdf_at_mu);
         BasicTestFormatter::printProperty("PDF(pi; kappa=1) anti-mode", pdf_at_opp);
@@ -124,7 +126,7 @@ int main() {
 
         // LogPDF consistency
         const double pdf_v = vm1.getProbability(1.0);
-        const double lp_v  = vm1.getLogProbability(1.0);
+        const double lp_v = vm1.getLogProbability(1.0);
         const bool lp_ok = std::abs(std::log(pdf_v) - lp_v) < 1e-12;
         cout << "log(PDF) == LogPDF: " << (lp_ok ? "PASS" : "FAIL") << endl;
 
@@ -153,7 +155,10 @@ int main() {
         const auto samples = sample_dist.sample(rng, 500);
         bool all_in_range = true;
         for (double sv : samples)
-            if (sv <= -M_PI || sv > M_PI) { all_in_range = false; break; }
+            if (sv <= -M_PI || sv > M_PI) {
+                all_in_range = false;
+                break;
+            }
         cout << "All 500 samples in (-pi, pi]: " << (all_in_range ? "PASS" : "FAIL") << endl;
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
@@ -166,14 +171,16 @@ int main() {
         cout << "MLE: mu = atan2(S,C); kappa via Mardia-Jupp + Newton-Raphson." << endl;
 
         auto fit_dist = VonMisesDistribution::create(0.0, 1.0).value;
-        auto source   = VonMisesDistribution::create(1.0, 3.0).value;
+        auto source = VonMisesDistribution::create(1.0, 3.0).value;
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
-        BasicTestFormatter::printProperty("Fitted mu    (from VM(1,3), expect ~1)", fit_dist.getMu());
-        BasicTestFormatter::printProperty("Fitted kappa (from VM(1,3), expect ~3)", fit_dist.getKappa());
+        BasicTestFormatter::printProperty("Fitted mu    (from VM(1,3), expect ~1)",
+                                          fit_dist.getMu());
+        BasicTestFormatter::printProperty("Fitted kappa (from VM(1,3), expect ~3)",
+                                          fit_dist.getKappa());
 
         fit_dist.reset();
-        BasicTestFormatter::printProperty("After reset: mu (expect 0)",    fit_dist.getMu());
+        BasicTestFormatter::printProperty("After reset: mu (expect 0)", fit_dist.getMu());
         BasicTestFormatter::printProperty("After reset: kappa (expect 1)", fit_dist.getKappa());
         cout << "toString: " << fit_dist.toString() << endl;
 
@@ -184,7 +191,8 @@ int main() {
         // Test 6: Batch Operations
         // =====================================================================
         BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
-        cout << "No SIMD (no vector_cos); VECTORIZED = scalar loop with cached logNormaliser_." << endl;
+        cout << "No SIMD (no vector_cos); VECTORIZED = scalar loop with cached logNormaliser_."
+             << endl;
 
         auto batch_dist = VonMisesDistribution::create(0.0, 2.0).value;
         const vector<double> xs = {-1.5, -0.5, 0.0, 0.5, 1.5};
@@ -196,10 +204,11 @@ int main() {
 
         bool batch_ok = true;
         for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_b[i]  - batch_dist.getProbability(xs[i]))           > 1e-12 ||
-                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i]))        > 1e-12 ||
-                std::abs(cdf_b[i]  - batch_dist.getCumulativeProbability(xs[i])) > 1e-6) {
-                batch_ok = false; break;
+            if (std::abs(pdf_b[i] - batch_dist.getProbability(xs[i])) > 1e-12 ||
+                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i])) > 1e-12 ||
+                std::abs(cdf_b[i] - batch_dist.getCumulativeProbability(xs[i])) > 1e-6) {
+                batch_ok = false;
+                break;
             }
         }
         cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
@@ -209,16 +218,19 @@ int main() {
         for (size_t i = 0; i < N; ++i)
             large_in[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
         batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(vec_out),
-                                                  stats::detail::Strategy::VECTORIZED);
-        batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                  span<double>(scl_out),
-                                                  stats::detail::Strategy::SCALAR);
+                                                 span<double>(vec_out),
+                                                 stats::detail::Strategy::VECTORIZED);
+        batch_dist.getLogProbabilityWithStrategy(
+            span<const double>(large_in), span<double>(scl_out), stats::detail::Strategy::SCALAR);
         bool large_ok = true;
         for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-12) { large_ok = false; break; }
+            if (std::abs(vec_out[i] - scl_out[i]) > 1e-12) {
+                large_ok = false;
+                break;
+            }
         }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL") << endl;
+        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
+             << endl;
 
         BasicTestFormatter::printTestSuccess("Batch operation tests passed");
         BasicTestFormatter::printNewline();
@@ -238,7 +250,8 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
         auto in_dist = VonMisesDistribution::create().value;
         ss.seekg(0);
-        if (ss >> in_dist) cout << "Stream round-trip kappa: " << in_dist.getKappa() << endl;
+        if (ss >> in_dist)
+            cout << "Stream round-trip kappa: " << in_dist.getKappa() << endl;
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();
@@ -249,12 +262,14 @@ int main() {
         BasicTestFormatter::printTestStart(8, "Error Handling");
 
         auto err1 = VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0);
-        if (err1.isError()) BasicTestFormatter::printTestSuccess("mu=Inf rejected: " + err1.message);
+        if (err1.isError())
+            BasicTestFormatter::printTestSuccess("mu=Inf rejected: " + err1.message);
         auto err2 = VonMisesDistribution::create(0.0, -1.0);
-        if (err2.isError()) BasicTestFormatter::printTestSuccess("kappa=-1 rejected: " + err2.message);
-        auto err3 = VonMisesDistribution::create(
-            std::numeric_limits<double>::quiet_NaN(), 1.0);
-        if (err3.isError()) BasicTestFormatter::printTestSuccess("mu=NaN rejected: " + err3.message);
+        if (err2.isError())
+            BasicTestFormatter::printTestSuccess("kappa=-1 rejected: " + err2.message);
+        auto err3 = VonMisesDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0);
+        if (err3.isError())
+            BasicTestFormatter::printTestSuccess("mu=NaN rejected: " + err3.message);
 
         BasicTestFormatter::printTestSuccess("All error handling tests passed");
         BasicTestFormatter::printNewline();

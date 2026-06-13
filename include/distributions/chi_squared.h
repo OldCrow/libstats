@@ -340,7 +340,7 @@ class ChiSquaredDistribution : public DistributionBase {
      * @param results  Vector to store fitted ChiSquaredDistribution objects
      */
     static void parallelBatchFit(const std::vector<std::vector<double>>& datasets,
-                                  std::vector<ChiSquaredDistribution>& results);
+                                 std::vector<ChiSquaredDistribution>& results);
 
     /**
      * @brief Reset to default parameters (k = 1).

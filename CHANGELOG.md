@@ -12,6 +12,24 @@
   `parallelBatchFit`/SIMD batch/auto-dispatch/explicit-strategy/GTest suite/timing labels).
 - `LOG_NORMAL` and `PARETO` added to `DistributionType` enum, `DistributionTraits`,
   `forward_declarations.h`, and `libstats.h` type aliases.
+- `WeibullDistribution` — reliability/survival analysis; 8-step SIMD LogPDF/PDF (one
+  temp buffer) and 8-step CDF (no temp buffer). MLE: method-of-moments seed →
+  Newton–Raphson profile score solver (g'(k) = Var_k[log x] + 1/k² > 0, always
+  converges). Sampling via `std::weibull_distribution<double>`.
+- `RayleighDistribution` — signal-processing magnitudes; standalone implementation
+  (not a Weibull delegation) because the quadratic x² structure gives a simpler
+  5-step LogPDF pipeline and a 5-step no-temp CDF, vs. Weibull’s 8-step
+  log(x/λ) path. Closed-form MLE: σ̂ = √(Σxᵢ²/(2n)).
+- `VonMisesDistribution` — circular/directional data; includes `include/core/bessel.h`
+  (modified Bessel functions I₀, I₁, log I₀; two-tier: `std::cyl_bessel_i` when
+  available, A&S §9.8 polynomial fallback for AppleClang/macOS). LogPDF =
+  κ·cos(x−μ) − logNormaliser_; `logNormaliser_` = log(2π) + log I₀(κ) cached.
+  VECTORIZED uses a scalar loop (no vector_cos); PARALLEL is recommended for
+  large batches. MLE: atan2(S,C) for μ̂; Mardia–Jupp + Newton–Raphson for κ̂.
+  Sampling: Best (1979) rejection sampler.
+- `WEIBULL`, `RAYLEIGH`, `VON_MISES` added to `DistributionType` enum,
+  `DistributionTraits`, `forward_declarations.h`, and `libstats.h` type aliases.
+- CMake: `LIBSTATS_HAS_CXX17_BESSEL` capability check (for `std::cyl_bessel_i`).
 
 ---
 

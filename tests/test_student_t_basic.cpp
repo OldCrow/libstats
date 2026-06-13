@@ -29,7 +29,7 @@ int main() {
 
         auto default_t = stats::StudentTDistribution::create().value;
         BasicTestFormatter::printProperty("Default nu (df)", default_t.getNu());
-        BasicTestFormatter::printProperty("Default isCauchy", (int)default_t.isCauchy());
+        BasicTestFormatter::printProperty("Default isCauchy", static_cast<int>(default_t.isCauchy()));
 
         auto t3 = stats::StudentTDistribution::create(3.0).value;
         BasicTestFormatter::printProperty("nu=3 created", t3.getNu());

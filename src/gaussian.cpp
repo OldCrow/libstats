@@ -1,11 +1,11 @@
 #include "libstats/distributions/gaussian.h"
-#include "libstats/core/parallel_batch_fit.h"
 
 #include "libstats/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
 #include "libstats/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
 #include "libstats/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
+#include "libstats/core/parallel_batch_fit.h"
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "libstats/core/safety.h"
 #include "libstats/core/validation.h"
@@ -655,9 +655,8 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
     setParameters(running_mean, sample_std);
 }
 
-void GaussianDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<GaussianDistribution>& results) {
+void GaussianDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                            std::vector<GaussianDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 

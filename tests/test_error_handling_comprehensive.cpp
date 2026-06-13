@@ -7,11 +7,10 @@
 
 // Standard library includes
 #include <algorithm>
-#include <gtest/gtest.h>
 #include <atomic>
-#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -29,9 +28,7 @@ using namespace std;
 
 // Test statistics
 struct TestStats {
-    void record(bool success, const std::string& test_name) {
-        EXPECT_TRUE(success) << test_name;
-    }
+    void record(bool success, const std::string& test_name) { EXPECT_TRUE(success) << test_name; }
     void print_summary([[maybe_unused]] const std::string& category) {}
 };
 
@@ -508,8 +505,7 @@ void test_distributions() {
 
 void test_stress() {
     cout << "\n=== Stress Testing Error Handling ===" << endl;
-    cout << "Running " << 1000 << " iterations with " << 4
-         << " threads" << endl;
+    cout << "Running " << 1000 << " iterations with " << 4 << " threads" << endl;
 
     atomic<int> successes(0);
     atomic<int> failures(0);
@@ -656,14 +652,21 @@ void test_benchmarks() {
 // MAIN FUNCTION AND ARGUMENT PARSING
 //==============================================================================
 
-
-
-
-
-
-TEST(ErrorHandling, FactoryMethods)          { test_factory_methods(); }
-TEST(ErrorHandling, DualApi)                 { test_dual_api(); }
-TEST(ErrorHandling, ParameterValidation)     { test_parameter_validation(); }
-TEST(ErrorHandling, DistributionSpecific)    { test_distributions(); }
-TEST(ErrorHandling, StressTests)             { test_stress(); }
-TEST(ErrorHandling, Benchmarks)              { test_benchmarks(); }
+TEST(ErrorHandling, FactoryMethods) {
+    test_factory_methods();
+}
+TEST(ErrorHandling, DualApi) {
+    test_dual_api();
+}
+TEST(ErrorHandling, ParameterValidation) {
+    test_parameter_validation();
+}
+TEST(ErrorHandling, DistributionSpecific) {
+    test_distributions();
+}
+TEST(ErrorHandling, StressTests) {
+    test_stress();
+}
+TEST(ErrorHandling, Benchmarks) {
+    test_benchmarks();
+}

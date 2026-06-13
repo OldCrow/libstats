@@ -50,7 +50,8 @@ namespace detail {  // Performance utilities
  *   VECTORIZED   — batch path through VectorOps; SIMD-accelerated for
  *                  distributions with a fixed-step VectorOps pipeline
  *                  (Gaussian, Exponential, Gamma, Uniform, Chi-squared,
- *                  Student's t, Beta, Log-Normal, Pareto)
+ *                  Student's t, Beta, Log-Normal, Pareto, Weibull, Rayleigh).
+ *                  Exception: Von Mises uses a scalar loop (no vector_cos)
  *   PARALLEL     — multi-threaded via ParallelUtils::parallelFor; inner
  *                  loops may or may not be vectorized per distribution
  *   WORK_STEALING — work-stealing thread pool for irregular workloads
@@ -178,11 +179,11 @@ class PerformanceDispatcher {
         size_t student_t_parallel_min = 256;    ///< Log+transcendental, matches Gaussian
         size_t beta_parallel_min = 256;  ///< Two log calls, bounded support, matches Gaussian
         size_t chi_squared_parallel_min = 256;  ///< Delegates to Gamma; positive real-line support
-        size_t lognormal_parallel_min = 256;  ///< Log+exp, similar complexity to Gaussian
-        size_t pareto_parallel_min = 512;     ///< Log-only, similar complexity to Exponential
-        size_t weibull_parallel_min = 256;    ///< Log+two-exp, similar complexity to Gaussian
-        size_t rayleigh_parallel_min = 512;   ///< x²+exp, similar complexity to Exponential
-        size_t von_mises_parallel_min = 512;  ///< cos per element; no SIMD, PARALLEL preferred
+        size_t lognormal_parallel_min = 256;    ///< Log+exp, similar complexity to Gaussian
+        size_t pareto_parallel_min = 512;       ///< Log-only, similar complexity to Exponential
+        size_t weibull_parallel_min = 256;      ///< Log+two-exp, similar complexity to Gaussian
+        size_t rayleigh_parallel_min = 512;     ///< x²+exp, similar complexity to Exponential
+        size_t von_mises_parallel_min = 512;    ///< cos per element; no SIMD, PARALLEL preferred
 
         /**
          * @brief Create thresholds based on SIMDPolicy level

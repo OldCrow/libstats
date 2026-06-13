@@ -71,8 +71,7 @@ class LogNormalDistribution : public DistributionBase {
      * Default (0, 1) is the standard log-normal distribution.
      * Implementation in .cpp.
      */
-    explicit LogNormalDistribution(double mu = detail::ZERO_DOUBLE,
-                                   double sigma = detail::ONE);
+    explicit LogNormalDistribution(double mu = detail::ZERO_DOUBLE, double sigma = detail::ONE);
 
     /** @brief Thread-safe copy constructor. Implementation in .cpp. */
     LogNormalDistribution(const LogNormalDistribution& other);
@@ -99,8 +98,8 @@ class LogNormalDistribution : public DistributionBase {
      * @param sigma Scale parameter σ (must be positive)
      * @return Result containing a valid LogNormalDistribution or error info
      */
-    [[nodiscard]] static Result<LogNormalDistribution> create(
-        double mu = detail::ZERO_DOUBLE, double sigma = detail::ONE) noexcept {
+    [[nodiscard]] static Result<LogNormalDistribution> create(double mu = detail::ZERO_DOUBLE,
+                                                              double sigma = detail::ONE) noexcept {
         auto validation = validateLogNormalParameters(mu, sigma);
         if (validation.isError()) {
             return Result<LogNormalDistribution>::makeError(validation.error_code,
@@ -384,8 +383,7 @@ class LogNormalDistribution : public DistributionBase {
             throw std::invalid_argument("Mu (log-mean) must be a finite real number");
         }
         if (std::isnan(sigma) || std::isinf(sigma) || sigma <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument(
-                "Sigma (log-stddev) must be a positive finite number");
+            throw std::invalid_argument("Sigma (log-stddev) must be a positive finite number");
         }
     }
 

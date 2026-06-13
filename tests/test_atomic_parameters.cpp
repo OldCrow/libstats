@@ -9,12 +9,11 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <thread>
 #include <utility>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 using namespace stats;
 
@@ -24,7 +23,7 @@ TEST(AtomicParameters, ExponentialAtomicGetter) {
     auto exp_dist = std::move(result.value);
 
     double lambda_regular = exp_dist.getLambda();
-    double lambda_atomic  = exp_dist.getLambdaAtomic();
+    double lambda_atomic = exp_dist.getLambdaAtomic();
 
     EXPECT_NEAR(lambda_regular, lambda_atomic, 1e-15);
     EXPECT_NEAR(lambda_atomic, 2.5, 1e-15);
@@ -42,7 +41,7 @@ TEST(AtomicParameters, AtomicGetterConsistency) {
     exp_dist.setLambda(3.5);
 
     double lambda_regular = exp_dist.getLambda();
-    double lambda_atomic  = exp_dist.getLambdaAtomic();
+    double lambda_atomic = exp_dist.getLambdaAtomic();
 
     EXPECT_NEAR(lambda_regular, lambda_atomic, 1e-15);
     EXPECT_NEAR(lambda_atomic, 3.5, 1e-15);
@@ -54,7 +53,7 @@ TEST(AtomicParameters, GaussianAtomicGetters) {
     ASSERT_TRUE(result.isOk());
     auto gauss_dist = std::move(result.value);
 
-    EXPECT_NEAR(gauss_dist.getMean(),              gauss_dist.getMeanAtomic(),              1e-15);
+    EXPECT_NEAR(gauss_dist.getMean(), gauss_dist.getMeanAtomic(), 1e-15);
     EXPECT_NEAR(gauss_dist.getStandardDeviation(), gauss_dist.getStandardDeviationAtomic(), 1e-15);
     EXPECT_NEAR(gauss_dist.getMeanAtomic(), 5.0, 1e-15);
     EXPECT_NEAR(gauss_dist.getStandardDeviationAtomic(), 2.0, 1e-15);
@@ -157,7 +156,7 @@ TEST(AtomicParameters, PerformanceComparison) {
     auto t2 = std::chrono::high_resolution_clock::now();
 
     auto ns_regular = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
-    auto ns_atomic  = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    auto ns_atomic = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
     std::cout << "  Regular: " << ns_regular / iterations << " ns/call, "
               << "Atomic: " << ns_atomic / iterations << " ns/call\n";
 
@@ -171,22 +170,24 @@ TEST(AtomicParameters, ThreadSafety) {
     auto exp_dist = std::move(result.value);
 
     const int num_threads = 4;
-    const int ops         = 10000;
+    const int ops = 10000;
     std::vector<std::thread> threads;
     std::atomic<int> success_count{0};
 
     for (int t = 0; t < num_threads; ++t) {
-        threads.emplace_back([&exp_dist, &success_count, ops]() {
+        threads.emplace_back([&exp_dist, &success_count]() {
             bool ok = true;
             for (int i = 0; i < ops && ok; ++i) {
                 if (std::abs(exp_dist.getLambdaAtomic() - 2.0) > 1e-14)
                     ok = false;
             }
-            if (ok) success_count++;
+            if (ok)
+                success_count++;
         });
     }
 
-    for (auto& thread : threads) thread.join();
+    for (auto& thread : threads)
+        thread.join();
 
     EXPECT_EQ(success_count.load(), num_threads);
     std::cout << "  Thread safety: " << num_threads << " threads x " << ops << " ops OK\n";
