@@ -54,18 +54,10 @@ Auto-format all source files:
 
 Uses the project's `.clang-format` configuration to ensure consistent style.
 
-### IWYU Script (`scripts/run-iwyu.sh`)
-Analyze header dependencies and includes:
-```bash
-# Analyze entire project
-./scripts/run-iwyu.sh --all
-
-# Analyze source files only
-./scripts/run-iwyu.sh --src
-
-# Analyze specific file
-./scripts/run-iwyu.sh --file src/gaussian.cpp
-```
+### IWYU Script (`scripts/run-iwyu.sh`) — archival
+This script ran Include What You Use analysis during a past header optimization pass.
+That work is complete; the script is retained for reference only and is not part of the
+normal development workflow.
 
 ### Pre-commit Setup (`scripts/setup-pre-commit.sh`)
 Install and configure pre-commit hooks:
@@ -113,19 +105,8 @@ Pre-commit hooks configuration:
 - `.cmake-format.yaml` - CMake formatting rules
 - `.markdownlint.yaml` - Markdown linting configuration
 
-## Future Enhancements
+## Potential Enhancements
 
-### Historical
-- ✅ Basic CI infrastructure
-- ✅ Multi-platform builds
-- ✅ Code quality tools
-- ✅ Coverage reporting
-
-### Completed
-- ✅ Include What You Use (IWYU) configuration
-- ✅ Pre-commit hooks for local validation
-
-### Future Versions
 - [ ] Enforce formatting in CI (fail on violations)
 - [ ] Enforce clang-tidy checks (gradual rollout)
 - [ ] Add sanitizer builds (ASAN, UBSAN, TSAN)

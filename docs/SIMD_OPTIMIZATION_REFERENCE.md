@@ -7,15 +7,13 @@
 > indefinitely. See AGENTS.md for the current deferred-items list.
 
 
-**Status as of v1.0.0**
+**Status as of v1.2.0**
 
-This document records SIMD optimization analysis for the development phase. It contains algorithm details
+This document records SIMD optimization analysis. It contains algorithm details
 for the hand-rolled SIMD transcendental functions that would be needed to bring
-AVX2/AVX-512 transcendental performance to full width. These items are documented
-in the main work plan.
+AVX2/AVX-512 transcendental performance to full width.
 
-The framing below is historical. Items marked ❌ below have been addressed;
-items marked ⏳ remain deferred.
+Items marked ✅ below have been resolved; items marked ⏳ remain deferred.
 
 ---
 
@@ -24,7 +22,7 @@ items marked ⏳ remain deferred.
 The accuracy bug described here is fixed. The current implementation
 uses Abramowitz & Stegun 7.1.26 with max error ~1.5×10⁻⁷, documented in both
 `src/simd_avx.cpp` and `tests/test_math_comprehensive.cpp`. `simd_verification`
-confirms 36/36 PASS including Gaussian CDF (which uses `vector_erf`).
+confirms 54/54 PASS including Gaussian CDF and Log-Normal CDF (which both use `vector_erf`).
 
 For reference, the algorithm that was implemented:
 
@@ -86,8 +84,8 @@ already delivers full double precision; the vectorized path is the tradeoff.
 
 4. **Integration Points**:
    - Files to modify: `src/simd_avx.cpp`, `src/simd_avx2.cpp`, `src/simd_avx512.cpp`, `src/simd_sse2.cpp`, `src/simd_neon.cpp`
-   - Test files: `tests/test_simd_operations.cpp`
-   - Benchmark: `tools/simd_library_benchmark.cpp`
+   - Test coverage: `tests/test_simd_comprehensive.cpp`, `tests/test_math_comprehensive.cpp`
+   - Verification tool: `build/tools/simd_verification`
 
 ---
 

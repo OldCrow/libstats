@@ -39,9 +39,12 @@ The libstats project strategically uses two testing approaches:
 - **Drawbacks**: Additional dependency, slightly slower execution
 
 ### Current Framework Distribution
-- **Standalone tests**: 20 tests (service infrastructure, basic functionality)
-- **GTest tests**: 8 tests (enhanced distribution and performance methods; require GTest)
-- **Total registered**: 28 tests (GTest tests silently skipped when GTest is absent)
+- **Standalone tests**: ~25 tests (service infrastructure, basic distribution functionality)
+- **GTest tests**: ~25 tests (enhanced distribution tests with SIMD timing assertions; require GTest)
+- **Correctness suite** (`-LE timing|benchmark`): 34 tests — always parallel-safe
+- **Timing suite** (`-L timing`): 14 tests — run serially for accurate speedup measurement
+- **Benchmark**: 1 test (`benchmark_simd_all`)
+- GTest tests silently skipped when GTest is absent
 
 ## Test Organization by Dependency Levels
 
@@ -84,7 +87,7 @@ The libstats project strategically uses two testing approaches:
 - **`test_system_capabilities`** (**GTest**) - System capability detection
 - **`test_performance_initialization`** (**GTest**) - Performance system initialization
 
-### Level 5: Distribution Basic Tests (7 tests)
+### Level 5: Distribution Basic Tests (11 tests + atomic)
 **Purpose**: Validate concrete statistical distribution implementations
 
 - **`test_gaussian_basic`** - Fundamental operations (PDF, CDF, quantiles, fitting)
@@ -93,15 +96,25 @@ The libstats project strategically uses two testing approaches:
 - **`test_poisson_basic`** - Fundamental operations (incl. exact methods)
 - **`test_discrete_basic`** - Fundamental operations
 - **`test_gamma_basic`** - Fundamental operations
+- **`test_chi_squared_basic`** - Fundamental operations
+- **`test_student_t_basic`** - Fundamental operations
+- **`test_beta_basic`** - Fundamental operations
+- **`test_lognormal_basic`** - Fundamental operations
+- **`test_pareto_basic`** - Fundamental operations
 - **`test_atomic_parameters`** - Lock-free parameter access across all distributions
 
-### Level 6: Distribution Enhanced Tests (6 tests, GTest, timing label)
+### Level 6: Distribution Enhanced Tests (11 tests, GTest, timing label)
 - **`test_gaussian_enhanced`** (**GTest, timing**) - Confidence intervals, bootstrap, KS/AD, SIMD batch
 - **`test_exponential_enhanced`** (**GTest, timing**)
 - **`test_uniform_enhanced`** (**GTest, timing**)
 - **`test_poisson_enhanced`** (**GTest, timing**)
 - **`test_discrete_enhanced`** (**GTest, timing**)
 - **`test_gamma_enhanced`** (**GTest, timing**)
+- **`test_chi_squared_enhanced`** (**GTest, timing**)
+- **`test_student_t_enhanced`** (**GTest, timing**)
+- **`test_beta_enhanced`** (**GTest, timing**)
+- **`test_lognormal_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
+- **`test_pareto_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
 
 ### Level 7: Integration Tests (3 tests)
 **Purpose**: Dynamic library linking and cross-cutting functionality
@@ -112,23 +125,11 @@ The libstats project strategically uses two testing approaches:
 
 ## Consolidated Testing Strategy
 
-### Historical Consolidation (Completed)
+### Naming Conventions
 
-The testing infrastructure was successfully consolidated from 30 to 27 tests:
-
-#### What Was Removed
-- **Debug files** (5 files): `debug_erf_inv_test.cpp`, `debug_beta_i_test.cpp`, `verify_beta_i.cpp`, etc.
-- **Redundant Gaussian tests** (2 files): `test_advanced_methods.cpp`, `test_gaussian_phase3.cpp`
-
-#### What Was Merged
-- Advanced Gaussian functionality consolidated into `test_gaussian_enhanced.cpp` with comprehensive GTest coverage
-- All statistical methods test cases
-- Mathematical function debugging consolidated into production-quality `test_math_comprehensive.cpp`
-
-#### What Was Standardized
-- Consistent naming: `*_basic.cpp` for fundamental operations, `*_enhanced.cpp` for advanced features
-- Clear separation of concerns between basic and advanced functionality
-- Modern C++20 practices with proper GTest integration
+- `test_*_basic.cpp` — standalone (no GTest required); covers the core 8-section test structure
+- `test_*_enhanced.cpp` — GTest, labelled `timing`; covers SIMD correctness and speedup assertions
+- Service-layer tests follow the same `*_basic` / `*_enhanced` convention where applicable
 
 ## Unified Test Infrastructure
 
@@ -163,30 +164,17 @@ Each basic test follows this standardized 7-10 test structure:
 
 #### Distribution Coverage
 
-**✅ Gaussian Distribution**
-- Properties: Mean, variance, standard deviation, skewness, kurtosis
-- Sampling: Box-Muller algorithm validation
-- Fitting: Maximum Likelihood Estimation
-
-**✅ Exponential Distribution**
-- Properties: Lambda (rate), mean, variance, skewness, kurtosis
-- Sampling: Inverse transform method
-- Fitting: Maximum Likelihood Estimation
-
-**✅ Uniform Distribution**
-- Properties: Lower/upper bounds, mean, variance, skewness, kurtosis
-- Sampling: Direct transform method
-- Fitting: Method of moments (range estimation)
-
-**✅ Discrete Distribution**
-- Properties: Lower/upper bounds, range, mean, variance, skewness, kurtosis
-- Sampling: Single, batch, and integer sampling
-- Features: Support validation, outcome enumeration, binary distribution special case
-
-**✅ Poisson Distribution**
-- Properties: Lambda, mean, variance, skewness, kurtosis, mode
-- Sampling: Knuth's algorithm (small λ) and Atkinson algorithm (large λ)
-- Features: Normal approximation capability, integer sampling, exact methods
+**✅ Gaussian Distribution** — Box-Muller sampling, confidence intervals, bootstrap CIs, KS/AD tests
+**✅ Exponential Distribution** — inverse transform, half-life utility, memoryless property
+**✅ Uniform Distribution** — range estimation, support validation
+**✅ Discrete Distribution** — integer sampling, outcome enumeration, binary special case
+**✅ Poisson Distribution** — Knuth (small λ) and Atkinson (large λ) sampling, exact methods
+**✅ Gamma Distribution** — Marsaglia-Tsang sampling, shape/rate parametrisation
+**✅ Chi-squared Distribution** — delegation to Gamma(ν/2, 1/2); degrees-of-freedom interface
+**✅ Student's t Distribution** — log-space SIMD LogPDF/PDF; incomplete beta CDF
+**✅ Beta Distribution** — two-log SIMD pipeline; regularized incomplete beta CDF/quantile
+**✅ Log-Normal Distribution** — 6-step SIMD LogPDF; closed-form MLE via log-space Gaussian transform
+**✅ Pareto Distribution** — 3-step SIMD LogPDF (simplest pipeline); closed-form two-step MLE
 
 #### Consistent Output Format
 
@@ -219,10 +207,10 @@ Test 2: PDF, CDF, and quantile functions
 ✓ [Distribution-specific features]
 ```
 
-### Enhanced Test Framework (`enhanced_test_template.h`)
+### Enhanced Test Framework (`tests/include/fixtures.h`)
 
 #### Overview
-The enhanced tests utilize Google Test for comprehensive testing of advanced statistical functionality, performance benchmarks, and thread safety validation.
+The enhanced tests use Google Test for comprehensive statistical functionality testing, SIMD correctness verification, speedup assertions, and (for the original six distributions) advanced methods such as confidence intervals, bootstrap CIs, cross-validation, and KS/AD goodness-of-fit tests.
 
 #### Framework Components
 
@@ -283,12 +271,15 @@ Each enhanced test includes:
 
 ### Performance Validation Results
 
-- **Gaussian SIMD**: >1.0x speedup confirmed for batch operations
-- **Exponential SIMD**: 6.7x speedup confirmed for batch operations
-- **Uniform SIMD**: Excellent speedups for batch probability and cumulative calculations
-- **Discrete SIMD**: Consistent performance across integer operations
-- **Poisson SIMD**: Optimized performance for both small and large lambda values
-- **Mathematical functions**: 99.34% accuracy vs SciPy (151/152 tests pass)
+All eleven distributions produce measurable SIMD speedup on aligned batches. Headline results
+from `simd_verification` on Ivy Bridge AVX (see AGENTS.md for all four architectures):
+
+- **Exponential LogPDF**: 20.8x
+- **Uniform CDF**: 25.2x
+- **Gamma PDF**: 9.7x
+- **Pareto LogPDF**: among the highest (3-step pipeline, single vector_log + two scalars)
+- **Log-Normal LogPDF**: strong (6-step pipeline, one vector_log + element-wise square)
+- **Overall simd_verification speedup**: 4.10x on AVX, 3.49x on AVX2, 2.31x on NEON, 1.64x on AVX-512
 - **Thread safety**: Verified across all implementations
 - **Memory safety**: Comprehensive bounds checking and numerical stability
 
@@ -297,8 +288,9 @@ Each enhanced test includes:
 ### All Tests in Dependency Order
 ```bash
 cd build
-make run_tests
-# Expected: 100% tests passed, 0 tests failed out of 27
+make run_tests        # correctness only (parallel-safe)
+make run_tests_timing # timing/speedup assertions (run serially)
+make run_all_tests    # everything
 ```
 
 ### By Dependency Level
@@ -333,15 +325,11 @@ ctest -R ".*dynamic.*"
 
 ## Test Execution Statistics
 
-- **Total Tests**: 27 (reduced from 30 after consolidation)
-- **Foundational Tests (Level 0)**: 9 tests
-- **Infrastructure Tests (Level 1)**: 5 tests (includes GTest math_comprehensive)
-- **Framework Tests (Level 2)**: 0 tests (covered by Level 4)
-- **Parallel Tests (Level 3)**: 5 tests
-- **Distribution Tests (Level 4)**: 4 tests (includes 2 GTest suites)
-- **Cross-cutting Tests**: 4 tests
-- **Success Rate**: 100% (27/27 tests pass)
-- **Execution Time**: ~14 seconds for full suite
+- **Correctness suite** (`ctest -LE "timing|benchmark"`): 34 tests — always parallel-safe
+- **Timing suite** (`ctest -j1 -L timing`): 14 GTest tests with SIMD speedup assertions
+- **Benchmark**: 1 test (`benchmark_simd_all`)
+- **Success Rate**: 100% on all registered targets
+- **Execution Time**: ~18 seconds for the correctness suite
 
 ## Developer Guidelines
 
@@ -406,19 +394,13 @@ The `test_math_comprehensive.cpp` GTest suite provides comprehensive validation:
 - GTest integration with Homebrew detection on macOS
 - Thread-safe execution with TBB support where available
 
-## Future Development
+## Adding New Distributions
 
-### Planned Extensions
-1. **New Distributions**: Poisson, Gamma, Beta distributions following the established pattern
-2. **Test Categories**: CTest labels for filtering by dependency level or functionality
-3. **Performance Baselines**: Automated performance regression detection
-4. **Coverage Analysis**: Code coverage reports by dependency level
-5. **CI/CD Integration**: Level-based pipeline stages for efficient failure detection
+Each new distribution requires:
+1. `test_[name]_basic.cpp` — standalone test with sections matching the 24-section implementation template
+2. `test_[name]_enhanced.cpp` — GTest suite including SIMD correctness and speedup assertions (label: `timing`)
+3. Registration in `CMakeLists.txt` via `create_libstats_test()` / `create_libstats_gtest()`
+4. Addition to `set_tests_properties(... PROPERTIES LABELS "timing")` for the enhanced test
+5. Addition to the `run_all_tests` DEPENDS list
 
-### Quality Assurance
-- All new code must include both basic and enhanced test coverage
-- Performance regressions must be validated against established baselines
-- Mathematical accuracy must be verified against reference implementations (SciPy)
-- Thread safety and memory safety must be comprehensively validated
-
-This architecture ensures that libstats maintains production-quality standards while remaining maintainable and extensible for future development.
+This architecture ensures libstats maintains production-quality standards while remaining maintainable and extensible.

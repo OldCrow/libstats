@@ -36,6 +36,29 @@ All distributions in the libstats library are **mutable** - they support paramet
 - `setBounds(int a, int b)` - Set both bounds
 - `setParameters(int a, int b)` - Set both bounds (same as setBounds)
 
+### 7. Chi-squared Distribution
+- `setDegreesOfFreedom(double nu)` - Set degrees of freedom
+- `setParameters(double nu)` - Set degrees of freedom (same as setDegreesOfFreedom)
+
+### 8. Student's t Distribution
+- `setDegreesOfFreedom(double nu)` - Set degrees of freedom
+- `setParameters(double nu)` - Set degrees of freedom
+
+### 9. Beta Distribution
+- `setAlpha(double alpha)` - Set first shape parameter
+- `setBeta(double beta)` - Set second shape parameter
+- `setParameters(double alpha, double beta)` - Set both parameters
+
+### 10. Log-Normal Distribution
+- `setMu(double mu)` - Set location parameter (log-mean)
+- `setSigma(double sigma)` - Set scale parameter (log-stddev, must be positive)
+- `setParameters(double mu, double sigma)` - Set both parameters
+
+### 11. Pareto Distribution
+- `setScale(double scale)` - Set scale parameter (minimum value x_m, must be positive)
+- `setAlpha(double alpha)` - Set shape parameter (must be positive)
+- `setParameters(double scale, double alpha)` - Set both parameters
+
 ## Cache Invalidation
 
 All distributions implement automatic cache invalidation when parameters are modified:

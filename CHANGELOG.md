@@ -1,3 +1,20 @@
+## [Unreleased]
+
+### Added
+- `LogNormalDistribution` — log-space Gaussian transform; 6-step SIMD LogPDF/PDF pipeline
+  (`vector_log` + element-wise `vector_multiply` + `vector_subtract`), 5-step CDF pipeline
+  (`vector_log` → `scalar_add` → `scalar_multiply` → `vector_erf` → two scalars).
+  Closed-form MLE: μ̂ = mean(log xᵢ), σ̂ = population std(log xᵢ).
+- `ParetoDistribution` — power-law/heavy-tail distribution; the simplest SIMD pipeline in
+  the library (3-step LogPDF: `vector_log` + 2 scalars; 6-step CDF with no temp buffer).
+  Closed-form MLE: x̂_m = min(xᵢ), α̂ = n / Σlog(xᵢ/x̂_m).
+- Both distributions: full 24-section template (PDF/LogPDF/CDF/quantile/sampling/MLE/
+  `parallelBatchFit`/SIMD batch/auto-dispatch/explicit-strategy/GTest suite/timing labels).
+- `LOG_NORMAL` and `PARETO` added to `DistributionType` enum, `DistributionTraits`,
+  `forward_declarations.h`, and `libstats.h` type aliases.
+
+---
+
 ## [1.2.0] - 2026-06-08
 
 ### Added

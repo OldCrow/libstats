@@ -21,7 +21,7 @@ This guide provides comprehensive information about the libstats build system, c
 ### Basic Build
 ```bash
 # Clone and build with default configuration
-git clone https://github.com/YourOrg/libstats.git
+git clone https://github.com/OldCrow/libstats.git
 cd libstats
 mkdir build && cd build
 cmake ..

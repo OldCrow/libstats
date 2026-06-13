@@ -25,9 +25,9 @@ Each bundle contains:
 | Machine | SIMD | Status |
 |---|---|---|
 | Mac Mini M1 | NEON | ✅ Captured |
-| MacBook Pro 9,1 (2012) | AVX | Pending |
-| MacBook Pro 14,1 (2017) | AVX2 | Pending |
-| Asus TUF A16 (Windows) | AVX-512 | Pending |
+| MacBook Pro 9,1 (2012) | AVX | ✅ Captured |
+| MacBook Pro 14,1 (2017) | AVX2 | ✅ Captured |
+| Asus TUF A16 (Windows) | AVX-512 | ✅ Captured |
 
 ## Capturing a new profile
 

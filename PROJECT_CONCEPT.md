@@ -6,9 +6,9 @@ libstats is a modern C++20 statistical distributions library built as a design a
 
 ## Current Status
 
-The library is feature-complete and stable at **v1.2.0**.
+The library is at **v1.2.0**, with Log-Normal and Pareto added since that release.
 
-Nine distributions are fully implemented and validated across four target architectures:
+Eleven distributions are fully implemented and validated across four target architectures:
 
 - Gaussian
 - Exponential
@@ -19,8 +19,10 @@ Nine distributions are fully implemented and validated across four target archit
 - Chi-squared
 - Student's t
 - Beta
+- Log-Normal
+- Pareto
 
-All nine distributions share a uniform API including PDF, log-PDF, CDF, quantiles, moments, MLE parameter fitting, random sampling, SIMD batch operations, parallel batch operations, and `parallelBatchFit` for fitting multiple independent datasets in parallel.
+All eleven distributions share a uniform API including PDF, log-PDF, CDF, quantiles, moments, MLE parameter fitting, random sampling, SIMD batch operations, parallel batch operations, and `parallelBatchFit` for fitting multiple independent datasets in parallel.
 
 Cross-platform SIMD validation status (54/54 SIMD tests, all four machines):
 
@@ -72,7 +74,7 @@ The codebase is meant to be readable as well as usable. Architectural choices il
 
 ## Distribution Families
 
-The nine distributions span four useful statistical families.
+The eleven distributions span five useful statistical families.
 
 ### Symmetric, unbounded continuous
 - Gaussian
@@ -82,6 +84,10 @@ The nine distributions span four useful statistical families.
 - Exponential
 - Gamma
 - Chi-squared
+- Log-Normal
+
+### Heavy-tailed / power-law
+- Pareto
 
 ### Bounded continuous
 - Uniform

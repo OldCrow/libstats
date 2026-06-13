@@ -1,9 +1,16 @@
 name: Release
-
+#
+# Triggered manually only. Auto-release on push is disabled because:
+#   1. libstats releases require multi-machine simd_verification validation
+#      (see CONTRIBUTING.md release checklist) before any tag is applied.
+#   2. CHANGELOG.md is maintained by hand; semantic-release would overwrite it.
+#   3. Version must stay consistent across CMakeLists.txt, libstats.h, and
+#      CHANGELOG.md — automated tooling gets this wrong when they diverge.
+#
+# Normal release process: validate on all four machines, update CHANGELOG.md,
+# then: git tag vX.Y.Z && git push origin vX.Y.Z
+#
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       release_type:

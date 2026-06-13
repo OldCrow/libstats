@@ -5,10 +5,10 @@ This guide explains how to set up comprehensive AVX-512 testing for the libstats
 ## AVX-512 Testing Status
 
 ### ✅ What We Test Now
-- **NEON**: macOS Apple Silicon M1 (Mac Mini, macOS Tahoe) — 31/31, simd_verification 36/36, speedup 3.15x
-- **AVX**: Intel Ivy Bridge (2012 MBP, macOS Catalina) — 31/31, simd_verification 36/36, speedup 3.57x
-- **AVX2+FMA**: Intel Kaby Lake (2017 MBP, macOS Ventura) — 31/31, simd_verification 36/36, speedup 4.45x
-- **AVX-512**: AMD Ryzen 7 7445HS / Zen 4 (Asus TUF A16, Windows 11) — 28/28, simd_verification 36/36, speedup 1.91x
+- **NEON**: macOS Apple Silicon M1 (Mac Mini, macOS Tahoe) — 33/33, simd_verification 54/54, speedup 2.31x
+- **AVX**: Intel Ivy Bridge (2012 MBP, macOS Catalina) — 34/34, simd_verification 54/54, speedup 4.10x
+- **AVX2+FMA**: Intel Kaby Lake (2017 MBP, macOS Ventura) — 33/33, simd_verification 54/54, speedup 3.49x
+- **AVX-512**: AMD Ryzen 7 7445HS / Zen 4 (Asus TUF A16, Windows 11) — 33/33, simd_verification 54/54, speedup 1.64x
 - **SSE2/AVX/AVX2** (compile + link): Linux CI (GCC 11/12, Clang 14/15, AppleClang)
 
 ### ⚠️ What Remains
@@ -16,8 +16,8 @@ This guide explains how to set up comprehensive AVX-512 testing for the libstats
   and the dispatch logic is correct (verified on local hardware), but runtime verification only
   happens on the Asus TUF A16 development machine, not in automated CI.
 
-### Note on speedup numbers
-The AVX-512 overall speedup of 1.91x (vs. expected ~4x) reflects that transcendental functions
+### Note on AVX-512 speedup
+The AVX-512 overall speedup of 1.64x (vs. expected ~4x) reflects that transcendental functions
 (exp, log, erf) delegate to the 4-wide AVX implementation because no portable 8-wide transcendental
 ISA exists without SVML. Arithmetic operations run at full 8-wide width. See `src/simd_avx512.cpp`
 for the full explanation.

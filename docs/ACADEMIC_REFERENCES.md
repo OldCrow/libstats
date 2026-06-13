@@ -45,6 +45,15 @@ This document lists academic sources and algorithms used in libstats implementat
 - **SIMD Vectorization**: Modern CPU optimization techniques
 - **Cache-aware algorithms**: Standard performance optimization patterns
 
+### Log-Normal Distribution (`lognormal.cpp`)
+- **MLE**: Closed-form via Gaussian transform: μ̂ = mean(log xᵢ), σ̂ = population std(log xᵢ)
+  (standard result; see Press et al., "Numerical Recipes")
+- **Sampling**: Inverse transform X = exp(Normal(μ, σ))
+
+### Pareto Distribution (`pareto.cpp`)
+- **MLE**: Closed-form two-step estimators: x̂_m = min(xᵢ), α̂ = n / Σlog(xᵢ/x̂_m)
+  (Arnold, B. C. (1983). *Pareto Distributions.* International Cooperative Publishing House.)
+
 ## Notes
 
 - All implementations are original code written for libstats

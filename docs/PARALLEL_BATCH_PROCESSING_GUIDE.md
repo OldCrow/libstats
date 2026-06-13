@@ -86,8 +86,9 @@ void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::s
 ```cpp
 enum class Strategy {
     SCALAR,        // Element-by-element loop (batch < simd_min threshold)
-    VECTORIZED,    // VectorOps batch path — SIMD-accelerated for Gaussian,
-                   // Exponential, Gamma (PDF/LogPDF), Uniform (CDF), and ChiSquared
+    VECTORIZED,    // VectorOps batch path — SIMD-accelerated for all distributions
+                   // with a fixed-step VectorOps pipeline: Gaussian, Exponential,
+                   // Gamma, Uniform, Chi-squared, Student's t, Beta, Log-Normal, Pareto
     PARALLEL,      // Multi-threaded via ParallelUtils::parallelFor
     WORK_STEALING  // Work-stealing pool for irregular or variable workloads
 };

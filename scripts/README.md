@@ -31,15 +31,15 @@ Run once per machine or development environment. Not part of the regular build c
 
 ## Historical or ad-hoc
 
-These supported specific phases of development work that is now complete.
+These supported specific refactoring work that is now complete.
 Retain them only if there is a concrete reason to run them again.
 
 - `find_magic_numbers.sh` — identified numeric literals for the magic-number elimination
-  pass (Phase 5). That work is done; this script is archival.
-- `run-iwyu.sh` — ran Include What You Use analysis during the header optimization pass
-  (Phase 5). That work is done; this script is archival.
+  pass. That work is done; this script is archival.
+- `run-iwyu.sh` — ran Include What You Use analysis during the header optimization pass.
+  That work is done; this script is archival.
 - `check_collisions.py` — checked for symbol and namespace collisions during the
-  namespace consolidation pass (Phase 5). That work is done; this script is archival.
+  namespace consolidation pass. That work is done; this script is archival.
 
 ## Guidance
 

@@ -28,7 +28,8 @@ These remain useful for include and compilation-health work:
 See `docs/HEADER_TOOLS_GUIDE.md` for the header-analysis workflow.
 
 ## Historical or specialized utilities
-Some tools exist to support older refactors, narrow investigations, or one-off cleanup work. Keep them only if they still earn their place; otherwise move them to a clearly historical area or remove them.
+Some tools exist to support earlier refactoring work or narrow one-off investigations.
+Keep them only if there is a concrete reason to run them again; otherwise treat them as archival.
 
 Examples:
 - `demo_phase1_optimization.py`

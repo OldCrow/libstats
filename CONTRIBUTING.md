@@ -6,8 +6,8 @@ Thank you for your interest in contributing to libstats! We welcome contribution
 
 ### Prerequisites
 
-- **C++20 compatible compiler**: GCC 10+, Clang 10+, MSVC 2019 16.11+, or LLVM 20+ (recommended)
-- **CMake**: 3.15 or later
+- **C++20 compatible compiler**: GCC 10+, Clang 14+, MSVC 2019+, or LLVM (recommended)
+- **CMake**: 3.20 or later
 - **Git**: For version control
 - **Optional**: GTest for running tests, Intel TBB for enhanced parallel support
 
@@ -26,9 +26,9 @@ Thank you for your interest in contributing to libstats! We welcome contribution
    make -j$(nproc)
    ```
 
-3. **Run tests to ensure everything works**:
+3. **Run the correctness suite**:
    ```bash
-   ctest --verbose
+   ctest --output-on-failure -LE "timing|benchmark"
    ```
 
 ## 📋 How to Contribute
@@ -115,11 +115,12 @@ When contributing new probability distributions:
 
 1. **Inherit from `DistributionBase`**
 2. **Implement all pure virtual methods**
-3. **Follow the Gaussian implementation pattern**
-4. **Include comprehensive statistical methods**
-5. **Add parameter validation and safe factory methods**
-6. **Implement SIMD-optimized batch operations**
-7. **Provide thorough test coverage**
+3. **Follow the 24-section template** (see `exponential.h`/`.cpp` or `beta.h`/`.cpp` as reference)
+4. **Include the full statistical interface** (PDF/LogPDF/CDF/quantile/sampling/MLE/`parallelBatchFit`)
+5. **Add parameter validation and safe factory methods** (exception-throwing + `Result<T>`/`VoidResult` API)
+6. **Implement SIMD-optimized batch operations** via the `VectorOps` pipeline in `*BatchUnsafeImpl`
+7. **Register in** `CMakeLists.txt`, `libstats.h`, `forward_declarations.h`, `performance_dispatcher.h`, and `dispatch_utils.h`
+8. **Provide thorough test coverage** (`*_basic.cpp` standalone + `*_enhanced.cpp` GTest with speedup assertions)
 
 ### SIMD Development
 
@@ -249,7 +250,9 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **Additional Distributions**: F-distribution, Negative Binomial, Weibull, and other common families
+1. **New Distributions**: Weibull (reliability engineering), Rayleigh (signal processing),
+   Von Mises (circular statistics), Binomial, and Negative Binomial are the next planned
+   families — see `PROJECT_CONCEPT.md` for the full discussion
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples
