@@ -80,7 +80,9 @@ enum class DistributionType {
     BETA,         ///< Beta distribution (log-space, bounded support [0,1])
     CHI_SQUARED,  ///< Chi-squared distribution (delegates to Gamma; positive real-line support)
     LOG_NORMAL,   ///< Log-normal distribution (log+exp pipeline, positive real-line support)
-    PARETO        ///< Pareto distribution (log-only pipeline, power-law tail, x >= scale)
+    PARETO,       ///< Pareto distribution (log-only pipeline, power-law tail, x >= scale)
+    WEIBULL,      ///< Weibull distribution (log+exp pipeline, two-stage power, x >= 0)
+    RAYLEIGH      ///< Rayleigh distribution (x² pipeline, positive real-line support)
 };
 
 /**
@@ -177,6 +179,8 @@ class PerformanceDispatcher {
         size_t chi_squared_parallel_min = 256;  ///< Delegates to Gamma; positive real-line support
         size_t lognormal_parallel_min = 256;  ///< Log+exp, similar complexity to Gaussian
         size_t pareto_parallel_min = 512;     ///< Log-only, similar complexity to Exponential
+        size_t weibull_parallel_min = 256;    ///< Log+two-exp, similar complexity to Gaussian
+        size_t rayleigh_parallel_min = 512;   ///< x²+exp, similar complexity to Exponential
 
         /**
          * @brief Create thresholds based on SIMDPolicy level

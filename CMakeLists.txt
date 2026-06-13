@@ -1334,6 +1334,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/beta.cpp # Beta distribution (bounded support [0,1], two-log SIMD pipeline)
     src/lognormal.cpp # Log-normal distribution (log+exp pipeline, positive real-line support)
     src/pareto.cpp    # Pareto distribution (log-only pipeline, power-law tail, x >= scale)
+    src/weibull.cpp   # Weibull distribution (log+exp pipeline, reliability engineering)
+    src/rayleigh.cpp  # Rayleigh distribution (x² pipeline, signal processing)
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -1843,6 +1845,14 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_pareto_basic tests/test_pareto_basic.cpp)
     create_libstats_gtest(test_pareto_enhanced tests/test_pareto_enhanced.cpp)
 
+    # weibull.h - Weibull distribution (log+exp pipeline, reliability engineering)
+    create_libstats_test(test_weibull_basic tests/test_weibull_basic.cpp)
+    create_libstats_gtest(test_weibull_enhanced tests/test_weibull_enhanced.cpp)
+
+    # rayleigh.h - Rayleigh distribution (x² pipeline, signal processing)
+    create_libstats_test(test_rayleigh_basic tests/test_rayleigh_basic.cpp)
+    create_libstats_gtest(test_rayleigh_enhanced tests/test_rayleigh_enhanced.cpp)
+
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
@@ -1915,6 +1925,8 @@ if(LIBSTATS_BUILD_TESTS)
             test_beta_enhanced
             test_lognormal_enhanced
             test_pareto_enhanced
+            test_weibull_enhanced
+            test_rayleigh_enhanced
             test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
@@ -1966,6 +1978,8 @@ if(LIBSTATS_BUILD_TESTS)
                 test_beta_basic
                 test_lognormal_basic
                 test_pareto_basic
+                test_weibull_basic
+                test_rayleigh_basic
                 test_atomic_parameters
                 # Level 6: Enhanced distribution tests
                 test_gaussian_enhanced
@@ -1979,6 +1993,8 @@ if(LIBSTATS_BUILD_TESTS)
                 test_chi_squared_enhanced
                 test_lognormal_enhanced
                 test_pareto_enhanced
+                test_weibull_enhanced
+                test_rayleigh_enhanced
                 # Level 7: Integration tests
                 test_dynamic_linking
                 # On-demand tests (stress, diagnostic, redundant)

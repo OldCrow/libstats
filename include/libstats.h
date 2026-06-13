@@ -164,6 +164,8 @@
     #include "distributions/uniform.h"
     #include "distributions/lognormal.h"
     #include "distributions/pareto.h"
+    #include "distributions/weibull.h"
+    #include "distributions/rayleigh.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
 // Main namespace for the statistical library
@@ -181,6 +183,8 @@ using StudentT = StudentTDistribution;
 using Beta = BetaDistribution;
 using LogNormal = LogNormalDistribution;
 using Pareto = ParetoDistribution;
+using Weibull = WeibullDistribution;
+using Rayleigh = RayleighDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 1;

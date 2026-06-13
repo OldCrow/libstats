@@ -17,6 +17,8 @@ class StudentTDistribution;
 class BetaDistribution;
 class LogNormalDistribution;
 class ParetoDistribution;
+class WeibullDistribution;
+class RayleighDistribution;
 
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
@@ -31,6 +33,8 @@ using StudentT = StudentTDistribution;
 using Beta = BetaDistribution;
 using LogNormal = LogNormalDistribution;
 using Pareto = ParetoDistribution;
+using Weibull = WeibullDistribution;
+using Rayleigh = RayleighDistribution;
 
 // Platform classes
 class SimdProcessor;
@@ -55,7 +59,9 @@ enum class LibDistributionType {
     StudentT,
     Beta,
     LogNormal,
-    Pareto
+    Pareto,
+    Weibull,
+    Rayleigh
 };
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };

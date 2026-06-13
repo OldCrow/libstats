@@ -257,4 +257,35 @@ inline VoidResult validateParetoParameters(double scale, double alpha) noexcept 
     return VoidResult::ok(true);
 }
 
+/**
+ * @brief Validate Weibull distribution parameters without throwing exceptions
+ * @param shape Shape parameter k (must be positive)
+ * @param scale Scale parameter λ (must be positive)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateWeibullParameters(double shape, double scale) noexcept {
+    if (std::isnan(shape) || std::isinf(shape) || shape <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Shape (k) must be a positive finite number");
+    }
+    if (std::isnan(scale) || std::isinf(scale) || scale <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale (λ) must be a positive finite number");
+    }
+    return VoidResult::ok(true);
+}
+
+/**
+ * @brief Validate Rayleigh distribution parameters without throwing exceptions
+ * @param sigma Scale parameter σ (must be positive)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateRayleighParameters(double sigma) noexcept {
+    if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Sigma (σ) must be a positive finite number");
+    }
+    return VoidResult::ok(true);
+}
+
 }  // namespace stats

@@ -90,7 +90,30 @@ jobs:
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20
 
     - name: Build
-      run: cmake --build build --config ${{ matrix.build_type }} --parallel
+      shell: bash
+      run: |
+        # Compute a memory-aware parallel job count.
+        # Heavy C++ Release builds (lambdas, templates) can use 1.5–2 GB per
+        # compiler process. GitHub-hosted ubuntu-latest has 7 GB total RAM
+        # and 2 vCPUs; macOS has 14 GB and 3 vCPUs; Windows has 7 GB and 2 vCPUs.
+        # We derive JOBS = min(cpu_count, floor(avail_mem_gb / 2)) so that memory
+        # pressure never causes OOM, while still using the full CPU count when RAM
+        # is healthy (the common case on macOS and Debug builds everywhere).
+        if [ "${{ runner.os }}" == "Linux" ]; then
+          MEM_GB=$(awk '/MemAvailable/{printf "%d", $2/1048576}' /proc/meminfo 2>/dev/null || echo 4)
+          CPU=$(nproc 2>/dev/null || echo 2)
+          MEM_JOBS=$(( MEM_GB / 2 ))
+          JOBS=$(( MEM_JOBS < CPU ? MEM_JOBS : CPU ))
+          JOBS=$(( JOBS < 1 ? 1 : JOBS ))
+        elif [ "${{ runner.os }}" == "macOS" ]; then
+          # macOS runners have 14 GB; use the full logical CPU count.
+          JOBS=$(sysctl -n hw.logicalcpu 2>/dev/null || echo 3)
+        else
+          # Windows: NUMBER_OF_PROCESSORS is always set.
+          JOBS="${NUMBER_OF_PROCESSORS:-2}"
+        fi
+        echo "Parallel build jobs: ${JOBS}"
+        cmake --build build --config ${{ matrix.build_type }} --parallel "${JOBS}"
 
     - name: Setup Windows DLL paths
       if: runner.os == 'Windows'
@@ -234,7 +257,18 @@ jobs:
           -DCMAKE_C_FLAGS="--coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic"
 
     - name: Build
-      run: cmake --build build --parallel
+      shell: bash
+      run: |
+        # Same memory-aware logic as the main build job (see there for rationale).
+        # Coverage builds compile with --coverage which adds instrumentation overhead;
+        # keep the same job cap to avoid OOM on ubuntu-latest runners.
+        MEM_GB=$(awk '/MemAvailable/{printf "%d", $2/1048576}' /proc/meminfo 2>/dev/null || echo 4)
+        CPU=$(nproc 2>/dev/null || echo 2)
+        MEM_JOBS=$(( MEM_GB / 2 ))
+        JOBS=$(( MEM_JOBS < CPU ? MEM_JOBS : CPU ))
+        JOBS=$(( JOBS < 1 ? 1 : JOBS ))
+        echo "Parallel build jobs: ${JOBS}"
+        cmake --build build --parallel "${JOBS}"
 
     - name: Run tests
       run: |

@@ -438,5 +438,17 @@ struct DistributionTraits<class ParetoDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
 };
 
+template <>
+struct DistributionTraits<class WeibullDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::WEIBULL; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
+template <>
+struct DistributionTraits<class RayleighDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::RAYLEIGH; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
 }  // namespace detail
 }  // namespace stats
