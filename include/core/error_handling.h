@@ -221,4 +221,40 @@ inline VoidResult validateGammaParameters(double alpha, double beta) noexcept {
     return VoidResult::ok(true);
 }
 
+/**
+ * @brief Validate Log-Normal distribution parameters without throwing exceptions
+ * @param mu Location parameter (log-mean, any finite real)
+ * @param sigma Scale parameter (log-stddev, must be positive)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateLogNormalParameters(double mu, double sigma) noexcept {
+    if (std::isnan(mu) || std::isinf(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidMean,
+                                     "Mu (log-mean) must be a finite real number");
+    }
+    if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Sigma (log-stddev) must be a positive finite number");
+    }
+    return VoidResult::ok(true);
+}
+
+/**
+ * @brief Validate Pareto distribution parameters without throwing exceptions
+ * @param scale Scale parameter (minimum value x_m, must be positive)
+ * @param alpha Shape parameter (must be positive)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateParetoParameters(double scale, double alpha) noexcept {
+    if (std::isnan(scale) || std::isinf(scale) || scale <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale (minimum value) must be a positive finite number");
+    }
+    if (std::isnan(alpha) || std::isinf(alpha) || alpha <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Alpha (shape) must be a positive finite number");
+    }
+    return VoidResult::ok(true);
+}
+
 }  // namespace stats

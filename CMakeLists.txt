@@ -1332,6 +1332,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/chi_squared.cpp # Chi-squared distribution (delegation wrapper over Gamma)
     src/student_t.cpp # Student's t distribution (full real-line, log-space SIMD)
     src/beta.cpp # Beta distribution (bounded support [0,1], two-log SIMD pipeline)
+    src/lognormal.cpp # Log-normal distribution (log+exp pipeline, positive real-line support)
+    src/pareto.cpp    # Pareto distribution (log-only pipeline, power-law tail, x >= scale)
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -1833,6 +1835,14 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_beta_basic tests/test_beta_basic.cpp)
     create_libstats_gtest(test_beta_enhanced tests/test_beta_enhanced.cpp)
 
+    # lognormal.h - Log-normal distribution (log+exp pipeline, positive real-line)
+    create_libstats_test(test_lognormal_basic tests/test_lognormal_basic.cpp)
+    create_libstats_gtest(test_lognormal_enhanced tests/test_lognormal_enhanced.cpp)
+
+    # pareto.h - Pareto distribution (log-only pipeline, power-law tail)
+    create_libstats_test(test_pareto_basic tests/test_pareto_basic.cpp)
+    create_libstats_gtest(test_pareto_enhanced tests/test_pareto_enhanced.cpp)
+
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
@@ -1903,6 +1913,8 @@ if(LIBSTATS_BUILD_TESTS)
             test_chi_squared_enhanced
             test_student_t_enhanced
             test_beta_enhanced
+            test_lognormal_enhanced
+            test_pareto_enhanced
             test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
@@ -1952,6 +1964,8 @@ if(LIBSTATS_BUILD_TESTS)
                 test_chi_squared_basic
                 test_student_t_basic
                 test_beta_basic
+                test_lognormal_basic
+                test_pareto_basic
                 test_atomic_parameters
                 # Level 6: Enhanced distribution tests
                 test_gaussian_enhanced
@@ -1963,6 +1977,8 @@ if(LIBSTATS_BUILD_TESTS)
                 test_student_t_enhanced
                 test_beta_enhanced
                 test_chi_squared_enhanced
+                test_lognormal_enhanced
+                test_pareto_enhanced
                 # Level 7: Integration tests
                 test_dynamic_linking
                 # On-demand tests (stress, diagnostic, redundant)

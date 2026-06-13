@@ -426,5 +426,17 @@ struct DistributionTraits<class ChiSquaredDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
 };
 
+template <>
+struct DistributionTraits<class LogNormalDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::LOG_NORMAL; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
+template <>
+struct DistributionTraits<class ParetoDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::PARETO; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
+};
+
 }  // namespace detail
 }  // namespace stats

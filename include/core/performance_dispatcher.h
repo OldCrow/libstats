@@ -45,11 +45,12 @@ namespace detail {  // Performance utilities
 /**
  * @brief Execution strategies for batch operations
  *
- * Names reflect what actually happens, not what we might wish happened:
+ * Names reflect what actually happens:
  *   SCALAR       — element-by-element loop, below the SIMD threshold
  *   VECTORIZED   — batch path through VectorOps; SIMD-accelerated for
- *                  distributions that route through VectorOps (currently
- *                  Gaussian), scalar loops for others until Phase 6
+ *                  distributions with a fixed-step VectorOps pipeline
+ *                  (Gaussian, Exponential, Gamma, Uniform, Chi-squared,
+ *                  Student's t, Beta, Log-Normal, Pareto)
  *   PARALLEL     — multi-threaded via ParallelUtils::parallelFor; inner
  *                  loops may or may not be vectorized per distribution
  *   WORK_STEALING — work-stealing thread pool for irregular workloads
@@ -77,7 +78,9 @@ enum class DistributionType {
     GAMMA,        ///< Gamma distribution (most complex)
     STUDENT_T,    ///< Student's t distribution (log+transcendental, full real-line domain)
     BETA,         ///< Beta distribution (log-space, bounded support [0,1])
-    CHI_SQUARED   ///< Chi-squared distribution (delegates to Gamma; positive real-line support)
+    CHI_SQUARED,  ///< Chi-squared distribution (delegates to Gamma; positive real-line support)
+    LOG_NORMAL,   ///< Log-normal distribution (log+exp pipeline, positive real-line support)
+    PARETO        ///< Pareto distribution (log-only pipeline, power-law tail, x >= scale)
 };
 
 /**
@@ -172,6 +175,8 @@ class PerformanceDispatcher {
         size_t student_t_parallel_min = 256;    ///< Log+transcendental, matches Gaussian
         size_t beta_parallel_min = 256;  ///< Two log calls, bounded support, matches Gaussian
         size_t chi_squared_parallel_min = 256;  ///< Delegates to Gamma; positive real-line support
+        size_t lognormal_parallel_min = 256;  ///< Log+exp, similar complexity to Gaussian
+        size_t pareto_parallel_min = 512;     ///< Log-only, similar complexity to Exponential
 
         /**
          * @brief Create thresholds based on SIMDPolicy level

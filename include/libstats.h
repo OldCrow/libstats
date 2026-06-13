@@ -162,6 +162,8 @@
     #include "distributions/poisson.h"
     #include "distributions/student_t.h"
     #include "distributions/uniform.h"
+    #include "distributions/lognormal.h"
+    #include "distributions/pareto.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
 // Main namespace for the statistical library
@@ -177,6 +179,8 @@ using Discrete = DiscreteDistribution;
 using ChiSquared = ChiSquaredDistribution;
 using StudentT = StudentTDistribution;
 using Beta = BetaDistribution;
+using LogNormal = LogNormalDistribution;
+using Pareto = ParetoDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 1;
