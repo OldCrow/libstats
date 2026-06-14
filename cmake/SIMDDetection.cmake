@@ -549,22 +549,25 @@ int main() {
             message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
         endif()
     else()
-        check_cxx_compiler_flag("-mavx512f" COMPILER_SUPPORTS_AVX512)
-        if(COMPILER_SUPPORTS_AVX512)
+        # simd_avx512.cpp uses AVX-512DQ intrinsics (_mm512_cvtepi64_pd,
+        # _mm512_and/or_pd) added in v1.5.0 Phase 4. Require both F and DQ
+        # at detection time so we only enable the AVX-512 path on hardware
+        # that can actually execute the compiled code without SIGILL.
+        check_cxx_compiler_flag("-mavx512f -mavx512dq" COMPILER_SUPPORTS_AVX512DQ)
+        if(COMPILER_SUPPORTS_AVX512DQ)
             test_runtime_cpu_feature(
                 "avx512"
                 "#include <immintrin.h>
 bool test_avx512() {
-    __m512d a = _mm512_set1_pd(1.0);
-    __m512d b = _mm512_set1_pd(2.0);
-    __m512d c = _mm512_add_pd(a, b);
-    double result[8];
-    _mm512_storeu_pd(result, c);
-    for(int i=0; i<8; ++i) if(result[i] != 3.0) return false;
-    return true;
+    __m512i v = _mm512_set1_epi64(1);
+    __m512d d = _mm512_cvtepi64_pd(v);
+    double out[8];
+    _mm512_storeu_pd(out, d);
+    return out[0] == 1.0;
 }"
                 RUNTIME_SUPPORTS_AVX512
-                "-mavx512f")
+                "-mavx512f"
+                "-mavx512dq")
             if(RUNTIME_SUPPORTS_AVX512)
                 set(LIBSTATS_HAS_AVX512
                     TRUE
@@ -590,7 +593,7 @@ bool test_avx512() {
                 message(STATUS "SIMD: AVX-512 disabled (runtime check failed)")
             endif()
         else()
-            message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
+            message(STATUS "SIMD: AVX-512 disabled (compiler does not support -mavx512f -mavx512dq)")
         endif()
     endif()
 
@@ -801,7 +804,7 @@ function(apply_simd_source_flags)
                                         PROPERTIES COMPILE_FLAGS "/arch:AVX512")
         else()
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx512.cpp"
-                                        PROPERTIES COMPILE_FLAGS "-mavx512f")
+                                        PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq")
         endif()
     endif()
 
