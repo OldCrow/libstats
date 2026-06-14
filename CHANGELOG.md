@@ -23,7 +23,21 @@
     blends; sign via `_mm512_and/or_pd` (AVX-512DQ); calls `vector_exp_avx512` for erfc.
     Speedup: 0.7x → 1.3x.
   - Asus TUF A16 distribution geomeans: PDF 4.8x, LogPDF 5.1x, CDF 2.2x.
-- **NEON native transcendentals** (Phase 3, Mac Mini M1): in progress.
+- **NEON native transcendentals** (Phase 3, Mac Mini M1): `vector_exp_neon`
+  (SLEEF FMA Horner, < 1 ULP), `vector_log_neon` (SLEEF atanh series, < 1 ULP),
+  `vector_erf_neon` (ARM glibc `erf_advsimd` algorithm: 769-entry table of
+  `{erf(k/128), 2/sqrt(π)·exp(-(k/128)²)}` + 5-term Taylor correction, ~2.29 ULP).
+  `vector_erf_neon` deliberately diverges from the musl rational polynomial used by
+  all x86 backends: the table approach eliminates the recursive exp call, yielding
+  8.0x vs 0.9x for the pure-polynomial version. Gaussian CDF: 2.2x → 13.9x.
+  Key implementation note: derive `shift_u` via `vreinterpretq_u64_f64(shift)` —
+  hardcoding `0x4168000000000000` (which is 12582912.0, not bits(2⁴⁵)) causes segfaults.
+  All three use `vfmaq_f64` FMA Horner; exp/log also use `vcvtq_s64_f64` for
+  direct int64↔double conversion (no store/reload needed on aarch64).
+  M1 distribution geomeans: PDF 5.9x, LogPDF 7.3x, CDF 3.1x.
+  Primitive ops: VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
+  Table generator: `scripts/gen_neon_erf_table.py`. See Issue #33 for a proposed
+  cross-architecture experiment (table+Taylor vs SLEEF polynomial on AVX2/AVX-512).
 
 ### Tests
 - `simd_verification` coverage: added `testVonMisesDistribution()` and
@@ -37,6 +51,11 @@
 ### Data
 - Asus TUF A16 dispatcher profiling bundle (post-Phase 4):
   `data/profiles/dispatcher/2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba/`
+- Mac Mini M1 dispatcher profiling bundle (post-Phase 3):
+  `data/profiles/dispatcher/2026-06-14T23-29-58Z_darwin-arm64_v1.5-neon-transcendentals_sha-5455778/`
+  Notable finding: Gaussian CDF VECTORIZED wins at all batch sizes up to 500k (no
+  crossover to PARALLEL), a direct result of the table-based erf achieving 13.9x
+  over scalar. Phase 5 NEON threshold recalibration should reflect this.
 - `include/core/dispatch_thresholds.h`: `kAvx512` annotated as stale (calibrated pre-Phase 4);
   Phase 5 will rederive from the Phase 4 bundle. Measurement resolution caveat added:
   profiler resolution floors at ~0.1–0.2 µs; crossovers derived from batch sizes < 64 are
@@ -47,7 +66,8 @@
   PDF 8.0x, LogPDF 9.6x, CDF 3.3x; VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
 - 39/39 correctness, 61/61 `simd_verification` — Asus TUF A16 AVX-512:
   PDF 4.8x, LogPDF 5.1x, CDF 2.2x; VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
-- M1 (NEON): pending Phase 3.
+- 39/39 correctness, 61/61 `simd_verification` — Mac Mini M1 NEON:
+  PDF 5.9x, LogPDF 7.3x, CDF 3.1x; VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
 
 ---
 
