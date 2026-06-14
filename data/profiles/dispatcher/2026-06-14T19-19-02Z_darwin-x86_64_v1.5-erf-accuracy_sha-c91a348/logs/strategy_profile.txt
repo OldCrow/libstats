@@ -1,0 +1,658 @@
+
+====================
+  Strategy Profile
+====================
+
+Forced-strategy timing profiler for dispatcher threshold tuning
+
+System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+
+Batch sizes: 8 16 32 64 128 256 512 1000 2000 5000 10000 20000 50000 100000 250000 500000
+
+
+--- Uniform Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- Gaussian Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- Exponential Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- Discrete Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- Poisson Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- Gamma Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- StudentT Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- Beta Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+--- ChiSquared Strategy Profile ---
+  Profiling batch size 8... ✓
+  Profiling batch size 16... ✓
+  Profiling batch size 32... ✓
+  Profiling batch size 64... ✓
+  Profiling batch size 128... ✓
+  Profiling batch size 256... ✓
+  Profiling batch size 512... ✓
+  Profiling batch size 1000... ✓
+  Profiling batch size 2000... ✓
+  Profiling batch size 5000... ✓
+  Profiling batch size 10000... ✓
+  Profiling batch size 20000... ✓
+  Profiling batch size 50000... ✓
+  Profiling batch size 100000... ✓
+  Profiling batch size 250000... ✓
+  Profiling batch size 500000... ✓
+
+
+=========================
+  Best Strategy Summary
+=========================
+
+Distribution  Operation Size      Best Strategy   Time (μs)    
+----------------------------------------------------------------
+Beta          CDF       8         Vectorized      1.10          
+Beta          CDF       16        Vectorized      1.98          
+Beta          CDF       32        Vectorized      3.55          
+Beta          CDF       64        Vectorized      6.38          
+Beta          CDF       128       Work-Stealing   14.11         
+Beta          CDF       256       Work-Stealing   28.82         
+Beta          CDF       512       Work-Stealing   54.30         
+Beta          CDF       1000      Work-Stealing   105.99        
+Beta          CDF       2000      Vectorized      222.63        
+Beta          CDF       5000      Parallel        449.70        
+Beta          CDF       10000     Work-Stealing   560.29        
+Beta          CDF       20000     Parallel        784.48        
+Beta          CDF       50000     Parallel        1651.93       
+Beta          CDF       100000    Parallel        3183.71       
+Beta          CDF       250000    Parallel        8163.64       
+Beta          CDF       500000    Work-Stealing   16463.06      
+Beta          LogPDF    8         Scalar          0.78          
+Beta          LogPDF    16        Vectorized      1.16          
+Beta          LogPDF    32        Work-Stealing   1.68          
+Beta          LogPDF    64        Parallel        2.86          
+Beta          LogPDF    128       Work-Stealing   3.71          
+Beta          LogPDF    256       Work-Stealing   6.43          
+Beta          LogPDF    512       Vectorized      14.44         
+Beta          LogPDF    1000      Parallel        27.72         
+Beta          LogPDF    2000      Vectorized      54.13         
+Beta          LogPDF    5000      Parallel        141.34        
+Beta          LogPDF    10000     Vectorized      290.57        
+Beta          LogPDF    20000     Vectorized      590.99        
+Beta          LogPDF    50000     Work-Stealing   1465.80       
+Beta          LogPDF    100000    Vectorized      3018.15       
+Beta          LogPDF    250000    Parallel        7633.49       
+Beta          LogPDF    500000    Work-Stealing   15467.15      
+Beta          PDF       8         Scalar          0.95          
+Beta          PDF       16        Work-Stealing   1.29          
+Beta          PDF       32        Parallel        1.81          
+Beta          PDF       64        Work-Stealing   3.02          
+Beta          PDF       128       Vectorized      4.08          
+Beta          PDF       256       Work-Stealing   7.24          
+Beta          PDF       512       Work-Stealing   15.78         
+Beta          PDF       1000      Work-Stealing   29.76         
+Beta          PDF       2000      Vectorized      57.66         
+Beta          PDF       5000      Vectorized      159.43        
+Beta          PDF       10000     Vectorized      320.62        
+Beta          PDF       20000     Parallel        665.17        
+Beta          PDF       50000     Parallel        1646.36       
+Beta          PDF       100000    Parallel        3350.30       
+Beta          PDF       250000    Parallel        8564.46       
+Beta          PDF       500000    Work-Stealing   17212.63      
+ChiSquared    CDF       8         Parallel        0.82          
+ChiSquared    CDF       16        Work-Stealing   1.60          
+ChiSquared    CDF       32        Work-Stealing   2.93          
+ChiSquared    CDF       64        Work-Stealing   5.81          
+ChiSquared    CDF       128       Work-Stealing   11.57         
+ChiSquared    CDF       256       Work-Stealing   23.59         
+ChiSquared    CDF       512       Work-Stealing   46.30         
+ChiSquared    CDF       1000      Work-Stealing   99.26         
+ChiSquared    CDF       2000      Work-Stealing   203.96        
+ChiSquared    CDF       5000      Work-Stealing   372.59        
+ChiSquared    CDF       10000     Work-Stealing   501.99        
+ChiSquared    CDF       20000     Work-Stealing   737.34        
+ChiSquared    CDF       50000     Work-Stealing   1296.96       
+ChiSquared    CDF       100000    Work-Stealing   1803.67       
+ChiSquared    CDF       250000    Work-Stealing   5620.53       
+ChiSquared    CDF       500000    Work-Stealing   10173.24      
+ChiSquared    LogPDF    8         Parallel        0.28          
+ChiSquared    LogPDF    16        Parallel        0.42          
+ChiSquared    LogPDF    32        Parallel        0.67          
+ChiSquared    LogPDF    64        Parallel        1.15          
+ChiSquared    LogPDF    128       Vectorized      1.52          
+ChiSquared    LogPDF    256       Vectorized      2.45          
+ChiSquared    LogPDF    512       Vectorized      4.63          
+ChiSquared    LogPDF    1000      Vectorized      8.91          
+ChiSquared    LogPDF    2000      Vectorized      17.52         
+ChiSquared    LogPDF    5000      Vectorized      42.55         
+ChiSquared    LogPDF    10000     Vectorized      88.58         
+ChiSquared    LogPDF    20000     Vectorized      181.25        
+ChiSquared    LogPDF    50000     Work-Stealing   404.06        
+ChiSquared    LogPDF    100000    Parallel        647.29        
+ChiSquared    LogPDF    250000    Work-Stealing   1046.32       
+ChiSquared    LogPDF    500000    Work-Stealing   1745.61       
+ChiSquared    PDF       8         Work-Stealing   0.42          
+ChiSquared    PDF       16        Parallel        0.70          
+ChiSquared    PDF       32        Vectorized      1.05          
+ChiSquared    PDF       64        Vectorized      1.48          
+ChiSquared    PDF       128       Vectorized      1.90          
+ChiSquared    PDF       256       Vectorized      3.28          
+ChiSquared    PDF       512       Vectorized      6.13          
+ChiSquared    PDF       1000      Vectorized      11.51         
+ChiSquared    PDF       2000      Vectorized      22.68         
+ChiSquared    PDF       5000      Vectorized      61.34         
+ChiSquared    PDF       10000     Vectorized      115.80        
+ChiSquared    PDF       20000     Vectorized      237.35        
+ChiSquared    PDF       50000     Work-Stealing   534.89        
+ChiSquared    PDF       100000    Work-Stealing   869.30        
+ChiSquared    PDF       250000    Work-Stealing   1835.79       
+ChiSquared    PDF       500000    Work-Stealing   3508.68       
+Discrete      CDF       8         Vectorized      0.20          
+Discrete      CDF       16        Vectorized      0.22          
+Discrete      CDF       32        Vectorized      0.28          
+Discrete      CDF       64        Vectorized      0.36          
+Discrete      CDF       128       Vectorized      0.58          
+Discrete      CDF       256       Vectorized      0.99          
+Discrete      CDF       512       Vectorized      1.91          
+Discrete      CDF       1000      Vectorized      3.38          
+Discrete      CDF       2000      Vectorized      7.34          
+Discrete      CDF       5000      Vectorized      21.07         
+Discrete      CDF       10000     Vectorized      36.68         
+Discrete      CDF       20000     Vectorized      78.63         
+Discrete      CDF       50000     Parallel        154.81        
+Discrete      CDF       100000    Work-Stealing   271.00        
+Discrete      CDF       250000    Work-Stealing   389.28        
+Discrete      CDF       500000    Work-Stealing   697.40        
+Discrete      LogPDF    8         Work-Stealing   0.17          
+Discrete      LogPDF    16        Vectorized      0.25          
+Discrete      LogPDF    32        Vectorized      0.31          
+Discrete      LogPDF    64        Work-Stealing   0.45          
+Discrete      LogPDF    128       Vectorized      0.80          
+Discrete      LogPDF    256       Vectorized      1.38          
+Discrete      LogPDF    512       Vectorized      2.58          
+Discrete      LogPDF    1000      Vectorized      4.66          
+Discrete      LogPDF    2000      Vectorized      9.75          
+Discrete      LogPDF    5000      Vectorized      23.23         
+Discrete      LogPDF    10000     Vectorized      44.05         
+Discrete      LogPDF    20000     Vectorized      94.25         
+Discrete      LogPDF    50000     Parallel        207.65        
+Discrete      LogPDF    100000    Parallel        235.43        
+Discrete      LogPDF    250000    Parallel        437.90        
+Discrete      LogPDF    500000    Work-Stealing   887.84        
+Discrete      PDF       8         Work-Stealing   0.18          
+Discrete      PDF       16        Parallel        0.22          
+Discrete      PDF       32        Work-Stealing   0.31          
+Discrete      PDF       64        Parallel        0.46          
+Discrete      PDF       128       Work-Stealing   0.70          
+Discrete      PDF       256       Work-Stealing   1.36          
+Discrete      PDF       512       Work-Stealing   2.69          
+Discrete      PDF       1000      Work-Stealing   4.85          
+Discrete      PDF       2000      Parallel        8.97          
+Discrete      PDF       5000      Vectorized      34.97         
+Discrete      PDF       10000     Vectorized      68.66         
+Discrete      PDF       20000     Vectorized      127.09        
+Discrete      PDF       50000     Parallel        192.28        
+Discrete      PDF       100000    Parallel        192.48        
+Discrete      PDF       250000    Work-Stealing   401.66        
+Discrete      PDF       500000    Work-Stealing   620.03        
+Exponential   CDF       8         Parallel        0.25          
+Exponential   CDF       16        Vectorized      0.33          
+Exponential   CDF       32        Vectorized      0.37          
+Exponential   CDF       64        Vectorized      0.48          
+Exponential   CDF       128       Vectorized      0.78          
+Exponential   CDF       256       Vectorized      1.25          
+Exponential   CDF       512       Vectorized      2.27          
+Exponential   CDF       1000      Vectorized      4.09          
+Exponential   CDF       2000      Vectorized      8.09          
+Exponential   CDF       5000      Vectorized      20.16         
+Exponential   CDF       10000     Vectorized      38.89         
+Exponential   CDF       20000     Vectorized      85.46         
+Exponential   CDF       50000     Parallel        249.87        
+Exponential   CDF       100000    Work-Stealing   427.58        
+Exponential   CDF       250000    Work-Stealing   682.36        
+Exponential   CDF       500000    Work-Stealing   1350.19       
+Exponential   LogPDF    8         Parallel        0.18          
+Exponential   LogPDF    16        Parallel        0.19          
+Exponential   LogPDF    32        Parallel        0.20          
+Exponential   LogPDF    64        Parallel        0.25          
+Exponential   LogPDF    128       Vectorized      0.36          
+Exponential   LogPDF    256       Parallel        0.50          
+Exponential   LogPDF    512       Vectorized      0.79          
+Exponential   LogPDF    1000      Vectorized      1.45          
+Exponential   LogPDF    2000      Vectorized      2.57          
+Exponential   LogPDF    5000      Vectorized      6.48          
+Exponential   LogPDF    10000     Vectorized      12.62         
+Exponential   LogPDF    20000     Vectorized      27.79         
+Exponential   LogPDF    50000     Vectorized      79.75         
+Exponential   LogPDF    100000    Vectorized      153.05        
+Exponential   LogPDF    250000    Parallel        186.07        
+Exponential   LogPDF    500000    Work-Stealing   379.36        
+Exponential   PDF       8         Work-Stealing   0.26          
+Exponential   PDF       16        Vectorized      0.29          
+Exponential   PDF       32        Vectorized      0.37          
+Exponential   PDF       64        Vectorized      0.50          
+Exponential   PDF       128       Vectorized      0.78          
+Exponential   PDF       256       Vectorized      1.25          
+Exponential   PDF       512       Vectorized      2.30          
+Exponential   PDF       1000      Vectorized      4.30          
+Exponential   PDF       2000      Vectorized      8.51          
+Exponential   PDF       5000      Vectorized      20.92         
+Exponential   PDF       10000     Vectorized      42.48         
+Exponential   PDF       20000     Vectorized      83.81         
+Exponential   PDF       50000     Vectorized      221.96        
+Exponential   PDF       100000    Work-Stealing   353.14        
+Exponential   PDF       250000    Work-Stealing   782.81        
+Exponential   PDF       500000    Work-Stealing   1531.30       
+Gamma         CDF       8         Work-Stealing   0.83          
+Gamma         CDF       16        Work-Stealing   1.46          
+Gamma         CDF       32        Parallel        2.80          
+Gamma         CDF       64        Work-Stealing   5.61          
+Gamma         CDF       128       Work-Stealing   10.85         
+Gamma         CDF       256       Work-Stealing   22.96         
+Gamma         CDF       512       Work-Stealing   45.50         
+Gamma         CDF       1000      Work-Stealing   95.03         
+Gamma         CDF       2000      Vectorized      183.47        
+Gamma         CDF       5000      Parallel        400.22        
+Gamma         CDF       10000     Parallel        475.46        
+Gamma         CDF       20000     Work-Stealing   678.59        
+Gamma         CDF       50000     Parallel        1506.45       
+Gamma         CDF       100000    Work-Stealing   1918.45       
+Gamma         CDF       250000    Work-Stealing   5396.87       
+Gamma         CDF       500000    Work-Stealing   9727.33       
+Gamma         LogPDF    8         Work-Stealing   0.27          
+Gamma         LogPDF    16        Work-Stealing   0.40          
+Gamma         LogPDF    32        Parallel        0.62          
+Gamma         LogPDF    64        Parallel        1.16          
+Gamma         LogPDF    128       Vectorized      1.48          
+Gamma         LogPDF    256       Vectorized      2.44          
+Gamma         LogPDF    512       Vectorized      4.63          
+Gamma         LogPDF    1000      Vectorized      8.78          
+Gamma         LogPDF    2000      Vectorized      16.11         
+Gamma         LogPDF    5000      Vectorized      41.30         
+Gamma         LogPDF    10000     Vectorized      86.07         
+Gamma         LogPDF    20000     Vectorized      177.22        
+Gamma         LogPDF    50000     Work-Stealing   430.43        
+Gamma         LogPDF    100000    Work-Stealing   593.51        
+Gamma         LogPDF    250000    Work-Stealing   1398.68       
+Gamma         LogPDF    500000    Work-Stealing   1892.54       
+Gamma         PDF       8         Parallel        0.43          
+Gamma         PDF       16        Work-Stealing   0.67          
+Gamma         PDF       32        Vectorized      1.04          
+Gamma         PDF       64        Vectorized      1.46          
+Gamma         PDF       128       Vectorized      1.88          
+Gamma         PDF       256       Vectorized      3.13          
+Gamma         PDF       512       Vectorized      5.82          
+Gamma         PDF       1000      Vectorized      11.63         
+Gamma         PDF       2000      Vectorized      21.65         
+Gamma         PDF       5000      Vectorized      56.03         
+Gamma         PDF       10000     Vectorized      111.64        
+Gamma         PDF       20000     Vectorized      227.99        
+Gamma         PDF       50000     Vectorized      591.47        
+Gamma         PDF       100000    Work-Stealing   815.21        
+Gamma         PDF       250000    Work-Stealing   2235.39       
+Gamma         PDF       500000    Parallel        5164.69       
+Gaussian      CDF       8         Vectorized      0.37          
+Gaussian      CDF       16        Vectorized      0.53          
+Gaussian      CDF       32        Vectorized      0.80          
+Gaussian      CDF       64        Vectorized      1.34          
+Gaussian      CDF       128       Vectorized      2.40          
+Gaussian      CDF       256       Vectorized      4.56          
+Gaussian      CDF       512       Vectorized      8.84          
+Gaussian      CDF       1000      Vectorized      17.16         
+Gaussian      CDF       2000      Vectorized      35.39         
+Gaussian      CDF       5000      Vectorized      84.82         
+Gaussian      CDF       10000     Vectorized      206.11        
+Gaussian      CDF       20000     Work-Stealing   213.27        
+Gaussian      CDF       50000     Work-Stealing   417.15        
+Gaussian      CDF       100000    Work-Stealing   800.71        
+Gaussian      CDF       250000    Work-Stealing   2029.11       
+Gaussian      CDF       500000    Work-Stealing   4508.75       
+Gaussian      LogPDF    8         Work-Stealing   0.15          
+Gaussian      LogPDF    16        Work-Stealing   0.16          
+Gaussian      LogPDF    32        Work-Stealing   0.19          
+Gaussian      LogPDF    64        Work-Stealing   0.22          
+Gaussian      LogPDF    128       Work-Stealing   0.29          
+Gaussian      LogPDF    256       Vectorized      0.38          
+Gaussian      LogPDF    512       Vectorized      0.64          
+Gaussian      LogPDF    1000      Vectorized      0.97          
+Gaussian      LogPDF    2000      Vectorized      1.69          
+Gaussian      LogPDF    5000      Vectorized      3.78          
+Gaussian      LogPDF    10000     Vectorized      8.00          
+Gaussian      LogPDF    20000     Vectorized      18.46         
+Gaussian      LogPDF    50000     Vectorized      55.89         
+Gaussian      LogPDF    100000    Parallel        90.34         
+Gaussian      LogPDF    250000    Work-Stealing   144.05        
+Gaussian      LogPDF    500000    Parallel        731.60        
+Gaussian      PDF       8         Vectorized      0.18          
+Gaussian      PDF       16        Vectorized      0.29          
+Gaussian      PDF       32        Vectorized      0.35          
+Gaussian      PDF       64        Vectorized      0.44          
+Gaussian      PDF       128       Vectorized      0.64          
+Gaussian      PDF       256       Vectorized      1.02          
+Gaussian      PDF       512       Vectorized      1.90          
+Gaussian      PDF       1000      Vectorized      3.30          
+Gaussian      PDF       2000      Vectorized      6.51          
+Gaussian      PDF       5000      Vectorized      16.90         
+Gaussian      PDF       10000     Vectorized      32.17         
+Gaussian      PDF       20000     Vectorized      70.09         
+Gaussian      PDF       50000     Vectorized      178.45        
+Gaussian      PDF       100000    Work-Stealing   272.88        
+Gaussian      PDF       250000    Work-Stealing   893.45        
+Gaussian      PDF       500000    Work-Stealing   1747.88       
+Poisson       CDF       8         Scalar          0.89          
+Poisson       CDF       16        Scalar          1.88          
+Poisson       CDF       32        Scalar          3.60          
+Poisson       CDF       64        Work-Stealing   7.27          
+Poisson       CDF       128       Work-Stealing   14.83         
+Poisson       CDF       256       Work-Stealing   29.36         
+Poisson       CDF       512       Scalar          60.23         
+Poisson       CDF       1000      Work-Stealing   112.79        
+Poisson       CDF       2000      Work-Stealing   223.22        
+Poisson       CDF       5000      Parallel        327.09        
+Poisson       CDF       10000     Parallel        473.68        
+Poisson       CDF       20000     Parallel        770.26        
+Poisson       CDF       50000     Work-Stealing   1689.64       
+Poisson       CDF       100000    Work-Stealing   2711.24       
+Poisson       CDF       250000    Work-Stealing   5275.90       
+Poisson       CDF       500000    Work-Stealing   12403.54      
+Poisson       LogPDF    8         Vectorized      0.29          
+Poisson       LogPDF    16        Vectorized      0.46          
+Poisson       LogPDF    32        Vectorized      0.68          
+Poisson       LogPDF    64        Work-Stealing   1.40          
+Poisson       LogPDF    128       Vectorized      2.29          
+Poisson       LogPDF    256       Vectorized      4.86          
+Poisson       LogPDF    512       Vectorized      10.17         
+Poisson       LogPDF    1000      Vectorized      18.66         
+Poisson       LogPDF    2000      Vectorized      36.70         
+Poisson       LogPDF    5000      Vectorized      101.70        
+Poisson       LogPDF    10000     Vectorized      202.15        
+Poisson       LogPDF    20000     Parallel        256.36        
+Poisson       LogPDF    50000     Work-Stealing   506.50        
+Poisson       LogPDF    100000    Parallel        1497.18       
+Poisson       LogPDF    250000    Work-Stealing   1502.52       
+Poisson       LogPDF    500000    Work-Stealing   2374.24       
+Poisson       PDF       8         Parallel        0.51          
+Poisson       PDF       16        Vectorized      0.87          
+Poisson       PDF       32        Vectorized      1.42          
+Poisson       PDF       64        Vectorized      2.87          
+Poisson       PDF       128       Vectorized      5.27          
+Poisson       PDF       256       Vectorized      10.61         
+Poisson       PDF       512       Work-Stealing   22.18         
+Poisson       PDF       1000      Vectorized      42.55         
+Poisson       PDF       2000      Vectorized      81.80         
+Poisson       PDF       5000      Vectorized      242.77        
+Poisson       PDF       10000     Parallel        339.42        
+Poisson       PDF       20000     Work-Stealing   458.26        
+Poisson       PDF       50000     Parallel        779.92        
+Poisson       PDF       100000    Work-Stealing   1136.71       
+Poisson       PDF       250000    Work-Stealing   2118.00       
+Poisson       PDF       500000    Work-Stealing   5283.42       
+StudentT      CDF       8         Work-Stealing   1.95          
+StudentT      CDF       16        Vectorized      3.62          
+StudentT      CDF       32        Parallel        7.52          
+StudentT      CDF       64        Vectorized      14.72         
+StudentT      CDF       128       Work-Stealing   29.81         
+StudentT      CDF       256       Work-Stealing   58.84         
+StudentT      CDF       512       Vectorized      114.02        
+StudentT      CDF       1000      Work-Stealing   235.86        
+StudentT      CDF       2000      Parallel        466.75        
+StudentT      CDF       5000      Parallel        1127.18       
+StudentT      CDF       10000     Work-Stealing   2397.43       
+StudentT      CDF       20000     Parallel        4730.63       
+StudentT      CDF       50000     Vectorized      12066.62      
+StudentT      CDF       100000    Parallel        24251.26      
+StudentT      CDF       250000    Vectorized      61584.32      
+StudentT      CDF       500000    Work-Stealing   122004.59     
+StudentT      LogPDF    8         Parallel        0.28          
+StudentT      LogPDF    16        Vectorized      0.39          
+StudentT      LogPDF    32        Vectorized      0.49          
+StudentT      LogPDF    64        Vectorized      0.70          
+StudentT      LogPDF    128       Vectorized      1.13          
+StudentT      LogPDF    256       Vectorized      1.98          
+StudentT      LogPDF    512       Vectorized      3.65          
+StudentT      LogPDF    1000      Vectorized      6.70          
+StudentT      LogPDF    2000      Vectorized      14.62         
+StudentT      LogPDF    5000      Vectorized      34.66         
+StudentT      LogPDF    10000     Vectorized      68.48         
+StudentT      LogPDF    20000     Vectorized      136.28        
+StudentT      LogPDF    50000     Work-Stealing   349.88        
+StudentT      LogPDF    100000    Vectorized      753.50        
+StudentT      LogPDF    250000    Parallel        1829.31       
+StudentT      LogPDF    500000    Parallel        3221.60       
+StudentT      PDF       8         Vectorized      0.42          
+StudentT      PDF       16        Vectorized      0.44          
+StudentT      PDF       32        Vectorized      0.66          
+StudentT      PDF       64        Vectorized      0.96          
+StudentT      PDF       128       Vectorized      1.52          
+StudentT      PDF       256       Vectorized      2.75          
+StudentT      PDF       512       Vectorized      4.92          
+StudentT      PDF       1000      Vectorized      9.04          
+StudentT      PDF       2000      Vectorized      19.76         
+StudentT      PDF       5000      Vectorized      47.68         
+StudentT      PDF       10000     Vectorized      95.70         
+StudentT      PDF       20000     Vectorized      195.87        
+StudentT      PDF       50000     Vectorized      505.40        
+StudentT      PDF       100000    Vectorized      1001.15       
+StudentT      PDF       250000    Parallel        2896.76       
+StudentT      PDF       500000    Work-Stealing   5357.03       
+Uniform       CDF       8         Parallel        0.12          
+Uniform       CDF       16        Parallel        0.19          
+Uniform       CDF       32        Parallel        0.15          
+Uniform       CDF       64        Parallel        0.29          
+Uniform       CDF       128       Work-Stealing   0.43          
+Uniform       CDF       256       Vectorized      0.70          
+Uniform       CDF       512       Vectorized      1.16          
+Uniform       CDF       1000      Work-Stealing   2.17          
+Uniform       CDF       2000      Parallel        3.52          
+Uniform       CDF       5000      Vectorized      26.06         
+Uniform       CDF       10000     Work-Stealing   43.09         
+Uniform       CDF       20000     Work-Stealing   64.97         
+Uniform       CDF       50000     Work-Stealing   136.31        
+Uniform       CDF       100000    Work-Stealing   267.35        
+Uniform       CDF       250000    Work-Stealing   424.74        
+Uniform       CDF       500000    Work-Stealing   609.00        
+Uniform       LogPDF    8         Vectorized      0.13          
+Uniform       LogPDF    16        Parallel        0.18          
+Uniform       LogPDF    32        Parallel        0.16          
+Uniform       LogPDF    64        Parallel        0.28          
+Uniform       LogPDF    128       Parallel        0.41          
+Uniform       LogPDF    256       Parallel        0.61          
+Uniform       LogPDF    512       Parallel        1.03          
+Uniform       LogPDF    1000      Work-Stealing   2.69          
+Uniform       LogPDF    2000      Work-Stealing   4.82          
+Uniform       LogPDF    5000      Vectorized      15.77         
+Uniform       LogPDF    10000     Vectorized      28.18         
+Uniform       LogPDF    20000     Vectorized      71.96         
+Uniform       LogPDF    50000     Work-Stealing   121.85        
+Uniform       LogPDF    100000    Work-Stealing   198.66        
+Uniform       LogPDF    250000    Work-Stealing   330.23        
+Uniform       LogPDF    500000    Work-Stealing   709.30        
+Uniform       PDF       8         Vectorized      0.12          
+Uniform       PDF       16        Vectorized      0.17          
+Uniform       PDF       32        Work-Stealing   0.15          
+Uniform       PDF       64        Vectorized      0.24          
+Uniform       PDF       128       Vectorized      0.22          
+Uniform       PDF       256       Work-Stealing   0.44          
+Uniform       PDF       512       Vectorized      0.83          
+Uniform       PDF       1000      Vectorized      1.47          
+Uniform       PDF       2000      Work-Stealing   2.00          
+Uniform       PDF       5000      Vectorized      5.87          
+Uniform       PDF       10000     Vectorized      13.34         
+Uniform       PDF       20000     Vectorized      23.78         
+Uniform       PDF       50000     Vectorized      67.85         
+Uniform       PDF       100000    Vectorized      139.54        
+Uniform       PDF       250000    Vectorized      264.81        
+Uniform       PDF       500000    Vectorized      619.67        
+
+
+=====================
+  Crossover Summary
+=====================
+
+Distribution  Operation S→V           V→P           P→Work-Steal    
+--------------------------------------------------------------------------
+Beta          CDF       8               5000            64                
+Beta          LogPDF    16              32              8                 
+Beta          PDF       16              16              16                
+ChiSquared    CDF       8               8               16                
+ChiSquared    LogPDF    8               8               128               
+ChiSquared    PDF       8               8               8                 
+Discrete      CDF       8               50000           8                 
+Discrete      LogPDF    8               64              8                 
+Discrete      PDF       8               8               8                 
+Exponential   CDF       8               8               16                
+Exponential   LogPDF    8               8               5000              
+Exponential   PDF       8               8               8                 
+Gamma         CDF       16              8               8                 
+Gamma         LogPDF    16              8               8                 
+Gamma         PDF       8               8               16                
+Gaussian      CDF       8               20000           16                
+Gaussian      LogPDF    8               8               8                 
+Gaussian      PDF       8               100000          512               
+Poisson       CDF       64              8               16                
+Poisson       LogPDF    8               20000           16                
+Poisson       PDF       8               8               16                
+StudentT      CDF       8               32              8                 
+StudentT      LogPDF    8               8               32                
+StudentT      PDF       8               250000          32                
+Uniform       CDF       8               8               128               
+Uniform       LogPDF    8               16              1000              
+Uniform       PDF       8               32              16                
+
+Results saved to /Users/wolfman/Development/libstats/build/profiles/dispatcher/2026-06-14T19-19-02Z_darwin-x86_64_feature/v1.5-erf-accuracy_sha-c91a348/strategy_profile_results.csv

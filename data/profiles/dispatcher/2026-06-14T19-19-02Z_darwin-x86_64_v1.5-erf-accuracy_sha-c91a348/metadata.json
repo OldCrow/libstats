@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-06-14T19-19-02Z",
+  "run_id": "2026-06-14T19-19-02Z_darwin-x86_64_feature/v1.5-erf-accuracy_sha-c91a348",
+  "git_branch": "feature/v1.5-erf-accuracy",
+  "git_sha": "c91a348",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build",
+  "build_type": "Dev",
+  "cxx_compiler": "",
+  "os": "darwin",
+  "arch": "x86_64",
+  "cpu_brand": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}

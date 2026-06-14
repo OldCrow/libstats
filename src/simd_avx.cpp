@@ -555,90 +555,221 @@ void VectorOps::vector_pow_elementwise_avx(const double* base, const double* exp
         output[i] = std::pow(base[i], exponent[i]);
     }
 }
-
 void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t size) noexcept {
     if (!stats::arch::supports_avx()) {
         return vector_erf_fallback(input, output, size);
     }
 
-    // Abramowitz & Stegun 7.1.26 approximation
-    // Maximum error: 1.5×10^−7
-    // erf(x) = 1 - 1/(1 + p*|x|)^n * exp(-x²) * P(t) for x ≥ 0
+    // Four-region rational polynomial approximation derived from musl libc erf.c
+    // (origin: Sun Microsystems / FreeBSD s_erf.c).
+    // Error: < 1 ULP throughout (2^-57.9 in R1, 2^-59.1 in R2, 2^-62.6 in R3, 2^-61.5 in R4).
+    // All regions evaluated for every element; results blended by region mask.
+    // simd_avx.cpp is compiled with -mavx only (no FMA); uses mul+add pairs.
+    //
+    // Region 1: |x| < 0.84375  — rational P(x²)/Q(x²),  erf(x) = x + x·R
+    // Region 2: 0.84375 ≤ |x| < 1.25  — rational around x=1,  erf(x) = erx + P(s)/Q(s)
+    // Region 3: 1.25 ≤ |x| < 2.857  — erfc via exp(-x²-0.5625+R/S)/x
+    // Region 4: 2.857 ≤ |x| < 6     — same structure, different coefficients
+    // Region 5: |x| ≥ 6             — erf ≈ ±1
 
-    const __m256d one = _mm256_set1_pd(1.0);
+    // ---- Region 1 coefficients (rational P/Q in z = x²) ----
+    const __m256d pp0 = _mm256_set1_pd( 1.28379167095512558561e-01);
+    const __m256d pp1 = _mm256_set1_pd(-3.25042107247001499370e-01);
+    const __m256d pp2 = _mm256_set1_pd(-2.84817495755985104766e-02);
+    const __m256d pp3 = _mm256_set1_pd(-5.77027029648944159157e-03);
+    const __m256d pp4 = _mm256_set1_pd(-2.37630166566501626084e-05);
+    const __m256d qq1 = _mm256_set1_pd( 3.97917223959155352819e-01);
+    const __m256d qq2 = _mm256_set1_pd( 6.50222499887672944485e-02);
+    const __m256d qq3 = _mm256_set1_pd( 5.08130628187576562776e-03);
+    const __m256d qq4 = _mm256_set1_pd( 1.32494738004321644526e-04);
+    const __m256d qq5 = _mm256_set1_pd(-3.96022827877536812320e-06);
+
+    // ---- Region 2 coefficients (rational P/Q in s = |x|-1) ----
+    const __m256d erx = _mm256_set1_pd( 8.45062911510467529297e-01); // erf(~0.84375) rounded to float24
+    const __m256d pa0 = _mm256_set1_pd(-2.36211856075265944077e-03);
+    const __m256d pa1 = _mm256_set1_pd( 4.14856118683748331666e-01);
+    const __m256d pa2 = _mm256_set1_pd(-3.72207876035701323847e-01);
+    const __m256d pa3 = _mm256_set1_pd( 3.18346619901161753674e-01);
+    const __m256d pa4 = _mm256_set1_pd(-1.10894694282396677476e-01);
+    const __m256d pa5 = _mm256_set1_pd( 3.54783043256182359371e-02);
+    const __m256d pa6 = _mm256_set1_pd(-2.16637559486879084300e-03);
+    const __m256d qa1 = _mm256_set1_pd( 1.06420880400844228286e-01);
+    const __m256d qa2 = _mm256_set1_pd( 5.40397917702171048937e-01);
+    const __m256d qa3 = _mm256_set1_pd( 7.18286544141962662868e-02);
+    const __m256d qa4 = _mm256_set1_pd( 1.26171219808761642112e-01);
+    const __m256d qa5 = _mm256_set1_pd( 1.36370839120290507362e-02);
+    const __m256d qa6 = _mm256_set1_pd( 1.19844998467991074170e-02);
+
+    // ---- Region 3 coefficients (rational R/S in s = 1/x², 1.25 ≤ |x| < 2.857) ----
+    const __m256d ra0 = _mm256_set1_pd(-9.86494403484714822705e-03);
+    const __m256d ra1 = _mm256_set1_pd(-6.93858572707181764372e-01);
+    const __m256d ra2 = _mm256_set1_pd(-1.05586262253232909814e+01);
+    const __m256d ra3 = _mm256_set1_pd(-6.23753324503260060396e+01);
+    const __m256d ra4 = _mm256_set1_pd(-1.62396669462573470355e+02);
+    const __m256d ra5 = _mm256_set1_pd(-1.84605092906711035994e+02);
+    const __m256d ra6 = _mm256_set1_pd(-8.12874355063065934246e+01);
+    const __m256d ra7 = _mm256_set1_pd(-9.81432934416914548592e+00);
+    const __m256d sa1 = _mm256_set1_pd( 1.96512716674392571292e+01);
+    const __m256d sa2 = _mm256_set1_pd( 1.37657754143519042600e+02);
+    const __m256d sa3 = _mm256_set1_pd( 4.34565877475229228821e+02);
+    const __m256d sa4 = _mm256_set1_pd( 6.45387271733267880336e+02);
+    const __m256d sa5 = _mm256_set1_pd( 4.29008140027567833386e+02);
+    const __m256d sa6 = _mm256_set1_pd( 1.08635005541779435134e+02);
+    const __m256d sa7 = _mm256_set1_pd( 6.57024977031928170135e+00);
+    const __m256d sa8 = _mm256_set1_pd(-6.04244152148580987438e-02);
+
+    // ---- Region 4 coefficients (rational R/S in s = 1/x², 2.857 ≤ |x| < 6) ----
+    const __m256d rb0 = _mm256_set1_pd(-9.86494292470009928597e-03);
+    const __m256d rb1 = _mm256_set1_pd(-7.99283237680523006574e-01);
+    const __m256d rb2 = _mm256_set1_pd(-1.77579549177547519889e+01);
+    const __m256d rb3 = _mm256_set1_pd(-1.60636384855821916062e+02);
+    const __m256d rb4 = _mm256_set1_pd(-6.37566443368389627722e+02);
+    const __m256d rb5 = _mm256_set1_pd(-1.02509513161107724954e+03);
+    const __m256d rb6 = _mm256_set1_pd(-4.83519191608651397019e+02);
+    const __m256d sb1 = _mm256_set1_pd( 3.03380607434824582924e+01);
+    const __m256d sb2 = _mm256_set1_pd( 3.25792512996573918826e+02);
+    const __m256d sb3 = _mm256_set1_pd( 1.53672958608443695994e+03);
+    const __m256d sb4 = _mm256_set1_pd( 3.19985821950859553908e+03);
+    const __m256d sb5 = _mm256_set1_pd( 2.55305040643316442583e+03);
+    const __m256d sb6 = _mm256_set1_pd( 4.74528541206955367215e+02);
+    const __m256d sb7 = _mm256_set1_pd(-2.24409524465858183362e+01);
+
+    const __m256d one       = _mm256_set1_pd(1.0);
     const __m256d sign_mask = _mm256_set1_pd(-0.0);
+    const __m256d t1        = _mm256_set1_pd(0.84375);     // R1 / R2 boundary
+    const __m256d t2        = _mm256_set1_pd(1.25);        // R2 / R3 boundary
+    const __m256d t3        = _mm256_set1_pd(2.857142857); // R3 / R4 boundary (= 1/0.35)
+    const __m256d t5        = _mm256_set1_pd(6.0);         // R4 / R5 boundary
+    const __m256d c0p5625   = _mm256_set1_pd(0.5625);
 
-    // Coefficients for Abramowitz & Stegun approximation
-    const __m256d a1 = _mm256_set1_pd(0.254829592);
-    const __m256d a2 = _mm256_set1_pd(-0.284496736);
-    const __m256d a3 = _mm256_set1_pd(1.421413741);
-    const __m256d a4 = _mm256_set1_pd(-1.453152027);
-    const __m256d a5 = _mm256_set1_pd(1.061405429);
-    const __m256d p = _mm256_set1_pd(0.3275911);
+    constexpr std::size_t W = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    alignas(32) double exp_buf[W];  // temp buffer for exp(-x²-0.5625+R/S)
 
-    // For very small x approximation: erf(x) ≈ (2/sqrt(pi)) * x
-    const __m256d two_over_sqrtpi = _mm256_set1_pd(1.12837916709551262756245475959);
-    const __m256d thresh_small = _mm256_set1_pd(1e-8);
-    const __m256d thresh_large = _mm256_set1_pd(6.0);
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m256d x     = _mm256_loadu_pd(&input[i]);
+        __m256d sign  = _mm256_and_pd(x, sign_mask);
+        __m256d ax    = _mm256_andnot_pd(sign_mask, x);  // |x|
 
-    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::simd::AVX_DOUBLES;
-    const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
+        // Region masks
+        __m256d m1 = _mm256_cmp_pd(ax, t1, _CMP_LT_OQ);  // |x| < 0.84375
+        __m256d m2 = _mm256_cmp_pd(ax, t2, _CMP_LT_OQ);  // |x| < 1.25
+        __m256d m3 = _mm256_cmp_pd(ax, t3, _CMP_LT_OQ);  // |x| < 2.857
 
-    for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
-        __m256d x = _mm256_loadu_pd(&input[i]);
+        // ---- Region 1: erf(x) = x + x·P(z)/Q(z),  z = x² ----
+        __m256d z = _mm256_mul_pd(ax, ax);
+        __m256d P1 = pp4;
+        P1 = _mm256_add_pd(pp3, _mm256_mul_pd(z, P1));
+        P1 = _mm256_add_pd(pp2, _mm256_mul_pd(z, P1));
+        P1 = _mm256_add_pd(pp1, _mm256_mul_pd(z, P1));
+        P1 = _mm256_add_pd(pp0, _mm256_mul_pd(z, P1));
+        __m256d Q1 = qq5;
+        Q1 = _mm256_add_pd(qq4, _mm256_mul_pd(z, Q1));
+        Q1 = _mm256_add_pd(qq3, _mm256_mul_pd(z, Q1));
+        Q1 = _mm256_add_pd(qq2, _mm256_mul_pd(z, Q1));
+        Q1 = _mm256_add_pd(qq1, _mm256_mul_pd(z, Q1));
+        Q1 = _mm256_add_pd(one, _mm256_mul_pd(z, Q1));
+        // r1 = ax + ax*(P1/Q1) = ax*(1 + P1/Q1)
+        __m256d r1 = _mm256_add_pd(ax, _mm256_mul_pd(ax, _mm256_div_pd(P1, Q1)));
 
-        // Save sign and compute absolute value
-        __m256d sign = _mm256_and_pd(x, sign_mask);
-        __m256d abs_x = _mm256_andnot_pd(sign_mask, x);
+        // ---- Region 2: erf(x) = erx + P(s)/Q(s),  s = |x|-1 ----
+        __m256d s2 = _mm256_sub_pd(ax, one);
+        __m256d P2 = pa6;
+        P2 = _mm256_add_pd(pa5, _mm256_mul_pd(s2, P2));
+        P2 = _mm256_add_pd(pa4, _mm256_mul_pd(s2, P2));
+        P2 = _mm256_add_pd(pa3, _mm256_mul_pd(s2, P2));
+        P2 = _mm256_add_pd(pa2, _mm256_mul_pd(s2, P2));
+        P2 = _mm256_add_pd(pa1, _mm256_mul_pd(s2, P2));
+        P2 = _mm256_add_pd(pa0, _mm256_mul_pd(s2, P2));
+        __m256d Q2 = qa6;
+        Q2 = _mm256_add_pd(qa5, _mm256_mul_pd(s2, Q2));
+        Q2 = _mm256_add_pd(qa4, _mm256_mul_pd(s2, Q2));
+        Q2 = _mm256_add_pd(qa3, _mm256_mul_pd(s2, Q2));
+        Q2 = _mm256_add_pd(qa2, _mm256_mul_pd(s2, Q2));
+        Q2 = _mm256_add_pd(qa1, _mm256_mul_pd(s2, Q2));
+        Q2 = _mm256_add_pd(one, _mm256_mul_pd(s2, Q2));
+        __m256d r2 = _mm256_add_pd(erx, _mm256_div_pd(P2, Q2));
 
-        // Check for special cases
-        __m256d is_small = _mm256_cmp_pd(abs_x, thresh_small, _CMP_LT_OQ);
-        __m256d is_large = _mm256_cmp_pd(abs_x, thresh_large, _CMP_GE_OQ);
+        // ---- Regions 3-4: erfc = exp(-x²-0.5625+R/S)/|x|,  erf = 1-erfc ----
+        // Clamp |x| to [1.25, ∞) so 1/x² is safe for all lanes (R1/R2 lanes blended away later).
+        __m256d sax = _mm256_max_pd(ax, t2);
+        __m256d inv_x2 = _mm256_div_pd(one, _mm256_mul_pd(sax, sax));  // s = 1/x²
 
-        // Compute t = 1 / (1 + p * |x|)
-        __m256d t = _mm256_add_pd(one, _mm256_mul_pd(p, abs_x));
-        t = _mm256_div_pd(one, t);
+        // Region 3 R polynomial: R3 = ra0 + s*(ra1 + ... + s*ra7)
+        __m256d R3 = ra7;
+        R3 = _mm256_add_pd(ra6, _mm256_mul_pd(inv_x2, R3));
+        R3 = _mm256_add_pd(ra5, _mm256_mul_pd(inv_x2, R3));
+        R3 = _mm256_add_pd(ra4, _mm256_mul_pd(inv_x2, R3));
+        R3 = _mm256_add_pd(ra3, _mm256_mul_pd(inv_x2, R3));
+        R3 = _mm256_add_pd(ra2, _mm256_mul_pd(inv_x2, R3));
+        R3 = _mm256_add_pd(ra1, _mm256_mul_pd(inv_x2, R3));
+        R3 = _mm256_add_pd(ra0, _mm256_mul_pd(inv_x2, R3));
 
-        // Evaluate polynomial using Horner's method
-        // poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))))
-        __m256d poly = a5;
-        poly = _mm256_add_pd(a4, _mm256_mul_pd(t, poly));
-        poly = _mm256_add_pd(a3, _mm256_mul_pd(t, poly));
-        poly = _mm256_add_pd(a2, _mm256_mul_pd(t, poly));
-        poly = _mm256_add_pd(a1, _mm256_mul_pd(t, poly));
-        poly = _mm256_mul_pd(t, poly);
+        // Region 3 S polynomial: S3 = 1 + s*(sa1 + ... + s*sa8)
+        __m256d S3 = sa8;
+        S3 = _mm256_add_pd(sa7, _mm256_mul_pd(inv_x2, S3));
+        S3 = _mm256_add_pd(sa6, _mm256_mul_pd(inv_x2, S3));
+        S3 = _mm256_add_pd(sa5, _mm256_mul_pd(inv_x2, S3));
+        S3 = _mm256_add_pd(sa4, _mm256_mul_pd(inv_x2, S3));
+        S3 = _mm256_add_pd(sa3, _mm256_mul_pd(inv_x2, S3));
+        S3 = _mm256_add_pd(sa2, _mm256_mul_pd(inv_x2, S3));
+        S3 = _mm256_add_pd(sa1, _mm256_mul_pd(inv_x2, S3));
+        S3 = _mm256_add_pd(one, _mm256_mul_pd(inv_x2, S3));
 
-        // Compute exp(-x^2)
-        __m256d x2 = _mm256_mul_pd(abs_x, abs_x);
-        __m256d neg_x2 = _mm256_sub_pd(_mm256_setzero_pd(), x2);
+        // Region 4 R polynomial: R4 = rb0 + s*(rb1 + ... + s*rb6)
+        __m256d R4 = rb6;
+        R4 = _mm256_add_pd(rb5, _mm256_mul_pd(inv_x2, R4));
+        R4 = _mm256_add_pd(rb4, _mm256_mul_pd(inv_x2, R4));
+        R4 = _mm256_add_pd(rb3, _mm256_mul_pd(inv_x2, R4));
+        R4 = _mm256_add_pd(rb2, _mm256_mul_pd(inv_x2, R4));
+        R4 = _mm256_add_pd(rb1, _mm256_mul_pd(inv_x2, R4));
+        R4 = _mm256_add_pd(rb0, _mm256_mul_pd(inv_x2, R4));
 
-        // Call our exp implementation
-        alignas(32) double exp_input[AVX_DOUBLE_WIDTH];
-        alignas(32) double exp_result[AVX_DOUBLE_WIDTH];
-        _mm256_store_pd(exp_input, neg_x2);
-        vector_exp_avx(exp_input, exp_result, AVX_DOUBLE_WIDTH);
-        __m256d exp_neg_x2 = _mm256_load_pd(exp_result);
+        // Region 4 S polynomial: S4 = 1 + s*(sb1 + ... + s*sb7)
+        __m256d S4 = sb7;
+        S4 = _mm256_add_pd(sb6, _mm256_mul_pd(inv_x2, S4));
+        S4 = _mm256_add_pd(sb5, _mm256_mul_pd(inv_x2, S4));
+        S4 = _mm256_add_pd(sb4, _mm256_mul_pd(inv_x2, S4));
+        S4 = _mm256_add_pd(sb3, _mm256_mul_pd(inv_x2, S4));
+        S4 = _mm256_add_pd(sb2, _mm256_mul_pd(inv_x2, S4));
+        S4 = _mm256_add_pd(sb1, _mm256_mul_pd(inv_x2, S4));
+        S4 = _mm256_add_pd(one, _mm256_mul_pd(inv_x2, S4));
 
-        // erf(|x|) = 1 - poly * exp(-x^2)
-        __m256d result = _mm256_sub_pd(one, _mm256_mul_pd(poly, exp_neg_x2));
+        // Blend R/S: use Region 3 coefficients where |x| < 2.857, Region 4 otherwise
+        __m256d RS = _mm256_div_pd(_mm256_blendv_pd(R4, R3, m3),
+                                   _mm256_blendv_pd(S4, S3, m3));
 
-        // For very small |x|, use linear approximation
-        __m256d small_result = _mm256_mul_pd(abs_x, two_over_sqrtpi);
-        result = _mm256_blendv_pd(result, small_result, is_small);
+        // exp_arg = -x² - 0.5625 + R/S  (equivalent to musl's two-exp decomposition)
+        __m256d exp_arg = _mm256_sub_pd(_mm256_sub_pd(RS, c0p5625),
+                                        _mm256_mul_pd(sax, sax));
+        // Clamp to ≤ 0 to prevent overflow (erfc is always ≤ 1 for |x| ≥ 1.25)
+        exp_arg = _mm256_min_pd(exp_arg, _mm256_setzero_pd());
 
-        // For large |x| >= 6, erf(x) = 1
-        result = _mm256_blendv_pd(result, one, is_large);
+        _mm256_store_pd(exp_buf, exp_arg);
+        vector_exp_avx(exp_buf, exp_buf, W);
+        __m256d exp_val = _mm256_load_pd(exp_buf);
 
-        // Apply sign
+        __m256d r34 = _mm256_sub_pd(one, _mm256_div_pd(exp_val, sax));
+
+        // ---- Blend regions (innermost wins) ----
+        __m256d result = one;                                          // R5: |x| >= 6 -> 1
+        result = _mm256_blendv_pd(result, r34,
+            _mm256_andnot_pd(m2, _mm256_cmp_pd(ax, t5, _CMP_LT_OQ))); // R3+R4: 1.25 <= |x| < 6
+        result = _mm256_blendv_pd(result, r2,
+            _mm256_andnot_pd(m1, m2));                                 // R2: 0.84375 <= |x| < 1.25
+        result = _mm256_blendv_pd(result, r1, m1);                    // R1: |x| < 0.84375
+
+        // Propagate NaN
+        __m256d nan_mask = _mm256_cmp_pd(x, x, _CMP_UNORD_Q);
+        result = _mm256_blendv_pd(result, x, nan_mask);
+
+        // Restore sign (erf is odd)
         result = _mm256_or_pd(result, sign);
 
         _mm256_storeu_pd(&output[i], result);
     }
 
-    // Handle remaining elements with scalar fallback
-    for (std::size_t i = simd_end; i < size; ++i) {
-        output[i] = std::erf(input[i]);
-    }
+    for (std::size_t i = simd_end; i < size; ++i) output[i] = std::erf(input[i]);
 }
 
 void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t size) noexcept {

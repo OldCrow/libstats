@@ -27,6 +27,7 @@
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/von_mises.h"
 #include "libstats/platform/simd.h"
 
 #include <algorithm>   // for std::max, std::min, std::count_if, std::clamp
@@ -54,7 +55,9 @@ constexpr size_t TEST_SIZE = 1024;  // Size for correctness tests
 constexpr int TEST_ITERATIONS = 5;
 constexpr double TOLERANCE_NORMAL = 1e-14;     // Normal numerical precision
 constexpr double TOLERANCE_RELAXED = 1e-12;    // Relaxed for complex operations
-constexpr double TOLERANCE_ERF_APPROX = 2e-7;  // A&S erf approximation (documented max ~1.5e-7)
+constexpr double TOLERANCE_ERF_APPROX = 1e-13; // musl rational polynomial (measured max ~2.2e-16; must stay > TOLERANCE_NORMAL so absolute-only mode only fires for erf-derived ops)
+constexpr double TOLERANCE_COS = 1e-9;          // 7-term Horner polynomial (max error ~1e-10, 10x headroom)
+constexpr double TOLERANCE_VONMISES = 5e-10;    // VonMises batch uses vector_cos; abs error floor ~1e-10
 
 // Edge case test values that are architecture-independent
 const std::vector<double> EDGE_CASES = {0.0,
@@ -115,7 +118,7 @@ class SIMDVerifier {
         // Display system SIMD capabilities
         displaySystemSIMDInfo();
 
-        // Test all distributions with different operations
+        // Test all distributions with different operations (same order as v1.4.0)
         testUniformDistribution();
         testGaussianDistribution();
         testExponentialDistribution();
@@ -126,8 +129,14 @@ class SIMDVerifier {
         testStudentTDistribution();
         testBetaDistribution();
 
-        // Test edge cases
+        // Test edge cases (same order as v1.4.0 to preserve rng_ state)
         testEdgeCases();
+
+        // New v1.5.0 coverage: placed AFTER all existing tests so that the shared
+        // rng_ state (and hence test data) for the original 54 tests is identical
+        // to v1.4.0 baselines. Both new functions are rng_-independent.
+        testVonMisesDistribution();  // uses local RNG
+        testPrimitiveVectorOps();    // uses deterministic linspace data
 
         // Analyze and report results
         analyzeResults();
@@ -171,6 +180,170 @@ class SIMDVerifier {
         std::cout << "\nOptimal SIMD block size: " << stats::arch::get_optimal_simd_block_size()
                   << " elements\n";
         std::cout << "Memory alignment: " << stats::arch::get_optimal_alignment() << " bytes\n\n";
+    }
+
+    void testPrimitiveVectorOps() {
+        stats::detail::detail::subsectionHeader("Primitive Vector Operations");
+        std::cout << "Direct SIMD vs scalar benchmarks for each vector op (authoritative speedup signal)\n";
+
+        using VectorOps = stats::arch::simd::VectorOps;
+
+        // All inputs are deterministic linspace — no rng_ consumption.
+
+        // vector_exp: linspace over [-500, 500] (clamped to [-708, 709] by the implementation)
+        std::vector<double> exp_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            exp_data[i] = -500.0 + 1000.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+        verifyVectorOp(
+            exp_data, "VectorExp",
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                for (size_t i = 0; i < in.size(); ++i) out[i] = std::exp(in[i]);
+            },
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                VectorOps::vector_exp(in.data(), out.data(), in.size());
+            },
+            TOLERANCE_NORMAL);
+
+        // vector_log: linspace over (1e-6, 1000]
+        std::vector<double> log_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            log_data[i] = 1e-6 + (1000.0 - 1e-6) * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+        verifyVectorOp(
+            log_data, "VectorLog",
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                for (size_t i = 0; i < in.size(); ++i) out[i] = std::log(in[i]);
+            },
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                VectorOps::vector_log(in.data(), out.data(), in.size());
+            },
+            TOLERANCE_NORMAL);
+
+        // vector_erf: linspace over [-8, 8] covers all five regions:
+        //   R1 |x|<0.84375, R2 0.84375-1.25, R3 1.25-2.857, R4 2.857-6, R5 |x|>=6.
+        // Region boundaries (0.84375, 1.25, 2.857143, 6.0) are naturally sampled.
+        std::vector<double> erf_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            erf_data[i] = -8.0 + 16.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+        verifyVectorOp(
+            erf_data, "VectorErf",
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                for (size_t i = 0; i < in.size(); ++i) out[i] = std::erf(in[i]);
+            },
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                VectorOps::vector_erf(in.data(), out.data(), in.size());
+            },
+            TOLERANCE_ERF_APPROX, /*absolute_only=*/true);
+
+        // vector_cos: linspace over [-4π, +4π] to exercise range reduction.
+        // Horner polynomial error is absolute (not relative near zero), so use absolute_only=true.
+        std::vector<double> cos_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            cos_data[i] = -4.0 * PI + 8.0 * PI * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+        verifyVectorOp(
+            cos_data, "VectorCos",
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                for (size_t i = 0; i < in.size(); ++i) out[i] = std::cos(in[i]);
+            },
+            [](const std::vector<double>& in, std::vector<double>& out) {
+                VectorOps::vector_cos(in.data(), out.data(), in.size());
+            },
+            TOLERANCE_COS, /*absolute_only=*/true);
+    }
+
+    // Benchmark a single vector op: scalar loop vs SIMD call.
+    // Produces one VerificationResult row in the summary table.
+    template <typename ScalarFunc, typename SIMDFunc>
+    void verifyVectorOp(const std::vector<double>& test_data, const std::string& op_name,
+                        ScalarFunc scalar_func, SIMDFunc simd_func, double tolerance,
+                        bool absolute_only = false) {
+        std::vector<double> scalar_results(test_data.size());
+        std::vector<double> simd_results(test_data.size());
+
+        // Warm up
+        scalar_func(test_data, scalar_results);
+        simd_func(test_data, simd_results);
+
+        // Time scalar
+        auto scalar_start = std::chrono::high_resolution_clock::now();
+        for (int iter = 0; iter < TEST_ITERATIONS; ++iter) scalar_func(test_data, scalar_results);
+        auto scalar_end = std::chrono::high_resolution_clock::now();
+        auto scalar_time =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(scalar_end - scalar_start).count() /
+            TEST_ITERATIONS;
+
+        // Time SIMD
+        auto simd_start = std::chrono::high_resolution_clock::now();
+        for (int iter = 0; iter < TEST_ITERATIONS; ++iter) simd_func(test_data, simd_results);
+        auto simd_end = std::chrono::high_resolution_clock::now();
+        auto simd_time =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(simd_end - simd_start).count() /
+            TEST_ITERATIONS;
+
+        VerificationResult result;
+        result.distribution_name = op_name;  // reuse field for op name
+        result.operation_name    = "---";
+        result.test_size         = test_data.size();
+        result.scalar_time_ns    = static_cast<double>(scalar_time);
+        result.simd_time_ns      = static_cast<double>(simd_time);
+        result.speedup_ratio     = static_cast<double>(scalar_time) / static_cast<double>(simd_time);
+        result.simd_level_used   = active_simd_level_;
+
+        // Analyze correctness with caller-supplied tolerance
+        result.max_difference    = 0.0;
+        result.avg_difference    = 0.0;
+        result.failed_comparisons = 0;
+        double sum_diff = 0.0;
+        size_t valid = 0;
+        std::ostringstream err;
+        for (size_t i = 0; i < scalar_results.size(); ++i) {
+            double s = scalar_results[i], v = simd_results[i];
+            if (std::isnan(s) && std::isnan(v)) continue;
+            if (std::isinf(s) && std::isinf(v) && (s > 0) == (v > 0)) continue;
+            double diff = std::abs(s - v);
+            if (std::isfinite(diff)) {
+                result.max_difference = std::max(result.max_difference, diff);
+                sum_diff += diff;
+                valid++;
+            }
+            bool bad = absolute_only
+                ? (std::isfinite(diff) && diff > tolerance)
+                : ((std::abs(s) > tolerance) ? (diff / std::abs(s) > tolerance) : (diff > tolerance));
+            if (bad) {
+                result.failed_comparisons++;
+                if (result.failed_comparisons <= 3)
+                    err << "[" << i << "] scalar=" << s << " simd=" << v << " diff=" << diff << "; ";
+            }
+        }
+        result.avg_difference   = (valid > 0) ? sum_diff / static_cast<double>(valid) : 0.0;
+        result.correctness_passed = (result.failed_comparisons == 0);
+        result.error_details    = err.str();
+        if (result.failed_comparisons > 3)
+            result.error_details += "... (+" + std::to_string(result.failed_comparisons - 3) + " more)";
+
+        results_.push_back(result);
+
+        std::cout << "  " << op_name << ": ";
+        if (result.correctness_passed) std::cout << "\u2713 PASS";
+        else                           std::cout << "\u2717 FAIL";
+        std::cout << " (max_diff=" << std::scientific << std::setprecision(2) << result.max_difference
+                  << ", speedup=" << std::fixed << std::setprecision(1) << result.speedup_ratio << "x)\n";
+        if (!result.correctness_passed && !result.error_details.empty())
+            std::cout << "    Error: " << result.error_details << "\n";
+    }
+
+    void testVonMisesDistribution() {
+        stats::detail::detail::subsectionHeader("VonMises Distribution SIMD Verification");
+        // kappa=2: unimodal, exercises vector_cos in both LogPDF and PDF batch paths.
+        // Uses a local RNG (seed VERIFICATION_SEED+1) so that calling this after testEdgeCases()
+        // does not alter rng_ or the test data of any previously-run test.
+        auto dist = stats::VonMisesDistribution::create(0.0, 2.0).value;
+
+        std::mt19937 local_rng(VERIFICATION_SEED + 1);
+        std::uniform_real_distribution<double> angle_dist(-PI, PI);
+        std::vector<double> test_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i) test_data[i] = angle_dist(local_rng);
+
+        verifyDistributionOperations(dist, test_data, "VonMises");
     }
 
     void testUniformDistribution() {
@@ -405,6 +578,12 @@ class SIMDVerifier {
             : (result.distribution_name.find("Beta") != std::string::npos &&
                result.operation_name == "LogPDF")
                 ? TOLERANCE_RELAXED
+            // VonMises PDF/LogPDF both route through the vector_cos SIMD batch path,
+            // which has an absolute error floor of ~1e-10. Use absolute tolerance only
+            // (relative error is misleading for values near the tails).
+            : (result.distribution_name.find("VonMises") != std::string::npos &&
+               result.operation_name != "CDF")
+                ? TOLERANCE_VONMISES
                 : TOLERANCE_NORMAL;
 
         for (size_t i = 0; i < scalar_results.size(); ++i) {
@@ -443,9 +622,11 @@ class SIMDVerifier {
             }
 
             bool is_error = false;
-            if (tolerance >= TOLERANCE_ERF_APPROX || tolerance == TOLERANCE_RELAXED) {
-                // Gaussian CDF (erf approx) and Beta LogPDF (two-log rounding) both use
-                // absolute tolerance only: relative error is misleading near zero crossings.
+            if (tolerance >= TOLERANCE_ERF_APPROX || tolerance == TOLERANCE_RELAXED ||
+                tolerance == TOLERANCE_VONMISES) {
+                // Gaussian CDF (erf approx), Beta LogPDF (two-log rounding), and VonMises
+                // PDF/LogPDF (vector_cos pipeline) all use absolute tolerance only:
+                // relative error is misleading near zero crossings and distribution tails.
                 is_error = (diff > tolerance);
             } else if (std::abs(scalar_val) > tolerance) {
                 double relative_error = diff / std::abs(scalar_val);
