@@ -51,7 +51,7 @@
   `test_negative_binomial_basic`. Total correctness tests: 39.
 
 ### Validation
-- 39/39 correctness tests pass on all four architectures (pending CI for AVX2/AVX-512/NEON)
+- 39/39 correctness tests pass on all four architectures (AVX, AVX2, NEON, AVX-512)
 - 54/54 SIMD tests pass on all four architectures (unchanged — Binomial/NegBinom use scalar loops)
 
 ---

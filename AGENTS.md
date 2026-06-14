@@ -74,19 +74,18 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 | Ivy Bridge (2012 MBP) | AVX | 39/39 ✅ | 53 | 54/54 ✅ | 4.10x |
 | Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 59 | 54/54 ✅ | 3.49x |
 | Mac Mini M1 | NEON | 39/39 ✅ | 59 | 54/54 ✅ | 2.31x |
-| Asus TUF A16 (Windows) | AVX-512 | see note | reduced* | 54/54 ✅ | 1.64x |
+| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 59 | 54/54 ✅ | 1.64x |
 
 All four machines validated. 16 distributions, 39/39 correctness tests, 54/54 SIMD tests.
 
 **Total suite counts differ by machine:**
-- Kaby Lake / M1 (59): full GTest + requires-expressions — all tests present.
+- Kaby Lake / M1 / Asus TUF A16 (59): full GTest + requires-expressions — all tests present.
 - Ivy Bridge/Catalina (53): 6 timing-labelled tests excluded by
   `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` gating (`test_exponential_enhanced`,
   `test_uniform_enhanced`, `test_poisson_enhanced`, `test_discrete_enhanced`,
   `test_gamma_enhanced`, and one pool variant). Correctness suite unaffected (39/39).
-- Asus TUF A16 (Windows)*: GTest not currently configured — all `create_libstats_gtest`
-  targets absent (enhanced tests, `test_atomic_parameters`, `test_math_comprehensive`,
-  etc.). Correctness-labelled GTest tests cannot run. **Tracked in Deferred Items.**
+- Asus TUF A16 (Windows): GTest available via vcpkg `gtest:x64-windows 1.17.0`;
+  all correctness-labelled GTest tests run correctly.
 
 ### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
 Vectorized batch kernels added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
@@ -104,12 +103,6 @@ All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
 Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
 
 ### Deferred Items
-- **Windows GTest gap**: GTest is not currently configured on the Asus TUF A16. All
-  `create_libstats_gtest` targets (enhanced distribution tests, `test_atomic_parameters`,
-  `test_math_comprehensive`, etc.) are absent. Fix: install GTest via vcpkg
-  (`vcpkg install gtest:x64-windows`) and reconfigure. Previously worked at v1.0.0
-  (vcpkg `gtest:x64-windows 1.17.0`); configuration may have been lost during an OS
-  or toolchain refresh.
 - AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on AMD Ryzen 7 7445 (AVX-512, Windows);
   fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
   back to the AVX implementation; deferred post-v1.3.0
