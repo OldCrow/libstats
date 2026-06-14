@@ -245,8 +245,102 @@ void VectorOps::vector_log_avx512(const double* values, double* results,
     if (!stats::arch::supports_avx512()) {
         return vector_log_fallback(values, results, size);
     }
-    // Delegates to AVX (4-wide). See block comment above.
-    return vector_log_avx(values, results, size);
+
+    // SLEEF xlog_u1-inspired: 2*atanh series, < 1 ULP error.
+    // FMA Horner; exponent extraction via 512-bit integer ops (AVX-512F).
+    // _mm512_cvtepi64_pd requires AVX-512DQ (enabled on Zen 4 by /arch:AVX512).
+    // Algorithm and coefficients identical to vector_log_avx2; width doubled to 8.
+
+    const __m512d one     = _mm512_set1_pd(1.0);
+    const __m512d ln2_hi  = _mm512_set1_pd(0.693147180559945286226764);
+    const __m512d ln2_lo  = _mm512_set1_pd(2.319046813846299558417771e-17);
+    const __m512d sqrt2   = _mm512_set1_pd(1.4142135623730950488016887242097);
+    const __m512d half    = _mm512_set1_pd(0.5);
+    const __m512d two     = _mm512_set1_pd(2.0);
+
+    // SLEEF xlog_u1 coefficients (2*atanh series)
+    const __m512d c1 = _mm512_set1_pd(0.6666666666667333541e+0);
+    const __m512d c2 = _mm512_set1_pd(0.3999999999635251990e+0);
+    const __m512d c3 = _mm512_set1_pd(0.2857142932794299317e+0);
+    const __m512d c4 = _mm512_set1_pd(0.2222214519839380009e+0);
+    const __m512d c5 = _mm512_set1_pd(0.1818605932937785996e+0);
+    const __m512d c6 = _mm512_set1_pd(0.1525629051003428716e+0);
+    const __m512d c7 = _mm512_set1_pd(0.1532076988502701353e+0);
+
+    const __m512d zero    = _mm512_setzero_pd();
+    const __m512d neg_inf = _mm512_set1_pd(-std::numeric_limits<double>::infinity());
+    const __m512d pos_inf = _mm512_set1_pd( std::numeric_limits<double>::infinity());
+    const __m512d nan_val = _mm512_set1_pd(std::numeric_limits<double>::quiet_NaN());
+
+    constexpr std::size_t W = arch::simd::AVX512_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m512d x = _mm512_loadu_pd(&values[i]);
+
+        __mmask8 is_zero     = _mm512_cmp_pd_mask(x, zero,    _CMP_EQ_OQ);
+        __mmask8 is_negative = _mm512_cmp_pd_mask(x, zero,    _CMP_LT_OQ);
+        __mmask8 is_inf      = _mm512_cmp_pd_mask(x, pos_inf, _CMP_EQ_OQ);
+
+        // Scale denormals by 2^54 to bring into normal range
+        const __m512d min_normal = _mm512_set1_pd(2.2250738585072014e-308);
+        const __m512d scale_up   = _mm512_set1_pd(18014398509481984.0);  // 2^54
+        __mmask8 is_denormal = _mm512_cmp_pd_mask(x, min_normal, _CMP_LT_OQ);
+        __m512d scaled_x = _mm512_mask_blend_pd(is_denormal, x,
+                                                _mm512_mul_pd(x, scale_up));
+
+        // Exponent extraction: cast to int, shift right 52 bits, mask 11-bit
+        // exponent field, subtract bias 1023. All AVX-512F.
+        __m512i xi    = _mm512_castpd_si512(scaled_x);
+        __m512i exp_i = _mm512_sub_epi64(
+            _mm512_and_si512(_mm512_srli_epi64(xi, 52), _mm512_set1_epi64(0x7FF)),
+            _mm512_set1_epi64(1023));
+
+        // int64 → double (AVX-512DQ, enabled by /arch:AVX512 on Zen 4)
+        __m512d e = _mm512_cvtepi64_pd(exp_i);
+        // Adjust exponent for denormals: subtract the 54 we scaled by
+        e = _mm512_mask_blend_pd(is_denormal, e, _mm512_sub_pd(e, _mm512_set1_pd(54.0)));
+
+        // Isolate mantissa in [1, 2) by masking out the exponent field and
+        // replacing it with bias 1023 (= exponent for 1.0)
+        __m512i mant_i = _mm512_or_si512(
+            _mm512_and_si512(xi, _mm512_set1_epi64(0x000FFFFFFFFFFFFFLL)),
+            _mm512_set1_epi64(0x3FF0000000000000LL));
+        __m512d m = _mm512_castsi512_pd(mant_i);
+
+        // Range adjustment: m → [0.5, sqrt(2)), increment e where m > sqrt(2)
+        __mmask8 needs_adj = _mm512_cmp_pd_mask(m, sqrt2, _CMP_GT_OQ);
+        m = _mm512_mask_blend_pd(needs_adj, m, _mm512_mul_pd(m, half));
+        e = _mm512_mask_blend_pd(needs_adj, e, _mm512_add_pd(e, one));
+
+        // xr = (m-1)/(m+1); FMA Horner: t = c7 + xr²*(c6 + ... + xr²*c1)
+        __m512d xr  = _mm512_div_pd(_mm512_sub_pd(m, one), _mm512_add_pd(m, one));
+        __m512d xr2 = _mm512_mul_pd(xr, xr);
+        __m512d t   = c7;
+        t = _mm512_fmadd_pd(t, xr2, c6);
+        t = _mm512_fmadd_pd(t, xr2, c5);
+        t = _mm512_fmadd_pd(t, xr2, c4);
+        t = _mm512_fmadd_pd(t, xr2, c3);
+        t = _mm512_fmadd_pd(t, xr2, c2);
+        t = _mm512_fmadd_pd(t, xr2, c1);
+
+        // log(m) = 2*xr + xr³*t  (FMA form)
+        __m512d xr3    = _mm512_mul_pd(xr, xr2);
+        __m512d two_xr = _mm512_mul_pd(xr, two);
+        __m512d log_m  = _mm512_fmadd_pd(xr3, t, two_xr);
+
+        // log(x) = log(m) + e*ln2  (high-low FMA decomposition)
+        __m512d result = _mm512_fmadd_pd(e, ln2_hi, log_m);
+        result         = _mm512_fmadd_pd(e, ln2_lo, result);
+
+        result = _mm512_mask_blend_pd(is_zero,     result, neg_inf);
+        result = _mm512_mask_blend_pd(is_inf,      result, pos_inf);
+        result = _mm512_mask_blend_pd(is_negative, result, nan_val);
+
+        _mm512_storeu_pd(&results[i], result);
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) results[i] = std::log(values[i]);
 }
 
 void VectorOps::vector_pow_avx512(const double* base, double exponent, double* results,
