@@ -6,7 +6,7 @@ libstats is a modern C++20 statistical distributions library built as a design a
 
 ## Current Status
 
-The library is at **v1.3.0** on `main`.
+The library is at **v1.4.0** on `main`.
 
 Sixteen distributions are fully implemented across four target architectures:
 
@@ -20,10 +20,10 @@ Cross-platform SIMD validation status (54/54 SIMD tests, all four machines):
 
 | Machine | SIMD | Correctness | simd_verification | Speedup |
 |---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
-| Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
-| Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
-| Asus TUF A16 (Windows) | AVX-512 | 33/33 ✅ | 54/54 ✅ | 1.64x |
+| Ivy Bridge (2012 MBP) | AVX | 39/39 ✅ | 54/54 ✅ | 4.10x |
+| Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 54/54 ✅ | 3.35x |
+| Mac Mini M1 | NEON | 39/39 ✅ | 54/54 ✅ | 2.31x |
+| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 54/54 ✅ | 1.64x |
 
 ## Design Goals
 

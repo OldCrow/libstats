@@ -8,16 +8,14 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.3.0 released on `main`.
+**Current Status**: v1.4.0 released on `main`.
 16 distributions across 6 families, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
 54/54 SIMD tests passing on all four target machines, 39/39 correctness tests.
-v1.3.0: added `BinomialDistribution` and `NegativeBinomialDistribution` (Tier 3 discrete
-distributions); `detail::trigamma` added to `math_utils`; 4 new test files (2 basic,
-2 GTest enhanced). v1.2.0: all 11 standalone tests migrated to GTest (#19),
-`categorizeBatchSize` complexity reduced (#20), dispatch threshold functions consolidated
-(#21), shared `parallelBatchFit` helper extracted and added to all 9 distributions (#18),
-two pre-existing bugs fixed (LogSpaceOps lookup table precision, DiscreteDistribution
-equal-bounds validation).
+v1.4.0: `vector_cos` SIMD primitive (all 5 backends); VonMises LogPDF/PDF batch
+SIMD-accelerated; SIMD dispatch table refactor (Issue #22); code-review findings 1–7
+resolved (domain constants, `erf_inv` constexpr, Rule of Five, named magic literals,
+style). v1.3.0: added `BinomialDistribution` and `NegativeBinomialDistribution` (Tier 3
+discrete distributions); `detail::trigamma` added to `math_utils`; 4 new test files.
 
 ## Session Start Baseline Workflow (Required)
 
@@ -105,10 +103,26 @@ Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
 ### Deferred Items
 - AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on AMD Ryzen 7 7445 (AVX-512, Windows);
   fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
-  back to the AVX implementation; deferred post-v1.3.0
+  back to the AVX implementation; deferred post-v1.4.0
 - Future: `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
+
+### Changes in v1.4.0
+- **`vector_cos`** added to `VectorOps` across all five SIMD backends (AVX/AVX2/SSE2/NEON/AVX-512).
+  Two-step range reduction + 7-term Horner polynomial; max error ≈ 1×10⁻¹⁰.
+  AVX-512 uses native 8-wide path (`_mm512_roundscale_pd`); SSE2 uses magic-number rounding.
+- **VonMises LogPDF/PDF batch** now SIMD-accelerated via the 4-step pipeline:
+  `scalar_add(−μ)` → `vector_cos` → `scalar_multiply(κ)` → `scalar_add(−ln Z)`.
+- **SIMD dispatch table** (Issue #22): `VectorOps::DispatchTable` replaces 11 repeated
+  5-tier dispatch chains in `simd_dispatch.cpp`; adding a new SIMD tier now requires
+  editing one function (`makeDispatchTable`).
+- Code-review fixes (Findings 1–7): domain constant decoupling, `erf_inv` `static constexpr`,
+  `FeaturesSingleton` Rule of Five, named magic literals, namespace style, clang-tidy config.
+
+Validation (v1.4.0, Kaby Lake AVX2 primary):
+- correctness suite: 39/39 PASS
+- `simd_verification`: 54/54 PASS, overall 3.35x
 
 ### Distributions Added in v1.3.0
 New distributions added in v1.3.0:

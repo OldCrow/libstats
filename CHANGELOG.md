@@ -1,3 +1,48 @@
+## [1.4.0] - 2026-06-14
+
+### Added
+- `vector_cos` — vectorised cosine across all five SIMD backends (AVX, AVX2, SSE2,
+  NEON, AVX-512). Two-step range reduction (reduce to [−π, π], then to [−π/2, π/2]
+  with sign tracking) followed by a 7-term Horner Taylor polynomial; max error ≈
+  1×10⁻¹⁰. AVX-512 uses native 8-wide `_mm512_roundscale_pd` + `_mm512_fmadd_pd`
+  (no SVML dependency, unlike `vector_exp`/`vector_log`/`vector_erf`). SSE2 uses
+  the magic-number rounding trick (`6755399441055744.0 = 2^52+2^51`) to avoid the
+  SSE4.1-only `_mm_round_pd`.
+
+### Changed
+- **SIMD dispatch table** (closes #22): replaced 11 repeated 5-tier dispatch chains
+  in `simd_dispatch.cpp` with a single `VectorOps::DispatchTable` struct populated
+  once at startup by `makeDispatchTable()`. Each public method is now a 2-line size
+  check + table call. Adding a new SIMD tier or op requires editing one function.
+  Net: −385 lines, +157 lines.
+- **VonMises LogPDF/PDF batch** now SIMD-accelerated via `vector_cos`: pipeline is
+  `scalar_add(−μ)` → `vector_cos` → `scalar_multiply(κ)` → `scalar_add(−ln Z)` →
+  scalar fixup for non-finite inputs. PDF reuses LogPDF then calls `vector_exp`.
+- `erf_inv` Moro/Acklam coefficients lifted from `static const` to `static constexpr`;
+  shared Acklam d/e coefficients hoisted to file-scope `static constexpr`, eliminating
+  copy-pasted duplicate blocks (CCN 15 → 14).
+
+### Fixed
+- Domain constant pollution (7 call sites across 4 files): `STRONG_CORRELATION`,
+  `CONFIDENCE_99`, and `AD_THRESHOLD_1` from `statistical_constants.h` were borrowed
+  as numeric coincidences in algorithmic code. Replaced with purpose-specific constants
+  in the appropriate headers (`math_constants.h`, `performance_constants.h`,
+  `statistical_constants.h`).
+- `FeaturesSingleton` Rule of Five: copy/move constructors and assignment operators
+  now explicitly `= delete`; default constructor explicitly `= default`.
+- Removed redundant `static` from `g_features_manager` (anonymous namespace already
+  provides internal linkage).
+- Named the two bare magic literals: `ZERO_DENSITY_LOG_PENALTY = -1e10`
+  (`validation.cpp`) and `WORK_STEALING_FALLBACK_THRESHOLD = 10000`
+  (`performance_history.cpp`).
+- `.clang-tidy`: `FunctionCase: camelCase` → `FunctionCase: camelBack` (`camelCase`
+  is not a valid clang-tidy identifier-naming token).
+
+### Validation
+- 39/39 correctness tests, 54/54 SIMD verification (Kaby Lake AVX2, 3.35x overall).
+
+---
+
 ## [1.3.0] - 2026-06-14
 
 ### Added
