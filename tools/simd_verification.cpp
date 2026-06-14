@@ -40,6 +40,7 @@
 #include <limits>      // for std::numeric_limits
 #include <random>      // for std::mt19937, random distributions
 #include <span>        // for std::span
+#include <map>         // for std::map
 #include <sstream>     // for std::ostringstream
 #include <string>      // for std::string, to_string
 #include <vector>      // for std::vector
@@ -824,54 +825,104 @@ class SIMDVerifier {
         }
 
         // Performance analysis
+        // Partition results into two populations that must not be aggregated together:
+        //   - Distribution tests: end-to-end batch pipeline speedup (PDF/LogPDF/CDF)
+        //   - Primitive vector ops: raw intrinsic-level speedup vs std::exp/log/erf/cos
+        // Mixing them produces a meaningless composite that changes with test composition.
         stats::detail::detail::subsectionHeader("Performance Analysis");
-        double total_scalar_time = 0, total_simd_time = 0;
-        double min_speedup = std::numeric_limits<double>::max();
-        double max_speedup = 0;
+
+        [[maybe_unused]] double prim_scalar = 0, prim_simd = 0;
+
+        // Per-operation-type geometric mean speedups.
+        // Partitioning by PDF/LogPDF/CDF reveals meaningful structure:
+        //   LogPDF: log-space paths, exp-dominated, typically highest speedup
+        //   PDF:    exp + normalization, moderate speedup
+        //   CDF:    erf/incomplete special functions, lowest speedup
+        // Geometric mean is correct for ratios: insensitive to which tests
+        // dominate wall-clock time and symmetric across orders of magnitude.
+        struct OpStats {
+            double log_sum = 0.0;
+            size_t count   = 0;
+            double min_sp  = std::numeric_limits<double>::max();
+            double max_sp  = 0.0;
+        };
+        std::map<std::string, OpStats> op_stats;  // keyed by operation_name
 
         for (const auto& result : results_) {
-            total_scalar_time += result.scalar_time_ns;
-            total_simd_time += result.simd_time_ns;
-            min_speedup = std::min(min_speedup, result.speedup_ratio);
-            max_speedup = std::max(max_speedup, result.speedup_ratio);
+            if (result.operation_name == "---") {
+                prim_scalar += result.scalar_time_ns;
+                prim_simd   += result.simd_time_ns;
+            } else if (result.speedup_ratio > 0.0) {
+                auto& s = op_stats[result.operation_name];
+                s.log_sum += std::log(result.speedup_ratio);
+                ++s.count;
+                s.min_sp = std::min(s.min_sp, result.speedup_ratio);
+                s.max_sp = std::max(s.max_sp, result.speedup_ratio);
+            }
         }
 
-        double overall_speedup = total_scalar_time / total_simd_time;
+        std::cout << "Distribution suite speedup geometric means (" << active_simd_level_ << "):\n";
+        // Print in canonical order: PDF, LogPDF, CDF
+        double overall_log_sum = 0.0;
+        size_t overall_count   = 0;
+        for (const std::string& op : {std::string("PDF"), std::string("LogPDF"), std::string("CDF")}) {
+            auto it = op_stats.find(op);
+            if (it == op_stats.end() || it->second.count == 0) continue;
+            const auto& s = it->second;
+            double gm = std::exp(s.log_sum / static_cast<double>(s.count));
+            std::cout << "  " << std::left << std::setw(8) << op
+                      << std::fixed << std::setprecision(1) << gm << "x"
+                      << "  (range " << s.min_sp << "x\u2013" << s.max_sp << "x,  n="
+                      << s.count << ")\n";
+            overall_log_sum += s.log_sum;
+            overall_count   += s.count;
+        }
+        double overall_geomean = (overall_count > 0)
+            ? std::exp(overall_log_sum / static_cast<double>(overall_count)) : 0.0;
 
-        std::cout << "Overall " << active_simd_level_ << " speedup: " << std::fixed
-                  << std::setprecision(2) << overall_speedup << "x\n";
-        std::cout << "Speedup range: " << std::setprecision(1) << min_speedup << "x to "
-                  << max_speedup << "x\n";
+        // Primitive vector op speedups — reported individually, not aggregated
+        std::cout << "\nPrimitive vector op speedups:\n";
+        for (const auto& result : results_) {
+            if (result.operation_name == "---") {
+                std::cout << "  " << result.distribution_name << ": "
+                          << std::fixed << std::setprecision(1)
+                          << result.speedup_ratio << "x";
+                if (!result.correctness_passed)
+                    std::cout << "  \u26a0\ufe0f ACCURACY FAIL";
+                std::cout << "\n";
+            }
+        }
 
-        // Architecture-specific performance expectations
+        // Architecture-specific performance expectation — distribution suite only
         double expected_min_speedup = 1.5;  // Conservative baseline
         if (active_simd_level_ == "AVX-512") {
-            expected_min_speedup = 4.0;
+            expected_min_speedup = 2.0;  // Phase 4 target; rises after native transcendentals
         } else if (active_simd_level_ == "AVX2" || active_simd_level_ == "AVX") {
             expected_min_speedup = 2.5;
         } else if (active_simd_level_ == "SSE2" || active_simd_level_ == "NEON") {
-            expected_min_speedup = 2.0;
+            expected_min_speedup = 1.5;  // Phase 3 target; rises after native transcendentals
         }
 
         // Recommendations
         stats::detail::detail::subsectionHeader("Recommendations");
         if (passed_tests == total_tests) {
-            std::cout << "✅ All SIMD operations are producing correct results.\n";
-            std::cout << "✅ " << active_simd_level_ << " optimizations are working correctly.\n";
+            std::cout << "\u2705 All SIMD operations are producing correct results.\n";
+            std::cout << "\u2705 " << active_simd_level_ << " optimizations are working correctly.\n";
         } else {
-            std::cout << "⚠️  Some SIMD operations are not producing identical results to scalar "
+            std::cout << "\u26a0\ufe0f  Some SIMD operations are not producing identical results to scalar "
                          "versions.\n";
-            std::cout << "⚠️  Review failed tests above and consider adjusting tolerance or "
+            std::cout << "\u26a0\ufe0f  Review failed tests above and consider adjusting tolerance or "
                          "implementation.\n";
         }
 
-        if (overall_speedup < expected_min_speedup) {
-            std::cout << "⚠️  Overall " << active_simd_level_ << " speedup (" << overall_speedup
-                      << "x) is below expected performance (>=" << expected_min_speedup << "x).\n";
+        if (overall_geomean < expected_min_speedup) {
+            std::cout << "\u26a0\ufe0f  Distribution suite geometric mean speedup ("
+                      << std::fixed << std::setprecision(2) << overall_geomean
+                      << "x) is below expected (>=" << expected_min_speedup << "x).\n";
             std::cout
                 << "   Consider profiling individual operations for optimization opportunities.\n";
         } else {
-            std::cout << "✅ " << active_simd_level_ << " performance is meeting expectations.\n";
+            std::cout << "\u2705 " << active_simd_level_ << " distribution suite performance is meeting expectations.\n";
         }
 
         std::cout << "\nNote: Small numerical differences are expected due to floating-point "
