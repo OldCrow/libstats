@@ -52,40 +52,41 @@ double erf_inv(double x) noexcept {
     double sign = (x < detail::ZERO_DOUBLE) ? detail::NEG_ONE : detail::ONE;
     double a = std::abs(x);
 
-    // Rational approximation constants (Moro's method)
-    static const double a0 = 2.50662823884;
-    static const double a1 = -18.61500062529;
-    static const double a2 = 41.39119773534;
-    static const double a3 = -25.44106049637;
+    // Rational approximation constants (Moro's method) — central region
+    static constexpr double a0 = 2.50662823884;
+    static constexpr double a1 = -18.61500062529;
+    static constexpr double a2 = 41.39119773534;
+    static constexpr double a3 = -25.44106049637;
 
-    static const double b0 = -8.47351093090;
-    static const double b1 = 23.08336743743;
-    static const double b2 = -21.06224101826;
-    static const double b3 = 3.13082909833;
+    static constexpr double b0 = -8.47351093090;
+    static constexpr double b1 = 23.08336743743;
+    static constexpr double b2 = -21.06224101826;
+    static constexpr double b3 = 3.13082909833;
 
-    // Note: c0-c8 constants removed since we now use Acklam's method for moderate tail
+    // Acklam rational approximation coefficients shared by the moderate- and
+    // extreme-tail branches.  Hoisted to eliminate copy-paste and ensure both
+    // branches use identical values.
+    static constexpr double ACKLAM_D0 = 2.515517;
+    static constexpr double ACKLAM_D1 = 0.802853;
+    static constexpr double ACKLAM_D2 = 0.010328;
+    static constexpr double ACKLAM_E0 = 1.432788;
+    static constexpr double ACKLAM_E1 = 0.189269;
+    static constexpr double ACKLAM_E2 = 0.001308;
 
     double result;
 
-    if (a <= detail::STRONG_CORRELATION) {
+    if (a <= detail::ERF_INV_CENTRAL_CUTOFF) {
         // Central region: use rational approximation
         double z = a * a;
         result = a * (((a3 * z + a2) * z + a1) * z + a0) /
                  ((((b3 * z + b2) * z + b1) * z + b0) * z + detail::ONE);
-    } else if (a < detail::CONFIDENCE_99) {
+    } else if (a < detail::ERF_INV_TAIL_CUTOFF) {
         // Moderate tail region: use improved asymptotic expansion with better coefficients
         double z = std::sqrt(-std::log((detail::ONE - a) * detail::HALF));
 
-        // More accurate coefficients for moderate tail (based on Acklam's method)
-        static const double d0 = 2.515517;
-        static const double d1 = 0.802853;
-        static const double d2 = 0.010328;
-        static const double e1 = 1.432788;
-        static const double e2 = 0.189269;
-        static const double e3 = 0.001308;
-
-        result =
-            z - (d0 + d1 * z + d2 * z * z) / (detail::ONE + e1 * z + e2 * z * z + e3 * z * z * z);
+        result = z - (ACKLAM_D0 + ACKLAM_D1 * z + ACKLAM_D2 * z * z) /
+                         (detail::ONE + ACKLAM_E0 * z + ACKLAM_E1 * z * z +
+                          ACKLAM_E2 * z * z * z);
     } else {
         // Extreme tail region: use specialized asymptotic series
         // For erf(x) very close to 1, use high-precision asymptotic expansion
@@ -115,21 +116,13 @@ double erf_inv(double x) noexcept {
             // Standard extreme tail: use refined asymptotic expansion
             double t = std::sqrt(-detail::TWO * std::log(eps));
 
-            // More accurate coefficients for extreme tail
-            static const double d0 = 2.515517;
-            static const double d1 = 0.802853;
-            static const double d2 = 0.010328;
-            static const double e0 = 1.432788;
-            static const double e1 = 0.189269;
-            static const double e2 = 0.001308;
-
-            result = t - (d0 + d1 * t + d2 * t * t) /
-                             (detail::ONE + e0 * t + e1 * t * t + e2 * t * t * t);
+            result = t - (ACKLAM_D0 + ACKLAM_D1 * t + ACKLAM_D2 * t * t) /
+                             (detail::ONE + ACKLAM_E0 * t + ACKLAM_E1 * t * t +
+                              ACKLAM_E2 * t * t * t);
 
             // Additional correction term for better accuracy
             double correction = std::log(t * detail::SQRT_PI * detail::HALF) / (detail::TWO * t);
-            result -=
-                correction * detail::AD_THRESHOLD_1;  // Damped correction to avoid overcorrection
+            result -= correction * detail::ERF_INV_HALLEY_DAMPING;  // Damped to avoid overcorrection
         }
     }
 

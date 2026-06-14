@@ -2,6 +2,7 @@
 
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/math_constants.h"
+#include "libstats/core/performance_constants.h"
 #include "libstats/core/performance_history.h"
 #include "libstats/core/statistical_constants.h"
 #include "libstats/platform/cpu_detection.h"
@@ -272,7 +273,7 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
         gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);
     } else if (simd_efficiency > 1.5) {
         // SIMD is very efficient, lower thresholds
-        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * detail::STRONG_CORRELATION);
+        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * detail::SIMD_THRESHOLD_SCALE_DOWN);
 
         // Lower distribution-specific thresholds
         uniform_parallel_min =

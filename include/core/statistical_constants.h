@@ -323,5 +323,13 @@ inline constexpr double CONTINUITY_CORRECTION = 0.5;
 /// Normal approximation range multiplier
 inline constexpr double NORMAL_RANGE_MULTIPLIER = 3.0;
 
+// =============================================================================
+// LOG-LIKELIHOOD DIAGNOSTICS
+// =============================================================================
+
+/// Large negative penalty added to log-likelihood for data points with zero density.
+/// Used in calculate_model_diagnostics to avoid -infinity propagation.
+inline constexpr double ZERO_DENSITY_LOG_PENALTY = -1.0e10;
+
 }  // namespace detail
 }  // namespace stats

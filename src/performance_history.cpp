@@ -1,6 +1,7 @@
 #include "libstats/core/performance_history.h"
 
 #include "libstats/core/math_constants.h"
+#include "libstats/core/performance_constants.h"
 #include "libstats/core/statistical_constants.h"
 
 #include <algorithm>
@@ -110,7 +111,7 @@ PerformanceHistory::StrategyRecommendation PerformanceHistory::getBestStrategy(
         confidence_score =
             std::min(detail::ONE, (performance_ratio - detail::ONE) * data_confidence);
     } else {
-        confidence_score = detail::AD_THRESHOLD_1;  // Medium confidence with only one data point
+        confidence_score = detail::SINGLE_SAMPLE_CONFIDENCE;  // Medium confidence with only one data point
     }
 
     return {best_it->first, confidence_score, best_it->second, true};
@@ -233,7 +234,7 @@ std::size_t PerformanceHistory::findOptimalThreshold(
     if (target_strategy == Strategy::PARALLEL)
         fallback_threshold = detail::MAX_DATA_POINTS_FOR_SW_TEST;
     else if (target_strategy == Strategy::WORK_STEALING)
-        fallback_threshold = 10000;
+        fallback_threshold = detail::WORK_STEALING_FALLBACK_THRESHOLD;
 
     // Collect crossover candidates with performance ratios
     std::vector<std::pair<std::size_t, double>> crossover_candidates;

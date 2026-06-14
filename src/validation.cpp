@@ -548,7 +548,7 @@ ModelDiagnostics calculate_model_diagnostics(const DistributionBase& distributio
         if (density > detail::ZERO_DOUBLE) {
             log_likelihood += std::log(density);
         } else {
-            log_likelihood += -1e10;  // Large negative penalty for zero density
+            log_likelihood += detail::ZERO_DENSITY_LOG_PENALTY;  // Large negative penalty for zero density
         }
     }
 
