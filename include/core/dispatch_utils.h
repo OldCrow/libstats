@@ -456,5 +456,17 @@ struct DistributionTraits<class VonMisesDistribution> {
     static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
 };
 
+template <>
+struct DistributionTraits<class BinomialDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::BINOMIAL; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
+};
+
+template <>
+struct DistributionTraits<class NegativeBinomialDistribution> {
+    static constexpr DistributionType distType() { return DistributionType::NEGATIVE_BINOMIAL; }
+    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
+};
+
 }  // namespace detail
 }  // namespace stats

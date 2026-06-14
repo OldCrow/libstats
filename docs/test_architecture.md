@@ -87,7 +87,7 @@ The libstats project strategically uses two testing approaches:
 - **`test_system_capabilities`** (**GTest**) - System capability detection
 - **`test_performance_initialization`** (**GTest**) - Performance system initialization
 
-### Level 5: Distribution Basic Tests (14 tests + atomic)
+### Level 5: Distribution Basic Tests (16 tests + atomic)
 **Purpose**: Validate concrete statistical distribution implementations
 
 - **`test_gaussian_basic`** - Fundamental operations (PDF, CDF, quantiles, fitting)
@@ -104,9 +104,11 @@ The libstats project strategically uses two testing approaches:
 - **`test_weibull_basic`** - Fundamental operations
 - **`test_rayleigh_basic`** - Fundamental operations
 - **`test_von_mises_basic`** - Fundamental operations (circular, Bessel cache)
+- **`test_binomial_basic`** - Fundamental operations (PMF via lgamma, beta_i CDF)
+- **`test_negative_binomial_basic`** - Fundamental operations (real r, Gamma-Poisson sampling)
 - **`test_atomic_parameters`** - Lock-free parameter access across all distributions
 
-### Level 6: Distribution Enhanced Tests (14 tests, GTest, timing label)
+### Level 6: Distribution Enhanced Tests (16 tests, GTest, timing label)
 - **`test_gaussian_enhanced`** (**GTest, timing**) - Confidence intervals, bootstrap, KS/AD, SIMD batch
 - **`test_exponential_enhanced`** (**GTest, timing**)
 - **`test_uniform_enhanced`** (**GTest, timing**)
@@ -121,6 +123,8 @@ The libstats project strategically uses two testing approaches:
 - **`test_weibull_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
 - **`test_rayleigh_enhanced`** (**GTest, timing**) - SIMD pipeline correctness and speedup
 - **`test_von_mises_enhanced`** (**GTest, timing**) - PARALLEL correctness; Bessel cache behaviour
+- **`test_binomial_enhanced`** (**GTest, timing**) - PARALLEL correctness; lgamma batch loop
+- **`test_negative_binomial_enhanced`** (**GTest, timing**) - PARALLEL correctness; Newton-Raphson MLE
 
 ### Level 7: Integration Tests (3 tests)
 **Purpose**: Dynamic library linking and cross-cutting functionality
@@ -184,6 +188,8 @@ Each basic test follows this standardized 7-10 test structure:
 **✅ Weibull Distribution** — 8-step SIMD LogPDF; Newton–Raphson profile score MLE; `isExponential()` flag
 **✅ Rayleigh Distribution** — 5-step SIMD LogPDF (x² pipeline); closed-form MLE
 **✅ Von Mises Distribution** — circular; Bessel-based normaliser cached; Mardia–Jupp + Newton–Raphson MLE
+**✅ Binomial Distribution** — discrete; PMF via lgamma log-space; CDF via I_{1−p}(n−k, k+1); MLE closed-form
+**✅ Negative Binomial Distribution** — discrete; real-valued r; PMF via lgamma; CDF via I_p(r, k+1); Newton–Raphson MLE with digamma/trigamma
 
 #### Consistent Output Format
 
@@ -334,7 +340,7 @@ ctest -R ".*dynamic.*"
 
 ## Test Execution Statistics
 
-- **Correctness suite** (`ctest -LE "timing|benchmark"`): 37 tests — always parallel-safe
+- **Correctness suite** (`ctest -LE "timing|benchmark"`): 39 tests — always parallel-safe
 - **Timing suite** (`ctest -j1 -L timing`): 17 GTest tests with SIMD speedup assertions
 - **Benchmark**: 1 test (`benchmark_simd_all`)
 - **Success Rate**: 100% on all registered targets

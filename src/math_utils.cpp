@@ -398,6 +398,27 @@ double digamma(double x) noexcept {
     return result;
 }
 
+double trigamma(double x) noexcept {
+    // Trigamma ψ'(x) = d²/dx² lnΓ(x)  (A&S §6.4.12)
+    // Recurrence ψ'(x) = ψ'(x+1) + 1/x² shifts x ≥ 6 for the asymptotic series.
+    if (x <= detail::ZERO_DOUBLE) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    double result = detail::ZERO_DOUBLE;
+    while (x < 6.0) {
+        result += detail::ONE / (x * x);
+        x += detail::ONE;
+    }
+    const double r  = detail::ONE / x;
+    const double r2 = r * r;
+    // Asymptotic series: 1/x + 1/(2x²) + 1/(6x³) - 1/(30x⁵) + 1/(42x⁷) - 1/(30x⁹)
+    result += r * (detail::ONE + detail::HALF * r
+              + r2 * (detail::ONE / 6.0
+              - r2 * (detail::ONE / 30.0
+              - r2 * (detail::ONE / 42.0 - r2 / 30.0))));
+    return result;
+}
+
 double inverse_beta_i(double p, double a, double b) noexcept {
     // Inverse regularized incomplete beta I_x(a,b) = p  =>  solve for x in (0,1).
     // Follows the same pattern as inverse_t_cdf and inverse_chi_squared_cdf.

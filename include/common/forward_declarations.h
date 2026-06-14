@@ -20,6 +20,8 @@ class ParetoDistribution;
 class WeibullDistribution;
 class RayleighDistribution;
 class VonMisesDistribution;
+class BinomialDistribution;
+class NegativeBinomialDistribution;
 
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
@@ -37,6 +39,8 @@ using Pareto = ParetoDistribution;
 using Weibull = WeibullDistribution;
 using Rayleigh = RayleighDistribution;
 using VonMises = VonMisesDistribution;
+using Binomial = BinomialDistribution;
+using NegativeBinomial = NegativeBinomialDistribution;
 
 // Platform classes
 class SimdProcessor;
@@ -64,7 +68,9 @@ enum class LibDistributionType {
     Pareto,
     Weibull,
     Rayleigh,
-    VonMises
+    VonMises,
+    Binomial,
+    NegativeBinomial
 };
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };

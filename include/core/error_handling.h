@@ -306,4 +306,40 @@ inline VoidResult validateVonMisesParameters(double mu, double kappa) noexcept {
     return VoidResult::ok(true);
 }
 
+/**
+ * @brief Validate Binomial distribution parameters without throwing exceptions
+ * @param n Number of trials (must be positive integer)
+ * @param p Success probability (must be in [0, 1])
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateBinomialParameters(int n, double p) noexcept {
+    if (n <= 0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Number of trials n must be a positive integer");
+    }
+    if (std::isnan(p) || std::isinf(p) || p < 0.0 || p > 1.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Success probability p must be in [0, 1]");
+    }
+    return VoidResult::ok(true);
+}
+
+/**
+ * @brief Validate Negative Binomial distribution parameters without throwing exceptions
+ * @param r Number of successes (must be positive)
+ * @param p Success probability (must be in (0, 1])
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateNegativeBinomialParameters(double r, double p) noexcept {
+    if (std::isnan(r) || std::isinf(r) || r <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Number of successes r must be a positive finite number");
+    }
+    if (std::isnan(p) || std::isinf(p) || p <= 0.0 || p > 1.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Success probability p must be in (0, 1]");
+    }
+    return VoidResult::ok(true);
+}
+
 }  // namespace stats

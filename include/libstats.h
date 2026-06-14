@@ -166,6 +166,8 @@
     #include "distributions/student_t.h"
     #include "distributions/uniform.h"
     #include "distributions/von_mises.h"
+    #include "distributions/binomial.h"
+    #include "distributions/negative_binomial.h"
     #include "distributions/weibull.h"
 #endif  // LIBSTATS_FULL_INTERFACE
 
@@ -187,6 +189,8 @@ using Pareto = ParetoDistribution;
 using Weibull = WeibullDistribution;
 using Rayleigh = RayleighDistribution;
 using VonMises = VonMisesDistribution;
+using Binomial = BinomialDistribution;
+using NegativeBinomial = NegativeBinomialDistribution;
 
 // Version information
 constexpr int LIBSTATS_VERSION_MAJOR = 1;

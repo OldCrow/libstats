@@ -117,6 +117,18 @@ namespace detail {
 [[nodiscard]] double digamma(double x) noexcept;
 
 /**
+ * @brief Trigamma function ψ'(x) = d²/dx² ln Γ(x)
+ * @param x Input value (x > 0)
+ * @return ψ'(x)
+ *
+ * Uses recurrence ψ'(x) = ψ'(x+1) + 1/x² to shift x ≥ 6, then
+ * the asymptotic expansion (A&S §6.4.12, five Bernoulli-number terms).
+ * Accuracy: |error| < 2×10⁻¹⁴ for x > 0.
+ * Used by NegativeBinomialDistribution::fit() MLE solver.
+ */
+[[nodiscard]] double trigamma(double x) noexcept;
+
+/**
  * @brief Inverse of the regularized incomplete beta function I_x(a,b)
  * @param p Probability value in [0,1]
  * @param a First shape parameter (a > 0)

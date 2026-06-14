@@ -73,6 +73,16 @@ All distributions in the libstats library are **mutable** - they support paramet
 - `setKappa(double kappa)` - Set concentration κ (≥ 0)
 - `setParameters(double mu, double kappa)` - Set both parameters
 
+### 15. Binomial Distribution
+- `setN(int n)` - Set number of trials (must be positive)
+- `setP(double p)` - Set success probability (must be in [0, 1])
+- `setParameters(int n, double p)` - Set both parameters
+
+### 16. Negative Binomial Distribution
+- `setR(double r)` - Set number of successes (real-valued, must be positive)
+- `setP(double p)` - Set success probability (must be in (0, 1])
+- `setParameters(double r, double p)` - Set both parameters
+
 ## Cache Invalidation
 
 All distributions implement automatic cache invalidation when parameters are modified:

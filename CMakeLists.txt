@@ -1351,6 +1351,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/weibull.cpp   # Weibull distribution (log+exp pipeline, reliability engineering)
     src/rayleigh.cpp  # Rayleigh distribution (x² pipeline, signal processing)
     src/von_mises.cpp # Von Mises distribution (circular, cos kernel; Bessel functions)
+    src/binomial.cpp  # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
+    src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE, Gamma-Poisson sampling)
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -1872,6 +1874,14 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_von_mises_basic tests/test_von_mises_basic.cpp)
     create_libstats_gtest(test_von_mises_enhanced tests/test_von_mises_enhanced.cpp)
 
+    # binomial.h - Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
+    create_libstats_test(test_binomial_basic tests/test_binomial_basic.cpp)
+    create_libstats_gtest(test_binomial_enhanced tests/test_binomial_enhanced.cpp)
+
+    # negative_binomial.h - Negative Binomial distribution (discrete, Newton-Raphson MLE)
+    create_libstats_test(test_negative_binomial_basic tests/test_negative_binomial_basic.cpp)
+    create_libstats_gtest(test_negative_binomial_enhanced tests/test_negative_binomial_enhanced.cpp)
+
     # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
@@ -1947,6 +1957,8 @@ if(LIBSTATS_BUILD_TESTS)
             test_weibull_enhanced
             test_rayleigh_enhanced
             test_von_mises_enhanced
+            test_binomial_enhanced
+            test_negative_binomial_enhanced
             test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
@@ -2001,6 +2013,8 @@ if(LIBSTATS_BUILD_TESTS)
                 test_weibull_basic
                 test_rayleigh_basic
                 test_von_mises_basic
+                test_binomial_basic
+                test_negative_binomial_basic
                 test_atomic_parameters
                 # Level 6: Enhanced distribution tests
                 test_gaussian_enhanced
@@ -2017,6 +2031,8 @@ if(LIBSTATS_BUILD_TESTS)
                 test_weibull_enhanced
                 test_rayleigh_enhanced
                 test_von_mises_enhanced
+                test_binomial_enhanced
+                test_negative_binomial_enhanced
                 # Level 7: Integration tests
                 test_dynamic_linking
                 # On-demand tests (stress, diagnostic, redundant)

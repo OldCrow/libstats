@@ -30,6 +30,25 @@
 - `WEIBULL`, `RAYLEIGH`, `VON_MISES` added to `DistributionType` enum,
   `DistributionTraits`, `forward_declarations.h`, and `libstats.h` type aliases.
 - CMake: `LIBSTATS_HAS_CXX17_BESSEL` capability check (for `std::cyl_bessel_i`).
+- `BinomialDistribution` — discrete distribution for success counts in n independent
+  Bernoulli trials. PMF via lgamma log-space; CDF = I_{1−p}(n−k, k+1) via
+  `detail::beta_i` (O(1)). MLE: n̂ = max(round(xᵢ)), p̂ = k̄/n̂. Sampling via
+  `std::binomial_distribution<int>`. VECTORIZED = cached scalar loop (logNFact_,
+  logP_, log1mP_ loop-invariants); PARALLEL for large batches.
+- `NegativeBinomialDistribution` — discrete over-dispersion model; supports
+  real-valued r (dispersion parameter). PMF via lgamma; CDF = I_p(r, k+1) via
+  `detail::beta_i` (O(1)). MLE: method-of-moments seed r̂ = k̄²/(s²−k̄) refined
+  by Newton–Raphson on the profile score equation using `detail::digamma` and
+  `detail::trigamma` (200-iteration, 1e-11·r convergence). Sampling: Gamma(r,
+  (1−p)/p)-Poisson mixture — correctly handles real r, unlike
+  `std::negative_binomial_distribution<int>`.
+- `detail::trigamma` added to `math_utils.h`/`math_utils.cpp`: A&S §6.4.12
+  asymptotic series with recurrence shift x ≥ 6; accuracy < 2×10⁻¹⁴.
+- `BINOMIAL`, `NEGATIVE_BINOMIAL` added to `DistributionType` enum,
+  `DistributionTraits`, `forward_declarations.h`, and `libstats.h` type aliases.
+- 2 new GTest suites: `test_binomial_enhanced`, `test_negative_binomial_enhanced`
+  (labelled `timing`); 2 correctness suites: `test_binomial_basic`,
+  `test_negative_binomial_basic`. Total correctness tests: 39.
 
 ---
 
