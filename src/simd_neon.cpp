@@ -444,8 +444,203 @@ void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t siz
     if (!stats::arch::supports_neon()) {
         return vector_erf_fallback(a, result, size);
     }
-    // NEON doesn't have native error function instructions, use scalar implementation
-    for (std::size_t i = 0; i < size; ++i) {
+
+    // Musl libc four-region rational polynomial erf on float64x2_t, < 1 ULP error.
+    // Ported from vector_erf_avx2 (simd_avx2.cpp). FMA Horner via vfmaq_f64;
+    // region blending via vbslq_f64; andnot via vbicq_u64; sign via vorrq_u64.
+    // Regions (evaluated for every lane; blended by mask at the end):
+    //   R1: |x| < 0.84375  — rational P(z)/Q(z), z = x²
+    //   R2: 0.84375 ≤ |x| < 1.25  — rational P(s)/Q(s), s = |x|-1
+    //   R3: 1.25 ≤ |x| < 2.857  — erfc via exp(-x²-0.5625+R/S)/|x|
+    //   R4: 2.857 ≤ |x| < 6     — same structure, different coefficients
+    //   R5: |x| ≥ 6             — erf ≈ ±1
+    //
+    // Regions 3-4 call vector_exp_neon on a 2-element buffer; the recursive call
+    // is safe because NEON support has already been verified above.
+
+    // ---- Region 1 coefficients (rational P/Q in z = x²) ----
+    const float64x2_t pp0 = vdupq_n_f64(1.28379167095512558561e-01);
+    const float64x2_t pp1 = vdupq_n_f64(-3.25042107247001499370e-01);
+    const float64x2_t pp2 = vdupq_n_f64(-2.84817495755985104766e-02);
+    const float64x2_t pp3 = vdupq_n_f64(-5.77027029648944159157e-03);
+    const float64x2_t pp4 = vdupq_n_f64(-2.37630166566501626084e-05);
+    const float64x2_t qq1 = vdupq_n_f64(3.97917223959155352819e-01);
+    const float64x2_t qq2 = vdupq_n_f64(6.50222499887672944485e-02);
+    const float64x2_t qq3 = vdupq_n_f64(5.08130628187576562776e-03);
+    const float64x2_t qq4 = vdupq_n_f64(1.32494738004321644526e-04);
+    const float64x2_t qq5 = vdupq_n_f64(-3.96022827877536812320e-06);
+    // ---- Region 2 coefficients (rational P/Q in s = |x|-1) ----
+    const float64x2_t erx = vdupq_n_f64(8.45062911510467529297e-01);
+    const float64x2_t pa0 = vdupq_n_f64(-2.36211856075265944077e-03);
+    const float64x2_t pa1 = vdupq_n_f64(4.14856118683748331666e-01);
+    const float64x2_t pa2 = vdupq_n_f64(-3.72207876035701323847e-01);
+    const float64x2_t pa3 = vdupq_n_f64(3.18346619901161753674e-01);
+    const float64x2_t pa4 = vdupq_n_f64(-1.10894694282396677476e-01);
+    const float64x2_t pa5 = vdupq_n_f64(3.54783043256182359371e-02);
+    const float64x2_t pa6 = vdupq_n_f64(-2.16637559486879084300e-03);
+    const float64x2_t qa1 = vdupq_n_f64(1.06420880400844228286e-01);
+    const float64x2_t qa2 = vdupq_n_f64(5.40397917702171048937e-01);
+    const float64x2_t qa3 = vdupq_n_f64(7.18286544141962662868e-02);
+    const float64x2_t qa4 = vdupq_n_f64(1.26171219808761642112e-01);
+    const float64x2_t qa5 = vdupq_n_f64(1.36370839120290507362e-02);
+    const float64x2_t qa6 = vdupq_n_f64(1.19844998467991074170e-02);
+    // ---- Region 3 coefficients (R/S in s = 1/x², 1.25 ≤ |x| < 2.857) ----
+    const float64x2_t ra0 = vdupq_n_f64(-9.86494403484714822705e-03);
+    const float64x2_t ra1 = vdupq_n_f64(-6.93858572707181764372e-01);
+    const float64x2_t ra2 = vdupq_n_f64(-1.05586262253232909814e+01);
+    const float64x2_t ra3 = vdupq_n_f64(-6.23753324503260060396e+01);
+    const float64x2_t ra4 = vdupq_n_f64(-1.62396669462573470355e+02);
+    const float64x2_t ra5 = vdupq_n_f64(-1.84605092906711035994e+02);
+    const float64x2_t ra6 = vdupq_n_f64(-8.12874355063065934246e+01);
+    const float64x2_t ra7 = vdupq_n_f64(-9.81432934416914548592e+00);
+    const float64x2_t sa1 = vdupq_n_f64(1.96512716674392571292e+01);
+    const float64x2_t sa2 = vdupq_n_f64(1.37657754143519042600e+02);
+    const float64x2_t sa3 = vdupq_n_f64(4.34565877475229228821e+02);
+    const float64x2_t sa4 = vdupq_n_f64(6.45387271733267880336e+02);
+    const float64x2_t sa5 = vdupq_n_f64(4.29008140027567833386e+02);
+    const float64x2_t sa6 = vdupq_n_f64(1.08635005541779435134e+02);
+    const float64x2_t sa7 = vdupq_n_f64(6.57024977031928170135e+00);
+    const float64x2_t sa8 = vdupq_n_f64(-6.04244152148580987438e-02);
+    // ---- Region 4 coefficients (R/S in s = 1/x², 2.857 ≤ |x| < 6) ----
+    const float64x2_t rb0 = vdupq_n_f64(-9.86494292470009928597e-03);
+    const float64x2_t rb1 = vdupq_n_f64(-7.99283237680523006574e-01);
+    const float64x2_t rb2 = vdupq_n_f64(-1.77579549177547519889e+01);
+    const float64x2_t rb3 = vdupq_n_f64(-1.60636384855821916062e+02);
+    const float64x2_t rb4 = vdupq_n_f64(-6.37566443368389627722e+02);
+    const float64x2_t rb5 = vdupq_n_f64(-1.02509513161107724954e+03);
+    const float64x2_t rb6 = vdupq_n_f64(-4.83519191608651397019e+02);
+    const float64x2_t sb1 = vdupq_n_f64(3.03380607434824582924e+01);
+    const float64x2_t sb2 = vdupq_n_f64(3.25792512996573918826e+02);
+    const float64x2_t sb3 = vdupq_n_f64(1.53672958608443695994e+03);
+    const float64x2_t sb4 = vdupq_n_f64(3.19985821950859553908e+03);
+    const float64x2_t sb5 = vdupq_n_f64(2.55305040643316442583e+03);
+    const float64x2_t sb6 = vdupq_n_f64(4.74528541206955367215e+02);
+    const float64x2_t sb7 = vdupq_n_f64(-2.24409524465858183362e+01);
+
+    const float64x2_t one = vdupq_n_f64(1.0);
+    const float64x2_t t1 = vdupq_n_f64(0.84375);
+    const float64x2_t t2 = vdupq_n_f64(1.25);
+    const float64x2_t t3 = vdupq_n_f64(2.857142857);
+    const float64x2_t t5 = vdupq_n_f64(6.0);
+    const float64x2_t c0p5625 = vdupq_n_f64(0.5625);
+
+    // Sign bit mask for sign extraction and restoration (erf is odd)
+    const uint64x2_t sign_mask = vdupq_n_u64(0x8000000000000000ULL);
+    // All-ones for XOR-based NaN detection: NaN != NaN, so vceqq_f64(x,x)=0 for NaN
+    const uint64x2_t all_ones = vdupq_n_u64(0xFFFFFFFFFFFFFFFFULL);
+
+    constexpr std::size_t W = stats::arch::simd::NEON_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    alignas(16) double exp_buf[W];
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        float64x2_t x = vld1q_f64(&a[i]);
+        uint64x2_t x_u = vreinterpretq_u64_f64(x);
+        uint64x2_t sign = vandq_u64(x_u, sign_mask);                        // extract sign
+        float64x2_t ax = vreinterpretq_f64_u64(vbicq_u64(x_u, sign_mask));  // |x|
+
+        // Region masks
+        uint64x2_t m1 = vcltq_f64(ax, t1);  // |x| < 0.84375
+        uint64x2_t m2 = vcltq_f64(ax, t2);  // |x| < 1.25
+        uint64x2_t m3 = vcltq_f64(ax, t3);  // |x| < 2.857
+
+        // ---- Region 1: erf(x) ≈ x + x·P(z)/Q(z), z = x² ----
+        float64x2_t z = vmulq_f64(ax, ax);
+        float64x2_t P1 = pp4;
+        P1 = vfmaq_f64(pp3, z, P1);
+        P1 = vfmaq_f64(pp2, z, P1);
+        P1 = vfmaq_f64(pp1, z, P1);
+        P1 = vfmaq_f64(pp0, z, P1);
+        float64x2_t Q1 = qq5;
+        Q1 = vfmaq_f64(qq4, z, Q1);
+        Q1 = vfmaq_f64(qq3, z, Q1);
+        Q1 = vfmaq_f64(qq2, z, Q1);
+        Q1 = vfmaq_f64(qq1, z, Q1);
+        Q1 = vfmaq_f64(one, z, Q1);
+        float64x2_t r1 = vfmaq_f64(ax, ax, vdivq_f64(P1, Q1));  // ax + ax·(P1/Q1)
+
+        // ---- Region 2: erf(x) = erx + P(s)/Q(s), s = |x|-1 ----
+        float64x2_t s2 = vsubq_f64(ax, one);
+        float64x2_t P2 = pa6;
+        P2 = vfmaq_f64(pa5, s2, P2);
+        P2 = vfmaq_f64(pa4, s2, P2);
+        P2 = vfmaq_f64(pa3, s2, P2);
+        P2 = vfmaq_f64(pa2, s2, P2);
+        P2 = vfmaq_f64(pa1, s2, P2);
+        P2 = vfmaq_f64(pa0, s2, P2);
+        float64x2_t Q2 = qa6;
+        Q2 = vfmaq_f64(qa5, s2, Q2);
+        Q2 = vfmaq_f64(qa4, s2, Q2);
+        Q2 = vfmaq_f64(qa3, s2, Q2);
+        Q2 = vfmaq_f64(qa2, s2, Q2);
+        Q2 = vfmaq_f64(qa1, s2, Q2);
+        Q2 = vfmaq_f64(one, s2, Q2);
+        float64x2_t r2 = vaddq_f64(erx, vdivq_f64(P2, Q2));
+
+        // ---- Regions 3-4: erfc = exp(-x²-0.5625+R/S)/|x|, erf = 1-erfc ----
+        float64x2_t sax = vmaxq_f64(ax, t2);                       // clamp ≥ 1.25
+        float64x2_t inv_x2 = vdivq_f64(one, vmulq_f64(sax, sax));  // 1/x²
+
+        float64x2_t R3 = ra7;
+        R3 = vfmaq_f64(ra6, inv_x2, R3);
+        R3 = vfmaq_f64(ra5, inv_x2, R3);
+        R3 = vfmaq_f64(ra4, inv_x2, R3);
+        R3 = vfmaq_f64(ra3, inv_x2, R3);
+        R3 = vfmaq_f64(ra2, inv_x2, R3);
+        R3 = vfmaq_f64(ra1, inv_x2, R3);
+        R3 = vfmaq_f64(ra0, inv_x2, R3);
+        float64x2_t S3 = sa8;
+        S3 = vfmaq_f64(sa7, inv_x2, S3);
+        S3 = vfmaq_f64(sa6, inv_x2, S3);
+        S3 = vfmaq_f64(sa5, inv_x2, S3);
+        S3 = vfmaq_f64(sa4, inv_x2, S3);
+        S3 = vfmaq_f64(sa3, inv_x2, S3);
+        S3 = vfmaq_f64(sa2, inv_x2, S3);
+        S3 = vfmaq_f64(sa1, inv_x2, S3);
+        S3 = vfmaq_f64(one, inv_x2, S3);
+
+        float64x2_t R4 = rb6;
+        R4 = vfmaq_f64(rb5, inv_x2, R4);
+        R4 = vfmaq_f64(rb4, inv_x2, R4);
+        R4 = vfmaq_f64(rb3, inv_x2, R4);
+        R4 = vfmaq_f64(rb2, inv_x2, R4);
+        R4 = vfmaq_f64(rb1, inv_x2, R4);
+        R4 = vfmaq_f64(rb0, inv_x2, R4);
+        float64x2_t S4 = sb7;
+        S4 = vfmaq_f64(sb6, inv_x2, S4);
+        S4 = vfmaq_f64(sb5, inv_x2, S4);
+        S4 = vfmaq_f64(sb4, inv_x2, S4);
+        S4 = vfmaq_f64(sb3, inv_x2, S4);
+        S4 = vfmaq_f64(sb2, inv_x2, S4);
+        S4 = vfmaq_f64(sb1, inv_x2, S4);
+        S4 = vfmaq_f64(one, inv_x2, S4);
+
+        // Blend R/S: R3/S3 where |x| < 2.857, R4/S4 otherwise
+        float64x2_t RS = vdivq_f64(vbslq_f64(m3, R3, R4), vbslq_f64(m3, S3, S4));
+
+        // exp_arg = -x² - 0.5625 + R/S, clamped ≤ 0
+        float64x2_t exp_arg = vsubq_f64(vsubq_f64(RS, c0p5625), vmulq_f64(sax, sax));
+        exp_arg = vminq_f64(exp_arg, vdupq_n_f64(0.0));
+        vst1q_f64(exp_buf, exp_arg);
+        vector_exp_neon(exp_buf, exp_buf, W);
+        float64x2_t r34 = vsubq_f64(one, vdivq_f64(vld1q_f64(exp_buf), sax));
+
+        // ---- Blend regions (innermost wins) ----
+        float64x2_t res = one;                                   // R5: |x| ≥ 6
+        uint64x2_t r34_mask = vbicq_u64(vcltq_f64(ax, t5), m2);  // ~m2 & (ax<6)
+        res = vbslq_f64(r34_mask, r34, res);
+        res = vbslq_f64(vbicq_u64(m2, m1), r2, res);  // R2: m2 & ~m1
+        res = vbslq_f64(m1, r1, res);                 // R1
+
+        // Propagate NaN (vceqq_f64(x,x)=all-0 for NaN; XOR flips to all-1)
+        uint64x2_t nan_mask = veorq_u64(vceqq_f64(x, x), all_ones);
+        res = vbslq_f64(nan_mask, x, res);
+
+        // Restore sign (erf is odd: sign of erf(x) == sign of x)
+        vst1q_f64(&result[i], vreinterpretq_f64_u64(vorrq_u64(vreinterpretq_u64_f64(res), sign)));
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
         result[i] = std::erf(a[i]);
     }
 }
