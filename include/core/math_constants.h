@@ -253,6 +253,23 @@ inline constexpr double ULTRA_SMALL_THRESHOLD = 1e-30;
 inline constexpr double HIGH_CONDITION_NUMBER_THRESHOLD = 1.0e12;
 
 // =============================================================================
+// ERF_INV ALGORITHM CONSTANTS
+// These govern regime boundaries and numerical method behaviour inside erf_inv.
+// They are coincidentally equal to some statistical constants (0.70, 0.99, 0.50)
+// but their meaning here is purely algorithmic; keep them separate to avoid
+// silent breakage if statistical thresholds are ever revised.
+// =============================================================================
+
+/// Absolute value of x below which erf_inv uses the central rational approximation
+inline constexpr double ERF_INV_CENTRAL_CUTOFF  = 0.70;
+
+/// Absolute value of x below which erf_inv uses the moderate-tail expansion
+inline constexpr double ERF_INV_TAIL_CUTOFF      = 0.99;
+
+/// Damping factor applied to the Halley correction in the extreme-tail branch
+inline constexpr double ERF_INV_HALLEY_DAMPING   = 0.50;
+
+// =============================================================================
 // ALGORITHM SCALE BOUNDS
 // =============================================================================
 

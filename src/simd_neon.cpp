@@ -294,6 +294,64 @@ void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t siz
     }
 }
 
+void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_neon()) {
+        return vector_cos_fallback(input, output, size);
+    }
+
+    constexpr std::size_t W = stats::arch::simd::NEON_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+
+    const float64x2_t inv_two_pi  = vdupq_n_f64(1.0 / (2.0 * detail::PI));
+    const float64x2_t two_pi      = vdupq_n_f64(2.0 * detail::PI);
+    const float64x2_t pi          = vdupq_n_f64(detail::PI);
+    const float64x2_t half_pi     = vdupq_n_f64(detail::PI_OVER_2);
+    const float64x2_t neg_pi      = vdupq_n_f64(-detail::PI);
+    const float64x2_t neg_half_pi = vdupq_n_f64(-detail::PI_OVER_2);
+    const float64x2_t one         = vdupq_n_f64(1.0);
+    const float64x2_t neg_one     = vdupq_n_f64(-1.0);
+
+    const float64x2_t c1 = vdupq_n_f64(-0.5);
+    const float64x2_t c2 = vdupq_n_f64(4.166666666666667e-2);
+    const float64x2_t c3 = vdupq_n_f64(-1.388888888888889e-3);
+    const float64x2_t c4 = vdupq_n_f64(2.480158730158730e-5);
+    const float64x2_t c5 = vdupq_n_f64(-2.755731922398589e-7);
+    const float64x2_t c6 = vdupq_n_f64(2.087675698786810e-9);
+    const float64x2_t c7 = vdupq_n_f64(-1.147074559772973e-11);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        float64x2_t x = vld1q_f64(&input[i]);
+
+        float64x2_t q = vrndnq_f64(vmulq_f64(x, inv_two_pi));
+        float64x2_t y = vsubq_f64(x, vmulq_f64(q, two_pi));
+
+        float64x2_t sign    = one;
+        uint64x2_t  gt_hpi  = vcgtq_f64(y, half_pi);
+        uint64x2_t  lt_nhpi = vcltq_f64(y, neg_half_pi);
+
+        y    = vbslq_f64(gt_hpi,  vsubq_f64(pi,     y), y);
+        sign = vbslq_f64(gt_hpi,  neg_one,             sign);
+        y    = vbslq_f64(lt_nhpi, vsubq_f64(neg_pi, y), y);
+        sign = vbslq_f64(lt_nhpi, neg_one,               sign);
+
+        float64x2_t y2   = vmulq_f64(y, y);
+        float64x2_t poly = c7;
+        poly = vfmaq_f64(c6, y2, poly);
+        poly = vfmaq_f64(c5, y2, poly);
+        poly = vfmaq_f64(c4, y2, poly);
+        poly = vfmaq_f64(c3, y2, poly);
+        poly = vfmaq_f64(c2, y2, poly);
+        poly = vfmaq_f64(c1, y2, poly);
+        poly = vfmaq_f64(one, y2, poly);
+
+        vst1q_f64(&output[i], vmulq_f64(poly, sign));
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::cos(input[i]);
+    }
+}
+
 #else
 
 // Fallback implementations for non-ARM platforms
@@ -351,6 +409,10 @@ void VectorOps::vector_pow_elementwise_neon(const double* base, const double* ex
 
 void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t size) noexcept {
     vector_erf_fallback(a, result, size);
+}
+
+void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t size) noexcept {
+    vector_cos_fallback(input, output, size);
 }
 
 #endif  // ARM platform check

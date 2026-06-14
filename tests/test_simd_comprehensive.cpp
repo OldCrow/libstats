@@ -353,6 +353,31 @@ void test_transcendental_functions(const TestOptions& opts) {
                 cout << "FAILED (erf) ";
         }
 
+        // Test vector_cos: span [-4π, +4π] to exercise range reduction
+        // (inputs outside [-π, π] require the range-reduction step).
+        // Tolerance 1e-9: our 7-term Horner polynomial has max error ~1e-10;
+        // allowing 10x headroom for floating-point arithmetic.
+        {
+            const double cos_tol = 1e-9;
+            vector<double> cos_values(size), cos_result(size), cos_expected(size);
+            if (size == 1) {
+                cos_values[0] = 0.0;
+            } else {
+                const double lo = -4.0 * M_PI, hi = 4.0 * M_PI;
+                for (size_t i = 0; i < size; ++i)
+                    cos_values[i] = lo + (hi - lo) * static_cast<double>(i) /
+                                                    static_cast<double>(size - 1);
+            }
+            arch::simd::VectorOps::vector_cos(cos_values.data(), cos_result.data(), size);
+            for (size_t i = 0; i < size; ++i)
+                cos_expected[i] = std::cos(cos_values[i]);
+            if (!vectors_equal(cos_result, cos_expected, cos_tol)) {
+                all_passed = false;
+                if (opts.verbose)
+                    cout << "FAILED (cos) ";
+            }
+        }
+
         cout << (all_passed ? "PASSED" : "FAILED") << endl;
     }
 }

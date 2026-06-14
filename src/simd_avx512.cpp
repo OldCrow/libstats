@@ -220,6 +220,72 @@ void VectorOps::vector_erf_avx512(const double* values, double* results,
     return vector_erf_avx(values, results, size);
 }
 
+void VectorOps::vector_cos_avx512(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx512()) {
+        return vector_cos_fallback(input, output, size);
+    }
+
+    // vector_cos uses polynomial approximation — no SVML dependency — so we
+    // can implement it natively at full 8-wide AVX-512 width.
+    // (Unlike vector_exp/log/erf which delegate to AVX; see block comment above.)
+
+    constexpr std::size_t W = arch::simd::AVX512_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+
+    const __m512d inv_two_pi  = _mm512_set1_pd(1.0 / (2.0 * detail::PI));
+    const __m512d two_pi      = _mm512_set1_pd(2.0 * detail::PI);
+    const __m512d pi          = _mm512_set1_pd(detail::PI);
+    const __m512d half_pi     = _mm512_set1_pd(detail::PI_OVER_2);
+    const __m512d neg_pi      = _mm512_set1_pd(-detail::PI);
+    const __m512d neg_half_pi = _mm512_set1_pd(-detail::PI_OVER_2);
+    const __m512d one         = _mm512_set1_pd(1.0);
+    const __m512d neg_one     = _mm512_set1_pd(-1.0);
+
+    const __m512d c1 = _mm512_set1_pd(-0.5);
+    const __m512d c2 = _mm512_set1_pd(4.166666666666667e-2);
+    const __m512d c3 = _mm512_set1_pd(-1.388888888888889e-3);
+    const __m512d c4 = _mm512_set1_pd(2.480158730158730e-5);
+    const __m512d c5 = _mm512_set1_pd(-2.755731922398589e-7);
+    const __m512d c6 = _mm512_set1_pd(2.087675698786810e-9);
+    const __m512d c7 = _mm512_set1_pd(-1.147074559772973e-11);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m512d x = _mm512_loadu_pd(&input[i]);
+
+        // Step 1: reduce to [−π, π]
+        __m512d q = _mm512_roundscale_pd(_mm512_mul_pd(x, inv_two_pi),
+                                         _MM_FROUND_TO_NEAREST_INT);
+        __m512d y = _mm512_sub_pd(x, _mm512_mul_pd(q, two_pi));
+
+        // Step 2: reduce to [−π/2, π/2] using AVX-512 mask operations
+        __m512d sign    = one;
+        __mmask8 gt_hpi  = _mm512_cmp_pd_mask(y, half_pi,     _CMP_GT_OQ);
+        __mmask8 lt_nhpi = _mm512_cmp_pd_mask(y, neg_half_pi, _CMP_LT_OQ);
+
+        y    = _mm512_mask_blend_pd(gt_hpi,  y,    _mm512_sub_pd(pi,     y));
+        sign = _mm512_mask_blend_pd(gt_hpi,  sign, neg_one);
+        y    = _mm512_mask_blend_pd(lt_nhpi, y,    _mm512_sub_pd(neg_pi, y));
+        sign = _mm512_mask_blend_pd(lt_nhpi, sign, neg_one);
+
+        // Step 3: Horner evaluation using FMA for throughput
+        __m512d y2   = _mm512_mul_pd(y, y);
+        __m512d poly = c7;
+        poly = _mm512_fmadd_pd(y2, poly, c6);
+        poly = _mm512_fmadd_pd(y2, poly, c5);
+        poly = _mm512_fmadd_pd(y2, poly, c4);
+        poly = _mm512_fmadd_pd(y2, poly, c3);
+        poly = _mm512_fmadd_pd(y2, poly, c2);
+        poly = _mm512_fmadd_pd(y2, poly, c1);
+        poly = _mm512_fmadd_pd(y2, poly, one);
+
+        _mm512_storeu_pd(&output[i], _mm512_mul_pd(poly, sign));
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::cos(input[i]);
+    }
+}
+
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats

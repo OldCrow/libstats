@@ -938,21 +938,35 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
 //
-// LogPDF / PDF batch: scalar loop with loop-invariant κ, μ, logNormaliser_.
-// No SIMD because VectorOps lacks vector_cos.  The primary performance gain
-// over per-element getLogProbability calls is avoiding the cache-validity
-// check and lock acquisition inside each call.
+// LogPDF batch:  z[i] = x[i] − μ  |  c[i] = vector_cos(z)  |  r[i] = κ·c[i] − ln Z
+// PDF batch:     same as LogPDF then r[i] = vector_exp(r)
+//
+// Both paths use VectorOps::vector_cos (AVX/AVX2/SSE2/NEON/AVX-512) which
+// replaced the earlier scalar std::cos loop. Non-finite inputs receive an
+// exact sentinel value via a scalar fixup pass after the SIMD kernel.
+//
+// The primary performance gain over per-element calls remains avoiding the
+// cache-validity check and lock acquisition on every element.
 //==============================================================================
 
 void VonMisesDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
                                                       std::size_t count, double cached_kappa,
                                                       double cached_mu,
                                                       double cached_log_normaliser) const noexcept {
+    // Step 1: z[i] = values[i] - mu  (scalar_add with -mu)
+    arch::simd::VectorOps::scalar_add(values, -cached_mu, results, count);
+
+    // Step 2: results[i] = cos(z[i])  (vectorised)
+    arch::simd::VectorOps::vector_cos(results, results, count);
+
+    // Step 3: results[i] = kappa * results[i] - log_normaliser
+    arch::simd::VectorOps::scalar_multiply(results, cached_kappa, results, count);
+    arch::simd::VectorOps::scalar_add(results, -cached_log_normaliser, results, count);
+
+    // Fixup: non-finite inputs must produce -∞ regardless of the SIMD result
     for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        results[i] = std::isfinite(x)
-                         ? cached_kappa * std::cos(x - cached_mu) - cached_log_normaliser
-                         : detail::NEGATIVE_INFINITY;
+        if (!std::isfinite(values[i]))
+            results[i] = detail::NEGATIVE_INFINITY;
     }
 }
 
@@ -960,11 +974,17 @@ void VonMisesDistribution::getProbabilityBatchImpl(const double* values, double*
                                                    std::size_t count, double cached_kappa,
                                                    double cached_mu,
                                                    double cached_log_normaliser) const noexcept {
+    // Compute log-PDF then exponentiate
+    getLogProbabilityBatchImpl(values, results, count, cached_kappa, cached_mu,
+                               cached_log_normaliser);
+
+    // Step 4: results[i] = exp(results[i])
+    arch::simd::VectorOps::vector_exp(results, results, count);
+
+    // Fixup: non-finite inputs must produce 0
     for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        results[i] = std::isfinite(x)
-                         ? std::exp(cached_kappa * std::cos(x - cached_mu) - cached_log_normaliser)
-                         : detail::ZERO_DOUBLE;
+        if (!std::isfinite(values[i]))
+            results[i] = detail::ZERO_DOUBLE;
     }
 }
 
