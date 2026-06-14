@@ -55,7 +55,7 @@ constexpr size_t TEST_SIZE = 1024;  // Size for correctness tests
 constexpr int TEST_ITERATIONS = 5;
 constexpr double TOLERANCE_NORMAL = 1e-14;     // Normal numerical precision
 constexpr double TOLERANCE_RELAXED = 1e-12;    // Relaxed for complex operations
-constexpr double TOLERANCE_ERF_APPROX = 2e-7;  // A&S erf approximation (documented max ~1.5e-7)
+constexpr double TOLERANCE_ERF_APPROX = 1e-13; // musl rational polynomial (measured max ~2.2e-16; must stay > TOLERANCE_NORMAL so absolute-only mode only fires for erf-derived ops)
 constexpr double TOLERANCE_COS = 1e-9;          // 7-term Horner polynomial (max error ~1e-10, 10x headroom)
 constexpr double TOLERANCE_VONMISES = 5e-10;    // VonMises batch uses vector_cos; abs error floor ~1e-10
 
@@ -218,11 +218,12 @@ class SIMDVerifier {
             },
             TOLERANCE_NORMAL);
 
-        // vector_erf: linspace over [-4, 4]. A&S approximation is an absolute error bound,
-        // so use absolute_only=true (matching the logic in analyzeDifferences for erf-level tolerance).
+        // vector_erf: linspace over [-8, 8] covers all five regions:
+        //   R1 |x|<0.84375, R2 0.84375-1.25, R3 1.25-2.857, R4 2.857-6, R5 |x|>=6.
+        // Region boundaries (0.84375, 1.25, 2.857143, 6.0) are naturally sampled.
         std::vector<double> erf_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
-            erf_data[i] = -4.0 + 8.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+            erf_data[i] = -8.0 + 16.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
         verifyVectorOp(
             erf_data, "VectorErf",
             [](const std::vector<double>& in, std::vector<double>& out) {
