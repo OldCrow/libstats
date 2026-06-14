@@ -1,3 +1,56 @@
+## [Unreleased] — v1.5.0 in progress
+
+### Performance
+- **AVX2+FMA native exp/log** (Phase 1, Kaby Lake): `vector_exp_avx2` and `vector_log_avx2`
+  replace AVX-delegation stubs with SLEEF-inspired FMA Horner polynomial (< 1 ULP).
+  `vector_cos_avx2` replaces AVX delegation with FMA Horner. Kaby Lake primitive speedups:
+  VectorExp 3.4x, VectorLog 1.7x, VectorCos 4.9x.
+- **High-accuracy `vector_erf`** (Phase 2, all x86 backends): replaced Abramowitz & Stegun
+  7.1.26 (~1.5×10⁻⁷ max error) with musl libc four-region rational polynomial (< 1 ULP;
+  measured max error ~2.2×10⁻¹⁶). `vector_erf_avx` uses mul+add (−mavx only);
+  `vector_erf_avx2` uses `_mm256_fmadd_pd`; `vector_erf_sse2` uses `__m128d`.
+  Gaussian CDF SIMD error: 6.97×10⁻⁸ → ~0. Kaby Lake VectorErf: 2.5x.
+- **AVX-512 native transcendentals** (Phase 4, Asus TUF A16 Zen 4): `vector_exp_avx512`,
+  `vector_log_avx512`, and `vector_erf_avx512` replace AVX 4-wide delegation with native
+  `__m512d` 8-wide polynomial implementations. No SVML or MKL dependency.
+  - `vector_exp_avx512`: SLEEF range-reduction + 10-term FMA Horner; 2^n scaling via
+    `_mm512_cvtpd_epi32` → `_mm512_cvtepi32_epi64` → shift (AVX-512F only, no DQ required).
+    Speedup: 1.9x → 5.0x.
+  - `vector_log_avx512`: SLEEF xlog_u1 2·atanh series + FMA Horner; exponent extraction
+    via `_mm512_srli_epi64` (AVX-512F); `_mm512_cvtepi64_pd` for int64→double (AVX-512DQ,
+    present on Zen 4). Speedup: 1.8x → 3.9x.
+  - `vector_erf_avx512`: musl four-region rational polynomial + FMA Horner; `__mmask8`
+    blends; sign via `_mm512_and/or_pd` (AVX-512DQ); calls `vector_exp_avx512` for erfc.
+    Speedup: 0.7x → 1.3x.
+  - Asus TUF A16 distribution geomeans: PDF 4.8x, LogPDF 5.1x, CDF 2.2x.
+- **NEON native transcendentals** (Phase 3, Mac Mini M1): in progress.
+
+### Tests
+- `simd_verification` coverage: added `testVonMisesDistribution()` and
+  `testPrimitiveVectorOps()` (VectorExp/Log/Erf/Cos); 54 → 61 tests.
+- `simd_verification` reporting: replaced single composite speedup with per-op-type
+  geometric means (PDF/LogPDF/CDF) and per-primitive individual rows.
+- Erf accuracy regression: 10,000 random inputs in [−4, 4] assert
+  `|vector_erf(x) − std::erf(x)| ≤ 1×10⁻¹²`. `TOLERANCE_ERF_APPROX` tightened from
+  `~1.5×10⁻⁷` to `1×10⁻¹³`.
+
+### Data
+- Asus TUF A16 dispatcher profiling bundle (post-Phase 4):
+  `data/profiles/dispatcher/2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba/`
+- `include/core/dispatch_thresholds.h`: `kAvx512` annotated as stale (calibrated pre-Phase 4);
+  Phase 5 will rederive from the Phase 4 bundle. Measurement resolution caveat added:
+  profiler resolution floors at ~0.1–0.2 µs; crossovers derived from batch sizes < 64 are
+  unreliable and should be clamped to ≥ 64 when recalibrating.
+
+### Validation
+- 39/39 correctness, 61/61 `simd_verification` — Kaby Lake AVX2+FMA:
+  PDF 8.0x, LogPDF 9.6x, CDF 3.3x; VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
+- 39/39 correctness, 61/61 `simd_verification` — Asus TUF A16 AVX-512:
+  PDF 4.8x, LogPDF 5.1x, CDF 2.2x; VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
+- M1 (NEON): pending Phase 3.
+
+---
+
 ## [1.4.0] - 2026-06-14
 
 ### Added
