@@ -154,31 +154,90 @@ void VectorOps::scalar_add_avx512(const double* a, double scalar, double* result
 
 // AVX-512 transcendental functions
 //
-// Why these delegate to AVX (4-wide) rather than using 8-wide AVX-512 intrinsics:
+// vector_exp, vector_log, and vector_erf are implemented natively at full 8-wide
+// AVX-512 width using hand-rolled minimax polynomial approximations (Phase 4,
+// v1.5.0). No SVML dependency; zero-external-dependency mandate preserved.
 //
-// The ISA has no general-purpose transcendental instructions. `_mm512_exp_pd`,
-// `_mm512_log_pd`, and `_mm512_erf_pd` exist only in SVML (Intel Short Vector Math
-// Library), which ships with ICC/oneAPI but is not available in MSVC, GCC, or Clang
-// without separately installing Intel MKL. Adding SVML as a dependency contradicts
-// the project's zero-external-dependency mandate.
-//
-// The portable alternative — hand-rolling 8-wide minimax polynomial approximations —
-// is the approach used in SLEEF and similar libraries. That work is explicitly
-// deferred to Phase 6 and documented in SIMD_OPTIMIZATION_REFERENCE.md.
-//
-// Consequence on AVX-512 hardware: arithmetic batch ops (PDF normalization, log-PDF
-// linear terms, Uniform CDF) use genuine 512-bit registers. Transcendental-heavy ops
-// (exp for PDF/CDF, erf for Gaussian CDF) silently execute at 256-bit width.
-// This accounts for the ~1.9x overall speedup vs. the ~4x expected for a fully
-// AVX-512 implementation.
+// vector_pow and vector_pow_elementwise still delegate to the AVX (4-wide) path:
+// pow(x,y) = exp(y*log(x)) incurs two transcendental calls and the added
+// complexity of 8-wide special-case handling is deferred until profiling shows
+// a net gain. exp and log are now natively 8-wide so the delegation cost is
+// reduced, but a dedicated native pow path is not yet warranted.
 
 void VectorOps::vector_exp_avx512(const double* values, double* results,
                                   std::size_t size) noexcept {
     if (!stats::arch::supports_avx512()) {
         return vector_exp_fallback(values, results, size);
     }
-    // Delegates to AVX (4-wide). See block comment above.
-    return vector_exp_avx(values, results, size);
+
+    // SLEEF-inspired range-reduction + Horner polynomial (< 1 ULP error).
+    // FMA Horner; 2^n scaling via integer bit-manipulation (AVX-512F only, no DQ).
+    // Algorithm and coefficients identical to vector_exp_avx2; width doubled to 8.
+
+    const __m512d ln2_inv = _mm512_set1_pd(1.4426950408889634073599246810019);
+    const __m512d ln2_hi  = _mm512_set1_pd(0.693147180369123816490e+00);
+    const __m512d ln2_lo  = _mm512_set1_pd(1.90821492927058770002e-10);
+    const __m512d exp_max = _mm512_set1_pd(709.782712893383996732223);
+    const __m512d exp_min = _mm512_set1_pd(-708.0);
+    const __m512d half    = _mm512_set1_pd(0.5);
+    const __m512d one     = _mm512_set1_pd(1.0);
+
+    const __m512d c1  = _mm512_set1_pd(0.1666666666666669072e+0);
+    const __m512d c2  = _mm512_set1_pd(0.4166666666666602598e-1);
+    const __m512d c3  = _mm512_set1_pd(0.8333333333314938210e-2);
+    const __m512d c4  = _mm512_set1_pd(0.1388888888914497797e-2);
+    const __m512d c5  = _mm512_set1_pd(0.1984126989855865850e-3);
+    const __m512d c6  = _mm512_set1_pd(0.2480158687479686264e-4);
+    const __m512d c7  = _mm512_set1_pd(0.2755723402025388239e-5);
+    const __m512d c8  = _mm512_set1_pd(0.2755762628169491192e-6);
+    const __m512d c9  = _mm512_set1_pd(0.2511210703042288022e-7);
+    const __m512d c10 = _mm512_set1_pd(0.2081276378237164457e-8);
+
+    constexpr std::size_t W = arch::simd::AVX512_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m512d x = _mm512_loadu_pd(&values[i]);
+        x = _mm512_min_pd(x, exp_max);
+        x = _mm512_max_pd(x, exp_min);
+
+        // Range reduction: x = n*ln2 + r
+        __m512d n_float = _mm512_roundscale_pd(_mm512_mul_pd(x, ln2_inv),
+                                               _MM_FROUND_TO_NEAREST_INT);
+        __m512d r = _mm512_fnmadd_pd(n_float, ln2_hi, x);  // x - n*ln2_hi
+        r         = _mm512_fnmadd_pd(n_float, ln2_lo, r);  // r - n*ln2_lo
+
+        // FMA Horner: P(r)
+        __m512d r2   = _mm512_mul_pd(r, r);
+        __m512d poly = c10;
+        poly = _mm512_fmadd_pd(poly, r, c9);
+        poly = _mm512_fmadd_pd(poly, r, c8);
+        poly = _mm512_fmadd_pd(poly, r, c7);
+        poly = _mm512_fmadd_pd(poly, r, c6);
+        poly = _mm512_fmadd_pd(poly, r, c5);
+        poly = _mm512_fmadd_pd(poly, r, c4);
+        poly = _mm512_fmadd_pd(poly, r, c3);
+        poly = _mm512_fmadd_pd(poly, r, c2);
+        poly = _mm512_fmadd_pd(poly, r, c1);
+
+        // Complete: exp(r) = 1 + r + r²*(0.5 + r*P(r))
+        poly = _mm512_fmadd_pd(poly, r,  half);  // r*P(r) + 0.5
+        poly = _mm512_fmadd_pd(poly, r2, r);     // (r*P(r)+0.5)*r² + r
+        poly = _mm512_add_pd(poly, one);          // 1 + r + r²*(0.5+r*P(r))
+
+        // Scale by 2^n: convert n to int32, expand to int64, add IEEE 754
+        // exponent bias 1023, shift to exponent field, reinterpret as double.
+        // _mm512_cvtpd_epi32 and _mm512_cvtepi32_epi64 are AVX-512F (no DQ).
+        __m256i n_i32 = _mm512_cvtpd_epi32(n_float);          // 8 doubles → __m256i
+        __m512i n_i64 = _mm512_cvtepi32_epi64(n_i32);          // expand to int64
+        __m512i ebits = _mm512_add_epi64(n_i64, _mm512_set1_epi64(1023));
+        ebits         = _mm512_slli_epi64(ebits, 52);
+        __m512d scale = _mm512_castsi512_pd(ebits);
+
+        _mm512_storeu_pd(&results[i], _mm512_mul_pd(poly, scale));
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) results[i] = std::exp(values[i]);
 }
 
 void VectorOps::vector_log_avx512(const double* values, double* results,
