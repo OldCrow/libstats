@@ -1,0 +1,14 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-06-14T19-19-02Z_darwin-x86_64_feature/v1.5-erf-accuracy_sha-c91a348
+Captured at (UTC): 2026-06-14T19-19-02Z
+
+Files:
+- metadata.json
+- summary.json
+- crossovers.csv
+- best_strategies.csv
+- strategy_profile_results.csv
+- logs/system_inspector_performance.txt
+- logs/strategy_profile.txt
