@@ -66,7 +66,7 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 
 ### Current Validation Matrix
 
-**v1.5.0 (in progress) — Kaby Lake validated; M1 and Asus TUF A16 pending Phases 3–4**
+**v1.5.0 (in progress) — Kaby Lake and Asus TUF A16 validated; M1 pending Phase 3**
 
 `simd_verification` now reports **geometric mean speedups** per operation type (PDF/LogPDF/CDF)
 and per primitive vector op, not a single composite. See `tools/simd_verification.cpp` for rationale.
@@ -75,9 +75,10 @@ and per primitive vector op, not a single composite. See `tools/simd_verificatio
 |---|---|---|---|---|---|---|---|
 | Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61 | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
 | Mac Mini M1 | NEON | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| Asus TUF A16 (Windows) | AVX-512 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 61 | 61/61 ✅ | 4.8x | 5.1x | 2.2x |
 
 Kaby Lake primitive vector op speedups (v1.5.0 Phase 1+2): VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
+Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
 
 **v1.4.0 baseline — all four machines**
 
@@ -90,7 +91,8 @@ Kaby Lake primitive vector op speedups (v1.5.0 Phase 1+2): VectorExp 3.4x, Vecto
 
 **Total suite counts differ by machine (v1.5.0):**
 - Kaby Lake (61): v1.5.0 adds VonMises distribution rows + 4 primitive vector op rows to `simd_verification`.
-- M1 / Asus TUF A16: will also be 61 once Phase 3/4 branches validate.
+- Asus TUF A16 (61): Phase 4 validated ✅.
+- M1: will be 61 once Phase 3 validates.
 - Ivy Bridge/Catalina (53): 6 timing-labelled tests excluded by `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` gating; correctness unaffected.
 
 ### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
@@ -116,8 +118,6 @@ Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
 - SVE (AArch64 beyond NEON) — no hardware in the ecosystem
 - SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
 
-Note: AVX-512 native transcendentals (formerly deferred) are now in scope as v1.5.0 Phase 4.
-
 ### Changes in v1.5.0 (in progress)
 - **AVX2+FMA native transcendentals**: `vector_exp_avx2` and `vector_log_avx2` replaced
   AVX-delegation stubs with FMA Horner polynomial (SLEEF-inspired, < 1 ULP). `vector_cos_avx2`
@@ -134,7 +134,9 @@ Note: AVX-512 native transcendentals (formerly deferred) are now in scope as v1.
 - **NEON native transcendentals** (Phase 3, M1): `vector_exp_neon`, `vector_log_neon`,
   `vector_erf_neon` — in progress, pending validation on Mac Mini M1.
 - **AVX-512 native transcendentals** (Phase 4, Asus TUF A16): `vector_exp_avx512`,
-  `vector_log_avx512`, `vector_erf_avx512` — in progress, pending validation.
+  `vector_log_avx512`, `vector_erf_avx512` — validated ✅. 39/39 correctness, 61/61
+  simd_verification. Distribution geomeans: PDF 4.8x, LogPDF 5.1x, CDF 2.2x.
+  Primitive ops: VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
 
 Validation (v1.5.0 Phases 1–2, Kaby Lake AVX2+FMA primary):
 - correctness suite: 39/39 PASS
