@@ -84,6 +84,13 @@ void VectorOps::vector_erf_fallback(const double* values, double* results,
     }
 }
 
+void VectorOps::vector_pow_elementwise_fallback(const double* base, const double* exponent,
+                                               double* results, std::size_t size) noexcept {
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::pow(base[i], exponent[i]);
+    }
+}
+
 //========== Helper Functions with Platform-Aware Optimization ==========
 
 bool VectorOps::should_use_simd(std::size_t size) noexcept {

@@ -678,6 +678,28 @@ class VectorOps {
                                     std::size_t size) noexcept;
     static void vector_erf_fallback(const double* values, double* results,
                                     std::size_t size) noexcept;
+    static void vector_pow_elementwise_fallback(const double* base, const double* exponent,
+                                               double* results, std::size_t size) noexcept;
+
+    // DispatchTable: populated once at startup by makeDispatchTable().
+    // To add a new SIMD tier: edit makeDispatchTable() in simd_dispatch.cpp only.
+    // To add a new op: add one pointer here, set it in makeDispatchTable(), add
+    // a 2-line public method that calls shouldUseSIMD then getDispatchTable().op().
+    struct DispatchTable {
+        double (*dot_product)(const double*, const double*, std::size_t) noexcept;
+        void (*vector_add)(const double*, const double*, double*, std::size_t) noexcept;
+        void (*vector_subtract)(const double*, const double*, double*, std::size_t) noexcept;
+        void (*vector_multiply)(const double*, const double*, double*, std::size_t) noexcept;
+        void (*scalar_multiply)(const double*, double, double*, std::size_t) noexcept;
+        void (*scalar_add)(const double*, double, double*, std::size_t) noexcept;
+        void (*vector_exp)(const double*, double*, std::size_t) noexcept;
+        void (*vector_log)(const double*, double*, std::size_t) noexcept;
+        void (*vector_pow)(const double*, double, double*, std::size_t) noexcept;
+        void (*vector_pow_elementwise)(const double*, const double*, double*, std::size_t) noexcept;
+        void (*vector_erf)(const double*, double*, std::size_t) noexcept;
+    };
+    static DispatchTable makeDispatchTable() noexcept;
+    static const DispatchTable& getDispatchTable() noexcept;
 
     // SIMD-specific implementations
 #ifdef LIBSTATS_HAS_AVX512

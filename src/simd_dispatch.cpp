@@ -1,6 +1,8 @@
-// Main SIMD dispatch logic - NO SIMD intrinsics in this file
-// This file contains only the decision logic for which implementation to use
-// Enhanced with platform-specific optimizations and adaptive thresholds
+// Main SIMD dispatch logic — NO SIMD intrinsics in this file.
+// The dispatch table (makeDispatchTable) is the single change point for tier selection:
+//   Adding a new SIMD tier: edit makeDispatchTable() only.
+//   Adding a new op: add a pointer to DispatchTable (simd.h), set it in
+//   makeDispatchTable(), add a 2-line public method in the section below.
 
 #include "libstats/core/math_constants.h"
 #include "libstats/core/statistical_constants.h"
@@ -17,445 +19,186 @@ namespace stats {
 namespace simd {
 namespace ops {
 
-//========== Public Interface Implementations ==========
-// These are the main entry points that users call
-// They dispatch to the appropriate SIMD implementation based on runtime CPU detection
+//==============================================================================
+// makeDispatchTable — selects the best available SIMD tier at process startup.
+// Tiers are tested best-first; the first available tier wins and is returned.
+// The #ifdef guards remain here (not in the call sites) because the backend
+// functions are conditionally compiled. This is the ONLY function that needs
+// editing when a new SIMD tier is added to the library.
+//==============================================================================
 
-double VectorOps::dot_product(const double* a, const double* b, std::size_t size) noexcept {
-    // Early exit for small arrays where SIMD overhead isn't worth it
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return dot_product_fallback(a, b, size);
-    }
+VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
+    DispatchTable t{};
 
-    // Dispatch to best available implementation in order of performance
-    // Each implementation includes its own runtime safety checks
+    // Tier: Fallback (always available) — populated first as the safe default.
+    t.dot_product            = dot_product_fallback;
+    t.vector_add             = vector_add_fallback;
+    t.vector_subtract        = vector_subtract_fallback;
+    t.vector_multiply        = vector_multiply_fallback;
+    t.scalar_multiply        = scalar_multiply_fallback;
+    t.scalar_add             = scalar_add_fallback;
+    t.vector_exp             = vector_exp_fallback;
+    t.vector_log             = vector_log_fallback;
+    t.vector_pow             = vector_pow_fallback;
+    t.vector_pow_elementwise = vector_pow_elementwise_fallback;
+    t.vector_erf             = vector_erf_fallback;
 
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return dot_product_avx512(a, b, size);
+#ifdef LIBSTATS_HAS_NEON
+    if (stats::arch::supports_neon()) {
+        t.dot_product            = dot_product_neon;
+        t.vector_add             = vector_add_neon;
+        t.vector_subtract        = vector_subtract_neon;
+        t.vector_multiply        = vector_multiply_neon;
+        t.scalar_multiply        = scalar_multiply_neon;
+        t.scalar_add             = scalar_add_neon;
+        t.vector_exp             = vector_exp_neon;
+        t.vector_log             = vector_log_neon;
+        t.vector_pow             = vector_pow_neon;
+        t.vector_pow_elementwise = vector_pow_elementwise_neon;
+        t.vector_erf             = vector_erf_neon;
+        return t;  // ARM: NEON is the only SIMD tier
     }
 #endif
 
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return dot_product_avx2(a, b, size);
+    // x86 tiers: tested best-first; each overwrites the previous on success.
+    // AVX512 ⊃ AVX2 ⊃ AVX ⊃ SSE2, so testing from worst to best and
+    // overwriting means we always land on the highest available tier.
+#ifdef LIBSTATS_HAS_SSE2
+    if (stats::arch::supports_sse2()) {
+        t.dot_product            = dot_product_sse2;
+        t.vector_add             = vector_add_sse2;
+        t.vector_subtract        = vector_subtract_sse2;
+        t.vector_multiply        = vector_multiply_sse2;
+        t.scalar_multiply        = scalar_multiply_sse2;
+        t.scalar_add             = scalar_add_sse2;
+        t.vector_exp             = vector_exp_sse2;
+        t.vector_log             = vector_log_sse2;
+        t.vector_pow             = vector_pow_sse2;
+        t.vector_pow_elementwise = vector_pow_elementwise_sse2;
+        t.vector_erf             = vector_erf_sse2;
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
     if (stats::arch::supports_avx()) {
-        return dot_product_avx(a, b, size);
+        t.dot_product            = dot_product_avx;
+        t.vector_add             = vector_add_avx;
+        t.vector_subtract        = vector_subtract_avx;
+        t.vector_multiply        = vector_multiply_avx;
+        t.scalar_multiply        = scalar_multiply_avx;
+        t.scalar_add             = scalar_add_avx;
+        t.vector_exp             = vector_exp_avx;
+        t.vector_log             = vector_log_avx;
+        t.vector_pow             = vector_pow_avx;
+        t.vector_pow_elementwise = vector_pow_elementwise_avx;
+        t.vector_erf             = vector_erf_avx;
     }
 #endif
 
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return dot_product_sse2(a, b, size);
+#ifdef LIBSTATS_HAS_AVX2
+    if (stats::arch::supports_avx2()) {
+        t.dot_product            = dot_product_avx2;
+        t.vector_add             = vector_add_avx2;
+        t.vector_subtract        = vector_subtract_avx2;
+        t.vector_multiply        = vector_multiply_avx2;
+        t.scalar_multiply        = scalar_multiply_avx2;
+        t.scalar_add             = scalar_add_avx2;
+        t.vector_exp             = vector_exp_avx2;
+        t.vector_log             = vector_log_avx2;
+        t.vector_pow             = vector_pow_avx2;
+        t.vector_pow_elementwise = vector_pow_elementwise_avx2;
+        t.vector_erf             = vector_erf_avx2;
     }
 #endif
 
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return dot_product_neon(a, b, size);
+#ifdef LIBSTATS_HAS_AVX512
+    if (stats::arch::supports_avx512()) {
+        t.dot_product            = dot_product_avx512;
+        t.vector_add             = vector_add_avx512;
+        t.vector_subtract        = vector_subtract_avx512;
+        t.vector_multiply        = vector_multiply_avx512;
+        t.scalar_multiply        = scalar_multiply_avx512;
+        t.scalar_add             = scalar_add_avx512;
+        t.vector_exp             = vector_exp_avx512;
+        t.vector_log             = vector_log_avx512;
+        t.vector_pow             = vector_pow_avx512;
+        t.vector_pow_elementwise = vector_pow_elementwise_avx512;
+        t.vector_erf             = vector_erf_avx512;
     }
 #endif
 
-    // Fallback to scalar implementation
-    return dot_product_fallback(a, b, size);
+    return t;
+}
+
+const VectorOps::DispatchTable& VectorOps::getDispatchTable() noexcept {
+    static const DispatchTable table = makeDispatchTable();
+    return table;
+}
+
+//==============================================================================
+// Public interface — each method: size check + one dispatch table call.
+//==============================================================================
+
+double VectorOps::dot_product(const double* a, const double* b, std::size_t size) noexcept {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return dot_product_fallback(a, b, size);
+    return getDispatchTable().dot_product(a, b, size);
 }
 
 void VectorOps::vector_add(const double* a, const double* b, double* result,
                            std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return vector_add_fallback(a, b, result, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_add_avx512(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_add_avx2(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_add_avx(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_add_sse2(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_add_neon(a, b, result, size);
-    }
-#endif
-
-    return vector_add_fallback(a, b, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_add_fallback(a, b, result, size);
+    getDispatchTable().vector_add(a, b, result, size);
 }
 
 void VectorOps::vector_subtract(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return vector_subtract_fallback(a, b, result, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_subtract_avx512(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_subtract_avx2(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_subtract_avx(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_subtract_sse2(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_subtract_neon(a, b, result, size);
-    }
-#endif
-
-    return vector_subtract_fallback(a, b, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_subtract_fallback(a, b, result, size);
+    getDispatchTable().vector_subtract(a, b, result, size);
 }
 
 void VectorOps::vector_multiply(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return vector_multiply_fallback(a, b, result, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_multiply_avx512(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_multiply_avx2(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_multiply_avx(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_multiply_sse2(a, b, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_multiply_neon(a, b, result, size);
-    }
-#endif
-
-    return vector_multiply_fallback(a, b, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_multiply_fallback(a, b, result, size);
+    getDispatchTable().vector_multiply(a, b, result, size);
 }
 
 void VectorOps::scalar_multiply(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return scalar_multiply_fallback(a, scalar, result, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return scalar_multiply_avx512(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return scalar_multiply_avx2(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return scalar_multiply_avx(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return scalar_multiply_sse2(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return scalar_multiply_neon(a, scalar, result, size);
-    }
-#endif
-
-    return scalar_multiply_fallback(a, scalar, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return scalar_multiply_fallback(a, scalar, result, size);
+    getDispatchTable().scalar_multiply(a, scalar, result, size);
 }
 
 void VectorOps::scalar_add(const double* a, double scalar, double* result,
                            std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return scalar_add_fallback(a, scalar, result, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return scalar_add_avx512(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return scalar_add_avx2(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return scalar_add_avx(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return scalar_add_sse2(a, scalar, result, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return scalar_add_neon(a, scalar, result, size);
-    }
-#endif
-
-    return scalar_add_fallback(a, scalar, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return scalar_add_fallback(a, scalar, result, size);
+    getDispatchTable().scalar_add(a, scalar, result, size);
 }
 
 void VectorOps::vector_exp(const double* values, double* results, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return vector_exp_fallback(values, results, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_exp_avx512(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_exp_avx2(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_exp_avx(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_exp_sse2(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_exp_neon(values, results, size);
-    }
-#endif
-
-    return vector_exp_fallback(values, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_exp_fallback(values, results, size);
+    getDispatchTable().vector_exp(values, results, size);
 }
 
 void VectorOps::vector_log(const double* values, double* results, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return vector_log_fallback(values, results, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_log_avx512(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_log_avx2(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_log_avx(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_log_sse2(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_log_neon(values, results, size);
-    }
-#endif
-
-    return vector_log_fallback(values, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_log_fallback(values, results, size);
+    getDispatchTable().vector_log(values, results, size);
 }
 
 void VectorOps::vector_pow(const double* base, double exponent, double* results,
                            std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return vector_pow_fallback(base, exponent, results, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_pow_avx512(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_pow_avx2(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_pow_avx(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_pow_sse2(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_pow_neon(base, exponent, results, size);
-    }
-#endif
-
-    return vector_pow_fallback(base, exponent, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_pow_fallback(base, exponent, results, size);
+    getDispatchTable().vector_pow(base, exponent, results, size);
 }
 
 void VectorOps::vector_pow_elementwise(const double* base, const double* exponent, double* results,
                                        std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        // Fallback to scalar implementation
-        for (std::size_t i = 0; i < size; ++i) {
-            results[i] = std::pow(base[i], exponent[i]);
-        }
-        return;
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_pow_elementwise_avx512(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_pow_elementwise_avx2(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_pow_elementwise_avx(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_pow_elementwise_sse2(base, exponent, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_pow_elementwise_neon(base, exponent, results, size);
-    }
-#endif
-
-    // Final fallback
-    for (std::size_t i = 0; i < size; ++i) {
-        results[i] = std::pow(base[i], exponent[i]);
-    }
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_pow_elementwise_fallback(base, exponent, results, size);
+    getDispatchTable().vector_pow_elementwise(base, exponent, results, size);
 }
 
 void VectorOps::vector_erf(const double* values, double* results, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        return vector_erf_fallback(values, results, size);
-    }
-
-#ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
-        return vector_erf_avx512(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
-        return vector_erf_avx2(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-    if (stats::arch::supports_avx()) {
-        return vector_erf_avx(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_SSE2
-    if (stats::arch::supports_sse2()) {
-        return vector_erf_sse2(values, results, size);
-    }
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-    if (stats::arch::supports_neon()) {
-        return vector_erf_neon(values, results, size);
-    }
-#endif
-
-    return vector_erf_fallback(values, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_erf_fallback(values, results, size);
+    getDispatchTable().vector_erf(values, results, size);
 }
 
 //========== Runtime Information Functions ==========
