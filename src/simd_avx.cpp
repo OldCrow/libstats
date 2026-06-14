@@ -641,6 +641,75 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
     }
 }
 
+void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        return vector_cos_fallback(input, output, size);
+    }
+
+    // Two-step range reduction + 7-term Horner Taylor polynomial.
+    // Step 1: y = x - round(x/2π)·2π  →  y ∈ [−π, π]
+    // Step 2: if |y| > π/2, reflect and flip sign  →  y ∈ [−π/2, π/2]
+    // Step 3: cos(y) ≈ 1 + y²·(c₁ + y²·(c₂ + … + y²·c₇))
+    // Max error ≈ 1×10⁻¹⁰ for |y| ≤ π/2. Scalar tail uses std::cos.
+
+    constexpr std::size_t W = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+
+    const __m256d inv_two_pi  = _mm256_set1_pd(1.0 / (2.0 * detail::PI));
+    const __m256d two_pi      = _mm256_set1_pd(2.0 * detail::PI);
+    const __m256d pi          = _mm256_set1_pd(detail::PI);
+    const __m256d half_pi     = _mm256_set1_pd(detail::PI_OVER_2);
+    const __m256d neg_pi      = _mm256_set1_pd(-detail::PI);
+    const __m256d neg_half_pi = _mm256_set1_pd(-detail::PI_OVER_2);
+    const __m256d one         = _mm256_set1_pd(1.0);
+    const __m256d neg_one     = _mm256_set1_pd(-1.0);
+
+    // Taylor coefficients: c_k = (-1)^k / (2k)!
+    const __m256d c1 = _mm256_set1_pd(-0.5);                     // -1/2!
+    const __m256d c2 = _mm256_set1_pd(4.166666666666667e-2);     //  1/4!
+    const __m256d c3 = _mm256_set1_pd(-1.388888888888889e-3);    // -1/6!
+    const __m256d c4 = _mm256_set1_pd(2.480158730158730e-5);     //  1/8!
+    const __m256d c5 = _mm256_set1_pd(-2.755731922398589e-7);    // -1/10!
+    const __m256d c6 = _mm256_set1_pd(2.087675698786810e-9);     //  1/12!
+    const __m256d c7 = _mm256_set1_pd(-1.147074559772973e-11);   // -1/14!
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m256d x = _mm256_loadu_pd(&input[i]);
+
+        // Step 1: reduce to [−π, π]
+        __m256d q = _mm256_round_pd(_mm256_mul_pd(x, inv_two_pi),
+                                    _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+        __m256d y = _mm256_sub_pd(x, _mm256_mul_pd(q, two_pi));
+
+        // Step 2: reduce to [−π/2, π/2], tracking sign
+        __m256d sign    = one;
+        __m256d gt_hpi  = _mm256_cmp_pd(y, half_pi,     _CMP_GT_OQ);
+        __m256d lt_nhpi = _mm256_cmp_pd(y, neg_half_pi, _CMP_LT_OQ);
+
+        y    = _mm256_blendv_pd(y,    _mm256_sub_pd(pi,     y), gt_hpi);
+        sign = _mm256_blendv_pd(sign, neg_one,                  gt_hpi);
+        y    = _mm256_blendv_pd(y,    _mm256_sub_pd(neg_pi, y), lt_nhpi);
+        sign = _mm256_blendv_pd(sign, neg_one,                  lt_nhpi);
+
+        // Step 3: Horner evaluation  cos(y) = 1 + y²·(c₁ + y²·(… + y²·c₇))
+        __m256d y2   = _mm256_mul_pd(y, y);
+        __m256d poly = c7;
+        poly = _mm256_add_pd(c6, _mm256_mul_pd(y2, poly));
+        poly = _mm256_add_pd(c5, _mm256_mul_pd(y2, poly));
+        poly = _mm256_add_pd(c4, _mm256_mul_pd(y2, poly));
+        poly = _mm256_add_pd(c3, _mm256_mul_pd(y2, poly));
+        poly = _mm256_add_pd(c2, _mm256_mul_pd(y2, poly));
+        poly = _mm256_add_pd(c1, _mm256_mul_pd(y2, poly));
+        poly = _mm256_add_pd(one, _mm256_mul_pd(y2, poly));
+
+        _mm256_storeu_pd(&output[i], _mm256_mul_pd(poly, sign));
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::cos(input[i]);
+    }
+}
+
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats

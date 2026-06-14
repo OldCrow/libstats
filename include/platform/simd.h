@@ -614,6 +614,15 @@ class VectorOps {
     ///       Below the SIMD threshold, falls back to std::erf for full precision.
     static void vector_erf(const double* values, double* results, std::size_t size) noexcept;
 
+    /// Vectorized cosine computation
+    /// @param values Input vector of angles (radians, arbitrary range)
+    /// @param results Output vector (cos(values))
+    /// @param size Number of elements
+    /// @note Two-step range reduction + 7-term Horner Taylor polynomial.
+    ///       Max error ≈ 1×10⁻¹⁰ for |y| ≤ π/2 after reduction. Scalar tail
+    ///       delegates to std::cos for exact IEEE 754 semantics.
+    static void vector_cos(const double* values, double* results, std::size_t size) noexcept;
+
     /// Check if SIMD should be used for given size
     /// @param size Number of elements to process
     /// @return true if SIMD is beneficial for this size
@@ -680,6 +689,8 @@ class VectorOps {
                                     std::size_t size) noexcept;
     static void vector_pow_elementwise_fallback(const double* base, const double* exponent,
                                                double* results, std::size_t size) noexcept;
+    static void vector_cos_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept;
 
     // DispatchTable: populated once at startup by makeDispatchTable().
     // To add a new SIMD tier: edit makeDispatchTable() in simd_dispatch.cpp only.
@@ -697,6 +708,7 @@ class VectorOps {
         void (*vector_pow)(const double*, double, double*, std::size_t) noexcept;
         void (*vector_pow_elementwise)(const double*, const double*, double*, std::size_t) noexcept;
         void (*vector_erf)(const double*, double*, std::size_t) noexcept;
+        void (*vector_cos)(const double*, double*, std::size_t) noexcept;
     };
     static DispatchTable makeDispatchTable() noexcept;
     static const DispatchTable& getDispatchTable() noexcept;
@@ -721,6 +733,7 @@ class VectorOps {
     static void vector_pow_elementwise_avx512(const double* base, const double* exponent,
                                               double* results, std::size_t size) noexcept;
     static void vector_erf_avx512(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_cos_avx512(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
@@ -742,6 +755,7 @@ class VectorOps {
     static void vector_pow_elementwise_avx(const double* base, const double* exponent,
                                            double* results, std::size_t size) noexcept;
     static void vector_erf_avx(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_cos_avx(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
@@ -763,6 +777,7 @@ class VectorOps {
     static void vector_pow_elementwise_avx2(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
     static void vector_erf_avx2(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_cos_avx2(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
@@ -784,6 +799,7 @@ class VectorOps {
     static void vector_pow_elementwise_sse2(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
     static void vector_erf_sse2(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_cos_sse2(const double* values, double* results, std::size_t size) noexcept;
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
@@ -805,6 +821,7 @@ class VectorOps {
     static void vector_pow_elementwise_neon(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
     static void vector_erf_neon(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_cos_neon(const double* values, double* results, std::size_t size) noexcept;
 #endif
 };
 

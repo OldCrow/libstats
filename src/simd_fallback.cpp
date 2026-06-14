@@ -91,6 +91,13 @@ void VectorOps::vector_pow_elementwise_fallback(const double* base, const double
     }
 }
 
+void VectorOps::vector_cos_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept {
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::cos(values[i]);
+    }
+}
+
 //========== Helper Functions with Platform-Aware Optimization ==========
 
 bool VectorOps::should_use_simd(std::size_t size) noexcept {

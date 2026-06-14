@@ -42,6 +42,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
     t.vector_pow             = vector_pow_fallback;
     t.vector_pow_elementwise = vector_pow_elementwise_fallback;
     t.vector_erf             = vector_erf_fallback;
+    t.vector_cos             = vector_cos_fallback;
 
 #ifdef LIBSTATS_HAS_NEON
     if (stats::arch::supports_neon()) {
@@ -56,6 +57,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow             = vector_pow_neon;
         t.vector_pow_elementwise = vector_pow_elementwise_neon;
         t.vector_erf             = vector_erf_neon;
+        t.vector_cos             = vector_cos_neon;
         return t;  // ARM: NEON is the only SIMD tier
     }
 #endif
@@ -76,6 +78,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow             = vector_pow_sse2;
         t.vector_pow_elementwise = vector_pow_elementwise_sse2;
         t.vector_erf             = vector_erf_sse2;
+        t.vector_cos             = vector_cos_sse2;
     }
 #endif
 
@@ -92,6 +95,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow             = vector_pow_avx;
         t.vector_pow_elementwise = vector_pow_elementwise_avx;
         t.vector_erf             = vector_erf_avx;
+        t.vector_cos             = vector_cos_avx;
     }
 #endif
 
@@ -108,6 +112,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow             = vector_pow_avx2;
         t.vector_pow_elementwise = vector_pow_elementwise_avx2;
         t.vector_erf             = vector_erf_avx2;
+        t.vector_cos             = vector_cos_avx2;
     }
 #endif
 
@@ -124,6 +129,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow             = vector_pow_avx512;
         t.vector_pow_elementwise = vector_pow_elementwise_avx512;
         t.vector_erf             = vector_erf_avx512;
+        t.vector_cos             = vector_cos_avx512;
     }
 #endif
 
@@ -199,6 +205,11 @@ void VectorOps::vector_pow_elementwise(const double* base, const double* exponen
 void VectorOps::vector_erf(const double* values, double* results, std::size_t size) noexcept {
     if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_erf_fallback(values, results, size);
     getDispatchTable().vector_erf(values, results, size);
+}
+
+void VectorOps::vector_cos(const double* values, double* results, std::size_t size) noexcept {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_cos_fallback(values, results, size);
+    getDispatchTable().vector_cos(values, results, size);
 }
 
 //========== Runtime Information Functions ==========

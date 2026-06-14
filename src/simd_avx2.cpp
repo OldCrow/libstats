@@ -205,6 +205,15 @@ void VectorOps::vector_erf_avx2(const double* values, double* results, std::size
     return vector_erf_avx(values, results, size);
 }
 
+void VectorOps::vector_cos_avx2(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx2()) {
+        return vector_cos_fallback(input, output, size);
+    }
+    // AVX2 adds integer ops and gather; no additional double-precision trigonometric
+    // benefit over AVX. Delegate to the AVX implementation.
+    return vector_cos_avx(input, output, size);
+}
+
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats
