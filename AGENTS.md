@@ -8,13 +8,16 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.2.0 released on `main`.
-9 distributions, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
-54/54 SIMD tests passing on all four target machines.
-v1.2.0: all 11 standalone tests migrated to GTest (#19), `categorizeBatchSize` complexity
-reduced (#20), dispatch threshold functions consolidated (#21), shared `parallelBatchFit`
-helper extracted and added to all 9 distributions (#18), two pre-existing bugs fixed
-(LogSpaceOps lookup table precision, DiscreteDistribution equal-bounds validation).
+**Current Status**: v1.3.0 released on `main`.
+16 distributions across 6 families, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
+54/54 SIMD tests passing on all four target machines, 39/39 correctness tests.
+v1.3.0: added `BinomialDistribution` and `NegativeBinomialDistribution` (Tier 3 discrete
+distributions); `detail::trigamma` added to `math_utils`; 4 new test files (2 basic,
+2 GTest enhanced). v1.2.0: all 11 standalone tests migrated to GTest (#19),
+`categorizeBatchSize` complexity reduced (#20), dispatch threshold functions consolidated
+(#21), shared `parallelBatchFit` helper extracted and added to all 9 distributions (#18),
+two pre-existing bugs fixed (LogSpaceOps lookup table precision, DiscreteDistribution
+equal-bounds validation).
 
 ## Session Start Baseline Workflow (Required)
 
@@ -64,16 +67,16 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow `Windows Session Setup` below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current Validation Matrix (9 distributions, 54 SIMD tests)
+### Current Validation Matrix (16 distributions, 39 correctness tests, 54 SIMD tests)
 
 | Machine | SIMD | Correctness | simd_verification | Speedup |
 |---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
-| Asus TUF A16 (Windows) | AVX-512 | 33/33 ✅ | 54/54 ✅ | 1.64x |
-| Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
-| Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |
+| Ivy Bridge (2012 MBP) | AVX | 39/39 ✅ | 54/54 ✅ | 4.10x |
+| Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 54/54 ✅ | 3.49x |
+| Mac Mini M1 | NEON | 39/39 ✅ | 54/54 ✅ | 2.31x |
+| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 54/54 ✅ | 1.64x |
 
-All four machines validated. 9 distributions, 54/54 SIMD tests, all architectures.
+All four machines validated. 16 distributions, 39/39 correctness tests, 54/54 SIMD tests.
 
 ### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
 Vectorized batch kernels added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
@@ -93,10 +96,25 @@ Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
 ### Deferred Items
 - AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on AMD Ryzen 7 7445 (AVX-512, Windows);
   fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
-  back to the AVX implementation; deferred post-v1.2.0
+  back to the AVX implementation; deferred post-v1.3.0
 - Future: `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
+
+### Distributions Added in v1.3.0
+New distributions added in v1.3.0:
+- **Binomial** — B(n, p); PMF via lgamma log-space; CDF via I_{1−p}(n−k, k+1);
+  MLE closed-form p̂ = k̄/n̂. VECTORIZED = cached scalar loop.
+- **Negative Binomial** — NB(r, p); real-valued r; PMF via lgamma; CDF via I_p(r, k+1);
+  MLE: MoM seed + Newton–Raphson profile score using digamma/trigamma.
+  Sampling: Gamma(r,(1−p)/p)-Poisson mixture.
+
+Shared utility additions:
+- `detail::trigamma(x)` added to `math_utils`: A&S §6.4.12, accuracy < 2×10⁻¹⁴.
+
+Validation (v1.3.0, primary dev machine — Ivy Bridge AVX):
+- correctness suite: 39/39 PASS
+- `simd_verification`: 54/54 PASS, overall 4.10x (unchanged — discrete distributions use scalar loops)
 
 ### Distributions Added in v1.0.0
 New distributions added in v1.0.0:

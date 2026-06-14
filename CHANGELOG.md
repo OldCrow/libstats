@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.3.0] - 2026-06-14
 
 ### Added
 - `LogNormalDistribution` — log-space Gaussian transform; 6-step SIMD LogPDF/PDF pipeline
@@ -49,6 +49,10 @@
 - 2 new GTest suites: `test_binomial_enhanced`, `test_negative_binomial_enhanced`
   (labelled `timing`); 2 correctness suites: `test_binomial_basic`,
   `test_negative_binomial_basic`. Total correctness tests: 39.
+
+### Validation
+- 39/39 correctness tests pass on all four architectures (pending CI for AVX2/AVX-512/NEON)
+- 54/54 SIMD tests pass on all four architectures (unchanged — Binomial/NegBinom use scalar loops)
 
 ---
 

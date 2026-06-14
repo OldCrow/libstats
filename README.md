@@ -1,6 +1,6 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
-[![Version](https://img.shields.io/badge/version-v1.2.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.2.0)
+[![Version](https://img.shields.io/badge/version-v1.3.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.3.0)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -313,7 +313,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-The library is at **v1.2.0** on `main`, with Log-Normal, Pareto, Weibull, Rayleigh, Von Mises, Binomial, and Negative Binomial added since that release.
+The library is at **v1.3.0** on `main`.
 
 **16 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
