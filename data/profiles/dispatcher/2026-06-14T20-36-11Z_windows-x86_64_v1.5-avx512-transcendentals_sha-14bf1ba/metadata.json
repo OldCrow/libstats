@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-06-14T20-36-11Z",
+  "run_id": "2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba",
+  "git_branch": "feature/v1.5-avx512-transcendentals",
+  "git_sha": "14bf1ba",
+  "project_root": "C:/Users/gdwol/Development/libstats",
+  "build_dir": "C:/Users/gdwol/Development/libstats/build",
+  "build_type": "Release",
+  "cxx_compiler": "",
+  "os": "windows",
+  "arch": "x86_64",
+  "cpu_brand": "AMD Ryzen 7 7445HS w/ Radeon 740M Graphics     ",
+  "physical_cores": "6",
+  "logical_cores": "12"
+}

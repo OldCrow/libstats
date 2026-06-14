@@ -44,7 +44,7 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 
 // ============================================================================
 // Per-architecture parallel thresholds: (DistributionType, OperationType) → size
-// Derived from strategy_profile Release builds, 2026-04-12.
+// Derived from strategy_profile Release builds captured in data/profiles/dispatcher/.
 //
 // Reading guide: each value is the smallest batch size at which a parallel
 // strategy sustainably beats VECTORIZED up to 500K elements.
@@ -52,6 +52,15 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 //
 // Table layout: {pdf, log_pdf, cdf} per distribution row.
 // Beta is excluded (NEVER across all architectures and operations).
+//
+// Measurement resolution caveat (applies to all architectures):
+//   Profiler timing resolution floors out around 0.1–0.2 µs. At batch sizes
+//   below ~64 elements, many measurements read 0.0 µs regardless of strategy,
+//   making the derived crossover unreliable (noise can make parallel appear to
+//   win at batch=8 simply because both scalar and SIMD round to the same tick).
+//   When recalibrating this table, treat any crossover derived from sizes < 64
+//   as suspect and clamp the threshold upward to at least 64 rather than
+//   encoding the noise artifact.
 // ============================================================================
 
 /**
@@ -120,7 +129,16 @@ constexpr ArchTable kAvx2 = {
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
+// STALE — calibrated pre-v1.5.0 when vector_exp/log/erf delegated to AVX 4-wide.
 // data/profiles/dispatcher/2026-04-12T06-02-56Z_windows-x86_64_…_sha-32c0819
+//
+// Phase 5 must replace this table using the v1.5.0 Phase 4 bundle:
+//   data/profiles/dispatcher/2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba
+// The new bundle was captured after native 8-wide exp/log/erf landed (commits
+// 4a–4c). Expect vectorized_to_parallel crossovers to shift significantly
+// rightward now that the SIMD path is faster — several entries below (e.g.
+// gamma CDF=2000, chi_squared CDF=5000) were calibrated when transcendentals
+// were slow and will need to be raised. Apply the < 64 floor rule above.
 constexpr ArchTable kAvx512 = {
     /* uniform     */ {100000, 50000, 50000},
     /* gaussian    */ {100000, NEVER, 50000},
