@@ -319,8 +319,97 @@ void VectorOps::vector_log_neon(const double* a, double* result, std::size_t siz
     if (!stats::arch::supports_neon()) {
         return vector_log_fallback(a, result, size);
     }
-    // NEON doesn't have native logarithm instructions, use scalar implementation
-    for (std::size_t i = 0; i < size; ++i) {
+
+    // SLEEF-inspired FMA Horner log(x) on float64x2_t, < 1 ULP error.
+    // Ported from vector_log_avx2 (simd_avx2.cpp). Uses (m-1)/(m+1) reduction
+    // so log(m) = 2*atanh(xr) via 7-term polynomial. aarch64 vcvtq_f64_s64
+    // converts the int64 exponent to double directly; no store/reload needed.
+
+    const float64x2_t one = vdupq_n_f64(1.0);
+    const float64x2_t ln2_hi = vdupq_n_f64(0.693147180559945286226764);
+    const float64x2_t ln2_lo = vdupq_n_f64(2.319046813846299558417771e-17);
+    const float64x2_t sqrt2 = vdupq_n_f64(1.4142135623730950488016887242097);
+    const float64x2_t half = vdupq_n_f64(0.5);
+    const float64x2_t two = vdupq_n_f64(2.0);
+
+    // SLEEF xlog_u1 coefficients (2·atanh series), < 1 ULP
+    const float64x2_t c1 = vdupq_n_f64(0.6666666666667333541e+0);
+    const float64x2_t c2 = vdupq_n_f64(0.3999999999635251990e+0);
+    const float64x2_t c3 = vdupq_n_f64(0.2857142932794299317e+0);
+    const float64x2_t c4 = vdupq_n_f64(0.2222214519839380009e+0);
+    const float64x2_t c5 = vdupq_n_f64(0.1818605932937785996e+0);
+    const float64x2_t c6 = vdupq_n_f64(0.1525629051003428716e+0);
+    const float64x2_t c7 = vdupq_n_f64(0.1532076988502701353e+0);
+
+    const float64x2_t zero = vdupq_n_f64(0.0);
+    const float64x2_t neg_inf = vdupq_n_f64(-std::numeric_limits<double>::infinity());
+    const float64x2_t pos_inf = vdupq_n_f64(std::numeric_limits<double>::infinity());
+    const float64x2_t nan_val = vdupq_n_f64(std::numeric_limits<double>::quiet_NaN());
+
+    constexpr std::size_t W = stats::arch::simd::NEON_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        float64x2_t x = vld1q_f64(&a[i]);
+
+        // Special-case detection
+        uint64x2_t is_zero = vceqq_f64(x, zero);
+        uint64x2_t is_negative = vcltq_f64(x, zero);
+        uint64x2_t is_inf = vceqq_f64(x, pos_inf);
+
+        // Scale denormals by 2^54 to bring into normal range
+        const float64x2_t min_normal = vdupq_n_f64(2.2250738585072014e-308);
+        const float64x2_t scale_up = vdupq_n_f64(18014398509481984.0);  // 2^54
+        uint64x2_t is_denormal = vcltq_f64(x, min_normal);
+        float64x2_t scaled_x = vbslq_f64(is_denormal, vmulq_f64(x, scale_up), x);
+
+        // Exponent extraction: logical right-shift by 52, mask 11-bit field, subtract bias
+        uint64x2_t xi = vreinterpretq_u64_f64(scaled_x);
+        int64x2_t e_int =
+            vsubq_s64(vreinterpretq_s64_u64(vandq_u64(vshrq_n_u64(xi, 52), vdupq_n_u64(0x7FFULL))),
+                      vdupq_n_s64(1023));
+        float64x2_t e = vcvtq_f64_s64(e_int);  // direct i64→f64, no store/reload
+        e = vbslq_f64(is_denormal, vsubq_f64(e, vdupq_n_f64(54.0)), e);
+
+        // Isolate mantissa in [1, 2) by clearing exponent field and forcing e=1023
+        uint64x2_t m_bits = vorrq_u64(vandq_u64(xi, vdupq_n_u64(0x000FFFFFFFFFFFFFULL)),
+                                      vdupq_n_u64(0x3FF0000000000000ULL));
+        float64x2_t m = vreinterpretq_f64_u64(m_bits);
+
+        // Range adjustment: if m > sqrt(2), halve m and increment e
+        uint64x2_t needs_adj = vcgtq_f64(m, sqrt2);
+        m = vbslq_f64(needs_adj, vmulq_f64(m, half), m);
+        e = vbslq_f64(needs_adj, vaddq_f64(e, one), e);
+
+        // xr = (m-1)/(m+1); FMA Horner: t = c7 + xr²·(c6 + xr²·(… + xr²·c1))
+        float64x2_t xr = vdivq_f64(vsubq_f64(m, one), vaddq_f64(m, one));
+        float64x2_t xr2 = vmulq_f64(xr, xr);
+        float64x2_t t = c7;
+        t = vfmaq_f64(c6, t, xr2);
+        t = vfmaq_f64(c5, t, xr2);
+        t = vfmaq_f64(c4, t, xr2);
+        t = vfmaq_f64(c3, t, xr2);
+        t = vfmaq_f64(c2, t, xr2);
+        t = vfmaq_f64(c1, t, xr2);
+
+        // log(m) = 2·xr + xr³·t
+        float64x2_t xr3 = vmulq_f64(xr, xr2);
+        float64x2_t two_xr = vmulq_f64(xr, two);
+        float64x2_t log_m = vfmaq_f64(two_xr, xr3, t);
+
+        // log(x) = log(m) + e·ln2 (high-low FMA decomposition)
+        float64x2_t res = vfmaq_f64(log_m, e, ln2_hi);
+        res = vfmaq_f64(res, e, ln2_lo);
+
+        // Apply special cases
+        res = vbslq_f64(is_zero, neg_inf, res);
+        res = vbslq_f64(is_inf, pos_inf, res);
+        res = vbslq_f64(is_negative, nan_val, res);
+
+        vst1q_f64(&result[i], res);
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
         result[i] = std::log(a[i]);
     }
 }
