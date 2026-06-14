@@ -8,14 +8,13 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.4.0 released on `main`.
-16 distributions across 6 families, full cross-platform SIMD validation (AVX, AVX2, AVX-512, NEON/MSVC),
-54/54 SIMD tests passing on all four target machines, 39/39 correctness tests.
-v1.4.0: `vector_cos` SIMD primitive (all 5 backends); VonMises LogPDF/PDF batch
-SIMD-accelerated; SIMD dispatch table refactor (Issue #22); code-review findings 1–7
-resolved (domain constants, `erf_inv` constexpr, Rule of Five, named magic literals,
-style). v1.3.0: added `BinomialDistribution` and `NegativeBinomialDistribution` (Tier 3
-discrete distributions); `detail::trigamma` added to `math_utils`; 4 new test files.
+**Current Status**: v1.5.0 in development on `main` (Phases 1–2 merged; Phases 3–4 in progress).
+16 distributions across 6 families. v1.5.0 Phase 1+2 (Kaby Lake): AVX2+FMA native
+transcendentals (`vector_exp_avx2`, `vector_log_avx2`, `vector_cos_avx2`) and
+high-accuracy `vector_erf` (musl rational polynomial, < 1 ULP). Phases 3–4 in progress
+on M1 (NEON) and Asus TUF A16 (AVX-512). v1.4.0: `vector_cos` SIMD primitive;
+VonMises batch SIMD-accelerated; dispatch table refactor (Issue #22).
+v1.3.0: `BinomialDistribution`, `NegativeBinomialDistribution`; `detail::trigamma`.
 
 ## Session Start Baseline Workflow (Required)
 
@@ -65,25 +64,34 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow `Windows Session Setup` below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current Validation Matrix (16 distributions, 39 correctness tests, 54 SIMD tests)
+### Current Validation Matrix
 
-| Machine | SIMD | Correctness | Total suite | simd_verification | Speedup |
+**v1.5.0 (in progress) — Kaby Lake validated; M1 and Asus TUF A16 pending Phases 3–4**
+
+`simd_verification` now reports **geometric mean speedups** per operation type (PDF/LogPDF/CDF)
+and per primitive vector op, not a single composite. See `tools/simd_verification.cpp` for rationale.
+
+| Machine | SIMD | Correctness | Total suite | simd_verification | PDF geomean | LogPDF geomean | CDF geomean |
+|---|---|---|---|---|---|---|---|
+| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61 | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
+| Mac Mini M1 | NEON | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Asus TUF A16 (Windows) | AVX-512 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+
+Kaby Lake primitive vector op speedups (v1.5.0 Phase 1+2): VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
+
+**v1.4.0 baseline — all four machines**
+
+| Machine | SIMD | Correctness | Total suite | simd_verification | Overall |
 |---|---|---|---|---|---|
 | Ivy Bridge (2012 MBP) | AVX | 39/39 ✅ | 53 | 54/54 ✅ | 4.10x |
-| Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 59 | 54/54 ✅ | 3.49x |
+| Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 59 | 54/54 ✅ | 3.35x |
 | Mac Mini M1 | NEON | 39/39 ✅ | 59 | 54/54 ✅ | 2.31x |
 | Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 59 | 54/54 ✅ | 1.64x |
 
-All four machines validated. 16 distributions, 39/39 correctness tests, 54/54 SIMD tests.
-
-**Total suite counts differ by machine:**
-- Kaby Lake / M1 / Asus TUF A16 (59): full GTest + requires-expressions — all tests present.
-- Ivy Bridge/Catalina (53): 6 timing-labelled tests excluded by
-  `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` gating (`test_exponential_enhanced`,
-  `test_uniform_enhanced`, `test_poisson_enhanced`, `test_discrete_enhanced`,
-  `test_gamma_enhanced`, and one pool variant). Correctness suite unaffected (39/39).
-- Asus TUF A16 (Windows): GTest available via vcpkg `gtest:x64-windows 1.17.0`;
-  all correctness-labelled GTest tests run correctly.
+**Total suite counts differ by machine (v1.5.0):**
+- Kaby Lake (61): v1.5.0 adds VonMises distribution rows + 4 primitive vector op rows to `simd_verification`.
+- M1 / Asus TUF A16: will also be 61 once Phase 3/4 branches validate.
+- Ivy Bridge/Catalina (53): 6 timing-labelled tests excluded by `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` gating; correctness unaffected.
 
 ### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
 Vectorized batch kernels added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
@@ -101,12 +109,38 @@ All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
 Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
 
 ### Deferred Items
-- AVX-512 transcendentals delegate to AVX (1.64x overall vs ~4x expected) — confirmed on AMD Ryzen 7 7445 (AVX-512, Windows);
-  fix by ensuring simd_avx512.cpp routes exp/log through AVX-512 intrinsics rather than falling
-  back to the AVX implementation; deferred post-v1.4.0
-- Future: `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
+- `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
   (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
+- `vector_lgamma` — too complex, low immediate distribution impact; indefinitely deferred
+- SVE (AArch64 beyond NEON) — no hardware in the ecosystem
+- SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
+
+Note: AVX-512 native transcendentals (formerly deferred) are now in scope as v1.5.0 Phase 4.
+
+### Changes in v1.5.0 (in progress)
+- **AVX2+FMA native transcendentals**: `vector_exp_avx2` and `vector_log_avx2` replaced
+  AVX-delegation stubs with FMA Horner polynomial (SLEEF-inspired, < 1 ULP). `vector_cos_avx2`
+  replaced AVX delegation with native FMA Horner. Measured: VectorExp 3.6x → 3.4x average
+  (was 1.7x delegating); VectorLog 1.7x (was 1.4x).
+- **High-accuracy `vector_erf`** (all x86 backends): replaced A&S 7.1.26 (~1.5×10⁻⁷) with
+  musl libc four-region rational polynomial (< 1 ULP; measured max error 2.22×10⁻¹⁶).
+  `vector_erf_avx` uses mul+add (−mavx only); `vector_erf_avx2` uses FMA; `vector_erf_sse2`
+  uses `__m128d` with SSE2 and/andnot/or blending. Gaussian CDF SIMD error: 6.97×10⁻⁸ → ~0.
+- **`simd_verification` coverage and reporting**: added VonMises distribution rows and
+  primitive vector op rows (VectorExp/Log/Erf/Cos); 54 → 61 tests. Replaced the single
+  wall-clock composite speedup with per-op-type geometric means (PDF/LogPDF/CDF) and
+  per-primitive individual rows.
+- **NEON native transcendentals** (Phase 3, M1): `vector_exp_neon`, `vector_log_neon`,
+  `vector_erf_neon` — in progress, pending validation on Mac Mini M1.
+- **AVX-512 native transcendentals** (Phase 4, Asus TUF A16): `vector_exp_avx512`,
+  `vector_log_avx512`, `vector_erf_avx512` — in progress, pending validation.
+
+Validation (v1.5.0 Phases 1–2, Kaby Lake AVX2+FMA primary):
+- correctness suite: 39/39 PASS
+- `simd_verification`: 61/61 PASS
+- Distribution suite geometric means: PDF 8.0x, LogPDF 9.6x, CDF 3.3x
+- Primitive op speedups: VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x
 
 ### Changes in v1.4.0
 - **`vector_cos`** added to `VectorOps` across all five SIMD backends (AVX/AVX2/SSE2/NEON/AVX-512).
