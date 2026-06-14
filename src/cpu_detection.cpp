@@ -58,8 +58,7 @@
     #endif
 #endif
 
-namespace stats {
-namespace arch {
+namespace stats::arch {
 
 namespace {
 // Thread-safe singleton for cached features with C++20 atomic enhancements
@@ -71,6 +70,14 @@ struct FeaturesSingleton {
         Features* features = ptr.load(std::memory_order_relaxed);
         delete features;
     }
+
+    // Non-copyable, non-movable: std::atomic members are non-copyable,
+    // but the intent must be explicit (Rule of Five).
+    FeaturesSingleton()                                    = default;
+    FeaturesSingleton(const FeaturesSingleton&)            = delete;
+    FeaturesSingleton& operator=(const FeaturesSingleton&) = delete;
+    FeaturesSingleton(FeaturesSingleton&&)                 = delete;
+    FeaturesSingleton& operator=(FeaturesSingleton&&)      = delete;
 
     const Features& get() {
         Features* features = ptr.load(std::memory_order_acquire);
@@ -111,7 +118,7 @@ struct FeaturesSingleton {
     }
 };
 
-static FeaturesSingleton g_features_manager;
+FeaturesSingleton g_features_manager;  // internal linkage from anonymous namespace
 
 #ifdef LIBSTATS_X86_FAMILY
 
@@ -1019,8 +1026,7 @@ bool is_modern_intel() {
             || (features.family == 6 && features.model >= 125));  // Ice Lake and newer models
 }
 
-}  // namespace arch
-}  // namespace stats
+}  // namespace stats::arch
 
 // Restore original compiler SIMD settings (only needed for GCC)
 #if (defined(__GNUC__) && !defined(__clang__) &&                                                   \
