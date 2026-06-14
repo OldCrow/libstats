@@ -237,13 +237,80 @@ void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
     }
 }
 
-// Transcendental functions - NEON doesn't have native support, use scalar fallback
+// Native SIMD transcendental implementations for NEON (aarch64).
+// vector_exp_neon, vector_log_neon, vector_erf_neon: float64x2_t + vfmaq_f64 (v1.5.0 Phase 3).
+// vector_cos_neon: native SIMD since v1.4.0 (unchanged here).
 void VectorOps::vector_exp_neon(const double* a, double* result, std::size_t size) noexcept {
     if (!stats::arch::supports_neon()) {
         return vector_exp_fallback(a, result, size);
     }
-    // NEON doesn't have native exponential instructions, use scalar implementation
-    for (std::size_t i = 0; i < size; ++i) {
+
+    // SLEEF-inspired FMA Horner exp(x) on float64x2_t, < 1 ULP error.
+    // Ported from vector_exp_avx2 (simd_avx2.cpp). Range reduction: x = n·ln2 + r,
+    // n = round(x/ln2). Reconstructs exp(x) = exp(r)·2^n via IEEE 754 exponent bit
+    // manipulation. aarch64 vcvtq_s64_f64 converts directly to int64 without the
+    // 32-bit round-trip required in the AVX/AVX2 implementation.
+
+    const float64x2_t ln2_inv = vdupq_n_f64(1.4426950408889634073599246810019);
+    const float64x2_t ln2_hi = vdupq_n_f64(0.693147180369123816490e+00);
+    const float64x2_t ln2_lo = vdupq_n_f64(1.90821492927058770002e-10);
+    const float64x2_t exp_max = vdupq_n_f64(709.782712893383996732223);
+    const float64x2_t exp_min = vdupq_n_f64(-708.0);
+    const float64x2_t half = vdupq_n_f64(0.5);
+    const float64x2_t one = vdupq_n_f64(1.0);
+
+    // SLEEF polynomial coefficients for exp(r), |r| < ln2/2, < 1 ULP
+    const float64x2_t c1 = vdupq_n_f64(0.1666666666666669072e+0);
+    const float64x2_t c2 = vdupq_n_f64(0.4166666666666602598e-1);
+    const float64x2_t c3 = vdupq_n_f64(0.8333333333314938210e-2);
+    const float64x2_t c4 = vdupq_n_f64(0.1388888888914497797e-2);
+    const float64x2_t c5 = vdupq_n_f64(0.1984126989855865850e-3);
+    const float64x2_t c6 = vdupq_n_f64(0.2480158687479686264e-4);
+    const float64x2_t c7 = vdupq_n_f64(0.2755723402025388239e-5);
+    const float64x2_t c8 = vdupq_n_f64(0.2755762628169491192e-6);
+    const float64x2_t c9 = vdupq_n_f64(0.2511210703042288022e-7);
+    const float64x2_t c10 = vdupq_n_f64(0.2081276378237164457e-8);
+
+    constexpr std::size_t W = stats::arch::simd::NEON_DOUBLES;  // 2
+    const std::size_t simd_end = (size / W) * W;
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        float64x2_t x = vld1q_f64(&a[i]);
+        x = vminq_f64(x, exp_max);
+        x = vmaxq_f64(x, exp_min);
+
+        // n = round(x/ln2); r = x - n·ln2 via two-part ln2 for precision
+        float64x2_t n_float = vrndnq_f64(vmulq_f64(x, ln2_inv));
+        float64x2_t r = vfmsq_f64(x, n_float, ln2_hi);  // x - n·ln2_hi
+        r = vfmsq_f64(r, n_float, ln2_lo);              // r - n·ln2_lo
+
+        // FMA Horner: P(r) — each step: poly = c_k + poly·r
+        float64x2_t r2 = vmulq_f64(r, r);
+        float64x2_t poly = c10;
+        poly = vfmaq_f64(c9, poly, r);
+        poly = vfmaq_f64(c8, poly, r);
+        poly = vfmaq_f64(c7, poly, r);
+        poly = vfmaq_f64(c6, poly, r);
+        poly = vfmaq_f64(c5, poly, r);
+        poly = vfmaq_f64(c4, poly, r);
+        poly = vfmaq_f64(c3, poly, r);
+        poly = vfmaq_f64(c2, poly, r);
+        poly = vfmaq_f64(c1, poly, r);
+
+        // Complete: exp(r) = 1 + r + r²·(0.5 + r·P(r))
+        poly = vfmaq_f64(half, poly, r);  // 0.5 + r·P(r)
+        poly = vfmaq_f64(r, poly, r2);    // r + r²·(0.5 + r·P(r))
+        poly = vaddq_f64(poly, one);      // 1 + r + r²·(0.5 + r·P(r))
+
+        // Scale by 2^n: biased exponent = n + 1023, placed at IEEE 754 bit 52.
+        // aarch64 vcvtq_s64_f64 converts directly; no 32-bit round-trip needed.
+        int64x2_t n_int = vcvtq_s64_f64(n_float);
+        int64x2_t exp_bits = vshlq_n_s64(vaddq_s64(n_int, vdupq_n_s64(1023)), 52);
+        float64x2_t scale = vreinterpretq_f64_s64(exp_bits);
+        vst1q_f64(&result[i], vmulq_f64(poly, scale));
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
         result[i] = std::exp(a[i]);
     }
 }
@@ -302,14 +369,14 @@ void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t
     constexpr std::size_t W = stats::arch::simd::NEON_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
 
-    const float64x2_t inv_two_pi  = vdupq_n_f64(1.0 / (2.0 * detail::PI));
-    const float64x2_t two_pi      = vdupq_n_f64(2.0 * detail::PI);
-    const float64x2_t pi          = vdupq_n_f64(detail::PI);
-    const float64x2_t half_pi     = vdupq_n_f64(detail::PI_OVER_2);
-    const float64x2_t neg_pi      = vdupq_n_f64(-detail::PI);
+    const float64x2_t inv_two_pi = vdupq_n_f64(1.0 / (2.0 * detail::PI));
+    const float64x2_t two_pi = vdupq_n_f64(2.0 * detail::PI);
+    const float64x2_t pi = vdupq_n_f64(detail::PI);
+    const float64x2_t half_pi = vdupq_n_f64(detail::PI_OVER_2);
+    const float64x2_t neg_pi = vdupq_n_f64(-detail::PI);
     const float64x2_t neg_half_pi = vdupq_n_f64(-detail::PI_OVER_2);
-    const float64x2_t one         = vdupq_n_f64(1.0);
-    const float64x2_t neg_one     = vdupq_n_f64(-1.0);
+    const float64x2_t one = vdupq_n_f64(1.0);
+    const float64x2_t neg_one = vdupq_n_f64(-1.0);
 
     const float64x2_t c1 = vdupq_n_f64(-0.5);
     const float64x2_t c2 = vdupq_n_f64(4.166666666666667e-2);
@@ -325,16 +392,16 @@ void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t
         float64x2_t q = vrndnq_f64(vmulq_f64(x, inv_two_pi));
         float64x2_t y = vsubq_f64(x, vmulq_f64(q, two_pi));
 
-        float64x2_t sign    = one;
-        uint64x2_t  gt_hpi  = vcgtq_f64(y, half_pi);
-        uint64x2_t  lt_nhpi = vcltq_f64(y, neg_half_pi);
+        float64x2_t sign = one;
+        uint64x2_t gt_hpi = vcgtq_f64(y, half_pi);
+        uint64x2_t lt_nhpi = vcltq_f64(y, neg_half_pi);
 
-        y    = vbslq_f64(gt_hpi,  vsubq_f64(pi,     y), y);
-        sign = vbslq_f64(gt_hpi,  neg_one,             sign);
-        y    = vbslq_f64(lt_nhpi, vsubq_f64(neg_pi, y), y);
-        sign = vbslq_f64(lt_nhpi, neg_one,               sign);
+        y = vbslq_f64(gt_hpi, vsubq_f64(pi, y), y);
+        sign = vbslq_f64(gt_hpi, neg_one, sign);
+        y = vbslq_f64(lt_nhpi, vsubq_f64(neg_pi, y), y);
+        sign = vbslq_f64(lt_nhpi, neg_one, sign);
 
-        float64x2_t y2   = vmulq_f64(y, y);
+        float64x2_t y2 = vmulq_f64(y, y);
         float64x2_t poly = c7;
         poly = vfmaq_f64(c6, y2, poly);
         poly = vfmaq_f64(c5, y2, poly);
