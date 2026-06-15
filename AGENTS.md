@@ -8,10 +8,11 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.5.0 in development on `main` (Phases 1–4 merged; Phase 5 pending).
-16 distributions across 6 families. v1.5.0 Phases 1–4 complete: AVX2+FMA native
+**Current Status**: v1.5.0 released on `main`.
+16 distributions across 6 families. v1.5.0: AVX2+FMA native
 transcendentals, high-accuracy `vector_erf` (all x86), NEON native transcendentals
-(M1, table+Taylor for erf), and AVX-512 native transcendentals (Asus TUF A16).
+(M1, table+Taylor for erf), AVX-512 native transcendentals (Asus TUF A16), and
+dispatch threshold recalibration from v1.5.0 profiling bundles.
 v1.4.0: `vector_cos` SIMD primitive; VonMises batch SIMD-accelerated; dispatch table
 refactor (Issue #22). v1.3.0: `BinomialDistribution`, `NegativeBinomialDistribution`;
 `detail::trigamma`.
@@ -132,7 +133,7 @@ Selected per-distribution speedups:
 - SVE (AArch64 beyond NEON) — no hardware in the ecosystem
 - SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
 
-### Changes in v1.5.0 (in progress)
+### Changes in v1.5.0
 - **AVX2+FMA native transcendentals**: `vector_exp_avx2` and `vector_log_avx2` replaced
   AVX-delegation stubs with FMA Horner polynomial (SLEEF-inspired, < 1 ULP). `vector_cos_avx2`
   replaced AVX delegation with native FMA Horner. Measured: VectorExp 3.6x → 3.4x average
@@ -160,11 +161,15 @@ Selected per-distribution speedups:
   simd_verification. Distribution geomeans: PDF 4.8x, LogPDF 5.1x, CDF 2.2x.
   Primitive ops: VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
 
-Validation (v1.5.0 Phases 1–2, Kaby Lake AVX2+FMA primary):
-- correctness suite: 39/39 PASS
-- `simd_verification`: 61/61 PASS
-- Distribution suite geometric means: PDF 8.0x, LogPDF 9.6x, CDF 3.3x
-- Primitive op speedups: VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x
+Phase 5 (dispatch threshold recalibration):
+- All four `ArchTable` entries in `dispatch_thresholds.h` updated from v1.5.0 bundles.
+- NEON Gaussian CDF: NEVER (table erf unbeatable up to 500k).
+- AVX2 Gaussian PDF: 100000; StudentT PDF: 250000 (FMA exp improvements).
+- AVX-512 Exponential PDF / StudentT PDF+LogPDF: NEVER (8-wide native exp).
+
+Full four-machine validation (v1.5.0):
+- 39/39 correctness, 61/61 `simd_verification` on Kaby Lake, M1, Asus TUF A16
+- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge (Catalina)
 
 ### Changes in v1.4.0
 - **`vector_cos`** added to `VectorOps` across all five SIMD backends (AVX/AVX2/SSE2/NEON/AVX-512).

@@ -6,7 +6,7 @@ libstats is a modern C++20 statistical distributions library built as a design a
 
 ## Current Status
 
-The library is at **v1.4.0** on `main`.
+The library is at **v1.5.0** on `main`.
 
 Sixteen distributions are fully implemented across four target architectures:
 
@@ -14,16 +14,16 @@ Sixteen distributions are fully implemented across four target architectures:
 - Log-Normal, Pareto, Weibull, Rayleigh, Von Mises
 - Binomial, Negative Binomial
 
-All sixteen distributions share a uniform API
+All sixteen distributions share a uniform API.
 
-Cross-platform SIMD validation status (54/54 SIMD tests, all four machines):
+Cross-platform SIMD validation status (v1.5.0, 61/61 SIMD tests per machine):
 
-| Machine | SIMD | Correctness | simd_verification | Speedup |
-|---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 39/39 ✅ | 54/54 ✅ | 4.10x |
-| Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 54/54 ✅ | 3.35x |
-| Mac Mini M1 | NEON | 39/39 ✅ | 54/54 ✅ | 2.31x |
-| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 54/54 ✅ | 1.64x |
+| Machine | SIMD | Correctness | simd_verification | PDF geomean | LogPDF geomean | CDF geomean |
+|---|---|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | 61/61 ✅ | 5.6x | 6.0x | 2.6x |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
+| Mac Mini M1 | NEON | 39/39 ✅ | 61/61 ✅ | 5.9x | 7.3x | 3.1x |
+| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 61/61 ✅ | 4.8x | 5.1x | 2.2x |
 
 ## Design Goals
 
