@@ -208,36 +208,51 @@ constexpr ArchTable kAvx2 = {
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
-// data/profiles/dispatcher/2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba
+// data/profiles/dispatcher/2026-06-15T22-43-11Z_windows-x86_64_fix-audit-remediation_sha-932addd
+// data/profiles/dispatcher/2026-06-15T22-46-33Z_windows-x86_64_fix-audit-remediation_sha-932addd
 //
-// v1.5.0 Phase 4 bundle captured after native 8-wide vector_exp_avx512,
-// vector_log_avx512, and vector_erf_avx512 replaced the AVX 4-wide delegations.
+// Two Release-mode bundles captured on fix/audit-remediation after audit
+// remediation changes and 7 new distributions added to the profiler.
+// Method: where both runs agree (≤~5× ratio), take the larger V→P crossover
+// (conservative, 64 floor). NEVER where best@500k was VECTORIZED in both runs,
+// runs produced contradictory best@500k, or crossovers differed by >10×.
+// Note: Windows/Thread Pool always dispatches PARALLEL, not WORK_STEALING;
+// WORK_STEALING at max size is treated as a parallel-strategy win for threshold
+// derivation, but PARALLEL vs WORK_STEALING variation between runs is ignored.
 //
-// Key changes vs April 2026 stale table:
-//   - Exponential PDF: 50000 -> NEVER. Native 8-wide exp is so fast VECTORIZED
-//     beats PARALLEL at all tested batch sizes.
-//   - StudentT PDF/LogPDF: -> NEVER. Same reason; exp-dominated paths are
-//     now faster than the parallel + scalar baseline.
-//   - Gaussian LogPDF: NEVER (retained). VECTORIZED still best at 500k.
-//   - Gaussian PDF: 100000 -> 500000. 8-wide exp widened the SIMD advantage.
-//   - Exponential LogPDF: -> 500000 (crossover only just visible at max test size).
-//   - StudentT CDF, Gamma PDF/CDF, ChiSquared LogPDF/CDF: clamped to 64 floor.
+// Key changes vs v1.5.0 Phase 4 (2026-06-14T20-36-11Z):
+//   - Uniform PDF: 100000 -> NEVER. Runs wildly inconsistent (50k vs 256).
+//   - Uniform LogPDF: 5000 -> 1000. Both runs agree.
+//   - Uniform CDF: 64 -> 256. Runs 256/8; conservative after 64 floor = 256.
+//   - Gaussian PDF: 500000 -> NEVER. Contradictory best@500k across runs.
+//   - Gaussian CDF: 20000 -> NEVER. Runs wildly inconsistent (64 vs 50k).
+//   - Exponential PDF: NEVER -> 500000. Both runs show first crossover at 500k.
+//   - Exponential LogPDF: 500000 -> NEVER. Contradictory best@500k.
+//   - Exponential CDF: 250000 -> NEVER. Runs wildly inconsistent.
+//   - Discrete PDF/LogPDF/CDF: all -> NEVER. All pairs wildly inconsistent.
+//   - Poisson PDF/CDF: -> NEVER (wildly inconsistent). LogPDF: 20000 -> 50000.
+//   - Gamma PDF: 64 -> 250000. Audit remediation made SIMD path faster;
+//     both runs show late crossover (100k/250k), conservative = 250k.
+//   - Gamma LogPDF: 100000 -> 64. Both runs agree crossover at 16 (clamped).
+//   - StudentT CDF: 64 -> NEVER. Contradictory best@500k across runs.
+//   - ChiSquared PDF: 250000 -> NEVER. Runs wildly inconsistent (64 vs 250k).
+//   - 7 new distributions calibrated from these two Windows/AVX-512 runs.
 constexpr ArchTable kAvx512 = {
-    /* uniform     */ {100000, 5000, 64},
-    /* gaussian    */ {500000, NEVER, 20000},
-    /* exponential */ {NEVER, 500000, 250000},
-    /* discrete    */ {100000, 250000, 64},
-    /* poisson     */ {5000, 20000, 10000},
-    /* gamma       */ {64, 100000, 64},
-    /* student_t   */ {NEVER, NEVER, 64},
-    /* chi_squared */ {250000, 64, 64},
-    /* lognormal         */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* pareto            */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* weibull           */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* rayleigh          */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* von_mises         */ {512, 512, NEVER},      // PLACEHOLDER — profile with strategy_profile
-    /* binomial          */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
-    /* negative_binomial */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
+    /* uniform     */ {NEVER,  1000,   256},
+    /* gaussian    */ {NEVER,  NEVER,  NEVER},
+    /* exponential */ {500000, NEVER,  NEVER},
+    /* discrete    */ {NEVER,  NEVER,  NEVER},
+    /* poisson     */ {NEVER,  50000,  NEVER},
+    /* gamma       */ {250000, 64,     64},
+    /* student_t   */ {NEVER,  NEVER,  NEVER},
+    /* chi_squared */ {NEVER,  64,     64},
+    /* lognormal         */ {NEVER,  NEVER,  64},
+    /* pareto            */ {NEVER,  NEVER,  NEVER},
+    /* weibull           */ {250000, 250000, NEVER},
+    /* rayleigh          */ {64,     64,     64},
+    /* von_mises         */ {NEVER,  100000, 256},
+    /* binomial          */ {NEVER,  NEVER,  64},
+    /* negative_binomial */ {NEVER,  NEVER,  128},
 };
 
 /**

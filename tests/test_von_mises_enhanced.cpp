@@ -84,6 +84,8 @@ TEST_F(VonMisesEnhancedTest, AngleWrapping) {
 }
 
 // Batch matches scalar (LogPDF)
+// Tolerance is 1e-10: the batch path routes through vector_cos (AVX-512) whose
+// precision vs std::cos is ~6e-11 (see simd_verification VectorCos max_diff).
 TEST_F(VonMisesEnhancedTest, BatchMatchesScalarLogPDF) {
     const size_t N = 200;
     vector<double> xs(N), out_b(N);
@@ -91,11 +93,13 @@ TEST_F(VonMisesEnhancedTest, BatchMatchesScalarLogPDF) {
         xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N - 1);
     vm01_.getLogProbability(span<const double>(xs), span<double>(out_b));
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(out_b[i], vm01_.getLogProbability(xs[i]), 1e-12) << "i=" << i;
+        EXPECT_NEAR(out_b[i], vm01_.getLogProbability(xs[i]), 1e-10) << "i=" << i;
     }
 }
 
-// VECTORIZED == SCALAR (no SIMD for Von Mises, but both paths should agree)
+// VECTORIZED vs SCALAR: VECTORIZED routes through vector_cos (AVX-512) while
+// SCALAR calls std::cos per element. They agree to within vector_cos precision
+// (~6e-11); bit-exact equality is not expected.
 TEST_F(VonMisesEnhancedTest, VectorizedEqualsScalar) {
     const size_t N = 500;
     vector<double> xs(N), out_vec(N), out_scl(N);
@@ -106,7 +110,7 @@ TEST_F(VonMisesEnhancedTest, VectorizedEqualsScalar) {
     vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
                                         detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i)
-        EXPECT_DOUBLE_EQ(out_vec[i], out_scl[i]) << "i=" << i;
+        EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "i=" << i;
 }
 
 // Quantile round-trip: CDF(quantile(p)) = p

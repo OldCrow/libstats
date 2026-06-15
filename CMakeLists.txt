@@ -963,6 +963,10 @@ add_compile_definitions($<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # MSVC compiler flags
+    # /utf-8: interpret source files as UTF-8 and emit UTF-8 output.
+    # Silences C4566 (universal-character-name cannot be represented in current
+    # code page) for Unicode characters in string literals across all tool sources.
+    add_compile_options(/utf-8)
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         add_compile_options(/W3 /O2 /DNDEBUG)
         message(STATUS "Applied MSVC Release flags: /W3 /O2 /DNDEBUG")

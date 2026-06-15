@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-06-15T22-43-11Z",
+  "run_id": "2026-06-15T22-43-11Z_windows-x86_64_fix-audit-remediation_sha-932addd",
+  "git_branch": "fix/audit-remediation",
+  "git_sha": "932addd",
+  "project_root": "C:/Users/gdwol/Development/libstats",
+  "build_dir": "C:/Users/gdwol/Development/libstats/build",
+  "build_type": "Release",
+  "cxx_compiler": "",
+  "os": "windows",
+  "arch": "x86_64",
+  "cpu_brand": "AMD Ryzen 7 7445HS w/ Radeon 740M Graphics",
+  "physical_cores": "6",
+  "logical_cores": "12"
+}
