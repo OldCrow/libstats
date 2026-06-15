@@ -142,19 +142,22 @@ constexpr ArchTable kNeon = {
 // data/profiles/dispatcher/2026-06-15T05-40-12Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
 //
 // Two Release-mode bundles captured on fix/audit-remediation. Method: where both
-// runs agree on best_strategy_at_max_size, use the larger vectorized_to_parallel
-// crossover (64 floor). Where best_strategy_at_max_size disagrees, NEVER is used.
+// runs agree that a multi-threaded strategy wins at 500k, use the larger V→P
+// crossover as a conservative threshold (64 floor). NEVER only when VECTORIZED
+// is consistently best at max size across both runs.
+// Note: PARALLEL vs WORK_STEALING variation between runs is irrelevant for this
+// table; selectMultiThreadedStrategy resolves that choice at runtime.
 //
 // Key changes vs v1.5.0 main baseline (2026-06-15T00-33-56Z):
 //   - Gaussian CDF: 50000 -> 64. Both runs show crossover at 8 (clamped to 64
 //     floor). Branch changes made parallel competitive earlier on erf-heavy path.
 //   - Exponential PDF: 64 -> 100000. Conservative upper bound (runs: 100k vs 8;
-//     both WORK_STEALING).
+//     both WORK_STEALING at max size).
 //   - Discrete PDF/LogPDF/CDF: 64/1000/250000 -> 128/100000/100000.
 //   - Poisson PDF/CDF: 128/64 -> 50000/50000. Both runs consistent at 50000.
-//   - StudentT PDF/LogPDF/CDF: 100000/64/64 -> NEVER. Both runs disagree on
-//     PARALLEL vs WORK_STEALING at max size across all three operations.
-//   - 7 new distributions: replaced PLACEHOLDERs with Release measurements.
+//   - StudentT PDF/LogPDF/CDF: unchanged at 100000/64/64. Both runs agree
+//     exactly on V→P values (100k/8/8); PARALLEL vs WORK_STEALING at max size
+//     is irrelevant.
 constexpr ArchTable kAvx = {
     /* uniform     */ {NEVER, NEVER, 64},
     /* gaussian    */ {64, 64, 64},
@@ -162,8 +165,7 @@ constexpr ArchTable kAvx = {
     /* discrete    */ {128, 100000, 100000},
     /* poisson     */ {50000, 50000, 50000},
     /* gamma       */ {64, 64, 64},
-    /* student_t   */ {NEVER, NEVER, NEVER},  // PARALLEL vs WORK_STEALING disagreed across both
-                                              // runs
+    /* student_t   */ {100000, 64, 64},
     /* chi_squared */ {64, 64, 64},
     /* lognormal         */ {64, 64, 64},
     /* pareto            */ {100000, 64, 250000},
