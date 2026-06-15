@@ -98,6 +98,14 @@ Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, Vect
 - Mac Mini M1 (61): Phase 3 validated ✅.
 - Asus TUF A16 (61): Phase 4 validated ✅.
 
+> **⚠️ Deprecation notice — Ivy Bridge / macOS Catalina:** v1.5.0 is the last version
+> validated on macOS 10.15 (Catalina) and Ivy Bridge hardware. macOS Catalina is
+> end-of-life; Homebrew will drop Catalina support in the upcoming macOS 27 release,
+> eliminating the toolchain maintenance path. A future v2.0.0 will set the minimum
+> macOS requirement to 13 (Ventura), consistent with libhmm. The Catalina-specific
+> CMake guards (`CROSS_PLATFORM` build type, `LIBSTATS_HAS_REQUIRES_EXPRESSIONS`)
+> will be removed at that point.
+
 ### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
 v1.5.0 results (61/61 simd_verification ✅): PDF geomean 5.6x, LogPDF 6.0x, CDF 2.6x.
 Primitive ops: VectorExp 2.2x, VectorLog 1.3x, VectorErf 1.7x, VectorCos 11.0x.

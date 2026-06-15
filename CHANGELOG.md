@@ -68,6 +68,20 @@
   PDF 4.8x, LogPDF 5.1x, CDF 2.2x; VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
 - 39/39 correctness, 61/61 `simd_verification` — Mac Mini M1 NEON:
   PDF 5.9x, LogPDF 7.3x, CDF 3.1x; VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
+- 38/38 correctness (1 skipped), 61/61 `simd_verification` — Ivy Bridge AVX (macOS Catalina):
+  PDF 5.6x, LogPDF 6.0x, CDF 2.6x; VectorExp 2.2x, VectorLog 1.3x, VectorErf 1.7x, VectorCos 11.0x.
+
+### Deprecation Notices
+- **macOS Catalina (10.15) support is deprecated as of v1.5.0** and will be removed in
+  a future v2.0.0 release. v1.5.0 is the last version that will be validated on
+  macOS 10.15 / Ivy Bridge hardware. Rationale:
+  - macOS 10.15 is end-of-life; the upcoming macOS 27 release will cause Homebrew to
+    drop Catalina support entirely, eliminating the toolchain maintenance path.
+  - The Catalina-specific CMake guards (`CROSS_PLATFORM` build type, Homebrew LLVM
+    fallback detection, `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` gating) add complexity
+    that is disproportionate to the remaining user base on hardware this old.
+  - This aligns with libhmm, which dropped macOS < 13/Ventura support in v4.0.
+  - **Minimum macOS from v2.0.0:** macOS 13 Ventura (Apple Clang 14+).
 
 ---
 

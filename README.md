@@ -224,6 +224,10 @@ Tests are labelled: **no label** = correctness (parallel-safe); **timing** = spe
 - **CMake**: 3.20 or later
 - **Platform**: Windows, macOS, Linux (automatic detection and optimization)
 
+> **⚠️ macOS Catalina (10.15) deprecation:** v1.5.0 is the last release validated on
+> macOS 10.15 and Ivy Bridge hardware. A future v2.0.0 will require macOS 13 (Ventura)
+> or later, consistent with libhmm. See [CHANGELOG.md](CHANGELOG.md) for details.
+
 #### Common Build Configurations
 
 | Configuration | Command | Use Case |
@@ -313,15 +317,15 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-The library is at **v1.4.0** on `main`.
+The library is at **v1.5.0 (in development)** on `main`. v1.4.0 was the last tagged release.
 
 **16 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
-- SIMD batch operations (SSE2/AVX/AVX2/AVX-512/NEON) with runtime dispatch
+- SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds
 - Thread-safe with reader-writer locks and lock-free atomic fast paths
 
-**Validated on four architectures:** Intel Ivy Bridge (AVX), Intel Kaby Lake (AVX2), Apple Silicon M1 (NEON), AMD Zen 4 Asus TUF A16 (AVX-512/MSVC). 54/54 SIMD verification tests pass on all four machines.
+**Validated on four architectures:** Intel Ivy Bridge/AVX, Intel Kaby Lake/AVX2+FMA, Apple Silicon M1/NEON, AMD Zen 4/AVX-512. 61/61 SIMD verification tests pass on all four machines.
 
 For the full release history, see [CHANGELOG.md](CHANGELOG.md).
 
