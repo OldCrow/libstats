@@ -90,64 +90,104 @@ struct ArchTable {
 };
 
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-04-12T05-36-21Z_darwin-arm64_…_sha-6aef918
+// data/profiles/dispatcher/2026-06-14T23-29-58Z_darwin-arm64_v1.5-neon-transcendentals_sha-5455778
+//
+// v1.5.0 Phase 3 bundle captured after native vector_exp_neon, vector_log_neon,
+// and vector_erf_neon (ARM glibc table+Taylor, 8.0x) landed.
+//
+// Key changes vs April 2026 baseline:
+//   - Gaussian CDF: 10000 -> NEVER. Native erf table achieves 8x; VECTORIZED
+//     beats PARALLEL at all tested batch sizes up to 500k.
+//   - Most exp/log-dominated distributions (Exponential, Gamma, StudentT,
+//     ChiSquared): crossovers measured at 8 on M1, clamped to 64 floor.
+//     M1's GCD thread dispatch overhead is proportionally high vs the fast
+//     NEON kernel, so SIMD wins for most practical batch sizes.
+//   - Discrete: unchanged character (scalar loop, parallel wins earlier).
 constexpr ArchTable kNeon = {
-    /* uniform     */ {NEVER, NEVER, 20000},
-    /* gaussian    */ {50000, 100000, 10000},
-    /* exponential */ {50000, 100000, 20000},
-    /* discrete    */ {250000, 250000, 100000},
-    /* poisson     */ {20000, 50000, 2000},
-    /* gamma       */ {20000, 20000, 2000},
-    /* student_t   */ {20000, 50000, 250000},
-    /* chi_squared */ {20000, 50000, 2000},
+    /* uniform     */ {NEVER, NEVER,  64},
+    /* gaussian    */ {   64,    64, NEVER},
+    /* exponential */ {   64,    64,    64},
+    /* discrete    */ {  128, 100000,  512},
+    /* poisson     */ {   64,    64,    64},
+    /* gamma       */ {   64,    64,    64},
+    /* student_t   */ {   64,    64,    64},
+    /* chi_squared */ {   64,    64,    64},
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-04-12T05-55-52Z_darwin-x86_64_…_sha-e75c6e3
+// data/profiles/dispatcher/2026-06-15T00-33-56Z_darwin-x86_64_main_sha-d8046b7
+//
+// v1.5.0 bundle captured on Ivy Bridge after all four phases merged to main.
+// Ivy Bridge exercises the AVX path (no FMA, no AVX2). Phase 2 replaced
+// vector_erf_avx (A&S -> musl rational polynomial).
+//
+// Key changes vs April 2026 baseline:
+//   - Most distributions: crossovers measured at 8 on old hardware; clamped
+//     to 64 floor. The AVX SIMD path is fast enough that GCD parallel overhead
+//     doesn't pay for small batches.
+//   - Gaussian CDF: 20000 -> 50000. Heavier musl erf polynomial means more
+//     work per element; SIMD stays competitive with parallel longer.
+//   - StudentT PDF: 100000 -> 100000 (unchanged).
+//   - Poisson LogPDF: 10000 -> 50000 (shifted by improved exp path).
 constexpr ArchTable kAvx = {
-    /* uniform     */ {NEVER, NEVER, 10000},
-    /* gaussian    */ {20000, 50000, 20000},
-    /* exponential */ {20000, 100000, 20000},
-    /* discrete    */ {50000, 50000, 50000},
-    /* poisson     */ {2000, 10000, 5000},
-    /* gamma       */ {20000, 20000, 2000},
-    /* student_t   */ {100000, 100000, 100000},
-    /* chi_squared */ {20000, 20000, 2000},
+    /* uniform     */ {NEVER, NEVER,    64},
+    /* gaussian    */ {   64,    64, 50000},
+    /* exponential */ {   64,    64,    64},
+    /* discrete    */ {   64,  1000, 250000},
+    /* poisson     */ {  128, 50000,    64},
+    /* gamma       */ {   64,    64,    64},
+    /* student_t   */ {100000,   64,    64},
+    /* chi_squared */ {   64,    64,    64},
 };
 
-// --- AVX2 (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-04-12T05-27-04Z_darwin-x86_64_…_sha-0e4e9f1
+// --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
+// data/profiles/dispatcher/2026-06-14T19-19-02Z_darwin-x86_64_v1.5-erf-accuracy_sha-c91a348
+//
+// v1.5.0 Phase 1+2 bundle captured after FMA native exp/log/cos (Phase 1)
+// and musl rational polynomial erf (Phase 2) landed on Kaby Lake.
+//
+// Key changes vs April 2026 baseline:
+//   - Gaussian PDF: 50000 -> 100000. FMA exp_avx2 is significantly faster;
+//     SIMD stays competitive with parallel all the way to 100k.
+//   - StudentT PDF: 100000 -> 250000. Same reason (exp-heavy path improved).
+//   - StudentT CDF: NEVER -> 64. Native erf made erf-path heavier per-element;
+//     parallel becomes competitive at smaller batches than before.
+//   - Most distributions: clamped from measured sub-64 crossovers to 64 floor.
 constexpr ArchTable kAvx2 = {
-    /* uniform     */ {NEVER, NEVER, 20000},
-    /* gaussian    */ {50000, 250000, 50000},
-    /* exponential */ {50000, 250000, 50000},
-    /* discrete    */ {100000, 50000, 50000},
-    /* poisson     */ {10000, 20000, 2000},
-    /* gamma       */ {50000, 50000, 5000},
-    /* student_t   */ {100000, 100000, NEVER},
-    /* chi_squared */ {50000, 100000, 2000},
+    /* uniform     */ {    64,     64,    64},
+    /* gaussian    */ {100000,     64, 20000},
+    /* exponential */ {    64,     64,    64},
+    /* discrete    */ {    64,     64, 50000},
+    /* poisson     */ {    64,  20000,    64},
+    /* gamma       */ {    64,     64,    64},
+    /* student_t   */ {250000,     64,    64},
+    /* chi_squared */ {    64,     64,    64},
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
-// STALE — calibrated pre-v1.5.0 when vector_exp/log/erf delegated to AVX 4-wide.
-// data/profiles/dispatcher/2026-04-12T06-02-56Z_windows-x86_64_…_sha-32c0819
+// data/profiles/dispatcher/2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba
 //
-// Phase 5 must replace this table using the v1.5.0 Phase 4 bundle:
-//   data/profiles/dispatcher/2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba
-// The new bundle was captured after native 8-wide exp/log/erf landed (commits
-// 4a–4c). Expect vectorized_to_parallel crossovers to shift significantly
-// rightward now that the SIMD path is faster — several entries below (e.g.
-// gamma CDF=2000, chi_squared CDF=5000) were calibrated when transcendentals
-// were slow and will need to be raised. Apply the < 64 floor rule above.
+// v1.5.0 Phase 4 bundle captured after native 8-wide vector_exp_avx512,
+// vector_log_avx512, and vector_erf_avx512 replaced the AVX 4-wide delegations.
+//
+// Key changes vs April 2026 stale table:
+//   - Exponential PDF: 50000 -> NEVER. Native 8-wide exp is so fast VECTORIZED
+//     beats PARALLEL at all tested batch sizes.
+//   - StudentT PDF/LogPDF: -> NEVER. Same reason; exp-dominated paths are
+//     now faster than the parallel + scalar baseline.
+//   - Gaussian LogPDF: NEVER (retained). VECTORIZED still best at 500k.
+//   - Gaussian PDF: 100000 -> 500000. 8-wide exp widened the SIMD advantage.
+//   - Exponential LogPDF: -> 500000 (crossover only just visible at max test size).
+//   - StudentT CDF, Gamma PDF/CDF, ChiSquared LogPDF/CDF: clamped to 64 floor.
 constexpr ArchTable kAvx512 = {
-    /* uniform     */ {100000, 50000, 50000},
-    /* gaussian    */ {100000, NEVER, 50000},
-    /* exponential */ {50000, 250000, 100000},
-    /* discrete    */ {50000, 250000, 50000},
-    /* poisson     */ {10000, 20000, 10000},
-    /* gamma       */ {20000, 50000, 2000},
-    /* student_t   */ {20000, 250000, NEVER},
-    /* chi_squared */ {50000, 50000, 5000},
+    /* uniform     */ {100000,   5000,    64},
+    /* gaussian    */ {500000,  NEVER, 20000},
+    /* exponential */ { NEVER, 500000, 250000},
+    /* discrete    */ {100000, 250000,    64},
+    /* poisson     */ {  5000,  20000, 10000},
+    /* gamma       */ {    64, 100000,    64},
+    /* student_t   */ { NEVER,  NEVER,    64},
+    /* chi_squared */ {250000,     64,    64},
 };
 
 /**
