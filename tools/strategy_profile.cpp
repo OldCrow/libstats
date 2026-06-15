@@ -9,14 +9,21 @@
  */
 
 #include "libstats/distributions/beta.h"
+#include "libstats/distributions/binomial.h"
 #include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
+#include "libstats/distributions/rayleigh.h"
 #include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/von_mises.h"
+#include "libstats/distributions/weibull.h"
 #include "tool_utils.h"
 
 #include <algorithm>
@@ -128,6 +135,13 @@ class StrategyProfiler {
         profile_student_t_distribution();
         profile_beta_distribution();
         profile_chi_squared_distribution();
+        profile_lognormal_distribution();
+        profile_pareto_distribution();
+        profile_weibull_distribution();
+        profile_rayleigh_distribution();
+        profile_von_mises_distribution();
+        profile_binomial_distribution();
+        profile_negative_binomial_distribution();
     }
 
     template <typename Distribution, typename Generator>
@@ -302,6 +316,94 @@ class StrategyProfiler {
             std::chi_squared_distribution<double> dist(4.0);
             for (auto& value : values) {
                 value = dist(gen_);
+            }
+            return values;
+        });
+    }
+
+    void profile_lognormal_distribution() {
+        const auto lognormal = stats::LogNormalDistribution::create(ZERO_DOUBLE, ONE).value;
+        profile_distribution("LogNormal", lognormal, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::lognormal_distribution<double> dist(ZERO_DOUBLE, ONE);
+            for (auto& value : values) {
+                value = dist(gen_);
+            }
+            return values;
+        });
+    }
+
+    void profile_pareto_distribution() {
+        // Pareto(scale=1, alpha=2): sample via inverse CDF X = scale / U^(1/alpha)
+        const auto pareto = stats::ParetoDistribution::create(ONE, TWO).value;
+        profile_distribution("Pareto", pareto, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> unif(ZERO_DOUBLE, ONE);
+            for (auto& value : values) {
+                value = ONE / std::sqrt(unif(gen_));  // scale=1, alpha=2
+            }
+            return values;
+        });
+    }
+
+    void profile_weibull_distribution() {
+        const auto weibull = stats::WeibullDistribution::create(TWO, ONE).value;
+        profile_distribution("Weibull", weibull, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::weibull_distribution<double> dist(TWO, ONE);
+            for (auto& value : values) {
+                value = dist(gen_);
+            }
+            return values;
+        });
+    }
+
+    void profile_rayleigh_distribution() {
+        // Rayleigh(sigma=1): magnitude of 2D standard normal
+        const auto rayleigh = stats::RayleighDistribution::create(ONE).value;
+        profile_distribution("Rayleigh", rayleigh, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::normal_distribution<double> norm(ZERO_DOUBLE, ONE);
+            for (auto& value : values) {
+                const double x = norm(gen_);
+                const double y = norm(gen_);
+                value = std::sqrt(x * x + y * y);
+            }
+            return values;
+        });
+    }
+
+    void profile_von_mises_distribution() {
+        const auto von_mises = stats::VonMisesDistribution::create(ZERO_DOUBLE, TWO).value;
+        profile_distribution("VonMises", von_mises, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-PI, PI);
+            for (auto& value : values) {
+                value = dist(gen_);
+            }
+            return values;
+        });
+    }
+
+    void profile_binomial_distribution() {
+        const auto binomial = stats::BinomialDistribution::create(20, HALF).value;
+        profile_distribution("Binomial", binomial, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::binomial_distribution<int> dist(20, HALF);
+            for (auto& value : values) {
+                value = static_cast<double>(dist(gen_));
+            }
+            return values;
+        });
+    }
+
+    void profile_negative_binomial_distribution() {
+        const auto neg_binom = stats::NegativeBinomialDistribution::create(5.0, HALF).value;
+        profile_distribution("NegBinomial", neg_binom, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::negative_binomial_distribution<int> dist(5, HALF);
+            for (auto& value : values) {
+                value = static_cast<double>(dist(gen_));
             }
             return values;
         });

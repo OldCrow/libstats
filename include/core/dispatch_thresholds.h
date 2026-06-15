@@ -97,35 +97,44 @@ struct ArchTable {
 };
 
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-14T23-29-58Z_darwin-arm64_v1.5-neon-transcendentals_sha-5455778
+// data/profiles/dispatcher/2026-06-15T04-55-46Z_darwin-arm64_fix-audit-remediation_sha-b583fb3
+// data/profiles/dispatcher/2026-06-15T05-04-15Z_darwin-arm64_fix-audit-remediation_sha-b583fb3
 //
-// v1.5.0 Phase 3 bundle captured after native vector_exp_neon, vector_log_neon,
-// and vector_erf_neon (ARM glibc table+Taylor, 8.0x) landed.
+// Two Release-mode bundles captured on the audit-remediation branch after
+// adding 7 new distributions to the profiler. Values are derived from both
+// runs; stability was assessed by comparing V→P crossovers across runs.
 //
-// Key changes vs April 2026 baseline:
-//   - Gaussian CDF: 10000 -> NEVER. Native erf table achieves 8x; VECTORIZED
-//     beats PARALLEL at all tested batch sizes up to 500k.
-//   - Most exp/log-dominated distributions (Exponential, Gamma, StudentT,
-//     ChiSquared): crossovers measured at 8 on M1, clamped to 64 floor.
-//     M1's GCD thread dispatch overhead is proportionally high vs the fast
-//     NEON kernel, so SIMD wins for most practical batch sizes.
-//   - Discrete: unchanged character (scalar loop, parallel wins earlier).
+// Key changes vs v1.5.0 Phase 3 baseline (2026-06-14):
+//   - Discrete PDF/LogPDF: 128/100000 -> 250000. Native NEON transcendentals
+//     make VECTORIZED fast enough that GCD overhead doesn't pay until 250k.
+//   - Discrete CDF: 512 -> NEVER. VECTORIZED beats PARALLEL at all sizes.
+//   - Poisson PDF/LogPDF: 64 -> 20000. Same cause: fast NEON exp/log paths.
+//   - Poisson CDF: 64 -> 2000.
+//   - StudentT CDF: 64 -> 64 (unchanged; 32-128 noisy range, clamped).
+//   - 7 new distributions added with Release-mode measurements.
+//
+// Stability note: GCD thread-pool variability makes crossover detection noisy
+// for thresholds in the tens-of-thousands range. Where two runs disagreed
+// significantly and best_strategy_at_max_size was consistent, the more
+// conservative (larger) crossover value was used. Where best_strategy_at_max_size
+// itself disagreed across runs (VonMises PDF), NEVER was used.
 constexpr ArchTable kNeon = {
     /* uniform     */ {NEVER, NEVER, 64},
     /* gaussian    */ {64, 64, NEVER},
     /* exponential */ {64, 64, 64},
-    /* discrete    */ {128, 100000, 512},
-    /* poisson     */ {64, 64, 64},
+    /* discrete    */ {250000, 250000, NEVER},
+    /* poisson     */ {20000, 20000, 2000},
     /* gamma       */ {64, 64, 64},
     /* student_t   */ {64, 64, 64},
     /* chi_squared */ {64, 64, 64},
-    /* lognormal         */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* pareto            */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* weibull           */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* rayleigh          */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* von_mises         */ {512, 512, NEVER},      // PLACEHOLDER — profile with strategy_profile
-    /* binomial          */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
-    /* negative_binomial */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
+    /* lognormal         */ {64, 64, NEVER},
+    /* pareto            */ {100000, 100000, 50000},  // PDF=LogPDF (log-only SIMD; PDF run
+                                                      // unstable)
+    /* weibull           */ {64, 64, 64},
+    /* rayleigh          */ {64, 64, 64},
+    /* von_mises         */ {NEVER, NEVER, 64},     // PDF: best@500k disagreed across runs
+    /* binomial          */ {NEVER, NEVER, NEVER},  // GCD overhead > lgamma benefit up to 500k
+    /* negative_binomial */ {NEVER, NEVER, NEVER},  // GCD overhead > lgamma benefit up to 500k
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
