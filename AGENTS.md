@@ -8,13 +8,13 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.5.0 in development on `main` (Phases 1–2 merged; Phases 3–4 in progress).
-16 distributions across 6 families. v1.5.0 Phase 1+2 (Kaby Lake): AVX2+FMA native
-transcendentals (`vector_exp_avx2`, `vector_log_avx2`, `vector_cos_avx2`) and
-high-accuracy `vector_erf` (musl rational polynomial, < 1 ULP). Phases 3–4 in progress
-on M1 (NEON) and Asus TUF A16 (AVX-512). v1.4.0: `vector_cos` SIMD primitive;
-VonMises batch SIMD-accelerated; dispatch table refactor (Issue #22).
-v1.3.0: `BinomialDistribution`, `NegativeBinomialDistribution`; `detail::trigamma`.
+**Current Status**: v1.5.0 in development on `main` (Phases 1–4 merged; Phase 5 pending).
+16 distributions across 6 families. v1.5.0 Phases 1–4 complete: AVX2+FMA native
+transcendentals, high-accuracy `vector_erf` (all x86), NEON native transcendentals
+(M1, table+Taylor for erf), and AVX-512 native transcendentals (Asus TUF A16).
+v1.4.0: `vector_cos` SIMD primitive; VonMises batch SIMD-accelerated; dispatch table
+refactor (Issue #22). v1.3.0: `BinomialDistribution`, `NegativeBinomialDistribution`;
+`detail::trigamma`.
 
 ## Session Start Baseline Workflow (Required)
 
@@ -66,18 +66,19 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 
 ### Current Validation Matrix
 
-**v1.5.0 (in progress) — Kaby Lake and Asus TUF A16 validated; M1 pending Phase 3**
+**v1.5.0 — Phases 1–4 validated on all three machines**
 
-`simd_verification` now reports **geometric mean speedups** per operation type (PDF/LogPDF/CDF)
+`simd_verification` reports **geometric mean speedups** per operation type (PDF/LogPDF/CDF)
 and per primitive vector op, not a single composite. See `tools/simd_verification.cpp` for rationale.
 
 | Machine | SIMD | Correctness | Total suite | simd_verification | PDF geomean | LogPDF geomean | CDF geomean |
 |---|---|---|---|---|---|---|---|
 | Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61 | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
-| Mac Mini M1 | NEON | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Mac Mini M1 | NEON | 39/39 ✅ | 61 | 61/61 ✅ | 5.9x | 7.3x | 3.1x |
 | Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 61 | 61/61 ✅ | 4.8x | 5.1x | 2.2x |
 
 Kaby Lake primitive vector op speedups (v1.5.0 Phase 1+2): VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
+Mac Mini M1 primitive vector op speedups (v1.5.0 Phase 3): VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
 Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
 
 **v1.4.0 baseline — all four machines**
@@ -91,8 +92,8 @@ Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, Vect
 
 **Total suite counts differ by machine (v1.5.0):**
 - Kaby Lake (61): v1.5.0 adds VonMises distribution rows + 4 primitive vector op rows to `simd_verification`.
+- Mac Mini M1 (61): Phase 3 validated ✅.
 - Asus TUF A16 (61): Phase 4 validated ✅.
-- M1: will be 61 once Phase 3 validates.
 - Ivy Bridge/Catalina (53): 6 timing-labelled tests excluded by `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` gating; correctness unaffected.
 
 ### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
@@ -131,8 +132,16 @@ Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
   primitive vector op rows (VectorExp/Log/Erf/Cos); 54 → 61 tests. Replaced the single
   wall-clock composite speedup with per-op-type geometric means (PDF/LogPDF/CDF) and
   per-primitive individual rows.
-- **NEON native transcendentals** (Phase 3, M1): `vector_exp_neon`, `vector_log_neon`,
-  `vector_erf_neon` — in progress, pending validation on Mac Mini M1.
+- **NEON native transcendentals** (Phase 3, M1): `vector_exp_neon` (SLEEF FMA Horner,
+  < 1 ULP), `vector_log_neon` (SLEEF atanh series, < 1 ULP), `vector_erf_neon`
+  (ARM glibc table+Taylor, ~2.29 ULP) — validated ✅. 39/39 correctness, 61/61
+  simd_verification. Distribution geomeans: PDF 5.9x, LogPDF 7.3x, CDF 3.1x.
+  Primitive ops: VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
+  `vector_erf_neon` uses a 769-entry precomputed table (`src/neon_erf_data.inc`,
+  12,304 bytes) rather than the musl rational polynomial used by all x86 backends;
+  the table approach eliminates the recursive exp call and achieves 8.0x vs 0.9x
+  for the pure-polynomial version. See Issue #33 for a proposed cross-architecture
+  experiment to evaluate the table approach on exp and log as well.
 - **AVX-512 native transcendentals** (Phase 4, Asus TUF A16): `vector_exp_avx512`,
   `vector_log_avx512`, `vector_erf_avx512` — validated ✅. 39/39 correctness, 61/61
   simd_verification. Distribution geomeans: PDF 4.8x, LogPDF 5.1x, CDF 2.2x.

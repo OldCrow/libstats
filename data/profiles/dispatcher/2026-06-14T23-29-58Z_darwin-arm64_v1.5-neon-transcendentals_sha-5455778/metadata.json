@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-06-14T23-29-58Z",
+  "run_id": "2026-06-14T23-29-58Z_darwin-arm64_feature/v1.5-neon-transcendentals_sha-5455778",
+  "git_branch": "feature/v1.5-neon-transcendentals",
+  "git_sha": "5455778",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build",
+  "build_type": "Dev",
+  "cxx_compiler": "",
+  "os": "darwin",
+  "arch": "arm64",
+  "cpu_brand": "Apple M1",
+  "physical_cores": "8",
+  "logical_cores": "8"
+}
