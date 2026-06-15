@@ -124,10 +124,11 @@ class ChiSquaredDistribution : public DistributionBase {
     ChiSquaredDistribution(ChiSquaredDistribution&& other) noexcept;
 
     /**
-     * @brief Move assignment operator.
+     * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: thread-safe move with deadlock prevention.
+     * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    ChiSquaredDistribution& operator=(ChiSquaredDistribution&& other) noexcept;
+    ChiSquaredDistribution& operator=(ChiSquaredDistribution&& other);
 
     /**
      * @brief Destructor — explicitly defaulted to satisfy Rule of Five.

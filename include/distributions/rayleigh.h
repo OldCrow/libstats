@@ -87,8 +87,8 @@ class RayleighDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     RayleighDistribution(RayleighDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. */
-    RayleighDistribution& operator=(RayleighDistribution&& other) noexcept;
+    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
+    RayleighDistribution& operator=(RayleighDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~RayleighDistribution() override = default;

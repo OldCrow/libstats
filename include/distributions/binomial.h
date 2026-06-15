@@ -64,8 +64,8 @@ class BinomialDistribution : public DistributionBase {
     /** @brief Move constructor. */
     BinomialDistribution(BinomialDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. */
-    BinomialDistribution& operator=(BinomialDistribution&& other) noexcept;
+    /** @brief Move assignment operator. @warning NOT noexcept. */
+    BinomialDistribution& operator=(BinomialDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~BinomialDistribution() override = default;
@@ -74,8 +74,8 @@ class BinomialDistribution : public DistributionBase {
     // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
 
-    [[nodiscard]] static Result<BinomialDistribution> create(
-        int n = 10, double p = detail::HALF) noexcept {
+    [[nodiscard]] static Result<BinomialDistribution> create(int n = 10,
+                                                             double p = detail::HALF) noexcept {
         auto v = validateBinomialParameters(n, p);
         if (v.isError())
             return Result<BinomialDistribution>::makeError(v.error_code, v.message);
@@ -303,12 +303,12 @@ class BinomialDistribution : public DistributionBase {
      * Until then, PARALLEL is the recommended strategy for large batches.
      */
     void getLogProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                    int cached_n, double cached_logNFact,
-                                    double cached_logP, double cached_log1mP) const noexcept;
+                                    int cached_n, double cached_logNFact, double cached_logP,
+                                    double cached_log1mP) const noexcept;
 
     void getProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                 int cached_n, double cached_logNFact,
-                                 double cached_logP, double cached_log1mP) const noexcept;
+                                 int cached_n, double cached_logNFact, double cached_logP,
+                                 double cached_log1mP) const noexcept;
 
     void getCumulativeProbabilityBatchImpl(const double* values, double* results,
                                            std::size_t count) const noexcept;
@@ -337,9 +337,9 @@ class BinomialDistribution : public DistributionBase {
     double p_{detail::HALF};
 
     /** @brief Atomic copies for lock-free access. */
-    mutable std::atomic<int>    atomicN_{10};
+    mutable std::atomic<int> atomicN_{10};
     mutable std::atomic<double> atomicP_{detail::HALF};
-    mutable std::atomic<bool>   atomicParamsValid_{false};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
     // 22. PERFORMANCE CACHE

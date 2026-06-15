@@ -79,8 +79,8 @@ class ParetoDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     ParetoDistribution(ParetoDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. */
-    ParetoDistribution& operator=(ParetoDistribution&& other) noexcept;
+    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
+    ParetoDistribution& operator=(ParetoDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~ParetoDistribution() override = default;

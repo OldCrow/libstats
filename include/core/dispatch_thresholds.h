@@ -87,6 +87,13 @@ struct ArchTable {
     ThresholdRow gamma;
     ThresholdRow student_t;
     ThresholdRow chi_squared;
+    ThresholdRow lognormal;
+    ThresholdRow pareto;
+    ThresholdRow weibull;
+    ThresholdRow rayleigh;
+    ThresholdRow von_mises;
+    ThresholdRow binomial;
+    ThresholdRow negative_binomial;
 };
 
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
@@ -104,14 +111,21 @@ struct ArchTable {
 //     NEON kernel, so SIMD wins for most practical batch sizes.
 //   - Discrete: unchanged character (scalar loop, parallel wins earlier).
 constexpr ArchTable kNeon = {
-    /* uniform     */ {NEVER, NEVER,  64},
-    /* gaussian    */ {   64,    64, NEVER},
-    /* exponential */ {   64,    64,    64},
-    /* discrete    */ {  128, 100000,  512},
-    /* poisson     */ {   64,    64,    64},
-    /* gamma       */ {   64,    64,    64},
-    /* student_t   */ {   64,    64,    64},
-    /* chi_squared */ {   64,    64,    64},
+    /* uniform     */ {NEVER, NEVER, 64},
+    /* gaussian    */ {64, 64, NEVER},
+    /* exponential */ {64, 64, 64},
+    /* discrete    */ {128, 100000, 512},
+    /* poisson     */ {64, 64, 64},
+    /* gamma       */ {64, 64, 64},
+    /* student_t   */ {64, 64, 64},
+    /* chi_squared */ {64, 64, 64},
+    /* lognormal         */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* pareto            */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* weibull           */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* rayleigh          */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* von_mises         */ {512, 512, NEVER},      // PLACEHOLDER — profile with strategy_profile
+    /* binomial          */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
+    /* negative_binomial */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
@@ -130,14 +144,21 @@ constexpr ArchTable kNeon = {
 //   - StudentT PDF: 100000 -> 100000 (unchanged).
 //   - Poisson LogPDF: 10000 -> 50000 (shifted by improved exp path).
 constexpr ArchTable kAvx = {
-    /* uniform     */ {NEVER, NEVER,    64},
-    /* gaussian    */ {   64,    64, 50000},
-    /* exponential */ {   64,    64,    64},
-    /* discrete    */ {   64,  1000, 250000},
-    /* poisson     */ {  128, 50000,    64},
-    /* gamma       */ {   64,    64,    64},
-    /* student_t   */ {100000,   64,    64},
-    /* chi_squared */ {   64,    64,    64},
+    /* uniform     */ {NEVER, NEVER, 64},
+    /* gaussian    */ {64, 64, 50000},
+    /* exponential */ {64, 64, 64},
+    /* discrete    */ {64, 1000, 250000},
+    /* poisson     */ {128, 50000, 64},
+    /* gamma       */ {64, 64, 64},
+    /* student_t   */ {100000, 64, 64},
+    /* chi_squared */ {64, 64, 64},
+    /* lognormal         */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* pareto            */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* weibull           */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* rayleigh          */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* von_mises         */ {512, 512, NEVER},      // PLACEHOLDER — profile with strategy_profile
+    /* binomial          */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
+    /* negative_binomial */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
 };
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
@@ -154,14 +175,21 @@ constexpr ArchTable kAvx = {
 //     parallel becomes competitive at smaller batches than before.
 //   - Most distributions: clamped from measured sub-64 crossovers to 64 floor.
 constexpr ArchTable kAvx2 = {
-    /* uniform     */ {    64,     64,    64},
-    /* gaussian    */ {100000,     64, 20000},
-    /* exponential */ {    64,     64,    64},
-    /* discrete    */ {    64,     64, 50000},
-    /* poisson     */ {    64,  20000,    64},
-    /* gamma       */ {    64,     64,    64},
-    /* student_t   */ {250000,     64,    64},
-    /* chi_squared */ {    64,     64,    64},
+    /* uniform     */ {64, 64, 64},
+    /* gaussian    */ {100000, 64, 20000},
+    /* exponential */ {64, 64, 64},
+    /* discrete    */ {64, 64, 50000},
+    /* poisson     */ {64, 20000, 64},
+    /* gamma       */ {64, 64, 64},
+    /* student_t   */ {250000, 64, 64},
+    /* chi_squared */ {64, 64, 64},
+    /* lognormal         */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* pareto            */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* weibull           */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* rayleigh          */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* von_mises         */ {512, 512, NEVER},      // PLACEHOLDER — profile with strategy_profile
+    /* binomial          */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
+    /* negative_binomial */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
@@ -180,14 +208,21 @@ constexpr ArchTable kAvx2 = {
 //   - Exponential LogPDF: -> 500000 (crossover only just visible at max test size).
 //   - StudentT CDF, Gamma PDF/CDF, ChiSquared LogPDF/CDF: clamped to 64 floor.
 constexpr ArchTable kAvx512 = {
-    /* uniform     */ {100000,   5000,    64},
-    /* gaussian    */ {500000,  NEVER, 20000},
-    /* exponential */ { NEVER, 500000, 250000},
-    /* discrete    */ {100000, 250000,    64},
-    /* poisson     */ {  5000,  20000, 10000},
-    /* gamma       */ {    64, 100000,    64},
-    /* student_t   */ { NEVER,  NEVER,    64},
-    /* chi_squared */ {250000,     64,    64},
+    /* uniform     */ {100000, 5000, 64},
+    /* gaussian    */ {500000, NEVER, 20000},
+    /* exponential */ {NEVER, 500000, 250000},
+    /* discrete    */ {100000, 250000, 64},
+    /* poisson     */ {5000, 20000, 10000},
+    /* gamma       */ {64, 100000, 64},
+    /* student_t   */ {NEVER, NEVER, 64},
+    /* chi_squared */ {250000, 64, 64},
+    /* lognormal         */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* pareto            */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* weibull           */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* rayleigh          */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
+    /* von_mises         */ {512, 512, NEVER},      // PLACEHOLDER — profile with strategy_profile
+    /* binomial          */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
+    /* negative_binomial */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
 };
 
 /**
@@ -228,6 +263,27 @@ constexpr std::size_t parallelThresholdFromTable(const ArchTable& table, Distrib
             break;
         case DistributionType::CHI_SQUARED:
             row = &table.chi_squared;
+            break;
+        case DistributionType::LOG_NORMAL:
+            row = &table.lognormal;
+            break;
+        case DistributionType::PARETO:
+            row = &table.pareto;
+            break;
+        case DistributionType::WEIBULL:
+            row = &table.weibull;
+            break;
+        case DistributionType::RAYLEIGH:
+            row = &table.rayleigh;
+            break;
+        case DistributionType::VON_MISES:
+            row = &table.von_mises;
+            break;
+        case DistributionType::BINOMIAL:
+            row = &table.binomial;
+            break;
+        case DistributionType::NEGATIVE_BINOMIAL:
+            row = &table.negative_binomial;
             break;
         default:
             return NEVER;

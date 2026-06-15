@@ -62,33 +62,20 @@ ChiSquaredDistribution::ChiSquaredDistribution(ChiSquaredDistribution&& other) n
     other.cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) noexcept {
+ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        k_ = other.k_;
+        gamma_ = std::move(other.gamma_);
+        other.k_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                k_ = other.k_;
-                gamma_ = std::move(other.gamma_);
-                other.k_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            k_ = other.k_;
-            gamma_ = std::move(other.gamma_);
-            other.k_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-        }
     }
     return *this;
 }

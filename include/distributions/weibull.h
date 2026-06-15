@@ -91,8 +91,8 @@ class WeibullDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     WeibullDistribution(WeibullDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. */
-    WeibullDistribution& operator=(WeibullDistribution&& other) noexcept;
+    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
+    WeibullDistribution& operator=(WeibullDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~WeibullDistribution() override = default;

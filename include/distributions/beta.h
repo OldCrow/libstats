@@ -86,8 +86,8 @@ class BetaDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     BetaDistribution(BetaDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. */
-    BetaDistribution& operator=(BetaDistribution&& other) noexcept;
+    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
+    BetaDistribution& operator=(BetaDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~BetaDistribution() override = default;

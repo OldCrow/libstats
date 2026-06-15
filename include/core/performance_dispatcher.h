@@ -86,7 +86,8 @@ enum class DistributionType {
     RAYLEIGH,     ///< Rayleigh distribution (x² pipeline, positive real-line support)
     VON_MISES,    ///< Von Mises distribution (circular, cos kernel; PARALLEL preferred)
     BINOMIAL,     ///< Binomial distribution (discrete, lgamma PMF; PARALLEL preferred)
-    NEGATIVE_BINOMIAL  ///< Negative Binomial distribution (discrete, lgamma PMF; PARALLEL preferred)
+    NEGATIVE_BINOMIAL  ///< Negative Binomial distribution (discrete, lgamma PMF; PARALLEL
+                       ///< preferred)
 };
 
 /**
@@ -135,6 +136,9 @@ class SystemCapabilities {
     bool has_sse2_, has_avx_, has_avx2_, has_avx512_, has_neon_;
     double simd_efficiency_, threading_overhead_ns_, memory_bandwidth_gb_s_;
 };
+
+/// Forward declaration — defined in performance_history.h.
+class PerformanceHistory;
 
 /**
  * @brief Performance decision engine for strategy selection
@@ -185,9 +189,10 @@ class PerformanceDispatcher {
         size_t pareto_parallel_min = 512;       ///< Log-only, similar complexity to Exponential
         size_t weibull_parallel_min = 256;      ///< Log+two-exp, similar complexity to Gaussian
         size_t rayleigh_parallel_min = 512;     ///< x²+exp, similar complexity to Exponential
-        size_t von_mises_parallel_min = 512;       ///< cos per element; no SIMD, PARALLEL preferred
-        size_t binomial_parallel_min = 512;          ///< lgamma per element; no SIMD, PARALLEL preferred
-        size_t negative_binomial_parallel_min = 512; ///< lgamma per element; no SIMD, PARALLEL preferred
+        size_t von_mises_parallel_min = 512;    ///< cos per element; no SIMD, PARALLEL preferred
+        size_t binomial_parallel_min = 512;     ///< lgamma per element; no SIMD, PARALLEL preferred
+        size_t negative_binomial_parallel_min =
+            512;  ///< lgamma per element; no SIMD, PARALLEL preferred
 
         /**
          * @brief Create thresholds based on SIMDPolicy level
@@ -281,12 +286,11 @@ class PerformanceDispatcher {
      * @brief Get access to the global performance history for advanced users
      * @return Reference to the performance history instance
      */
-    static class PerformanceHistory& getPerformanceHistory() noexcept;
+    static PerformanceHistory& getPerformanceHistory() noexcept;
 
    private:
     mutable Thresholds thresholds_;
 
-    size_t getDistributionSpecificParallelThreshold(DistributionType dist_type) const;
     bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
 
     /**
@@ -326,7 +330,8 @@ struct PerformanceHint {
     std::optional<size_t> thread_count;  ///< Override thread count
 
     static PerformanceHint minimal_latency() {
-        return {PreferredStrategy::MINIMIZE_LATENCY, false, false, 1};
+        // Strategy tag drives dispatch; thread_count left unset.
+        return {PreferredStrategy::MINIMIZE_LATENCY, false, false, std::nullopt};
     }
 
     static PerformanceHint maximum_throughput() {

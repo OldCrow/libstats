@@ -86,46 +86,30 @@ LogNormalDistribution::LogNormalDistribution(LogNormalDistribution&& other) noex
     atomicSigma_.store(sigma_, std::memory_order_release);
 }
 
-LogNormalDistribution& LogNormalDistribution::operator=(LogNormalDistribution&& other) noexcept {
+LogNormalDistribution& LogNormalDistribution::operator=(LogNormalDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        mu_ = other.mu_;
+        sigma_ = other.sigma_;
+        logSigma_ = other.logSigma_;
+        negInv2SigmaSquared_ = other.negInv2SigmaSquared_;
+        invSigmaSqrt2_ = other.invSigmaSqrt2_;
+        logNormConst_ = other.logNormConst_;
+        mean_ = other.mean_;
+        variance_ = other.variance_;
+        isStandard_ = other.isStandard_;
+        other.mu_ = detail::ZERO_DOUBLE;
+        other.sigma_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                mu_ = other.mu_;
-                sigma_ = other.sigma_;
-                logSigma_ = other.logSigma_;
-                negInv2SigmaSquared_ = other.negInv2SigmaSquared_;
-                invSigmaSqrt2_ = other.invSigmaSqrt2_;
-                logNormConst_ = other.logNormConst_;
-                mean_ = other.mean_;
-                variance_ = other.variance_;
-                isStandard_ = other.isStandard_;
-                other.mu_ = detail::ZERO_DOUBLE;
-                other.sigma_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                atomicMu_.store(mu_, std::memory_order_release);
-                atomicSigma_.store(sigma_, std::memory_order_release);
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            mu_ = other.mu_;
-            sigma_ = other.sigma_;
-            other.mu_ = detail::ZERO_DOUBLE;
-            other.sigma_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-            atomicMu_.store(mu_, std::memory_order_release);
-            atomicSigma_.store(sigma_, std::memory_order_release);
-        }
+        atomicMu_.store(mu_, std::memory_order_release);
+        atomicSigma_.store(sigma_, std::memory_order_release);
     }
     return *this;
 }

@@ -74,53 +74,23 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other)
     other.cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) noexcept {
+GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) {
     if (this != &other) {
-        // C++11 Core Guidelines C.66 compliant: noexcept move assignment using atomic operations
+        // Thread-safe move: deadlock-safe std::lock() with deferred unique locks.
+        // Both locks are unique because both objects are mutated.
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
 
-        // Step 1: Invalidate both caches atomically (lock-free)
+        mean_ = other.mean_;
+        standardDeviation_ = other.standardDeviation_;
+        other.mean_ = detail::ZERO_DOUBLE;
+        other.standardDeviation_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        // Step 2: Try to acquire locks with timeout to avoid blocking indefinitely
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-
-            // Use try_lock to avoid blocking - this is noexcept
-            if (std::try_lock(lock1, lock2) == -1) {
-                // Step 3: Move parameters
-                mean_ = other.mean_;
-                standardDeviation_ = other.standardDeviation_;
-                other.mean_ = detail::ZERO_DOUBLE;
-                other.standardDeviation_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                success = true;
-            }
-        } catch (...) {
-            // If locking fails, we still need to maintain noexcept guarantee
-            // Fall back to atomic parameter exchange (lock-free)
-        }
-
-        // Step 4: Fallback for failed lock acquisition (still noexcept)
-        if (!success) {
-            // Use atomic exchange operations for thread-safe parameter swapping
-            // This maintains basic correctness even if we can't acquire locks
-            [[maybe_unused]] double temp_mean = mean_;
-            [[maybe_unused]] double temp_stddev = standardDeviation_;
-
-            // Atomic-like exchange (single assignment is atomic for built-in types)
-            mean_ = other.mean_;
-            standardDeviation_ = other.standardDeviation_;
-            other.mean_ = detail::ZERO_DOUBLE;
-            other.standardDeviation_ = detail::ONE;
-
-            // Cache invalidation was already done atomically above
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-        }
     }
     return *this;
 }

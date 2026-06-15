@@ -89,32 +89,6 @@ Strategy PerformanceDispatcher::selectMultiThreadedStrategy(
 #endif
 }
 
-size_t PerformanceDispatcher::getDistributionSpecificParallelThreshold(
-    DistributionType dist_type) const {
-    switch (dist_type) {
-        case DistributionType::UNIFORM:
-            return thresholds_.uniform_parallel_min;
-        case DistributionType::GAUSSIAN:
-            return thresholds_.gaussian_parallel_min;
-        case DistributionType::EXPONENTIAL:
-            return thresholds_.exponential_parallel_min;
-        case DistributionType::DISCRETE:
-            return thresholds_.discrete_parallel_min;
-        case DistributionType::POISSON:
-            return thresholds_.poisson_parallel_min;
-        case DistributionType::GAMMA:
-            return thresholds_.gamma_parallel_min;
-        case DistributionType::STUDENT_T:
-            return thresholds_.student_t_parallel_min;
-        case DistributionType::BETA:
-            return thresholds_.beta_parallel_min;
-        case DistributionType::CHI_SQUARED:
-            return thresholds_.chi_squared_parallel_min;
-        default:
-            return thresholds_.parallel_min;
-    }
-}
-
 bool PerformanceDispatcher::shouldUseWorkStealing(
     size_t batch_size, [[maybe_unused]] DistributionType dist_type) const {
     return batch_size >= thresholds_.work_stealing_min;
@@ -273,7 +247,8 @@ void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapab
         gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);
     } else if (simd_efficiency > 1.5) {
         // SIMD is very efficient, lower thresholds
-        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * detail::SIMD_THRESHOLD_SCALE_DOWN);
+        simd_min =
+            static_cast<size_t>(static_cast<double>(simd_min) * detail::SIMD_THRESHOLD_SCALE_DOWN);
 
         // Lower distribution-specific thresholds
         uniform_parallel_min =

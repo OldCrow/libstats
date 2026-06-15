@@ -91,43 +91,30 @@ StudentTDistribution::StudentTDistribution(StudentTDistribution&& other) noexcep
     atomicNu_.store(nu_, std::memory_order_release);
 }
 
-StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) noexcept {
+StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        nu_ = other.nu_;
+        halfNu_ = other.halfNu_;
+        halfNuPlusOne_ = other.halfNuPlusOne_;
+        negHalfNuPlusOne_ = other.negHalfNuPlusOne_;
+        invNu_ = other.invNu_;
+        logNormConst_ = other.logNormConst_;
+        variance_ = other.variance_;
+        kurtosis_ = other.kurtosis_;
+        isCauchy_ = other.isCauchy_;
+        isMeanDefined_ = other.isMeanDefined_;
+        isVarianceDefined_ = other.isVarianceDefined_;
+        other.nu_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                nu_ = other.nu_;
-                halfNu_ = other.halfNu_;
-                halfNuPlusOne_ = other.halfNuPlusOne_;
-                negHalfNuPlusOne_ = other.negHalfNuPlusOne_;
-                invNu_ = other.invNu_;
-                logNormConst_ = other.logNormConst_;
-                variance_ = other.variance_;
-                kurtosis_ = other.kurtosis_;
-                isCauchy_ = other.isCauchy_;
-                isMeanDefined_ = other.isMeanDefined_;
-                isVarianceDefined_ = other.isVarianceDefined_;
-                other.nu_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                atomicNu_.store(nu_, std::memory_order_release);
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            nu_ = other.nu_;
-            other.nu_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-            atomicNu_.store(nu_, std::memory_order_release);
-        }
+        atomicNu_.store(nu_, std::memory_order_release);
     }
     return *this;
 }

@@ -96,48 +96,32 @@ BetaDistribution::BetaDistribution(BetaDistribution&& other) noexcept
     atomicBeta_.store(beta_, std::memory_order_release);
 }
 
-BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) noexcept {
+BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        alpha_ = other.alpha_;
+        beta_ = other.beta_;
+        alphaMinus1_ = other.alphaMinus1_;
+        betaMinus1_ = other.betaMinus1_;
+        logNormConst_ = other.logNormConst_;
+        mean_ = other.mean_;
+        variance_ = other.variance_;
+        mode_ = other.mode_;
+        isUniform_ = other.isUniform_;
+        isSymmetric_ = other.isSymmetric_;
+        isUnimodal_ = other.isUnimodal_;
+        other.alpha_ = detail::ONE;
+        other.beta_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                alpha_ = other.alpha_;
-                beta_ = other.beta_;
-                alphaMinus1_ = other.alphaMinus1_;
-                betaMinus1_ = other.betaMinus1_;
-                logNormConst_ = other.logNormConst_;
-                mean_ = other.mean_;
-                variance_ = other.variance_;
-                mode_ = other.mode_;
-                isUniform_ = other.isUniform_;
-                isSymmetric_ = other.isSymmetric_;
-                isUnimodal_ = other.isUnimodal_;
-                other.alpha_ = detail::ONE;
-                other.beta_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                atomicAlpha_.store(alpha_, std::memory_order_release);
-                atomicBeta_.store(beta_, std::memory_order_release);
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            alpha_ = other.alpha_;
-            beta_ = other.beta_;
-            other.alpha_ = detail::ONE;
-            other.beta_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-            atomicAlpha_.store(alpha_, std::memory_order_release);
-            atomicBeta_.store(beta_, std::memory_order_release);
-        }
+        atomicAlpha_.store(alpha_, std::memory_order_release);
+        atomicBeta_.store(beta_, std::memory_order_release);
     }
     return *this;
 }

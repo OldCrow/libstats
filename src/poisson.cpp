@@ -70,47 +70,19 @@ PoissonDistribution::PoissonDistribution(PoissonDistribution&& other)
     // Cache will be updated on first use
 }
 
-PoissonDistribution& PoissonDistribution::operator=(PoissonDistribution&& other) noexcept {
+PoissonDistribution& PoissonDistribution::operator=(PoissonDistribution&& other) {
     if (this != &other) {
-        // C++11 Core Guidelines C.66 compliant: noexcept move assignment using atomic operations
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
 
-        // Step 1: Invalidate both caches atomically (lock-free)
+        lambda_ = other.lambda_;
+        other.lambda_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        // Step 2: Try to acquire locks with timeout to avoid blocking indefinitely
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-
-            // Use try_lock to avoid blocking - this is noexcept
-            if (std::try_lock(lock1, lock2) == -1) {
-                // Step 3: Move parameters
-                lambda_ = other.lambda_;
-                other.lambda_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                success = true;
-            }
-        } catch (...) {
-            // If locking fails, we still need to maintain noexcept guarantee
-            // Fall back to atomic parameter exchange (lock-free)
-        }
-
-        // Step 4: Fallback for failed lock acquisition (still noexcept)
-        if (!success) {
-            // Use atomic exchange operations for thread-safe parameter swapping
-            // This maintains basic correctness even if we can't acquire locks
-            [[maybe_unused]] double temp_lambda = lambda_;
-
-            // Atomic-like exchange (single assignment is atomic for built-in types)
-            lambda_ = other.lambda_;
-            other.lambda_ = detail::ONE;
-
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-        }
     }
     return *this;
 }

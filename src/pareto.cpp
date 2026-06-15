@@ -88,47 +88,31 @@ ParetoDistribution::ParetoDistribution(ParetoDistribution&& other) noexcept
     atomicAlpha_.store(alpha_, std::memory_order_release);
 }
 
-ParetoDistribution& ParetoDistribution::operator=(ParetoDistribution&& other) noexcept {
+ParetoDistribution& ParetoDistribution::operator=(ParetoDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        scale_ = other.scale_;
+        alpha_ = other.alpha_;
+        logScale_ = other.logScale_;
+        logAlpha_ = other.logAlpha_;
+        negAlphaPlusOne_ = other.negAlphaPlusOne_;
+        logNormConst_ = other.logNormConst_;
+        negAlpha_ = other.negAlpha_;
+        invAlpha_ = other.invAlpha_;
+        mean_ = other.mean_;
+        variance_ = other.variance_;
+        other.scale_ = detail::ONE;
+        other.alpha_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                scale_ = other.scale_;
-                alpha_ = other.alpha_;
-                logScale_ = other.logScale_;
-                logAlpha_ = other.logAlpha_;
-                negAlphaPlusOne_ = other.negAlphaPlusOne_;
-                logNormConst_ = other.logNormConst_;
-                negAlpha_ = other.negAlpha_;
-                invAlpha_ = other.invAlpha_;
-                mean_ = other.mean_;
-                variance_ = other.variance_;
-                other.scale_ = detail::ONE;
-                other.alpha_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                atomicScale_.store(scale_, std::memory_order_release);
-                atomicAlpha_.store(alpha_, std::memory_order_release);
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            scale_ = other.scale_;
-            alpha_ = other.alpha_;
-            other.scale_ = detail::ONE;
-            other.alpha_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-            atomicScale_.store(scale_, std::memory_order_release);
-            atomicAlpha_.store(alpha_, std::memory_order_release);
-        }
+        atomicScale_.store(scale_, std::memory_order_release);
+        atomicAlpha_.store(alpha_, std::memory_order_release);
     }
     return *this;
 }
