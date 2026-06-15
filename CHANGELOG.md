@@ -1,4 +1,4 @@
-## [Unreleased] — v1.5.0 in progress
+## [1.5.0] - 2026-06-15
 
 ### Performance
 - **AVX2+FMA native exp/log** (Phase 1, Kaby Lake): `vector_exp_avx2` and `vector_log_avx2`
@@ -60,6 +60,19 @@
   Phase 5 will rederive from the Phase 4 bundle. Measurement resolution caveat added:
   profiler resolution floors at ~0.1–0.2 µs; crossovers derived from batch sizes < 64 are
   unreliable and should be clamped to ≥ 64 when recalibrating.
+
+### Changed
+- **Dispatch threshold recalibration** (Phase 5): all four `ArchTable` entries in
+  `include/core/dispatch_thresholds.h` updated from v1.5.0 profiling bundles.
+  Notable architectural shifts:
+  - NEON: Gaussian CDF threshold 10000 → NEVER (table erf 8.0x makes VECTORIZED
+    unbeatable at all tested batch sizes; M1 GCD overhead proportionally high).
+  - AVX2+FMA: Gaussian PDF 50000 → 100000; StudentT PDF 100000 → 250000
+    (FMA exp widened the SIMD competitive window).
+  - AVX-512: Exponential PDF 50000 → NEVER; StudentT PDF/LogPDF → NEVER
+    (8-wide native exp eliminated the throughput bottleneck); Gaussian PDF 100000 → 500000.
+  - AVX: Gaussian CDF 20000 → 50000 (heavier musl erf per element; SIMD competitive longer).
+  < 64 floor rule applied throughout; sub-64 crossovers from GCD-overhead noise clamped.
 
 ### Validation
 - 39/39 correctness, 61/61 `simd_verification` — Kaby Lake AVX2+FMA:

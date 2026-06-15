@@ -317,7 +317,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-The library is at **v1.5.0 (in development)** on `main`. v1.4.0 was the last tagged release.
+The library is at **v1.5.0** on `main`.
 
 **16 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
