@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-06-15T05-40-12Z",
+  "run_id": "2026-06-15T05-40-12Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61",
+  "git_branch": "fix-audit-remediation",
+  "git_sha": "65b1c61",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build",
+  "build_type": "Release",
+  "cxx_compiler": "",
+  "os": "darwin",
+  "arch": "x86_64",
+  "cpu_brand": "Intel(R) Core(TM) i7-3820QM CPU @ 2.70GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}

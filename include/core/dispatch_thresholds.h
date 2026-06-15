@@ -138,36 +138,40 @@ constexpr ArchTable kNeon = {
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-15T00-33-56Z_darwin-x86_64_main_sha-d8046b7
+// data/profiles/dispatcher/2026-06-15T05-25-42Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
+// data/profiles/dispatcher/2026-06-15T05-40-12Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
 //
-// v1.5.0 bundle captured on Ivy Bridge after all four phases merged to main.
-// Ivy Bridge exercises the AVX path (no FMA, no AVX2). Phase 2 replaced
-// vector_erf_avx (A&S -> musl rational polynomial).
+// Two Release-mode bundles captured on fix/audit-remediation. Method: where both
+// runs agree on best_strategy_at_max_size, use the larger vectorized_to_parallel
+// crossover (64 floor). Where best_strategy_at_max_size disagrees, NEVER is used.
 //
-// Key changes vs April 2026 baseline:
-//   - Most distributions: crossovers measured at 8 on old hardware; clamped
-//     to 64 floor. The AVX SIMD path is fast enough that GCD parallel overhead
-//     doesn't pay for small batches.
-//   - Gaussian CDF: 20000 -> 50000. Heavier musl erf polynomial means more
-//     work per element; SIMD stays competitive with parallel longer.
-//   - StudentT PDF: 100000 -> 100000 (unchanged).
-//   - Poisson LogPDF: 10000 -> 50000 (shifted by improved exp path).
+// Key changes vs v1.5.0 main baseline (2026-06-15T00-33-56Z):
+//   - Gaussian CDF: 50000 -> 64. Both runs show crossover at 8 (clamped to 64
+//     floor). Branch changes made parallel competitive earlier on erf-heavy path.
+//   - Exponential PDF: 64 -> 100000. Conservative upper bound (runs: 100k vs 8;
+//     both WORK_STEALING).
+//   - Discrete PDF/LogPDF/CDF: 64/1000/250000 -> 128/100000/100000.
+//   - Poisson PDF/CDF: 128/64 -> 50000/50000. Both runs consistent at 50000.
+//   - StudentT PDF/LogPDF/CDF: 100000/64/64 -> NEVER. Both runs disagree on
+//     PARALLEL vs WORK_STEALING at max size across all three operations.
+//   - 7 new distributions: replaced PLACEHOLDERs with Release measurements.
 constexpr ArchTable kAvx = {
     /* uniform     */ {NEVER, NEVER, 64},
-    /* gaussian    */ {64, 64, 50000},
-    /* exponential */ {64, 64, 64},
-    /* discrete    */ {64, 1000, 250000},
-    /* poisson     */ {128, 50000, 64},
+    /* gaussian    */ {64, 64, 64},
+    /* exponential */ {100000, 64, 64},
+    /* discrete    */ {128, 100000, 100000},
+    /* poisson     */ {50000, 50000, 50000},
     /* gamma       */ {64, 64, 64},
-    /* student_t   */ {100000, 64, 64},
+    /* student_t   */ {NEVER, NEVER, NEVER},  // PARALLEL vs WORK_STEALING disagreed across both
+                                              // runs
     /* chi_squared */ {64, 64, 64},
-    /* lognormal         */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* pareto            */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* weibull           */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* rayleigh          */ {NEVER, NEVER, NEVER},  // PLACEHOLDER — profile with strategy_profile
-    /* von_mises         */ {512, 512, NEVER},      // PLACEHOLDER — profile with strategy_profile
-    /* binomial          */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
-    /* negative_binomial */ {512, 512, 512},        // PLACEHOLDER — profile with strategy_profile
+    /* lognormal         */ {64, 64, 64},
+    /* pareto            */ {100000, 64, 250000},
+    /* weibull           */ {64, 64, 100000},
+    /* rayleigh          */ {64, 64, 64},
+    /* von_mises         */ {500000, 64, 64},
+    /* binomial          */ {NEVER, NEVER, 50000},  // PDF/LogPDF: VECTORIZED wins at 500k
+    /* negative_binomial */ {NEVER, NEVER, 50000},  // PDF/LogPDF: VECTORIZED wins at 500k
 };
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
