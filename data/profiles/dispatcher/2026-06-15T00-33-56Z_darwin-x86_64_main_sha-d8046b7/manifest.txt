@@ -1,0 +1,14 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-06-15T00-33-56Z_darwin-x86_64_main_sha-d8046b7
+Captured at (UTC): 2026-06-15T00-33-56Z
+
+Files:
+- metadata.json
+- summary.json
+- crossovers.csv
+- best_strategies.csv
+- strategy_profile_results.csv
+- logs/system_inspector_performance.txt
+- logs/strategy_profile.txt

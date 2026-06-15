@@ -66,17 +66,19 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 
 ### Current Validation Matrix
 
-**v1.5.0 — Phases 1–4 validated on all three machines**
+**v1.5.0 — validated on all four machines**
 
 `simd_verification` reports **geometric mean speedups** per operation type (PDF/LogPDF/CDF)
 and per primitive vector op, not a single composite. See `tools/simd_verification.cpp` for rationale.
 
 | Machine | SIMD | Correctness | Total suite | simd_verification | PDF geomean | LogPDF geomean | CDF geomean |
 |---|---|---|---|---|---|---|---|
+| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | 61 | 61/61 ✅ | 5.6x | 6.0x | 2.6x |
 | Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61 | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
 | Mac Mini M1 | NEON | 39/39 ✅ | 61 | 61/61 ✅ | 5.9x | 7.3x | 3.1x |
 | Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 61 | 61/61 ✅ | 4.8x | 5.1x | 2.2x |
 
+Ivy Bridge (2012 MBP) primitive vector op speedups (v1.5.0): VectorExp 2.2x, VectorLog 1.3x, VectorErf 1.7x, VectorCos 11.0x.
 Kaby Lake primitive vector op speedups (v1.5.0 Phase 1+2): VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
 Mac Mini M1 primitive vector op speedups (v1.5.0 Phase 3): VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
 Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
@@ -91,25 +93,28 @@ Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, Vect
 | Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 59 | 54/54 ✅ | 1.64x |
 
 **Total suite counts differ by machine (v1.5.0):**
+- Ivy Bridge/Catalina (61): 61/61 simd_verification ✅. Correctness count is 38/38 — `test_work_stealing_pool` skipped (compiler lacks `<concepts>`+`<ranges>`).
 - Kaby Lake (61): v1.5.0 adds VonMises distribution rows + 4 primitive vector op rows to `simd_verification`.
 - Mac Mini M1 (61): Phase 3 validated ✅.
 - Asus TUF A16 (61): Phase 4 validated ✅.
-- Ivy Bridge/Catalina (53): 6 timing-labelled tests excluded by `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` gating; correctness unaffected.
 
 ### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
-Vectorized batch kernels added to Exponential (PDF/LogPDF/CDF), Gamma (PDF/LogPDF), and Uniform (CDF).
-All use the compute+fixup pattern documented in `src/gaussian.cpp` section 18.
+v1.5.0 results (61/61 simd_verification ✅): PDF geomean 5.6x, LogPDF 6.0x, CDF 2.6x.
+Primitive ops: VectorExp 2.2x, VectorLog 1.3x, VectorErf 1.7x, VectorCos 11.0x.
+
+Selected per-distribution speedups:
 
 | Distribution | Op | Speedup |
 |---|---|---|
-| Exponential | PDF | 10.5x |
-| Exponential | LogPDF | 20.8x |
-| Exponential | CDF | 10.1x |
-| Gamma | PDF | 9.7x |
-| Gamma | LogPDF | 7.1x |
-| Uniform | CDF | 25.2x |
-
-Overall `simd_verification` AVX speedup: 4.10x. 54/54 SIMD tests pass.
+| Uniform | PDF | 122.4x |
+| Uniform | LogPDF | 118.4x |
+| Uniform | CDF | 27.0x |
+| Gaussian | LogPDF | 44.1x |
+| Exponential | LogPDF | 35.4x |
+| VonMises | LogPDF | 18.2x |
+| Exponential | PDF | 14.5x |
+| Exponential | CDF | 7.5x |
+| Gamma | PDF | 8.2x |
 
 ### Deferred Items
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to enable

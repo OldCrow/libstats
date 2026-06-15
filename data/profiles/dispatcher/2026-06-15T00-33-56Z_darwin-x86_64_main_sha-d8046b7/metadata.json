@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-06-15T00-33-56Z",
+  "run_id": "2026-06-15T00-33-56Z_darwin-x86_64_main_sha-d8046b7",
+  "git_branch": "main",
+  "git_sha": "d8046b7",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build",
+  "build_type": "Release",
+  "cxx_compiler": "",
+  "os": "darwin",
+  "arch": "x86_64",
+  "cpu_brand": "Intel(R) Core(TM) i7-3820QM CPU @ 2.70GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}
