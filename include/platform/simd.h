@@ -925,24 +925,33 @@ constexpr std::size_t align_size(std::size_t size,
 }  // namespace utils
 }  // namespace simd
 
-// Phase 3B: Temporary compatibility aliases in arch::simd
+// Compatibility aliases: expose stats::simd types and utilities in arch::simd
+// as a single stable namespace for all dispatch and platform code.
 namespace arch {
 namespace simd {
-// Temporary aliases for backward compatibility during migration
-using namespace ::stats::simd::utils;
+
 using VectorOps = ::stats::simd::ops::VectorOps;
 
-// Keep the adaptive constants here temporarily
-inline constexpr std::size_t SIMD_ALIGNMENT = ::stats::simd::utils::SIMD_ALIGNMENT;
+// SIMD width and alignment constants (defined in stats::simd::utils)
+inline constexpr std::size_t SIMD_ALIGNMENT   = ::stats::simd::utils::SIMD_ALIGNMENT;
 static constexpr std::size_t DOUBLE_SIMD_WIDTH = ::stats::simd::utils::DOUBLE_SIMD_WIDTH;
-static constexpr std::size_t FLOAT_SIMD_WIDTH = ::stats::simd::utils::FLOAT_SIMD_WIDTH;
+static constexpr std::size_t FLOAT_SIMD_WIDTH  = ::stats::simd::utils::FLOAT_SIMD_WIDTH;
 
-// Temporary memory utility aliases
+// Capability query and memory utility aliases (defined in stats::simd::utils)
 using ::stats::simd::utils::align_size;
+using ::stats::simd::utils::aligned_allocator;
 using ::stats::simd::utils::cache_aligned_size;
+using ::stats::simd::utils::double_vector_width;
+using ::stats::simd::utils::float_vector_width;
+using ::stats::simd::utils::has_simd_support;
 using ::stats::simd::utils::is_aligned;
+using ::stats::simd::utils::optimal_alignment;
 using ::stats::simd::utils::prefetch_read;
 using ::stats::simd::utils::prefetch_write;
+
+// Sub-namespace alias (defined in stats::simd::utils::tuned)
+namespace tuned = ::stats::simd::utils::tuned;
+
 }  // namespace simd
 }  // namespace arch
 }  // namespace stats
