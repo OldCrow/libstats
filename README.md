@@ -1,6 +1,6 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
-[![Version](https://img.shields.io/badge/version-v1.4.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.4.0)
+[![Version](https://img.shields.io/badge/version-v1.5.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.5.1)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -224,7 +224,7 @@ Tests are labelled: **no label** = correctness (parallel-safe); **timing** = spe
 - **CMake**: 3.20 or later
 - **Platform**: Windows, macOS, Linux (automatic detection and optimization)
 
-> **⚠️ macOS Catalina (10.15) deprecation:** v1.5.0 is the last release validated on
+> **⚠️ macOS Catalina (10.15) deprecation:** v1.5.x is the last series validated on
 > macOS 10.15 and Ivy Bridge hardware. A future v2.0.0 will require macOS 13 (Ventura)
 > or later, consistent with libhmm. See [CHANGELOG.md](CHANGELOG.md) for details.
 
@@ -317,7 +317,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-The library is at **v1.5.0** on `main`.
+The library is at **v1.5.1** on `main`.
 
 **16 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`

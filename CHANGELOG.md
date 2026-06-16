@@ -1,3 +1,39 @@
+## [1.5.1] - 2026-06-16
+
+### Fixed
+- `#include <pair>` → `#include <utility>` in `statistical_utilities.h` (no standard header `<pair>`)
+- `shouldUseSIMDBatch()` now delegates to `SIMDPolicy::shouldUseSIMD()` instead of hardcoded threshold 32
+- Removed dead `withCachedParameters` template from `dispatch_utils.h` (no callers; contained an unsafe lock-free window)
+- Removed stale commented-out `DistributionCacheAdapter` block from `distribution_base.h`
+- Formalized `arch::simd` compatibility aliases in `simd.h` — replaced `using namespace` with explicit declarations; removed "temporary" labels from de-facto permanent API surface
+- Added `/utf-8` MSVC compile flag to silence C4566 for Unicode literals in tool sources
+- `simd_verification`: `verifyVectorOp` now reports **relative** error for VectorExp and VectorLog
+  (`max_rel=`) rather than absolute diff, which was meaningless at output magnitudes like
+  `exp(500)~5e+217` (a sub-ULP result appeared as `max_diff=3.0e+197`). Pass/fail logic unchanged.
+
+### Performance
+- Dispatch table expanded to all 16 distributions: `kNeon`, `kAvx`, `kAvx2`, and `kAvx512` now
+  include calibrated entries for LogNormal, Pareto, Weibull, Rayleigh, VonMises, Binomial, and
+  NegativeBinomial. Previously these distributions fell through to `NEVER`. Thresholds derived from
+  two Release-mode profiling bundles per architecture captured on `fix/audit-remediation`.
+
+### Tests
+- `test_performance_dispatcher`: large-batch strategy assertion is now threshold-aware, so it stays
+  valid after table recalibrations; `minimal_latency()` thread-count expectation corrected
+  (`std::nullopt`, not `1`)
+- `test_von_mises_enhanced`: tolerances relaxed to `1e-10` to match `vector_cos` AVX-512 absolute
+  error floor (~6e-11)
+
+### Validation
+- 39/39 correctness, 61/61 `simd_verification` on Kaby Lake AVX2+FMA, Mac Mini M1 NEON, Asus TUF A16 AVX-512
+- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge AVX (macOS Catalina; `test_work_stealing_pool` skipped)
+
+### Deprecation
+- **v1.5.x are the last releases validated on macOS 10.15 Catalina and Ivy Bridge hardware.**
+  v2.0.0 will set the minimum macOS to 13 Ventura.
+
+---
+
 ## [1.5.0] - 2026-06-15
 
 ### Performance

@@ -8,11 +8,12 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.5.0 released on `main`.
-16 distributions across 6 families. v1.5.0: AVX2+FMA native
-transcendentals, high-accuracy `vector_erf` (all x86), NEON native transcendentals
-(M1, table+Taylor for erf), AVX-512 native transcendentals (Asus TUF A16), and
-dispatch threshold recalibration from v1.5.0 profiling bundles.
+**Current Status**: v1.5.1 released on `main`.
+16 distributions across 6 families. v1.5.1: audit remediation (correctness/maintainability
+fixes), dispatch table expanded to all 16 distributions, `simd_verification` relative-error
+reporting fix. v1.5.0: AVX2+FMA native transcendentals, high-accuracy `vector_erf` (all x86),
+NEON native transcendentals (M1, table+Taylor for erf), AVX-512 native transcendentals
+(Asus TUF A16), dispatch threshold recalibration from v1.5.0 profiling bundles.
 v1.4.0: `vector_cos` SIMD primitive; VonMises batch SIMD-accelerated; dispatch table
 refactor (Issue #22). v1.3.0: `BinomialDistribution`, `NegativeBinomialDistribution`;
 `detail::trigamma`.
@@ -67,7 +68,7 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 
 ### Current Validation Matrix
 
-**v1.5.0 — validated on all four machines**
+**v1.5.1 — validated on all four machines**
 
 `simd_verification` reports **geometric mean speedups** per operation type (PDF/LogPDF/CDF)
 and per primitive vector op, not a single composite. See `tools/simd_verification.cpp` for rationale.
@@ -99,7 +100,7 @@ Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, Vect
 - Mac Mini M1 (61): Phase 3 validated ✅.
 - Asus TUF A16 (61): Phase 4 validated ✅.
 
-> **⚠️ Deprecation notice — Ivy Bridge / macOS Catalina:** v1.5.0 is the last version
+> **⚠️ Deprecation notice — Ivy Bridge / macOS Catalina:** v1.5.x are the last versions
 > validated on macOS 10.15 (Catalina) and Ivy Bridge hardware. macOS Catalina is
 > end-of-life; Homebrew will drop Catalina support in the upcoming macOS 27 release,
 > eliminating the toolchain maintenance path. A future v2.0.0 will set the minimum
@@ -132,6 +133,23 @@ Selected per-distribution speedups:
 - `vector_lgamma` — too complex, low immediate distribution impact; indefinitely deferred
 - SVE (AArch64 beyond NEON) — no hardware in the ecosystem
 - SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
+
+### Changes in v1.5.1
+- **Dispatch table expanded to all 16 distributions**: `kNeon`, `kAvx`, `kAvx2`, `kAvx512` now
+  include calibrated entries for LogNormal, Pareto, Weibull, Rayleigh, VonMises, Binomial, and
+  NegativeBinomial. Two Release-mode profiling bundles per architecture.
+- **Correctness fixes**: `#include <pair>` → `<utility>`; `shouldUseSIMDBatch` delegates to
+  `SIMDPolicy::shouldUseSIMD()`; dead `withCachedParameters` removed; `arch::simd` aliases
+  formalized; `/utf-8` MSVC flag added.
+- **`simd_verification`**: relative error reported for VectorExp/VectorLog (`max_rel=`);
+  absolute diff is meaningless at exp(500)~5e+217 magnitudes.
+- **Test fixes**: dispatcher threshold-aware assertion; `minimal_latency()` thread-count
+  corrected; VonMises tolerance relaxed to 1e-10 for AVX-512 `vector_cos` error floor.
+
+Full four-machine validation (v1.5.1): identical SIMD performance to v1.5.0; only dispatch
+table coverage and correctness fixes changed.
+- 39/39 correctness, 61/61 `simd_verification` on Kaby Lake, M1, Asus TUF A16
+- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge (Catalina)
 
 ### Changes in v1.5.0
 - **AVX2+FMA native transcendentals**: `vector_exp_avx2` and `vector_log_avx2` replaced
