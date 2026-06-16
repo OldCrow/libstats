@@ -15,6 +15,7 @@
 // Platform components
 #include "distribution_cache.h"  // Needed for ThreadSafeCacheManager
 #include "libstats/platform/platform_constants.h"
+#include "libstats/platform/simd_policy.h"
 
 namespace stats {
 
@@ -156,7 +157,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @return True if SIMD operations would be beneficial
      */
     static bool shouldUseSIMDBatch(size_t vector_size) noexcept {
-        return vector_size >= 32;  // Threshold for SIMD benefit
+        return arch::simd::SIMDPolicy::shouldUseSIMD(vector_size);
     }
 
     // =============================================================================
@@ -211,21 +212,6 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      */
     virtual FitResults fitWithDiagnostics(const std::vector<double>& data);
 
-    // =============================================================================
-    // DISTRIBUTION CACHE ACCESS - Protected Interface
-    // =============================================================================
-    // NOTE: Distribution cache access methods commented out until cache integration
-    // TODO: Uncomment when integrating mathematical function cache or distribution-specific caching
-    /*
-     * @brief Get distribution cache adapter instance
-     * @return Reference to platform-optimized cache adapter
-     *
-    template<typename Key, typename Value>
-    DistributionCacheAdapter<Key, Value>& getDistributionCache() const {
-        static thread_local DistributionCacheAdapter<Key, Value> cache;
-        return cache;
-    }
-    */
 
    protected:
     // =============================================================================
