@@ -38,9 +38,9 @@
 #include <iomanip>     // for std::setprecision, std::scientific
 #include <iostream>    // for std::cout
 #include <limits>      // for std::numeric_limits
+#include <map>         // for std::map
 #include <random>      // for std::mt19937, random distributions
 #include <span>        // for std::span
-#include <map>         // for std::map
 #include <sstream>     // for std::ostringstream
 #include <string>      // for std::string, to_string
 #include <vector>      // for std::vector
@@ -54,11 +54,14 @@ constexpr size_t TEST_SIZE = 1024;  // Size for correctness tests
 [[maybe_unused]] constexpr size_t LARGE_TEST_SIZE =
     65536;  // Size for performance tests - reserved for future benchmarking features
 constexpr int TEST_ITERATIONS = 5;
-constexpr double TOLERANCE_NORMAL = 1e-14;     // Normal numerical precision
-constexpr double TOLERANCE_RELAXED = 1e-12;    // Relaxed for complex operations
-constexpr double TOLERANCE_ERF_APPROX = 1e-13; // musl rational polynomial (measured max ~2.2e-16; must stay > TOLERANCE_NORMAL so absolute-only mode only fires for erf-derived ops)
-constexpr double TOLERANCE_COS = 1e-9;          // 7-term Horner polynomial (max error ~1e-10, 10x headroom)
-constexpr double TOLERANCE_VONMISES = 5e-10;    // VonMises batch uses vector_cos; abs error floor ~1e-10
+constexpr double TOLERANCE_NORMAL = 1e-14;   // Normal numerical precision
+constexpr double TOLERANCE_RELAXED = 1e-12;  // Relaxed for complex operations
+constexpr double TOLERANCE_ERF_APPROX =
+    1e-13;  // musl rational polynomial (measured max ~2.2e-16; must stay > TOLERANCE_NORMAL so
+            // absolute-only mode only fires for erf-derived ops)
+constexpr double TOLERANCE_COS = 1e-9;  // 7-term Horner polynomial (max error ~1e-10, 10x headroom)
+constexpr double TOLERANCE_VONMISES =
+    5e-10;  // VonMises batch uses vector_cos; abs error floor ~1e-10
 
 // Edge case test values that are architecture-independent
 const std::vector<double> EDGE_CASES = {0.0,
@@ -185,7 +188,8 @@ class SIMDVerifier {
 
     void testPrimitiveVectorOps() {
         stats::detail::detail::subsectionHeader("Primitive Vector Operations");
-        std::cout << "Direct SIMD vs scalar benchmarks for each vector op (authoritative speedup signal)\n";
+        std::cout << "Direct SIMD vs scalar benchmarks for each vector op (authoritative speedup "
+                     "signal)\n";
 
         using VectorOps = stats::arch::simd::VectorOps;
 
@@ -194,11 +198,13 @@ class SIMDVerifier {
         // vector_exp: linspace over [-500, 500] (clamped to [-708, 709] by the implementation)
         std::vector<double> exp_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
-            exp_data[i] = -500.0 + 1000.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+            exp_data[i] =
+                -500.0 + 1000.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
         verifyVectorOp(
             exp_data, "VectorExp",
             [](const std::vector<double>& in, std::vector<double>& out) {
-                for (size_t i = 0; i < in.size(); ++i) out[i] = std::exp(in[i]);
+                for (size_t i = 0; i < in.size(); ++i)
+                    out[i] = std::exp(in[i]);
             },
             [](const std::vector<double>& in, std::vector<double>& out) {
                 VectorOps::vector_exp(in.data(), out.data(), in.size());
@@ -208,11 +214,13 @@ class SIMDVerifier {
         // vector_log: linspace over (1e-6, 1000]
         std::vector<double> log_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
-            log_data[i] = 1e-6 + (1000.0 - 1e-6) * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+            log_data[i] = 1e-6 + (1000.0 - 1e-6) * static_cast<double>(i) /
+                                     static_cast<double>(TEST_SIZE - 1);
         verifyVectorOp(
             log_data, "VectorLog",
             [](const std::vector<double>& in, std::vector<double>& out) {
-                for (size_t i = 0; i < in.size(); ++i) out[i] = std::log(in[i]);
+                for (size_t i = 0; i < in.size(); ++i)
+                    out[i] = std::log(in[i]);
             },
             [](const std::vector<double>& in, std::vector<double>& out) {
                 VectorOps::vector_log(in.data(), out.data(), in.size());
@@ -228,7 +236,8 @@ class SIMDVerifier {
         verifyVectorOp(
             erf_data, "VectorErf",
             [](const std::vector<double>& in, std::vector<double>& out) {
-                for (size_t i = 0; i < in.size(); ++i) out[i] = std::erf(in[i]);
+                for (size_t i = 0; i < in.size(); ++i)
+                    out[i] = std::erf(in[i]);
             },
             [](const std::vector<double>& in, std::vector<double>& out) {
                 VectorOps::vector_erf(in.data(), out.data(), in.size());
@@ -239,11 +248,13 @@ class SIMDVerifier {
         // Horner polynomial error is absolute (not relative near zero), so use absolute_only=true.
         std::vector<double> cos_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
-            cos_data[i] = -4.0 * PI + 8.0 * PI * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
+            cos_data[i] =
+                -4.0 * PI + 8.0 * PI * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
         verifyVectorOp(
             cos_data, "VectorCos",
             [](const std::vector<double>& in, std::vector<double>& out) {
-                for (size_t i = 0; i < in.size(); ++i) out[i] = std::cos(in[i]);
+                for (size_t i = 0; i < in.size(); ++i)
+                    out[i] = std::cos(in[i]);
             },
             [](const std::vector<double>& in, std::vector<double>& out) {
                 VectorOps::vector_cos(in.data(), out.data(), in.size());
@@ -266,15 +277,18 @@ class SIMDVerifier {
 
         // Time scalar
         auto scalar_start = std::chrono::high_resolution_clock::now();
-        for (int iter = 0; iter < TEST_ITERATIONS; ++iter) scalar_func(test_data, scalar_results);
+        for (int iter = 0; iter < TEST_ITERATIONS; ++iter)
+            scalar_func(test_data, scalar_results);
         auto scalar_end = std::chrono::high_resolution_clock::now();
         auto scalar_time =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(scalar_end - scalar_start).count() /
+            std::chrono::duration_cast<std::chrono::nanoseconds>(scalar_end - scalar_start)
+                .count() /
             TEST_ITERATIONS;
 
         // Time SIMD
         auto simd_start = std::chrono::high_resolution_clock::now();
-        for (int iter = 0; iter < TEST_ITERATIONS; ++iter) simd_func(test_data, simd_results);
+        for (int iter = 0; iter < TEST_ITERATIONS; ++iter)
+            simd_func(test_data, simd_results);
         auto simd_end = std::chrono::high_resolution_clock::now();
         auto simd_time =
             std::chrono::duration_cast<std::chrono::nanoseconds>(simd_end - simd_start).count() /
@@ -282,52 +296,70 @@ class SIMDVerifier {
 
         VerificationResult result;
         result.distribution_name = op_name;  // reuse field for op name
-        result.operation_name    = "---";
-        result.test_size         = test_data.size();
-        result.scalar_time_ns    = static_cast<double>(scalar_time);
-        result.simd_time_ns      = static_cast<double>(simd_time);
-        result.speedup_ratio     = static_cast<double>(scalar_time) / static_cast<double>(simd_time);
-        result.simd_level_used   = active_simd_level_;
+        result.operation_name = "---";
+        result.test_size = test_data.size();
+        result.scalar_time_ns = static_cast<double>(scalar_time);
+        result.simd_time_ns = static_cast<double>(simd_time);
+        result.speedup_ratio = static_cast<double>(scalar_time) / static_cast<double>(simd_time);
+        result.simd_level_used = active_simd_level_;
 
-        // Analyze correctness with caller-supplied tolerance
-        result.max_difference    = 0.0;
-        result.avg_difference    = 0.0;
+        // Analyze correctness with caller-supplied tolerance.
+        // When absolute_only=false (VectorExp, VectorLog), track relative error
+        // in max_difference: absolute diff is meaningless when outputs span many
+        // orders of magnitude (e.g. exp(500)~5e+217 makes abs diff ~1e+201 even
+        // for a sub-ULP SIMD result). Pass/fail already uses relative tolerance;
+        // the stored metric should match.
+        result.max_difference = 0.0;
+        result.avg_difference = 0.0;
         result.failed_comparisons = 0;
         double sum_diff = 0.0;
         size_t valid = 0;
         std::ostringstream err;
         for (size_t i = 0; i < scalar_results.size(); ++i) {
             double s = scalar_results[i], v = simd_results[i];
-            if (std::isnan(s) && std::isnan(v)) continue;
-            if (std::isinf(s) && std::isinf(v) && (s > 0) == (v > 0)) continue;
+            if (std::isnan(s) && std::isnan(v))
+                continue;
+            if (std::isinf(s) && std::isinf(v) && (s > 0) == (v > 0))
+                continue;
             double diff = std::abs(s - v);
             if (std::isfinite(diff)) {
-                result.max_difference = std::max(result.max_difference, diff);
-                sum_diff += diff;
+                // Use relative error for non-absolute-only ops; guard against
+                // near-zero denominators (denormals, underflowed exp results).
+                double display_diff =
+                    (!absolute_only && std::abs(s) > 1e-300) ? diff / std::abs(s) : diff;
+                result.max_difference = std::max(result.max_difference, display_diff);
+                sum_diff += display_diff;
                 valid++;
             }
-            bool bad = absolute_only
-                ? (std::isfinite(diff) && diff > tolerance)
-                : ((std::abs(s) > tolerance) ? (diff / std::abs(s) > tolerance) : (diff > tolerance));
+            bool bad = absolute_only ? (std::isfinite(diff) && diff > tolerance)
+                                     : ((std::abs(s) > tolerance) ? (diff / std::abs(s) > tolerance)
+                                                                  : (diff > tolerance));
             if (bad) {
                 result.failed_comparisons++;
                 if (result.failed_comparisons <= 3)
-                    err << "[" << i << "] scalar=" << s << " simd=" << v << " diff=" << diff << "; ";
+                    err << "[" << i << "] scalar=" << s << " simd=" << v << " diff=" << diff
+                        << "; ";
             }
         }
-        result.avg_difference   = (valid > 0) ? sum_diff / static_cast<double>(valid) : 0.0;
+        result.avg_difference = (valid > 0) ? sum_diff / static_cast<double>(valid) : 0.0;
         result.correctness_passed = (result.failed_comparisons == 0);
-        result.error_details    = err.str();
+        result.error_details = err.str();
         if (result.failed_comparisons > 3)
-            result.error_details += "... (+" + std::to_string(result.failed_comparisons - 3) + " more)";
+            result.error_details +=
+                "... (+" + std::to_string(result.failed_comparisons - 3) + " more)";
 
         results_.push_back(result);
 
         std::cout << "  " << op_name << ": ";
-        if (result.correctness_passed) std::cout << "\u2713 PASS";
-        else                           std::cout << "\u2717 FAIL";
-        std::cout << " (max_diff=" << std::scientific << std::setprecision(2) << result.max_difference
-                  << ", speedup=" << std::fixed << std::setprecision(1) << result.speedup_ratio << "x)\n";
+        if (result.correctness_passed)
+            std::cout << "\u2713 PASS";
+        else
+            std::cout << "\u2717 FAIL";
+        // Label distinguishes relative (VectorExp/Log) from absolute (VectorErf/Cos).
+        const char* diff_label = absolute_only ? "max_abs" : "max_rel";
+        std::cout << " (" << diff_label << "=" << std::scientific << std::setprecision(2)
+                  << result.max_difference << ", speedup=" << std::fixed << std::setprecision(1)
+                  << result.speedup_ratio << "x)\n";
         if (!result.correctness_passed && !result.error_details.empty())
             std::cout << "    Error: " << result.error_details << "\n";
     }
@@ -342,7 +374,8 @@ class SIMDVerifier {
         std::mt19937 local_rng(VERIFICATION_SEED + 1);
         std::uniform_real_distribution<double> angle_dist(-PI, PI);
         std::vector<double> test_data(TEST_SIZE);
-        for (size_t i = 0; i < TEST_SIZE; ++i) test_data[i] = angle_dist(local_rng);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            test_data[i] = angle_dist(local_rng);
 
         verifyDistributionOperations(dist, test_data, "VonMises");
     }
@@ -769,9 +802,11 @@ class SIMDVerifier {
         std::cout << "Failed: " << (total_tests - passed_tests) << "\n\n";
 
         // Detailed results table
+        // Max Err / Avg Err: absolute for distribution and VectorErf/VectorCos rows;
+        // relative (dimensionless) for VectorExp and VectorLog rows.
         stats::detail::detail::ColumnFormatter formatter({18, 10, 8, 12, 12, 10, 8});
-        std::cout << formatter.formatRow({"Distribution", "Operation", "Status", "Max Diff",
-                                          "Avg Diff", "Speedup", "Errors"})
+        std::cout << formatter.formatRow({"Distribution", "Operation", "Status", "Max Err",
+                                          "Avg Err", "Speedup", "Errors"})
                   << "\n";
         std::cout << formatter.getSeparator() << "\n";
 
@@ -842,16 +877,16 @@ class SIMDVerifier {
         // dominate wall-clock time and symmetric across orders of magnitude.
         struct OpStats {
             double log_sum = 0.0;
-            size_t count   = 0;
-            double min_sp  = std::numeric_limits<double>::max();
-            double max_sp  = 0.0;
+            size_t count = 0;
+            double min_sp = std::numeric_limits<double>::max();
+            double max_sp = 0.0;
         };
         std::map<std::string, OpStats> op_stats;  // keyed by operation_name
 
         for (const auto& result : results_) {
             if (result.operation_name == "---") {
                 prim_scalar += result.scalar_time_ns;
-                prim_simd   += result.simd_time_ns;
+                prim_simd += result.simd_time_ns;
             } else if (result.speedup_ratio > 0.0) {
                 auto& s = op_stats[result.operation_name];
                 s.log_sum += std::log(result.speedup_ratio);
@@ -864,29 +899,31 @@ class SIMDVerifier {
         std::cout << "Distribution suite speedup geometric means (" << active_simd_level_ << "):\n";
         // Print in canonical order: PDF, LogPDF, CDF
         double overall_log_sum = 0.0;
-        size_t overall_count   = 0;
-        for (const std::string& op : {std::string("PDF"), std::string("LogPDF"), std::string("CDF")}) {
+        size_t overall_count = 0;
+        for (const std::string& op :
+             {std::string("PDF"), std::string("LogPDF"), std::string("CDF")}) {
             auto it = op_stats.find(op);
-            if (it == op_stats.end() || it->second.count == 0) continue;
+            if (it == op_stats.end() || it->second.count == 0)
+                continue;
             const auto& s = it->second;
             double gm = std::exp(s.log_sum / static_cast<double>(s.count));
-            std::cout << "  " << std::left << std::setw(8) << op
-                      << std::fixed << std::setprecision(1) << gm << "x"
-                      << "  (range " << s.min_sp << "x\u2013" << s.max_sp << "x,  n="
-                      << s.count << ")\n";
+            std::cout << "  " << std::left << std::setw(8) << op << std::fixed
+                      << std::setprecision(1) << gm << "x"
+                      << "  (range " << s.min_sp << "x\u2013" << s.max_sp << "x,  n=" << s.count
+                      << ")\n";
             overall_log_sum += s.log_sum;
-            overall_count   += s.count;
+            overall_count += s.count;
         }
-        double overall_geomean = (overall_count > 0)
-            ? std::exp(overall_log_sum / static_cast<double>(overall_count)) : 0.0;
+        double overall_geomean =
+            (overall_count > 0) ? std::exp(overall_log_sum / static_cast<double>(overall_count))
+                                : 0.0;
 
         // Primitive vector op speedups — reported individually, not aggregated
         std::cout << "\nPrimitive vector op speedups:\n";
         for (const auto& result : results_) {
             if (result.operation_name == "---") {
-                std::cout << "  " << result.distribution_name << ": "
-                          << std::fixed << std::setprecision(1)
-                          << result.speedup_ratio << "x";
+                std::cout << "  " << result.distribution_name << ": " << std::fixed
+                          << std::setprecision(1) << result.speedup_ratio << "x";
                 if (!result.correctness_passed)
                     std::cout << "  \u26a0\ufe0f ACCURACY FAIL";
                 std::cout << "\n";
@@ -907,22 +944,26 @@ class SIMDVerifier {
         stats::detail::detail::subsectionHeader("Recommendations");
         if (passed_tests == total_tests) {
             std::cout << "\u2705 All SIMD operations are producing correct results.\n";
-            std::cout << "\u2705 " << active_simd_level_ << " optimizations are working correctly.\n";
+            std::cout << "\u2705 " << active_simd_level_
+                      << " optimizations are working correctly.\n";
         } else {
-            std::cout << "\u26a0\ufe0f  Some SIMD operations are not producing identical results to scalar "
+            std::cout << "\u26a0\ufe0f  Some SIMD operations are not producing identical results "
+                         "to scalar "
                          "versions.\n";
-            std::cout << "\u26a0\ufe0f  Review failed tests above and consider adjusting tolerance or "
-                         "implementation.\n";
+            std::cout
+                << "\u26a0\ufe0f  Review failed tests above and consider adjusting tolerance or "
+                   "implementation.\n";
         }
 
         if (overall_geomean < expected_min_speedup) {
-            std::cout << "\u26a0\ufe0f  Distribution suite geometric mean speedup ("
-                      << std::fixed << std::setprecision(2) << overall_geomean
+            std::cout << "\u26a0\ufe0f  Distribution suite geometric mean speedup (" << std::fixed
+                      << std::setprecision(2) << overall_geomean
                       << "x) is below expected (>=" << expected_min_speedup << "x).\n";
             std::cout
                 << "   Consider profiling individual operations for optimization opportunities.\n";
         } else {
-            std::cout << "\u2705 " << active_simd_level_ << " distribution suite performance is meeting expectations.\n";
+            std::cout << "\u2705 " << active_simd_level_
+                      << " distribution suite performance is meeting expectations.\n";
         }
 
         std::cout << "\nNote: Small numerical differences are expected due to floating-point "
