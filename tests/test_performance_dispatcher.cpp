@@ -62,10 +62,19 @@ TEST_F(PerformanceDispatcherTest, BasicStrategySelection) {
         dispatcher.selectStrategy(3, DistributionType::GAUSSIAN, OperationType::PDF, system);
     EXPECT_EQ(strategy_small, Strategy::SCALAR);
 
-    // Very large batches should prefer parallel strategies
+    // Very large batches prefer parallel when the dispatch table has a finite
+    // threshold for this architecture/distribution/operation. Guard the assertion
+    // with a threshold lookup so the test stays valid across table recalibrations.
     auto strategy_large =
         dispatcher.selectStrategy(100000, DistributionType::GAUSSIAN, OperationType::CDF, system);
-    EXPECT_TRUE(strategy_large == Strategy::PARALLEL || strategy_large == Strategy::WORK_STEALING);
+    const auto gaussian_cdf_threshold =
+        getParallelThreshold(stats::arch::simd::SIMDPolicy::getBestLevel(),
+                             DistributionType::GAUSSIAN, OperationType::CDF);
+    if (gaussian_cdf_threshold != SIZE_MAX && gaussian_cdf_threshold <= 100000) {
+        EXPECT_TRUE(strategy_large == Strategy::PARALLEL || strategy_large == Strategy::WORK_STEALING);
+    } else {
+        EXPECT_EQ(strategy_large, Strategy::VECTORIZED);
+    }
 }
 
 TEST_F(PerformanceDispatcherTest, DistributionSpecificThresholds) {
@@ -155,7 +164,8 @@ TEST_F(PerformanceDispatcherTest, PerformanceHints) {
     // Test performance hint structures
     auto minimal_latency = PerformanceHint::minimal_latency();
     EXPECT_EQ(minimal_latency.strategy, PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY);
-    EXPECT_EQ(minimal_latency.thread_count.value_or(0), 1);
+    // thread_count is unset: strategy tag alone drives dispatch in minimal_latency().
+    EXPECT_FALSE(minimal_latency.thread_count.has_value());
 
     auto max_throughput = PerformanceHint::maximum_throughput();
     EXPECT_EQ(max_throughput.strategy, PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT);

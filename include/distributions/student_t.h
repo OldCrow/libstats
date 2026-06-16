@@ -97,8 +97,8 @@ class StudentTDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     StudentTDistribution(StudentTDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. */
-    StudentTDistribution& operator=(StudentTDistribution&& other) noexcept;
+    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
+    StudentTDistribution& operator=(StudentTDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~StudentTDistribution() override = default;

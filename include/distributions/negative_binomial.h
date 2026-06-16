@@ -67,8 +67,8 @@ class NegativeBinomialDistribution : public DistributionBase {
     /** @brief Move constructor. */
     NegativeBinomialDistribution(NegativeBinomialDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. */
-    NegativeBinomialDistribution& operator=(NegativeBinomialDistribution&& other) noexcept;
+    /** @brief Move assignment operator. @warning NOT noexcept. */
+    NegativeBinomialDistribution& operator=(NegativeBinomialDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~NegativeBinomialDistribution() override = default;
@@ -303,12 +303,12 @@ class NegativeBinomialDistribution : public DistributionBase {
      * Until then, PARALLEL is the recommended strategy for large batches.
      */
     void getLogProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                    double cached_r, double cached_logGammaR,
-                                    double cached_logP, double cached_log1mP) const noexcept;
+                                    double cached_r, double cached_logGammaR, double cached_logP,
+                                    double cached_log1mP) const noexcept;
 
     void getProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                 double cached_r, double cached_logGammaR,
-                                 double cached_logP, double cached_log1mP) const noexcept;
+                                 double cached_r, double cached_logGammaR, double cached_logP,
+                                 double cached_log1mP) const noexcept;
 
     void getCumulativeProbabilityBatchImpl(const double* values, double* results,
                                            std::size_t count) const noexcept;
@@ -323,8 +323,7 @@ class NegativeBinomialDistribution : public DistributionBase {
         if (!std::isfinite(r) || r <= detail::ZERO_DOUBLE)
             throw std::invalid_argument("Number of successes r must be positive and finite");
         if (!std::isfinite(p) || p <= detail::ZERO_DOUBLE || p > detail::ONE)
-            throw std::invalid_argument(
-                "Success probability p must be in (0, 1]");
+            throw std::invalid_argument("Success probability p must be in (0, 1]");
     }
 
     //==========================================================================
@@ -340,7 +339,7 @@ class NegativeBinomialDistribution : public DistributionBase {
     /** @brief Atomic copies for lock-free access. */
     mutable std::atomic<double> atomicR_{detail::ONE};
     mutable std::atomic<double> atomicP_{detail::HALF};
-    mutable std::atomic<bool>   atomicParamsValid_{false};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
     // 22. PERFORMANCE CACHE

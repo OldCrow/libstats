@@ -86,46 +86,30 @@ WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
     atomicScale_.store(scale_, std::memory_order_release);
 }
 
-WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) noexcept {
+WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        shape_ = other.shape_;
+        scale_ = other.scale_;
+        logShape_ = other.logShape_;
+        logScale_ = other.logScale_;
+        shapeMinus1_ = other.shapeMinus1_;
+        logNormConst_ = other.logNormConst_;
+        mean_ = other.mean_;
+        variance_ = other.variance_;
+        isExponential_ = other.isExponential_;
+        other.shape_ = detail::ONE;
+        other.scale_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                shape_ = other.shape_;
-                scale_ = other.scale_;
-                logShape_ = other.logShape_;
-                logScale_ = other.logScale_;
-                shapeMinus1_ = other.shapeMinus1_;
-                logNormConst_ = other.logNormConst_;
-                mean_ = other.mean_;
-                variance_ = other.variance_;
-                isExponential_ = other.isExponential_;
-                other.shape_ = detail::ONE;
-                other.scale_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                atomicShape_.store(shape_, std::memory_order_release);
-                atomicScale_.store(scale_, std::memory_order_release);
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            shape_ = other.shape_;
-            scale_ = other.scale_;
-            other.shape_ = detail::ONE;
-            other.scale_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-            atomicShape_.store(shape_, std::memory_order_release);
-            atomicScale_.store(scale_, std::memory_order_release);
-        }
+        atomicShape_.store(shape_, std::memory_order_release);
+        atomicScale_.store(scale_, std::memory_order_release);
     }
     return *this;
 }

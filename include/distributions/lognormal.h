@@ -82,8 +82,8 @@ class LogNormalDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     LogNormalDistribution(LogNormalDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. */
-    LogNormalDistribution& operator=(LogNormalDistribution&& other) noexcept;
+    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
+    LogNormalDistribution& operator=(LogNormalDistribution&& other);
 
     /** @brief Destructor — defaulted. */
     ~LogNormalDistribution() override = default;

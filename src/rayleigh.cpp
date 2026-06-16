@@ -72,38 +72,25 @@ RayleighDistribution::RayleighDistribution(RayleighDistribution&& other) noexcep
     atomicSigma_.store(sigma_, std::memory_order_release);
 }
 
-RayleighDistribution& RayleighDistribution::operator=(RayleighDistribution&& other) noexcept {
+RayleighDistribution& RayleighDistribution::operator=(RayleighDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        sigma_ = other.sigma_;
+        logSigma_ = other.logSigma_;
+        negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
+        logNormConst_ = other.logNormConst_;
+        mean_ = other.mean_;
+        variance_ = other.variance_;
+        other.sigma_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                sigma_ = other.sigma_;
-                logSigma_ = other.logSigma_;
-                negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
-                logNormConst_ = other.logNormConst_;
-                mean_ = other.mean_;
-                variance_ = other.variance_;
-                other.sigma_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                atomicSigma_.store(sigma_, std::memory_order_release);
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            sigma_ = other.sigma_;
-            other.sigma_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-            atomicSigma_.store(sigma_, std::memory_order_release);
-        }
+        atomicSigma_.store(sigma_, std::memory_order_release);
     }
     return *this;
 }

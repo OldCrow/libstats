@@ -238,13 +238,11 @@ else()
     message(STATUS "C++20 <ranges> header: unavailable")
 endif()
 
-# Detect whether std::cyl_bessel_i is available (C++17 §29.9.3).
-# GCC 6.1+, MSVC 2017 15.5+ support it; AppleClang / macOS libc++ does not.
-# VonMisesDistribution falls back to A&S polynomial approximations when absent.
-check_cxx_source_compiles(
-    "#include <cmath>
-int main() { (void)std::cyl_bessel_i(0.0, 1.0); return 0; }"
-    LIBSTATS_HAS_CXX17_BESSEL)
+# Detect whether std::cyl_bessel_i is available (C++17 §29.9.3). GCC 6.1+, MSVC 2017 15.5+ support
+# it; AppleClang / macOS libc++ does not. VonMisesDistribution falls back to A&S polynomial
+# approximations when absent.
+check_cxx_source_compiles("#include <cmath>
+int main() { (void)std::cyl_bessel_i(0.0, 1.0); return 0; }" LIBSTATS_HAS_CXX17_BESSEL)
 if(LIBSTATS_HAS_CXX17_BESSEL)
     message(STATUS "std::cyl_bessel_i (C++17 special functions): available")
     add_compile_definitions(LIBSTATS_HAS_CXX17_BESSEL)
@@ -294,43 +292,6 @@ if(APPLE)
 
         if(LIBSTATS_VERBOSE_BUILD)
             message(STATUS "Detecting comprehensive threading system capabilities...")
-        endif()
-
-        # 1. TBB Detection (Enhanced)
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "  Checking for Intel TBB...")
-        endif()
-        find_package(PkgConfig QUIET)
-        set(LIBSTATS_HAS_TBB FALSE)
-
-        if(PkgConfig_FOUND)
-            pkg_check_modules(TBB QUIET tbb)
-            if(TBB_FOUND)
-                include_directories(${TBB_INCLUDE_DIRS})
-                link_directories(${TBB_LIBRARY_DIRS})
-                set(CMAKE_CXX_FLAGS
-                    "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
-                    PARENT_SCOPE)
-                set(LIBSTATS_HAS_TBB TRUE)
-                message(
-                    STATUS "    ✓ TBB found via pkg-config - parallel execution policies enhanced")
-            endif()
-        endif()
-
-        # Fallback to find_package for TBB if pkg-config failed
-        if(NOT LIBSTATS_HAS_TBB)
-            find_package(TBB QUIET)
-            if(TBB_FOUND)
-                set(LIBSTATS_HAS_TBB TRUE)
-                message(
-                    STATUS "    ✓ TBB found via find_package - parallel execution policies enhanced"
-                )
-            else()
-                message(
-                    STATUS
-                        "    ✗ TBB not found - C++20 execution policies may have limited performance"
-                )
-            endif()
         endif()
 
         # 1. OpenMP Detection
@@ -439,11 +400,6 @@ if(APPLE)
                 CACHE BOOL "Windows Thread Pool API not available")
         endif()
 
-        # Cache all TBB variables for consistency
-        set(LIBSTATS_HAS_TBB
-            ${LIBSTATS_HAS_TBB}
-            CACHE BOOL "Intel TBB support available")
-
         # Mark detection as complete
         set(LIBSTATS_THREADING_DETECTION_COMPLETE
             TRUE
@@ -451,7 +407,6 @@ if(APPLE)
 
         # Summary
         message(STATUS "Threading System Detection Summary:")
-        message(STATUS "  - Intel TBB: ${LIBSTATS_HAS_TBB}")
         message(STATUS "  - OpenMP: ${LIBSTATS_HAS_OPENMP}")
         message(STATUS "  - POSIX Threads: ${LIBSTATS_HAS_PTHREADS}")
         message(STATUS "  - Grand Central Dispatch: ${LIBSTATS_HAS_GCD}")
@@ -1008,6 +963,10 @@ add_compile_definitions($<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # MSVC compiler flags
+    # /utf-8: interpret source files as UTF-8 and emit UTF-8 output.
+    # Silences C4566 (universal-character-name cannot be represented in current
+    # code page) for Unicode characters in string literals across all tool sources.
+    add_compile_options(/utf-8)
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         add_compile_options(/W3 /O2 /DNDEBUG)
         message(STATUS "Applied MSVC Release flags: /W3 /O2 /DNDEBUG")
@@ -1347,12 +1306,13 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/student_t.cpp # Student's t distribution (full real-line, log-space SIMD)
     src/beta.cpp # Beta distribution (bounded support [0,1], two-log SIMD pipeline)
     src/lognormal.cpp # Log-normal distribution (log+exp pipeline, positive real-line support)
-    src/pareto.cpp    # Pareto distribution (log-only pipeline, power-law tail, x >= scale)
-    src/weibull.cpp   # Weibull distribution (log+exp pipeline, reliability engineering)
-    src/rayleigh.cpp  # Rayleigh distribution (x² pipeline, signal processing)
+    src/pareto.cpp # Pareto distribution (log-only pipeline, power-law tail, x >= scale)
+    src/weibull.cpp # Weibull distribution (log+exp pipeline, reliability engineering)
+    src/rayleigh.cpp # Rayleigh distribution (x² pipeline, signal processing)
     src/von_mises.cpp # Von Mises distribution (circular, cos kernel; Bessel functions)
-    src/binomial.cpp  # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
-    src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE, Gamma-Poisson sampling)
+    src/binomial.cpp # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
+    src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
+                              # Gamma-Poisson sampling)
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific

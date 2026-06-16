@@ -311,52 +311,6 @@ class DispatchUtils {
 
     // GPU_ACCELERATED strategy slot removed. See issue #23 for future GPU backend prerequisites.
 
-    /**
-     * @brief Common cache validation and parameter extraction pattern
-     *
-     * @tparam Distribution The distribution type
-     * @tparam CacheExtractorFunc Function to extract cached parameters
-     * @tparam ExecutionFunc Function to execute with cached parameters
-     *
-     * @param dist Reference to the distribution instance
-     * @param cache_extractor Function that extracts needed cached parameters
-     * @param execution_func Function that executes with cached parameters
-     */
-    template <typename Distribution, typename CacheExtractorFunc, typename ExecutionFunc>
-    static void withCachedParameters(const Distribution& dist, CacheExtractorFunc&& cache_extractor,
-                                     ExecutionFunc&& execution_func) {
-        // This pattern is repeated in every batch method:
-        // 1. Ensure cache is valid
-        // 2. Extract cached parameters
-        // 3. Execute with cached parameters
-
-        // Note: This assumes the distribution has these members and methods
-        // In a real implementation, we'd use SFINAE or concepts to ensure compatibility
-        auto& cache_mutex = dist.cache_mutex_;
-        bool cache_valid = false;
-
-        {
-            std::shared_lock<std::shared_mutex> lock(cache_mutex);
-            cache_valid = dist.cache_valid_;
-            if (!cache_valid) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(cache_mutex);
-                if (!dist.cache_valid_) {
-                    // Const cast needed for cache updates - this is safe as it's internal state
-                    const_cast<Distribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Extract cached parameters while holding the lock
-            auto cached_params = cache_extractor(dist);
-            lock.unlock();
-
-            // Execute with cached parameters (no lock needed)
-            execution_func(cached_params);
-        }
-    }
 };
 
 /**

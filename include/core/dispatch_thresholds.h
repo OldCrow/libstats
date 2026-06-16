@@ -87,107 +87,190 @@ struct ArchTable {
     ThresholdRow gamma;
     ThresholdRow student_t;
     ThresholdRow chi_squared;
+    ThresholdRow lognormal;
+    ThresholdRow pareto;
+    ThresholdRow weibull;
+    ThresholdRow rayleigh;
+    ThresholdRow von_mises;
+    ThresholdRow binomial;
+    ThresholdRow negative_binomial;
 };
 
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-14T23-29-58Z_darwin-arm64_v1.5-neon-transcendentals_sha-5455778
+// data/profiles/dispatcher/2026-06-15T04-55-46Z_darwin-arm64_fix-audit-remediation_sha-b583fb3
+// data/profiles/dispatcher/2026-06-15T05-04-15Z_darwin-arm64_fix-audit-remediation_sha-b583fb3
 //
-// v1.5.0 Phase 3 bundle captured after native vector_exp_neon, vector_log_neon,
-// and vector_erf_neon (ARM glibc table+Taylor, 8.0x) landed.
+// Two Release-mode bundles captured on the audit-remediation branch after
+// adding 7 new distributions to the profiler. Values are derived from both
+// runs; stability was assessed by comparing V→P crossovers across runs.
 //
-// Key changes vs April 2026 baseline:
-//   - Gaussian CDF: 10000 -> NEVER. Native erf table achieves 8x; VECTORIZED
-//     beats PARALLEL at all tested batch sizes up to 500k.
-//   - Most exp/log-dominated distributions (Exponential, Gamma, StudentT,
-//     ChiSquared): crossovers measured at 8 on M1, clamped to 64 floor.
-//     M1's GCD thread dispatch overhead is proportionally high vs the fast
-//     NEON kernel, so SIMD wins for most practical batch sizes.
-//   - Discrete: unchanged character (scalar loop, parallel wins earlier).
+// Key changes vs v1.5.0 Phase 3 baseline (2026-06-14):
+//   - Discrete PDF/LogPDF: 128/100000 -> 250000. Native NEON transcendentals
+//     make VECTORIZED fast enough that GCD overhead doesn't pay until 250k.
+//   - Discrete CDF: 512 -> NEVER. VECTORIZED beats PARALLEL at all sizes.
+//   - Poisson PDF/LogPDF: 64 -> 20000. Same cause: fast NEON exp/log paths.
+//   - Poisson CDF: 64 -> 2000.
+//   - StudentT CDF: 64 -> 64 (unchanged; 32-128 noisy range, clamped).
+//   - 7 new distributions added with Release-mode measurements.
+//
+// Stability note: GCD thread-pool variability makes crossover detection noisy
+// for thresholds in the tens-of-thousands range. Where two runs disagreed
+// significantly and best_strategy_at_max_size was consistent, the more
+// conservative (larger) crossover value was used. Where best_strategy_at_max_size
+// itself disagreed across runs (VonMises PDF), NEVER was used.
 constexpr ArchTable kNeon = {
-    /* uniform     */ {NEVER, NEVER,  64},
-    /* gaussian    */ {   64,    64, NEVER},
-    /* exponential */ {   64,    64,    64},
-    /* discrete    */ {  128, 100000,  512},
-    /* poisson     */ {   64,    64,    64},
-    /* gamma       */ {   64,    64,    64},
-    /* student_t   */ {   64,    64,    64},
-    /* chi_squared */ {   64,    64,    64},
+    /* uniform     */ {NEVER, NEVER, 64},
+    /* gaussian    */ {64, 64, NEVER},
+    /* exponential */ {64, 64, 64},
+    /* discrete    */ {250000, 250000, NEVER},
+    /* poisson     */ {20000, 20000, 2000},
+    /* gamma       */ {64, 64, 64},
+    /* student_t   */ {64, 64, 64},
+    /* chi_squared */ {64, 64, 64},
+    /* lognormal         */ {64, 64, NEVER},
+    /* pareto            */ {100000, 100000, 50000},  // PDF=LogPDF (log-only SIMD; PDF run
+                                                      // unstable)
+    /* weibull           */ {64, 64, 64},
+    /* rayleigh          */ {64, 64, 64},
+    /* von_mises         */ {NEVER, NEVER, 64},     // PDF: best@500k disagreed across runs
+    /* binomial          */ {NEVER, NEVER, NEVER},  // GCD overhead > lgamma benefit up to 500k
+    /* negative_binomial */ {NEVER, NEVER, NEVER},  // GCD overhead > lgamma benefit up to 500k
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-15T00-33-56Z_darwin-x86_64_main_sha-d8046b7
+// data/profiles/dispatcher/2026-06-15T05-25-42Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
+// data/profiles/dispatcher/2026-06-15T05-40-12Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
 //
-// v1.5.0 bundle captured on Ivy Bridge after all four phases merged to main.
-// Ivy Bridge exercises the AVX path (no FMA, no AVX2). Phase 2 replaced
-// vector_erf_avx (A&S -> musl rational polynomial).
+// Two Release-mode bundles captured on fix/audit-remediation. Method: where both
+// runs agree that a multi-threaded strategy wins at 500k, use the larger V→P
+// crossover as a conservative threshold (64 floor). NEVER only when VECTORIZED
+// is consistently best at max size across both runs.
+// Note: PARALLEL vs WORK_STEALING variation between runs is irrelevant for this
+// table; selectMultiThreadedStrategy resolves that choice at runtime.
 //
-// Key changes vs April 2026 baseline:
-//   - Most distributions: crossovers measured at 8 on old hardware; clamped
-//     to 64 floor. The AVX SIMD path is fast enough that GCD parallel overhead
-//     doesn't pay for small batches.
-//   - Gaussian CDF: 20000 -> 50000. Heavier musl erf polynomial means more
-//     work per element; SIMD stays competitive with parallel longer.
-//   - StudentT PDF: 100000 -> 100000 (unchanged).
-//   - Poisson LogPDF: 10000 -> 50000 (shifted by improved exp path).
+// Key changes vs v1.5.0 main baseline (2026-06-15T00-33-56Z):
+//   - Gaussian CDF: 50000 -> 64. Both runs show crossover at 8 (clamped to 64
+//     floor). Branch changes made parallel competitive earlier on erf-heavy path.
+//   - Exponential PDF: 64 -> 100000. Conservative upper bound (runs: 100k vs 8;
+//     both WORK_STEALING at max size).
+//   - Discrete PDF/LogPDF/CDF: 64/1000/250000 -> 128/100000/100000.
+//   - Poisson PDF/CDF: 128/64 -> 50000/50000. Both runs consistent at 50000.
+//   - StudentT PDF/LogPDF/CDF: unchanged at 100000/64/64. Both runs agree
+//     exactly on V→P values (100k/8/8); PARALLEL vs WORK_STEALING at max size
+//     is irrelevant.
 constexpr ArchTable kAvx = {
-    /* uniform     */ {NEVER, NEVER,    64},
-    /* gaussian    */ {   64,    64, 50000},
-    /* exponential */ {   64,    64,    64},
-    /* discrete    */ {   64,  1000, 250000},
-    /* poisson     */ {  128, 50000,    64},
-    /* gamma       */ {   64,    64,    64},
-    /* student_t   */ {100000,   64,    64},
-    /* chi_squared */ {   64,    64,    64},
+    /* uniform     */ {NEVER, NEVER, 64},
+    /* gaussian    */ {64, 64, 64},
+    /* exponential */ {100000, 64, 64},
+    /* discrete    */ {128, 100000, 100000},
+    /* poisson     */ {50000, 50000, 50000},
+    /* gamma       */ {64, 64, 64},
+    /* student_t   */ {100000, 64, 64},
+    /* chi_squared */ {64, 64, 64},
+    /* lognormal         */ {64, 64, 64},
+    /* pareto            */ {100000, 64, 250000},
+    /* weibull           */ {64, 64, 100000},
+    /* rayleigh          */ {64, 64, 64},
+    /* von_mises         */ {500000, 64, 64},
+    /* binomial          */ {NEVER, NEVER, 50000},  // PDF/LogPDF: VECTORIZED wins at 500k
+    /* negative_binomial */ {NEVER, NEVER, 50000},  // PDF/LogPDF: VECTORIZED wins at 500k
 };
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-14T19-19-02Z_darwin-x86_64_v1.5-erf-accuracy_sha-c91a348
+// data/profiles/dispatcher/2026-06-16T00-16-34Z_darwin-x86_64_fix-audit-remediation_sha-5675c93
+// data/profiles/dispatcher/2026-06-16T00-26-28Z_darwin-x86_64_fix-audit-remediation_sha-5675c93
 //
-// v1.5.0 Phase 1+2 bundle captured after FMA native exp/log/cos (Phase 1)
-// and musl rational polynomial erf (Phase 2) landed on Kaby Lake.
+// Two Release-mode bundles captured on fix/audit-remediation after audit
+// remediation changes and 7 new distributions added to the profiler.
+// Method: where both runs agree (same order of magnitude), take the larger
+// V→P crossover (conservative, 64 floor). NEVER when best@500k was VECTORIZED
+// in both runs, runs produced contradictory best@500k, or crossovers differed
+// by >10×.
 //
-// Key changes vs April 2026 baseline:
-//   - Gaussian PDF: 50000 -> 100000. FMA exp_avx2 is significantly faster;
-//     SIMD stays competitive with parallel all the way to 100k.
-//   - StudentT PDF: 100000 -> 250000. Same reason (exp-heavy path improved).
-//   - StudentT CDF: NEVER -> 64. Native erf made erf-path heavier per-element;
-//     parallel becomes competitive at smaller batches than before.
-//   - Most distributions: clamped from measured sub-64 crossovers to 64 floor.
+// Key changes vs v1.5.0 Phase 1+2 baseline (2026-06-14):
+//   - Uniform PDF/LogPDF: 64 -> NEVER. Both runs show blank (VECTORIZED wins).
+//   - Gaussian PDF: 100000 -> 64. Both runs crossover at 8 (clamped to 64).
+//   - Discrete all: 64/64/50000 -> NEVER. PDF/LogPDF blank both runs; CDF
+//     wildly inconsistent (100k vs 8).
+//   - Poisson PDF: 64 -> 20000. Runs 10k/20k, same order; conservative = 20k.
+//   - Poisson LogPDF: 20000 -> NEVER. Wildly inconsistent (50k vs 8).
+//   - Poisson CDF: 64 -> NEVER. Wildly inconsistent (5k vs 32).
+//   - StudentT PDF: 250000 -> NEVER. Runs 250k/500k; higher = 500k = NEVER.
+//   - 7 new distributions calibrated from these two Kaby Lake/AVX2 runs:
+//       LogNormal: 64/64/64 (all crossovers at 8, clamped to floor).
+//       Rayleigh: 64/64/64 (same).
+//       Weibull PDF/LogPDF: 64/64; CDF: NEVER (blank + 500k both runs).
+//       Pareto PDF: 250000 (consistent across runs); LogPDF: NEVER (wildly
+//         inconsistent 8 vs 250k); CDF: NEVER (500k both runs).
+//       VonMises PDF/LogPDF: NEVER (blank both runs); CDF: 64 (8 vs 64,
+//         take higher, already at floor).
+//       Binomial PDF/LogPDF: NEVER (blank); CDF: 64 (clamped from 16).
+//       NegBinomial PDF/LogPDF: NEVER (blank); CDF: NEVER (wildly
+//         inconsistent crossovers; contradictory best@500k across runs).
 constexpr ArchTable kAvx2 = {
-    /* uniform     */ {    64,     64,    64},
-    /* gaussian    */ {100000,     64, 20000},
-    /* exponential */ {    64,     64,    64},
-    /* discrete    */ {    64,     64, 50000},
-    /* poisson     */ {    64,  20000,    64},
-    /* gamma       */ {    64,     64,    64},
-    /* student_t   */ {250000,     64,    64},
-    /* chi_squared */ {    64,     64,    64},
+    /* uniform     */ {NEVER,  NEVER,  64},
+    /* gaussian    */ {64,     64,     20000},
+    /* exponential */ {64,     64,     64},
+    /* discrete    */ {NEVER,  NEVER,  NEVER},
+    /* poisson     */ {20000,  NEVER,  NEVER},
+    /* gamma       */ {64,     64,     64},
+    /* student_t   */ {NEVER,  64,     64},
+    /* chi_squared */ {64,     64,     64},
+    /* lognormal         */ {64,     64,     64},
+    /* pareto            */ {250000, NEVER,  NEVER},
+    /* weibull           */ {64,     64,     NEVER},
+    /* rayleigh          */ {64,     64,     64},
+    /* von_mises         */ {NEVER,  NEVER,  64},
+    /* binomial          */ {NEVER,  NEVER,  64},
+    /* negative_binomial */ {NEVER,  NEVER,  NEVER},
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
-// data/profiles/dispatcher/2026-06-14T20-36-11Z_windows-x86_64_v1.5-avx512-transcendentals_sha-14bf1ba
+// data/profiles/dispatcher/2026-06-15T22-43-11Z_windows-x86_64_fix-audit-remediation_sha-932addd
+// data/profiles/dispatcher/2026-06-15T22-46-33Z_windows-x86_64_fix-audit-remediation_sha-932addd
 //
-// v1.5.0 Phase 4 bundle captured after native 8-wide vector_exp_avx512,
-// vector_log_avx512, and vector_erf_avx512 replaced the AVX 4-wide delegations.
+// Two Release-mode bundles captured on fix/audit-remediation after audit
+// remediation changes and 7 new distributions added to the profiler.
+// Method: where both runs agree (≤~5× ratio), take the larger V→P crossover
+// (conservative, 64 floor). NEVER where best@500k was VECTORIZED in both runs,
+// runs produced contradictory best@500k, or crossovers differed by >10×.
+// Note: Windows/Thread Pool always dispatches PARALLEL, not WORK_STEALING;
+// WORK_STEALING at max size is treated as a parallel-strategy win for threshold
+// derivation, but PARALLEL vs WORK_STEALING variation between runs is ignored.
 //
-// Key changes vs April 2026 stale table:
-//   - Exponential PDF: 50000 -> NEVER. Native 8-wide exp is so fast VECTORIZED
-//     beats PARALLEL at all tested batch sizes.
-//   - StudentT PDF/LogPDF: -> NEVER. Same reason; exp-dominated paths are
-//     now faster than the parallel + scalar baseline.
-//   - Gaussian LogPDF: NEVER (retained). VECTORIZED still best at 500k.
-//   - Gaussian PDF: 100000 -> 500000. 8-wide exp widened the SIMD advantage.
-//   - Exponential LogPDF: -> 500000 (crossover only just visible at max test size).
-//   - StudentT CDF, Gamma PDF/CDF, ChiSquared LogPDF/CDF: clamped to 64 floor.
+// Key changes vs v1.5.0 Phase 4 (2026-06-14T20-36-11Z):
+//   - Uniform PDF: 100000 -> NEVER. Runs wildly inconsistent (50k vs 256).
+//   - Uniform LogPDF: 5000 -> 1000. Both runs agree.
+//   - Uniform CDF: 64 -> 256. Runs 256/8; conservative after 64 floor = 256.
+//   - Gaussian PDF: 500000 -> NEVER. Contradictory best@500k across runs.
+//   - Gaussian CDF: 20000 -> NEVER. Runs wildly inconsistent (64 vs 50k).
+//   - Exponential PDF: NEVER -> 500000. Both runs show first crossover at 500k.
+//   - Exponential LogPDF: 500000 -> NEVER. Contradictory best@500k.
+//   - Exponential CDF: 250000 -> NEVER. Runs wildly inconsistent.
+//   - Discrete PDF/LogPDF/CDF: all -> NEVER. All pairs wildly inconsistent.
+//   - Poisson PDF/CDF: -> NEVER (wildly inconsistent). LogPDF: 20000 -> 50000.
+//   - Gamma PDF: 64 -> 250000. Audit remediation made SIMD path faster;
+//     both runs show late crossover (100k/250k), conservative = 250k.
+//   - Gamma LogPDF: 100000 -> 64. Both runs agree crossover at 16 (clamped).
+//   - StudentT CDF: 64 -> NEVER. Contradictory best@500k across runs.
+//   - ChiSquared PDF: 250000 -> NEVER. Runs wildly inconsistent (64 vs 250k).
+//   - 7 new distributions calibrated from these two Windows/AVX-512 runs.
 constexpr ArchTable kAvx512 = {
-    /* uniform     */ {100000,   5000,    64},
-    /* gaussian    */ {500000,  NEVER, 20000},
-    /* exponential */ { NEVER, 500000, 250000},
-    /* discrete    */ {100000, 250000,    64},
-    /* poisson     */ {  5000,  20000, 10000},
-    /* gamma       */ {    64, 100000,    64},
-    /* student_t   */ { NEVER,  NEVER,    64},
-    /* chi_squared */ {250000,     64,    64},
+    /* uniform     */ {NEVER,  1000,   256},
+    /* gaussian    */ {NEVER,  NEVER,  NEVER},
+    /* exponential */ {500000, NEVER,  NEVER},
+    /* discrete    */ {NEVER,  NEVER,  NEVER},
+    /* poisson     */ {NEVER,  50000,  NEVER},
+    /* gamma       */ {250000, 64,     64},
+    /* student_t   */ {NEVER,  NEVER,  NEVER},
+    /* chi_squared */ {NEVER,  64,     64},
+    /* lognormal         */ {NEVER,  NEVER,  64},
+    /* pareto            */ {NEVER,  NEVER,  NEVER},
+    /* weibull           */ {250000, 250000, NEVER},
+    /* rayleigh          */ {64,     64,     64},
+    /* von_mises         */ {NEVER,  100000, 256},
+    /* binomial          */ {NEVER,  NEVER,  64},
+    /* negative_binomial */ {NEVER,  NEVER,  128},
 };
 
 /**
@@ -228,6 +311,27 @@ constexpr std::size_t parallelThresholdFromTable(const ArchTable& table, Distrib
             break;
         case DistributionType::CHI_SQUARED:
             row = &table.chi_squared;
+            break;
+        case DistributionType::LOG_NORMAL:
+            row = &table.lognormal;
+            break;
+        case DistributionType::PARETO:
+            row = &table.pareto;
+            break;
+        case DistributionType::WEIBULL:
+            row = &table.weibull;
+            break;
+        case DistributionType::RAYLEIGH:
+            row = &table.rayleigh;
+            break;
+        case DistributionType::VON_MISES:
+            row = &table.von_mises;
+            break;
+        case DistributionType::BINOMIAL:
+            row = &table.binomial;
+            break;
+        case DistributionType::NEGATIVE_BINOMIAL:
+            row = &table.negative_binomial;
             break;
         default:
             return NEVER;

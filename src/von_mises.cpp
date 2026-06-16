@@ -143,42 +143,26 @@ VonMisesDistribution::VonMisesDistribution(VonMisesDistribution&& other) noexcep
     atomicKappa_.store(kappa_, std::memory_order_release);
 }
 
-VonMisesDistribution& VonMisesDistribution::operator=(VonMisesDistribution&& other) noexcept {
+VonMisesDistribution& VonMisesDistribution::operator=(VonMisesDistribution&& other) {
     if (this != &other) {
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
+
+        mu_ = other.mu_;
+        kappa_ = other.kappa_;
+        logNormaliser_ = other.logNormaliser_;
+        circularVariance_ = other.circularVariance_;
+        isUniform_ = other.isUniform_;
+        other.mu_ = detail::ZERO_DOUBLE;
+        other.kappa_ = detail::ONE;
+
+        cache_valid_ = false;
+        other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
-
-        bool success = false;
-        try {
-            std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-            std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-            if (std::try_lock(lock1, lock2) == -1) {
-                mu_ = other.mu_;
-                kappa_ = other.kappa_;
-                logNormaliser_ = other.logNormaliser_;
-                circularVariance_ = other.circularVariance_;
-                isUniform_ = other.isUniform_;
-                other.mu_ = detail::ZERO_DOUBLE;
-                other.kappa_ = detail::ONE;
-                cache_valid_ = false;
-                other.cache_valid_ = false;
-                atomicMu_.store(mu_, std::memory_order_release);
-                atomicKappa_.store(kappa_, std::memory_order_release);
-                success = true;
-            }
-        } catch (...) {
-        }
-
-        if (!success) {
-            mu_ = other.mu_;
-            kappa_ = other.kappa_;
-            other.mu_ = detail::ZERO_DOUBLE;
-            other.kappa_ = detail::ONE;
-            cache_valid_ = false;
-            other.cache_valid_ = false;
-            atomicMu_.store(mu_, std::memory_order_release);
-            atomicKappa_.store(kappa_, std::memory_order_release);
-        }
+        atomicMu_.store(mu_, std::memory_order_release);
+        atomicKappa_.store(kappa_, std::memory_order_release);
     }
     return *this;
 }

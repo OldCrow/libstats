@@ -17,7 +17,7 @@
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/uniform.h"
 
-#include <pair>
+#include <utility>
 #include <tuple>
 #include <vector>
 

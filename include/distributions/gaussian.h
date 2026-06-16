@@ -109,11 +109,11 @@ class GaussianDistribution : public DistributionBase {
     GaussianDistribution(GaussianDistribution&& other);
 
     /**
-     * @brief Move assignment operator (C++11 COMPLIANT)
-     * Implementation in .cpp: Thread-safe move with atomic operations
-     * @note noexcept compliant using atomic state management
+     * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
+     * Implementation in .cpp: Thread-safe move with deadlock prevention
+     * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    GaussianDistribution& operator=(GaussianDistribution&& other) noexcept;
+    GaussianDistribution& operator=(GaussianDistribution&& other);
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five
