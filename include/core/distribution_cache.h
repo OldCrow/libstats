@@ -18,6 +18,17 @@ namespace stats {
  *
  * Provides the infrastructure for thread-safe caching in distribution classes
  * using the distribution cache adapter pattern.
+ *
+ * ### Dual-flag pattern (cache_valid_ + cacheValidAtomic_)
+ * Two flags represent the same state deliberately:
+ * - cacheValidAtomic_ enables a lock-free fast path in getCachedValue(). An
+ *   acquire load synchronizes-with the release store in updateCacheUnsafe(),
+ *   ensuring cache_valid_ and the cached values are visible before the atomic
+ *   is seen as true.
+ * - cache_valid_ is the plain bool read under shared_lock in the slow path.
+ * Consolidating to a single atomic<bool> is a v2.0.0 task; it is a
+ * prerequisite for noexcept move constructors (which cannot hold a mutex).
+ * Do NOT collapse the two flags here without completing that larger migration.
  */
 class ThreadSafeCacheManager {
    protected:
@@ -29,6 +40,7 @@ class ThreadSafeCacheManager {
 
     /**
      * @brief Atomic cache validity flag for lock-free fast paths
+     * @see Class-level documentation for the dual-flag pattern rationale.
      */
     mutable std::atomic<bool> cacheValidAtomic_{false};
 
@@ -71,6 +83,13 @@ class ThreadSafeCacheManager {
 /**
  * @brief Template helper for cached statistical properties
  * @tparam PropertyType Type of cached property
+ *
+ * @warning **Not thread-safe.** This class has no synchronisation of its own.
+ * Use it only within a scope that already holds an appropriate lock from
+ * ThreadSafeCacheManager (e.g. under cache_mutex_ unique_lock). Concurrent
+ * access from multiple threads without external locking is a data race.
+ * Full per-property atomic protection is planned for v2.0.0 as part of the
+ * noexcept move-constructor migration.
  */
 template <typename PropertyType>
 class CachedProperty {

@@ -41,10 +41,18 @@ GaussianDistribution::GaussianDistribution(double mean, double standardDeviation
 }
 
 GaussianDistribution::GaussianDistribution(const GaussianDistribution& other)
-    : DistributionBase(other) {
+    : DistributionBase() {  // Default-construct base; we copy all state under the lock below.
+    // Acquire the source lock BEFORE reading any field from other, including
+    // cache state. The previous DistributionBase(other) copy ran without the
+    // lock, leaving a window where a concurrent fit() or invalidateCache() on
+    // other could race with the base-class field reads.
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     mean_ = other.mean_;
     standardDeviation_ = other.standardDeviation_;
+    // Propagate cache validity so the copy does not unnecessarily recompute.
+    cache_valid_ = other.cache_valid_;
+    cacheValidAtomic_.store(other.cacheValidAtomic_.load(std::memory_order_acquire),
+                            std::memory_order_release);
 }
 
 GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution& other) {

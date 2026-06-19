@@ -22,9 +22,20 @@ PerformanceDispatcher::PerformanceDispatcher(const SystemCapabilities& system)
     thresholds_ = Thresholds::createForSIMDLevel(simd_level_, system);
 }
 
+// Suppress deprecation warnings for the implementations of deprecated APIs.
+// External callers will still see the warnings; only the definition sites are suppressed.
+#if defined(_MSC_VER)
+    #pragma warning(push)
+    #pragma warning(disable : 4996)
+#elif defined(__GNUC__) || defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 PerformanceDispatcher::SIMDArchitecture PerformanceDispatcher::detectSIMDArchitecture(
     [[maybe_unused]] const SystemCapabilities& system) noexcept {
-    // Delegate to SIMDPolicy instead of duplicating detection logic
+    // Delegate to SIMDPolicy instead of duplicating detection logic.
+    // Deprecated: use arch::simd::SIMDPolicy::getBestLevel() directly.
     auto level = arch::simd::SIMDPolicy::getBestLevel();
 
     switch (level) {
@@ -168,7 +179,7 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForArchitecture(
     SIMDArchitecture arch, const SystemCapabilities& system) {
-    // Convert to SIMDPolicy level and delegate
+    // Deprecated wrapper: convert SIMDArchitecture to SIMDPolicy::Level and delegate.
     arch::simd::SIMDPolicy::Level level;
     switch (arch) {
         case SIMDArchitecture::AVX512:
@@ -194,6 +205,12 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForAr
 
     return createForSIMDLevel(level, system);
 }
+
+#if defined(_MSC_VER)
+    #pragma warning(pop)
+#elif defined(__GNUC__) || defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif
 
 // Legacy profile methods kept for backward compatibility but now delegate to SIMDPolicy-based logic
 

@@ -74,8 +74,10 @@ void test_scalar_safety() {
                      "safe_log(-1.0) returns MIN_LOG_PROBABILITY");
         stats.record(safe_log(numeric_limits<double>::quiet_NaN()) == MIN_LOG_PROBABILITY,
                      "safe_log(NaN) returns MIN_LOG_PROBABILITY");
-        stats.record(safe_log(numeric_limits<double>::infinity()) == numeric_limits<double>::max(),
-                     "safe_log(inf) returns max()");
+        // N-1 fix: safe_log(+inf) now returns +inf (correct) not DBL_MAX.
+        stats.record(std::isinf(safe_log(numeric_limits<double>::infinity())) &&
+                         safe_log(numeric_limits<double>::infinity()) > 0,
+                     "safe_log(inf) returns +inf");
     }
 
     // Test safe_exp
@@ -85,8 +87,9 @@ void test_scalar_safety() {
         stats.record(safe_exp(2.0) > 0.0, "safe_exp(2.0) > 0.0");
         stats.record(safe_exp(numeric_limits<double>::quiet_NaN()) == 0.0,
                      "safe_exp(NaN) returns 0.0");
-        stats.record(safe_exp(-1000.0) == MIN_PROBABILITY,
-                     "safe_exp(-1000.0) returns MIN_PROBABILITY");
+        // N-2 fix: safe_exp underflow now returns 0.0 (correct IEEE 754) not MIN_PROBABILITY.
+        stats.record(safe_exp(-1000.0) == 0.0,
+                     "safe_exp(-1000.0) returns 0.0 (correct IEEE 754 underflow)");
         stats.record(safe_exp(800.0) == numeric_limits<double>::max(),
                      "safe_exp(800.0) returns max()");
     }
@@ -178,7 +181,8 @@ void test_vector_safety() {
 
         stats.record(approx_equal(output[0], 1.0, 1e-10), "vector_safe_exp[0] == 1.0");
         stats.record(approx_equal(output[1], 2.718281828, 1e-6), "vector_safe_exp[1] == e");
-        stats.record(output[2] == MIN_PROBABILITY, "vector_safe_exp handles underflow");
+        // N-2 fix: underflow returns 0.0, not MIN_PROBABILITY.
+        stats.record(output[2] == 0.0, "vector_safe_exp handles underflow (0.0)");
         stats.record(output[3] == numeric_limits<double>::max(),
                      "vector_safe_exp handles overflow");
         stats.record(output[4] == 0.0, "vector_safe_exp handles NaN");
@@ -358,14 +362,16 @@ void test_edge_cases() {
         double denorm = numeric_limits<double>::denorm_min();
 
         // safe_log edge cases
-        stats.record(safe_log(inf) == max_val, "safe_log(inf) == max");
+        // N-1 fix: safe_log(+inf) returns +inf, not DBL_MAX.
+        stats.record(std::isinf(safe_log(inf)) && safe_log(inf) > 0, "safe_log(inf) == +inf");
         stats.record(safe_log(ninf) == MIN_LOG_PROBABILITY, "safe_log(-inf) == MIN_LOG");
         stats.record(safe_log(nan) == MIN_LOG_PROBABILITY, "safe_log(NaN) == MIN_LOG");
         stats.record(safe_log(denorm) < 0, "safe_log(denorm) < 0");
 
         // safe_exp edge cases
         stats.record(safe_exp(inf) == max_val, "safe_exp(inf) == max");
-        stats.record(safe_exp(ninf) == MIN_PROBABILITY, "safe_exp(-inf) == MIN_PROB");
+        // N-2 fix: underflow returns 0.0, not MIN_PROBABILITY.
+        stats.record(safe_exp(ninf) == 0.0, "safe_exp(-inf) == 0.0 (IEEE 754 underflow)");
         stats.record(safe_exp(nan) == 0.0, "safe_exp(NaN) == 0");
 
         // safe_sqrt edge cases

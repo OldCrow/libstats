@@ -555,19 +555,18 @@ std::pair<double, double> ExponentialDistribution::bayesianCredibleInterval(
         throw std::invalid_argument("Credibility level must be between 0 and 1");
     }
 
-    // Get posterior parameters
+    // Posterior: λ | x ~ Gamma(α_n, β_n) (rate parameterisation)
     const auto [post_shape, post_rate] = bayesianEstimation(data, prior_shape, prior_rate);
 
-    // Calculate credible interval from posterior Gamma distribution
-    // For now, use a simple approximation - implement proper gamma quantile later
-    [[maybe_unused]] const double alpha = detail::ONE - credibility_level;
-    const double mean = post_shape / post_rate;
-    const double std_dev = std::sqrt(post_shape) / post_rate;
-    const double z_alpha_2 = detail::ONE + detail::HALF;  // Approximate normal quantile
-    const double lower_quantile = mean - z_alpha_2 * std_dev;
-    const double upper_quantile = mean + z_alpha_2 * std_dev;
+    // Equal-tailed credible interval: find λ such that
+    //   P(λ_lo ≤ λ ≤ λ_hi | x) = credibility_level
+    // If λ ~ Gamma(α, β_rate) then gammaP(α, β_rate * λ) = p gives the CDF,
+    // so the quantile at probability p is gammaQuantile(α, p) / β_rate.
+    const double alpha_half = (detail::ONE - credibility_level) * detail::HALF;
+    const double lower_lambda = gammaQuantile(post_shape, alpha_half) / post_rate;
+    const double upper_lambda = gammaQuantile(post_shape, detail::ONE - alpha_half) / post_rate;
 
-    return {lower_quantile, upper_quantile};
+    return {lower_lambda, upper_lambda};
 }
 
 double ExponentialDistribution::robustEstimation(const std::vector<double>& data,

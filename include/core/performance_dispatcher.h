@@ -157,6 +157,8 @@ class PerformanceDispatcher {
     explicit PerformanceDispatcher(const SystemCapabilities& system);
     /**
      * @brief SIMD architecture profiles with optimal thresholds
+     * @deprecated Use `arch::simd::SIMDPolicy::Level` directly.
+     *   SIMDArchitecture duplicates SIMDPolicy::Level and will be removed in v2.0.0.
      */
     enum class SIMDArchitecture {
         NONE,    ///< No SIMD support
@@ -169,30 +171,53 @@ class PerformanceDispatcher {
 
     /**
      * @brief Decision thresholds (architecture-aware with capability refinement)
+     *
+     * The authoritative per-(SIMD-level, distribution, operation) parallel thresholds
+     * live in `include/core/dispatch_thresholds.h` and are queried via
+     * `detail::getParallelThreshold()`. The distribution-specific fields below are
+     * **not read by selectStrategy()** and exist only for source compatibility.
+     * They are deprecated and will be removed in v2.0.0.
      */
     struct Thresholds {
         size_t simd_min = 8;               ///< Below this, SIMD overhead exceeds benefit
         size_t parallel_min = 1000;        ///< Below this, threading overhead exceeds benefit
         size_t work_stealing_min = 10000;  ///< Minimum batch size where work-stealing helps
 
-        // Distribution-specific overrides (architecture-dependent)
-        size_t uniform_parallel_min = 65536;    ///< Simple operations need higher threshold
-        size_t gaussian_parallel_min = 256;     ///< Complex operations benefit earlier
-        size_t exponential_parallel_min = 512;  ///< Moderate complexity
-        size_t discrete_parallel_min = 1024;    ///< Integer operations
-        size_t poisson_parallel_min = 512;      ///< Complex discrete distribution
-        size_t gamma_parallel_min = 256;        ///< Most complex distribution
-        size_t student_t_parallel_min = 256;    ///< Log+transcendental, matches Gaussian
-        size_t beta_parallel_min = 256;  ///< Two log calls, bounded support, matches Gaussian
-        size_t chi_squared_parallel_min = 256;  ///< Delegates to Gamma; positive real-line support
-        size_t lognormal_parallel_min = 256;    ///< Log+exp, similar complexity to Gaussian
-        size_t pareto_parallel_min = 512;       ///< Log-only, similar complexity to Exponential
-        size_t weibull_parallel_min = 256;      ///< Log+two-exp, similar complexity to Gaussian
-        size_t rayleigh_parallel_min = 512;     ///< x²+exp, similar complexity to Exponential
-        size_t von_mises_parallel_min = 512;    ///< cos per element; no SIMD, PARALLEL preferred
-        size_t binomial_parallel_min = 512;     ///< lgamma per element; no SIMD, PARALLEL preferred
-        size_t negative_binomial_parallel_min =
-            512;  ///< lgamma per element; no SIMD, PARALLEL preferred
+        // Distribution-specific overrides — NOT read by selectStrategy(); see dispatch_thresholds.h
+        // @deprecated Active thresholds are in dispatch_thresholds.h. These fields will be
+        //   removed in v2.0.0 once the atomic-only cache migration is complete.
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t uniform_parallel_min = 65536;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t gaussian_parallel_min = 256;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t exponential_parallel_min = 512;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t discrete_parallel_min = 1024;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t poisson_parallel_min = 512;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t gamma_parallel_min = 256;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t student_t_parallel_min = 256;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t beta_parallel_min = 256;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t chi_squared_parallel_min = 256;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t lognormal_parallel_min = 256;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t pareto_parallel_min = 512;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t weibull_parallel_min = 256;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t rayleigh_parallel_min = 512;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t von_mises_parallel_min = 512;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t binomial_parallel_min = 512;
+        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
+        size_t negative_binomial_parallel_min = 512;
 
         /**
          * @brief Create thresholds based on SIMDPolicy level
@@ -205,10 +230,9 @@ class PerformanceDispatcher {
 
         /**
          * @brief Create architecture-specific thresholds (legacy compatibility)
-         * @param arch SIMD architecture detected
-         * @param system System capabilities for refinement
-         * @return Optimized thresholds for the architecture
+         * @deprecated Use createForSIMDLevel(SIMDPolicy::Level, system) directly.
          */
+        [[deprecated("Use createForSIMDLevel(arch::simd::SIMDPolicy::Level, system)")]]
         static Thresholds createForArchitecture(SIMDArchitecture arch,
                                                 const SystemCapabilities& system);
 
@@ -295,7 +319,9 @@ class PerformanceDispatcher {
 
     /**
      * @brief Detect the highest available SIMD architecture
+     * @deprecated Use arch::simd::SIMDPolicy::getBestLevel() directly.
      */
+    [[deprecated("Use arch::simd::SIMDPolicy::getBestLevel()")]]
     static SIMDArchitecture detectSIMDArchitecture(const SystemCapabilities& system) noexcept;
 
     /**

@@ -37,14 +37,8 @@ namespace stats {
 using namespace stats::detail;
 using namespace stats::arch::simd;
 
-// Alias the result_of_t helper to ensure compatibility
-#if defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L
-template <typename F, typename... Args>
-using result_of_t = std::invoke_result_t<F, Args...>;
-#else
-template <typename F, typename... Args>
-using result_of_t = typename std::result_of<F(Args...)>::type;
-#endif
+// result_of_t is now defined canonically in include/platform/internal/type_traits.h
+// and pulled in transitively via work_stealing_pool.h.
 
 // Thread-local storage for current worker ID
 thread_local int WorkStealingPool::currentWorkerId_ = -detail::ONE_INT;
@@ -70,9 +64,10 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
     {
         std::unique_lock<std::mutex> lock(readinessMutex_);
 
-        // Use timeout to prevent indefinite blocking in case of initialization issues
-        const auto timeout =
-            std::chrono::milliseconds(detail::MAX_DATA_POINTS_FOR_SW_TEST);  // 5 second max wait
+        // Use timeout to prevent indefinite blocking in case of initialization issues.
+        // Named constant avoids reusing a Shapiro-Wilk sample-size bound as a duration.
+        static constexpr std::size_t THREAD_STARTUP_TIMEOUT_MS = 5000;
+        const auto timeout = std::chrono::milliseconds(THREAD_STARTUP_TIMEOUT_MS);
         const bool allReady = readinessCondition_.wait_for(lock, timeout, [this, numThreads] {
             return readyThreads_.load(std::memory_order_acquire) == numThreads;
         });
@@ -91,16 +86,22 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
 }
 
 WorkStealingPool::~WorkStealingPool() {
-    // Signal shutdown
+    // Drain phase: wait for all queued and in-flight tasks to complete before
+    // signalling shutdown. Without this, tasks that have been dequeued but not
+    // yet started are abandoned and any std::future they hold blocks forever.
+    waitForAll();
+
+    // Signal shutdown so worker threads exit their loops.
     shutdown_.store(true, std::memory_order_release);
 
-    // Wake up all threads by notifying condition variables
+    // Wake up any threads sleeping on the allTasksComplete_ condition so they
+    // see the shutdown flag and exit cleanly.
     {
         std::lock_guard<std::mutex> lock(globalMutex_);
         allTasksComplete_.notify_all();
     }
 
-    // Wait for all threads to finish
+    // Join all worker threads.
     for (const auto& worker : workers_) {
         if (worker && worker->worker.joinable()) {
             worker->worker.join();

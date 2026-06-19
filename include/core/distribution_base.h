@@ -285,6 +285,14 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     static double gammaQ(double a, double x) noexcept;
 
     /**
+     * @brief Inverse of P(a, x): find x such that gammaP(a, x) = p
+     *
+     * Uses bisection on gammaP. Suitable for computing Gamma-posterior
+     * quantiles in Bayesian credible-interval calculations.
+     */
+    static double gammaQuantile(double a, double p) noexcept;
+
+    /**
      * @brief Regularized incomplete beta function I_x(a,b)
      */
     static double betaI(double x, double a, double b) noexcept;

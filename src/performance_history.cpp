@@ -21,12 +21,25 @@ void PerformanceHistory::recordPerformance(Strategy strategy, DistributionType d
     lock.unlock();
     stats.total_time_ns.fetch_add(execution_time_ns, std::memory_order_release);
     stats.execution_count.fetch_add(1, std::memory_order_release);
-    stats.min_time_ns.store(
-        std::min(stats.min_time_ns.load(std::memory_order_acquire), execution_time_ns),
-        std::memory_order_release);
-    stats.max_time_ns.store(
-        std::max(stats.max_time_ns.load(std::memory_order_acquire), execution_time_ns),
-        std::memory_order_release);
+
+    // CAS loop for min: separate load and store are not atomic together, so two
+    // racing threads can each load the old value and one silently overwrites the
+    // other's result. compare_exchange_weak retries until the update lands.
+    {
+        auto cur = stats.min_time_ns.load(std::memory_order_acquire);
+        while (execution_time_ns < cur &&
+               !stats.min_time_ns.compare_exchange_weak(cur, execution_time_ns,
+                                                        std::memory_order_release,
+                                                        std::memory_order_acquire)) {}
+    }
+    {
+        auto cur = stats.max_time_ns.load(std::memory_order_acquire);
+        while (execution_time_ns > cur &&
+               !stats.max_time_ns.compare_exchange_weak(cur, execution_time_ns,
+                                                        std::memory_order_release,
+                                                        std::memory_order_acquire)) {}
+    }
+
     total_executions_.fetch_add(1, std::memory_order_release);
 }
 

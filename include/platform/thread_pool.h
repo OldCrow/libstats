@@ -19,18 +19,10 @@
 // Level 1 infrastructure
 #include "libstats/core/math_utils.h"
 
-namespace stats {
+// Portable function-return-type deduction — canonical definition in internal/type_traits.h.
+#include "internal/type_traits.h"
 
-// Compatibility helper for different C++ standard library implementations
-// Uses std::invoke_result_t when available (C++20), falls back to std::result_of for older
-// compilers
-#if defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L
-template <typename F, typename... Args>
-using result_of_t = std::invoke_result_t<F, Args...>;
-#else
-template <typename F, typename... Args>
-using result_of_t = typename std::result_of<F(Args...)>::type;
-#endif
+namespace stats {
 
 /**
  * @brief High-performance thread pool for parallel statistical computations
@@ -334,8 +326,10 @@ class ParallelUtils {
     template <typename T, typename Func>
     static void parallelTransform(const T* input, T* output, std::size_t size, Func&& func,
                                   std::size_t grainSize = 0) {
-        // Use safety checks from Level 1
-        detail::check_finite(static_cast<double>(size), "array size");
+        // size is a std::size_t: it is always finite; casting to double to call
+        // check_finite() was semantically wrong and lost precision above 2^53.
+        // A simple empty-range guard is the correct check here.
+        if (size == 0) return;
 
         const std::size_t minParallelSize = arch::get_min_elements_for_parallel();
         if (size < minParallelSize) {
