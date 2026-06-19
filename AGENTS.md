@@ -8,7 +8,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.5.2 on `fix/v1.5.2-refactors` (in review); v1.5.1 on `main`.
+**Current Status**: v1.5.2 on `main` (validated on all four machines); v1.5.2 is the final v1.x release.
 16 distributions across 6 families. v1.5.2: June 2026 architectural audit remediation —
 critical bug fixes (`gammaQ` recursion, `bayesianCredibleInterval`, `safe_log`/`safe_exp`
 boundary semantics), thread-safety fixes (`recordPerformance` CAS, `WorkStealingPool`
@@ -73,17 +73,17 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 
 ### Current Validation Matrix
 
-**v1.5.2 — in review (Kaby Lake validated; other machines pending)**
+**v1.5.2 — validated on all four machines**
 
-v1.5.2 is a correctness/safety patch with no SIMD performance changes. The validation
-matrix below is expected to be identical to v1.5.1 on all machines once all four are run.
+v1.5.2 is a correctness/safety patch with no SIMD performance changes; results are
+identical to v1.5.1 on all machines.
 
 | Machine | SIMD | Correctness | Notes |
 |---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | Primary dev; full suite run |
-| Ivy Bridge (2012 MBP) | AVX | pending | |
-| Mac Mini M1 | NEON | pending | |
-| Asus TUF A16 (Windows) | AVX-512 | pending | |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | |
+| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | |
+| Mac Mini M1 | NEON | 39/39 ✅ | |
+| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | |
 
 **v1.5.1 — validated on all four machines**
 
@@ -169,7 +169,9 @@ Selected per-distribution speedups:
 - **Documentation**: `CachedProperty<T>` and `ThreadSafeCacheManager` dual-flag pattern
   documented; `LogSpaceOps::initialize()` guarded with `call_once`.
 
-Validation: 39/39 correctness on Kaby Lake AVX2+FMA. Multi-machine pending.
+Full four-machine validation (v1.5.2): identical correctness to v1.5.1 on all machines.
+- 39/39 correctness on Kaby Lake, M1, Asus TUF A16
+- 38/38 correctness on Ivy Bridge (Catalina)
 
 ### Changes in v1.5.1
 - **Dispatch table expanded to all 16 distributions**: `kNeon`, `kAvx`, `kAvx2`, `kAvx512` now
