@@ -42,7 +42,10 @@ GammaDistribution::GammaDistribution(double alpha, double beta) {
 }
 
 GammaDistribution::GammaDistribution(const GammaDistribution& other) : DistributionBase(other) {
-    std::unique_lock lock(other.cache_mutex_);
+    // A copy is read-only on the source: shared_lock allows concurrent readers
+    // while still excluding concurrent writers. The previous unique_lock blocked
+    // all concurrent reads of other for the duration of the copy unnecessarily.
+    std::shared_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;
     cache_valid_ = other.cache_valid_;

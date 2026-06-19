@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <deque>
 #include <limits>
 #include <span>
 #include <stdexcept>
@@ -269,7 +270,9 @@ inline double safe_log(double value) noexcept {
         return detail::MIN_LOG_PROBABILITY;
     }
     if (std::isinf(value)) {
-        return std::numeric_limits<double>::max();
+        // +inf is the mathematically correct log of +inf.
+        // Returning DBL_MAX would silently mislead isinf() checks downstream.
+        return std::numeric_limits<double>::infinity();
     }
     return std::log(value);
 }
@@ -283,16 +286,20 @@ inline double safe_exp(double value) noexcept {
     if (std::isnan(value))
         return 0.0;
     if (value < detail::MIN_LOG_PROBABILITY) {
-        return detail::MIN_PROBABILITY;
+        // True IEEE 754 underflow: exp(value) is mathematically 0. Returning
+        // MIN_PROBABILITY would silently inflate near-zero probabilities and
+        // corrupt mixture weights and likelihood sums.
+        return 0.0;
     }
     if (value > detail::LOG_EXP_OVERFLOW_THRESHOLD) {  // Prevent overflow
         return std::numeric_limits<double>::max();
     }
 
     double result = std::exp(value);
-    // Handle underflow: if exp() returns 0 but value is finite, clamp to MIN_PROBABILITY
+    // Underflow that slipped past the early guard: std::exp returned 0 for a
+    // finite, representable input. This is correct IEEE arithmetic, not an error.
     if (result == 0.0 && std::isfinite(value)) {
-        return detail::MIN_PROBABILITY;
+        return 0.0;
     }
     return result;
 }
@@ -448,7 +455,7 @@ inline bool is_probability_distribution(const std::vector<double>& probs,
  */
 class ConvergenceDetector {
    private:
-    std::vector<double> history_;
+    std::deque<double> history_;   // O(1) pop_front; previously vector with O(n) erase
     double tolerance_;
     std::size_t max_iterations_;
     std::size_t window_size_;
@@ -467,7 +474,7 @@ class ConvergenceDetector {
           max_iterations_(max_iterations),
           window_size_(window_size),
           current_iteration_(0) {
-        history_.reserve(window_size_);
+        // std::deque does not support reserve(); no pre-allocation needed.
     }
 
     /**
@@ -481,7 +488,7 @@ class ConvergenceDetector {
 
         // Keep only the last window_size_ values
         if (history_.size() > window_size_) {
-            history_.erase(history_.begin());
+            history_.pop_front();  // O(1) for deque; was O(n) erase(begin())
         }
 
         // Need at least 2 values to check convergence
@@ -515,9 +522,9 @@ class ConvergenceDetector {
 
     /**
      * @brief Get convergence history
-     * @return Vector of recent values
+     * @return Deque of recent values
      */
-    const std::vector<double>& get_history() const noexcept { return history_; }
+    const std::deque<double>& get_history() const noexcept { return history_; }
 
     /**
      * @brief Reset the detector for a new run
@@ -568,20 +575,11 @@ class ConvergenceDetector {
 // ERROR RECOVERY STRATEGIES
 //==============================================================================
 
-#ifdef STRICT
-    #undef STRICT
-#endif
-#ifdef GRACEFUL
-    #undef GRACEFUL
-#endif
-#ifdef ROBUST
-    #undef ROBUST
-#endif
-#ifdef ADAPTIVE
-    #undef ADAPTIVE
-#endif
 /**
  * @brief Error recovery strategies for numerical failures
+ *
+ * Scoped enum avoids the former macro-undef dance; callers must use
+ * RecoveryStrategy::GracefulMode etc.
  */
 enum class RecoveryStrategy {
     StrictMode,    ///< Throw exception on any numerical issue

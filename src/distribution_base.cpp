@@ -399,8 +399,12 @@ double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf
         // Numerical derivative
         double fpx = (cdf_func(x + h) - cdf_func(x - h)) / (detail::TWO * h);
 
+        // Hard stop on near-zero derivative: return the current best estimate
+        // rather than computing a divergent step. Previously this was a break,
+        // which fell through to the final return x anyway; the hard return makes
+        // intent explicit and avoids the useless remaining iterations.
         if (std::abs(fpx) < detail::ZERO) {
-            break;  // Derivative too small
+            return x;
         }
 
         x = x - fx / fpx;
@@ -493,7 +497,67 @@ double DistributionBase::gammaP(double a, double x) noexcept {
 }
 
 double DistributionBase::gammaQ(double a, double x) noexcept {
-    return detail::ONE - gammaP(a, x);
+    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
+        return detail::ONE;
+    }
+    if (x == detail::ZERO_DOUBLE) {
+        return detail::ONE;
+    }
+
+    // Legendre continued-fraction expansion via Lentz's algorithm.
+    // Numerically stable for x >= a + 1; gammaP uses the series path for
+    // x < a + 1, so the two functions together cover the full domain without
+    // mutual recursion.
+    const double log_prefix = -x + a * std::log(x) - lgamma(a);
+
+    double b = x + detail::ONE - a;
+    double c = detail::ONE / detail::ZERO;   // 1/FPMIN: very large sentinel
+    double d = detail::ONE / b;
+    double h = d;
+
+    for (int n = 1; n <= static_cast<int>(detail::MAX_CONTINUED_FRACTION_ITERATIONS); ++n) {
+        const double an = -static_cast<double>(n) * (static_cast<double>(n) - a);
+        b += detail::TWO;
+        d = an * d + b;
+        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
+        c = b + an / c;
+        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
+        d = detail::ONE / d;
+        const double del = d * c;
+        h *= del;
+        if (std::abs(del - detail::ONE) < detail::DEFAULT_TOLERANCE) break;
+    }
+
+    return std::exp(log_prefix) * h;
+}
+
+double DistributionBase::gammaQuantile(double a, double p) noexcept {
+    // Find x such that gammaP(a, x) = p using bisection.
+    // gammaP is monotone increasing on [0, ∞), so bisection is straightforward.
+    if (p <= detail::ZERO_DOUBLE) return detail::ZERO_DOUBLE;
+    if (p >= detail::ONE) return std::numeric_limits<double>::infinity();
+
+    // Conservative upper bound: a + 5·√a, then double until gammaP(a, hi) ≥ p.
+    double lo = detail::ZERO_DOUBLE;
+    double hi = a + detail::FIVE * std::sqrt(a);
+    if (hi < detail::ONE) hi = detail::ONE;
+
+    for (int i = 0; i < 100; ++i) {
+        if (gammaP(a, hi) >= p) break;
+        hi *= detail::TWO;
+    }
+
+    for (int i = 0; i < static_cast<int>(detail::MAX_BISECTION_ITERATIONS); ++i) {
+        const double mid = detail::HALF * (lo + hi);
+        if (gammaP(a, mid) < p) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+        if ((hi - lo) < detail::HIGH_PRECISION_TOLERANCE * lo) break;
+    }
+
+    return detail::HALF * (lo + hi);
 }
 
 double DistributionBase::betaI(double x, double a, double b) noexcept {
@@ -547,32 +611,20 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
         int m2 = detail::TWO_INT * m;
         double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
         d = detail::ONE + aa * d;
-
-        if (std::abs(d) < detail::ZERO) {
-            d = detail::ZERO;
-        }
-
+        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
+        // Guard c BEFORE dividing by it: a near-zero c from the previous
+        // iteration would otherwise produce aa/c ≈ 1e+30 before being caught.
+        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
         c = detail::ONE + aa / c;
-
-        if (std::abs(c) < detail::ZERO) {
-            c = detail::ZERO;
-        }
 
         d = detail::ONE / d;
         h *= d * c;
 
         aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
         d = detail::ONE + aa * d;
-
-        if (std::abs(d) < detail::ZERO) {
-            d = detail::ZERO;
-        }
-
+        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
+        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
         c = detail::ONE + aa / c;
-
-        if (std::abs(c) < detail::ZERO) {
-            c = detail::ZERO;
-        }
 
         d = detail::ONE / d;
         double del = d * c;

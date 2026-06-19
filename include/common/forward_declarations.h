@@ -53,25 +53,9 @@ class StatisticalBuffer;
 template <typename T>
 class DistributionParameter;
 
-// Common enums and constants that don't need heavy includes
-enum class LibDistributionType {
-    Gaussian,
-    Exponential,
-    Uniform,
-    Poisson,
-    Gamma,
-    Discrete,
-    ChiSquared,
-    StudentT,
-    Beta,
-    LogNormal,
-    Pareto,
-    Weibull,
-    Rayleigh,
-    VonMises,
-    Binomial,
-    NegativeBinomial
-};
+// LibDistributionType was a duplicate of stats::detail::DistributionType
+// (defined in include/core/performance_dispatcher.h). It had no usages outside
+// this file and has been removed. Use stats::detail::DistributionType instead.
 
 enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };
 }  // namespace stats

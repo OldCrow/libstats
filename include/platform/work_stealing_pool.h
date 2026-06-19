@@ -19,16 +19,10 @@
 // Level 1 infrastructure
 #include "libstats/core/math_utils.h"
 
-namespace stats {
+// Portable function-return-type deduction — canonical definition in internal/type_traits.h.
+#include "internal/type_traits.h"
 
-// Compatibility helper for different C++ standard library implementations
-#if defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L
-template <typename F, typename... Args>
-using result_of_t = std::invoke_result_t<F, Args...>;
-#else
-template <typename F, typename... Args>
-using result_of_t = typename std::result_of<F(Args...)>::type;
-#endif
+namespace stats {
 
 /**
  * @brief Work-stealing thread pool for high-performance statistical computing
