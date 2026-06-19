@@ -8,12 +8,17 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.5.1 released on `main`.
-16 distributions across 6 families. v1.5.1: audit remediation (correctness/maintainability
-fixes), dispatch table expanded to all 16 distributions, `simd_verification` relative-error
-reporting fix. v1.5.0: AVX2+FMA native transcendentals, high-accuracy `vector_erf` (all x86),
-NEON native transcendentals (M1, table+Taylor for erf), AVX-512 native transcendentals
-(Asus TUF A16), dispatch threshold recalibration from v1.5.0 profiling bundles.
+**Current Status**: v1.5.2 on `fix/v1.5.2-refactors` (in review); v1.5.1 on `main`.
+16 distributions across 6 families. v1.5.2: June 2026 architectural audit remediation —
+critical bug fixes (`gammaQ` recursion, `bayesianCredibleInterval`, `safe_log`/`safe_exp`
+boundary semantics), thread-safety fixes (`recordPerformance` CAS, `WorkStealingPool`
+destructor drain, copy-ctor lock ordering), code quality (`ConvergenceDetector` deque,
+`RecoveryStrategy` enum class, `result_of_t` consolidation), structural refactors
+(namespace pollution, deprecated `Thresholds` fields, `SIMDArchitecture` enum).
+v1.5.1: earlier internal review fixes, dispatch table to 16 distributions,
+`simd_verification` relative-error reporting. v1.5.0: AVX2+FMA native transcendentals,
+high-accuracy `vector_erf` (all x86), NEON native transcendentals (M1), AVX-512 native
+transcendentals (Asus TUF A16), dispatch threshold recalibration.
 v1.4.0: `vector_cos` SIMD primitive; VonMises batch SIMD-accelerated; dispatch table
 refactor (Issue #22). v1.3.0: `BinomialDistribution`, `NegativeBinomialDistribution`;
 `detail::trigamma`.
@@ -67,6 +72,18 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
 ### Current Validation Matrix
+
+**v1.5.2 — in review (Kaby Lake validated; other machines pending)**
+
+v1.5.2 is a correctness/safety patch with no SIMD performance changes. The validation
+matrix below is expected to be identical to v1.5.1 on all machines once all four are run.
+
+| Machine | SIMD | Correctness | Notes |
+|---|---|---|---|
+| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | Primary dev; full suite run |
+| Ivy Bridge (2012 MBP) | AVX | pending | |
+| Mac Mini M1 | NEON | pending | |
+| Asus TUF A16 (Windows) | AVX-512 | pending | |
 
 **v1.5.1 — validated on all four machines**
 
@@ -133,6 +150,26 @@ Selected per-distribution speedups:
 - `vector_lgamma` — too complex, low immediate distribution impact; indefinitely deferred
 - SVE (AArch64 beyond NEON) — no hardware in the ecosystem
 - SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
+
+### Changes in v1.5.2
+- **Critical bug fixes (June 2026 audit)**: `gammaQ` infinite recursion fixed with Legendre CF;
+  `bayesianCredibleInterval` now reads `credibility_level` and uses exact Gamma posterior
+  quantiles; `safe_log(+inf)` returns `+inf`; `safe_exp` underflow returns `0.0`.
+- **Thread-safety fixes**: `recordPerformance` min/max updated with CAS loops;
+  `WorkStealingPool` destructor drains tasks before shutdown; `GaussianDistribution`
+  copy constructor acquires source lock before base-class copy; `GammaDistribution`
+  copy constructor uses `shared_lock` on source.
+- **Numerical quality**: `betaI_continued_fraction` near-zero guard fires before division;
+  `ConvergenceDetector` uses `std::deque` for O(1) `pop_front()`; Newton-Raphson
+  near-zero derivative triggers a hard `return x` instead of `break`.
+- **Structural**: `result_of_t` consolidated to `include/platform/internal/type_traits.h`;
+  `RecoveryStrategy` converted to `enum class`; dead `using std::shared_lock` declarations
+  removed from `distribution_common.h`; `PerformanceDispatcher::SIMDArchitecture` and
+  unused `Thresholds` distribution-specific fields deprecated; `LibDistributionType` removed.
+- **Documentation**: `CachedProperty<T>` and `ThreadSafeCacheManager` dual-flag pattern
+  documented; `LogSpaceOps::initialize()` guarded with `call_once`.
+
+Validation: 39/39 correctness on Kaby Lake AVX2+FMA. Multi-machine pending.
 
 ### Changes in v1.5.1
 - **Dispatch table expanded to all 16 distributions**: `kNeon`, `kAvx`, `kAvx2`, `kAvx512` now

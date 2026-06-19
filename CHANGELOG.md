@@ -1,3 +1,83 @@
+## [1.5.2] - 2026-06-19
+
+### Fixed
+- **C-1 (`gammaQ` infinite recursion — critical)**: `gammaQ` was implemented as
+  `1 - gammaP(a, x)`, causing infinite mutual recursion for `x >= a + 1` and
+  terminating via `std::terminate` (both functions are `noexcept`). Replaced with a
+  standalone Legendre continued-fraction expansion (Lentz's algorithm). Every
+  distribution whose CDF uses the regularised incomplete gamma function — Gamma,
+  Chi-Squared, and Poisson — was affected for moderate-to-large observations.
+  Added `gammaQuantile(a, p)` (bisection on `gammaP`) as a protected static helper.
+- **C-2 (`bayesianCredibleInterval` — critical)**: the `credibility_level` parameter
+  was ignored; the function always returned bounds computed with a hardcoded `z = 1.5`.
+  Fixed to compute an equal-tailed interval from the exact Gamma posterior via
+  `gammaQuantile / post_rate`.
+- **N-1 (`safe_log(+inf)`)**: returned `DBL_MAX` instead of `+inf`, misleading
+  downstream `std::isinf()` checks. Now returns `+inf`.
+- **N-2 (`safe_exp` underflow)**: returned `MIN_PROBABILITY` (1e-300) instead of
+  `0.0` for inputs that underflow. IEEE 754 underflow to zero is correct, not an
+  error. Both the early guard and the post-`exp` check now return `0.0`.
+- **N-3 (`betaI_continued_fraction`)**: the FPMIN guard on `c` fired after
+  `aa / c` was already computed, allowing a near-zero `c` from a prior iteration
+  to produce `aa / 1e-30 ≈ 1e+30`. Guard now fires before the division.
+- **T-1 (`recordPerformance` race)**: `min_time_ns` / `max_time_ns` were updated
+  with separate load and store operations on `std::atomic<uint64_t>`, allowing two
+  racing threads to silently overwrite each other's result. Replaced with
+  compare-exchange loops.
+- **T-2 (`WorkStealingPool` destructor)**: destructor set `shutdown_ = true` before
+  draining queued tasks. In-flight tasks were abandoned and any `std::future` for
+  a dropped task blocked forever. Destructor now calls `waitForAll()` first.
+- **T-4 (`GaussianDistribution` copy constructor)**: `DistributionBase(other)` ran
+  in the initializer list without holding `other.cache_mutex_`, leaving a window
+  where a concurrent `fit()` or `invalidateCache()` could race with the base-class
+  copy. Now default-constructs the base class and copies all fields under
+  `shared_lock(other.cache_mutex_)`.
+- **T-5 (`GammaDistribution` copy constructor)**: acquired `unique_lock` on the
+  source for a read-only operation. Changed to `shared_lock`.
+- **Q-2 (Newton-Raphson derivative guard)**: replaced `break` with `return x` when
+  the derivative is near zero, making the hard-stop intent explicit and avoiding
+  the useless remaining iterations.
+
+### Changed
+- **Q-1 (`ConvergenceDetector`)**: `history_` changed from `std::vector<double>` to
+  `std::deque<double>`; `erase(begin())` replaced with `O(1)` `pop_front()`.
+- **A-4 (`RecoveryStrategy`)**: removed the `#undef STRICT/GRACEFUL/ROBUST/ADAPTIVE`
+  block (enum values are already renamed to `StrictMode` etc.; no macro names
+  conflict). Converted from unscoped to `enum class`.
+- **A-2 (`result_of_t`)**: consolidated three identical definitions into a single
+  canonical `include/platform/internal/type_traits.h`.
+- **A-3 (`parallelTransform`)**: replaced `check_finite(static_cast<double>(size))`
+  with a `size == 0` early-return. `size_t` is always finite; the cast was
+  semantically wrong and lost precision above 2⁵³.
+- **Q-3 (WorkStealingPool startup timeout)**: replaced reuse of
+  `MAX_DATA_POINTS_FOR_SW_TEST` (a Shapiro-Wilk sample-size bound) with a named
+  `THREAD_STARTUP_TIMEOUT_MS = 5000` local constexpr.
+- **A-1 (`LogSpaceOps::initialize`)**: guarded with `std::call_once` to make
+  repeated calls from multiple translation units idempotent.
+- **F2 (namespace pollution)**: removed dead `using std::shared_lock/shared_mutex/
+  unique_lock` from `distribution_common.h`. All distribution `.cpp` files already
+  use `std::` qualification.
+- **F3 (`Thresholds` struct)**: distribution-specific threshold fields marked
+  `[[deprecated]]`; doc comment added pointing to `dispatch_thresholds.h` as the
+  authoritative source. Fields are not read by `selectStrategy()`.
+- **F4 (`LibDistributionType`)**: removed unused enum from `forward_declarations.h`.
+  It was a duplicate of `detail::DistributionType` with no callers.
+- **F5 (`PerformanceDispatcher::SIMDArchitecture`)**: enum and related methods
+  `detectSIMDArchitecture` / `createForArchitecture` marked `[[deprecated]]`. Both
+  already delegate to `SIMDPolicy::Level`; the local enum is legacy scaffolding.
+
+### Documentation
+- `CachedProperty<T>`: explicit `@warning Not thread-safe` Doxygen annotation.
+  Use only within `ThreadSafeCacheManager` locks.
+- `ThreadSafeCacheManager`: documents the intentional dual-flag pattern
+  (`cache_valid_` + `cacheValidAtomic_`) and the v2.0.0 consolidation plan.
+
+### Validation
+- 39/39 correctness tests pass on Kaby Lake AVX2+FMA (primary dev machine).
+  Multi-machine validation pending PR merge.
+
+---
+
 ## [1.5.1] - 2026-06-16
 
 ### Fixed
