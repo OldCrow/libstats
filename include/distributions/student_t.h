@@ -278,7 +278,7 @@ class StudentTDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Entropy of the distribution. */
-    [[nodiscard]] double getEntropy() const override;
+    [[nodiscard]] double getEntropy() const noexcept override;
 
     /**
      * @brief Median (always 0 by symmetry).

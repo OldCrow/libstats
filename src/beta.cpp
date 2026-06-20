@@ -491,7 +491,7 @@ std::string BetaDistribution::toString() const {
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-double BetaDistribution::getEntropy() const {
+double BetaDistribution::getEntropy() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     // H = lbeta(α,β) - (α-1)*ψ(α) - (β-1)*ψ(β) + (α+β-2)*ψ(α+β)
     const double ab = alpha_ + beta_;

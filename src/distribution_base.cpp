@@ -150,17 +150,17 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
         // Anderson-Darling test
         result.ad_statistic = detail::calculate_ad_statistic(data, *this);
 
-        // Simple p-value approximation for AD test
-        // This is a simplified approximation - in practice, you'd use lookup tables
-        if (result.ad_statistic < detail::AD_THRESHOLD_1) {
-            result.ad_p_value = detail::AD_P_VALUE_HIGH;
-        } else if (result.ad_statistic < detail::ONE) {
-            result.ad_p_value = detail::AD_P_VALUE_MEDIUM;
-        } else if (result.ad_statistic < detail::TWO) {
-            result.ad_p_value = detail::ALPHA_10;
+        // LP-14: Continuous exponential p-value approximation (same formula as
+        // stats::analysis::andersonDarlingTest in goodness_of_fit.h) — replaces the
+        // 4-bucket step function that mapped very different statistic values to the same p-value.
+        if (result.ad_statistic >= 13.0) {
+            result.ad_p_value = 0.0;
+        } else if (result.ad_statistic >= 6.0) {
+            result.ad_p_value = std::exp(-1.28 * result.ad_statistic);
         } else {
-            result.ad_p_value = detail::ALPHA_01;
+            result.ad_p_value = std::exp(-1.8 * result.ad_statistic + 1.5);
         }
+        result.ad_p_value = std::min(1.0, std::max(0.0, result.ad_p_value));
 
         // Overall assessment
         result.distribution_adequate =
@@ -209,12 +209,19 @@ bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, doubl
         return false;
     }
 
-    // Compare statistical moments
-    if (std::abs(getMean() - other.getMean()) > tolerance) {
+    // LP-7: guard against NaN mean/variance — NaN comparisons always return false,
+    // which would cause NaN distributions to be treated as approximately equal.
+    const double myMean = getMean();
+    const double otherMean = other.getMean();
+    if (std::isnan(myMean) || std::isnan(otherMean) ||
+        std::abs(myMean - otherMean) > tolerance) {
         return false;
     }
 
-    if (std::abs(getVariance() - other.getVariance()) > tolerance) {
+    const double myVar = getVariance();
+    const double otherVar = other.getVariance();
+    if (std::isnan(myVar) || std::isnan(otherVar) ||
+        std::abs(myVar - otherVar) > tolerance) {
         return false;
     }
 

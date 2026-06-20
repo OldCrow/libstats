@@ -697,7 +697,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const override;
+    [[nodiscard]] double getEntropy() const noexcept override;
 
     /**
      * @brief Get the median of the distribution

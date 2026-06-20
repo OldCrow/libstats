@@ -398,7 +398,7 @@ std::string StudentTDistribution::toString() const {
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-double StudentTDistribution::getEntropy() const {
+double StudentTDistribution::getEntropy() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     // H = (nu+1)/2 * [psi((nu+1)/2) - psi(nu/2)] + log(sqrt(nu)*B(nu/2, 1/2))
     // where B is the beta function.

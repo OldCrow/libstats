@@ -145,6 +145,7 @@
     #include "platform/benchmark.h"
     #include "platform/cpu_detection.h"
     #include "platform/parallel_execution.h"
+    #include "platform/thread_pool.h"
     #include "platform/work_stealing_pool.h"
 
     // Cache infrastructure

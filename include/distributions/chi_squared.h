@@ -367,7 +367,7 @@ class ChiSquaredDistribution : public DistributionBase {
      * @brief Entropy of the distribution — delegates to GammaDistribution.
      * H = k/2 + log(2) + log(Γ(k/2)) + (1 - k/2)ψ(k/2)
      */
-    [[nodiscard]] double getEntropy() const override { return gamma_.getEntropy(); }
+    [[nodiscard]] double getEntropy() const noexcept override { return gamma_.getEntropy(); }
 
     /**
      * @brief Median — delegates to GammaDistribution (numerical, via quantile).

@@ -188,7 +188,11 @@ class DispatchUtils {
             case PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
                 return (count <= 8) ? Strategy::SCALAR : Strategy::VECTORIZED;
             case PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                return Strategy::PARALLEL;
+                // LP-5: MAXIMIZE_THROUGHPUT routes to WORK_STEALING, not PARALLEL.
+                // Work-stealing is better for throughput on irregular workloads;
+                // PARALLEL is adequate for uniform ones. A FORCE_PARALLEL hint
+                // exists for callers that specifically need the thread-pool path.
+                return Strategy::WORK_STEALING;
             default:
                 return Strategy::SCALAR;
         }
@@ -225,13 +229,12 @@ class DispatchUtils {
 
             case Strategy::WORK_STEALING: {
                 // Work-stealing pool for irregular or variable-cost workloads.
-                // Thread explosion note: this pool is thread_local, so each calling
-                // thread creates its own WorkStealingPool with hardware_concurrency()
-                // workers. N concurrent WORK_STEALING batches spawn N * cores threads.
-                // Results are always correct; performance degrades under this condition.
-                // Phase 6 will introduce a shared pool to address this.
-                static thread_local WorkStealingPool default_pool;
-                work_stealing_func(dist, values, results, default_pool);
+                // LP-9/LP-5: Use the shared GlobalWorkStealingPool singleton instead of
+                // a thread_local WorkStealingPool. The thread_local approach spawned
+                // N * hardware_concurrency threads for N concurrent callers, risking
+                // thread explosion under load. The global singleton amortises thread
+                // creation across all callers on all threads.
+                work_stealing_func(dist, values, results, GlobalWorkStealingPool::getInstance());
                 break;
             }
         }

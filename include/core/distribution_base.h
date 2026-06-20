@@ -98,6 +98,9 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @note Override for numerical stability when possible
      */
     double getLogProbability(double x) const override {
+        // LP-6: propagate NaN rather than collapsing it to -inf via log(0)
+        if (std::isnan(x)) [[unlikely]]
+            return std::numeric_limits<double>::quiet_NaN();
         double prob = getProbability(x);
         return prob > 0.0 ? std::log(prob) : -std::numeric_limits<double>::infinity();
     }
@@ -126,7 +129,9 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @return Differential entropy (continuous) or entropy (discrete)
      * @note Return NaN if not analytically computable
      */
-    virtual double getEntropy() const { return std::numeric_limits<double>::quiet_NaN(); }
+    [[nodiscard]] virtual double getEntropy() const noexcept {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
 
     // =============================================================================
     // DISTRIBUTION COMPARISON - Virtual (Override Optional)

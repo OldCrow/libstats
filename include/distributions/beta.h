@@ -265,7 +265,7 @@ class BetaDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Entropy of the distribution (uses detail::digamma). */
-    [[nodiscard]] double getEntropy() const override;
+    [[nodiscard]] double getEntropy() const noexcept override;
 
     /** @brief Mode: (α−1)/(α+β−2) for α,β>1; boundary values otherwise. */
     [[nodiscard]] double getMode() const noexcept;

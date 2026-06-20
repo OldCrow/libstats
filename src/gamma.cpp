@@ -635,7 +635,7 @@ double GammaDistribution::getDegreesOfFreedom() const {
     return detail::TWO * alpha_;
 }
 
-double GammaDistribution::getEntropy() const {
+double GammaDistribution::getEntropy() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
