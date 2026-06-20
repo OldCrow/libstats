@@ -1204,6 +1204,7 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_gtest(test_gaussian_analysis tests/test_gaussian_analysis.cpp)
     create_libstats_gtest(test_poisson_analysis tests/test_poisson_analysis.cpp)
     create_libstats_gtest(test_distribution_analysis tests/test_distribution_analysis.cpp)
+    create_libstats_gtest(test_batch_math_regressions tests/test_batch_math_regressions.cpp)
 
     # exponential.h - Exponential distribution implementation (CONSOLIDATED)
     create_libstats_test(test_exponential_basic tests/test_exponential_basic.cpp)

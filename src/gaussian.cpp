@@ -683,6 +683,15 @@ bool GaussianDistribution::isUsingStandardNormalOptimization() const {
 
 double GaussianDistribution::getStandardizedValue(double x) const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        ulock.unlock();
+        lock.lock();
+    }
     return (x - mean_) * invStandardDeviation_;  // Use cached 1/σ for efficiency
 }
 

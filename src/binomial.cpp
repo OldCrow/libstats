@@ -687,6 +687,14 @@ void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, doub
             results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
+        if (cached_logP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == 0) ? 0.0 : detail::NEGATIVE_INFINITY;
+            continue;
+        }
+        if (cached_log1mP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == cached_n) ? 0.0 : detail::NEGATIVE_INFINITY;
+            continue;
+        }
         const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
                           std::lgamma(static_cast<double>(cached_n - k + 1));
         results[i] = lc + static_cast<double>(k) * cached_logP +
@@ -707,6 +715,14 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
         const int k = static_cast<int>(std::round(x));
         if (k < 0 || k > cached_n) {
             results[i] = detail::ZERO_DOUBLE;
+            continue;
+        }
+        if (cached_logP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
+            continue;
+        }
+        if (cached_log1mP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == cached_n) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
         const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -

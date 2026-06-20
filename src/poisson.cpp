@@ -22,7 +22,9 @@ using stats::detail::validateNonNegativeParameter;
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 
 #include <algorithm>
+#include <limits>
 #include <any>
+#include <cstdint>
 #include <cmath>
 #include <map>
 #include <numeric>
@@ -224,9 +226,7 @@ VoidResult PoissonDistribution::trySetParameters(double lambda) noexcept {
     lambda_ = lambda;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
-
-    // Note: PoissonDistribution doesn't have atomicParamsValid_ - this is specific to other
-    // distributions The atomic cache validation is handled by cacheValidAtomic_
+    atomicParamsValid_.store(false, std::memory_order_release);
 
     return VoidResult::ok(true);
 }
@@ -283,21 +283,28 @@ double PoissonDistribution::getQuantile(double p) const {
     if (p == detail::ONE)
         return std::numeric_limits<double>::infinity();
 
-    // Use bracketing search for quantile
-    int lower = 0;
-    int upper = static_cast<int>(lambda_ + detail::QUANTILE_UPPER_BOUND_MULTIPLIER *
-                                               std::sqrt(lambda_));  // Conservative upper bound
+    // Use bracketing search for quantile. MC-4: use a wide integer bound to
+    // avoid overflow while expanding for large lambda.
+    std::int64_t lower = 0;
+    std::int64_t upper = static_cast<std::int64_t>(
+        std::ceil(lambda_ + detail::QUANTILE_UPPER_BOUND_MULTIPLIER * std::sqrt(lambda_)));
+    upper = std::max<std::int64_t>(upper, 1);
 
     // Expand upper bound if necessary
-    while (getCumulativeProbabilityExact(upper) < p) {
+    constexpr std::int64_t kMaxQuantileSearch = static_cast<std::int64_t>(std::numeric_limits<int>::max());
+    while (upper < kMaxQuantileSearch &&
+           getCumulativeProbabilityExact(static_cast<int>(upper)) < p) {
         lower = upper;
-        upper *= 2;
+        upper = std::min(upper * 2, kMaxQuantileSearch);
+    }
+    if (getCumulativeProbabilityExact(static_cast<int>(upper)) < p) {
+        return static_cast<double>(upper);
     }
 
     // Binary search
     while (upper - lower > 1) {
-        int mid = (lower + upper) / detail::TWO_INT;
-        if (getCumulativeProbabilityExact(mid) < p) {
+        const std::int64_t mid = lower + (upper - lower) / detail::TWO_INT;
+        if (getCumulativeProbabilityExact(static_cast<int>(mid)) < p) {
             lower = mid;
         } else {
             upper = mid;

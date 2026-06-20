@@ -1252,12 +1252,15 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD
+        // Use scalar implementation for small arrays or unsupported SIMD.
+        // MC-1/MC-2: use the same log-space detail::gamma_p implementation as the
+        // scalar CDF. The old private regularizedIncompleteGamma divided by
+        // std::tgamma(alpha), overflowing for alpha > ~172 and diverging from scalar.
         for (std::size_t i = 0; i < count; ++i) {
             if (values[i] <= detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
             } else {
-                results[i] = regularizedIncompleteGamma(alpha, beta * values[i]);
+                results[i] = detail::gamma_p(alpha, beta * values[i]);
             }
         }
         return;
@@ -1288,64 +1291,19 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
 //==============================================================================
 
 double GammaDistribution::incompleteGamma(double a, double x) noexcept {
-    // Lower incomplete gamma function γ(a,x) using series expansion or continued fractions
+    // Legacy helper retained for source compatibility inside the class. Prefer
+    // detail::gamma_p/detail::gamma_q for numerically stable regularized forms.
     if (x <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }
     if (a <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
-
-    // For x < a+1, use series expansion
-    if (x < a + detail::ONE) {
-        // Series: γ(a,x) = e^(-x) * x^a * Σ(x^n / Γ(a+n+1)) for n=0 to ∞
-        double sum = detail::ONE;
-        double term = detail::ONE;
-        double n = detail::ONE;
-
-        // Continue series until convergence
-        while (std::abs(term) > detail::ULTRA_HIGH_PRECISION_TOLERANCE * std::abs(sum) &&
-               n < detail::MAX_BISECTION_ITERATIONS) {
-            term *= x / (a + n - detail::ONE);
-            sum += term;
-            n += detail::ONE;
-        }
-
-        return std::exp(-x + a * std::log(x) - std::lgamma(a)) * sum;
-    } else {
-        // For x >= a+1, use continued fraction: γ(a,x) = Γ(a) - Γ(a,x)
-        // where Γ(a,x) is computed using continued fraction
-        double b = x + detail::ONE - a;
-        double c = detail::LARGE_CONTINUED_FRACTION_VALUE;
-        double d = detail::ONE / b;
-        double h = d;
-
-        for (std::size_t i = 1; i <= detail::MAX_CONTINUED_FRACTION_ITERATIONS; ++i) {
-            double an = -static_cast<double>(i) * (static_cast<double>(i) - a);
-            b += detail::TWO;
-            d = an * d + b;
-            if (std::abs(d) < detail::ULTRA_SMALL_THRESHOLD) {
-                d = detail::ULTRA_SMALL_THRESHOLD;
-            }
-            c = b + an / c;
-            if (std::abs(c) < detail::ULTRA_SMALL_THRESHOLD) {
-                c = detail::ULTRA_SMALL_THRESHOLD;
-            }
-            d = detail::ONE / d;
-            double del = d * c;
-            h *= del;
-            if (std::abs(del - 1.0) < detail::ULTRA_HIGH_PRECISION_TOLERANCE) {
-                break;
-            }
-        }
-
-        double upper_incomplete = std::exp(-x + a * std::log(x) - std::lgamma(a)) * h;
-        return std::tgamma(a) - upper_incomplete;
-    }
+    return detail::gamma_p(a, x) * std::exp(std::lgamma(a));
 }
 
 double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcept {
-    // Regularized lower incomplete gamma function P(a,x) = γ(a,x) / Γ(a)
+    // Regularized lower incomplete gamma function P(a,x).
     if (x <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }
@@ -1353,7 +1311,7 @@ double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcep
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    return incompleteGamma(a, x) / std::tgamma(a);
+    return detail::gamma_p(a, x);
 }
 
 double GammaDistribution::computeQuantile(double p) const noexcept {
