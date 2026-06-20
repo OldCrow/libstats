@@ -8,16 +8,6 @@ endif()
 # Verbose messaging control
 option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 
-# Compiler selection: opt in to Homebrew LLVM on macOS. WARNING: enabling this requires ALL
-# consumers (shared libraries, Python extensions, test executables) to link the same Homebrew
-# libc++. If any consumer uses Apple libc++ instead, C++ exceptions and std::type_info records will
-# not match across the boundary, causing silent catch failures. The default (OFF) uses system
-# AppleClang with Apple libc++ and GCD for parallelism, which is ABI-safe for all consumers. Only
-# set this to ON if you own the entire toolchain and have verified ABI consistency end-to-end.
-option(
-    LIBSTATS_USE_HOMEBREW_LLVM
-    "Use Homebrew LLVM instead of system AppleClang on macOS (requires matching libc++ in all consumers)"
-    OFF)
 
 # Threading system preference control
 option(LIBSTATS_FORCE_TBB
@@ -58,110 +48,15 @@ if(LIBSTATS_VERBOSE_BUILD)
     message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
 endif()
 
-# Optimized Homebrew LLVM detection with caching (macOS/Linux only) Cache results to avoid repeated
-# filesystem checks during reconfiguration
-set(HOMEBREW_LLVM_ROOT_INTEL "/usr/local/opt/llvm")
-set(HOMEBREW_LLVM_ROOT_ARM "/opt/homebrew/opt/llvm")
 
-# Function to detect and cache Homebrew LLVM installation
-function(detect_homebrew_llvm)
-    # Check if detection has already been cached
-    if(DEFINED CACHE{LIBSTATS_HOMEBREW_LLVM_ROOT})
-        # Use cached result
-        set(LLVM_ROOT
-            "${LIBSTATS_HOMEBREW_LLVM_ROOT}"
-            PARENT_SCOPE)
-        if(NOT "${LIBSTATS_HOMEBREW_LLVM_ROOT}" STREQUAL "")
-            set(USING_HOMEBREW_LLVM
-                TRUE
-                PARENT_SCOPE)
-            if(LIBSTATS_VERBOSE_BUILD)
-                message(
-                    STATUS "Using cached Homebrew LLVM detection: ${LIBSTATS_HOMEBREW_LLVM_ROOT}")
-            endif()
-        else()
-            set(USING_HOMEBREW_LLVM
-                FALSE
-                PARENT_SCOPE)
-            if(LIBSTATS_VERBOSE_BUILD)
-                message(STATUS "Using cached result: Homebrew LLVM not available")
-            endif()
-        endif()
-        return()
-    endif()
-
-    # Perform detection and cache result
-    if(LIBSTATS_VERBOSE_BUILD)
-        message(STATUS "Detecting Homebrew LLVM installation...")
-    endif()
-
-    # Check ARM64 path first (more common on modern Macs)
-    if(EXISTS "${HOMEBREW_LLVM_ROOT_ARM}/bin/clang++")
-        set(LIBSTATS_HOMEBREW_LLVM_ROOT
-            "${HOMEBREW_LLVM_ROOT_ARM}"
-            CACHE STRING "Detected Homebrew LLVM root path" FORCE)
-        set(LLVM_ROOT
-            "${HOMEBREW_LLVM_ROOT_ARM}"
-            PARENT_SCOPE)
-        set(USING_HOMEBREW_LLVM
-            TRUE
-            PARENT_SCOPE)
-        message(STATUS "Found Homebrew LLVM (ARM64): ${HOMEBREW_LLVM_ROOT_ARM}")
-        # Check Intel path as fallback
-    elseif(EXISTS "${HOMEBREW_LLVM_ROOT_INTEL}/bin/clang++")
-        set(LIBSTATS_HOMEBREW_LLVM_ROOT
-            "${HOMEBREW_LLVM_ROOT_INTEL}"
-            CACHE STRING "Detected Homebrew LLVM root path" FORCE)
-        set(LLVM_ROOT
-            "${HOMEBREW_LLVM_ROOT_INTEL}"
-            PARENT_SCOPE)
-        set(USING_HOMEBREW_LLVM
-            TRUE
-            PARENT_SCOPE)
-        message(STATUS "Found Homebrew LLVM (Intel): ${HOMEBREW_LLVM_ROOT_INTEL}")
-    else()
-        # Cache negative result to avoid repeated checks
-        set(LIBSTATS_HOMEBREW_LLVM_ROOT
-            ""
-            CACHE STRING "Homebrew LLVM not found" FORCE)
-        set(USING_HOMEBREW_LLVM
-            FALSE
-            PARENT_SCOPE)
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "Homebrew LLVM not found, will use system compiler")
-        endif()
-    endif()
-endfunction()
-
-# Apply Homebrew LLVM detection (macOS only — Homebrew paths are macOS-specific)
+# Enforce Ventura minimum on macOS — prevents accidental use of pre-13 APIs.
 if(APPLE)
-    detect_homebrew_llvm()
-
-    if(USING_HOMEBREW_LLVM AND LIBSTATS_USE_HOMEBREW_LLVM)
-        # Opt-in: use Homebrew LLVM. All consumers must link the same Homebrew libc++.
-        set(CMAKE_C_COMPILER "${LLVM_ROOT}/bin/clang")
-        set(CMAKE_CXX_COMPILER "${LLVM_ROOT}/bin/clang++")
-        set(CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-        message(STATUS "Using Homebrew LLVM from ${LLVM_ROOT} (LIBSTATS_USE_HOMEBREW_LLVM=ON)")
-    else()
-        # Default: system AppleClang with Apple libc++ - ABI-safe for all consumers.
-        if(USING_HOMEBREW_LLVM)
-            message(
-                STATUS
-                    "Homebrew LLVM found but not used (LIBSTATS_USE_HOMEBREW_LLVM=OFF) - using system AppleClang for ABI safety"
-            )
-        endif()
-        find_program(CMAKE_C_COMPILER clang)
-        find_program(CMAKE_CXX_COMPILER clang++)
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "Using system compiler: ${CMAKE_CXX_COMPILER}")
-        endif()
-    endif()
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "Minimum macOS deployment target")
 endif()
 
 project(
     libstats
-    VERSION 1.5.3
+    VERSION 2.0.0
     LANGUAGES CXX)
 
 # Build examples by default only for top-level builds.
@@ -184,13 +79,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         PROPERTY STRINGS
                  "Debug"
                  "Release"
+                 "RelWithDebInfo"
                  "Dev"
-                 "ClangStrict"
-                 "ClangWarn"
-                 "MSVCStrict"
-                 "MSVCWarn"
-                 "GCCStrict"
-                 "GCCWarn")
+                 "Strict")
 endif()
 
 # C++20 requirement
@@ -198,40 +89,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Detect support for requires-expressions (if constexpr (requires {...})). AppleClang 12 on Catalina
-# supports concept declarations/constraints but not requires-expressions, so tests/tools using that
-# syntax must be gated.
-check_cxx_source_compiles(
-    "
-template <typename T>
-int probe() {
-    if constexpr (requires(T t) { t + 1; }) {
-        return 1;
-    }
-    return 0;
-}
-int main() {
-    return probe<int>();
-}
-"
-    LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-    message(STATUS "C++20 requires-expressions: available")
-else()
-    message(
-        STATUS
-            "C++20 requires-expressions: unavailable - skipping requires-expression-dependent tests/tools"
-    )
-endif()
 
-# Detect standard library headers needed by tests that include them directly.
-check_include_file_cxx("concepts" LIBSTATS_CMAKE_HAS_CONCEPTS_HEADER)
-check_include_file_cxx("ranges" LIBSTATS_CMAKE_HAS_RANGES_HEADER)
-if(LIBSTATS_CMAKE_HAS_CONCEPTS_HEADER)
-    message(STATUS "C++20 <concepts> header: available")
-else()
-    message(STATUS "C++20 <concepts> header: unavailable")
-endif()
 if(LIBSTATS_CMAKE_HAS_RANGES_HEADER)
     message(STATUS "C++20 <ranges> header: available")
 else()
@@ -255,27 +113,7 @@ if(APPLE)
     # macOS specific configuration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 
-    if(USING_HOMEBREW_LLVM AND LIBSTATS_USE_HOMEBREW_LLVM)
-        # Opt-in Homebrew LLVM configuration: force LLVM libc++ headers for std::execution policies.
-        # Note: rpath will be set per-target to avoid duplication warnings.
-
-        # CRITICAL: Include LLVM libc++ headers BEFORE system headers to get C++20 execution
-        # policies
-        include_directories(BEFORE ${LLVM_ROOT}/include/c++/v1)
-        include_directories(BEFORE ${LLVM_ROOT}/include)
-
-        # Add compiler flags to ensure we use LLVM headers
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include/c++/v1")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${LLVM_ROOT}/include")
-
-        # Enable experimental PSTL support in LLVM libc++
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_LIBCPP_HAS_EXPERIMENTAL_PSTL=1")
-    else()
-        # Default: system AppleClang with Apple libc++. Parallelism uses GCD (already implemented in
-        # parallel_execution.h). ABI-safe for all consumers.
-        message(STATUS "Using system libc++ with Apple Clang (GCD parallel path active)")
-    endif()
+    message(STATUS "macOS: using system AppleClang with Apple libc++ (GCD parallel path active)")
 
     # Comprehensive Threading System Detection with Caching Cache results to avoid repeated
     # detection during reconfiguration
@@ -336,12 +174,7 @@ if(APPLE)
         # This will be detected at compile-time by parallel_execution.h but we can do some basic
         # feature testing here
         if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_STANDARD EQUAL 20)
-            if(USING_HOMEBREW_LLVM)
-                message(
-                    STATUS "    ~ C++20 execution policies: Enhanced with LLVM experimental PSTL")
-            else()
-                message(STATUS "    ~ C++20 execution policies: May be available with Apple Clang")
-            endif()
+            message(STATUS "    ~ C++20 execution policies: May be available with Apple Clang")
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_STANDARD EQUAL 20)
             message(
                 STATUS
@@ -975,15 +808,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
         add_compile_options(/W3 /O1 /Zi /MD /wd4996)
         message(STATUS "Applied MSVC Dev flags: /W3 /O1 /Zi /MD /wd4996")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
-        add_compile_options(/W4 /WX /permissive- /we4289)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
+        add_compile_options(/W4 /WX /permissive-)
         add_compile_options(${LIBSTATS_MSVC_ENHANCED_WARNINGS})
-        message(
-            STATUS "Applied MSVC Strict flags: /W4 /WX /permissive- /we4289 + enhanced warnings")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
-        add_compile_options(/W4 /permissive- /wd4996)
-        add_compile_options(${LIBSTATS_MSVC_ENHANCED_WARNINGS})
-        message(STATUS "Applied MSVC Warn flags: /W4 /permissive- /wd4996 + enhanced warnings")
+        message(STATUS "Applied Strict flags (MSVC): /W4 /WX /permissive-")
     else()
         add_compile_options(/W3)
         message(STATUS "Applied MSVC default flags: /W3")
@@ -1010,34 +838,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
             STATUS
                 "Applied Clang Dev flags: ${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations"
         )
-    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
         add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
-        message(STATUS "Applied Clang Strict flags: strict warnings + -Werror")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
-        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Wno-deprecated-declarations)
-        message(STATUS "Applied Clang Warn flags: strict warnings (non-error)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
-        # GCC build type with Clang compiler - use Clang equivalent flags
-        message(
-            WARNING
-                "GCCStrict build type requested with Clang compiler. Using Clang-compatible flags instead."
-        )
-        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
-        message(STATUS "Applied Clang-compatible flags for GCCStrict: strict warnings + -Werror")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
-        # GCC build type with Clang compiler - use Clang equivalent flags
-        message(
-            WARNING
-                "GCCWarn build type requested with Clang compiler. Using Clang-compatible flags instead."
-        )
-        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Wno-deprecated-declarations)
-        message(STATUS "Applied Clang-compatible flags for GCCWarn: strict warnings (non-error)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
-        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Werror)
-        message(STATUS "Applied MSVC-compatible strict flags: MSVC-style warnings + -Werror")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
-        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Wno-deprecated-declarations)
-        message(STATUS "Applied MSVC-compatible warn flags: MSVC-style warnings (non-error)")
+        message(STATUS "Applied Strict flags (Clang/AppleClang): strict warnings + -Werror")
     else()
         add_compile_options(${LIBSTATS_COMMON_WARNINGS_UNIX} -O2)
         message(STATUS "Applied Clang default flags: ${LIBSTATS_COMMON_WARNINGS_UNIX} -O2")
@@ -1064,34 +867,9 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             STATUS
                 "Applied GCC Dev flags: ${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations"
         )
-    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
-        # Clang build type with GCC compiler - use GCC equivalent flags
-        message(
-            WARNING
-                "ClangStrict build type requested with GCC compiler. Using GCC-compatible flags instead."
-        )
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
         add_compile_options(${LIBSTATS_GCC_STRICT_WARNINGS} -Werror)
-        message(STATUS "Applied GCC-compatible flags for ClangStrict: strict warnings + -Werror")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
-        # Clang build type with GCC compiler - use GCC equivalent flags
-        message(
-            WARNING
-                "ClangWarn build type requested with GCC compiler. Using GCC-compatible flags instead."
-        )
-        add_compile_options(${LIBSTATS_GCC_STRICT_WARNINGS} -Wno-deprecated-declarations)
-        message(STATUS "Applied GCC-compatible flags for ClangWarn: strict warnings (non-error)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
-        add_compile_options(${LIBSTATS_GCC_STRICT_WARNINGS} -Werror)
-        message(STATUS "Applied GCC Strict flags: strict warnings + -Werror")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
-        add_compile_options(${LIBSTATS_GCC_STRICT_WARNINGS} -Wno-deprecated-declarations)
-        message(STATUS "Applied GCC Warn flags: strict warnings (non-error)")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
-        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Werror)
-        message(STATUS "Applied MSVC-compatible strict flags: MSVC-style warnings + -Werror")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
-        add_compile_options(${LIBSTATS_MSVC_COMPAT_WARNINGS} -Wno-deprecated-declarations)
-        message(STATUS "Applied MSVC-compatible warn flags: MSVC-style warnings (non-error)")
+        message(STATUS "Applied Strict flags (GCC): strict warnings + -Werror")
     else()
         add_compile_options(${LIBSTATS_COMMON_WARNINGS_UNIX} ${LIBSTATS_OPT_FULL_UNIX})
         message(
@@ -1162,49 +940,10 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Debug build (${CMAKE_CXX_COMPILER_ID}): Full debugging information")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
     message(STATUS "Dev build (${CMAKE_CXX_COMPILER_ID}): Balanced optimization and debugging")
-    # Cross-Compiler Compatibility Modes
-elseif(CMAKE_BUILD_TYPE STREQUAL "ClangStrict")
-    message(
-        STATUS
-            "Clang-strict mode (${CMAKE_CXX_COMPILER_ID}): Clang-style warnings as ERRORS - cross-compiler compatible"
-    )
-elseif(CMAKE_BUILD_TYPE STREQUAL "ClangWarn")
-    message(
-        STATUS
-            "Clang-warn mode (${CMAKE_CXX_COMPILER_ID}): Clang-style warnings as WARNINGS - cross-compiler compatible"
-    )
-elseif(CMAKE_BUILD_TYPE STREQUAL "GCCStrict")
-    message(
-        STATUS
-            "GCC-strict mode (${CMAKE_CXX_COMPILER_ID}): GCC-style warnings as ERRORS - cross-compiler compatible"
-    )
-elseif(CMAKE_BUILD_TYPE STREQUAL "GCCWarn")
-    message(
-        STATUS
-            "GCC-warn mode (${CMAKE_CXX_COMPILER_ID}): GCC-style warnings as WARNINGS - cross-compiler compatible"
-    )
-elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCStrict")
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-        message(
-            STATUS
-                "MSVC-strict mode (MSVC native): MSVC warnings as ERRORS with enhanced diagnostics")
-    else()
-        message(
-            STATUS
-                "MSVC-strict mode (${CMAKE_CXX_COMPILER_ID} emulating MSVC): MSVC-compatible warnings as ERRORS"
-        )
-    endif()
-elseif(CMAKE_BUILD_TYPE STREQUAL "MSVCWarn")
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-        message(STATUS "MSVC-warn mode (MSVC native): MSVC warnings with enhanced diagnostics")
-    else()
-        message(
-            STATUS
-                "MSVC-warn mode (${CMAKE_CXX_COMPILER_ID} emulating MSVC): MSVC-compatible warnings"
-        )
-    endif()
+elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
+    message(STATUS "Strict build (${CMAKE_CXX_COMPILER_ID}): strict warnings + -Werror")
 else()
-    message(STATUS "Default build (${CMAKE_CXX_COMPILER_ID}): Standard configuration")
+    message(STATUS "Default build (${CMAKE_CXX_COMPILER_ID}): standard configuration")
 endif()
 
 # SIMD Status Messages (compiler-specific)
@@ -1769,15 +1508,11 @@ if(LIBSTATS_BUILD_TESTS)
 
     # exponential.h - Exponential distribution implementation (CONSOLIDATED)
     create_libstats_test(test_exponential_basic tests/test_exponential_basic.cpp)
-    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-        create_libstats_gtest(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
-    endif()
+    create_libstats_gtest(test_exponential_enhanced tests/test_exponential_enhanced.cpp)
 
     # discrete.h - Discrete uniform distribution implementation (CONSOLIDATED)
     create_libstats_test(test_discrete_basic tests/test_discrete_basic.cpp)
-    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-        create_libstats_gtest(test_discrete_enhanced tests/test_discrete_enhanced.cpp)
-    endif()
+    create_libstats_gtest(test_discrete_enhanced tests/test_discrete_enhanced.cpp)
 
     # Atomic parameters test - Test lock-free parameter access and invalidation for all
     # distributions
@@ -1785,21 +1520,15 @@ if(LIBSTATS_BUILD_TESTS)
 
     # uniform.h - Uniform distribution implementation
     create_libstats_test(test_uniform_basic tests/test_uniform_basic.cpp)
-    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-        create_libstats_gtest(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
-    endif()
+    create_libstats_gtest(test_uniform_enhanced tests/test_uniform_enhanced.cpp)
 
     # poisson.h - Poisson distribution implementation
     create_libstats_test(test_poisson_basic tests/test_poisson_basic.cpp)
-    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-        create_libstats_gtest(test_poisson_enhanced tests/test_poisson_enhanced.cpp)
-    endif()
+    create_libstats_gtest(test_poisson_enhanced tests/test_poisson_enhanced.cpp)
 
     # gamma.h - Gamma distribution implementation
     create_libstats_test(test_gamma_basic tests/test_gamma_basic.cpp)
-    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-        create_libstats_gtest(test_gamma_enhanced tests/test_gamma_enhanced.cpp)
-    endif()
+    create_libstats_gtest(test_gamma_enhanced tests/test_gamma_enhanced.cpp)
 
     # chi_squared.h - Chi-squared distribution (delegation wrapper over Gamma)
     create_libstats_test(test_chi_squared_basic tests/test_chi_squared_basic.cpp)
@@ -1863,12 +1592,6 @@ if(LIBSTATS_BUILD_TESTS)
 
     # test_new_constants removed - functionality is covered by test_constants --platform --simd
 
-    # Test parallel compilation paths (useful for CI/CD) DISABLED: This test forces macros that
-    # don't work on all platforms TODO: Fix with proper compilation guards for each platform
-    # if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_parallel_compilation.cpp)
-    # create_libstats_test(test_parallel_compilation tests/test_parallel_compilation.cpp)
-    # set(HAS_PARALLEL_COMPILATION TRUE) else() set(HAS_PARALLEL_COMPILATION FALSE) endif()
-    set(HAS_PARALLEL_COMPILATION FALSE)
 
     # Dynamic library linking tests
     create_libstats_test_dynamic(test_dynamic_linking tests/test_dynamic_linking.cpp)
@@ -1877,16 +1600,6 @@ if(LIBSTATS_BUILD_TESTS)
     # test_simd_comprehensive
     create_libstats_test_dynamic(test_gaussian_basic_dynamic tests/test_gaussian_basic.cpp)
     create_libstats_test_dynamic(test_exponential_basic_dynamic tests/test_exponential_basic.cpp)
-    # create_libstats_test_dynamic(test_uniform_simple_dynamic tests/test_uniform_simple.cpp)  #
-    # TODO: uncomment after fixing uniform.cpp
-
-    # TODO: Add these tests once distributions are implemented create_libstats_test(test_exponential
-    # tests/test_exponential.cpp) create_libstats_test(test_uniform tests/test_uniform.cpp)
-    # create_libstats_test(test_poisson tests/test_poisson.cpp) create_libstats_test(test_gamma
-    # tests/test_gamma.cpp) create_libstats_test(test_validation tests/test_validation.cpp)
-
-    # Future GTest-based tests can be added here using create_libstats_gtest() Example:
-    # create_libstats_gtest(test_gaussian_gtest tests/test_gaussian_gtest.cpp)
 
     # =======================================================================
     # TEST LABELS
@@ -1921,11 +1634,9 @@ if(LIBSTATS_BUILD_TESTS)
             test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
-        if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-            set_tests_properties(
-                test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
-                test_discrete_enhanced test_gamma_enhanced PROPERTIES LABELS "timing")
-        endif()
+        set_tests_properties(
+            test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
+            test_discrete_enhanced test_gamma_enhanced PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 
@@ -1977,11 +1688,11 @@ if(LIBSTATS_BUILD_TESTS)
                 test_atomic_parameters
                 # Level 6: Enhanced distribution tests
                 test_gaussian_enhanced
-                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_exponential_enhanced>
-                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_uniform_enhanced>
-                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_poisson_enhanced>
-                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_discrete_enhanced>
-                $<$<BOOL:${LIBSTATS_HAS_REQUIRES_EXPRESSIONS}>:test_gamma_enhanced>
+                test_exponential_enhanced
+                test_uniform_enhanced
+                test_poisson_enhanced
+                test_discrete_enhanced
+                test_gamma_enhanced
                 test_student_t_enhanced
                 test_beta_enhanced
                 test_chi_squared_enhanced
@@ -2069,14 +1780,7 @@ if(LIBSTATS_BUILD_TOOLS)
 
     # System Information & Diagnostics Tools
     add_libstats_tool(system_inspector system_inspector.cpp)
-    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-        add_standalone_tool(cpp20_features_inspector cpp20_features_inspector.cpp)
-    else()
-        message(
-            STATUS
-                "  - cpp20_features_inspector: skipped (requires-expressions unsupported by compiler)"
-        )
-    endif()
+    add_standalone_tool(cpp20_features_inspector cpp20_features_inspector.cpp)
 
     # Performance & Benchmarking Tools
     add_libstats_tool(parallel_batch_fitting_benchmark parallel_batch_fitting_benchmark.cpp)
@@ -2089,12 +1793,10 @@ if(LIBSTATS_BUILD_TOOLS)
         STATUS
             "  - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)"
     )
-    if(LIBSTATS_HAS_REQUIRES_EXPRESSIONS)
-        message(
-            STATUS
-                "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests"
-        )
-    endif()
+    message(
+        STATUS
+            "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests"
+    )
     message(
         STATUS
             "  - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing"

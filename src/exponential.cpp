@@ -15,25 +15,17 @@ using stats::detail::validateNonNegativeParameter;
 
 #include <algorithm>
 #include <cmath>
-#include <execution>   // For parallel algorithms
-#include <functional>  // For std::plus and std::divides
+#include <execution>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <random>
-#if LIBSTATS_HAS_STD_RANGES_HEADER
-    #include <ranges>  // C++20 ranges
-#endif
+#include <ranges>
 #include <sstream>
 #include <vector>
-#if LIBSTATS_HAS_STD_RANGES_HEADER
-    #define LIBSTATS_ALL_OF(range, predicate) std::ranges::all_of((range), (predicate))
-    #define LIBSTATS_SORT(range) std::ranges::sort((range))
-#else
-    #define LIBSTATS_ALL_OF(range, predicate)                                                      \
-        std::all_of((range).begin(), (range).end(), (predicate))
-    #define LIBSTATS_SORT(range) std::sort((range).begin(), (range).end())
-#endif
+#define LIBSTATS_ALL_OF(range, predicate) std::ranges::all_of((range), (predicate))
+#define LIBSTATS_SORT(range) std::ranges::sort((range))
 
 namespace stats {
 

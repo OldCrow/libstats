@@ -17,18 +17,9 @@
 
 namespace stats {
 
-/// @brief Portable function-return-type deduction.
-///
-/// Uses std::invoke_result_t when available (C++17+). Falls back to
-/// std::result_of for older compilers — retained for cross-platform
-/// compatibility with the Catalina-era toolchain until v2.0.0 raises the
-/// minimum compiler baseline.
-#if defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L
+/// @brief Portable function-return-type deduction (C++17 std::invoke_result_t).
+/// Catalina-era std::result_of fallback removed in v2.0.0.
 template <typename F, typename... Args>
 using result_of_t = std::invoke_result_t<F, Args...>;
-#else
-template <typename F, typename... Args>
-using result_of_t = typename std::result_of<F(Args...)>::type;
-#endif
 
 }  // namespace stats

@@ -21,24 +21,8 @@
 #include <vector>
 
 // Modern C++20 standard headers for advanced distributions
-#if __has_include(<concepts>)
-    #include <concepts>
-    #ifndef LIBSTATS_HAS_STD_CONCEPTS_HEADER
-        #define LIBSTATS_HAS_STD_CONCEPTS_HEADER 1
-    #endif
-#else
-    #ifndef LIBSTATS_HAS_STD_CONCEPTS_HEADER
-        #define LIBSTATS_HAS_STD_CONCEPTS_HEADER 0
-    #endif
-#endif
-
-#if __has_include(<ranges>)
-    #include <ranges>
-    #define LIBSTATS_HAS_STD_RANGES_HEADER 1
-#else
-    #define LIBSTATS_HAS_STD_RANGES_HEADER 0
-#endif
-#include <version>
+#include <concepts>
+#include <ranges>
 
 // Core libstats headers needed by all distributions
 #include "libstats/core/distribution_base.h"
