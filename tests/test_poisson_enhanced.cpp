@@ -6,6 +6,7 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/poisson.h"
+#include "libstats/stats/analysis/poisson_analysis.h"
 #include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
@@ -107,7 +108,7 @@ TEST_F(PoissonEnhancedTest, GoodnessOfFitTests) {
 
     // Chi-square goodness of fit test with Poisson data
     auto [chi2_stat_poisson, chi2_p_poisson, chi2_reject_poisson] =
-        PoissonDistribution::chiSquareGoodnessOfFit(poisson_data_, test_distribution_, 0.05);
+        stats::analysis::poisson::chiSquareGoodnessOfFit(poisson_data_, test_distribution_, 0.05);
 
     EXPECT_GE(chi2_stat_poisson, 0.0);
     EXPECT_GE(chi2_p_poisson, 0.0);
@@ -120,7 +121,7 @@ TEST_F(PoissonEnhancedTest, GoodnessOfFitTests) {
 
     // Chi-square test with obviously non-Poisson data - should reject
     auto [chi2_stat_non_poisson, chi2_p_non_poisson, chi2_reject_non_poisson] =
-        PoissonDistribution::chiSquareGoodnessOfFit(non_poisson_data_, test_distribution_, 0.05);
+        stats::analysis::poisson::chiSquareGoodnessOfFit(non_poisson_data_, test_distribution_, 0.05);
 
     // Should typically reject non-Poisson data (though not guaranteed for any single test)
     EXPECT_TRUE(std::isfinite(chi2_stat_non_poisson));

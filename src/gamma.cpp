@@ -470,39 +470,6 @@ std::string GammaDistribution::toString() const {
 // 7. ADVANCED STATISTICAL METHODS
 //==========================================================================
 
-std::tuple<double, double, bool> GammaDistribution::normalApproximationTest(
-    const std::vector<double>& data, double significance_level) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
-        throw std::invalid_argument("Significance level must be between 0 and 1");
-    }
-
-    // Method-of-moments initial estimates for Gamma(α, β):
-    // α̂ = mean²/var, β̂ = mean/var
-    size_t n = data.size();
-    double sum_x = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    double sum_x2 = std::inner_product(data.begin(), data.end(), data.begin(), detail::ZERO_DOUBLE);
-    double mean_x = sum_x / static_cast<double>(n);
-    double var_x = sum_x2 / static_cast<double>(n) - mean_x * mean_x;
-    double alpha_hat = (var_x > detail::ZERO) ? (mean_x * mean_x / var_x) : detail::ONE;
-    [[maybe_unused]] double beta_hat = (var_x > detail::ZERO) ? (mean_x / var_x) : detail::ONE;
-    double normal_mean = alpha_hat;
-    double normal_var = alpha_hat / static_cast<double>(n);
-    double normal_sd = std::sqrt(normal_var);
-
-    double threshold_z = detail::inverse_normal_cdf(detail::ONE - significance_level / detail::TWO);
-    double lower_bound = normal_mean - threshold_z * normal_sd;
-    double upper_bound = normal_mean + threshold_z * normal_sd;
-
-    double sample_mean =
-        std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE) / static_cast<double>(n);
-
-    bool reject_null = (sample_mean < lower_bound || sample_mean > upper_bound);
-
-    return std::make_tuple(lower_bound, upper_bound, reject_null);
-}
 
 //==========================================================================
 // 8. GOODNESS-OF-FIT TESTS

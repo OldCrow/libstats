@@ -512,8 +512,7 @@ class ExponentialDistribution : public DistributionBase {
      * @param alpha Significance level (default: 0.05)
      * @return Tuple of (CV_statistic, p_value, reject_null)
      */
-    static std::tuple<double, double, bool> coefficientOfVariationTest(
-        const std::vector<double>& data, double alpha = 0.05);
+    // coefficientOfVariationTest moved to stats::analysis::exponential in v2.0.0.
 
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS

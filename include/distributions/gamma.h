@@ -635,8 +635,7 @@ class GammaDistribution : public DistributionBase {
      * @param significance_level Significance level for test
      * @return Tuple of (test_statistic, p_value, approximation_is_valid)
      */
-    [[nodiscard]] static std::tuple<double, double, bool> normalApproximationTest(
-        const std::vector<double>& data, double significance_level = 0.05);
+    // normalApproximationTest moved to stats::analysis::gamma in v2.0.0.
 
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS

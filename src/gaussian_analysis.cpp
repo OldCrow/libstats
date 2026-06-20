@@ -32,19 +32,27 @@ shapiroWilkTest(const std::vector<double>& data, double alpha) {
     double ss = 0.0;
     for (double x : sorted) ss += (x - mean) * (x - mean);
 
+    // Shapiro-Wilk approximate coefficients via Blom (1958) expected order statistics.
+    // Normalization factor m_norm_sq ensures W ∈ [0, 1] (Cauchy-Schwarz bound).
     double numerator = 0.0;
+    double m_norm_sq = 0.0;
     for (std::size_t i = 0; i < n / 2; ++i) {
-        const double coeff = detail::inverse_normal_cdf(
-            (static_cast<double>(i) + detail::THREE_QUARTERS) /
-            (static_cast<double>(n) + detail::HALF));
-        numerator += coeff * (sorted[n - 1 - i] - sorted[i]);
+        // Blom plotting position (i is 0-indexed): p = (i + 0.625) / (n + 0.25)
+        const double p_i = (static_cast<double>(i) + 1.0 - 0.375) /
+                           (static_cast<double>(n) + 0.25);
+        const double m_i = detail::inverse_normal_cdf(p_i);
+        m_norm_sq += 2.0 * m_i * m_i;  // symmetric pair contributes 2*m_i^2
+        numerator += m_i * (sorted[n - 1 - i] - sorted[i]);
     }
 
-    const double w = (numerator * numerator) / ss;
-    const double log_p = detail::NEG_HALF * std::log(w)
-                       - detail::ONE_POINT_FIVE * std::log(static_cast<double>(n))
-                       + detail::TWO;
-    const double p_value = std::min(1.0, std::exp(log_p));
+    const double w = (m_norm_sq > detail::ZERO && ss > detail::ZERO)
+        ? std::min(1.0, (numerator * numerator) / (ss * m_norm_sq))
+        : 0.0;
+
+    // p-value: asymptotic approximation — n*(1-W) ~ χ²(1) under H₀.
+    // This gives p≈1 for W close to 1 (good fit) and p≈0 for W far from 1.
+    const double chi2_approx = static_cast<double>(n) * (1.0 - w);
+    const double p_value = std::min(1.0, std::max(0.0, std::exp(-chi2_approx / 2.0)));
 
     return {w, p_value, p_value < alpha};
 }
@@ -363,14 +371,19 @@ lMomentsEstimation(const std::vector<double>& data) {
     const std::size_t n = sorted.size();
 
     const double l1 = std::accumulate(sorted.begin(), sorted.end(), 0.0) / n;
+    // Hosking (1990) unbiased PWM estimator for L2:
+    //   b1 = (1/n) * sum_{i=0}^{n-1} (i / (n-1)) * sorted[i]
+    //   l2 = 2*b1 - l1
+    // The naive weighted sum gives (n-1)*l2, not l2/2, so divide by (n-1).
     double l2 = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
-        const double w = (2.0*i + 1.0 - n) / n;
+        const double w = (2.0 * static_cast<double>(i) + 1.0 - static_cast<double>(n)) /
+                         static_cast<double>(n);
         l2 += w * sorted[i];
     }
-    l2 *= 0.5;
+    l2 = (n > 1) ? l2 / static_cast<double>(n - 1) : 0.0;
 
-    // Gaussian: L1 = μ, L2 = σ/√π
+    // For Gaussian: λ₂ = σ/√π, so σ = λ₂·√π
     return {l1, l2 * std::sqrt(detail::PI)};
 }
 

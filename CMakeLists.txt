@@ -1054,7 +1054,11 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/binomial.cpp # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
-    src/gaussian_analysis.cpp # Gaussian-specific analysis (normality tests, T-tests, Bayesian)
+    src/gaussian_analysis.cpp       # Gaussian-specific analysis
+    src/poisson_analysis.cpp       # Poisson-specific analysis
+    src/exponential_analysis.cpp   # Exponential-specific analysis
+    src/gamma_analysis.cpp         # Gamma-specific analysis
+    src/binomial_analysis.cpp      # Binomial-specific analysis
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -1524,6 +1528,8 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_gaussian_basic tests/test_gaussian_basic.cpp)
     create_libstats_gtest(test_gaussian_enhanced tests/test_gaussian_enhanced.cpp)
     create_libstats_gtest(test_gaussian_analysis tests/test_gaussian_analysis.cpp)
+    create_libstats_gtest(test_poisson_analysis tests/test_poisson_analysis.cpp)
+    create_libstats_gtest(test_distribution_analysis tests/test_distribution_analysis.cpp)
 
     # exponential.h - Exponential distribution implementation (CONSOLIDATED)
     create_libstats_test(test_exponential_basic tests/test_exponential_basic.cpp)

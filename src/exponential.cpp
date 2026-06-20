@@ -416,59 +416,6 @@ std::string ExponentialDistribution::toString() const {
 // 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
 
-std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariationTest(
-    const std::vector<double>& data, double alpha) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const size_t n = data.size();
-    if (n < 2) {
-        throw std::invalid_argument(
-            "At least 2 data points required for coefficient of variation test");
-    }
-
-    // Calculate sample mean and sample standard deviation
-    const double sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    const double sample_mean = sum / static_cast<double>(n);
-
-    // Calculate sample variance (unbiased estimator)
-    double sum_squared_deviations = detail::ZERO_DOUBLE;
-    for (double value : data) {
-        const double deviation = value - sample_mean;
-        sum_squared_deviations += deviation * deviation;
-    }
-    const double sample_variance = sum_squared_deviations / static_cast<double>(n - 1);
-    const double sample_std_dev = std::sqrt(sample_variance);
-
-    // Calculate coefficient of variation
-    const double cv = sample_std_dev / sample_mean;
-
-    // For exponential distribution, the theoretical CV = 1
-    // Test statistic: how far the observed CV is from 1
-    const double cv_statistic = std::abs(cv - detail::ONE);
-
-    // For large n, the CV of exponential follows approximately normal distribution
-    // with mean = 1 and variance ≈ 1/n (asymptotic result)
-    const double cv_std_error = detail::ONE / std::sqrt(static_cast<double>(n));
-    const double z_statistic = cv_statistic / cv_std_error;
-
-    // Two-tailed test p-value using normal approximation
-    const double p_value = detail::TWO * (detail::ONE - detail::normal_cdf(z_statistic));
-
-    const bool reject_null = p_value < alpha;
-
-    return {cv_statistic, p_value, reject_null};
-}
 
 //==============================================================================
 // 8. GOODNESS-OF-FIT TESTS

@@ -548,44 +548,12 @@ class PoissonDistribution : public DistributionBase {
      * @param significance_level Significance level for test (default: 0.05)
      * @return Tuple of (test_statistic, p_value, has_excess_zeros)
      */
-    [[nodiscard]] static std::tuple<double, double, bool> excessZerosTest(
-        const std::vector<double>& data, double significance_level = 0.05);
-
-    /**
-     * @brief Rate stability test for time series count data
-     *
-     * Tests whether the Poisson rate parameter λ remains constant over time
-     * or exhibits trends/changes. Useful for quality control applications.
-     *
-     * @param data Vector of observed count data (assumed chronologically ordered)
-     * @param significance_level Significance level for test (default: 0.05)
-     * @return Tuple of (test_statistic, p_value, rate_is_stable)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> rateStabilityTest(
-        const std::vector<double>& data, double significance_level = 0.05);
+    // excessZerosTest, rateStabilityTest, chiSquareGoodnessOfFit moved to
+    // stats::analysis::poisson (include/stats/analysis/poisson_analysis.h) in v2.0.0.
 
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
-
-    
-
-    
-
-    /**
-     * @brief Chi-square goodness-of-fit test for Poisson distribution
-     *
-     * Tests whether observed data follows the specified Poisson distribution.
-     * Groups rare events to ensure expected frequencies ≥ 5 for valid chi-square test.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Hypothesized Poisson distribution
-     * @param significance_level Significance level for test
-     * @return Tuple of (chi_square_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> chiSquareGoodnessOfFit(
-        const std::vector<double>& data, const PoissonDistribution& distribution,
-        double significance_level = 0.05);
 
     /**
      * @brief Comprehensive Poisson goodness-of-fit test
