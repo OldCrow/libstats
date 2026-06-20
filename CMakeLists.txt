@@ -103,7 +103,8 @@ check_cxx_source_compiles("#include <cmath>
 int main() { (void)std::cyl_bessel_i(0.0, 1.0); return 0; }" LIBSTATS_HAS_CXX17_BESSEL)
 if(LIBSTATS_HAS_CXX17_BESSEL)
     message(STATUS "std::cyl_bessel_i (C++17 special functions): available")
-    add_compile_definitions(LIBSTATS_HAS_CXX17_BESSEL)
+    # LP-4: defer scoping to the SIMD interface target (applied below after target creation).
+    # Do NOT use add_compile_definitions here — that would be global.
 else()
     message(STATUS "std::cyl_bessel_i: unavailable -- Bessel A&S fallback active")
 endif()
@@ -278,9 +279,11 @@ elseif(UNIX AND NOT APPLE)
             find_package(PkgConfig QUIET)
             if(PkgConfig_FOUND)
                 pkg_check_modules(TBB QUIET tbb)
-                if(TBB_FOUND)
-                    include_directories(${TBB_INCLUDE_DIRS})
-                    link_directories(${TBB_LIBRARY_DIRS})
+        if(TBB_FOUND)
+                    # LP-2: propagate paths to parent scope; target-scoped calls added
+                    # after target creation in the main body.
+                    set(LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL "${TBB_INCLUDE_DIRS}" PARENT_SCOPE)
+                    set(LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL "${TBB_LIBRARY_DIRS}" PARENT_SCOPE)
                     set(CMAKE_CXX_FLAGS
                         "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
                         PARENT_SCOPE)
@@ -385,8 +388,8 @@ elseif(UNIX AND NOT APPLE)
 
 elseif(WIN32)
     # Windows specific configuration Enable Windows compatibility macros
-    add_definitions(-DNOMINMAX)
-    add_definitions(-D_USE_MATH_DEFINES)
+    # LP-3: use add_compile_definitions (no -D prefix, cleaner than add_definitions)
+    add_compile_definitions(NOMINMAX _USE_MATH_DEFINES)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
     # Comprehensive Threading System Detection for Windows
@@ -555,9 +558,10 @@ function(detect_tbb_unified)
         find_package(PkgConfig QUIET)
         if(PkgConfig_FOUND)
             pkg_check_modules(TBB QUIET tbb)
-            if(TBB_FOUND)
-                include_directories(${TBB_INCLUDE_DIRS})
-                link_directories(${TBB_LIBRARY_DIRS})
+        if(TBB_FOUND)
+                # LP-2: propagate to parent scope; target_include_directories added after targets.
+                set(LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL "${TBB_INCLUDE_DIRS}" PARENT_SCOPE)
+                set(LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL "${TBB_LIBRARY_DIRS}" PARENT_SCOPE)
                 set(CMAKE_CXX_FLAGS
                     "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
                     PARENT_SCOPE)
@@ -1149,18 +1153,13 @@ add_library(libstats_static STATIC ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
     libstats_static PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
                            $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
+# LP-13: VERSION/SOVERSION are meaningful only for shared libraries (they affect
+# dylib naming and .so symlinks). Setting them on a static library is a no-op
+# that CMake silently ignores, but it is misleading. Keep only OUTPUT_NAME.
 if(WIN32)
-    set_target_properties(
-        libstats_static
-        PROPERTIES OUTPUT_NAME stats_static
-                   VERSION ${PROJECT_VERSION}
-                   SOVERSION ${PROJECT_VERSION_MAJOR})
+    set_target_properties(libstats_static PROPERTIES OUTPUT_NAME stats_static)
 else()
-    set_target_properties(
-        libstats_static
-        PROPERTIES OUTPUT_NAME stats
-                   VERSION ${PROJECT_VERSION}
-                   SOVERSION ${PROJECT_VERSION_MAJOR})
+    set_target_properties(libstats_static PROPERTIES OUTPUT_NAME stats)
 endif()
 
 # Dynamic/shared library using object libraries for better build performance
@@ -1198,6 +1197,14 @@ endif()
 
 # Create SIMD interface target for modern CMake approach
 create_simd_interface_target()
+
+# LP-4: scope LIBSTATS_HAS_CXX17_BESSEL to the SIMD interface target so it
+# propagates to all consumers via configure_simd_target() rather than being
+# a global definition.
+if(LIBSTATS_HAS_CXX17_BESSEL)
+    target_compile_definitions(libstats_simd_interface INTERFACE LIBSTATS_HAS_CXX17_BESSEL)
+endif()
+
 # Apply per-source-file SIMD compile flags once (file-global properties).
 apply_simd_source_flags()
 
@@ -1218,6 +1225,17 @@ configure_simd_target(libstats_shared)
 # Platform-specific library linking configuration Note: rpath for LLVM libc++ is handled
 # automatically by CMake via CMAKE_CXX_FLAGS (-stdlib=libc++) and the detected LLVM library path.
 # Explicit target_link_options for rpath removed to avoid duplicate warnings.
+
+# LP-2: target-scope TBB includes/link-dirs when found via pkg-config (global
+# include_directories/link_directories calls inside functions removed).
+if(LIBSTATS_HAS_TBB AND DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
+    target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+    target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+    if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL "")
+        target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+        target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+    endif()
+endif()
 
 # Create aliases for easier consumption
 add_library(libstats::headers ALIAS libstats_headers)
