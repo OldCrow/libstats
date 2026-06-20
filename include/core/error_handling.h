@@ -12,10 +12,8 @@ namespace stats {
 /**
  * @brief Error codes for distribution parameter validation
  *
- * This enum replaces exception-based error handling to avoid ABI compatibility
- * issues with Homebrew LLVM libc++ on macOS. The specific issue is that exceptions
- * thrown from the library compiled with Homebrew LLVM cannot be safely caught
- * in applications, leading to segfaults during exception unwinding.
+ * Used by Result<T> / VoidResult to report validation failures without
+ * exceptions. See Result<T> documentation below for the v2.0.0 design rationale.
  */
 enum class ValidationError {
     None = 0,          ///< No error
@@ -27,10 +25,29 @@ enum class ValidationError {
 };
 
 /**
- * @brief Result type for operations that may fail
+ * @brief Result type for operations that may fail.
  *
- * This provides a safe alternative to exceptions for error reporting.
- * @tparam T The type of the result value
+ * **v2.0.0 trajectory decision** (June 2026):
+ * In v1.x, Result<T> was introduced as an ABI workaround: exceptions thrown
+ * from the library compiled with Homebrew LLVM libc++ could not be safely
+ * caught by applications linked against Apple libc++, causing segfaults during
+ * stack unwinding. Removing Homebrew LLVM in v2.0.0 eliminates that constraint.
+ *
+ * Result<T> is **retained** in v2.0.0 as a deliberate design choice:
+ * - Explicit error handling is easier to audit than hidden exception paths.
+ * - Factory functions that validate parameters are naturally expressed as
+ *   Result<Distribution>, keeping the hot-path constructors noexcept.
+ * - No dependency on compiler exception-handling ABI.
+ *
+ * **v2.x decision point**: `std::expected<T, E>` (C++23) is available on
+ * AppleClang 16 (Xcode 16, macOS 14 Sonoma) and GCC 12 / Clang 16.
+ * When the project minimum is raised to macOS 14, a v2.x minor may introduce
+ * `using Result = std::expected<T, std::string>` as a drop-in typedef —
+ * the public API surface is already compatible with that substitution.
+ * Do NOT migrate to std::expected in v2.0.0; validate baseline availability
+ * first.
+ *
+ * @tparam T The type of the result value on success.
  */
 template <typename T>
 struct Result {

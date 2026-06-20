@@ -8,27 +8,20 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.5.2 on `main` (validated on all four machines); v1.5.2 is the final v1.x release.
-16 distributions across 6 families. v1.5.2: June 2026 architectural audit remediation —
-critical bug fixes (`gammaQ` recursion, `bayesianCredibleInterval`, `safe_log`/`safe_exp`
-boundary semantics), thread-safety fixes (`recordPerformance` CAS, `WorkStealingPool`
-destructor drain, copy-ctor lock ordering), code quality (`ConvergenceDetector` deque,
-`RecoveryStrategy` enum class, `result_of_t` consolidation), structural refactors
-(namespace pollution, deprecated `Thresholds` fields, `SIMDArchitecture` enum).
-v1.5.1: earlier internal review fixes, dispatch table to 16 distributions,
-`simd_verification` relative-error reporting. v1.5.0: AVX2+FMA native transcendentals,
-high-accuracy `vector_erf` (all x86), NEON native transcendentals (M1), AVX-512 native
-transcendentals (Asus TUF A16), dispatch threshold recalibration.
-v1.4.0: `vector_cos` SIMD primitive; VonMises batch SIMD-accelerated; dispatch table
-refactor (Issue #22). v1.3.0: `BinomialDistribution`, `NegativeBinomialDistribution`;
-`detail::trigamma`.
+**Current Status**: v2.0.0 on `feat/v2-architecture` (in progress). v1.5.3 is the final v1.x release.
+16 distributions across 6 families. v2.0.0 breaking changes: platform baseline raised to
+macOS 13 Ventura (minimum), Homebrew LLVM removed, `validateParameter` moved to
+`stats::detail`, analysis utilities extracted to `stats::analysis`, `*WithStrategy` methods
+removed, `getBatch*` vector API removed, `noexcept` move constructors across all 16
+distributions, `WorkStealingPool::parallelFor` per-call fence (A-2). Three-machine
+validation ecosystem: Kaby Lake AVX2+FMA, Mac Mini M1 NEON, Asus TUF A16 AVX-512.
 
 ## Session Start Baseline Workflow (Required)
 
 At the start of every session, perform these steps in order:
 
 1. Verify machine architecture before making SIMD assumptions.
-2. Select the matching build path (macOS vs Windows/MSVC, Intel vs Apple Silicon, Catalina vs non-Catalina).
+2. Select the matching build path (macOS vs Windows/MSVC, Intel vs Apple Silicon).
 3. Reconfigure/rebuild when the machine or architecture differs from the previous session context.
 
 Quick architecture checks:
@@ -57,7 +50,6 @@ The active SIMD tier changes fundamentally between machines. SIMD code paths, pe
 
 | SIMD Tier | Example CPUs | Active simd_*.cpp files |
 |---|---|---|
-| SSE2 + AVX | Intel Ivy Bridge and earlier | `simd_sse2.cpp`, `simd_avx.cpp` |
 | SSE2 + AVX + AVX2 + FMA | Intel Haswell / Kaby Lake and newer | + `simd_avx2.cpp` |
 | NEON only | Apple Silicon (M1 and newer) | `simd_neon.cpp` |
 | SSE2 + AVX + AVX2 + **AVX-512** | AMD Zen 4 (e.g. Ryzen 7000-series) | + `simd_avx512.cpp` |
@@ -66,22 +58,29 @@ The active SIMD tier changes fundamentally between machines. SIMD code paths, pe
 The machines in the Development Ecosystem table are examples; any CPU with the same SIMD capabilities follows the same code paths.
 
 Platform routing rules (OS/toolchain selection — SIMD tier is determined automatically at compile time by CPU feature detection):
-- **macOS (non-Catalina):** Use the standard CMake flow in the `Essential Build Commands` section.
-- **macOS Catalina (10.15):** No separate bootstrap script is required in `libstats`, but keep Catalina caveats in `docs/BUILD_SYSTEM_GUIDE.md` in mind (notably Homebrew LLVM 22 `std::format` behavior and dylib code-signing expectations).
+- **macOS (Ventura 13+ required):** Use the standard CMake flow in the `Essential Build Commands` section.
 - **Windows/MSVC:** Follow `Windows Session Setup` below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
 ### Current Validation Matrix
 
-**v1.5.2 — validated on all four machines**
+**v2.0.0 — validation target (three machines)**
 
-v1.5.2 is a correctness/safety patch with no SIMD performance changes; results are
-identical to v1.5.1 on all machines.
+Ivy Bridge / macOS Catalina dropped from the ecosystem in v2.0.0 (Catalina EOL;
+minimum macOS raised to 13 Ventura).
+
+| Machine | SIMD | Target | Notes |
+|---|---|---|---|
+| Kaby Lake (2017 MBP) | AVX2+FMA | 40/40 ✅ | v2.0.0 baseline |
+| Mac Mini M1 | NEON | 40/40 ✅ | v2.0.0 baseline |
+| Asus TUF A16 (Windows) | AVX-512 | 40/40 ✅ | v2.0.0 baseline |
+
+**v1.5.2 — final v1.x release (four machines)**
 
 | Machine | SIMD | Correctness | Notes |
 |---|---|---|---|
 | Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | |
-| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | |
+| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | (last version with Catalina) |
 | Mac Mini M1 | NEON | 39/39 ✅ | |
 | Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | |
 
@@ -92,12 +91,10 @@ and per primitive vector op, not a single composite. See `tools/simd_verificatio
 
 | Machine | SIMD | Correctness | Total suite | simd_verification | PDF geomean | LogPDF geomean | CDF geomean |
 |---|---|---|---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | 61 | 61/61 ✅ | 5.6x | 6.0x | 2.6x |
 | Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61 | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
 | Mac Mini M1 | NEON | 39/39 ✅ | 61 | 61/61 ✅ | 5.9x | 7.3x | 3.1x |
 | Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 61 | 61/61 ✅ | 4.8x | 5.1x | 2.2x |
 
-Ivy Bridge (2012 MBP) primitive vector op speedups (v1.5.0): VectorExp 2.2x, VectorLog 1.3x, VectorErf 1.7x, VectorCos 11.0x.
 Kaby Lake primitive vector op speedups (v1.5.0 Phase 1+2): VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
 Mac Mini M1 primitive vector op speedups (v1.5.0 Phase 3): VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
 Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
@@ -106,27 +103,21 @@ Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, Vect
 
 | Machine | SIMD | Correctness | Total suite | simd_verification | Overall |
 |---|---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 39/39 ✅ | 53 | 54/54 ✅ | 4.10x |
 | Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 59 | 54/54 ✅ | 3.35x |
 | Mac Mini M1 | NEON | 39/39 ✅ | 59 | 54/54 ✅ | 2.31x |
 | Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 59 | 54/54 ✅ | 1.64x |
 
 **Total suite counts differ by machine (v1.5.0):**
-- Ivy Bridge/Catalina (61): 61/61 simd_verification ✅. Correctness count is 38/38 — `test_work_stealing_pool` skipped (compiler lacks `<concepts>`+`<ranges>`).
 - Kaby Lake (61): v1.5.0 adds VonMises distribution rows + 4 primitive vector op rows to `simd_verification`.
 - Mac Mini M1 (61): Phase 3 validated ✅.
 - Asus TUF A16 (61): Phase 4 validated ✅.
 
-> **⚠️ Deprecation notice — Ivy Bridge / macOS Catalina:** v1.5.x are the last versions
-> validated on macOS 10.15 (Catalina) and Ivy Bridge hardware. macOS Catalina is
-> end-of-life; Homebrew will drop Catalina support in the upcoming macOS 27 release,
-> eliminating the toolchain maintenance path. A future v2.0.0 will set the minimum
-> macOS requirement to 13 (Ventura), consistent with libhmm. The Catalina-specific
-> CMake guards (`CROSS_PLATFORM` build type, `LIBSTATS_HAS_REQUIRES_EXPRESSIONS`)
-> will be removed at that point.
+> **v2.0.0:** macOS minimum raised to 13 Ventura. Ivy Bridge / Catalina support dropped.
+> `CROSS_PLATFORM` build type and `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` removed.
+> Homebrew LLVM build infrastructure removed; use system AppleClang.
 
-### SIMD Batch Operation Speedups (Ivy Bridge, AVX)
-v1.5.0 results (61/61 simd_verification ✅): PDF geomean 5.6x, LogPDF 6.0x, CDF 2.6x.
+### SIMD Batch Operation Speedups (Ivy Bridge AVX — v1.5.0, historical)
+v1.5.0 results on Ivy Bridge AVX (61/61 simd_verification ✅): PDF geomean 5.6x, LogPDF 6.0x, CDF 2.6x.
 Primitive ops: VectorExp 2.2x, VectorLog 1.3x, VectorErf 1.7x, VectorCos 11.0x.
 
 Selected per-distribution speedups:
@@ -169,9 +160,8 @@ Selected per-distribution speedups:
 - **Documentation**: `CachedProperty<T>` and `ThreadSafeCacheManager` dual-flag pattern
   documented; `LogSpaceOps::initialize()` guarded with `call_once`.
 
-Full four-machine validation (v1.5.2): identical correctness to v1.5.1 on all machines.
+Full three-machine validation (v1.5.2): identical correctness to v1.5.1.
 - 39/39 correctness on Kaby Lake, M1, Asus TUF A16
-- 38/38 correctness on Ivy Bridge (Catalina)
 
 ### Changes in v1.5.1
 - **Dispatch table expanded to all 16 distributions**: `kNeon`, `kAvx`, `kAvx2`, `kAvx512` now
@@ -185,10 +175,9 @@ Full four-machine validation (v1.5.2): identical correctness to v1.5.1 on all ma
 - **Test fixes**: dispatcher threshold-aware assertion; `minimal_latency()` thread-count
   corrected; VonMises tolerance relaxed to 1e-10 for AVX-512 `vector_cos` error floor.
 
-Full four-machine validation (v1.5.1): identical SIMD performance to v1.5.0; only dispatch
-table coverage and correctness fixes changed.
+Full four-machine validation (v1.5.1): identical SIMD performance to v1.5.0.
 - 39/39 correctness, 61/61 `simd_verification` on Kaby Lake, M1, Asus TUF A16
-- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge (Catalina)
+- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge (last Catalina validation)
 
 ### Changes in v1.5.0
 - **AVX2+FMA native transcendentals**: `vector_exp_avx2` and `vector_log_avx2` replaced
@@ -226,7 +215,7 @@ Phase 5 (dispatch threshold recalibration):
 
 Full four-machine validation (v1.5.0):
 - 39/39 correctness, 61/61 `simd_verification` on Kaby Lake, M1, Asus TUF A16
-- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge (Catalina)
+- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge/Catalina
 
 ### Changes in v1.4.0
 - **`vector_cos`** added to `VectorOps` across all five SIMD backends (AVX/AVX2/SSE2/NEON/AVX-512).
@@ -255,7 +244,7 @@ New distributions added in v1.3.0:
 Shared utility additions:
 - `detail::trigamma(x)` added to `math_utils`: A&S §6.4.12, accuracy < 2×10⁻¹⁴.
 
-Validation (v1.3.0, primary dev machine — Ivy Bridge AVX):
+Validation (v1.3.0, Kaby Lake AVX2 primary):
 - correctness suite: 39/39 PASS
 - `simd_verification`: 54/54 PASS, overall 4.10x (unchanged — discrete distributions use scalar loops)
 
@@ -271,7 +260,7 @@ Shared utility additions:
 
 Validation (v1.0.0):
 
-Ivy Bridge AVX (primary dev machine):
+Ivy Bridge AVX (historical — Catalina support dropped in v2.0.0):
 - correctness suite: 34/34 PASS
 - `simd_verification`: 54/54 PASS, overall 4.10x
 - new-distribution speedups: Chi-squared PDF 9.5x/LogPDF 7.0x, Student's t PDF 7.3x/LogPDF 7.6x,
@@ -290,13 +279,12 @@ Kaby Lake AVX2 (2017 MBP):
 - new-distribution speedups: Chi-squared PDF 13.8x/LogPDF 10.5x, Student's t PDF 6.3x/LogPDF 18.4x,
   Beta PDF 5.3x/LogPDF 4.1x
 
-All four machines validated at v1.0.0.
+All four machines validated at v1.0.0 (Ivy Bridge/Catalina dropped in v2.0.0).
 
 ### Development Ecosystem
 
 | Machine | OS | CPU | SIMD | Notes |
 |---|---|---|---|---|
-| MacBook Pro 9,1 (2012) | macOS Catalina | Intel Ivy Bridge i7-3820QM | SSE2 + AVX | Primary dev machine |
 | MacBook Pro 14,1 (2017) | macOS Ventura | Intel Kaby Lake | SSE2 + AVX + AVX2 + FMA | AVX2/FMA validation |
 | Mac Mini M1 | macOS Tahoe | Apple Silicon M1 | NEON only | ARM/NEON path validation |
 | Asus TUF A16 (2025) | Windows 11 Pro | AMD Ryzen 7 7445 (Zen 4) | SSE2 + AVX + AVX2 + **AVX-512** | Windows/MSVC + first AVX-512 machine |
@@ -387,14 +375,12 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Strict compiler warnings as errors (for compatibility testing)
-cmake -DCMAKE_BUILD_TYPE=ClangStrict ..   # Note: deprecated in v1.5.3; removed in v2.0.0
-cmake -DCMAKE_BUILD_TYPE=GCCStrict ..    # Note: deprecated in v1.5.3; removed in v2.0.0
-cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..   # Note: deprecated in v1.5.3; removed in v2.0.0
+cmake -DCMAKE_BUILD_TYPE=Strict ..   # v2.0.0: unified Strict mode replaces ClangStrict/GCCStrict/MSVCStrict
 ```
 
 ### Build System Features
 - **Automatic parallel detection**: Detects CPU cores and configures optimal builds
-- **Compiler detection**: Defaults to system AppleClang on macOS (ABI-safe); Homebrew LLVM available via `-DLIBSTATS_USE_HOMEBREW_LLVM=ON`
+- **Compiler detection**: System AppleClang on macOS (Ventura 13+); GCC 13+ / Clang 17+ on Linux
 - **SIMD optimization**: Runtime CPU feature detection with fallbacks
 - **Cross-platform**: Native Windows, macOS, Linux support
 
@@ -422,126 +408,43 @@ cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..   # Note: deprecated in v1.5.3; removed i
 
 ## Ad Hoc Compilation Outside CMake
 
-For quick problem solving, diagnostics, and testing, you can compile directly without the CMake build system.
+For quick diagnostics and testing, compile directly without CMake. Use the system compiler on
+macOS (Ventura 13+); Homebrew LLVM is not required and not supported in v2.0.0.
 
-### macOS with Homebrew LLVM (Legacy — system AppleClang preferred)
-
-> **Note:** Homebrew LLVM was required for C++20 on macOS Catalina. On Ventura+ (and the Kaby Lake/M1 machines in this ecosystem), system AppleClang is recommended for ABI safety. Homebrew LLVM build support is removed in v2.0.0. Use the system compiler for all new development.
-
-#### Quick Template for Ad Hoc Tests
+### macOS / Linux
 ```bash
-# Basic compilation template for libstats development
-/opt/homebrew/opt/llvm/bin/clang++ -std=c++20 -stdlib=libc++ \
-  -I/opt/homebrew/opt/llvm/include/c++/v1 \
+# macOS — system AppleClang (recommended)
+clang++ -std=c++20 -stdlib=libc++ \
   -I./include \
-  -L/opt/homebrew/opt/llvm/lib/c++ \
   -L./build \
-  -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++ \
   your_test.cpp -o test_output ./build/libstats.a
-```
 
-#### Path Detection for Different Mac Architectures
-```bash
-# For Apple Silicon Macs (ARM64)
-LLVM_ROOT="/opt/homebrew/opt/llvm"
-
-# For Intel Macs
-LLVM_ROOT="/usr/local/opt/llvm"
-
-# Auto-detect and compile
-if [ -f "/opt/homebrew/opt/llvm/bin/clang++" ]; then
-    LLVM_ROOT="/opt/homebrew/opt/llvm"
-else
-    LLVM_ROOT="/usr/local/opt/llvm"
-fi
-
-$LLVM_ROOT/bin/clang++ -std=c++20 -stdlib=libc++ \
-  -I$LLVM_ROOT/include/c++/v1 \
+# Linux — GCC 13+ or Clang 17+
+g++ -std=c++20 -Wall -Wextra -O2 \
   -I./include \
-  -L$LLVM_ROOT/lib/c++ \
   -L./build \
-  -Wl,-rpath,$LLVM_ROOT/lib/c++ \
-  your_test.cpp -o test_output ./build/libstats.a
-```
-
-#### Essential Compiler Flags
-- **`-std=c++20`**: C++20 standard required
-- **`-stdlib=libc++`**: Use LLVM's modern C++ standard library
-- **`-I$LLVM_ROOT/include/c++/v1`**: Modern C++ headers
-- **`-L$LLVM_ROOT/lib/c++`**: Link against LLVM's libc++
-- **`-Wl,-rpath,$LLVM_ROOT/lib/c++`**: Runtime library path
-- **`-I./include`**: libstats header files
-
-#### Static vs Dynamic Linking
-```bash
-# Static linking (recommended for ad hoc tests)
-# Use the .a file directly - no runtime path issues
-./build/libstats.a
-
-# Dynamic linking (requires rpath setup)
--llibstats -Wl,-rpath,./build
+  your_test.cpp -o test_output -lstats
 ```
 
 #### Quick Test Template
-Create `quick_test.cpp`:
 ```cpp
 #include "libstats.h"
 #include <iostream>
 
 int main() {
-    auto result = libstats::GaussianDistribution::create(0.0, 1.0);
+    auto result = stats::GaussianDistribution::create(0.0, 1.0);
     if (result.isOk()) {
-        auto& gaussian = result.value;
-        std::cout << "PDF at 0: " << gaussian.getProbability(0.0) << std::endl;
-        std::cout << "CDF at 1: " << gaussian.getCumulativeProbability(1.0) << std::endl;
+        auto& g = result.value;
+        std::cout << "PDF at 0: " << g.getProbability(0.0) << "\n";
+        std::cout << "CDF at 1: " << g.getCumulativeProbability(1.0) << "\n";
     }
-    return 0;
 }
 ```
 
-Compile and run:
-```bash
-/opt/homebrew/opt/llvm/bin/clang++ -std=c++20 -stdlib=libc++ \
-  -I/opt/homebrew/opt/llvm/include/c++/v1 \
-  -I./include \
-  -L/opt/homebrew/opt/llvm/lib/c++ \
-  -Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++ \
-  quick_test.cpp -o quick_test ./build/libstats.a && ./quick_test
-```
-
-### System Compiler Fallback (Linux/Other Systems)
-```bash
-# Basic template for system compiler
-g++ -std=c++20 -Wall -Wextra -O2 \
-  -I./include \
-  -L./build \
-  your_test.cpp -o test_output -lstats
-
-# Or with Clang
-clang++ -std=c++20 -stdlib=libc++ \
-  -I./include \
-  -L./build \
-  your_test.cpp -o test_output -lstats
-```
-
-### Troubleshooting Ad Hoc Compilation
-
-#### Common Issues
-- **`std::bad_function_call` undefined symbols**: Use `-stdlib=libc++` with Homebrew LLVM
-- **Library not found**: Use static linking (`./build/libstats.a`) instead of `-llibstats`
-- **C++20 features not available**: Ensure using Homebrew LLVM, not system compiler
-- **Header not found**: Check `-I./include` path is correct
-
-#### Verification Commands
-```bash
-# Check C++20 support
-echo '__cplusplus' | /opt/homebrew/opt/llvm/bin/clang++ -std=c++20 -E -x c++ - | tail -n 1
-# Should output: 202002 or higher
-
-# Check which compiler you're using
-which clang++
-/opt/homebrew/opt/llvm/bin/clang++ --version
-```
+### Troubleshooting
+- **Library not found**: Use static linking (`./build/libstats.a`) instead of `-lstats`.
+- **Header not found**: Verify `-I./include` path is correct relative to the project root.
+- **C++20 features not available**: Ensure compiler version meets minimum (AppleClang 15, GCC 13, Clang 17).
 
 ## Project Architecture
 
