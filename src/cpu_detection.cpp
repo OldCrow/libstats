@@ -24,6 +24,7 @@
 #include "libstats/core/math_constants.h"
 #include "libstats/platform/platform_constants.h"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstring>  // For memcpy
@@ -145,6 +146,20 @@ void safe_cpuid(uint32_t eax, uint32_t ecx, uint32_t& out_eax, uint32_t& out_ebx
     // Fallback for unknown compilers
     out_eax = out_ebx = out_ecx = out_edx = 0;
     #endif
+}
+
+uint64_t safe_xgetbv(uint32_t index) noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+    uint32_t xcr0_eax = 0;
+    uint32_t xcr0_edx = 0;
+    asm volatile("xgetbv" : "=a"(xcr0_eax), "=d"(xcr0_edx) : "c"(index));
+    return (static_cast<uint64_t>(xcr0_edx) << 32) | xcr0_eax;
+#elif defined(_MSC_VER)
+    return _xgetbv(index);
+#else
+    (void)index;
+    return 0;
+#endif
 }
 
     #if !defined(__APPLE__)
@@ -437,48 +452,45 @@ Features detect_x86_features() {
 
     // AVX requires both CPUID support AND OS support (OSXSAVE)
     if (osxsave && avx_cpuid) {
-        // Check if OS saves AVX registers
-        uint64_t xcr0 = 0;
-    #if defined(__GNUC__) || defined(__clang__)
-        asm("xgetbv" : "=a"(xcr0) : "c"(0) : "edx");
-    #elif defined(_MSC_VER)
-        xcr0 = _xgetbv(0);
-    #endif
-
-        if ((xcr0 & 0x6) == 0x6) {  // Check bits 1 and 2
+        // Check if OS saves XMM/YMM registers (XCR0 bits 1 and 2).
+        const uint64_t xcr0 = safe_xgetbv(0);
+        // cppcheck cannot model the xgetbv inline assembly output in safe_xgetbv().
+        // cppcheck-suppress knownConditionTrueFalse
+        if ((xcr0 & 0x6) == 0x6) {
             features.avx = true;
             features.fma = (ecx & (1 << 12)) != 0;
         }
     }
 
-    // Check for AVX2 support (requires CPUID leaf 7)
+    // Check for AVX2/AVX-512 support (requires CPUID leaf 7)
+    uint32_t leaf7_ebx = 0;
     if (features.avx && max_cpuid >= 7) {
-        safe_cpuid(7, 0, eax, ebx, ecx, edx);
-        features.avx2 = (ebx & (1 << 5)) != 0;
-        features.avx512f = (ebx & (1 << 16)) != 0;
+        safe_cpuid(7, 0, eax, leaf7_ebx, ecx, edx);
+        features.avx2 = (leaf7_ebx & (1 << 5)) != 0;
+        features.avx512f = (leaf7_ebx & (1 << 16)) != 0;
     }
 
     // Get brand string if available. Each CPUID call returns 4 × 4-byte registers
     // (eax, ebx, ecx, edx) = 16 bytes of brand string per call, three calls total.
     safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
     if (eax >= 0x80000004) {
-        uint32_t regs[4];
-        char brand[49] = {0};
+        std::array<uint32_t, 4> regs{};
+        std::array<char, 49> brand{};
         safe_cpuid(0x80000002, 0, regs[0], regs[1], regs[2], regs[3]);
-        memcpy(brand, regs, 16);
+        memcpy(brand.data(), regs.data(), 16);
         safe_cpuid(0x80000003, 0, regs[0], regs[1], regs[2], regs[3]);
-        memcpy(brand + 16, regs, 16);
+        memcpy(brand.data() + 16, regs.data(), 16);
         safe_cpuid(0x80000004, 0, regs[0], regs[1], regs[2], regs[3]);
-        memcpy(brand + 32, regs, 16);
-        features.brand = brand;
+        memcpy(brand.data() + 32, regs.data(), 16);
+        features.brand = std::string(brand.data());
     }
 
-    // Additional AVX-512 detection
+    // Additional AVX-512 detection from preserved CPUID leaf 7 EBX.
     if (features.avx512f) {
-        features.avx512dq = (ebx & (1 << 17)) != 0;
-        features.avx512cd = (ebx & (1 << 28)) != 0;
-        features.avx512bw = (ebx & (1 << 30)) != 0;
-        features.avx512vl = (ebx & (1U << 31)) != 0;
+        features.avx512dq = (leaf7_ebx & (1 << 17)) != 0;
+        features.avx512cd = (leaf7_ebx & (1 << 28)) != 0;
+        features.avx512bw = (leaf7_ebx & (1 << 30)) != 0;
+        features.avx512vl = (leaf7_ebx & (1U << 31)) != 0;
     }
 
     #if defined(__APPLE__)

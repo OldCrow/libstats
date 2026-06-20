@@ -18,4 +18,4 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(libstats)
 
 add_executable(consumer_demo main.cpp)
-target_link_libraries(consumer_demo PRIVATE libstats_static)
+target_link_libraries(consumer_demo PRIVATE libstats::static)

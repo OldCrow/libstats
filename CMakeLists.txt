@@ -59,6 +59,25 @@ project(
     VERSION 2.0.0
     LANGUAGES CXX)
 
+# v2.x compiler baseline. Fail early with actionable messages.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.0)
+        message(FATAL_ERROR "libstats v2.x requires AppleClang 15+ (Xcode 15+) on macOS")
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 13.0)
+        message(FATAL_ERROR "libstats v2.x requires GCC 13+")
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 17.0)
+        message(FATAL_ERROR "libstats v2.x requires Clang 17+")
+    endif()
+elseif(MSVC)
+    if(MSVC_VERSION LESS 1938)
+        message(FATAL_ERROR "libstats v2.x requires MSVC 19.38+ (Visual Studio 2022 17.8+)")
+    endif()
+endif()
+
 # Build examples by default only for top-level builds.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(LIBSTATS_BUILD_EXAMPLES_DEFAULT ON)
@@ -907,6 +926,12 @@ configure_simd_target(libstats_simd_obj)
 configure_simd_target(libstats_static)
 configure_simd_target(libstats_shared)
 
+# POSIX thread functions are used by platform sources on Unix-like systems.
+if(TARGET Threads::Threads)
+    target_link_libraries(libstats_static PUBLIC Threads::Threads)
+    target_link_libraries(libstats_shared PUBLIC Threads::Threads)
+endif()
+
 # Platform-specific library linking: rpath and signing are handled per-target above.
 # -stdlib=libc++ is set via add_compile_options/add_link_options in the platform block.
 
@@ -1358,6 +1383,10 @@ if(LIBSTATS_BUILD_TESTS)
                 test_validation_enhanced
                 # Level 2: Statistical infrastructure
                 test_goodness_of_fit
+                test_gaussian_analysis
+                test_poisson_analysis
+                test_distribution_analysis
+                test_batch_math_regressions
                 # Level 3: Parallel infrastructure tests
                 test_thread_pool
                 $<$<BOOL:${LIBSTATS_HAS_WORK_STEALING_POOL_TEST}>:test_work_stealing_pool>
@@ -1548,6 +1577,7 @@ install(
 
 # Create and install config file
 include(CMakePackageConfigHelpers)
+set(INCLUDE_INSTALL_DIR include)
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
     VERSION ${PROJECT_VERSION}
@@ -1555,7 +1585,9 @@ write_basic_package_version_file(
 
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats-config.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake" INSTALL_DESTINATION lib/cmake/libstats)
+    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
+    INSTALL_DESTINATION lib/cmake/libstats
+    PATH_VARS INCLUDE_INSTALL_DIR)
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
@@ -1595,6 +1627,10 @@ endif()
 # pkg-config file generation
 # ===============================================================================
 if(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
+    set(LIBSTATS_PC_LIBS_PRIVATE "-pthread")
+    if(LIBSTATS_HAS_TBB)
+        string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
+    endif()
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
                    "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" @ONLY)
 
@@ -1603,6 +1639,10 @@ if(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
     message(STATUS "pkg-config file will be installed to lib/pkgconfig/")
 elseif(APPLE)
     # On macOS with Homebrew, also generate pkg-config
+    set(LIBSTATS_PC_LIBS_PRIVATE "")
+    if(LIBSTATS_HAS_TBB)
+        string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
+    endif()
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
                    "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" @ONLY)
 
