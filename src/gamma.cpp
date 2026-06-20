@@ -1,4 +1,7 @@
 #include "libstats/distributions/gamma.h"
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/core/parallel_batch_fit.h"
 

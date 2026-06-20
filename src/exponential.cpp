@@ -1,4 +1,7 @@
 #include "libstats/distributions/exponential.h"
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "libstats/core/log_space_ops.h"

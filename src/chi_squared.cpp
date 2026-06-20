@@ -1,4 +1,7 @@
 #include "libstats/distributions/chi_squared.h"
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"

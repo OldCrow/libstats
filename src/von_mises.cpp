@@ -1,4 +1,7 @@
 #include "libstats/distributions/von_mises.h"
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/bessel.h"

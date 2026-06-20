@@ -1,4 +1,7 @@
 #include "libstats/distributions/gaussian.h"
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
 #include "libstats/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)

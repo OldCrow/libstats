@@ -1,4 +1,7 @@
 #include "libstats/distributions/poisson.h"
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/core/math_constants.h"
 #include "libstats/core/parallel_batch_fit.h"
