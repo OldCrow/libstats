@@ -409,18 +409,21 @@ class ChiSquaredDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Explicit-strategy batch PDF — delegates to GammaDistribution. */
+    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                     detail::Strategy strategy) const {
         gamma_.getProbabilityWithStrategy(values, results, strategy);
     }
 
     /** @brief Explicit-strategy batch log-PDF — delegates to GammaDistribution. */
+    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                        detail::Strategy strategy) const {
         gamma_.getLogProbabilityWithStrategy(values, results, strategy);
     }
 
     /** @brief Explicit-strategy batch CDF — delegates to GammaDistribution. */
+    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
                                               detail::Strategy strategy) const {

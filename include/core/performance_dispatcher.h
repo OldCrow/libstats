@@ -268,8 +268,11 @@ class PerformanceDispatcher {
 
         /**
          * @brief Refine thresholds based on measured system performance
-         * @param system System capabilities for fine-tuning
+         * @deprecated This method mutates per-distribution Thresholds fields that
+         *   selectStrategy() does not read; calling it has no effect on actual dispatch
+         *   behaviour. Removed in v2.0.0.
          */
+        [[deprecated("refineWithCapabilities mutates deprecated fields not read by selectStrategy(); removed in v2.0.0.")]]
         void refineWithCapabilities(const SystemCapabilities& system);
     };
 

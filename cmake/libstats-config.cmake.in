@@ -19,22 +19,28 @@ set(LIBSTATS_FOUND TRUE)
 set(LIBSTATS_VERSION "@PROJECT_VERSION@")
 set(LIBSTATS_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
 
-# Provide different library options
-if(TARGET libstats::shared)
-    set(LIBSTATS_LIBRARIES libstats::shared)
-    set(LIBSTATS_SHARED_LIBRARIES libstats::shared)
+# Provide different library options.
+# CMake exports the actual target names with the namespace prefix applied:
+#   libstats_static  →  libstats::libstats_static
+#   libstats_shared  →  libstats::libstats_shared
+#   libstats_headers →  libstats::libstats_headers
+# The build-tree aliases libstats::static / libstats::shared / libstats::headers
+# are NOT exported (CMake cannot install alias targets).
+if(TARGET libstats::libstats_shared)
+    set(LIBSTATS_LIBRARIES libstats::libstats_shared)
+    set(LIBSTATS_SHARED_LIBRARIES libstats::libstats_shared)
 endif()
 
-if(TARGET libstats::static)
-    set(LIBSTATS_STATIC_LIBRARIES libstats::static)
+if(TARGET libstats::libstats_static)
+    set(LIBSTATS_STATIC_LIBRARIES libstats::libstats_static)
     # Default to static if no preference specified
     if(NOT DEFINED LIBSTATS_LIBRARIES)
-        set(LIBSTATS_LIBRARIES libstats::static)
+        set(LIBSTATS_LIBRARIES libstats::libstats_static)
     endif()
 endif()
 
-if(TARGET libstats::headers)
-    set(LIBSTATS_HEADER_LIBRARIES libstats::headers)
+if(TARGET libstats::libstats_headers)
+    set(LIBSTATS_HEADER_LIBRARIES libstats::libstats_headers)
 endif()
 
 # Report SIMD capabilities that were detected at build time

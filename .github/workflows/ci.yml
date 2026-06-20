@@ -181,18 +181,18 @@ jobs:
     - name: Install tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang-format-15 clang-tidy-15 cppcheck
+        sudo apt-get install -y clang-format-17 clang-tidy-17 cppcheck
 
     - name: Check formatting
       run: |
-        find include src tests -name '*.h' -o -name '*.cpp' | xargs clang-format-15 --dry-run --Werror || true
+        find include src tests -name '*.h' -o -name '*.cpp' | xargs clang-format-17 --dry-run --Werror || true
         echo "Note: Format checking configured but not enforced yet"
 
     - name: Run clang-tidy
       run: |
         cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         # Only check our source files, exclude system headers
-        find src -name '*.cpp' | head -5 | xargs clang-tidy-15 -p build \
+        find src -name '*.cpp' | head -5 | xargs clang-tidy-17 -p build \
           --header-filter='.*/(include|src)/.*\.h$' \
           --system-headers=false \
           --warnings-as-errors="" || true

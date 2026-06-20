@@ -1,6 +1,21 @@
 # libstats - Modern C++20 Statistical Distributions Library
 
-[![Version](https://img.shields.io/badge/version-v1.5.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.5.1)
+---
+
+### 🚩 Final v1.x Release
+
+**v1.5.3 is the last release of the v1.x series.**
+v2.0.0 is in active development and will introduce breaking API changes:
+new namespace organisation, reduction of the deprecated API surface, platform
+baseline raised to macOS 13 Ventura / GCC 13 / AppleClang 15, and
+analysis utilities extracted to `stats::analysis`.
+
+If you are building new code against libstats, pin to **v1.5.3**.
+Migration notes will be published alongside the v2.0.0 release.
+
+---
+
+[![Version](https://img.shields.io/badge/version-v1.5.3-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.5.3)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)

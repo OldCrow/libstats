@@ -145,9 +145,12 @@ class UniformDistribution : public DistributionBase {
     /**
      * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     * @warning NOT noexcept — lock acquisition can throw std::system_error.
+     *   std::vector reallocation will copy, not move, UniformDistribution elements.
+     *   This is intentional for correctness; noexcept move constructors require
+     *   atomic-only cache state (v2.0.0 prerequisite).
      */
-    UniformDistribution(UniformDistribution&& other) noexcept;
+    UniformDistribution(UniformDistribution&& other);
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
@@ -919,6 +922,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
+    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                     detail::Strategy strategy) const;
 
@@ -935,6 +939,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
+    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                        detail::Strategy strategy) const;
 
@@ -951,6 +956,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
+    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
                                               detail::Strategy strategy) const;

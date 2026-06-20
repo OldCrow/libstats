@@ -897,6 +897,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
+    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                     detail::Strategy strategy) const;
 
@@ -913,6 +914,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
+    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                        detail::Strategy strategy) const;
 
@@ -929,6 +931,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
+    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
                                               detail::Strategy strategy) const;

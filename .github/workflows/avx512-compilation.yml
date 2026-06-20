@@ -20,8 +20,8 @@ jobs:
     strategy:
       matrix:
         compiler:
-          - { name: gcc-12, cc: gcc-12, cxx: g++-12 }
-          - { name: clang-15, cc: clang-15, cxx: clang++-15 }
+          - { name: gcc-13, cc: gcc-13, cxx: g++-13 }
+          - { name: clang-17, cc: clang-17, cxx: clang++-17 }
         build_type: [Debug, Release]
 
     steps:
@@ -33,9 +33,7 @@ jobs:
         if [[ "${{ matrix.compiler.cc }}" == gcc* ]]; then
           sudo apt-get install -y ${{ matrix.compiler.cc }} ${{ matrix.compiler.cxx }}
         elif [[ "${{ matrix.compiler.cc }}" == clang* ]]; then
-          sudo apt-get install -y ${{ matrix.compiler.cc }}
-          # Install clang++-15 explicitly
-          sudo apt-get install -y clang++-15
+          sudo apt-get install -y ${{ matrix.compiler.cc }} ${{ matrix.compiler.cxx }}
         fi
 
     - name: Set Compiler Environment
@@ -57,25 +55,27 @@ jobs:
       run: |
         echo "=== Compiling AVX-512 source files individually ==="
 
-        # Test compilation of AVX-512 source with forced flags
+        # Source files use #include "libstats/..." which resolves via the CMake-generated
+        # include shim at build/include_shim/ (created by the Configure step above).
+        # -I include alone cannot resolve the libstats/ prefix.
         echo "Testing simd_avx512.cpp compilation..."
         ${{ matrix.compiler.cxx }} \
-          -I include -I . \
+          -I build/include_shim \
           -std=c++20 \
           -DLIBSTATS_HAS_AVX512 \
           -mavx512f -mavx512dq -mavx512bw -mavx512vl \
           -c src/simd_avx512.cpp \
-          -o avx512_test.o || echo "AVX-512 source compilation failed"
+          -o avx512_test.o || { echo "AVX-512 source compilation failed"; exit 1; }
 
         # Test compilation of dispatch logic with AVX-512 enabled
         echo "Testing simd_dispatch.cpp with AVX-512 enabled..."
         ${{ matrix.compiler.cxx }} \
-          -I include -I . \
+          -I build/include_shim \
           -std=c++20 \
           -DLIBSTATS_HAS_AVX512 \
           -mavx512f -mavx512dq -mavx512bw -mavx512vl \
           -c src/simd_dispatch.cpp \
-          -o dispatch_avx512_test.o || echo "Dispatch compilation failed"
+          -o dispatch_avx512_test.o || { echo "Dispatch compilation failed"; exit 1; }
 
         echo "✅ Individual source file compilation tests completed"
 

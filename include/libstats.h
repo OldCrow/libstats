@@ -169,11 +169,11 @@
     #include "distributions/binomial.h"
     #include "distributions/negative_binomial.h"
     #include "distributions/weibull.h"
-#endif  // LIBSTATS_FULL_INTERFACE
 
-// Main namespace for the statistical library
+// Type aliases — inside the guard because they reference types only defined
+// when LIBSTATS_FULL_INTERFACE is active.  Using them on incomplete types
+// compiles but produces confusing "incomplete type" errors on first use.
 namespace stats {
-// Type aliases for common usage
 using Gaussian = GaussianDistribution;
 using Normal = GaussianDistribution;
 using Exponential = ExponentialDistribution;
@@ -191,12 +191,18 @@ using Rayleigh = RayleighDistribution;
 using VonMises = VonMisesDistribution;
 using Binomial = BinomialDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
+}  // namespace stats
+#endif  // LIBSTATS_FULL_INTERFACE
 
-// Version information
+// Version constants and initialization — available in both lightweight and
+// full-interface modes; do not require complete distribution types.
+// TODO(v2.0.0): generate these from ${PROJECT_VERSION} via configure_file so
+// they cannot drift from the CMakeLists.txt version again.
+namespace stats {
 constexpr int LIBSTATS_VERSION_MAJOR = 1;
-constexpr int LIBSTATS_VERSION_MINOR = 2;
-constexpr int LIBSTATS_VERSION_PATCH = 0;
-constexpr const char* VERSION_STRING = "1.2.0";
+constexpr int LIBSTATS_VERSION_MINOR = 5;
+constexpr int LIBSTATS_VERSION_PATCH = 3;
+constexpr const char* VERSION_STRING = "1.5.3";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays

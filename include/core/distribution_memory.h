@@ -21,8 +21,10 @@ namespace stats {
 
 /**
  * @brief Memory pool for efficient allocation of temporary objects
+ * @deprecated MemoryPool and all types in this header are unused in src/ and tests/;
+ *   this header is removed in v2.0.0.
  */
-class MemoryPool {
+class [[deprecated("MemoryPool is unused and removed in v2.0.0; do not use in new code.")]] MemoryPool {
    private:
     static constexpr size_t POOL_SIZE = 1024 * 1024;  // 1MB pool
     static constexpr size_t ALIGNMENT = 64;           // Cache line alignment
@@ -185,11 +187,10 @@ class SIMDAllocator {
 
 /**
  * @brief Small vector optimization for temporary data
- * @tparam T Element type
- * @tparam N Number of elements in small buffer optimization
+ * @deprecated Removed in v2.0.0; use std::vector.
  */
 template <typename T, size_t N>
-class SmallVector {
+class [[deprecated("SmallVector is unused and removed in v2.0.0; use std::vector.")]] SmallVector {
    private:
     alignas(T) char small_buffer_[N * sizeof(T)];
     std::unique_ptr<T[]> heap_data_;
@@ -393,9 +394,10 @@ class SmallVector {
 
 /**
  * @brief Stack-based memory allocator for temporary computations
+ * @deprecated Removed in v2.0.0.
  */
 template <size_t StackSize = 4096>
-class StackAllocator {
+class [[deprecated("StackAllocator is unused and removed in v2.0.0.")]] StackAllocator {
    private:
     alignas(std::max_align_t) char stack_[StackSize];
     char* current_ = stack_;
@@ -433,9 +435,10 @@ class StackAllocator {
 
 /**
  * @brief SIMD-aligned vector type for efficient batch operations
+ * @deprecated Removed in v2.0.0; use std::vector with manual alignment if needed.
  */
 template <typename T>
-using simd_vector = std::vector<T, SIMDAllocator<T>>;
+using simd_vector [[deprecated("simd_vector is unused and removed in v2.0.0.")]] = std::vector<T, SIMDAllocator<T>>;
 
 /**
  * @brief Thread-local memory pool instance

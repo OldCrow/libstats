@@ -42,17 +42,13 @@ namespace stats {
  *   AppleClang / macOS libc++ always uses Tier 2.
  *
  * @par Batch operations and SIMD:
- * VectorOps currently has no vector_cos primitive, so the VECTORIZED strategy
- * uses a scalar loop — identical per-element cost to calling getLogProbability
- * individually, but with better cache behaviour for κ and μ (loop-invariant)
- * and crucially avoiding the per-element recomputation of logNormaliser_, which
- * requires log_bessel_i0(κ) (a Bessel function call). The PARALLEL strategy
- * provides genuine multi-core throughput and is the recommended choice for
- * large batches.
- *
- * If vector_cos is added to VectorOps in a future release, the VECTORIZED path
- * would reduce to a 3-step pipeline: scalar_add(−μ) → vector_cos → fused
- * scalar_multiply(κ) + scalar_add(−logNormaliser_).
+ * The VECTORIZED strategy uses `VectorOps::vector_cos` via the 4-step pipeline:
+ *   1. scalar_add(−μ)         — shift to zero-centred angle
+ *   2. vector_cos(results)    — SIMD cosine across all backends (AVX/AVX2/NEON/AVX-512)
+ *   3. scalar_multiply(κ)     — scale by concentration
+ *   4. scalar_add(−ln Z)      — subtract log-normaliser
+ * The PARALLEL strategy provides multi-core throughput for very large batches
+ * where the CDF path (512-step trapezoidal per element) dominates.
  *
  * @par MLE:
  * - μ̂ = atan2(Σsin(xᵢ), Σcos(xᵢ))  (one-pass circular mean)
@@ -286,6 +282,9 @@ class VonMisesDistribution : public DistributionBase {
     /** @brief Circular variance = 1 − I₁(κ)/I₀(κ). Same as getVariance(). */
     [[nodiscard]] double getCircularVariance() const noexcept;
 
+    /** @brief Median = μ (Von Mises is symmetric about μ). */
+    [[nodiscard]] double getMedian() const noexcept { return getMu(); }
+
     /** @brief Mode = μ (always at the mean direction). */
     [[nodiscard]] double getMode() const noexcept;
 
@@ -321,12 +320,15 @@ class VonMisesDistribution : public DistributionBase {
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
+    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                     detail::Strategy strategy) const;
 
+    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                        detail::Strategy strategy) const;
 
+    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
                                               detail::Strategy strategy) const;
@@ -361,34 +363,25 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief Scalar-loop batch LogPDF / PDF.
+     * @brief SIMD-accelerated batch LogPDF / PDF via `VectorOps::vector_cos`.
      *
-     * VectorOps has no vector_cos, so the VECTORIZED path uses a scalar loop.
-     * Value vs per-element calls:
-     *   - logNormaliser_ = log(2π) + log_bessel_i0(κ) is cached — avoids one
-     *     Bessel function call per element.
-     *   - κ and μ are hoisted as loop-invariant scalars by the compiler.
-     *
-     * Hot path per element: κ·cos(x−μ) − logNormaliser_  (one cos call).
-     *
-     * When a vector_cos primitive is added to VectorOps in a future release,
-     * the pipeline becomes:
-     *   Step 1: results = x − μ                    [scalar_add(−mu_)]
-     *   Step 2: results = cos(results)              [vector_cos — future]
-     *   Step 3: results = κ·cos(x−μ) − logNorm     [scalar_multiply(kappa_) + scalar_add]
-     * Until then, PARALLEL is the recommended strategy for large batches.
+     * Pipeline: scalar_add(−μ) → vector_cos → scalar_multiply(κ) → scalar_add(−ln Z).
+     * logNormaliser_ is cached — avoids one Bessel call per element.
+     * κ and μ are loop-invariant scalars.
+     * These methods are "Unsafe" because they skip parameter validation;
+     * callers must hold the cache lock or guarantee parameter stability.
      */
-    void getLogProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                    double cached_kappa, double cached_mu,
-                                    double cached_log_normaliser) const noexcept;
+    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                          double cached_kappa, double cached_mu,
+                                          double cached_log_normaliser) const noexcept;
 
-    void getProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                 double cached_kappa, double cached_mu,
-                                 double cached_log_normaliser) const noexcept;
+    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
+                                       double cached_kappa, double cached_mu,
+                                       double cached_log_normaliser) const noexcept;
 
-    /** @brief CDF batch — each element calls the 512-step trapezoidal CDF. */
-    void getCumulativeProbabilityBatchImpl(const double* values, double* results,
-                                           std::size_t count) const noexcept;
+    /** @brief CDF batch — each element calls the 512-step trapezoidal CDF. Unsafe: no validation. */
+    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
+                                                 std::size_t count) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS

@@ -387,9 +387,9 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Strict compiler warnings as errors (for compatibility testing)
-cmake -DCMAKE_BUILD_TYPE=ClangStrict ..
-cmake -DCMAKE_BUILD_TYPE=GCCStrict ..
-cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..
+cmake -DCMAKE_BUILD_TYPE=ClangStrict ..   # Note: deprecated in v1.5.3; removed in v2.0.0
+cmake -DCMAKE_BUILD_TYPE=GCCStrict ..    # Note: deprecated in v1.5.3; removed in v2.0.0
+cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..   # Note: deprecated in v1.5.3; removed in v2.0.0
 ```
 
 ### Build System Features
@@ -424,7 +424,9 @@ cmake -DCMAKE_BUILD_TYPE=MSVCStrict ..
 
 For quick problem solving, diagnostics, and testing, you can compile directly without the CMake build system.
 
-### macOS with Homebrew LLVM (Recommended)
+### macOS with Homebrew LLVM (Legacy — system AppleClang preferred)
+
+> **Note:** Homebrew LLVM was required for C++20 on macOS Catalina. On Ventura+ (and the Kaby Lake/M1 machines in this ecosystem), system AppleClang is recommended for ABI safety. Homebrew LLVM build support is removed in v2.0.0. Use the system compiler for all new development.
 
 #### Quick Template for Ad Hoc Tests
 ```bash
@@ -575,7 +577,7 @@ Level 5: Complete Library Interface (libstats.h)
 
 ### Core Components
 
-#### Statistical Distributions (9 implemented)
+#### Statistical Distributions (16 across 6 families)
 1. **Gaussian** (Normal) - N(μ, σ²)
 2. **Exponential** - Exp(λ)
 3. **Uniform** - U(a, b)
@@ -585,6 +587,13 @@ Level 5: Complete Library Interface (libstats.h)
 7. **Chi-squared** - χ²(ν) — delegation wrapper over Gamma(α=ν/2, β=1/2)
 8. **Student's t** - t(ν) — SIMD log-space PDF/LogPDF and CDF via incomplete beta
 9. **Beta** - Beta(α, β) — two-log SIMD PDF/LogPDF and CDF via regularized incomplete beta
+10. **Log-Normal** - LogN(μ, σ) — log+exp pipeline
+11. **Pareto** - Pareto(xₘ, α) — log-only pipeline, power-law tail
+12. **Weibull** - W(k, λ) — log+exp pipeline, reliability engineering
+13. **Rayleigh** - R(σ) — x² pipeline, signal processing
+14. **Von Mises** - VM(μ, κ) — circular distribution, SIMD via vector_cos
+15. **Binomial** - B(n, p) — discrete, PMF via lgamma
+16. **Negative Binomial** - NB(r, p) — discrete, real-valued r, Newton–Raphson MLE
 
 Each provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
 
