@@ -249,22 +249,39 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     // Calculate number of tasks we'll submit
     const std::size_t numTasks = (totalWork + grainSize - 1) / grainSize;
 
+    // Per-call synchronisation: a countdown latch scoped to this invocation.
+    // The global activeTasks_/waitForAll() mechanism would cause cross-caller
+    // interference when two threads each call parallelFor concurrently — each
+    // caller's waitForAll() would unblock as soon as any caller's tasks finish,
+    // not necessarily its own (A-2 correctness fix).
+    auto pendingTasks = std::make_shared<std::atomic<std::size_t>>(numTasks);
+    auto doneMutex    = std::make_shared<std::mutex>();
+    auto doneCv       = std::make_shared<std::condition_variable>();
+
     // Submit all tasks
     for (std::size_t taskId = 0; taskId < numTasks; ++taskId) {
         const std::size_t taskStart = start + taskId * grainSize;
         const std::size_t taskEnd = std::min(start + (taskId + 1) * grainSize, end);
 
-        // Capture by value to avoid lifetime issues
-        submit([func, taskStart, taskEnd]() {
-            // Execute function for this range with safety checks
+        // Capture shared_ptrs by value so the latch outlives the submission scope.
+        submit([func, taskStart, taskEnd, pendingTasks, doneMutex, doneCv]() {
+            // Execute function for this range
             for (std::size_t i = taskStart; i < taskEnd; ++i) {
                 func(i);
+            }
+            // Signal per-call completion
+            if (pendingTasks->fetch_sub(1u, std::memory_order_acq_rel) == 1u) {
+                std::lock_guard<std::mutex> lock(*doneMutex);
+                doneCv->notify_all();
             }
         });
     }
 
-    // Use the pool's built-in synchronization mechanism
-    waitForAll();
+    // Wait only for this invocation's tasks (not for tasks from other callers).
+    std::unique_lock<std::mutex> lock(*doneMutex);
+    doneCv->wait(lock, [&pendingTasks] {
+        return pendingTasks->load(std::memory_order_acquire) == 0u;
+    });
 }
 
 /**

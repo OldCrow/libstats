@@ -112,14 +112,14 @@ class GaussianDistribution : public DistributionBase {
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    GaussianDistribution(GaussianDistribution&& other);
+    GaussianDistribution(GaussianDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    GaussianDistribution& operator=(GaussianDistribution&& other);
+    GaussianDistribution& operator=(GaussianDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five

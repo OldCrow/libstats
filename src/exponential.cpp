@@ -61,9 +61,8 @@ ExponentialDistribution& ExponentialDistribution::operator=(const ExponentialDis
     return *this;
 }
 
-ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other)
+ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     lambda_ = other.lambda_;
     other.lambda_ = detail::ONE;
     other.cache_valid_ = false;
@@ -71,11 +70,8 @@ ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other
     // Cache will be updated on first use
 }
 
-ExponentialDistribution& ExponentialDistribution::operator=(ExponentialDistribution&& other) {
+ExponentialDistribution& ExponentialDistribution::operator=(ExponentialDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         lambda_ = other.lambda_;
         other.lambda_ = detail::ONE;

@@ -170,14 +170,14 @@ class GammaDistribution : public DistributionBase {
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    GammaDistribution(GammaDistribution&& other);
+    GammaDistribution(GammaDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    GammaDistribution& operator=(GammaDistribution&& other);
+    GammaDistribution& operator=(GammaDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five

@@ -2,15 +2,67 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
-// Include all three distributions
+// All 16 distribution headers (needed for static_assert guards below)
+#include "libstats/distributions/beta.h"
+#include "libstats/distributions/binomial.h"
+#include "libstats/distributions/chi_squared.h"
+#include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/pareto.h"
+#include "libstats/distributions/poisson.h"
+#include "libstats/distributions/rayleigh.h"
+#include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/von_mises.h"
+#include "libstats/distributions/weibull.h"
 
 using namespace std;
 using namespace stats;
+
+// =============================================================================
+// COMPILE-TIME noexcept REGRESSION GUARDS (A-10)
+// Each assertion fires at build time if the move ctor or move assignment
+// reverts to a throwing implementation on any distribution.
+// =============================================================================
+static_assert(std::is_nothrow_move_constructible_v<BetaDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<BetaDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<BinomialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<BinomialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<ChiSquaredDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<ChiSquaredDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<DiscreteDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<DiscreteDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<ExponentialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<ExponentialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<GammaDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<GammaDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<GaussianDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<GaussianDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<LogNormalDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<LogNormalDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<NegativeBinomialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<NegativeBinomialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<ParetoDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<ParetoDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<PoissonDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<PoissonDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<RayleighDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<RayleighDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<StudentTDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<StudentTDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<UniformDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<UniformDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<VonMisesDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<VonMisesDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<WeibullDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<WeibullDistribution>);
 
 std::atomic<int> completed_operations{0};
 std::atomic<bool> stop_test{false};
@@ -102,6 +154,90 @@ void stressTestGaussianCopyMove(int thread_id) {
     completed_operations.fetch_add(local_ops % 100);
 }
 
+void stressTestPoissonCopyMove(int thread_id) {
+    int local_ops = 0;
+
+    while (!stop_test.load()) {
+        try {
+            auto pois1 = PoissonDistribution::create(thread_id + 1.0).value;
+            auto pois2 = PoissonDistribution::create(thread_id + 3.0).value;
+
+            for (int i = 0; i < 10; ++i) {
+                auto copy1 = pois1;
+                auto copy2 = pois2;
+                copy1 = copy2;
+                copy2 = pois1;
+                auto moved1 = std::move(copy1);
+                auto moved2 = std::move(copy2);
+                double sum = moved1.getMean() + moved2.getMean();
+                (void)sum;
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Poisson thread " << thread_id << " caught: " << e.what() << endl;
+            break;
+        }
+        if (local_ops % 100 == 0) completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestGammaCopyMove(int thread_id) {
+    int local_ops = 0;
+
+    while (!stop_test.load()) {
+        try {
+            auto gamma1 = GammaDistribution::create(2.0, thread_id + 0.5).value;
+            auto gamma2 = GammaDistribution::create(3.0, thread_id + 1.0).value;
+
+            for (int i = 0; i < 10; ++i) {
+                auto copy1 = gamma1;
+                auto copy2 = gamma2;
+                copy1 = copy2;
+                copy2 = gamma1;
+                auto moved1 = std::move(copy1);
+                auto moved2 = std::move(copy2);
+                double sum = moved1.getMean() + moved2.getMean();
+                (void)sum;
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Gamma thread " << thread_id << " caught: " << e.what() << endl;
+            break;
+        }
+        if (local_ops % 100 == 0) completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestDiscreteCopyMove(int thread_id) {
+    int local_ops = 0;
+
+    while (!stop_test.load()) {
+        try {
+            auto disc1 = DiscreteDistribution::create(1, thread_id + 6).value;
+            auto disc2 = DiscreteDistribution::create(0, thread_id + 4).value;
+
+            for (int i = 0; i < 10; ++i) {
+                auto copy1 = disc1;
+                auto copy2 = disc2;
+                copy1 = copy2;
+                copy2 = disc1;
+                auto moved1 = std::move(copy1);
+                auto moved2 = std::move(copy2);
+                double sum = moved1.getMean() + moved2.getMean();
+                (void)sum;
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Discrete thread " << thread_id << " caught: " << e.what() << endl;
+            break;
+        }
+        if (local_ops % 100 == 0) completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
 void stressTestExponentialCopyMove(int thread_id) {
     int local_ops = 0;
 
@@ -163,17 +299,16 @@ int main() {
 
     auto start_time = chrono::steady_clock::now();
 
-    // Start threads for each distribution type
-    for (int i = 0; i < num_threads / 3; ++i) {
-        threads.emplace_back(stressTestUniformCopyMove, i);
-    }
-
-    for (int i = 0; i < num_threads / 3; ++i) {
-        threads.emplace_back(stressTestGaussianCopyMove, i + 100);
-    }
-
-    for (int i = 0; i < num_threads - 2 * (num_threads / 3); ++i) {
-        threads.emplace_back(stressTestExponentialCopyMove, i + 200);
+    // Start threads for each distribution type (6 distributions, ~1 thread each)
+    threads.emplace_back(stressTestUniformCopyMove, 0);
+    threads.emplace_back(stressTestGaussianCopyMove, 100);
+    threads.emplace_back(stressTestExponentialCopyMove, 200);
+    threads.emplace_back(stressTestPoissonCopyMove, 300);
+    threads.emplace_back(stressTestGammaCopyMove, 400);
+    threads.emplace_back(stressTestDiscreteCopyMove, 500);
+    // Fill remaining threads with Gaussian (simplest, broadest coverage)
+    for (int i = 6; i < num_threads; ++i) {
+        threads.emplace_back(stressTestGaussianCopyMove, i + 600);
     }
 
     // Monitor progress

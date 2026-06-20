@@ -93,7 +93,7 @@ class BetaDistribution : public DistributionBase {
     BetaDistribution(BetaDistribution&& other) noexcept;
 
     /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    BetaDistribution& operator=(BetaDistribution&& other);
+    BetaDistribution& operator=(BetaDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~BetaDistribution() override = default;

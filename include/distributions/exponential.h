@@ -136,14 +136,14 @@ class ExponentialDistribution : public DistributionBase {
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    ExponentialDistribution(ExponentialDistribution&& other);
+    ExponentialDistribution(ExponentialDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    ExponentialDistribution& operator=(ExponentialDistribution&& other);
+    ExponentialDistribution& operator=(ExponentialDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five

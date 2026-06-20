@@ -79,7 +79,6 @@ BetaDistribution& BetaDistribution::operator=(const BetaDistribution& other) {
 
 BetaDistribution::BetaDistribution(BetaDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;
     alphaMinus1_ = other.alphaMinus1_;
@@ -99,11 +98,8 @@ BetaDistribution::BetaDistribution(BetaDistribution&& other) noexcept
     atomicBeta_.store(beta_, std::memory_order_release);
 }
 
-BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) {
+BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         alpha_ = other.alpha_;
         beta_ = other.beta_;

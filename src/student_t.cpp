@@ -76,7 +76,6 @@ StudentTDistribution& StudentTDistribution::operator=(const StudentTDistribution
 
 StudentTDistribution::StudentTDistribution(StudentTDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     nu_ = other.nu_;
     halfNu_ = other.halfNu_;
     halfNuPlusOne_ = other.halfNuPlusOne_;
@@ -94,11 +93,8 @@ StudentTDistribution::StudentTDistribution(StudentTDistribution&& other) noexcep
     atomicNu_.store(nu_, std::memory_order_release);
 }
 
-StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) {
+StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         nu_ = other.nu_;
         halfNu_ = other.halfNu_;

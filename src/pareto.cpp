@@ -72,7 +72,6 @@ ParetoDistribution& ParetoDistribution::operator=(const ParetoDistribution& othe
 
 ParetoDistribution::ParetoDistribution(ParetoDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     scale_ = other.scale_;
     alpha_ = other.alpha_;
     logScale_ = other.logScale_;
@@ -91,11 +90,8 @@ ParetoDistribution::ParetoDistribution(ParetoDistribution&& other) noexcept
     atomicAlpha_.store(alpha_, std::memory_order_release);
 }
 
-ParetoDistribution& ParetoDistribution::operator=(ParetoDistribution&& other) {
+ParetoDistribution& ParetoDistribution::operator=(ParetoDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         scale_ = other.scale_;
         alpha_ = other.alpha_;

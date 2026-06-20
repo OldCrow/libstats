@@ -132,7 +132,6 @@ VonMisesDistribution& VonMisesDistribution::operator=(const VonMisesDistribution
 
 VonMisesDistribution::VonMisesDistribution(VonMisesDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     mu_ = other.mu_;
     kappa_ = other.kappa_;
     logNormaliser_ = other.logNormaliser_;
@@ -146,11 +145,8 @@ VonMisesDistribution::VonMisesDistribution(VonMisesDistribution&& other) noexcep
     atomicKappa_.store(kappa_, std::memory_order_release);
 }
 
-VonMisesDistribution& VonMisesDistribution::operator=(VonMisesDistribution&& other) {
+VonMisesDistribution& VonMisesDistribution::operator=(VonMisesDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         mu_ = other.mu_;
         kappa_ = other.kappa_;

@@ -71,7 +71,6 @@ WeibullDistribution& WeibullDistribution::operator=(const WeibullDistribution& o
 
 WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     shape_ = other.shape_;
     scale_ = other.scale_;
     logShape_ = other.logShape_;
@@ -89,11 +88,8 @@ WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
     atomicScale_.store(scale_, std::memory_order_release);
 }
 
-WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) {
+WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         shape_ = other.shape_;
         scale_ = other.scale_;

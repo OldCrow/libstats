@@ -57,7 +57,6 @@ ChiSquaredDistribution& ChiSquaredDistribution::operator=(const ChiSquaredDistri
 
 ChiSquaredDistribution::ChiSquaredDistribution(ChiSquaredDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     k_ = other.k_;
     gamma_ = std::move(other.gamma_);
     other.k_ = detail::ONE;
@@ -65,11 +64,8 @@ ChiSquaredDistribution::ChiSquaredDistribution(ChiSquaredDistribution&& other) n
     other.cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) {
+ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         k_ = other.k_;
         gamma_ = std::move(other.gamma_);

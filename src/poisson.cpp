@@ -63,9 +63,8 @@ PoissonDistribution& PoissonDistribution::operator=(const PoissonDistribution& o
     return *this;
 }
 
-PoissonDistribution::PoissonDistribution(PoissonDistribution&& other)
+PoissonDistribution::PoissonDistribution(PoissonDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     lambda_ = other.lambda_;
     other.lambda_ = detail::ONE;
     other.cache_valid_ = false;
@@ -73,11 +72,8 @@ PoissonDistribution::PoissonDistribution(PoissonDistribution&& other)
     // Cache will be updated on first use
 }
 
-PoissonDistribution& PoissonDistribution::operator=(PoissonDistribution&& other) {
+PoissonDistribution& PoissonDistribution::operator=(PoissonDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         lambda_ = other.lambda_;
         other.lambda_ = detail::ONE;

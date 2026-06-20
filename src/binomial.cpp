@@ -62,7 +62,6 @@ BinomialDistribution& BinomialDistribution::operator=(const BinomialDistribution
 
 BinomialDistribution::BinomialDistribution(BinomialDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     n_ = other.n_;
     p_ = other.p_;
     logNFact_ = other.logNFact_;
@@ -76,11 +75,8 @@ BinomialDistribution::BinomialDistribution(BinomialDistribution&& other) noexcep
     atomicP_.store(p_, std::memory_order_release);
 }
 
-BinomialDistribution& BinomialDistribution::operator=(BinomialDistribution&& other) {
+BinomialDistribution& BinomialDistribution::operator=(BinomialDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         n_ = other.n_;
         p_ = other.p_;

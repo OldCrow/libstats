@@ -1505,6 +1505,7 @@ if(LIBSTATS_BUILD_TESTS)
     # gaussian.h - Gaussian/Normal distribution implementation (CONSOLIDATED)
     create_libstats_test(test_gaussian_basic tests/test_gaussian_basic.cpp)
     create_libstats_gtest(test_gaussian_enhanced tests/test_gaussian_enhanced.cpp)
+    create_libstats_gtest(test_gaussian_analysis tests/test_gaussian_analysis.cpp)
 
     # exponential.h - Exponential distribution implementation (CONSOLIDATED)
     create_libstats_test(test_exponential_basic tests/test_exponential_basic.cpp)

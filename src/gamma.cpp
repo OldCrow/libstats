@@ -58,7 +58,6 @@ GammaDistribution::GammaDistribution(const GammaDistribution& other) : Distribut
 
 GammaDistribution& GammaDistribution::operator=(const GammaDistribution& other) {
     if (this != &other) {
-        std::scoped_lock lock(cache_mutex_, other.cache_mutex_);
         alpha_ = other.alpha_;
         beta_ = other.beta_;
         updateCacheUnsafe();
@@ -66,9 +65,8 @@ GammaDistribution& GammaDistribution::operator=(const GammaDistribution& other) 
     return *this;
 }
 
-GammaDistribution::GammaDistribution(GammaDistribution&& other)
+GammaDistribution::GammaDistribution(GammaDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::scoped_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;
     cache_valid_ = other.cache_valid_;
@@ -76,9 +74,8 @@ GammaDistribution::GammaDistribution(GammaDistribution&& other)
     atomicBeta_.store(beta_, std::memory_order_release);
 }
 
-GammaDistribution& GammaDistribution::operator=(GammaDistribution&& other) {
+GammaDistribution& GammaDistribution::operator=(GammaDistribution&& other) noexcept {
     if (this != &other) {
-        std::scoped_lock lock(cache_mutex_, other.cache_mutex_);
         alpha_ = other.alpha_;
         beta_ = other.beta_;
         updateCacheUnsafe();

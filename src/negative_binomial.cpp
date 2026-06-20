@@ -66,7 +66,6 @@ NegativeBinomialDistribution& NegativeBinomialDistribution::operator=(
 NegativeBinomialDistribution::NegativeBinomialDistribution(
     NegativeBinomialDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     r_ = other.r_;
     p_ = other.p_;
     logGammaR_ = other.logGammaR_;
@@ -81,11 +80,8 @@ NegativeBinomialDistribution::NegativeBinomialDistribution(
 }
 
 NegativeBinomialDistribution& NegativeBinomialDistribution::operator=(
-    NegativeBinomialDistribution&& other) {
+    NegativeBinomialDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         r_ = other.r_;
         p_ = other.p_;

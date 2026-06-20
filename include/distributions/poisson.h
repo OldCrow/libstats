@@ -167,14 +167,14 @@ class PoissonDistribution : public DistributionBase {
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    PoissonDistribution(PoissonDistribution&& other);
+    PoissonDistribution(PoissonDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    PoissonDistribution& operator=(PoissonDistribution&& other);
+    PoissonDistribution& operator=(PoissonDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five

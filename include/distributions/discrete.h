@@ -160,14 +160,14 @@ class DiscreteDistribution : public DistributionBase {
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    DiscreteDistribution(DiscreteDistribution&& other);
+    DiscreteDistribution(DiscreteDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    DiscreteDistribution& operator=(DiscreteDistribution&& other);
+    DiscreteDistribution& operator=(DiscreteDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five

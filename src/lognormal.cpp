@@ -71,7 +71,6 @@ LogNormalDistribution& LogNormalDistribution::operator=(const LogNormalDistribut
 
 LogNormalDistribution::LogNormalDistribution(LogNormalDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     mu_ = other.mu_;
     sigma_ = other.sigma_;
     logSigma_ = other.logSigma_;
@@ -89,11 +88,8 @@ LogNormalDistribution::LogNormalDistribution(LogNormalDistribution&& other) noex
     atomicSigma_.store(sigma_, std::memory_order_release);
 }
 
-LogNormalDistribution& LogNormalDistribution::operator=(LogNormalDistribution&& other) {
+LogNormalDistribution& LogNormalDistribution::operator=(LogNormalDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         mu_ = other.mu_;
         sigma_ = other.sigma_;

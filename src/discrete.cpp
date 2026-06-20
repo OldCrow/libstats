@@ -113,9 +113,8 @@ DiscreteDistribution& DiscreteDistribution::operator=(const DiscreteDistribution
     return *this;
 }
 
-DiscreteDistribution::DiscreteDistribution(DiscreteDistribution&& other)
+DiscreteDistribution::DiscreteDistribution(DiscreteDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
     other.a_ = detail::ZERO_INT;
@@ -125,13 +124,8 @@ DiscreteDistribution::DiscreteDistribution(DiscreteDistribution&& other)
     // Cache will be updated on first use
 }
 
-DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& other) {
+DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& other) noexcept {
     if (this != &other) {
-        // Thread-safe move: deadlock-safe std::lock() with deferred unique locks.
-        // Both locks are unique because both objects are mutated.
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         a_ = other.a_;
         b_ = other.b_;

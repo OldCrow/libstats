@@ -62,7 +62,6 @@ RayleighDistribution& RayleighDistribution::operator=(const RayleighDistribution
 
 RayleighDistribution::RayleighDistribution(RayleighDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     sigma_ = other.sigma_;
     logSigma_ = other.logSigma_;
     negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
@@ -75,11 +74,8 @@ RayleighDistribution::RayleighDistribution(RayleighDistribution&& other) noexcep
     atomicSigma_.store(sigma_, std::memory_order_release);
 }
 
-RayleighDistribution& RayleighDistribution::operator=(RayleighDistribution&& other) {
+RayleighDistribution& RayleighDistribution::operator=(RayleighDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         sigma_ = other.sigma_;
         logSigma_ = other.logSigma_;

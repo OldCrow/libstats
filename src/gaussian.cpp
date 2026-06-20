@@ -72,9 +72,8 @@ GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution
     return *this;
 }
 
-GaussianDistribution::GaussianDistribution(GaussianDistribution&& other)
+GaussianDistribution::GaussianDistribution(GaussianDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     mean_ = other.mean_;
     standardDeviation_ = other.standardDeviation_;
     other.mean_ = detail::ZERO_DOUBLE;
@@ -83,13 +82,8 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other)
     other.cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) {
+GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) noexcept {
     if (this != &other) {
-        // Thread-safe move: deadlock-safe std::lock() with deferred unique locks.
-        // Both locks are unique because both objects are mutated.
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         mean_ = other.mean_;
         standardDeviation_ = other.standardDeviation_;

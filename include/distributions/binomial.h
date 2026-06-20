@@ -71,7 +71,7 @@ class BinomialDistribution : public DistributionBase {
     BinomialDistribution(BinomialDistribution&& other) noexcept;
 
     /** @brief Move assignment operator. @warning NOT noexcept. */
-    BinomialDistribution& operator=(BinomialDistribution&& other);
+    BinomialDistribution& operator=(BinomialDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~BinomialDistribution() override = default;

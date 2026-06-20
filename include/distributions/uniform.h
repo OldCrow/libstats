@@ -156,14 +156,14 @@ class UniformDistribution : public DistributionBase {
      *   This is intentional for correctness; noexcept move constructors require
      *   atomic-only cache state (v2.0.0 prerequisite).
      */
-    UniformDistribution(UniformDistribution&& other);
+    UniformDistribution(UniformDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
      * @warning NOT noexcept due to potential lock acquisition exceptions
      */
-    UniformDistribution& operator=(UniformDistribution&& other);
+    UniformDistribution& operator=(UniformDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five

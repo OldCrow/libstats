@@ -50,9 +50,6 @@ UniformDistribution::UniformDistribution(const UniformDistribution& other)
 UniformDistribution& UniformDistribution::operator=(const UniformDistribution& other) {
     if (this != &other) {
         // Acquire locks in a consistent order to prevent deadlock
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         // Copy parameters (don't call base class operator= to avoid deadlock)
         a_ = other.a_;
@@ -63,9 +60,8 @@ UniformDistribution& UniformDistribution::operator=(const UniformDistribution& o
     return *this;
 }
 
-UniformDistribution::UniformDistribution(UniformDistribution&& other)
+UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
     other.a_ = detail::ZERO_DOUBLE;
@@ -75,11 +71,8 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other)
     // Cache will be updated on first use
 }
 
-UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other) {
+UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         a_ = other.a_;
         b_ = other.b_;

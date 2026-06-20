@@ -74,7 +74,7 @@ class NegativeBinomialDistribution : public DistributionBase {
     NegativeBinomialDistribution(NegativeBinomialDistribution&& other) noexcept;
 
     /** @brief Move assignment operator. @warning NOT noexcept. */
-    NegativeBinomialDistribution& operator=(NegativeBinomialDistribution&& other);
+    NegativeBinomialDistribution& operator=(NegativeBinomialDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~NegativeBinomialDistribution() override = default;

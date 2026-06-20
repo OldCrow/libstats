@@ -101,7 +101,7 @@ class VonMisesDistribution : public DistributionBase {
     VonMisesDistribution(VonMisesDistribution&& other) noexcept;
 
     /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    VonMisesDistribution& operator=(VonMisesDistribution&& other);
+    VonMisesDistribution& operator=(VonMisesDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~VonMisesDistribution() override = default;
