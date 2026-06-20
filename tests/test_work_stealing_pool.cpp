@@ -15,6 +15,7 @@
 #include <random>
 #include <ranges>
 #include <span>
+#include <thread>
 #include <vector>
 
 using namespace stats;
@@ -36,6 +37,51 @@ TEST(WorkStealingPool, BasicTaskSubmission) {
     pool.waitForAll();
     EXPECT_EQ(counter.load(), 10);
     std::cout << "  All 10 tasks executed successfully\n";
+}
+
+TEST(WorkStealingPool, ParallelForConcurrentCallersWaitIndependently) {
+    WorkStealingPool pool(4);
+    std::atomic<int> slow_done{0};
+    std::atomic<int> fast_done{0};
+    std::atomic<bool> release_slow{false};
+    std::atomic<bool> fast_returned{false};
+    std::atomic<bool> slow_returned{false};
+
+    std::thread slow([&]() {
+        pool.parallelFor(0, 16, [&](std::size_t) {
+            while (!release_slow.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            slow_done.fetch_add(1, std::memory_order_release);
+        }, 1);
+        slow_returned.store(true, std::memory_order_release);
+    });
+
+    // Ensure the slow caller has queued tasks that remain incomplete.
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+    std::thread fast([&]() {
+        pool.parallelFor(0, 16, [&](std::size_t) {
+            fast_done.fetch_add(1, std::memory_order_release);
+        }, 1);
+        fast_returned.store(true, std::memory_order_release);
+    });
+
+    for (int i = 0; i < 100 && !fast_returned.load(std::memory_order_acquire); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    EXPECT_TRUE(fast_returned.load(std::memory_order_acquire))
+        << "fast parallelFor caller should not wait for slow caller's tasks";
+    EXPECT_EQ(fast_done.load(std::memory_order_acquire), 16);
+    EXPECT_FALSE(slow_returned.load(std::memory_order_acquire));
+
+    release_slow.store(true, std::memory_order_release);
+    fast.join();
+    slow.join();
+
+    EXPECT_TRUE(slow_returned.load(std::memory_order_acquire));
+    EXPECT_EQ(slow_done.load(std::memory_order_acquire), 16);
 }
 
 TEST(WorkStealingPool, CppRangesWithWorkStealing) {

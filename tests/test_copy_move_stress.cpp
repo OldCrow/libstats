@@ -66,6 +66,7 @@ static_assert(std::is_nothrow_move_assignable_v<WeibullDistribution>);
 
 std::atomic<int> completed_operations{0};
 std::atomic<bool> stop_test{false};
+std::atomic<bool> worker_failed{false};
 
 void stressTestUniformCopyMove(int thread_id) {
     int local_ops = 0;
@@ -102,6 +103,7 @@ void stressTestUniformCopyMove(int thread_id) {
             }
         } catch (const std::exception& e) {
             cout << "Thread " << thread_id << " caught exception: " << e.what() << endl;
+            worker_failed.store(true);
             break;
         }
 
@@ -143,6 +145,7 @@ void stressTestGaussianCopyMove(int thread_id) {
             local_ops++;
         } catch (const std::exception& e) {
             cout << "Thread " << thread_id << " caught exception: " << e.what() << endl;
+            worker_failed.store(true);
             break;
         }
 
@@ -175,6 +178,7 @@ void stressTestPoissonCopyMove(int thread_id) {
             local_ops++;
         } catch (const std::exception& e) {
             cout << "Poisson thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
             break;
         }
         if (local_ops % 100 == 0) completed_operations.fetch_add(100);
@@ -203,6 +207,7 @@ void stressTestGammaCopyMove(int thread_id) {
             local_ops++;
         } catch (const std::exception& e) {
             cout << "Gamma thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
             break;
         }
         if (local_ops % 100 == 0) completed_operations.fetch_add(100);
@@ -231,6 +236,7 @@ void stressTestDiscreteCopyMove(int thread_id) {
             local_ops++;
         } catch (const std::exception& e) {
             cout << "Discrete thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
             break;
         }
         if (local_ops % 100 == 0) completed_operations.fetch_add(100);
@@ -273,6 +279,7 @@ void stressTestExponentialCopyMove(int thread_id) {
             }
         } catch (const std::exception& e) {
             cout << "Thread " << thread_id << " caught exception: " << e.what() << endl;
+            worker_failed.store(true);
             break;
         }
 
@@ -335,6 +342,5 @@ int main() {
          << endl;
     cout << "✅ No deadlocks occurred under high load" << endl;
     cout << "✅ All distributions handle concurrent copy/move operations safely" << endl;
-
-    return 0;
+    return worker_failed.load() ? 1 : 0;
 }

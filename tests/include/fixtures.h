@@ -361,16 +361,17 @@ class StatisticalTestUtils {
             check_values[i] = test_values[idx];
         }
 
-        // Use batch operations to get expected results (much more efficient)
+        // Compute expected results with scalar calls. This helper verifies that
+        // a batch result vector matches the distribution's scalar semantics.
         if (operation_name == "PDF") {
-            std::span<const double> input_span(check_values);
-            std::span<double> output_span(expected_results);
+            for (std::size_t i = 0; i < check_count; ++i)
+                expected_results[i] = dist.getProbability(check_values[i]);
         } else if (operation_name == "LogPDF") {
-            std::span<const double> input_span(check_values);
-            std::span<double> output_span(expected_results);
+            for (std::size_t i = 0; i < check_count; ++i)
+                expected_results[i] = dist.getLogProbability(check_values[i]);
         } else if (operation_name == "CDF") {
-            std::span<const double> input_span(check_values);
-            std::span<double> output_span(expected_results);
+            for (std::size_t i = 0; i < check_count; ++i)
+                expected_results[i] = dist.getCumulativeProbability(check_values[i]);
         } else {
             // Skip unknown operations
             std::cout << "  ✓ " << operation_name

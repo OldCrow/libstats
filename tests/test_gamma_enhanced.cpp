@@ -7,6 +7,7 @@
 #include "include/tests.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/stats/analysis/analysis.h"
+#include "libstats/stats/analysis/gamma_analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -101,11 +102,11 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, AdvancedStatisticalMethods) {
-    // v2.0.0: confidenceIntervalShape and methodOfMomentsEstimation were removed
-    // from GammaDistribution as part of the analysis-utility extraction.
-    // Generic analysis functions are available in stats::analysis::.
-    EXPECT_GT(test_distribution_.getMean(), 0.0);
-    EXPECT_GT(test_distribution_.getVariance(), 0.0);
+    auto [lower, upper, valid] = stats::analysis::gamma::normalApproximationTest(gamma_data_, 0.05);
+    EXPECT_LT(lower, upper);
+    EXPECT_TRUE(std::isfinite(lower));
+    EXPECT_TRUE(std::isfinite(upper));
+    EXPECT_FALSE(valid);  // alpha≈2 data should not use large-alpha normal approximation
 }
 
 //==============================================================================
@@ -375,43 +376,36 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         auto sequential_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
+        std::span<const double> input_span(test_values);
+
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
+        detail::PerformanceHint simd_hint;
+        simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
         start = std::chrono::high_resolution_clock::now();
+        stdGamma.getProbability(input_span, std::span<double>(simd_results), simd_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto simd_time = std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
-        std::span<const double> input_span(test_values);
-        std::span<double> output_span(parallel_results);
-
+        detail::PerformanceHint parallel_hint;
+        parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
         start = std::chrono::high_resolution_clock::now();
+        stdGamma.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Work-stealing operations (if available)
+        // 4. Work-stealing operations
         std::vector<double> work_stealing_results(batch_size);
-        auto work_stealing_time = std::chrono::microseconds(0).count();
-
-        if constexpr (requires {
-                          typename WorkStealingPool;
-                      }) {
-            std::span<double> ws_output_span(work_stealing_results);
-
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-            work_stealing_time =
-                std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        } else {
-            // Fallback to parallel method
-            std::span<double> ws_output_span(work_stealing_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-            work_stealing_time =
-                std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        }
+        detail::PerformanceHint ws_hint;
+        ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+        start = std::chrono::high_resolution_clock::now();
+        stdGamma.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
+        end = std::chrono::high_resolution_clock::now();
+        auto work_stealing_time =
+            std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -497,11 +491,14 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        // Compare with traditional batch method
+        // Compare with scalar loop baseline
         start = std::chrono::high_resolution_clock::now();
+        for (size_t j = 0; j < batch_size; ++j) {
+            traditional_results[j] = gamma_dist.getProbability(test_values[j]);
+        }
         end = std::chrono::high_resolution_clock::now();
         auto traditional_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+            std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Verify correctness
         bool results_match = true;
@@ -609,127 +606,35 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
     auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
     constexpr size_t BENCHMARK_SIZE = 50000;
 
-    // Generate test data (positive values for Gamma distribution)
     std::vector<double> test_values(BENCHMARK_SIZE);
     std::vector<double> pdf_results(BENCHMARK_SIZE);
     std::vector<double> log_pdf_results(BENCHMARK_SIZE);
     std::vector<double> cdf_results(BENCHMARK_SIZE);
+    std::vector<double> scalar_pdf(BENCHMARK_SIZE);
+    std::vector<double> scalar_log_pdf(BENCHMARK_SIZE);
+    std::vector<double> scalar_cdf(BENCHMARK_SIZE);
 
     std::mt19937 gen(42);
     std::gamma_distribution<> dis(2.0, 1.0);
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) test_values[i] = dis(gen);
+
     for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
-        test_values[i] = dis(gen);
+        scalar_pdf[i] = gamma_dist.getProbability(test_values[i]);
+        scalar_log_pdf[i] = gamma_dist.getLogProbability(test_values[i]);
+        scalar_cdf[i] = gamma_dist.getCumulativeProbability(test_values[i]);
     }
 
-    fixtures::BenchmarkFormatter::printBenchmarkHeader("Gamma Distribution", BENCHMARK_SIZE);
+    detail::PerformanceHint hint;
+    hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+    gamma_dist.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results), hint);
+    gamma_dist.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results), hint);
+    gamma_dist.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), hint);
 
-    // Create shared resources ONCE outside the loop to avoid resource issues
-    WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-
-    std::vector<fixtures::BenchmarkResult> benchmark_results;
-
-    // For each operation type (PDF, LogPDF, CDF)
-    std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
-
-    for (const auto& op : operations) {
-        fixtures::BenchmarkResult result;
-        result.operation_name = op;
-
-        // 1. Baseline (SCALAR strategy)
-        auto start = std::chrono::high_resolution_clock::now();
-        if (op == "PDF") {
-        } else if (op == "LogPDF") {
-        } else if (op == "CDF") {
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        result.baseline_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // 2. SIMD Batch operations
-        start = std::chrono::high_resolution_clock::now();
-        if (op == "PDF") {
-        } else if (op == "LogPDF") {
-        } else if (op == "CDF") {
-        }
-        end = std::chrono::high_resolution_clock::now();
-        result.vectorized_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // 3. Parallel Batch Operations (PARALLEL strategy)
-        std::span<const double> input_span(test_values);
-
-        if (op == "PDF") {
-            std::span<double> output_span(pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPDF") {
-            std::span<double> log_output_span(log_pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        }
-        result.parallel_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // 4. Work-Stealing Operations (use shared pool to avoid resource issues)
-        if constexpr (requires {
-                          typename WorkStealingPool;
-                      }) {
-            if (op == "PDF") {
-                std::span<double> output_span(pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "LogPDF") {
-                std::span<double> log_output_span(log_pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "CDF") {
-                std::span<double> cdf_output_span(cdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                end = std::chrono::high_resolution_clock::now();
-            }
-        } else {
-            // Fallback to parallel method
-            if (op == "PDF") {
-                std::span<double> output_span(pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "LogPDF") {
-                std::span<double> log_output_span(log_pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "CDF") {
-                std::span<double> cdf_output_span(cdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                end = std::chrono::high_resolution_clock::now();
-            }
-        }
-        result.work_stealing_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // Calculate speedups relative to baseline
-        result.vectorized_speedup = result.baseline_time_us > 0
-                                        ? static_cast<double>(result.baseline_time_us) /
-                                              static_cast<double>(result.vectorized_time_us)
-                                        : 0.0;
-        result.parallel_speedup = result.baseline_time_us > 0
-                                      ? static_cast<double>(result.baseline_time_us) /
-                                            static_cast<double>(result.parallel_time_us)
-                                      : 0.0;
-        result.work_stealing_speedup = result.baseline_time_us > 0
-                                           ? static_cast<double>(result.baseline_time_us) /
-                                                 static_cast<double>(result.work_stealing_time_us)
-                                           : 0.0;
-
-        benchmark_results.push_back(result);
+    for (size_t i = 0; i < 100; ++i) {
+        EXPECT_NEAR(pdf_results[i], scalar_pdf[i], 1e-10);
+        EXPECT_NEAR(log_pdf_results[i], scalar_log_pdf[i], 1e-10);
+        EXPECT_NEAR(cdf_results[i], scalar_cdf[i], 1e-10);
     }
-
-    // Print results and verify correctness
-    fixtures::BenchmarkFormatter::printBenchmarkResults(benchmark_results);
-    fixtures::BenchmarkFormatter::printPerformanceAnalysis(benchmark_results);
 }
 
 //==============================================================================
