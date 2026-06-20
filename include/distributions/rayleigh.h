@@ -387,9 +387,6 @@ class RayleighDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     //==========================================================================
     // 24. SPECIALIZED CACHES
     //==========================================================================

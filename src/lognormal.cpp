@@ -198,6 +198,8 @@ double LogNormalDistribution::getSkewness() const noexcept {
         ulock.unlock();
         lock.lock();
     }
+    // TS-6 review note: sigma_ is read while holding cache_mutex_ as shared_lock;
+    // writers take the same mutex as unique_lock, so this is not a data race.
     const double esigma2 = std::exp(sigma_ * sigma_);
     return (esigma2 + detail::TWO) * std::sqrt(esigma2 - detail::ONE);
 }
@@ -212,6 +214,7 @@ double LogNormalDistribution::getKurtosis() const noexcept {
         ulock.unlock();
         lock.lock();
     }
+    // TS-6 review note: sigma_ is protected by the shared lock held here.
     const double s2 = sigma_ * sigma_;
     return std::exp(detail::FOUR * s2) + detail::TWO * std::exp(detail::THREE * s2) +
            detail::THREE * std::exp(detail::TWO * s2) - detail::SIX;

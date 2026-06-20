@@ -441,7 +441,6 @@ class StudentTDistribution : public DistributionBase {
     mutable bool isVarianceDefined_{false};
 
     /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 };
 
 }  // namespace stats

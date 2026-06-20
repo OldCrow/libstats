@@ -26,9 +26,10 @@ namespace stats {
  *   ensuring cache_valid_ and the cached values are visible before the atomic
  *   is seen as true.
  * - cache_valid_ is the plain bool read under shared_lock in the slow path.
- * Consolidating to a single atomic<bool> is a v2.0.0 task; it is a
- * prerequisite for noexcept move constructors (which cannot hold a mutex).
- * Do NOT collapse the two flags here without completing that larger migration.
+ *
+ * v2.0.0 removed the old derived-class cacheValidAtomic_ shadows; this base
+ * member is now the single atomic cache-validity flag for all distributions.
+ * The plain bool remains for code paths that already hold cache_mutex_.
  */
 class ThreadSafeCacheManager {
    protected:
@@ -88,8 +89,9 @@ class ThreadSafeCacheManager {
  * Use it only within a scope that already holds an appropriate lock from
  * ThreadSafeCacheManager (e.g. under cache_mutex_ unique_lock). Concurrent
  * access from multiple threads without external locking is a data race.
- * Full per-property atomic protection is planned for v2.0.0 as part of the
- * noexcept move-constructor migration.
+ * Full per-property atomic protection can be considered in a future v2.x
+ * cache redesign. v2.0.0 guarantees noexcept moves by not moving mutex/cache
+ * state and by invalidating/rebuilding caches after moves.
  */
 template <typename PropertyType>
 class CachedProperty {

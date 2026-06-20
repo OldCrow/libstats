@@ -431,9 +431,6 @@ class LogNormalDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if μ = 0 and σ = 1 (standard log-normal) within tolerance. */
     mutable bool isStandard_{true};
 

@@ -873,9 +873,6 @@ class ExponentialDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if λ = 1 for unit exponential optimizations */
     mutable bool isUnitRate_{true};
 

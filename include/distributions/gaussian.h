@@ -855,7 +855,6 @@ class GaussianDistribution : public DistributionBase {
     mutable bool isLowVariance_{false};
 
     /** @brief Atomic cache validity flag for lock-free fast path */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     //==========================================================================
     // 24. SPECIALIZED CACHES

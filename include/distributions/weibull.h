@@ -441,9 +441,6 @@ class WeibullDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if k = 1 within tolerance (Exponential(rate = 1/λ)). */
     mutable bool isExponential_{true};
 

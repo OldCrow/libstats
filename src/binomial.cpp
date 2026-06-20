@@ -114,8 +114,8 @@ BinomialDistribution::BinomialDistribution(int n, double p, bool /*bypassValidat
 //==============================================================================
 
 void BinomialDistribution::setN(int n) {
-    validateParameters(n, getP());
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(n, p_);
     n_ = n;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -124,8 +124,8 @@ void BinomialDistribution::setN(int n) {
 }
 
 void BinomialDistribution::setP(double p) {
-    validateParameters(getN(), p);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(n_, p);
     p_ = p;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -175,27 +175,55 @@ double BinomialDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 VoidResult BinomialDistribution::trySetN(int n) noexcept {
-    auto v = validateBinomialParameters(n, getP());
-    if (v.isError())
-        return v;
-    setN(n);
-    return VoidResult::ok(true);
+    try {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateBinomialParameters(n, p_);
+        if (v.isError())
+            return v;
+        n_ = n;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        updateCacheUnsafe();
+        return VoidResult::ok(true);
+    } catch (const std::exception& e) {
+        return VoidResult::makeError(ValidationError::UnknownError, e.what());
+    }
 }
 
 VoidResult BinomialDistribution::trySetP(double p) noexcept {
-    auto v = validateBinomialParameters(getN(), p);
-    if (v.isError())
-        return v;
-    setP(p);
-    return VoidResult::ok(true);
+    try {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateBinomialParameters(n_, p);
+        if (v.isError())
+            return v;
+        p_ = p;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        updateCacheUnsafe();
+        return VoidResult::ok(true);
+    } catch (const std::exception& e) {
+        return VoidResult::makeError(ValidationError::UnknownError, e.what());
+    }
 }
 
 VoidResult BinomialDistribution::trySetParameters(int n, double p) noexcept {
-    auto v = validateBinomialParameters(n, p);
-    if (v.isError())
-        return v;
-    setParameters(n, p);
-    return VoidResult::ok(true);
+    try {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateBinomialParameters(n, p);
+        if (v.isError())
+            return v;
+        n_ = n;
+        p_ = p;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        updateCacheUnsafe();
+        return VoidResult::ok(true);
+    } catch (const std::exception& e) {
+        return VoidResult::makeError(ValidationError::UnknownError, e.what());
+    }
 }
 
 VoidResult BinomialDistribution::validateCurrentParameters() const noexcept {

@@ -887,9 +887,6 @@ class PoissonDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if λ is small (< 10) for direct computation algorithm */
     mutable bool isSmallLambda_{true};
 

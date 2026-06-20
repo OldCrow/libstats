@@ -430,9 +430,6 @@ class VonMisesDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if κ < 1e-10 (uniform circular distribution). */
     mutable bool isUniform_{false};
 

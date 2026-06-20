@@ -968,9 +968,6 @@ class DiscreteDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if this is a binary distribution [0,1] for optimization */
     mutable bool isBinary_{true};
 

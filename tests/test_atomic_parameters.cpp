@@ -5,6 +5,7 @@
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/poisson.h"
 
 #include <atomic>
 #include <chrono>
@@ -107,6 +108,30 @@ TEST(AtomicParameters, ExponentialAtomicInvalidation) {
     auto try_result = exp_dist.trySetParameters(4.0);
     ASSERT_TRUE(try_result.isOk());
     EXPECT_NEAR(exp_dist.getLambdaAtomic(), 4.0, 1e-15);
+
+    auto try_lambda_result = exp_dist.trySetLambda(5.0);
+    ASSERT_TRUE(try_lambda_result.isOk());
+    EXPECT_NEAR(exp_dist.getLambdaAtomic(), 5.0, 1e-15);
+}
+
+TEST(AtomicParameters, PoissonAtomicInvalidation) {
+    auto result = PoissonDistribution::create(2.0);
+    ASSERT_TRUE(result.isOk());
+    auto poisson_dist = std::move(result.value);
+
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 2.0, 1e-15);
+
+    poisson_dist.setLambda(4.0);
+    EXPECT_NEAR(poisson_dist.getLambda(), 4.0, 1e-15);
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 4.0, 1e-15);
+
+    auto try_lambda_result = poisson_dist.trySetLambda(6.0);
+    ASSERT_TRUE(try_lambda_result.isOk());
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 6.0, 1e-15);
+
+    auto try_params_result = poisson_dist.trySetParameters(8.0);
+    ASSERT_TRUE(try_params_result.isOk());
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 8.0, 1e-15);
 }
 
 TEST(AtomicParameters, DiscreteAtomicInvalidation) {

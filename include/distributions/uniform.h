@@ -992,9 +992,6 @@ class UniformDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if this is the unit interval [0,1] for optimizations */
     mutable bool isUnitInterval_{true};
 

@@ -101,6 +101,7 @@ void ExponentialDistribution::setLambda(double lambda) {
     lambda_ = lambda;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 double ExponentialDistribution::getMean() const noexcept {

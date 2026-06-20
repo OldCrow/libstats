@@ -104,6 +104,7 @@ void PoissonDistribution::setLambda(double lambda) {
     lambda_ = lambda;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 void PoissonDistribution::setParameters(double lambda) {
@@ -113,6 +114,7 @@ void PoissonDistribution::setParameters(double lambda) {
     lambda_ = lambda;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 double PoissonDistribution::getMean() const noexcept {
@@ -207,9 +209,7 @@ VoidResult PoissonDistribution::trySetLambda(double lambda) noexcept {
     lambda_ = lambda;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
-
-    // Note: PoissonDistribution doesn't have atomicParamsValid_ - this is specific to other
-    // distributions The atomic cache validation is handled by cacheValidAtomic_
+    atomicParamsValid_.store(false, std::memory_order_release);
 
     return VoidResult::ok(true);
 }

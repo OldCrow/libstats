@@ -443,7 +443,6 @@ class BetaDistribution : public DistributionBase {
     mutable bool isUnimodal_{false};
 
     /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 };
 
 }  // namespace stats

@@ -1069,9 +1069,6 @@ class GammaDistribution : public DistributionBase {
     /** @brief True if this is a chi-squared distribution (β = 0.5) */
     mutable bool isChiSquared_{false};
 
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     //==========================================================================
     // 24. SPECIALIZED CACHES
     //==========================================================================
