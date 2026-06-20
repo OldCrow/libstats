@@ -22,40 +22,7 @@ PerformanceDispatcher::PerformanceDispatcher(const SystemCapabilities& system)
     thresholds_ = Thresholds::createForSIMDLevel(simd_level_, system);
 }
 
-// Suppress deprecation warnings for the implementations of deprecated APIs.
-// External callers will still see the warnings; only the definition sites are suppressed.
-#if defined(_MSC_VER)
-    #pragma warning(push)
-    #pragma warning(disable : 4996)
-#elif defined(__GNUC__) || defined(__clang__)
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-PerformanceDispatcher::SIMDArchitecture PerformanceDispatcher::detectSIMDArchitecture(
-    [[maybe_unused]] const SystemCapabilities& system) noexcept {
-    // Delegate to SIMDPolicy instead of duplicating detection logic.
-    // Deprecated: use arch::simd::SIMDPolicy::getBestLevel() directly.
-    auto level = arch::simd::SIMDPolicy::getBestLevel();
-
-    switch (level) {
-        case arch::simd::SIMDPolicy::Level::AVX512:
-            return SIMDArchitecture::AVX512;
-        case arch::simd::SIMDPolicy::Level::AVX2:
-            return SIMDArchitecture::AVX2;
-        case arch::simd::SIMDPolicy::Level::AVX:
-            return SIMDArchitecture::AVX;
-        case arch::simd::SIMDPolicy::Level::NEON:
-            return SIMDArchitecture::NEON;
-        case arch::simd::SIMDPolicy::Level::SSE2:
-            return SIMDArchitecture::SSE2;
-        case arch::simd::SIMDPolicy::Level::None:
-        default:
-            return SIMDArchitecture::NONE;
-    }
-}
-
-// ── New profiling-derived dispatch ──────────────────────────────────────────
+// ── Profiling-derived dispatch ───────────────────────────────────────────────────
 
 Strategy PerformanceDispatcher::selectStrategy(size_t batch_size, DistributionType dist_type,
                                                OperationType op_type,
@@ -161,58 +128,10 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForSI
             break;
     }
 
-    // Distribution-specific thresholds are now handled by the constexpr lookup
-    // table in dispatch_thresholds.h. The Thresholds struct members below are
-    // populated with reasonable defaults for backward compatibility only.
-    thresholds.uniform_parallel_min = thresholds.parallel_min * 2;
-    thresholds.gaussian_parallel_min = thresholds.parallel_min;
-    thresholds.exponential_parallel_min = thresholds.parallel_min;
-    thresholds.discrete_parallel_min = thresholds.parallel_min * 2;
-    thresholds.poisson_parallel_min = thresholds.parallel_min;
-    thresholds.gamma_parallel_min = thresholds.parallel_min;
-    thresholds.student_t_parallel_min = thresholds.parallel_min;
-    thresholds.beta_parallel_min = SIZE_MAX;  // Beta: never parallel
-    thresholds.chi_squared_parallel_min = thresholds.parallel_min;
-
     return thresholds;
 }
 
-PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::createForArchitecture(
-    SIMDArchitecture arch, const SystemCapabilities& system) {
-    // Deprecated wrapper: convert SIMDArchitecture to SIMDPolicy::Level and delegate.
-    arch::simd::SIMDPolicy::Level level;
-    switch (arch) {
-        case SIMDArchitecture::AVX512:
-            level = arch::simd::SIMDPolicy::Level::AVX512;
-            break;
-        case SIMDArchitecture::AVX2:
-            level = arch::simd::SIMDPolicy::Level::AVX2;
-            break;
-        case SIMDArchitecture::AVX:
-            level = arch::simd::SIMDPolicy::Level::AVX;
-            break;
-        case SIMDArchitecture::SSE2:
-            level = arch::simd::SIMDPolicy::Level::SSE2;
-            break;
-        case SIMDArchitecture::NEON:
-            level = arch::simd::SIMDPolicy::Level::NEON;
-            break;
-        case SIMDArchitecture::NONE:
-        default:
-            level = arch::simd::SIMDPolicy::Level::None;
-            break;
-    }
-
-    return createForSIMDLevel(level, system);
-}
-
-#if defined(_MSC_VER)
-    #pragma warning(pop)
-#elif defined(__GNUC__) || defined(__clang__)
-    #pragma GCC diagnostic pop
-#endif
-
-// Legacy profile methods kept for backward compatibility but now delegate to SIMDPolicy-based logic
+// Legacy profile methods delegate to SIMDPolicy-based logic
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getSSE2Profile() {
     return createForSIMDLevel(arch::simd::SIMDPolicy::Level::SSE2, SystemCapabilities::current());
@@ -236,124 +155,6 @@ PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getNEONProf
 
 PerformanceDispatcher::Thresholds PerformanceDispatcher::Thresholds::getScalarProfile() {
     return createForSIMDLevel(arch::simd::SIMDPolicy::Level::None, SystemCapabilities::current());
-}
-
-void PerformanceDispatcher::Thresholds::refineWithCapabilities(const SystemCapabilities& system) {
-    // Adjust thresholds based on measured system performance
-
-    auto simd_efficiency = system.simd_efficiency();
-    auto threading_overhead = system.threading_overhead_ns();
-    // memory_bandwidth_gb_s() was used for GPU acceleration threshold adjustment.
-    // GPU_ACCELERATED strategy was removed in Phase 2, so this is no longer needed.
-    auto logical_cores = system.logical_cores();
-
-    // Refine SIMD thresholds based on efficiency
-    if (simd_efficiency < detail::LARGE_EFFECT) {
-        // SIMD is inefficient, raise thresholds
-        simd_min = static_cast<size_t>(static_cast<double>(simd_min) * (1.5 / simd_efficiency));
-
-        // Also raise distribution-specific parallel thresholds
-        uniform_parallel_min = static_cast<size_t>(static_cast<double>(uniform_parallel_min) * 1.5);
-        gaussian_parallel_min =
-            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * 1.5);
-        exponential_parallel_min =
-            static_cast<size_t>(static_cast<double>(exponential_parallel_min) * 1.5);
-        discrete_parallel_min =
-            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * 1.5);
-        poisson_parallel_min = static_cast<size_t>(static_cast<double>(poisson_parallel_min) * 1.5);
-        gamma_parallel_min = static_cast<size_t>(static_cast<double>(gamma_parallel_min) * 1.5);
-    } else if (simd_efficiency > 1.5) {
-        // SIMD is very efficient, lower thresholds
-        simd_min =
-            static_cast<size_t>(static_cast<double>(simd_min) * detail::SIMD_THRESHOLD_SCALE_DOWN);
-
-        // Lower distribution-specific thresholds
-        uniform_parallel_min =
-            static_cast<size_t>(static_cast<double>(uniform_parallel_min) * detail::LARGE_EFFECT);
-        gaussian_parallel_min =
-            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * detail::LARGE_EFFECT);
-        exponential_parallel_min = static_cast<size_t>(
-            static_cast<double>(exponential_parallel_min) * detail::LARGE_EFFECT);
-        discrete_parallel_min =
-            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * detail::LARGE_EFFECT);
-        poisson_parallel_min =
-            static_cast<size_t>(static_cast<double>(poisson_parallel_min) * detail::LARGE_EFFECT);
-        gamma_parallel_min =
-            static_cast<size_t>(static_cast<double>(gamma_parallel_min) * detail::LARGE_EFFECT);
-    }
-
-    // Refine parallel thresholds based on threading overhead
-    if (threading_overhead > 100000.0) {  // > 100μs overhead
-        // High threading overhead, raise parallel thresholds
-        double multiplier = std::min(detail::THREE, threading_overhead / 50000.0);
-        parallel_min = static_cast<size_t>(static_cast<double>(parallel_min) * multiplier);
-        work_stealing_min =
-            static_cast<size_t>(static_cast<double>(work_stealing_min) * multiplier);
-
-        // Raise distribution-specific thresholds
-        uniform_parallel_min =
-            static_cast<size_t>(static_cast<double>(uniform_parallel_min) * multiplier);
-        gaussian_parallel_min =
-            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * multiplier);
-        exponential_parallel_min =
-            static_cast<size_t>(static_cast<double>(exponential_parallel_min) * multiplier);
-        discrete_parallel_min =
-            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * multiplier);
-        poisson_parallel_min =
-            static_cast<size_t>(static_cast<double>(poisson_parallel_min) * multiplier);
-        gamma_parallel_min =
-            static_cast<size_t>(static_cast<double>(gamma_parallel_min) * multiplier);
-    } else if (threading_overhead < 10000.0) {  // < 10μs overhead
-        // Low threading overhead, lower parallel thresholds
-        double multiplier = std::max(detail::HALF, threading_overhead / 20000.0);
-        parallel_min = static_cast<size_t>(static_cast<double>(parallel_min) * multiplier);
-        work_stealing_min =
-            static_cast<size_t>(static_cast<double>(work_stealing_min) * multiplier);
-
-        // Lower distribution-specific thresholds
-        uniform_parallel_min =
-            static_cast<size_t>(static_cast<double>(uniform_parallel_min) * multiplier);
-        gaussian_parallel_min =
-            static_cast<size_t>(static_cast<double>(gaussian_parallel_min) * multiplier);
-        exponential_parallel_min =
-            static_cast<size_t>(static_cast<double>(exponential_parallel_min) * multiplier);
-        discrete_parallel_min =
-            static_cast<size_t>(static_cast<double>(discrete_parallel_min) * multiplier);
-        poisson_parallel_min =
-            static_cast<size_t>(static_cast<double>(poisson_parallel_min) * multiplier);
-        gamma_parallel_min =
-            static_cast<size_t>(static_cast<double>(gamma_parallel_min) * multiplier);
-    }
-
-    // Adjust work-stealing based on core count
-    if (logical_cores <= 2) {
-        // Few cores, raise work-stealing threshold significantly
-        work_stealing_min =
-            static_cast<size_t>(static_cast<double>(work_stealing_min) * detail::TWO);
-    } else if (logical_cores >= 16) {
-        // Many cores, lower work-stealing threshold
-        work_stealing_min =
-            static_cast<size_t>(static_cast<double>(work_stealing_min) * detail::LARGE_EFFECT);
-    }
-
-    // Ensure minimums
-    simd_min = std::max(simd_min, static_cast<size_t>(4));
-    parallel_min = std::max(parallel_min, static_cast<size_t>(detail::MAX_NEWTON_ITERATIONS));
-    work_stealing_min =
-        std::max(work_stealing_min, static_cast<size_t>(detail::MAX_BISECTION_ITERATIONS));
-
-    // Ensure distribution-specific thresholds don't drop below parallel_min.
-    // Simple distributions (Uniform, Discrete) must stay at or above the base;
-    // complex ones are allowed lower thresholds but still have a floor.
-    uniform_parallel_min = std::max(uniform_parallel_min, parallel_min * 2);
-    discrete_parallel_min = std::max(discrete_parallel_min, parallel_min * 2);
-    gaussian_parallel_min = std::max(gaussian_parallel_min, parallel_min / 2);
-    exponential_parallel_min = std::max(exponential_parallel_min, parallel_min / 2);
-    student_t_parallel_min = std::max(student_t_parallel_min, parallel_min / 2);
-    beta_parallel_min = std::max(beta_parallel_min, parallel_min / 2);
-    poisson_parallel_min = std::max(poisson_parallel_min, parallel_min / 4);
-    gamma_parallel_min = std::max(gamma_parallel_min, parallel_min / 4);
-    chi_squared_parallel_min = std::max(chi_squared_parallel_min, parallel_min / 4);
 }
 
 }  // namespace detail

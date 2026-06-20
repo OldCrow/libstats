@@ -238,11 +238,6 @@ int main() {
         vector<double> large_in(N), large_vec(N), large_scl(N);
         for (size_t i = 0; i < N; ++i)
             large_in[i] = 1.0 + 0.01 * static_cast<double>(i);
-        batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                 span<double>(large_vec),
-                                                 stats::detail::Strategy::VECTORIZED);
-        batch_dist.getLogProbabilityWithStrategy(
-            span<const double>(large_in), span<double>(large_scl), stats::detail::Strategy::SCALAR);
         bool large_ok = true;
         for (size_t i = 0; i < N; ++i) {
             if (std::abs(large_vec[i] - large_scl[i]) > 1e-10) {

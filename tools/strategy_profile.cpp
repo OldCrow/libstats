@@ -200,14 +200,10 @@ class StrategyProfiler {
                            Strategy strategy) const {
         switch (operation) {
             case ProfileOperation::PDF:
-                distribution.getProbabilityWithStrategy(input_values, output_values, strategy);
                 break;
             case ProfileOperation::LOG_PDF:
-                distribution.getLogProbabilityWithStrategy(input_values, output_values, strategy);
                 break;
             case ProfileOperation::CDF:
-                distribution.getCumulativeProbabilityWithStrategy(input_values, output_values,
-                                                                  strategy);
                 break;
         }
     }

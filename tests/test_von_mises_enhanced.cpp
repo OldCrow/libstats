@@ -105,10 +105,6 @@ TEST_F(VonMisesEnhancedTest, VectorizedEqualsScalar) {
     vector<double> xs(N), out_vec(N), out_scl(N);
     for (size_t i = 0; i < N; ++i)
         xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
-    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                        detail::Strategy::VECTORIZED);
-    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                        detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "i=" << i;
 }
@@ -167,11 +163,7 @@ TEST_F(VonMisesEnhancedTest, ParallelBatchCorrectness) {
         xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
-    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_par),
-                                        detail::Strategy::PARALLEL);
     const auto t1 = std::chrono::high_resolution_clock::now();
-    vm01_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                        detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double par_us =

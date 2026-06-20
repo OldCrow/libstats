@@ -31,10 +31,6 @@ DistributionBase::DistributionBase() {
     // Initialize SystemCapabilities (thread_local singleton)
     detail::SystemCapabilities::current();
 
-    // Initialize PerformanceDispatcher (static thread_local)
-    // This triggers SIMD level detection and threshold initialization
-    static thread_local detail::PerformanceDispatcher dispatcher;
-
     // Initialize PerformanceHistory (static global singleton)
     // This ensures the performance tracking system is ready
     [[maybe_unused]] auto& history = detail::PerformanceDispatcher::getPerformanceHistory();
@@ -66,61 +62,6 @@ DistributionBase& DistributionBase::operator=(DistributionBase&& other) noexcept
         invalidateCache();
     }
     return *this;
-}
-
-// =============================================================================
-// PARALLEL-OPTIMIZED BATCH OPERATIONS - WITH AUTOMATIC PARALLEL EXECUTION
-// =============================================================================
-
-std::vector<double> DistributionBase::getBatchProbabilities(
-    const std::vector<double>& x_values) const {
-    std::vector<double> results(x_values.size());
-
-    // Use parallel transform for large datasets
-    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                         [this](double x) { return this->getProbability(x); });
-
-    return results;
-}
-
-std::vector<double> DistributionBase::getBatchLogProbabilities(
-    const std::vector<double>& x_values) const {
-    std::vector<double> results(x_values.size());
-
-    // Use parallel transform for large datasets
-    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                         [this](double x) { return this->getLogProbability(x); });
-
-    return results;
-}
-
-std::vector<double> DistributionBase::getBatchCumulativeProbabilities(
-    const std::vector<double>& x_values) const {
-    std::vector<double> results(x_values.size());
-
-    // Use parallel transform for large datasets
-    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                         [this](double x) { return this->getCumulativeProbability(x); });
-
-    return results;
-}
-
-std::vector<double> DistributionBase::getBatchQuantiles(const std::vector<double>& p_values) const {
-    // Validate input probabilities first
-    for (double p : p_values) {
-        if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
-            throw std::invalid_argument("Quantile probability must be in [0,1], got: " +
-                                        std::to_string(p));
-        }
-    }
-
-    std::vector<double> results(p_values.size());
-
-    // Use parallel transform for large datasets after validation
-    arch::safe_transform(p_values.begin(), p_values.end(), results.begin(),
-                         [this](double p) { return this->getQuantile(p); });
-
-    return results;
 }
 
 // =============================================================================
@@ -255,38 +196,6 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
 }
 
 // =============================================================================
-// INFORMATION THEORY METRICS
-// =============================================================================
-
-double DistributionBase::getKLDivergence(const DistributionBase& other) const {
-    // Numerical approximation using integration
-    // In practice, this would use adaptive quadrature
-    double lower = std::max(getSupportLowerBound(), other.getSupportLowerBound());
-    double upper = std::min(getSupportUpperBound(), other.getSupportUpperBound());
-
-    if (lower >= upper) {
-        return std::numeric_limits<double>::infinity();
-    }
-
-    // Simple integration using trapezoidal rule
-    const int n_points = detail::DEFAULT_INTEGRATION_POINTS;
-    double step = (upper - lower) / n_points;
-    double divergence = detail::ZERO_DOUBLE;
-
-    for (int i = 0; i < n_points; ++i) {
-        double x = lower + i * step;
-        double p = getProbability(x);
-        double q = other.getProbability(x);
-
-        if (p > detail::MIN_PROBABILITY && q > detail::MIN_PROBABILITY) {
-            divergence += p * std::log(p / q) * step;
-        }
-    }
-
-    return divergence;
-}
-
-// =============================================================================
 // DISTRIBUTION COMPARISON
 // =============================================================================
 
@@ -388,6 +297,8 @@ double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf
     double x = initial_guess;
     const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
     const double h = detail::FORWARD_DIFF_STEP;  // For numerical derivative
+    // Q-2: capture initial derivative magnitude for relative guard (first iteration).
+    double fpx0 = 0.0;
 
     for (int i = 0; i < max_iterations; ++i) {
         double fx = cdf_func(x) - target_probability;
@@ -398,13 +309,13 @@ double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf
 
         // Numerical derivative
         double fpx = (cdf_func(x + h) - cdf_func(x - h)) / (detail::TWO * h);
+        if (i == 0) fpx0 = std::abs(fpx);  // Latch initial magnitude once
 
-        // Hard stop on near-zero derivative: return the current best estimate
-        // rather than computing a divergent step. Previously this was a break,
-        // which fell through to the final return x anyway; the hard return makes
-        // intent explicit and avoids the useless remaining iterations.
-        if (std::abs(fpx) < detail::ZERO) {
-            return x;
+        // Q-2: relative derivative guard — guards both absolute zero and collapse
+        // relative to the initial derivative magnitude (avoids divergent steps).
+        if (std::abs(fpx) < detail::ZERO ||
+            (fpx0 > detail::ZERO && std::abs(fpx) < 1e-12 * fpx0)) {
+            return x;  // Hard stop: current estimate is the best available
         }
 
         x = x - fx / fpx;

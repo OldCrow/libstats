@@ -626,24 +626,6 @@ static detail::PerformanceHint strategyToHint(detail::Strategy strategy) noexcep
     return hint;
 }
 
-void StudentTDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                      std::span<double> results,
-                                                      detail::Strategy strategy) const {
-    getProbability(values, results, strategyToHint(strategy));
-}
-
-void StudentTDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                         std::span<double> results,
-                                                         detail::Strategy strategy) const {
-    getLogProbability(values, results, strategyToHint(strategy));
-}
-
-void StudentTDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                                                std::span<double> results,
-                                                                detail::Strategy strategy) const {
-    getCumulativeProbability(values, results, strategyToHint(strategy));
-}
-
 //==============================================================================
 // 15. COMPARISON OPERATORS
 //==============================================================================

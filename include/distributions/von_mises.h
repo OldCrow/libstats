@@ -320,19 +320,6 @@ class VonMisesDistribution : public DistributionBase {
     // 14. EXPLICIT STRATEGY BATCH OPERATIONS
     //==========================================================================
 
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
-
     //==========================================================================
     // 15. COMPARISON OPERATORS
     //==========================================================================

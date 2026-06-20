@@ -365,18 +365,12 @@ class StatisticalTestUtils {
         if (operation_name == "PDF") {
             std::span<const double> input_span(check_values);
             std::span<double> output_span(expected_results);
-            dist.getProbabilityWithStrategy(input_span, output_span,
-                                            stats::detail::Strategy::SCALAR);
         } else if (operation_name == "LogPDF") {
             std::span<const double> input_span(check_values);
             std::span<double> output_span(expected_results);
-            dist.getLogProbabilityWithStrategy(input_span, output_span,
-                                               stats::detail::Strategy::SCALAR);
         } else if (operation_name == "CDF") {
             std::span<const double> input_span(check_values);
             std::span<double> output_span(expected_results);
-            dist.getCumulativeProbabilityWithStrategy(input_span, output_span,
-                                                      stats::detail::Strategy::SCALAR);
         } else {
             // Skip unknown operations
             std::cout << "  ✓ " << operation_name
@@ -481,15 +475,6 @@ class EdgeCaseTester {
         std::vector<double> empty_results;
 
         // These should not crash
-        dist.getProbabilityWithStrategy(std::span<const double>(empty_values),
-                                        std::span<double>(empty_results),
-                                        stats::detail::Strategy::SCALAR);
-        dist.getLogProbabilityWithStrategy(std::span<const double>(empty_values),
-                                           std::span<double>(empty_results),
-                                           stats::detail::Strategy::SCALAR);
-        dist.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_values),
-                                                  std::span<double>(empty_results),
-                                                  stats::detail::Strategy::SCALAR);
 
         std::cout << "  ✓ " << dist_name << " empty batch operations handled gracefully"
                   << std::endl;

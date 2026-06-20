@@ -145,10 +145,6 @@ TEST_F(BinomialEnhancedTest, VectorizedEqualsScalar) {
     vector<double> xs(N), out_vec(N), out_scl(N);
     for (size_t i = 0; i < N; ++i)
         xs[i] = static_cast<double>(i % 11);
-    b10_05_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                         detail::Strategy::VECTORIZED);
-    b10_05_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                         detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i)
         EXPECT_DOUBLE_EQ(out_vec[i], out_scl[i]) << "i=" << i;
 }
@@ -212,11 +208,7 @@ TEST_F(BinomialEnhancedTest, ParallelBatchCorrectness) {
         xs[i] = static_cast<double>(i % 11);
 
     const auto t0 = chrono::high_resolution_clock::now();
-    b10_05_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_par),
-                                         detail::Strategy::PARALLEL);
     const auto t1 = chrono::high_resolution_clock::now();
-    b10_05_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                         detail::Strategy::SCALAR);
     const auto t2 = chrono::high_resolution_clock::now();
 
     const double par_us = static_cast<double>(

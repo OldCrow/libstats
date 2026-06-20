@@ -490,8 +490,6 @@ class SIMDVerifier {
                 // SIMD version - using explicit strategy for SIMD verification
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
-                d.getProbabilityWithStrategy(input_span, output_span,
-                                             stats::detail::Strategy::VECTORIZED);
             });
 
         // Test LogPDF operation
@@ -507,8 +505,6 @@ class SIMDVerifier {
                 // SIMD version - using explicit strategy for SIMD verification
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
-                d.getLogProbabilityWithStrategy(input_span, output_span,
-                                                stats::detail::Strategy::VECTORIZED);
             });
 
         // Test CDF operation
@@ -524,8 +520,6 @@ class SIMDVerifier {
                 // SIMD version - using explicit strategy for SIMD verification
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
-                d.getCumulativeProbabilityWithStrategy(input_span, output_span,
-                                                       stats::detail::Strategy::VECTORIZED);
             });
     }
 

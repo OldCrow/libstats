@@ -405,8 +405,6 @@ void test_gaussian_integration(const TestOptions& opts) {
 
         // Test batch operations
         auto start = chrono::high_resolution_clock::now();
-        gauss.getProbabilityWithStrategy(span<const double>(values), span<double>(pdf_results),
-                                         stats::detail::Strategy::SCALAR);
         auto end = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
 

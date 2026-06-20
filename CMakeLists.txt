@@ -1028,7 +1028,6 @@ set(LIBSTATS_INFRASTRUCTURE_SOURCES
 
 # Level 4: Distribution Framework (Depends on Level 0-3)
 set(LIBSTATS_FRAMEWORK_SOURCES
-    src/distribution_memory.cpp # Memory management for distributions (if exists)
     src/distribution_base.cpp # Complete distribution base framework
 )
 

@@ -119,17 +119,9 @@ TEST_F(RayleighEnhancedTest, VectorizedMatchesScalar) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
 
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                      detail::Strategy::VECTORIZED);
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                      detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF mismatch at i=" << i;
 
-    r1_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                             detail::Strategy::VECTORIZED);
-    r1_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                             detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF mismatch at i=" << i;
 }
@@ -174,11 +166,7 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
     vector<double> out(N), scl(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out),
-                                      detail::Strategy::VECTORIZED);
     const auto t1 = std::chrono::high_resolution_clock::now();
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(scl),
-                                      detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double vec_us =

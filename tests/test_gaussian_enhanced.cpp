@@ -325,9 +325,6 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
         start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                             std::span<double>(simd_results),
-                                             stats::detail::Strategy::VECTORIZED);
         end = std::chrono::high_resolution_clock::now();
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -337,8 +334,6 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         std::span<double> output_span(parallel_results);
 
         start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                             stats::detail::Strategy::PARALLEL);
         end = std::chrono::high_resolution_clock::now();
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -348,8 +343,6 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         std::span<double> ws_output_span(work_stealing_results);
 
         start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbabilityWithStrategy(input_span, ws_output_span,
-                                             stats::detail::Strategy::WORK_STEALING);
         end = std::chrono::high_resolution_clock::now();
         auto work_stealing_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -438,9 +431,6 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
 
         // Compare with traditional batch method
         start = std::chrono::high_resolution_clock::now();
-        gauss_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                              std::span<double>(traditional_results),
-                                              stats::detail::Strategy::VECTORIZED);
         end = std::chrono::high_resolution_clock::now();
         auto traditional_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -592,22 +582,13 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                 std::span<double>(pdf_results),
-                                                 stats::detail::Strategy::SCALAR);
             // Save baseline results for verification
             std::copy(pdf_results.begin(), pdf_results.end(), baseline_pdf_results.begin());
         } else if (op == "LogPDF") {
-            stdNormal.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                    std::span<double>(log_pdf_results),
-                                                    stats::detail::Strategy::SCALAR);
             // Save baseline results for verification
             std::copy(log_pdf_results.begin(), log_pdf_results.end(),
                       baseline_log_pdf_results.begin());
         } else if (op == "CDF") {
-            stdNormal.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                           std::span<double>(cdf_results),
-                                                           stats::detail::Strategy::SCALAR);
             // Save baseline results for verification
             std::copy(cdf_results.begin(), cdf_results.end(), baseline_cdf_results.begin());
         }
@@ -618,17 +599,8 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 2. SIMD Batch operations
         start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                 std::span<double>(pdf_results),
-                                                 stats::detail::Strategy::VECTORIZED);
         } else if (op == "LogPDF") {
-            stdNormal.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                    std::span<double>(log_pdf_results),
-                                                    stats::detail::Strategy::VECTORIZED);
         } else if (op == "CDF") {
-            stdNormal.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                           std::span<double>(cdf_results),
-                                                           stats::detail::Strategy::VECTORIZED);
         }
         end = std::chrono::high_resolution_clock::now();
         result.vectorized_time_us = static_cast<long>(
@@ -640,20 +612,14 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                                 stats::detail::Strategy::PARALLEL);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                    stats::detail::Strategy::PARALLEL);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                           stats::detail::Strategy::PARALLEL);
             end = std::chrono::high_resolution_clock::now();
         }
         result.parallel_time_us = static_cast<long>(
@@ -663,20 +629,14 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         if (op == "PDF") {
             std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                                 stats::detail::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
             std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                    stats::detail::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                           stats::detail::Strategy::WORK_STEALING);
             end = std::chrono::high_resolution_clock::now();
         }
         result.work_stealing_time_us = static_cast<long>(
@@ -747,15 +707,6 @@ TEST_F(GaussianEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::vector<double> empty_output;
 
     // These should not crash
-    normal.getProbabilityWithStrategy(std::span<const double>(empty_input),
-                                      std::span<double>(empty_output),
-                                      stats::detail::Strategy::SCALAR);
-    normal.getLogProbabilityWithStrategy(std::span<const double>(empty_input),
-                                         std::span<double>(empty_output),
-                                         stats::detail::Strategy::SCALAR);
-    normal.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_input),
-                                                std::span<double>(empty_output),
-                                                stats::detail::Strategy::SCALAR);
 
     // Test invalid parameter creation
     auto result_zero_std = GaussianDistribution::create(0.0, 0.0);

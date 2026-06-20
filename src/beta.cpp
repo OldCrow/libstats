@@ -764,24 +764,6 @@ static detail::PerformanceHint betaStrategyToHint(detail::Strategy strategy) noe
     return hint;
 }
 
-void BetaDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                  std::span<double> results,
-                                                  detail::Strategy strategy) const {
-    getProbability(values, results, betaStrategyToHint(strategy));
-}
-
-void BetaDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                     std::span<double> results,
-                                                     detail::Strategy strategy) const {
-    getLogProbability(values, results, betaStrategyToHint(strategy));
-}
-
-void BetaDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                                            std::span<double> results,
-                                                            detail::Strategy strategy) const {
-    getCumulativeProbability(values, results, betaStrategyToHint(strategy));
-}
-
 //==============================================================================
 // 15. COMPARISON OPERATORS
 //==============================================================================

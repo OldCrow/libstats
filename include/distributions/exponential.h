@@ -767,7 +767,7 @@ class ExponentialDistribution : public DistributionBase {
      * - Tiny batches (≤8): SCALAR for minimal overhead
      * - Small batches (9-63): SIMD_BATCH for vectorization benefits
      * - Medium batches (64-4095): PARALLEL_SIMD for multi-core + vectorization
-     * - Large batches (≥4096): WORK_STEALING or GPU_ACCELERATED for load balancing
+     * - Large batches (≥4096): WORK_STEALING for load balancing
      *
      * @par Performance Characteristics:
      * - AUTO mode: ~5-10ns overhead per batch for strategy selection
@@ -846,10 +846,6 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
     /**
      * @brief Explicit strategy batch log probability calculation for power users
      *
@@ -863,10 +859,6 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
     /**
      * @brief Explicit strategy batch cumulative probability calculation for power users
      *
@@ -880,11 +872,6 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @deprecated Consider migrating to auto-dispatch with hints for better portability
      */
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
-
     //==========================================================================
     // 15. COMPARISON OPERATORS
     //==========================================================================

@@ -42,20 +42,7 @@ using VonMises = VonMisesDistribution;
 using Binomial = BinomialDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
 
-// Platform classes
-class SimdProcessor;
-class ParallelExecutor;
-
-// Utility forward declarations
-template <typename T>
-class StatisticalBuffer;
-
-template <typename T>
-class DistributionParameter;
-
 // LibDistributionType was a duplicate of stats::detail::DistributionType
 // (defined in include/core/performance_dispatcher.h). It had no usages outside
 // this file and has been removed. Use stats::detail::DistributionType instead.
-
-enum class OptimizationLevel { None, Basic, SIMD, Parallel, Full };
 }  // namespace stats

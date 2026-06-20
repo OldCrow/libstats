@@ -8,7 +8,6 @@
 
 // Include the common base and split components
 #include "distribution_interface.h"
-#include "distribution_memory.h"
 #include "distribution_validation.h"
 #include "libstats/common/distribution_base_common.h"
 
@@ -109,42 +108,6 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
 
     // Multi-sample method implementation inherited from DistributionInterface
 
-    // =============================================================================
-    // SIMD-OPTIMIZED BATCH OPERATIONS - Virtual (Override for Performance)
-    // =============================================================================
-
-    /**
-     * @brief Batch probability density/mass function evaluation
-     * @param x_values Vector of values to evaluate
-     * @return Vector of probability densities/masses
-     * @note Base implementation uses parallel processing for large datasets; override for SIMD
-     * optimization
-     */
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchProbabilities(const std::vector<double>& x_values) const;
-
-    /**
-     * @brief Batch log probability density/mass function evaluation
-     * @deprecated Use getLogProbability(span, span, PerformanceHint) instead; removed in v2.0.0.
-     */
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchLogProbabilities(const std::vector<double>& x_values) const;
-
-    /**
-     * @brief Batch cumulative distribution function evaluation
-     * @deprecated Use getCumulativeProbability(span, span, PerformanceHint) instead; removed in v2.0.0.
-     */
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchCumulativeProbabilities(
-        const std::vector<double>& x_values) const;
-
-    /**
-     * @brief Batch quantile function evaluation
-     * @deprecated Use getQuantile(span, span) instead; removed in v2.0.0.
-     */
-    [[deprecated("Use getQuantile with span-based overloads instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchQuantiles(const std::vector<double>& p_values) const;
-
     /**
      * @brief Check if SIMD batch operations should be used for given size
      * @param vector_size Size of the input vector
@@ -164,13 +127,6 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @note Return NaN if not analytically computable
      */
     virtual double getEntropy() const { return std::numeric_limits<double>::quiet_NaN(); }
-
-    /**
-     * @brief Calculate Kullback-Leibler divergence from another distribution
-     * @deprecated Never overridden and never called; removed in v2.0.0.
-     */
-    [[deprecated("getKLDivergence has no overrides and no call sites; removed in v2.0.0.")]]
-    virtual double getKLDivergence(const DistributionBase& other) const;
 
     // =============================================================================
     // DISTRIBUTION COMPARISON - Virtual (Override Optional)

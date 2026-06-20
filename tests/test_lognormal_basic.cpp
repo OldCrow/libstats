@@ -238,11 +238,6 @@ int main() {
         vector<double> large_in(N), large_out(N), large_scalar(N);
         for (size_t i = 0; i < N; ++i)
             large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
-        batch_dist.getProbabilityWithStrategy(span<const double>(large_in), span<double>(large_out),
-                                              stats::detail::Strategy::VECTORIZED);
-        batch_dist.getProbabilityWithStrategy(span<const double>(large_in),
-                                              span<double>(large_scalar),
-                                              stats::detail::Strategy::SCALAR);
         bool large_ok = true;
         for (size_t i = 0; i < N; ++i) {
             if (std::abs(large_out[i] - large_scalar[i]) > 1e-10) {

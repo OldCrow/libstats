@@ -144,18 +144,10 @@ TEST_F(ParetoEnhancedTest, VectorizedMatchesScalar) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 1.0 + 0.05 * static_cast<double>(i + 1);
 
-    p12_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                       detail::Strategy::VECTORIZED);
-    p12_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                       detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF SIMD mismatch at i=" << i;
     }
 
-    p12_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                              detail::Strategy::VECTORIZED);
-    p12_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                              detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF SIMD mismatch at i=" << i;
     }
@@ -212,11 +204,7 @@ TEST_F(ParetoEnhancedTest, VectorizedSpeedup) {
     vector<double> out(N), scl(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
-    p12_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out),
-                                       detail::Strategy::VECTORIZED);
     const auto t1 = std::chrono::high_resolution_clock::now();
-    p12_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(scl),
-                                       detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double vec_us =

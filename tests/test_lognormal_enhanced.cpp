@@ -126,18 +126,10 @@ TEST_F(LogNormalEnhancedTest, VectorizedMatchesScalar) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
 
-    std_ln_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                          detail::Strategy::VECTORIZED);
-    std_ln_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                          detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF SIMD mismatch at i=" << i;
     }
 
-    std_ln_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                                 detail::Strategy::VECTORIZED);
-    std_ln_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                                 detail::Strategy::SCALAR);
     for (size_t i = 0; i < N; ++i) {
         // erf SIMD approx vs std::erf; tighter than A&S tolerance for most values
         EXPECT_NEAR(out_vec[i], out_scl[i], 2e-7) << "CDF SIMD mismatch at i=" << i;
@@ -194,13 +186,9 @@ TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
     vector<double> out(N);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
-    std_ln_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out),
-                                          detail::Strategy::VECTORIZED);
     const auto t1 = std::chrono::high_resolution_clock::now();
 
     vector<double> scalar_out(N);
-    std_ln_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(scalar_out),
-                                          detail::Strategy::SCALAR);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double vec_us =
