@@ -90,11 +90,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 
-if(LIBSTATS_CMAKE_HAS_RANGES_HEADER)
-    message(STATUS "C++20 <ranges> header: available")
-else()
-    message(STATUS "C++20 <ranges> header: unavailable")
-endif()
+# C++20 <concepts> and <ranges> are available on all v2.0.0 baseline compilers.
 
 # Detect whether std::cyl_bessel_i is available (C++17 §29.9.3). GCC 6.1+, MSVC 2017 15.5+ support
 # it; AppleClang / macOS libc++ does not. VonMisesDistribution falls back to A&S polynomial
@@ -110,417 +106,102 @@ else()
 endif()
 
 # Platform-specific configurations
+# =============================================================================
+# 2B: -stdlib=libc++ — AppleClang 15 defaults to libc++ on Ventura 13+.
+#     Use add_compile_options/add_link_options instead of CMAKE_CXX_FLAGS mutation
+#     so the flag is a proper list entry rather than a string accumulation.
 if(APPLE)
-    # macOS specific configuration
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-
-    message(STATUS "macOS: using system AppleClang with Apple libc++ (GCD parallel path active)")
-
-    # Comprehensive Threading System Detection with Caching Cache results to avoid repeated
-    # detection during reconfiguration
-
-    # Function to detect and cache comprehensive threading capabilities
-    function(detect_threading_systems)
-        # Check if detection has already been cached
-        if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
-            if(LIBSTATS_VERBOSE_BUILD)
-                message(STATUS "Using cached threading system detection results")
-            endif()
-            return()
-        endif()
-
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "Detecting comprehensive threading system capabilities...")
-        endif()
-
-        # 1. OpenMP Detection
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "  Checking for OpenMP...")
-        endif()
-        find_package(OpenMP QUIET)
-        if(OpenMP_CXX_FOUND)
-            set(LIBSTATS_HAS_OPENMP
-                TRUE
-                CACHE BOOL "OpenMP support available")
-            # Don't automatically link OpenMP - let parallel_execution.h handle detection
-            message(STATUS "    ✓ OpenMP found - available as parallel execution fallback")
-        else()
-            set(LIBSTATS_HAS_OPENMP
-                FALSE
-                CACHE BOOL "OpenMP support not available")
-            message(STATUS "    ✗ OpenMP not found")
-        endif()
-
-        # 1. Pthread Detection (Unix/Linux systems)
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "  Checking for POSIX Threads (pthreads)...")
-        endif()
-        find_package(Threads QUIET)
-        if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
-            set(LIBSTATS_HAS_PTHREADS
-                TRUE
-                CACHE BOOL "POSIX threads support available")
-            message(STATUS "    ✓ POSIX threads found - available as parallel execution fallback")
-        else()
-            set(LIBSTATS_HAS_PTHREADS
-                FALSE
-                CACHE BOOL "POSIX threads not available")
-            message(STATUS "    ✗ POSIX threads not found or not using pthread implementation")
-        endif()
-
-        # 1. C++20 Execution Policy Detection (Compile-time)
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "  Checking for C++20 execution policy support...")
-        endif()
-        # This will be detected at compile-time by parallel_execution.h but we can do some basic
-        # feature testing here
-        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_STANDARD EQUAL 20)
-            message(STATUS "    ~ C++20 execution policies: May be available with Apple Clang")
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_STANDARD EQUAL 20)
-            message(
-                STATUS
-                    "    ~ C++20 execution policies: May be available with GCC (requires libstdc++9+)"
-            )
-        elseif(MSVC AND CMAKE_CXX_STANDARD EQUAL 20)
-            message(STATUS "    ~ C++20 execution policies: Available with MSVC 2019+ and C++20")
-        else()
-            message(STATUS "    ~ C++20 execution policies: Detection deferred to runtime")
-        endif()
-
-        # 1. Platform-Specific Threading (Detection Only - Implementation in parallel_execution.h)
-        if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "  Platform-specific threading systems:")
-        endif()
-        if(APPLE)
-            message(STATUS "    ✓ Grand Central Dispatch (GCD) - Available on macOS")
-            set(LIBSTATS_HAS_GCD
-                TRUE
-                CACHE BOOL "Grand Central Dispatch available")
-        else()
-            set(LIBSTATS_HAS_GCD
-                FALSE
-                CACHE BOOL "Grand Central Dispatch not available")
-        endif()
-
-        if(WIN32)
-            # Check for Windows Vista+ (required for Thread Pool API)
-            if(DEFINED _WIN32_WINNT)
-                if(_WIN32_WINNT GREATER_EQUAL 0x0600)
-                    message(STATUS "    ✓ Windows Thread Pool API - Available (Windows Vista+)")
-                    set(LIBSTATS_HAS_WIN_THREADPOOL
-                        TRUE
-                        CACHE BOOL "Windows Thread Pool API available")
-                else()
-                    message(
-                        STATUS
-                            "    ✗ Windows Thread Pool API - Requires Windows Vista+ (_WIN32_WINNT >= 0x0600)"
-                    )
-                    set(LIBSTATS_HAS_WIN_THREADPOOL
-                        FALSE
-                        CACHE BOOL "Windows Thread Pool API not available")
-                endif()
-            else()
-                message(
-                    STATUS
-                        "    ~ Windows Thread Pool API - Available if _WIN32_WINNT >= 0x0600 (not set)"
-                )
-                set(LIBSTATS_HAS_WIN_THREADPOOL
-                    TRUE
-                    CACHE BOOL "Windows Thread Pool API likely available")
-            endif()
-        else()
-            set(LIBSTATS_HAS_WIN_THREADPOOL
-                FALSE
-                CACHE BOOL "Windows Thread Pool API not available")
-        endif()
-
-        # Mark detection as complete
-        set(LIBSTATS_THREADING_DETECTION_COMPLETE
-            TRUE
-            CACHE BOOL "Threading detection completed")
-
-        # Summary
-        message(STATUS "Threading System Detection Summary:")
-        message(STATUS "  - OpenMP: ${LIBSTATS_HAS_OPENMP}")
-        message(STATUS "  - POSIX Threads: ${LIBSTATS_HAS_PTHREADS}")
-        message(STATUS "  - Grand Central Dispatch: ${LIBSTATS_HAS_GCD}")
-        message(STATUS "  - Windows Thread Pool: ${LIBSTATS_HAS_WIN_THREADPOOL}")
-        message(STATUS "  - C++20 execution policies: Runtime detection enabled")
-    endfunction()
-
-    # Execute comprehensive threading detection
-    detect_threading_systems()
-
+    add_compile_options(-stdlib=libc++)
+    add_link_options(-stdlib=libc++)
+    message(STATUS "macOS: system AppleClang with libc++ (GCD parallel path active)")
 elseif(UNIX AND NOT APPLE)
-    # Linux specific configuration
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+    # -fPIC is required for shared library compilation on Linux.
+    add_compile_options(-fPIC)
     set(CMAKE_SHARED_LINKER_FLAGS
         "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-soname,libstats.so.${PROJECT_VERSION_MAJOR}")
-
-    # Comprehensive Threading System Detection for Linux
-    function(detect_threading_systems_linux)
-        if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
-            message(STATUS "Using cached threading system detection results")
-            return()
-        endif()
-
-        message(STATUS "Detecting comprehensive threading system capabilities (Linux)...")
-
-        # 1. TBB Detection
-        message(STATUS "  Checking for Intel TBB...")
-        find_package(TBB QUIET)
-        if(TBB_FOUND)
-            set(LIBSTATS_HAS_TBB
-                TRUE
-                CACHE BOOL "Intel TBB support available")
-            message(
-                STATUS "    ✓ TBB found via find_package - parallel execution policies enhanced")
-        else()
-            find_package(PkgConfig QUIET)
-            if(PkgConfig_FOUND)
-                pkg_check_modules(TBB QUIET tbb)
-        if(TBB_FOUND)
-                    # LP-2: propagate paths to parent scope; target-scoped calls added
-                    # after target creation in the main body.
-                    set(LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL "${TBB_INCLUDE_DIRS}" PARENT_SCOPE)
-                    set(LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL "${TBB_LIBRARY_DIRS}" PARENT_SCOPE)
-                    set(CMAKE_CXX_FLAGS
-                        "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
-                        PARENT_SCOPE)
-                    set(LIBSTATS_HAS_TBB
-                        TRUE
-                        CACHE BOOL "Intel TBB support available")
-                    message(
-                        STATUS
-                            "    ✓ TBB found via pkg-config - parallel execution policies enhanced")
-                else()
-                    set(LIBSTATS_HAS_TBB
-                        FALSE
-                        CACHE BOOL "Intel TBB support not available")
-                    message(
-                        STATUS
-                            "    ✗ TBB not found - C++20 execution policies may have limited performance"
-                    )
-                endif()
-            else()
-                set(LIBSTATS_HAS_TBB
-                    FALSE
-                    CACHE BOOL "Intel TBB support not available")
-                message(
-                    STATUS
-                        "    ✗ TBB not found - C++20 execution policies may have limited performance"
-                )
-            endif()
-        endif()
-
-        # 1. OpenMP Detection
-        message(STATUS "  Checking for OpenMP...")
-        find_package(OpenMP QUIET)
-        if(OpenMP_CXX_FOUND)
-            set(LIBSTATS_HAS_OPENMP
-                TRUE
-                CACHE BOOL "OpenMP support available")
-            message(STATUS "    ✓ OpenMP found - available as parallel execution fallback")
-        else()
-            set(LIBSTATS_HAS_OPENMP
-                FALSE
-                CACHE BOOL "OpenMP support not available")
-            message(STATUS "    ✗ OpenMP not found")
-        endif()
-
-        # 1. Pthread Detection (Standard on Linux)
-        message(STATUS "  Checking for POSIX Threads (pthreads)...")
-        find_package(Threads REQUIRED) # Required on Linux
-        if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
-            set(LIBSTATS_HAS_PTHREADS
-                TRUE
-                CACHE BOOL "POSIX threads support available")
-            message(STATUS "    ✓ POSIX threads found - available as parallel execution fallback")
-        else()
-            set(LIBSTATS_HAS_PTHREADS
-                FALSE
-                CACHE BOOL "POSIX threads not available")
-            message(STATUS "    ✗ POSIX threads not found - this is unexpected on Linux")
-        endif()
-
-        # 1. C++20 Execution Policy Detection
-        message(STATUS "  Checking for C++20 execution policy support...")
-        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_STANDARD EQUAL 20)
-            message(
-                STATUS
-                    "    ~ C++20 execution policies: May be available with GCC (requires libstdc++9+)"
-            )
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_STANDARD EQUAL 20)
-            message(
-                STATUS
-                    "    ~ C++20 execution policies: May be available with Clang (requires libc++14+)"
-            )
-        else()
-            message(STATUS "    ~ C++20 execution policies: Detection deferred to runtime")
-        endif()
-
-        # 1. Platform-Specific Threading (Linux-specific)
-        message(STATUS "  Platform-specific threading systems:")
-        set(LIBSTATS_HAS_GCD
-            FALSE
-            CACHE BOOL "Grand Central Dispatch not available on Linux")
-        set(LIBSTATS_HAS_WIN_THREADPOOL
-            FALSE
-            CACHE BOOL "Windows Thread Pool API not available")
-        message(STATUS "    ✗ Grand Central Dispatch - Not available on Linux")
-        message(STATUS "    ✗ Windows Thread Pool API - Not available on Linux")
-
-        set(LIBSTATS_THREADING_DETECTION_COMPLETE
-            TRUE
-            CACHE BOOL "Threading detection completed")
-
-        # Summary
-        message(STATUS "Threading System Detection Summary (Linux):")
-        message(STATUS "  - Intel TBB: ${LIBSTATS_HAS_TBB}")
-        message(STATUS "  - OpenMP: ${LIBSTATS_HAS_OPENMP}")
-        message(STATUS "  - POSIX Threads: ${LIBSTATS_HAS_PTHREADS}")
-        message(STATUS "  - Grand Central Dispatch: ${LIBSTATS_HAS_GCD}")
-        message(STATUS "  - Windows Thread Pool: ${LIBSTATS_HAS_WIN_THREADPOOL}")
-        message(STATUS "  - C++20 execution policies: Runtime detection enabled")
-    endfunction()
-
-    detect_threading_systems_linux()
-
 elseif(WIN32)
-    # Windows specific configuration Enable Windows compatibility macros
-    # LP-3: use add_compile_definitions (no -D prefix, cleaner than add_definitions)
+    # Windows compatibility macros (LP-3: add_compile_definitions, not add_definitions)
     add_compile_definitions(NOMINMAX _USE_MATH_DEFINES)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-
-    # Comprehensive Threading System Detection for Windows
-    function(detect_threading_systems_windows)
-        if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
-            message(STATUS "Using cached threading system detection results")
-            return()
-        endif()
-
-        message(STATUS "Detecting comprehensive threading system capabilities (Windows)...")
-
-        # 1. TBB Detection (Windows)
-        message(STATUS "  Checking for Intel TBB...")
-        find_package(TBB QUIET)
-        if(TBB_FOUND)
-            set(LIBSTATS_HAS_TBB
-                TRUE
-                CACHE BOOL "Intel TBB support available")
-            message(
-                STATUS "    ✓ TBB found via find_package - parallel execution policies enhanced")
-        else()
-            set(LIBSTATS_HAS_TBB
-                FALSE
-                CACHE BOOL "Intel TBB support not available")
-            message(
-                STATUS "    ✗ TBB not found - C++20 execution policies may have limited performance"
-            )
-        endif()
-
-        # 1. OpenMP Detection (Windows)
-        message(STATUS "  Checking for OpenMP...")
-        find_package(OpenMP QUIET)
-        if(OpenMP_CXX_FOUND)
-            set(LIBSTATS_HAS_OPENMP
-                TRUE
-                CACHE BOOL "OpenMP support available")
-            message(STATUS "    ✓ OpenMP found - available as parallel execution fallback")
-        else()
-            set(LIBSTATS_HAS_OPENMP
-                FALSE
-                CACHE BOOL "OpenMP support not available")
-            message(STATUS "    ✗ OpenMP not found")
-        endif()
-
-        # 1. Windows Threading API Detection
-        message(STATUS "  Checking for Windows threading APIs...")
-        # Standard Win32 threads are always available on Windows
-        set(LIBSTATS_HAS_WIN32_THREADS
-            TRUE
-            CACHE BOOL "Win32 threads support available")
-        message(STATUS "    ✓ Win32 threads - Available on Windows")
-
-        # Windows Thread Pool API (Vista+)
-        if(DEFINED CMAKE_SYSTEM_VERSION AND CMAKE_SYSTEM_VERSION VERSION_GREATER_EQUAL "6.0")
-            set(LIBSTATS_HAS_WIN_THREADPOOL
-                TRUE
-                CACHE BOOL "Windows Thread Pool API available")
-            message(STATUS "    ✓ Windows Thread Pool API - Available (detected Windows Vista+)")
-        elseif(DEFINED _WIN32_WINNT)
-            if(_WIN32_WINNT GREATER_EQUAL 0x0600)
-                set(LIBSTATS_HAS_WIN_THREADPOOL
-                    TRUE
-                    CACHE BOOL "Windows Thread Pool API available")
-                message(STATUS "    ✓ Windows Thread Pool API - Available (_WIN32_WINNT >= 0x0600)")
-            else()
-                set(LIBSTATS_HAS_WIN_THREADPOOL
-                    FALSE
-                    CACHE BOOL "Windows Thread Pool API not available")
-                message(
-                    STATUS
-                        "    ✗ Windows Thread Pool API - Requires Windows Vista+ (_WIN32_WINNT >= 0x0600)"
-                )
-            endif()
-        else()
-            # Default to available for modern Windows builds
-            set(LIBSTATS_HAS_WIN_THREADPOOL
-                TRUE
-                CACHE BOOL "Windows Thread Pool API likely available")
-            message(
-                STATUS "    ~ Windows Thread Pool API - Likely available (Windows Vista+ assumed)")
-        endif()
-
-        # 1. C++20 Execution Policy Detection (Windows)
-        message(STATUS "  Checking for C++20 execution policy support...")
-        if(MSVC AND CMAKE_CXX_STANDARD EQUAL 20)
-            if(MSVC_VERSION GREATER_EQUAL 1920) # VS 2019+
-                message(
-                    STATUS "    ✓ C++20 execution policies: Available with MSVC 2019+ and C++20")
-            else()
-                message(
-                    STATUS
-                        "    ~ C++20 execution policies: May be available (MSVC version check failed)"
-                )
-            endif()
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_STANDARD EQUAL 20)
-            message(STATUS "    ~ C++20 execution policies: May be available with Clang-cl")
-        else()
-            message(STATUS "    ~ C++20 execution policies: Detection deferred to runtime")
-        endif()
-
-        # 1. Platform-Specific Threading (Windows-specific)
-        message(STATUS "  Platform-specific threading systems:")
-        set(LIBSTATS_HAS_GCD
-            FALSE
-            CACHE BOOL "Grand Central Dispatch not available on Windows")
-        set(LIBSTATS_HAS_PTHREADS
-            FALSE
-            CACHE BOOL "POSIX threads not natively available on Windows")
-        message(STATUS "    ✗ Grand Central Dispatch - Not available on Windows")
-        message(STATUS "    ✗ POSIX threads - Not natively available on Windows")
-
-        set(LIBSTATS_THREADING_DETECTION_COMPLETE
-            TRUE
-            CACHE BOOL "Threading detection completed")
-
-        # Summary
-        message(STATUS "Threading System Detection Summary (Windows):")
-        message(STATUS "  - Intel TBB: ${LIBSTATS_HAS_TBB}")
-        message(STATUS "  - OpenMP: ${LIBSTATS_HAS_OPENMP}")
-        message(STATUS "  - Win32 Threads: ${LIBSTATS_HAS_WIN32_THREADS}")
-        message(STATUS "  - Windows Thread Pool API: ${LIBSTATS_HAS_WIN_THREADPOOL}")
-        message(STATUS "  - Grand Central Dispatch: ${LIBSTATS_HAS_GCD}")
-        message(STATUS "  - POSIX Threads: ${LIBSTATS_HAS_PTHREADS}")
-        message(STATUS "  - C++20 execution policies: Runtime detection enabled")
-    endfunction()
-
-    # Execute comprehensive threading detection for Windows
-    detect_threading_systems_windows()
-
 endif()
 
+# =============================================================================
+# 2A: Unified threading system detection — one function, platform guards inside.
+#     Replaces the three separate detect_threading_systems_*() functions.
+# =============================================================================
+function(detect_threading_systems)
+    if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
+        if(LIBSTATS_VERBOSE_BUILD)
+            message(STATUS "Using cached threading detection results")
+        endif()
+        return()
+    endif()
+
+    message(STATUS "Detecting threading capabilities...")
+
+    # ── OpenMP (all platforms) ──────────────────────────────────────────────
+    find_package(OpenMP QUIET)
+    if(OpenMP_CXX_FOUND)
+        set(LIBSTATS_HAS_OPENMP TRUE CACHE BOOL "OpenMP available")
+        message(STATUS "  ✓ OpenMP found")
+    else()
+        set(LIBSTATS_HAS_OPENMP FALSE CACHE BOOL "OpenMP not available")
+        message(STATUS "  ✗ OpenMP not found")
+    endif()
+
+    # ── POSIX threads (Unix) ────────────────────────────────────────────────
+    if(NOT WIN32)
+        if(UNIX AND NOT APPLE)
+            find_package(Threads REQUIRED)
+        else()
+            find_package(Threads QUIET)
+        endif()
+        if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
+            set(LIBSTATS_HAS_PTHREADS TRUE CACHE BOOL "POSIX threads available")
+            message(STATUS "  ✓ POSIX threads found")
+        else()
+            set(LIBSTATS_HAS_PTHREADS FALSE CACHE BOOL "POSIX threads not available")
+            message(STATUS "  ✗ POSIX threads not found")
+        endif()
+    else()
+        set(LIBSTATS_HAS_PTHREADS FALSE CACHE BOOL "POSIX threads not natively available on Windows")
+    endif()
+
+    # ── Grand Central Dispatch (macOS only) ────────────────────────────────
+    if(APPLE)
+        set(LIBSTATS_HAS_GCD TRUE CACHE BOOL "Grand Central Dispatch available")
+        message(STATUS "  ✓ Grand Central Dispatch (GCD) available")
+        set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool not available")
+        set(LIBSTATS_HAS_WIN32_THREADS  FALSE CACHE BOOL "Win32 threads not applicable on macOS")
+    elseif(WIN32)
+        # ── Win32 threads and Thread Pool API (Windows) ────────────────────
+        set(LIBSTATS_HAS_GCD FALSE CACHE BOOL "GCD not available on Windows")
+        set(LIBSTATS_HAS_WIN32_THREADS TRUE CACHE BOOL "Win32 threads available")
+        message(STATUS "  ✓ Win32 threads available")
+        # Thread Pool API: available on Windows Vista+ (all modern Windows targets)
+        if(DEFINED CMAKE_SYSTEM_VERSION AND CMAKE_SYSTEM_VERSION VERSION_GREATER_EQUAL "6.0")
+            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API available")
+            message(STATUS "  ✓ Windows Thread Pool API available")
+        elseif(DEFINED _WIN32_WINNT AND _WIN32_WINNT GREATER_EQUAL 0x0600)
+            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API available")
+            message(STATUS "  ✓ Windows Thread Pool API available (_WIN32_WINNT >= 0x0600)")
+        else()
+            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API likely available")
+            message(STATUS "  ~ Windows Thread Pool API — assuming Vista+ (modern Windows)")
+        endif()
+        # TBB detection for Windows is handled by detect_tbb_unified() below
+    else()
+        # ── Linux ──────────────────────────────────────────────────────────
+        set(LIBSTATS_HAS_GCD FALSE CACHE BOOL "GCD not available on Linux")
+        set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool not available")
+        set(LIBSTATS_HAS_WIN32_THREADS  FALSE CACHE BOOL "Win32 threads not available")
+    endif()
+
+    set(LIBSTATS_THREADING_DETECTION_COMPLETE TRUE CACHE BOOL "Threading detection complete")
+    message(STATUS "Threading: OpenMP=${LIBSTATS_HAS_OPENMP} Pthreads=${LIBSTATS_HAS_PTHREADS} GCD=${LIBSTATS_HAS_GCD}")
+endfunction()
+
+detect_threading_systems()
 # SIMD feature detection and compilation flags Use our comprehensive SIMD detection system
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
 
@@ -1226,9 +907,8 @@ configure_simd_target(libstats_simd_obj)
 configure_simd_target(libstats_static)
 configure_simd_target(libstats_shared)
 
-# Platform-specific library linking configuration Note: rpath for LLVM libc++ is handled
-# automatically by CMake via CMAKE_CXX_FLAGS (-stdlib=libc++) and the detected LLVM library path.
-# Explicit target_link_options for rpath removed to avoid duplicate warnings.
+# Platform-specific library linking: rpath and signing are handled per-target above.
+# -stdlib=libc++ is set via add_compile_options/add_link_options in the platform block.
 
 # LP-2: target-scope TBB includes/link-dirs when found via pkg-config (global
 # include_directories/link_directories calls inside functions removed).
@@ -1469,15 +1149,9 @@ if(LIBSTATS_BUILD_TESTS)
     # LEVEL 2b: Platform Capabilities thread_pool.h and work_stealing_pool.h - Thread pool
     # implementations
     create_libstats_gtest(test_thread_pool tests/test_thread_pool.cpp)
-    if(LIBSTATS_CMAKE_HAS_CONCEPTS_HEADER AND LIBSTATS_CMAKE_HAS_RANGES_HEADER)
-        create_libstats_gtest(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
-        set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST TRUE)
-    else()
-        set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST FALSE)
-        message(
-            STATUS
-                "Skipping test_work_stealing_pool (requires both <concepts> and <ranges> headers)")
-    endif()
+    # <concepts> and <ranges> are guaranteed on the v2.0.0 baseline — always register.
+    create_libstats_gtest(test_work_stealing_pool tests/test_work_stealing_pool.cpp)
+    set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST TRUE)
 
     # =======================================================================
     # LEVEL 3 TESTS: Advanced Infrastructure
