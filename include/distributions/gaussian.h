@@ -908,6 +908,7 @@ class GaussianDistribution : public DistributionBase {
      * @param strategy Explicit execution strategy to use
      * @throws std::invalid_argument if strategy is not supported
      */
+    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                     detail::Strategy strategy) const;
 
@@ -922,6 +923,7 @@ class GaussianDistribution : public DistributionBase {
      * @param strategy Explicit execution strategy to use
      * @throws std::invalid_argument if strategy is not supported
      */
+    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
                                        detail::Strategy strategy) const;
 
@@ -936,6 +938,7 @@ class GaussianDistribution : public DistributionBase {
      * @param strategy Explicit execution strategy to use
      * @throws std::invalid_argument if strategy is not supported
      */
+    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
     void getCumulativeProbabilityWithStrategy(std::span<const double> values,
                                               std::span<double> results,
                                               detail::Strategy strategy) const;

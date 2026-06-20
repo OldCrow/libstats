@@ -550,7 +550,7 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
-            d.getProbabilityBatchImpl(vals, res, count, k, mu, lnorm);
+            d.getProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -625,7 +625,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
-            d.getLogProbabilityBatchImpl(vals, res, count, k, mu, lnorm);
+            d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -689,7 +689,7 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
         detail::OperationType::CDF,
         [](const VonMisesDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
-            d.getCumulativeProbabilityBatchImpl(vals, res, count);
+            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -737,7 +737,7 @@ void VonMisesDistribution::getProbabilityWithStrategy(std::span<const double> va
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
-            d.getProbabilityBatchImpl(vals, res, count, k, mu, lnorm);
+            d.getProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             const std::size_t count = vals.size();
@@ -799,7 +799,7 @@ void VonMisesDistribution::getLogProbabilityWithStrategy(std::span<const double>
             }
             const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
             lock.unlock();
-            d.getLogProbabilityBatchImpl(vals, res, count, k, mu, lnorm);
+            d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             const std::size_t count = vals.size();
@@ -850,7 +850,7 @@ void VonMisesDistribution::getCumulativeProbabilityWithStrategy(std::span<const 
         *this, values, results, strategy,
         [](const VonMisesDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
-            d.getCumulativeProbabilityBatchImpl(vals, res, count);
+            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             const std::size_t count = vals.size();
@@ -933,7 +933,7 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 // cache-validity check and lock acquisition on every element.
 //==============================================================================
 
-void VonMisesDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
+void VonMisesDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                       std::size_t count, double cached_kappa,
                                                       double cached_mu,
                                                       double cached_log_normaliser) const noexcept {
@@ -954,12 +954,12 @@ void VonMisesDistribution::getLogProbabilityBatchImpl(const double* values, doub
     }
 }
 
-void VonMisesDistribution::getProbabilityBatchImpl(const double* values, double* results,
+void VonMisesDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                    std::size_t count, double cached_kappa,
                                                    double cached_mu,
                                                    double cached_log_normaliser) const noexcept {
     // Compute log-PDF then exponentiate
-    getLogProbabilityBatchImpl(values, results, count, cached_kappa, cached_mu,
+    getLogProbabilityBatchUnsafeImpl(values, results, count, cached_kappa, cached_mu,
                                cached_log_normaliser);
 
     // Step 4: results[i] = exp(results[i])
@@ -972,7 +972,7 @@ void VonMisesDistribution::getProbabilityBatchImpl(const double* values, double*
     }
 }
 
-void VonMisesDistribution::getCumulativeProbabilityBatchImpl(const double* values, double* results,
+void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                              std::size_t count) const noexcept {
     for (std::size_t i = 0; i < count; ++i)
         results[i] = getCumulativeProbability(values[i]);

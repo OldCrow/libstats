@@ -60,7 +60,7 @@ UniformDistribution& UniformDistribution::operator=(const UniformDistribution& o
     return *this;
 }
 
-UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
+UniformDistribution::UniformDistribution(UniformDistribution&& other)
     : DistributionBase(std::move(other)) {
     std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;

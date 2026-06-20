@@ -65,7 +65,7 @@ jobs:
           -DLIBSTATS_HAS_AVX512 \
           -mavx512f -mavx512dq -mavx512bw -mavx512vl \
           -c src/simd_avx512.cpp \
-          -o avx512_test.o || echo "AVX-512 source compilation failed"
+          -o avx512_test.o || { echo "AVX-512 source compilation failed"; exit 1; }
 
         # Test compilation of dispatch logic with AVX-512 enabled
         echo "Testing simd_dispatch.cpp with AVX-512 enabled..."
@@ -75,7 +75,7 @@ jobs:
           -DLIBSTATS_HAS_AVX512 \
           -mavx512f -mavx512dq -mavx512bw -mavx512vl \
           -c src/simd_dispatch.cpp \
-          -o dispatch_avx512_test.o || echo "Dispatch compilation failed"
+          -o dispatch_avx512_test.o || { echo "Dispatch compilation failed"; exit 1; }
 
         echo "✅ Individual source file compilation tests completed"
 
