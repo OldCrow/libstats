@@ -1,62 +1,31 @@
-# Academic References
+# Academic and Algorithm References
 
-This document lists academic sources and algorithms used in libstats implementations. These are algorithmic references for transparency and reproducibility, not third-party code requiring attribution.
+This document lists algorithmic references used by libstats.
 
-## Mathematical Functions
+## Numerical functions and SIMD
 
-### Error Function and Inverse (`math_utils.cpp`)
-- **Inverse Error Function**: Rational approximation based on methods described in:
-  - Press, W. H., et al. "Numerical Recipes in C++" (various editions)
-  - Moro's method for rational approximations
-  - Acklam's refined coefficients for tail regions
+- SLEEF Project. Vectorised elementary function implementation techniques for exp, log, and trigonometric functions.
+- musl libc. High-accuracy `erf` rational approximation strategy used as inspiration for x86 vector erf paths.
+- Agner Fog. *Optimizing software in C++* and instruction tables for SIMD performance analysis.
+- Abramowitz, M. and Stegun, I. A. (1964). *Handbook of Mathematical Functions*. Used for several classical approximations and special-function references.
 
-### Gamma Functions (`math_utils.cpp`)
-- **Incomplete Gamma Functions**: Series expansion and continued fraction methods from:
-  - Press, W. H., et al. "Numerical Recipes: The Art of Scientific Computing"
-  - NIST Digital Library of Mathematical Functions
+## Statistical inference
 
-### Beta Functions (`math_utils.cpp`)
-- **Incomplete Beta Function**: Continued fraction approximation from:
-  - Press, W. H., et al. "Numerical Recipes in C++"
+- Hosking, J. R. M. (1990). "L-moments: Analysis and estimation of distributions using linear combinations of order statistics." *Journal of the Royal Statistical Society: Series B*, 52(1), 105–124.
+- Royston, P. (1992). "Approximating the Shapiro-Wilk W-test for non-normality." *Statistics and Computing*, 2, 117–119.
+- Jarque, C. M. and Bera, A. K. (1980). "Efficient tests for normality, homoscedasticity and serial independence of regression residuals." *Economics Letters*, 6(3), 255–259.
+- Garwood, F. (1936). "Fiducial limits for the Poisson distribution." *Biometrika*, 28(3/4), 437–442.
+- Clopper, C. J. and Pearson, E. S. (1934). "The use of confidence or fiducial limits illustrated in the case of the binomial." *Biometrika*, 26(4), 404–413.
+- Wilson, E. B. (1927). "Probable inference, the law of succession, and statistical inference." *Journal of the American Statistical Association*, 22(158), 209–212.
 
-## Statistical Distributions
+## Distribution algorithms
 
-### General Methods
-- **Maximum Likelihood Estimation**: Standard statistical inference techniques
-- **Goodness-of-Fit Tests**: Classical statistical tests (Kolmogorov-Smirnov, Anderson-Darling, Chi-squared)
+- Devroye, L. (1986). *Non-Uniform Random Variate Generation*. Springer.
+- Johnson, N. L., Kotz, S., and Balakrishnan, N. (1994–1997). *Continuous Univariate Distributions* and *Discrete Multivariate Distributions*.
+- Press, W. H. et al. (2007). *Numerical Recipes: The Art of Scientific Computing*, 3rd ed.
 
-### Poisson Distribution (`poisson.cpp`)
-- **Knuth's Algorithm**: For small lambda values
-- **Transformed rejection method**: For large lambda values
-- **Stirling's Approximation**: For factorial calculations in large parameter regime
+## Parallelism and dispatch
 
-### Gamma Distribution (`gamma.cpp`)
-- **Marsaglia and Tsang Method**: Efficient sampling for shape > 1
-- **Transformation methods**: For shape < 1
-
-## Numerical Methods
-
-### Special Functions (`simd_avx.cpp`)
-- **Polynomial Approximations**: Coefficients derived from:
-  - Abramowitz, M. and Stegun, I. A. (1964). "Handbook of Mathematical Functions"
-  - SLEEF library (properly attributed in THIRD_PARTY_NOTICES.md)
-
-### Optimization Techniques
-- **SIMD Vectorization**: Modern CPU optimization techniques
-- **Cache-aware algorithms**: Standard performance optimization patterns
-
-### Log-Normal Distribution (`lognormal.cpp`)
-- **MLE**: Closed-form via Gaussian transform: μ̂ = mean(log xᵢ), σ̂ = population std(log xᵢ)
-  (standard result; see Press et al., "Numerical Recipes")
-- **Sampling**: Inverse transform X = exp(Normal(μ, σ))
-
-### Pareto Distribution (`pareto.cpp`)
-- **MLE**: Closed-form two-step estimators: x̂_m = min(xᵢ), α̂ = n / Σlog(xᵢ/x̂_m)
-  (Arnold, B. C. (1983). *Pareto Distributions.* International Cooperative Publishing House.)
-
-## Notes
-
-- All implementations are original code written for libstats
-- Mathematical formulas and algorithms are implemented from first principles or academic descriptions
-- No code was copied from the referenced sources (except SLEEF-inspired SIMD code, which is properly attributed)
-- These references are provided for academic integrity and to help users understand the theoretical foundations
+- Blumofe, R. D. and Leiserson, C. E. (1999). "Scheduling multithreaded computations by work stealing." *Journal of the ACM*, 46(5), 720–748.
+- Intel. *Intel 64 and IA-32 Architectures Optimization Reference Manual*.
+- Arm. *Arm Architecture Reference Manual* and NEON programmer guidance.

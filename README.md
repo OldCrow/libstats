@@ -235,13 +235,9 @@ ctest -R test_gaussian_basic
 Tests are labelled: **no label** = correctness (parallel-safe); **timing** = speedup assertions (run serially); **benchmark** = performance tools (not in standard suite). The `*_enhanced` GTest tests require GTest installed; they are silently skipped when GTest is absent.
 
 ### System Requirements
-- **C++20 compatible compiler**: GCC 10+, Clang 14+, MSVC 2019+
+- **C++20 compatible compiler**: GCC 13+, Clang 17+, AppleClang 15+, MSVC 19.38+
 - **CMake**: 3.20 or later
-- **Platform**: Windows, macOS, Linux (automatic detection and optimization)
-
-> **⚠️ macOS Catalina (10.15) deprecation:** v1.5.x is the last series validated on
-> macOS 10.15 and Ivy Bridge hardware. A future v2.0.0 will require macOS 13 (Ventura)
-> or later, consistent with libhmm. See [CHANGELOG.md](CHANGELOG.md) for details.
+- **Platform**: Windows, macOS 13+, Linux (automatic detection and optimization)
 
 #### Common Build Configurations
 
@@ -272,10 +268,10 @@ Header organization and dependency management:
 
 ### ⚡ **[PARALLEL_BATCH_PROCESSING_GUIDE.md](docs/PARALLEL_BATCH_PROCESSING_GUIDE.md)**
 High-performance parallel and batch processing:
-- Auto-dispatch vs explicit strategy control
-- SIMD and parallel processing APIs
+- Span-based batch APIs
+- `PerformanceHint` and auto-dispatch
+- SIMD and parallel execution paths
 - Performance optimization guidelines
-- Thread safety and memory management
 
 ### 🧰 **Windows Support**
 For Windows development environment setup (MSVC activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [AGENTS.md](AGENTS.md).
@@ -332,11 +328,11 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-The library is at **v1.5.1** on `main`.
+The v2.x development branch targets **v2.0.0**. v1.5.3 is the final v1.x release.
 
 **16 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
-- SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
+- Span-based SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds
 - Thread-safe with reader-writer locks and lock-free atomic fast paths
 

@@ -1,477 +1,127 @@
-# libstats Header Architecture Guide
+# Header Architecture Guide
 
-## Overview
+This guide describes the v2.x public header layout.
 
-This guide provides comprehensive information about the libstats header organization, dependency management design philosophy, and usage patterns for developers working on distributions, tools, tests, and examples. The project follows a **balanced consolidation approach** that reduces redundancy while preserving software engineering principles like the Single Responsibility Principle.
+## Public include styles
 
-## Design Philosophy
-
-### Core Principles
-
-1. **Balanced Consolidation**: Reduce redundant includes without creating overly complex headers
-2. **Single Responsibility Principle**: Each header maintains a focused, well-defined purpose
-3. **Layered Architecture**: Strict dependency ordering prevents circular dependencies
-4. **Platform Separation**: Platform-specific code is clearly isolated from core functionality
-5. **Performance-First**: Headers are organized to optimize both compilation time and runtime performance
-
-### Dependency Management Strategy
-
-- **Bottom-up Hierarchy**: Lower-level headers only depend on standard library
-- **Horizontal Isolation**: Related headers at the same level avoid interdependencies
-- **Forward Declarations**: Minimize compile-time dependencies through careful interface design
-- **Common Patterns**: Consolidate frequently-used header combinations without compromising architecture
-
-## Header Architecture
-
-### Level 0: Foundation (Standard Library Only)
-
-**Location**: `include/core/*_constants.h`, `include/platform/simd_policy.h`
-
-> **✅ Updated**: Some foundation headers have been moved to `include/common/` for better organization.
-
-These headers have no internal project dependencies and provide fundamental constants and basic platform detection.
-
-#### Constants Headers
-
-A consolidation reduced 9 micro-headers into 3 semantic groups. Each group header has a
-doc comment explaining what belongs in it and why it is separate.
+Single-header include:
 
 ```cpp
-// Three semantic groups — use the one(s) that match your need
-#include "core/math_constants.h"          // π, e, √2, machine epsilon, tolerances,
-                                           //   numerical method parameters, log-space limits
-#include "core/statistical_constants.h"  // Probability bounds, critical values (normal/t/chi²/F),
-                                           //   GoF tables, effect sizes, robust estimation,
-                                           //   Bayesian priors, bootstrap/CV defaults
-#include "core/performance_constants.h" // Benchmark iteration counts, timing bounds
+#include "libstats.h"
 ```
 
-The **removed** headers (`mathematical_constants.h`, `precision_constants.h`,
-`probability_constants.h`, `threshold_constants.h`, `benchmark_constants.h`,
-`robust_constants.h`, `statistical_methods_constants.h`, `goodness_of_fit_constants.h`)
-no longer exist.
-
-#### Basic Platform
-```cpp
-#include "platform/simd_policy.h"          // SIMD capability detection
-```
-
-### Level 1: Consolidated Foundation
-
-**Location**: `include/core/essential_constants.h`, `include/core/constants.h`, `include/platform/cpu_detection.h`
-
-> **✅ Updated**: Some platform constants have been moved to `include/common/` - use the new paths where applicable.
-
-#### Essential Constants (Recommended)
-```cpp
-#include "core/essential_constants.h"       // Most common constants (precision + math + statistical)
-```
-
-#### Complete Constants (umbrella)
-```cpp
-#include "core/constants.h"                 // All 3 constants headers (umbrella)
-```
-
-#### Platform Foundation
-```cpp
-#include "platform/cpu_detection.h"        // Runtime CPU feature detection
-#include "platform/platform_constants.h"   // Platform-specific optimization constants (via common/)
-```
-
-> **✅ Updated**: `platform_constants.h` now pulls from `common/platform_constants_fwd.h` and `common/platform_common.h`
-
-### Level 2: Core Utilities and Platform Capabilities
-
-**Location**: `include/core/`, `include/platform/`
-
-#### Core Utilities
-```cpp
-// Mathematical operations
-#include "core/math_utils.h"               // Special functions, numerical algorithms
-#include "core/log_space_ops.h"            // Log-space arithmetic for stability
-
-// Safety and validation
-#include "core/safety.h"                   // Safe numerical operations
-#include "core/validation.h"               // Parameter validation
-#include "core/error_handling.h"           // Exception-free error handling
-
-// Statistical utilities
-#include "core/statistical_utilities.h"   // Common statistical computations
-```
-
-#### Platform Capabilities
-```cpp
-// SIMD and vectorization
-#include "platform/simd.h"                // SIMD operations and memory management
-
-// Threading and parallelism
-#include "platform/thread_pool.h"         // Basic thread pool
-#include "platform/work_stealing_pool.h"  // Advanced work-stealing pool
-
-// Dispatch thresholds (profiling-derived)
-#include "core/dispatch_thresholds.h"     // Per-(arch, dist, op) parallel thresholds
-```
-
-### Level 3: Advanced Infrastructure
-
-**Location**: `include/core/`, `include/platform/`
-
-#### Caching and Performance
-```cpp
-#include "core/distribution_cache.h"      // Distribution-specific caching
-#include "platform/parallel_execution.h"  // C++20 parallel algorithms
-#include "platform/benchmark.h"            // Performance measurement utilities
-```
-
-> **Note**: Cache functionality is integrated within `core/distribution_cache.h` rather than a separate cache directory.
-
-#### Performance Framework
-```cpp
-#include "core/performance_history.h"     // Performance tracking
-#include "core/performance_dispatcher.h"  // Smart algorithm selection
-```
-
-### Level 4: Distribution Framework
-
-**Location**: `include/core/distribution*.h`
-
-#### Framework Components
-```cpp
-#include "core/distribution_interface.h"   // Pure virtual interface
-#include "core/distribution_memory.h"      // Memory management and SIMD ops
-#include "core/distribution_validation.h" // Validation and diagnostics
-```
-
-#### Complete Framework
-```cpp
-#include "core/distribution_base.h"       // Complete base class (includes all above)
-```
-
-### Level 5: Consolidated Common Headers
-
-**Location**: `include/common/*_common.h`, `include/core/*_common.h`, `include/distributions/distribution_platform_common.h`
-
-> **✅ Updated**: Major header reorganization completed - common shared headers consolidated in `include/common/`
-
-#### Distribution Development (Recommended Pattern)
-```cpp
-// For new distribution implementations, use these consolidated headers:
-
-#include "../common/distribution_common.h"           // Core framework + common std library
-#include "../common/distribution_platform_common.h"  // Platform optimizations
-
-// Add specific includes only as needed:
-// #include <tuple>     // If returning statistical test results
-// #include <array>     // If using precomputed lookup tables
-```
-
-#### Alternative Patterns
-```cpp
-// For utilities that need base functionality:
-#include "common/distribution_base_common.h"   // Common base dependencies (MOVED)
-
-// For math utilities:
-#include "common/utility_common.h"             // Common utility dependencies (MOVED)
-
-// For platform code:
-#include "common/platform_common.h"           // Platform-specific common headers (MOVED)
-```
-
-> **✅ Updated**: Common shared headers moved to `include/common/` for better organization
-
-### Level 6: Concrete Distributions
-
-**Location**: `include/distributions/*.h`
+Focused include:
 
 ```cpp
-#include "distributions/gaussian.h"        // Gaussian (Normal) distribution
-#include "distributions/exponential.h"     // Exponential distribution
-#include "distributions/uniform.h"         // Uniform distribution
-#include "distributions/poisson.h"         // Poisson distribution
-#include "distributions/gamma.h"           // Gamma distribution
-#include "distributions/discrete.h"        // Discrete distribution
-#include "distributions/lognormal.h"       // Log-Normal distribution
-#include "distributions/pareto.h"          // Pareto distribution
-#include "distributions/weibull.h"         // Weibull distribution
-#include "distributions/rayleigh.h"        // Rayleigh distribution
-#include "distributions/von_mises.h"       // Von Mises distribution (circular)
+#include "libstats/distributions/gaussian.h"
+#include "libstats/stats/analysis/gaussian_analysis.h"
 ```
 
-### Level 7: Complete Library Interface
+## Top-level layout
 
-**Location**: `include/libstats.h`
+```text
+include/
+├── libstats.h
+├── common/
+├── core/
+├── distributions/
+├── platform/
+└── stats/
+    └── analysis/
+```
+
+## Core headers
+
+Important v2.x core headers:
+
+- `core/distribution_base.h` — base class and shared numerical utilities
+- `core/distribution_concepts.h` — C++20 concepts for distribution templates
+- `core/dispatch_utils.h` — span-based auto-dispatch and PerformanceHint routing
+- `core/dispatch_thresholds.h` — architecture-specific calibrated thresholds
+- `core/error_handling.h` — `Result<T>`, `VoidResult`, and validation error types
+
+Removed v1.x headers:
+
+- the old core statistical-utilities stub header
+- the old distribution-memory utility header
+
+## Distribution headers
+
+Each distribution header owns:
+
+- parameter accessors
+- scalar PDF/LogPDF/CDF/quantile methods
+- span-based batch APIs
+- fitting and sampling
+- distribution-specific scalar utilities
+
+Statistical analysis workflows are not class members in v2.x. Use `stats::analysis` headers.
+
+## Analysis headers
+
+Generic analysis headers:
+
+- `stats/analysis/goodness_of_fit.h`
+- `stats/analysis/information_criteria.h`
+- `stats/analysis/cross_validation.h`
+- `stats/analysis/bootstrap.h`
+- `stats/analysis/analysis.h` (generic umbrella only)
+
+Distribution-specific analysis headers must be included explicitly:
+
+- `stats/analysis/gaussian_analysis.h`
+- `stats/analysis/poisson_analysis.h`
+- `stats/analysis/exponential_analysis.h`
+- `stats/analysis/gamma_analysis.h`
+- `stats/analysis/binomial_analysis.h`
+
+Do not add distribution-specific analysis headers to `analysis.h`; that umbrella is intentionally generic.
+
+## Concepts
+
+Use `stats::concepts` for generic distribution constraints:
 
 ```cpp
-#include "libstats.h"                      // Complete library (single include)
+template <stats::concepts::AnyDistribution D>
+void analyse(const D& dist);
 ```
 
-## Usage Guidelines
+The concepts namespace avoids name collisions with concrete distribution classes such as `DiscreteDistribution`.
 
-### For Distribution Development
+## Namespace hygiene
 
-#### New Distribution Implementation
+Validation helper functions moved to `stats::detail` in v2.0.0:
+
+- `stats::detail::validateParameter`
+- `stats::detail::validatePositiveParameter`
+- `stats::detail::validateNonNegativeParameter`
+
+Do not expose these helpers as part of the public API.
+
+## Batch APIs
+
+Use spans and optional `PerformanceHint`:
+
 ```cpp
-#pragma once
-
-// Use consolidated headers for common functionality
-#include "../common/distribution_common.h"    // UPDATED PATH
-#include "distribution_platform_common.h"
-
-// Add specific headers only when needed
-// #include <tuple>      // For complex return types
-// #include <array>      // For lookup tables
-// #include <algorithm>  // For specialized algorithms
-
-class MyDistribution : public DistributionBase {
-    // Implementation using the full framework
-};
+std::vector<double> out(values.size());
+dist.getProbability(std::span<const double>(values), std::span<double>(out));
 ```
 
-> **✅ Updated**: `distribution_common.h` moved to `include/common/` directory
+Removed v1.x APIs:
 
-#### Key Benefits of This Pattern
-- **~60% fewer includes** compared to individual headers
-- **Consistent functionality** across all distributions
-- **Easier maintenance** when adding new features
-- **Faster compilation** through consolidated headers
+- explicit strategy suffix methods
+- vector-returning base batch helpers
 
-### For Tools Development
+## Installed include path
 
-#### Current Pattern (needs consolidation)
-```cpp
-#include <vector>
-#include <iostream>
-#include <string>
-#include "../include/libstats.h"              // Complete library
-#include "../include/core/performance_dispatcher.h"  // Specific performance tools
+Installed headers are expected under:
+
+```text
+include/libstats/
 ```
 
-#### Recommended Pattern
-```cpp
-// For tools that need full functionality:
-#include "../include/libstats.h"
+The build tree mirrors this via:
 
-// For tools that need only specific distributions:
-#include "../include/common/distribution_common.h"  // UPDATED PATH
-#include "../include/distributions/gaussian.h"     // Only what's needed
-
-// For performance analysis tools:
-#include "../include/core/performance_dispatcher.h"
-#include "../include/platform/benchmark.h"
+```text
+build/include_shim/libstats/
 ```
-
-### For Tests Development
-
-#### Current Pattern (basic)
-```cpp
-#include <iostream>
-#include <vector>
-#include <cassert>
-// Individual includes for each test requirement
-```
-
-#### Recommended Pattern
-```cpp
-// For comprehensive tests:
-#include "../include/libstats.h"
-
-// For focused unit tests:
-#include "../include/common/distribution_common.h"  // UPDATED PATH
-#include "../include/distributions/gaussian.h"     // Test target
-
-// For performance tests:
-#include "../include/platform/benchmark.h"
-#include "basic_test_template.h"                // Test utilities
-```
-
-### For Examples Development
-
-#### Recommended Pattern
-```cpp
-// For simple examples:
-#include "../include/libstats.h"
-
-// For performance-focused examples:
-#include "../include/libstats.h"
-// Note: libstats.h includes performance optimization guides
-
-// For specific feature examples:
-#include "../include/distributions/gaussian.h"   // Specific distribution
-#include "../include/platform/simd.h"           // SIMD examples
-```
-
-## Integration Patterns
-
-### Thread Safety
-All headers from Level 2+ provide thread-safe operations:
-```cpp
-// Safe concurrent access patterns
-std::shared_mutex cache_mutex_;
-std::shared_lock<std::shared_mutex> read_lock(cache_mutex_);  // Concurrent reads
-std::unique_lock<std::shared_mutex> write_lock(cache_mutex_); // Exclusive writes
-```
-
-### SIMD Integration
-```cpp
-// Compile-time detection (simd.h)
-#ifdef LIBSTATS_HAS_AVX
-    // Compiler can generate AVX code
-#endif
-
-// Runtime detection (cpu_detection.h)
-if (libstats::cpu::supports_avx()) {
-    // CPU actually supports AVX
-}
-
-// Automatic selection in distributions
-// All distributions automatically use best available SIMD
-```
-
-### Performance Optimization
-```cpp
-// Smart dispatch (performance_dispatcher.h)
-// Automatic algorithm selection based on:
-// - Data size
-// - CPU capabilities
-// - Performance history
-// - Memory pressure
-
-// Adaptive caching (adaptive_cache.h)
-// Automatic cache management with:
-// - TTL expiration
-// - Memory pressure response
-// - Access pattern learning
-```
-
-## Build Optimization
-
-### Compilation Time Benefits
-- **30-40% reduction** in redundant includes through consolidation
-- **Parallel compilation** enabled by strict dependency hierarchy
-- **Incremental builds** - changes to higher levels only affect dependents
-- **Platform isolation** - platform-specific changes don't trigger full rebuilds
-
-### Memory Usage
-- **Reduced compiler memory** through fewer redundant header parses
-- **Template instantiation efficiency** via consolidated headers
-- **Cache-friendly compilation** with related headers co-located
-
-## Migration Guide
-
-### From Individual Headers to Consolidated
-```cpp
-// OLD PATTERN (in distribution headers):
-#include <mutex>
-#include <shared_mutex>
-#include <atomic>
-#include <span>
-#include <vector>
-#include "../core/distribution_base.h"
-#include "../core/error_handling.h"
-#include "../core/essential_constants.h"
-#include "../platform/simd.h"
-#include "../platform/parallel_execution.h"
-
-// NEW PATTERN:
-#include "../common/distribution_common.h"         // UPDATED PATH - replaces first 8 includes
-#include "distribution_platform_common.h"         // Replaces platform includes
-```
-
-### Gradual Migration Strategy
-1. **Start with new code** - Use consolidated headers for all new implementations
-2. **Update on modification** - Switch to consolidated headers when modifying existing code
-3. **Full migration** - Systematic update of all headers (already completed for distributions)
-
-## Performance Metrics
-
-### Achieved Improvements
-
-#### Cache Consolidation
-- **6 files changed**: 722 insertions, 29 deletions in consolidation
-- **100% build success** with zero functionality loss
-- **100% test pass rate** after consolidation
-
-#### Common Header Reorganization
-- **16 header files** in `include/common/` for shared functionality
-- **All include paths updated** across codebase (30+ files affected)
-- **Cache infrastructure** maintained in `core/distribution_cache.h`
-- **Zero functionality loss** with improved organization
-- **100% test pass rate** maintained throughout reorganization
-
-### Expected Benefits
-- **15-25% faster builds** for incremental changes
-- **10-15% improvement** in clean build times
-- **60% reduction** in redundant includes across distribution headers
-- **Improved cache locality** in compilation process
-
-## Troubleshooting
-
-### Common Issues
-
-#### Missing Symbol Errors
-```cpp
-// If you see undefined symbols after switching to consolidated headers:
-// 1. Check if you need additional specific includes
-// 2. Verify the consolidation includes what you need
-// 3. Add specific headers for specialized functionality
-
-// Example fix:
-#include "distribution_common.h"        // Provides most functionality
-#include <tuple>                       // Add if you use tuple returns
-```
-
-#### Compilation Errors
-```cpp
-// If compilation fails with the new headers:
-// 1. Ensure you're using the correct consolidated header
-// 2. Check for any specialized dependencies
-// 3. Verify template instantiation requirements
-
-// For platform-specific issues:
-#include "distribution_platform_common.h"  // Standard platform support
-#include "../platform/simd_policy.h"      // If you need specific SIMD policies
-```
-
-#### Performance Regressions
-```cpp
-// If you experience performance issues:
-// 1. Call initialization once at startup
-libstats::initialize_performance_systems();
-
-// 2. Verify SIMD detection is working
-std::cout << "SIMD level: " << libstats::cpu::best_simd_level() << std::endl;
-
-// 3. Check that caching is enabled
-// (Automatically enabled in consolidated headers)
-```
-
-## Future Considerations
-
-### Planned Enhancements
-1. **Tools Header Consolidation** - Similar consolidation for tools/ directory
-2. **Test Framework Integration** - Standardized test header patterns
-3. **Example Templates** - Common patterns for example development
-4. **Additional Platform Support** - Extended platform-specific optimizations
-
-### Extension Points
-- **New Distribution Types** - Framework ready for additional distributions
-- **Custom Platform Headers** - Easy to add new platform-specific capabilities
-- **Specialized Constants** - Simple to add new constants categories
-- **Performance Optimizations** - Framework supports new optimization strategies
-
-## Conclusion
-
-The libstats header architecture provides a **balanced approach** to code organization that:
-
-- **Reduces complexity** through thoughtful consolidation
-- **Preserves maintainability** via clear separation of concerns
-- **Optimizes performance** at both compile-time and runtime
-- **Supports growth** with extensible architectural patterns
-
-For most development scenarios, using the consolidated headers (`distribution_common.h` and `distribution_platform_common.h`) provides optimal results with minimal complexity.
-
----
-
-**Document Version**: 2.1
-**Last Updated**: 2025-09-01
-**Covers**: Header architecture, include paths, and common header consolidation

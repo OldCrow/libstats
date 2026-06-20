@@ -10,9 +10,9 @@ libstats is a **design and teaching library**: a demonstration of how to build s
 
 **Current Status**: v2.0.0 on `feat/v2-architecture` (in progress). v1.5.3 is the final v1.x release.
 16 distributions across 6 families. v2.0.0 breaking changes: platform baseline raised to
-macOS 13 Ventura (minimum), Homebrew LLVM removed, `validateParameter` moved to
-`stats::detail`, analysis utilities extracted to `stats::analysis`, `*WithStrategy` methods
-removed, `getBatch*` vector API removed, `noexcept` move constructors across all 16
+macOS 13 Ventura (minimum), alternate LLVM compiler path removed, `validateParameter` moved to
+`stats::detail`, analysis utilities extracted to `stats::analysis`, strategy-suffix batch methods
+removed, vector-returning batch helpers removed, `noexcept` move constructors across all 16
 distributions, `WorkStealingPool::parallelFor` per-call fence (A-2). Three-machine
 validation ecosystem: Kaby Lake AVX2+FMA, Mac Mini M1 NEON, Asus TUF A16 AVX-512.
 
@@ -114,7 +114,7 @@ Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, Vect
 
 > **v2.0.0:** macOS minimum raised to 13 Ventura. Ivy Bridge / Catalina support dropped.
 > `CROSS_PLATFORM` build type and `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` removed.
-> Homebrew LLVM build infrastructure removed; use system AppleClang.
+> Alternate LLVM compiler infrastructure removed; use system AppleClang.
 
 ### SIMD Batch Operation Speedups (Ivy Bridge AVX — v1.5.0, historical)
 v1.5.0 results on Ivy Bridge AVX (61/61 simd_verification ✅): PDF geomean 5.6x, LogPDF 6.0x, CDF 2.6x.
@@ -375,7 +375,7 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Strict compiler warnings as errors (for compatibility testing)
-cmake -DCMAKE_BUILD_TYPE=Strict ..   # v2.0.0: unified Strict mode replaces ClangStrict/GCCStrict/MSVCStrict
+cmake -DCMAKE_BUILD_TYPE=Strict ..   # v2.0.0: unified Strict mode replaces legacy compiler-specific strict aliases
 ```
 
 ### Build System Features
@@ -409,7 +409,7 @@ cmake -DCMAKE_BUILD_TYPE=Strict ..   # v2.0.0: unified Strict mode replaces Clan
 ## Ad Hoc Compilation Outside CMake
 
 For quick diagnostics and testing, compile directly without CMake. Use the system compiler on
-macOS (Ventura 13+); Homebrew LLVM is not required and not supported in v2.0.0.
+macOS (Ventura 13+); alternate LLVM compiler setup is not required and not supported in v2.0.0.
 
 ### macOS / Linux
 ```bash
@@ -558,7 +558,7 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 
 #### Parallel Processing
 - Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`
-- Explicit control: `getProbabilityWithStrategy(spans, Strategy::PARALLEL)`
+- Explicit control: span-based batch APIs with `detail::PerformanceHint`
 - Dispatch thresholds are per-(architecture, distribution, operation) in `dispatch_thresholds.h`
 - Thresholds derived from four-architecture profiling data in `data/profiles/dispatcher/`
 
@@ -572,8 +572,6 @@ cmake -DLIBSTATS_VERBOSE_BUILD=ON ..
 # Force TBB usage over platform-native threading
 cmake -DLIBSTATS_FORCE_TBB=ON ..
 
-# Conservative SIMD settings for compatibility
-cmake -DLIBSTATS_CONSERVATIVE_SIMD=ON ..
 
 # Disable tools or tests
 cmake -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF ..
@@ -598,7 +596,7 @@ The build system supports cross-compiler compatibility testing with specialized 
 - Large batch operations (>1000 elements) benefit significantly from parallel execution
 
 ### Platform-Specific Notes
-- **macOS**: System AppleClang is the default (ABI-safe for all consumers); use `-DLIBSTATS_USE_HOMEBREW_LLVM=ON` only when Homebrew libc++ is needed across the entire toolchain
+- **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
 - **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`
 - **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
 

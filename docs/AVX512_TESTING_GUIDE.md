@@ -1,197 +1,60 @@
-# AVX-512 Testing Guide for libstats
+# AVX-512 Testing Guide
 
-This guide explains how to set up comprehensive AVX-512 testing for the libstats project, including both compilation verification and runtime testing.
+This guide describes how libstats validates AVX-512 compile-time and runtime behaviour.
 
-## AVX-512 Testing Status
+## Scope
 
-### ✅ What We Test Now
-- **NEON**: macOS Apple Silicon M1 (Mac Mini, macOS Tahoe) — 33/33, simd_verification 54/54, speedup 2.31x
-- **AVX**: Intel Ivy Bridge (2012 MBP, macOS Catalina) — 34/34, simd_verification 54/54, speedup 4.10x
-- **AVX2+FMA**: Intel Kaby Lake (2017 MBP, macOS Ventura) — 33/33, simd_verification 54/54, speedup 3.49x
-- **AVX-512**: AMD Ryzen 7 7445HS / Zen 4 (Asus TUF A16, Windows 11) — 33/33, simd_verification 54/54, speedup 1.64x
-- **SSE2/AVX/AVX2** (compile + link): Linux CI (GCC 11/12, Clang 14/15, AppleClang)
+AVX-512 support is validated in two layers:
 
-### ⚠️ What Remains
-- **AVX-512 on CI**: GitHub Actions standard runners lack AVX-512 CPUs. AVX-512 code is compiled
-  and the dispatch logic is correct (verified on local hardware), but runtime verification only
-  happens on the Asus TUF A16 development machine, not in automated CI.
+1. **CI compile validation** — verifies AVX-512 sources compile with supported toolchains.
+2. **Real hardware validation** — runs correctness and SIMD verification on an AVX-512-capable machine.
 
-### Note on AVX-512 speedup
-The AVX-512 overall speedup of 1.64x (vs. expected ~4x) reflects that transcendental functions
-(exp, log, erf) delegate to the 4-wide AVX implementation because no portable 8-wide transcendental
-ISA exists without SVML. Arithmetic operations run at full 8-wide width. See `src/simd_avx512.cpp`
-for the full explanation.
+GitHub-hosted runners do not guarantee AVX-512 runtime hardware.
 
-## AVX-512 Testing Solutions
+## Build validation
 
-### Option 1: Self-Hosted Runner (Recommended for Production)
+Configure and build in Release mode:
 
-This provides the most comprehensive testing but requires access to AVX-512 hardware.
-
-#### Hardware Requirements
-- Intel CPU with AVX-512 support:
-  - Skylake-X/SP (2017+)
-  - Cascade Lake (2019+)
-  - Ice Lake (2019+)
-  - Tiger Lake (2020+)
-  - Rocket Lake (2021+)
-  - Alder Lake (2021+)
-  - Sapphire Rapids (2023+)
-
-#### Setup Steps
-
-1. **Set up self-hosted runner**:
-   ```bash
-   # On your AVX-512 capable machine
-   mkdir actions-runner && cd actions-runner
-   curl -o actions-runner-linux-x64-2.311.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
-   tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
-   ./config.sh --url https://github.com/OldCrow/libstats --token YOUR_TOKEN
-   ./run.sh
-   ```
-
-2. **Update workflow** in `.github/workflows/avx512-testing.yml`:
-   ```yaml
-   runs-on: self-hosted-avx512  # Your runner label
-   ```
-
-3. **Benefits**:
-   - ✅ Full runtime AVX-512 testing
-   - ✅ Performance benchmarking with real AVX-512 workloads
-   - ✅ Complete validation of AVX-512 code paths
-
-### Option 2: Compilation Verification (Currently Implemented)
-
-Tests that AVX-512 code compiles correctly without runtime execution or linking.
-
-#### What It Tests
-- ✅ AVX-512 headers parse correctly
-- ✅ AVX-512 intrinsics compile with GCC and Clang
-- ✅ No compilation errors in AVX-512 code paths
-- ✅ Individual source files compile with AVX-512 flags
-- ✅ Namespace and constant resolution works correctly
-
-#### Limitations
-- ❌ Cannot test full program linking (GitHub runners lack AVX-512 hardware)
-- ❌ Cannot test runtime behavior
-- ❌ Cannot verify performance characteristics
-- ❌ Cannot test CPU feature detection accuracy
-
-#### Design Constraint
-GitHub's standard runners don't have AVX-512 capable CPUs, so the build system
-conditionally excludes AVX-512 source files. When we force AVX-512 compilation
-flags for testing, the dispatch logic references AVX-512 functions that aren't
-linked, causing linker errors. Our solution focuses on compilation verification
-of individual source files, which still provides significant value.
-
-#### Usage
-The `avx512-compilation.yml` workflow runs automatically and will:
 ```bash
-# Test compilation with various flag combinations
-cmake -DCMAKE_CXX_FLAGS="-mavx512f -mavx512dq -mavx512bw -mavx512vl"
-cmake --build build --parallel
-
-# Verify AVX-512 symbols in object files
-objdump -d *.o | grep -i "avx512\\|zmm"
+cmake -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release --parallel
 ```
 
-### Option 3: Enhanced CMake Detection
+Check that `simd_avx512.cpp` is included in the SIMD detection summary when the compiler and configuration enable it.
 
-#### Features
-- Automatic AVX-512 capability detection during configuration
-- Flexible flag testing to find optimal compiler settings
-- Cross-platform support (Linux, Windows, macOS)
-- Runtime detection when possible
+## Runtime validation
 
-#### Usage
+On an AVX-512-capable system:
+
 ```bash
-# Enable AVX-512 if available
-cmake -DLIBSTATS_ENABLE_AVX512=ON
-
-# Force AVX-512 compilation (for testing)
-cmake -DLIBSTATS_FORCE_AVX512=ON
-
-# Test compilation but skip runtime checks
-cmake -DLIBSTATS_TEST_AVX512_COMPILATION=ON
+./build-release/tools/system_inspector --quick
+ctest --test-dir build-release --output-on-failure -LE "timing|benchmark"
+./build-release/tools/simd_verification
 ```
 
-## Setting Up AVX-512 Testing
+Record:
 
-### Step 1: Enable Compilation Testing (Done)
-The compilation verification workflow is already created and will run automatically.
+- CPU model
+- OS version
+- compiler version
+- active SIMD capabilities
+- correctness test count
+- `simd_verification` summary
 
-### Step 2: Add CMake Support
-```bash
-# Add to your main CMakeLists.txt
-include(cmake/DetectAVX512.cmake)
-```
+## Expected v2.x validation target
 
-### Step 3: Set Up Self-Hosted Runner (Optional)
-For complete testing, follow the self-hosted runner setup above.
+The current project AVX-512 validation target is an AMD Zen 4 system. Other AVX-512 systems are valid but may show different speedups due to width, frequency, and instruction implementation differences.
 
-## AVX-512 Hardware Availability
+## Common issues
 
-### Cloud Providers with AVX-512
-- **AWS**: C5n, M5n, R5n, C6i, M6i, R6i instances
-- **Azure**: Dv4, Ev4, Dv5, Ev5 series
-- **GCP**: C2 machine family (Cascade Lake)
+### Compile error: AVX-512 intrinsic not available
 
-### GitHub Codespaces
-Some Codespaces instances may have AVX-512, but it's not guaranteed.
+Check compiler flags and SIMD detection output. AVX-512 sources require compiler support for AVX-512F and related extensions used by the backend.
 
-### Docker Solutions
-```dockerfile
-# Example Dockerfile for AVX-512 testing
-FROM ubuntu:22.04
-RUN apt-get update && apt-get install -y \
-    gcc-12 g++-12 cmake git \
-    && rm -rf /var/lib/apt/lists/*
+### Runtime illegal instruction
 
-# Test AVX-512 availability
-RUN if grep -q avx512f /proc/cpuinfo; then \
-        echo "AVX-512 available"; \
-    else \
-        echo "No AVX-512 support"; \
-    fi
-```
+This indicates a runtime dispatch bug or an executable built with CPU-specific flags that were not guarded correctly. Run `system_inspector --quick` and verify dispatch chooses AVX-512 only when supported by the CPU.
 
-## Monitoring AVX-512 Test Results
+### Performance lower than AVX2
 
-### Workflow Status
-- Check `.github/workflows/avx512-compilation.yml` results
-- Look for "AVX-512 Compilation Test" in Actions tab
-
-### Key Indicators
-- ✅ **Compilation successful**: AVX-512 code compiles without errors
-- ✅ **Object files contain AVX-512**: `objdump` shows AVX-512 instructions
-- ✅ **Headers parse correctly**: No preprocessor errors
-- ⚠️ **Runtime testing skipped**: No AVX-512 hardware available
-
-### Failure Investigation
-If AVX-512 compilation fails:
-1. Check compiler version (GCC 9+, Clang 10+ recommended)
-2. Verify intrinsic header availability
-3. Check for conflicting compiler flags
-4. Review CMake configuration output
-
-## Future Enhancements
-
-### Potential Additions
-1. **Emulation testing**: Use Intel SDE (Software Development Emulator)
-2. **Cross-compilation**: Test for different AVX-512 variants
-3. **Performance regression**: Compare AVX-512 vs AVX2 performance
-4. **Feature-specific testing**: Test AVX-512DQ, AVX-512BW, etc. separately
-
-### Integration with CI/CD
-```yaml
-# Example of conditional AVX-512 testing
-- name: Extended SIMD Testing
-  if: contains(github.event.pull_request.labels.*.name, 'simd-testing')
-  run: |
-    # Run comprehensive SIMD tests including AVX-512 compilation
-    cmake -DLIBSTATS_ENABLE_ALL_SIMD_TESTS=ON
-    cmake --build build --parallel
-    ctest -L simd
-```
-
-This comprehensive approach ensures that while we may not have runtime AVX-512 testing on every commit, we maintain confidence that our AVX-512 code is correct and will work when deployed to appropriate hardware.
+AVX-512 may downclock or have different throughput characteristics on some CPUs. Correctness matters first; speedups should be interpreted per machine.
