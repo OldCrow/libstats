@@ -57,10 +57,12 @@ jobs:
       run: |
         echo "=== Compiling AVX-512 source files individually ==="
 
-        # Test compilation of AVX-512 source with forced flags
+        # Source files use #include "libstats/..." which resolves via the CMake-generated
+        # include shim at build/include_shim/ (created by the Configure step above).
+        # -I include alone cannot resolve the libstats/ prefix.
         echo "Testing simd_avx512.cpp compilation..."
         ${{ matrix.compiler.cxx }} \
-          -I include -I . \
+          -I build/include_shim \
           -std=c++20 \
           -DLIBSTATS_HAS_AVX512 \
           -mavx512f -mavx512dq -mavx512bw -mavx512vl \
@@ -70,7 +72,7 @@ jobs:
         # Test compilation of dispatch logic with AVX-512 enabled
         echo "Testing simd_dispatch.cpp with AVX-512 enabled..."
         ${{ matrix.compiler.cxx }} \
-          -I include -I . \
+          -I build/include_shim \
           -std=c++20 \
           -DLIBSTATS_HAS_AVX512 \
           -mavx512f -mavx512dq -mavx512bw -mavx512vl \
