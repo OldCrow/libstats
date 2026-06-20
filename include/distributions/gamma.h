@@ -590,8 +590,6 @@ class GammaDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for α
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<double, double> confidenceIntervalShape(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
     /**
      * @brief Confidence interval for rate parameter β
@@ -604,72 +602,14 @@ class GammaDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for β
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<double, double> confidenceIntervalRate(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
-    /**
-     * @brief Likelihood ratio test for Gamma parameters
-     *
-     * Tests H0: (α, β) = (α₀, β₀) vs H1: (α, β) ≠ (α₀, β₀) using likelihood ratio statistic.
-     * The test statistic -2ln(Λ) follows χ²(2) distribution under H0.
-     *
-     * @param data Vector of observed positive data
-     * @param null_shape Null hypothesis value for α
-     * @param null_rate Null hypothesis value for β
-     * @param significance_level Significance level for test
-     * @return Tuple of (test_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
-        const std::vector<double>& data, double null_shape, double null_rate,
-        double significance_level = 0.05);
+    
 
-    /**
-     * @brief Bayesian estimation with conjugate priors
-     *
-     * Uses conjugate priors: α ~ Gamma(α_α, β_α) and β ~ Gamma(α_β, β_β).
-     * Returns posterior parameters for both shape and rate parameters.
-     * Note: Full conjugacy requires more complex prior structure.
-     *
-     * @param data Vector of observed positive data
-     * @param prior_shape_shape Prior shape for α parameter (default: 1.0)
-     * @param prior_shape_rate Prior rate for α parameter (default: 1.0)
-     * @param prior_rate_shape Prior shape for β parameter (default: 1.0)
-     * @param prior_rate_rate Prior rate for β parameter (default: 1.0)
-     * @return Tuple of (posterior_shape_shape, posterior_shape_rate, posterior_rate_shape,
-     * posterior_rate_rate)
-     */
-    [[nodiscard]] static std::tuple<double, double, double, double> bayesianEstimation(
-        const std::vector<double>& data, double prior_shape_shape = 1.0,
-        double prior_shape_rate = 1.0, double prior_rate_shape = 1.0, double prior_rate_rate = 1.0);
+    
 
-    /**
-     * @brief Robust parameter estimation using M-estimators
-     *
-     * Provides robust estimation of Gamma parameters that is less sensitive to outliers.
-     * Uses trimmed/winsorized data or quantile-based methods.
-     *
-     * @param data Vector of observed positive data
-     * @param estimator_type Type of robust estimator ("winsorized", "trimmed", "quantile")
-     * @param trim_proportion Proportion to trim/winsorize (default: 0.1)
-     * @return Pair of (robust_shape_estimate, robust_rate_estimate)
-     */
-    [[nodiscard]] static std::pair<double, double> robustEstimation(
-        const std::vector<double>& data, const std::string& estimator_type = "winsorized",
-        double trim_proportion = 0.1);
+    
 
-    /**
-     * @brief Method of moments estimation
-     *
-     * Estimates Gamma parameters by matching sample moments with theoretical moments:
-     * α = (sample_mean)² / sample_variance
-     * β = sample_mean / sample_variance
-     *
-     * @param data Vector of observed positive data
-     * @return Pair of (shape_estimate, rate_estimate)
-     * @throws std::invalid_argument if data is empty or has zero variance
-     */
-    [[nodiscard]] static std::pair<double, double> methodOfMomentsEstimation(
-        const std::vector<double>& data);
+    
 
     /**
      * @brief Bayesian credible interval from posterior distributions
@@ -685,23 +625,6 @@ class GammaDistribution : public DistributionBase {
      * @param prior_rate_rate Prior rate for β parameter (default: 1.0)
      * @return Tuple of ((shape_CI_lower, shape_CI_upper), (rate_CI_lower, rate_CI_upper))
      */
-    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bayesianCredibleInterval(const std::vector<double>& data, double credibility_level = 0.95,
-                             double prior_shape_shape = 1.0, double prior_shape_rate = 1.0,
-                             double prior_rate_shape = 1.0, double prior_rate_rate = 1.0);
-
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics) for robust
-     * parameter estimation. More robust than ordinary moments for extreme distributions.
-     *
-     * @param data Vector of observed positive data
-     * @return Pair of (shape_estimate, rate_estimate)
-     */
-    [[nodiscard]] static std::pair<double, double> lMomentsEstimation(
-        const std::vector<double>& data);
-
     /**
      * @brief Normal approximation validity test for large shape parameter
      *
@@ -719,96 +642,15 @@ class GammaDistribution : public DistributionBase {
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
 
-    /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified Gamma distribution.
-     * Compares empirical CDF with theoretical Gamma CDF using KS statistic.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical Gamma distribution to test against
-     * @param significance_level Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation for large samples
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const GammaDistribution& distribution,
-        double significance_level = 0.05);
+    
 
-    /**
-     * @brief Anderson-Darling goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified Gamma distribution.
-     * More sensitive to deviations in the tails than KS test, especially effective
-     * for detecting departures from the Gamma family.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical Gamma distribution to test against
-     * @param significance_level Significance level (default: 0.05)
-     * @return Tuple of (AD_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation for Gamma distributions
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const GammaDistribution& distribution,
-        double significance_level = 0.05);
+    
 
-    //==========================================================================
-    // 9. CROSS-VALIDATION METHODS
-    //==========================================================================
+    
 
-    /**
-     * @brief K-fold cross-validation for parameter estimation
-     *
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability. Splits data into k folds, trains on k-1 folds,
-     * and validates on the remaining fold. Useful for assessing overfitting
-     * and parameter estimation robustness.
-     *
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (log_likelihood, shape_error, rate_error)
-     *         where shape_error and rate_error are squared errors from true parameters
-     * @throws std::invalid_argument if data is empty, k < 2, or k > data.size()
-     */
-    [[nodiscard]] static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
+    
 
-    /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     *
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality. For each data point, trains on all other points
-     * and validates on the left-out point. Provides nearly unbiased estimate
-     * of model performance but is computationally expensive.
-     *
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_log_likelihood, variance_log_likelihood, total_computation_time_ms)
-     * @throws std::invalid_argument if data size < 3 (insufficient for meaningful LOOCV)
-     */
-    [[nodiscard]] static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
-
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
-
-    /**
-     * @brief Model comparison using information criteria
-     *
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     *
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted Gamma distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    [[nodiscard]] static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const GammaDistribution& fitted_distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
+    
 
     /**
      * @brief Bootstrap parameter confidence intervals
@@ -822,11 +664,6 @@ class GammaDistribution : public DistributionBase {
      * @param random_seed Seed for random sampling (default: 42)
      * @return Tuple of ((shape_CI_lower, shape_CI_upper), (rate_CI_lower, rate_CI_upper))
      */
-    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bootstrapParameterConfidenceIntervals(const std::vector<double>& data,
-                                          double confidence_level = 0.95, int n_bootstrap = 1000,
-                                          unsigned int random_seed = 42);
-
     //==========================================================================
     // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================

@@ -607,8 +607,6 @@ class DiscreteDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for a
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<int, int> confidenceIntervalLowerBound(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
     /**
      * @brief Confidence interval for upper bound b
@@ -621,23 +619,8 @@ class DiscreteDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for b
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<int, int> confidenceIntervalUpperBound(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
-    /**
-     * @brief Likelihood ratio test for Discrete Uniform bounds
-     *
-     * Tests H0: (a, b) = (a₀, b₀) vs H1: (a, b) ≠ (a₀, b₀) using likelihood ratio statistic.
-     * Adapted for discrete case with exact computation of likelihood ratios.
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @param null_a Null hypothesis value for a lower bound
-     * @param null_b Null hypothesis value for b upper bound
-     * @param significance_level Significance level for test
-     * @return Tuple of (test_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
-        const std::vector<double>& data, int null_a, int null_b, double significance_level = 0.05);
+    
 
     /**
      * @brief Bayesian estimation for Discrete Uniform bounds
@@ -652,41 +635,6 @@ class DiscreteDistribution : public DistributionBase {
      * @param prior_b_beta Prior beta for b (default: 1.0)
      * @return Pair of (posterior_a_interval, posterior_b_interval)
      */
-    [[nodiscard]] static std::pair<std::pair<double, double>, std::pair<double, double>>
-    bayesianEstimation(const std::vector<double>& data, double prior_a_alpha = 1.0,
-                       double prior_a_beta = 1.0, double prior_b_alpha = 1.0,
-                       double prior_b_beta = 1.0);
-
-    /**
-     * @brief Robust estimation using mode-based methods
-     *
-     * Provides robust estimation of Discrete Uniform bounds using discrete-specific methods.
-     * Uses mode ranges and frequency analysis for outlier resistance.
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @param estimator_type Type of robust estimator ("mode_range", "frequency_trim")
-     * @param trim_proportion Proportion to trim (default: 0.1)
-     * @return Pair of (robust_a_estimate, robust_b_estimate)
-     */
-    [[nodiscard]] static std::pair<int, int> robustEstimation(
-        const std::vector<double>& data, const std::string& estimator_type = "mode_range",
-        double trim_proportion = 0.1);
-
-    /**
-     * @brief Method of moments estimation
-     *
-     * Estimates Discrete Uniform bounds by matching sample moments with theoretical moments:
-     * For discrete uniform on {a, a+1, ..., b}:
-     * - Mean = (a + b) / 2
-     * - Variance = (b - a + 1)² - 1) / 12
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @return Pair of (a_estimate, b_estimate)
-     * @throws std::invalid_argument if data is empty or invalid
-     */
-    [[nodiscard]] static std::pair<int, int> methodOfMomentsEstimation(
-        const std::vector<double>& data);
-
     /**
      * @brief Bayesian credible interval from posterior distributions
      *
@@ -701,22 +649,6 @@ class DiscreteDistribution : public DistributionBase {
      * @param prior_b_beta Prior beta for b parameter (default: 1.0)
      * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
      */
-    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bayesianCredibleInterval(const std::vector<double>& data, double credibility_level = 0.95,
-                             double prior_a_alpha = 1.0, double prior_a_beta = 1.0,
-                             double prior_b_alpha = 1.0, double prior_b_beta = 1.0);
-
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics) for robust
-     * parameter estimation. For discrete uniform on {a,...,b}: uses sample order statistics.
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @return Pair of (a_estimate, b_estimate)
-     */
-    [[nodiscard]] static std::pair<int, int> lMomentsEstimation(const std::vector<double>& data);
-
     /**
      * @brief Discrete uniformity test using chi-square goodness-of-fit
      *
@@ -734,36 +666,9 @@ class DiscreteDistribution : public DistributionBase {
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
 
-    /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified discrete distribution.
-     * Note: KS test is generally less appropriate for discrete data than chi-squared.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const DiscreteDistribution& distribution,
-        double alpha = 0.05);
+    
 
-    /**
-     * @brief Anderson-Darling goodness-of-fit test for discrete distributions
-     *
-     * Tests the null hypothesis that data follows the specified discrete distribution.
-     * More sensitive to tail differences than the KS test and adapted for discrete cases.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (AD_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation adjusted for discrete distributions
-     */
-    static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const DiscreteDistribution& distribution,
-        double alpha = 0.05);
+    
 
     /**
      * @brief Chi-squared goodness-of-fit test for discrete distributions
@@ -784,52 +689,11 @@ class DiscreteDistribution : public DistributionBase {
     // 9. CROSS-VALIDATION METHODS
     //==========================================================================
 
-    /**
-     * @brief K-fold cross-validation for parameter estimation
-     *
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability for discrete distributions.
-     *
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
-     */
-    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
+    
 
-    /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     *
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality for discrete distributions.
-     *
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
-     */
-    static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
+    
 
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
-
-    /**
-     * @brief Model comparison using information criteria
-     *
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     *
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted discrete distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const DiscreteDistribution& fitted_distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
+    
 
     /**
      * @brief Bootstrap parameter confidence intervals
@@ -844,11 +708,6 @@ class DiscreteDistribution : public DistributionBase {
      * @return Tuple of ((lower_bound_CI_lower, lower_bound_CI_upper), (upper_bound_CI_lower,
      * upper_bound_CI_upper))
      */
-    static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bootstrapParameterConfidenceIntervals(const std::vector<double>& data,
-                                          double confidence_level = 0.95, int n_bootstrap = 1000,
-                                          unsigned int random_seed = 42);
-
     //==========================================================================
     // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================

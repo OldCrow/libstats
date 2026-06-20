@@ -392,38 +392,33 @@ std::vector<double> LogNormalDistribution::sample(std::mt19937& rng, size_t n) c
 //==============================================================================
 
 void LogNormalDistribution::fit(const std::vector<double>& values) {
-    if (values.empty()) {
+    if (values.empty())
         throw std::invalid_argument("Cannot fit distribution to empty data");
-    }
-    for (double v : values) {
-        if (v <= detail::ZERO_DOUBLE || !std::isfinite(v)) {
+    for (double v : values)
+        if (v <= detail::ZERO_DOUBLE || !std::isfinite(v))
             throw std::invalid_argument(
                 "Log-normal distribution requires strictly positive finite values");
-        }
-    }
 
-    // Closed-form MLE: μ̂ = mean(log xᵢ), σ̂² = population variance of log xᵢ.
-    // Use the MLE (divide by n, not n-1) for σ̂ to match standard MLE definition.
-    const double n = static_cast<double>(values.size());
-
-    double sum_log = detail::ZERO_DOUBLE;
-    for (double v : values)
-        sum_log += std::log(v);
-    const double mu_hat = sum_log / n;
-
-    double sum_sq = detail::ZERO_DOUBLE;
+    // A-11: replicate GaussianDistribution::fit() logic on log-transformed data.
+    // Using the same Welford one-pass algorithm as GaussianDistribution::fit()
+    // ensures future improvements to that algorithm propagate here when reviewed.
+    const std::size_t n = values.size();
+    double running_mean = 0.0, running_m2 = 0.0;
+    std::size_t count = 0;
     for (double v : values) {
-        const double diff = std::log(v) - mu_hat;
-        sum_sq += diff * diff;
+        const double lv = std::log(v);
+        ++count;
+        const double delta = lv - running_mean;
+        running_mean += delta / static_cast<double>(count);
+        running_m2   += delta * (lv - running_mean);
     }
-    const double sigma_hat = std::sqrt(sum_sq / n);
+    // Sample standard deviation (n-1), matching GaussianDistribution::fit()
+    const double sigma_hat = (n > 1)
+        ? std::sqrt(running_m2 / static_cast<double>(n - 1))
+        : detail::MIN_STD_DEV;
 
-    if (sigma_hat <= detail::ZERO_DOUBLE) {
-        // All values are identical — degenerate case; preserve mu, reset sigma.
-        setParameters(mu_hat, detail::MIN_STD_DEV);
-    } else {
-        setParameters(mu_hat, sigma_hat);
-    }
+    setParameters(running_mean,
+                  sigma_hat > detail::ZERO_DOUBLE ? sigma_hat : detail::MIN_STD_DEV);
 }
 
 void LogNormalDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
@@ -546,15 +541,18 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             lock.unlock();
 
             if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        const double z = std::log(x) - mu;
-                        res[i] = std::exp(neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const);
-                    }
-                });
+                ParallelUtils::parallelFor(
+                    std::size_t{0}, count,
+                    [&](std::size_t i) {
+                        const double x = vals[i];
+                        if (x <= detail::ZERO_DOUBLE) {
+                            res[i] = detail::ZERO_DOUBLE;
+                        } else {
+                            const double z = std::log(x) - mu;
+                            res[i] =
+                                std::exp(neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const);
+                        }
+                    });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];

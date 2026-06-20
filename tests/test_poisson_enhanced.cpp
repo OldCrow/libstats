@@ -6,6 +6,7 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/poisson.h"
+#include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -129,7 +130,7 @@ TEST_F(PoissonEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test (adapted for discrete distributions)
     auto [ks_stat, ks_p_value, ks_reject] =
-        PoissonDistribution::kolmogorovSmirnovTest(poisson_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(poisson_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ks_stat, 0.0);
     EXPECT_LE(ks_stat, 1.0);
@@ -154,7 +155,7 @@ TEST_F(PoissonEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(poisson_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        PoissonDistribution::computeInformationCriteria(poisson_data_, fitted_dist);
+        stats::analysis::informationCriteria(poisson_data_, fitted_dist);
 
     // Basic validity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -185,7 +186,7 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
 
     // Bootstrap parameter confidence intervals
     auto lambda_ci =
-        PoissonDistribution::bootstrapParameterConfidenceIntervals(poisson_data_, 0.95, 1000, 456);
+        stats::analysis::bootstrapMeanCI<stats::PoissonDistribution>(poisson_data_, 0.95, 1000, 456);
 
     // Check that confidence interval is reasonable
     EXPECT_LT(lambda_ci.first, lambda_ci.second);  // Lower bound < Upper bound
@@ -198,7 +199,7 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
     std::cout << "  Lambda 95% CI: [" << lambda_ci.first << ", " << lambda_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = PoissonDistribution::kFoldCrossValidation(poisson_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::PoissonDistribution>(poisson_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const auto& [mae, rmse, log_likelihood] : cv_results) {
@@ -216,7 +217,7 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
     // Leave-one-out cross-validation on smaller dataset
     std::vector<double> small_poisson_data(poisson_data_.begin(), poisson_data_.begin() + 20);
     auto [loocv_mae, loocv_rmse, loocv_log_likelihood] =
-        PoissonDistribution::leaveOneOutCrossValidation(small_poisson_data);
+        stats::analysis::leaveOneOutCrossValidation<stats::PoissonDistribution>(small_poisson_data);
 
     EXPECT_GE(loocv_mae, 0.0);
     EXPECT_GE(loocv_rmse, 0.0);
@@ -343,46 +344,10 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence interval for rate parameter
-    auto [rate_lower, rate_upper] =
-        PoissonDistribution::confidenceIntervalRate(poisson_data_, 0.95);
-    EXPECT_LT(rate_lower, rate_upper);
-    EXPECT_GT(rate_lower, 0.0);
-    EXPECT_TRUE(std::isfinite(rate_lower));
-    EXPECT_TRUE(std::isfinite(rate_upper));
-    std::cout << "  95% CI for rate: [" << rate_lower << ", " << rate_upper << "]\n";
-
-    // Likelihood ratio test
-    auto [lr_stat, p_value, reject_null] =
-        PoissonDistribution::likelihoodRatioTest(poisson_data_, test_lambda_, 0.05);
-    EXPECT_GE(lr_stat, 0.0);
-    EXPECT_GE(p_value, 0.0);
-    EXPECT_LE(p_value, 1.0);
-    EXPECT_TRUE(std::isfinite(lr_stat));
-    EXPECT_TRUE(std::isfinite(p_value));
-    std::cout << "  LR test: stat=" << lr_stat << ", p=" << p_value << ", reject=" << reject_null
-              << "\n";
-
-    // Method of moments estimation
-    double lambda_mom = PoissonDistribution::methodOfMomentsEstimation(poisson_data_);
-    EXPECT_GT(lambda_mom, 0.0);
-    EXPECT_TRUE(std::isfinite(lambda_mom));
-
-    // Should equal sample mean for Poisson
-    double sample_mean = std::accumulate(poisson_data_.begin(), poisson_data_.end(), 0.0) /
-                         static_cast<double>(poisson_data_.size());
-    EXPECT_NEAR(lambda_mom, sample_mean, 1e-10);
-    std::cout << "  MoM estimate: λ=" << lambda_mom << "\n";
-
-    // Bayesian estimation with conjugate Gamma prior
-    auto [post_shape, post_rate] = PoissonDistribution::bayesianEstimation(poisson_data_, 1.0, 1.0);
-    EXPECT_GT(post_shape, 0.0);
-    EXPECT_GT(post_rate, 0.0);
-    EXPECT_TRUE(std::isfinite(post_shape));
-    EXPECT_TRUE(std::isfinite(post_rate));
-    std::cout << "  Bayesian estimates: shape=" << post_shape << ", rate=" << post_rate << "\n";
+    // v2.0.0: per-distribution CI, MoM, and Bayesian methods were removed as part of
+    // the analysis-utility extraction. Use stats::analysis:: for generic functions
+    // and stats::analysis::gaussian:: for Gaussian-specific analysis.
+    SUCCEED();  // Placeholder — methods moved to stats::analysis::
 }
 
 //==============================================================================

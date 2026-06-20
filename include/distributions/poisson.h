@@ -514,89 +514,18 @@ class PoissonDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for λ
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty
      */
-    [[nodiscard]] static std::pair<double, double> confidenceIntervalRate(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
-    /**
-     * @brief Likelihood ratio test for rate parameter
-     *
-     * Tests H0: λ = λ0 vs H1: λ ≠ λ0 using likelihood ratio statistic.
-     *
-     * @param data Vector of observed count data
-     * @param lambda0 Null hypothesis value for λ
-     * @param significance_level Significance level for test
-     * @return Tuple of (test_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
-        const std::vector<double>& data, double lambda0, double significance_level = 0.05);
+    
 
-    /**
-     * @brief Bayesian estimation with conjugate Gamma prior
-     *
-     * Uses Gamma(α, β) prior for λ. Posterior is Gamma(α + Σx_i, β + n).
-     * Returns posterior parameters for the conjugate Gamma distribution.
-     *
-     * @param data Vector of observed count data
-     * @param prior_shape Prior shape parameter α (default: 1.0)
-     * @param prior_rate Prior rate parameter β (default: 1.0)
-     * @return Pair of (posterior_shape, posterior_rate)
-     */
-    [[nodiscard]] static std::pair<double, double> bayesianEstimation(
-        const std::vector<double>& data, double prior_shape = 1.0, double prior_rate = 1.0);
+    
 
-    /**
-     * @brief Method of moments estimation
-     *
-     * For Poisson distribution, method of moments estimator is simply the sample mean.
-     * Included for completeness and consistency with other distributions.
-     *
-     * @param data Vector of observed count data
-     * @return Estimated λ parameter (sample mean)
-     * @throws std::invalid_argument if data is empty
-     */
-    [[nodiscard]] static double methodOfMomentsEstimation(const std::vector<double>& data);
+    
 
-    /**
-     * @brief Bayesian credible interval from conjugate Gamma posterior
-     *
-     * Calculates Bayesian credible interval for rate parameter λ
-     * from posterior Gamma distribution after observing count data.
-     *
-     * @param data Vector of observed count data
-     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
-     * @param prior_shape Prior shape parameter α (default: 1.0)
-     * @param prior_rate Prior rate parameter β (default: 1.0)
-     * @return Pair of (lower_bound, upper_bound)
-     */
-    [[nodiscard]] static std::pair<double, double> bayesianCredibleInterval(
-        const std::vector<double>& data, double credibility_level = 0.95, double prior_shape = 1.0,
-        double prior_rate = 1.0);
+    
 
-    /**
-     * @brief Robust estimation of rate parameter using M-estimators
-     *
-     * Provides robust estimation of λ that is less sensitive to outliers
-     * than maximum likelihood. Uses trimmed means or Winsorized estimation.
-     *
-     * @param data Vector of observed count data
-     * @param estimator_type Type of robust estimator ("winsorized", "trimmed", "median")
-     * @param trim_proportion Proportion to trim/winsorize (default: 0.1)
-     * @return Robust rate parameter estimate
-     */
-    [[nodiscard]] static double robustEstimation(const std::vector<double>& data,
-                                                 const std::string& estimator_type = "winsorized",
-                                                 double trim_proportion = 0.1);
+    
 
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics) for robust
-     * parameter estimation. For Poisson: λ = L₁ (first L-moment = mean).
-     *
-     * @param data Vector of observed count data
-     * @return Rate parameter estimate from L-moments
-     */
-    [[nodiscard]] static double lMomentsEstimation(const std::vector<double>& data);
+    
 
     /**
      * @brief Overdispersion test for Poisson vs Negative Binomial
@@ -608,8 +537,6 @@ class PoissonDistribution : public DistributionBase {
      * @param significance_level Significance level for test (default: 0.05)
      * @return Tuple of (test_statistic, p_value, is_overdispersed)
      */
-    [[nodiscard]] static std::tuple<double, double, bool> overdispersionTest(
-        const std::vector<double>& data, double significance_level = 0.05);
 
     /**
      * @brief Test for excess zeros in count data
@@ -641,37 +568,9 @@ class PoissonDistribution : public DistributionBase {
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
 
-    /**
-     * @brief Kolmogorov-Smirnov test adapted for discrete distributions
-     *
-     * Tests goodness-of-fit using the maximum difference between empirical
-     * and theoretical CDFs, with adjustments for discrete distributions.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Hypothesized Poisson distribution
-     * @param significance_level Significance level for test
-     * @return Tuple of (ks_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const PoissonDistribution& distribution,
-        double significance_level = 0.05);
+    
 
-    /**
-     * @brief Anderson-Darling test adapted for discrete Poisson distributions
-     *
-     * Tests goodness-of-fit using a weighted sum of squared differences between
-     * empirical and theoretical CDFs. More sensitive to tail deviations than KS test.
-     * Uses discrete adaptation with appropriate critical values for Poisson distributions.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Hypothesized Poisson distribution
-     * @param significance_level Significance level for test (default: 0.05)
-     * @return Tuple of (ad_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation adapted for discrete Poisson case
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const PoissonDistribution& distribution,
-        double significance_level = 0.05);
+    
 
     /**
      * @brief Chi-square goodness-of-fit test for Poisson distribution
@@ -700,79 +599,18 @@ class PoissonDistribution : public DistributionBase {
      * @param significance_level Significance level for tests (default: 0.05)
      * @return Tuple of (combined_statistic, combined_p_value, follows_poisson)
      */
-    [[nodiscard]] static std::tuple<double, double, bool> comprehensiveGoodnessOfFitTest(
-        const std::vector<double>& data, double significance_level = 0.05);
 
     //==========================================================================
     // 9. CROSS-VALIDATION METHODS
     //==========================================================================
 
-    /**
-     * @brief K-fold cross-validation for model assessment
-     *
-     * Splits data into k folds, fits Poisson distribution to k-1 folds,
-     * and evaluates on the remaining fold. Reports performance metrics.
-     *
-     * @param data Vector of observed count data
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment
-     * @return Vector of (mae, rmse, log_likelihood) for each fold
-     */
-    [[nodiscard]] static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
+    
 
-    /**
-     * @brief Leave-one-out cross-validation
-     *
-     * Fits Poisson distribution to n-1 data points and evaluates on the left-out point.
-     * Repeats for all data points and reports aggregate metrics.
-     *
-     * @param data Vector of observed count data
-     * @return Tuple of (mean_absolute_error, rmse, total_log_likelihood)
-     */
-    [[nodiscard]] static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
+    
 
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
+    
 
-    /**
-     * @brief Compute information criteria for model selection
-     *
-     * Calculates AIC, BIC, and AICc for the fitted Poisson distribution.
-     * Lower values indicate better model fit with appropriate complexity penalty.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Fitted Poisson distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    [[nodiscard]] static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const PoissonDistribution& distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
-
-    /**
-     * @brief Bootstrap confidence intervals for parameter λ
-     *
-     * Uses bootstrap resampling to construct confidence intervals for the rate parameter.
-     * More robust than asymptotic methods for small sample sizes.
-     *
-     * @param data Vector of observed count data
-     * @param confidence_level Confidence level (e.g., 0.95)
-     * @param num_bootstrap_samples Number of bootstrap samples
-     * @param random_seed Seed for reproducible results
-     * @return Confidence interval (lower_bound, upper_bound) for λ
-     */
-    [[nodiscard]] static std::pair<double, double> bootstrapParameterConfidenceIntervals(
-        const std::vector<double>& data, double confidence_level = 0.95,
-        int num_bootstrap_samples = 1000, unsigned int random_seed = 42);
-
-    //==========================================================================
-    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
-    //==========================================================================
+    
 
     /**
      * @brief Generate multiple random integer samples efficiently

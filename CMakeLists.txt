@@ -1050,6 +1050,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/binomial.cpp # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
+    src/gaussian_analysis.cpp # Gaussian-specific analysis (normality tests, T-tests, Bayesian)
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -1441,7 +1442,7 @@ if(LIBSTATS_BUILD_TESTS)
     # Statistical validation and goodness-of-fit
 
     # Goodness-of-fit tests
-    create_libstats_test(test_goodness_of_fit tests/test_goodness_of_fit.cpp)
+    create_libstats_gtest(test_goodness_of_fit tests/test_goodness_of_fit.cpp)
 
     # LEVEL 2b: Platform Capabilities thread_pool.h and work_stealing_pool.h - Thread pool
     # implementations

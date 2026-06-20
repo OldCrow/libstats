@@ -6,6 +6,7 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/gamma.h"
+#include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -100,23 +101,11 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence interval for shape
-    auto [ci_lower, ci_upper] = test_distribution_.confidenceIntervalShape(gamma_data_, 0.95);
-    EXPECT_LT(ci_lower, ci_upper);
-    EXPECT_TRUE(std::isfinite(ci_lower));
-    EXPECT_TRUE(std::isfinite(ci_upper));
-    std::cout << "  95% CI for shape: [" << ci_lower << ", " << ci_upper << "]\n";
-
-    // Method of moments estimation
-    auto [estimated_alpha, estimated_beta] =
-        GammaDistribution::methodOfMomentsEstimation(gamma_data_);
-    EXPECT_TRUE(std::isfinite(estimated_alpha));
-    EXPECT_TRUE(std::isfinite(estimated_beta));
-    EXPECT_GT(estimated_beta, 0.0);
-    std::cout << "  MoM estimates: alpha=" << estimated_alpha << ", beta=" << estimated_beta
-              << "\n";
+    // v2.0.0: confidenceIntervalShape and methodOfMomentsEstimation were removed
+    // from GammaDistribution as part of the analysis-utility extraction.
+    // Generic analysis functions are available in stats::analysis::.
+    EXPECT_GT(test_distribution_.getMean(), 0.0);
+    EXPECT_GT(test_distribution_.getVariance(), 0.0);
 }
 
 //==============================================================================
@@ -144,7 +133,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
               << ", mean=" << fitted_test_distribution.getMean() << "\n";
 
     auto [ks_stat_gamma, ks_p_gamma, ks_reject_gamma] =
-        fitted_test_distribution.kolmogorovSmirnovTest(gamma_data_, fitted_test_distribution, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(gamma_data_, fitted_test_distribution, 0.05);
     EXPECT_GE(ks_stat_gamma, 0.0);
     EXPECT_LE(ks_stat_gamma, 1.0);
     EXPECT_GE(ks_p_gamma, 0.0);
@@ -156,7 +145,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
               << ", reject=" << ks_reject_gamma << "\n";
 
     auto [ad_stat_gamma, ad_p_gamma, ad_reject_gamma] =
-        fitted_test_distribution.andersonDarlingTest(gamma_data_, fitted_test_distribution, 0.05);
+        stats::analysis::andersonDarlingTest(gamma_data_, fitted_test_distribution, 0.05);
     EXPECT_GE(ad_stat_gamma, 0.0);
     EXPECT_GE(ad_p_gamma, 0.0);
     EXPECT_LE(ad_p_gamma, 1.0);
@@ -179,7 +168,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
     }
 
     auto [ks_stat_non_gamma, ks_p_non_gamma, ks_reject_non_gamma] =
-        fitted_test_distribution.kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution,
+        stats::analysis::kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution,
                                                        0.05);
     EXPECT_GE(ks_stat_non_gamma, 0.0);
     EXPECT_LE(ks_stat_non_gamma, 1.0);
@@ -192,7 +181,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
               << ", reject=" << ks_reject_non_gamma << "\n";
 
     auto [ad_stat_non_gamma, ad_p_non_gamma, ad_reject_non_gamma] =
-        fitted_test_distribution.andersonDarlingTest(non_gamma_data, fitted_test_distribution,
+        stats::analysis::andersonDarlingTest(non_gamma_data, fitted_test_distribution,
                                                      0.05);
     EXPECT_GE(ad_stat_non_gamma, 0.0);
     EXPECT_GE(ad_p_non_gamma, 0.0);
@@ -251,7 +240,7 @@ TEST_F(GammaEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(gamma_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        GammaDistribution::computeInformationCriteria(gamma_data_, fitted_dist);
+        stats::analysis::informationCriteria(gamma_data_, fitted_dist);
 
     // Basic sanity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -297,7 +286,7 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 
     // Bootstrap parameter confidence intervals
     auto [alpha_ci, beta_ci] =
-        GammaDistribution::bootstrapParameterConfidenceIntervals(gamma_data_, 0.95, 1000, 456);
+        stats::analysis::bootstrapMeanVarianceCI<stats::GammaDistribution>(gamma_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(alpha_ci.first, alpha_ci.second);  // Lower bound < Upper bound
@@ -316,7 +305,7 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
     std::cout << "  Beta 95% CI: [" << beta_ci.first << ", " << beta_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = GammaDistribution::kFoldCrossValidation(gamma_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::GammaDistribution>(gamma_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const auto& [mae, rmse, log_likelihood] : cv_results) {
@@ -334,7 +323,7 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_gamma_data(gamma_data_.begin(), gamma_data_.begin() + 20);
     auto [mae, rmse, total_log_likelihood] =
-        GammaDistribution::leaveOneOutCrossValidation(small_gamma_data);
+        stats::analysis::leaveOneOutCrossValidation<stats::GammaDistribution>(small_gamma_data);
 
     EXPECT_GE(mae, 0.0);                   // MAE should be non-negative
     EXPECT_GE(rmse, 0.0);                  // RMSE should be non-negative

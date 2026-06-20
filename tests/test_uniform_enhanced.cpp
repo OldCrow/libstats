@@ -6,6 +6,7 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -106,7 +107,7 @@ TEST_F(UniformEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with uniform data
     auto [ks_stat_uniform, ks_p_uniform, ks_reject_uniform] =
-        UniformDistribution::kolmogorovSmirnovTest(uniform_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(uniform_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ks_stat_uniform, 0.0);
     EXPECT_LE(ks_stat_uniform, 1.0);
@@ -120,7 +121,7 @@ TEST_F(UniformEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with non-uniform data (should reject)
     auto [ks_stat_non_uniform, ks_p_non_uniform, ks_reject_non_uniform] =
-        UniformDistribution::kolmogorovSmirnovTest(non_uniform_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_uniform_data_, test_distribution_, 0.05);
 
     EXPECT_TRUE(ks_reject_non_uniform);  // Should reject uniform distribution for normal data
     EXPECT_LT(ks_p_non_uniform, ks_p_uniform);  // Non-uniform data should have lower p-value
@@ -130,9 +131,9 @@ TEST_F(UniformEnhancedTest, GoodnessOfFitTests) {
 
     // Anderson-Darling test
     auto [ad_stat_uniform, ad_p_uniform, ad_reject_uniform] =
-        UniformDistribution::andersonDarlingTest(uniform_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(uniform_data_, test_distribution_, 0.05);
     auto [ad_stat_non_uniform, ad_p_non_uniform, ad_reject_non_uniform] =
-        UniformDistribution::andersonDarlingTest(non_uniform_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(non_uniform_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ad_stat_uniform, 0.0);
     EXPECT_GE(ad_p_uniform, 0.0);
@@ -157,7 +158,7 @@ TEST_F(UniformEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(uniform_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        UniformDistribution::computeInformationCriteria(uniform_data_, fitted_dist);
+        stats::analysis::informationCriteria(uniform_data_, fitted_dist);
 
     // Basic validity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -186,30 +187,20 @@ TEST_F(UniformEnhancedTest, InformationCriteriaTests) {
 TEST_F(UniformEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
-    // Bootstrap parameter confidence intervals (returns nested pairs)
-    auto [a_ci_pair, b_ci_pair] =
-        UniformDistribution::bootstrapParameterConfidenceIntervals(uniform_data_, 0.95, 1000, 456);
+    // Bootstrap mean confidence interval
+    auto [mean_lower, mean_upper] =
+        stats::analysis::bootstrapMeanCI<stats::UniformDistribution>(uniform_data_, 0.95, 1000, 456);
 
-    // Extract the individual confidence intervals
-    auto [a_ci_lower, a_ci_upper] = a_ci_pair;
-    auto [b_ci_lower, b_ci_upper] = b_ci_pair;
-
-    // Check that confidence intervals are reasonable
-    EXPECT_LT(a_ci_lower, a_ci_upper);  // Lower bound CI
-    EXPECT_LT(b_ci_lower, b_ci_upper);  // Upper bound CI
-    EXPECT_LT(a_ci_lower, b_ci_lower);  // a should be less than b
+    // Check that confidence interval is reasonable
+    EXPECT_LT(mean_lower, mean_upper);
 
     // Check for finite values
-    EXPECT_TRUE(std::isfinite(a_ci_lower));
-    EXPECT_TRUE(std::isfinite(a_ci_upper));
-    EXPECT_TRUE(std::isfinite(b_ci_lower));
-    EXPECT_TRUE(std::isfinite(b_ci_upper));
+    EXPECT_TRUE(std::isfinite(mean_lower));
+    EXPECT_TRUE(std::isfinite(mean_upper));
 
-    std::cout << "  Parameter a 95% CI: [" << a_ci_lower << ", " << a_ci_upper << "]\n";
-    std::cout << "  Parameter b 95% CI: [" << b_ci_lower << ", " << b_ci_upper << "]\n";
-
+    std::cout << "  Mean 95% CI: [" << mean_lower << ", " << mean_upper << "]\n";
     // K-fold cross-validation
-    auto cv_results = UniformDistribution::kFoldCrossValidation(uniform_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::UniformDistribution>(uniform_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const auto& [mae, rmse, log_likelihood] : cv_results) {
@@ -227,7 +218,7 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
     // Leave-one-out cross-validation on smaller dataset
     std::vector<double> small_uniform_data(uniform_data_.begin(), uniform_data_.begin() + 20);
     auto [loocv_mae, loocv_rmse, loocv_log_likelihood] =
-        UniformDistribution::leaveOneOutCrossValidation(small_uniform_data);
+        stats::analysis::leaveOneOutCrossValidation<stats::UniformDistribution>(small_uniform_data);
 
     EXPECT_GE(loocv_mae, 0.0);             // Mean absolute error should be non-negative
     EXPECT_GE(loocv_rmse, 0.0);            // RMSE should be non-negative
@@ -355,46 +346,10 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence intervals for lower and upper bounds
-    auto [a_lower, a_upper] =
-        UniformDistribution::confidenceIntervalLowerBound(uniform_data_, 0.95);
-    auto [b_lower, b_upper] =
-        UniformDistribution::confidenceIntervalUpperBound(uniform_data_, 0.95);
-    EXPECT_LT(a_lower, a_upper);
-    EXPECT_LT(b_lower, b_upper);
-    EXPECT_TRUE(std::isfinite(a_lower));
-    EXPECT_TRUE(std::isfinite(a_upper));
-    EXPECT_TRUE(std::isfinite(b_lower));
-    EXPECT_TRUE(std::isfinite(b_upper));
-    std::cout << "  95% CI for a: [" << a_lower << ", " << a_upper << "]\n";
-    std::cout << "  95% CI for b: [" << b_lower << ", " << b_upper << "]\n";
-
-    // Likelihood ratio test
-    auto [lr_stat, p_value, reject_null] =
-        UniformDistribution::likelihoodRatioTest(uniform_data_, test_a_, test_b_, 0.05);
-    EXPECT_GE(lr_stat, 0.0);
-    EXPECT_GE(p_value, 0.0);
-    EXPECT_LE(p_value, 1.0);
-    EXPECT_TRUE(std::isfinite(lr_stat));
-    EXPECT_TRUE(std::isfinite(p_value));
-    std::cout << "  LR test: stat=" << lr_stat << ", p=" << p_value << ", reject=" << reject_null
-              << "\n";
-
-    // Method of moments estimation
-    auto [a_mom, b_mom] = UniformDistribution::methodOfMomentsEstimation(uniform_data_);
-    EXPECT_LT(a_mom, b_mom);
-    EXPECT_TRUE(std::isfinite(a_mom));
-    EXPECT_TRUE(std::isfinite(b_mom));
-    std::cout << "  MoM estimates: a=" << a_mom << ", b=" << b_mom << "\n";
-
-    // For uniform, MLE is simply min/max of data (same as method of moments)
-    auto [a_mle, b_mle] = UniformDistribution::methodOfMomentsEstimation(uniform_data_);
-    EXPECT_LT(a_mle, b_mle);
-    EXPECT_TRUE(std::isfinite(a_mle));
-    EXPECT_TRUE(std::isfinite(b_mle));
-    std::cout << "  MLE estimates (via MoM): a=" << a_mle << ", b=" << b_mle << "\n";
+    // v2.0.0: per-distribution CI, MoM, and LR methods were removed as part of
+    // the analysis-utility extraction. Generic methods are in stats::analysis::.
+    // Use fit() + stats::analysis:: functions for comparable functionality.
+    SUCCEED();  // Placeholder — methods moved to stats::analysis::
 }
 
 //==============================================================================

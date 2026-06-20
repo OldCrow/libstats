@@ -6,6 +6,8 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/stats/analysis/analysis.h"
+#include "libstats/stats/analysis/gaussian_analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -100,7 +102,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
     std::cout << "\n=== Advanced Statistical Methods ===\n";
 
     // Confidence interval for mean
-    auto [ci_lower, ci_upper] = GaussianDistribution::confidenceIntervalMean(normal_data_, 0.95);
+    auto [ci_lower, ci_upper] = stats::analysis::gaussian::confidenceIntervalMean(normal_data_, 0.95);
     EXPECT_LT(ci_lower, ci_upper);
     EXPECT_TRUE(std::isfinite(ci_lower));
     EXPECT_TRUE(std::isfinite(ci_upper));
@@ -108,7 +110,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // One-sample t-test
     auto [t_stat, p_value, reject_null] =
-        GaussianDistribution::oneSampleTTest(normal_data_, test_mean_, 0.05);
+        stats::analysis::gaussian::oneSampleTTest(normal_data_, test_mean_, 0.05);
     EXPECT_TRUE(std::isfinite(t_stat));
     EXPECT_TRUE(std::isfinite(p_value));
     EXPECT_GE(p_value, 0.0);
@@ -118,7 +120,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // Method of moments estimation
     auto [estimated_mean, estimated_std] =
-        GaussianDistribution::methodOfMomentsEstimation(normal_data_);
+        stats::analysis::gaussian::methodOfMomentsEstimation(normal_data_);
     EXPECT_TRUE(std::isfinite(estimated_mean));
     EXPECT_TRUE(std::isfinite(estimated_std));
     EXPECT_GT(estimated_std, 0.0);
@@ -126,7 +128,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // Jarque-Bera test for normality
     auto [jb_stat, jb_p_value, reject_normality] =
-        GaussianDistribution::jarqueBeraTest(normal_data_, 0.05);
+        stats::analysis::gaussian::jarqueBeraTest(normal_data_, 0.05);
     EXPECT_GE(jb_stat, 0.0);
     EXPECT_GE(jb_p_value, 0.0);
     EXPECT_LE(jb_p_value, 1.0);
@@ -137,7 +139,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // Robust estimation
     auto [robust_loc, robust_scale] =
-        GaussianDistribution::robustEstimation(normal_data_, "huber", 1.345);
+        stats::analysis::gaussian::robustEstimation(normal_data_, "huber", 1.345);
     EXPECT_TRUE(std::isfinite(robust_loc));
     EXPECT_TRUE(std::isfinite(robust_scale));
     EXPECT_GT(robust_scale, 0.0);
@@ -154,7 +156,7 @@ TEST_F(GaussianEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with normal data
     auto [ks_stat_normal, ks_p_normal, ks_reject_normal] =
-        GaussianDistribution::kolmogorovSmirnovTest(normal_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(normal_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ks_stat_normal, 0.0);
     EXPECT_LE(ks_stat_normal, 1.0);
@@ -165,7 +167,7 @@ TEST_F(GaussianEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with non-normal data (should reject)
     auto [ks_stat_non_normal, ks_p_non_normal, ks_reject_non_normal] =
-        GaussianDistribution::kolmogorovSmirnovTest(non_normal_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_normal_data_, test_distribution_, 0.05);
 
     EXPECT_TRUE(ks_reject_non_normal);        // Should reject normality for quadratic data
     EXPECT_LT(ks_p_non_normal, ks_p_normal);  // Non-normal data should have lower p-value
@@ -177,9 +179,9 @@ TEST_F(GaussianEnhancedTest, GoodnessOfFitTests) {
 
     // Anderson-Darling test
     auto [ad_stat_normal, ad_p_normal, ad_reject_normal] =
-        GaussianDistribution::andersonDarlingTest(normal_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(normal_data_, test_distribution_, 0.05);
     auto [ad_stat_non_normal, ad_p_non_normal, ad_reject_non_normal] =
-        GaussianDistribution::andersonDarlingTest(non_normal_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(non_normal_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ad_stat_normal, 0.0);
     EXPECT_GE(ad_p_normal, 0.0);
@@ -204,7 +206,7 @@ TEST_F(GaussianEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(normal_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        GaussianDistribution::computeInformationCriteria(normal_data_, fitted_dist);
+        stats::analysis::informationCriteria(normal_data_, fitted_dist);
 
     // Basic sanity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -233,7 +235,7 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
 
     // Bootstrap parameter confidence intervals
     auto [mean_ci, std_ci] =
-        GaussianDistribution::bootstrapParameterConfidenceIntervals(normal_data_, 0.95, 1000, 456);
+        stats::analysis::bootstrapMeanVarianceCI<stats::GaussianDistribution>(normal_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(mean_ci.first, mean_ci.second);  // Lower bound < Upper bound
@@ -253,7 +255,7 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     std::cout << "  Std 95% CI: [" << std_ci.first << ", " << std_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = GaussianDistribution::kFoldCrossValidation(normal_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(normal_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
@@ -270,7 +272,7 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_normal_data(normal_data_.begin(), normal_data_.begin() + 20);
     auto [mae, rmse, loo_log_likelihood] =
-        GaussianDistribution::leaveOneOutCrossValidation(small_normal_data);
+        stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_normal_data);
 
     EXPECT_GE(mae, 0.0);                 // Mean absolute error should be non-negative
     EXPECT_GE(rmse, 0.0);                // RMSE should be non-negative

@@ -560,8 +560,6 @@ class UniformDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for a
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<double, double> confidenceIntervalLowerBound(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
     /**
      * @brief Confidence interval for upper bound b
@@ -574,24 +572,8 @@ class UniformDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for b
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<double, double> confidenceIntervalUpperBound(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
-    /**
-     * @brief Likelihood ratio test for Uniform bounds
-     *
-     * Tests H0: (a, b) = (a₀, b₀) vs H1: (a, b) ≠ (a₀, b₀) using likelihood ratio statistic.
-     * The test statistic -2ln(Λ) follows χ²(2) distribution under H0.
-     *
-     * @param data Vector of observed data
-     * @param null_a Null hypothesis value for a lower bound
-     * @param null_b Null hypothesis value for b upper bound
-     * @param significance_level Significance level for test
-     * @return Tuple of (test_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
-        const std::vector<double>& data, double null_a, double null_b,
-        double significance_level = 0.05);
+    
 
     /**
      * @brief Bayesian estimation for Uniform bounds
@@ -606,40 +588,6 @@ class UniformDistribution : public DistributionBase {
      * @param prior_b_scale Prior scale for b (default: 1.0)
      * @return Pair of (posterior_a_interval, posterior_b_interval)
      */
-    [[nodiscard]] static std::pair<std::pair<double, double>, std::pair<double, double>>
-    bayesianEstimation(const std::vector<double>& data, double prior_a_shape = 1.0,
-                       double prior_a_scale = 1.0, double prior_b_shape = 1.0,
-                       double prior_b_scale = 1.0);
-
-    /**
-     * @brief Robust estimation using quantiles
-     *
-     * Provides robust estimation of Uniform bounds that is less sensitive to outliers.
-     * Utilizes quantile-based methods with trimming.
-     *
-     * @param data Vector of observed data
-     * @param estimator_type Type of robust estimator ("quantile", "trimmed")
-     * @param trim_proportion Proportion to trim (default: 0.05)
-     * @return Pair of (robust_a_estimate, robust_b_estimate)
-     */
-    [[nodiscard]] static std::pair<double, double> robustEstimation(
-        const std::vector<double>& data, const std::string& estimator_type = "quantile",
-        double trim_proportion = 0.05);
-
-    /**
-     * @brief Method of moments estimation
-     *
-     * Estimates Uniform bounds by matching sample moments with theoretical moments:
-     * a = min(data)
-     * b = max(data)
-     *
-     * @param data Vector of observed data
-     * @return Pair of (a_estimate, b_estimate)
-     * @throws std::invalid_argument if data is empty or has zero range
-     */
-    [[nodiscard]] static std::pair<double, double> methodOfMomentsEstimation(
-        const std::vector<double>& data);
-
     /**
      * @brief Bayesian credible interval from posterior distributions
      *
@@ -654,23 +602,6 @@ class UniformDistribution : public DistributionBase {
      * @param prior_b_scale Prior scale for b parameter (default: 1.0)
      * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
      */
-    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bayesianCredibleInterval(const std::vector<double>& data, double credibility_level = 0.95,
-                             double prior_a_shape = 1.0, double prior_a_scale = 1.0,
-                             double prior_b_shape = 1.0, double prior_b_scale = 1.0);
-
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics) for robust
-     * parameter estimation. For uniform: L1 = (a+b)/2, L2 = (b-a)/6.
-     *
-     * @param data Vector of observed data
-     * @return Pair of (a_estimate, b_estimate)
-     */
-    [[nodiscard]] static std::pair<double, double> lMomentsEstimation(
-        const std::vector<double>& data);
-
     /**
      * @brief Uniformity test using range/variance ratio
      *
@@ -688,87 +619,15 @@ class UniformDistribution : public DistributionBase {
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
 
-    /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified Uniform distribution.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const UniformDistribution& distribution,
-        double alpha = 0.05);
+    
 
-    /**
-     * @brief Anderson-Darling goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified Uniform distribution.
-     * More sensitive to deviations in the tails than KS test.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (AD_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const UniformDistribution& distribution,
-        double alpha = 0.05);
+    
 
-    //==========================================================================
-    // 9. CROSS-VALIDATION METHODS
-    //==========================================================================
+    
 
-    /**
-     * @brief K-fold cross-validation for parameter estimation
-     *
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability. Splits data into k folds, trains on k-1 folds,
-     * and validates on the remaining fold.
-     *
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
-     */
-    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
+    
 
-    /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     *
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality. For each data point, trains on all other points
-     * and validates on the left-out point.
-     *
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
-     */
-    static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
-
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
-
-    /**
-     * @brief Model comparison using information criteria
-     *
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     *
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted Uniform distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const UniformDistribution& fitted_distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
+    
 
     /**
      * @brief Bootstrap parameter confidence intervals
@@ -782,11 +641,6 @@ class UniformDistribution : public DistributionBase {
      * @param random_seed Seed for random sampling (default: 42)
      * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
      */
-    static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bootstrapParameterConfidenceIntervals(const std::vector<double>& data,
-                                          double confidence_level = 0.95, int n_bootstrap = 1000,
-                                          unsigned int random_seed = 42);
-
     //==========================================================================
     // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================

@@ -6,6 +6,7 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/exponential.h"
+#include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -104,7 +105,7 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with exponential data
     auto [ks_stat_exp, ks_p_exp, ks_reject_exp] =
-        ExponentialDistribution::kolmogorovSmirnovTest(exponential_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(exponential_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ks_stat_exp, 0.0);
     EXPECT_LE(ks_stat_exp, 1.0);
@@ -118,7 +119,7 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with non-exponential data (should reject)
     auto [ks_stat_non_exp, ks_p_non_exp, ks_reject_non_exp] =
-        ExponentialDistribution::kolmogorovSmirnovTest(non_exponential_data_, test_distribution_,
+        stats::analysis::kolmogorovSmirnovTest(non_exponential_data_, test_distribution_,
                                                        0.05);
 
     EXPECT_TRUE(ks_reject_non_exp);     // Should reject exponential distribution for normal data
@@ -129,9 +130,9 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
 
     // Anderson-Darling test
     auto [ad_stat_exp, ad_p_exp, ad_reject_exp] =
-        ExponentialDistribution::andersonDarlingTest(exponential_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(exponential_data_, test_distribution_, 0.05);
     auto [ad_stat_non_exp, ad_p_non_exp, ad_reject_non_exp] =
-        ExponentialDistribution::andersonDarlingTest(non_exponential_data_, test_distribution_,
+        stats::analysis::andersonDarlingTest(non_exponential_data_, test_distribution_,
                                                      0.05);
 
     EXPECT_GE(ad_stat_exp, 0.0);
@@ -157,7 +158,7 @@ TEST_F(ExponentialEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(exponential_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        ExponentialDistribution::computeInformationCriteria(exponential_data_, fitted_dist);
+        stats::analysis::informationCriteria(exponential_data_, fitted_dist);
 
     // Basic validity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -188,7 +189,7 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 
     // Bootstrap parameter confidence intervals
     auto [lambda_ci_lower, lambda_ci_upper] =
-        ExponentialDistribution::bootstrapParameterConfidenceIntervals(exponential_data_, 0.95,
+        stats::analysis::bootstrapMeanCI<stats::ExponentialDistribution>(exponential_data_, 0.95,
                                                                        1000, 456);
 
     // Check that confidence intervals are reasonable
@@ -203,7 +204,7 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
     std::cout << "  Lambda 95% CI: [" << lambda_ci_lower << ", " << lambda_ci_upper << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = ExponentialDistribution::kFoldCrossValidation(exponential_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::ExponentialDistribution>(exponential_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const auto& [mae, rmse, log_likelihood] : cv_results) {
@@ -221,7 +222,7 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_exp_data(exponential_data_.begin(), exponential_data_.begin() + 20);
     auto [loocv_mae, loocv_rmse, loocv_log_likelihood] =
-        ExponentialDistribution::leaveOneOutCrossValidation(small_exp_data);
+        stats::analysis::leaveOneOutCrossValidation<stats::ExponentialDistribution>(small_exp_data);
 
     EXPECT_GE(loocv_mae, 0.0);             // Mean absolute error should be non-negative
     EXPECT_GE(loocv_rmse, 0.0);            // RMSE should be non-negative
@@ -349,54 +350,10 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence interval for rate parameter (lambda)
-    auto [lambda_ci_lower, lambda_ci_upper] =
-        ExponentialDistribution::confidenceIntervalRate(exponential_data_, 0.95);
-    EXPECT_LT(lambda_ci_lower, lambda_ci_upper);
-    EXPECT_GT(lambda_ci_lower, 0.0);
-    EXPECT_GT(lambda_ci_upper, 0.0);
-    EXPECT_TRUE(std::isfinite(lambda_ci_lower));
-    EXPECT_TRUE(std::isfinite(lambda_ci_upper));
-    std::cout << "  95% CI for λ: [" << lambda_ci_lower << ", " << lambda_ci_upper << "]\n";
-
-    // Likelihood ratio test
-    auto [lr_stat, p_value, reject_null] =
-        ExponentialDistribution::likelihoodRatioTest(exponential_data_, test_lambda_, 0.05);
-    EXPECT_GE(lr_stat, 0.0);
-    EXPECT_GE(p_value, 0.0);
-    EXPECT_LE(p_value, 1.0);
-    EXPECT_TRUE(std::isfinite(lr_stat));
-    EXPECT_TRUE(std::isfinite(p_value));
-    std::cout << "  LR test: stat=" << lr_stat << ", p=" << p_value << ", reject=" << reject_null
-              << "\n";
-
-    // Method of moments estimation
-    double mom_lambda = ExponentialDistribution::methodOfMomentsEstimation(exponential_data_);
-    EXPECT_GT(mom_lambda, 0.0);
-    EXPECT_TRUE(std::isfinite(mom_lambda));
-    std::cout << "  MoM estimate for λ: " << mom_lambda << "\n";
-
-    // For exponential, MLE is same as MoM (1/sample_mean), so we can use MoM as proxy
-    double mle_lambda = ExponentialDistribution::methodOfMomentsEstimation(exponential_data_);
-    EXPECT_GT(mle_lambda, 0.0);
-    EXPECT_TRUE(std::isfinite(mle_lambda));
-    std::cout << "  MLE estimate for λ (via MoM): " << mle_lambda << "\n";
-
-    // Bayesian estimation (returns posterior parameters)
-    if constexpr (requires {
-                      ExponentialDistribution::bayesianEstimation(exponential_data_, 1.0, 1.0);
-                  }) {
-        auto [posterior_shape, posterior_rate] =
-            ExponentialDistribution::bayesianEstimation(exponential_data_, 1.0, 1.0);
-        EXPECT_GT(posterior_shape, 0.0);
-        EXPECT_GT(posterior_rate, 0.0);
-        EXPECT_TRUE(std::isfinite(posterior_shape));
-        EXPECT_TRUE(std::isfinite(posterior_rate));
-        std::cout << "  Bayesian posterior: shape=" << posterior_shape
-                  << ", rate=" << posterior_rate << "\n";
-    }
+    // v2.0.0: per-distribution CI, MoM, and Bayesian methods were removed as part of
+    // the analysis-utility extraction. Use stats::analysis:: for generic functions
+    // and stats::analysis::gaussian:: for Gaussian-specific analysis.
+    SUCCEED();  // Placeholder — methods moved to stats::analysis::
 }
 
 //==============================================================================

@@ -6,6 +6,7 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/discrete.h"
+#include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -104,7 +105,7 @@ TEST_F(DiscreteEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with uniform discrete data
     auto [ks_stat_uniform, ks_p_uniform, ks_reject_uniform] =
-        DiscreteDistribution::kolmogorovSmirnovTest(discrete_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(discrete_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ks_stat_uniform, 0.0);
     EXPECT_LE(ks_stat_uniform, 1.0);
@@ -118,7 +119,7 @@ TEST_F(DiscreteEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with non-uniform data (should reject)
     auto [ks_stat_non_uniform, ks_p_non_uniform, ks_reject_non_uniform] =
-        DiscreteDistribution::kolmogorovSmirnovTest(non_uniform_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_uniform_data_, test_distribution_, 0.05);
 
     EXPECT_TRUE(ks_reject_non_uniform);  // Should reject uniform distribution for skewed data
     EXPECT_LT(ks_p_non_uniform, ks_p_uniform);  // Non-uniform data should have lower p-value
@@ -156,7 +157,7 @@ TEST_F(DiscreteEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(discrete_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        DiscreteDistribution::computeInformationCriteria(discrete_data_, fitted_dist);
+        stats::analysis::informationCriteria(discrete_data_, fitted_dist);
 
     // Basic validity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -186,7 +187,7 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto [lower_ci, upper_ci] = DiscreteDistribution::bootstrapParameterConfidenceIntervals(
+    auto [lower_ci, upper_ci] = stats::analysis::bootstrapMeanVarianceCI<stats::DiscreteDistribution>(
         discrete_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
@@ -211,7 +212,7 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     std::cout << "  Upper bound 95% CI: [" << upper_ci.first << ", " << upper_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = DiscreteDistribution::kFoldCrossValidation(discrete_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::DiscreteDistribution>(discrete_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
@@ -228,7 +229,7 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_discrete_data(discrete_data_.begin(), discrete_data_.begin() + 20);
     auto [mae, rmse, loo_log_likelihood] =
-        DiscreteDistribution::leaveOneOutCrossValidation(small_discrete_data);
+        stats::analysis::leaveOneOutCrossValidation<stats::DiscreteDistribution>(small_discrete_data);
 
     EXPECT_GE(mae, 0.0);                 // Mean absolute error should be non-negative
     EXPECT_GE(rmse, 0.0);                // RMSE should be non-negative
@@ -355,37 +356,10 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence intervals for lower and upper bounds
-    auto [ci_lower_a, ci_upper_a] =
-        DiscreteDistribution::confidenceIntervalLowerBound(discrete_data_, 0.95);
-    auto [ci_lower_b, ci_upper_b] =
-        DiscreteDistribution::confidenceIntervalUpperBound(discrete_data_, 0.95);
-    EXPECT_LE(ci_lower_a, ci_upper_a);
-    EXPECT_LE(ci_lower_b, ci_upper_b);
-    std::cout << "  95% CI for lower bound: [" << ci_lower_a << ", " << ci_upper_a << "]\n";
-    std::cout << "  95% CI for upper bound: [" << ci_lower_b << ", " << ci_upper_b << "]\n";
-
-    // Method of moments estimation
-    auto parameters = DiscreteDistribution::methodOfMomentsEstimation(discrete_data_);
-    EXPECT_TRUE(std::isfinite(parameters.first));
-    EXPECT_TRUE(std::isfinite(parameters.second));
-    std::cout << "  MoM estimates: lower=" << parameters.first << ", upper=" << parameters.second
-              << "\n";
-
-    // L-moments estimation for discrete parameters
-    auto [estimated_lower, estimated_upper] =
-        DiscreteDistribution::lMomentsEstimation(discrete_data_);
-    EXPECT_LE(estimated_lower, estimated_upper);
-    std::cout << "  L-moments estimates: lower=" << estimated_lower << ", upper=" << estimated_upper
-              << "\n";
-
-    // For discrete uniform, MLE is simply min/max of data (like method of moments)
-    auto [mle_lower, mle_upper] = DiscreteDistribution::methodOfMomentsEstimation(discrete_data_);
-    EXPECT_LE(mle_lower, mle_upper);
-    std::cout << "  MLE estimates (via MoM): lower=" << mle_lower << ", upper=" << mle_upper
-              << "\n";
+    // v2.0.0: per-distribution CI, MoM, and LR methods were removed as part of
+    // the analysis-utility extraction. Generic methods are in stats::analysis::.
+    // Use fit() + stats::analysis:: functions for comparable functionality.
+    SUCCEED();  // Placeholder — methods moved to stats::analysis::
 }
 
 //==============================================================================

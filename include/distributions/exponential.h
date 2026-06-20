@@ -478,8 +478,6 @@ class ExponentialDistribution : public DistributionBase {
      * @param confidence_level Confidence level (e.g., 0.95 for 95%)
      * @return Pair of (lower_bound, upper_bound)
      */
-    static std::pair<double, double> confidenceIntervalRate(const std::vector<double>& data,
-                                                            double confidence_level = 0.95);
 
     /**
      * @brief Confidence interval for scale parameter (mean waiting time)
@@ -491,94 +489,18 @@ class ExponentialDistribution : public DistributionBase {
      * @param confidence_level Confidence level (e.g., 0.95 for 95%)
      * @return Pair of (lower_bound, upper_bound)
      */
-    static std::pair<double, double> confidenceIntervalScale(const std::vector<double>& data,
-                                                             double confidence_level = 0.95);
 
-    /**
-     * @brief Likelihood ratio test for exponential parameter
-     *
-     * Tests the null hypothesis H₀: λ = λ₀ against H₁: λ ≠ λ₀
-     * using the likelihood ratio statistic -2ln(Λ) ~ χ²(1).
-     *
-     * @param data Sample data
-     * @param null_lambda Hypothesized rate parameter under H₀
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (LR_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> likelihoodRatioTest(const std::vector<double>& data,
-                                                                double null_lambda,
-                                                                double alpha = 0.05);
+    
 
-    /**
-     * @brief Bayesian parameter estimation with Gamma conjugate prior
-     *
-     * Performs Bayesian estimation of exponential rate parameter using
-     * Gamma conjugate prior. For exponential likelihood with Gamma(α,β) prior,
-     * the posterior is Gamma(α + n, β + Σxᵢ).
-     *
-     * @param data Observed data
-     * @param prior_shape Prior shape parameter α (default: 1)
-     * @param prior_rate Prior rate parameter β (default: 1)
-     * @return Pair of (posterior_shape, posterior_rate)
-     */
-    static std::pair<double, double> bayesianEstimation(const std::vector<double>& data,
-                                                        double prior_shape = 1.0,
-                                                        double prior_rate = 1.0);
+    
 
-    /**
-     * @brief Credible interval from Bayesian posterior
-     *
-     * Calculates Bayesian credible interval for rate parameter
-     * from posterior Gamma distribution.
-     *
-     * @param data Observed data
-     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
-     * @param prior_shape Prior shape parameter α (default: 1)
-     * @param prior_rate Prior rate parameter β (default: 1)
-     * @return Pair of (lower_bound, upper_bound)
-     */
-    static std::pair<double, double> bayesianCredibleInterval(const std::vector<double>& data,
-                                                              double credibility_level = 0.95,
-                                                              double prior_shape = 1.0,
-                                                              double prior_rate = 1.0);
+    
 
-    /**
-     * @brief Robust parameter estimation using M-estimators
-     *
-     * Provides robust estimation of rate parameter that is less
-     * sensitive to outliers than maximum likelihood. Uses truncated
-     * likelihood or Winsorized estimation.
-     *
-     * @param data Sample data
-     * @param estimator_type Type of robust estimator ("winsorized", "trimmed")
-     * @param trim_proportion Proportion to trim/winsorize (default: 0.1)
-     * @return Robust rate parameter estimate
-     */
-    static double robustEstimation(const std::vector<double>& data,
-                                   const std::string& estimator_type = "winsorized",
-                                   double trim_proportion = 0.1);
+    
 
-    /**
-     * @brief Method of moments parameter estimation
-     *
-     * Estimates rate parameter by matching sample moments with
-     * theoretical distribution moments. For exponential: λ = 1/sample_mean.
-     *
-     * @param data Sample data
-     * @return Rate parameter estimate
-     */
-    static double methodOfMomentsEstimation(const std::vector<double>& data);
+    
 
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics)
-     * for robust parameter estimation. L₁ = mean, λ = 1/L₁.
-     *
-     * @param data Sample data
-     * @return Rate parameter estimate from L-moments
-     */
-    static double lMomentsEstimation(const std::vector<double>& data);
+    
 
     /**
      * @brief Exponentiality test using coefficient of variation
@@ -597,110 +519,17 @@ class ExponentialDistribution : public DistributionBase {
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
 
-    /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified exponential distribution.
-     * Compares empirical CDF with theoretical exponential CDF.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
-     * @note p_value approximation using asymptotic distribution
-     */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const ExponentialDistribution& distribution,
-        double alpha = 0.05);
+    
 
-    /**
-     * @brief Anderson-Darling goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified exponential distribution.
-     * More sensitive to deviations in the tails than KS test.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (AD_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation for exponential case
-     */
-    static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const ExponentialDistribution& distribution,
-        double alpha = 0.05);
+    
 
-    //==========================================================================
-    // 9. CROSS-VALIDATION METHODS
-    //==========================================================================
+    
 
-    /**
-     * @brief K-fold cross-validation for parameter estimation
-     *
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability. Splits data into k folds, trains on k-1 folds,
-     * and validates on the remaining fold.
-     *
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (rate_error, scale_error, log_likelihood)
-     */
-    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
+    
 
-    /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     *
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality. For each data point, trains on all other points
-     * and validates on the left-out point.
-     *
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
-     */
-    static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
+    
 
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
-
-    /**
-     * @brief Model comparison using information criteria
-     *
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     *
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted exponential distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const ExponentialDistribution& fitted_distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
-
-    /**
-     * @brief Bootstrap parameter confidence intervals
-     *
-     * Uses bootstrap resampling to estimate confidence intervals for
-     * the rate parameter λ. Returns a single pair since exponential has only one parameter.
-     *
-     * @param data Sample data for bootstrap resampling
-     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
-     * @param n_bootstrap Number of bootstrap samples (default: 1000)
-     * @param random_seed Seed for random sampling (default: 42)
-     * @return Pair of (rate_CI_lower, rate_CI_upper)
-     */
-    static std::pair<double, double> bootstrapParameterConfidenceIntervals(
-        const std::vector<double>& data, double confidence_level = 0.95, int n_bootstrap = 1000,
-        unsigned int random_seed = 42);
-
-    //==========================================================================
-    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
-    //==========================================================================
+    
 
     /**
      * @brief Compute the half-life of the exponential process

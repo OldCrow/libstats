@@ -13,16 +13,21 @@
 #define LIBSTATS_FULL_INTERFACE
 #include "libstats/libstats.h"
 
-// Standard library includes
-#include <algorithm>  // for std::sort, std::max_element
-#include <cmath>      // for std::abs, std::sqrt
-#include <exception>  // for std::exception
-#include <iomanip>    // for std::setw, std::setprecision, std::fixed
-#include <iostream>   // for std::cout, std::cerr
-#include <numeric>    // for std::accumulate
-#include <random>     // for std::mt19937, std::normal_distribution
-#include <string>     // for std::string
-#include <vector>     // for std::vector
+// stats::analysis namespace (v2.0.0 — extracted from distribution static methods)
+#include "libstats/stats/analysis/goodness_of_fit.h"
+#include "libstats/stats/analysis/information_criteria.h"
+#include "libstats/stats/analysis/cross_validation.h"
+#include "libstats/stats/analysis/bootstrap.h"
+
+#include <algorithm>
+#include <cmath>
+#include <exception>
+#include <iomanip>
+#include <iostream>
+#include <numeric>
+#include <random>
+#include <string>
+#include <vector>
 int main() {
     try {
         std::cout << "=== libstats Statistical Validation & Testing Demo ===" << std::endl;
@@ -65,7 +70,7 @@ int main() {
                   << std::endl;
         std::cout << "   Null hypothesis (H₀): Data follows N(5.0, 2.0)\n" << std::endl;
         auto [ks_stat, ks_p, ks_reject] =
-            stats::Gaussian::kolmogorovSmirnovTest(data, test_dist, 0.05);
+            stats::analysis::kolmogorovSmirnovTest(data, test_dist, 0.05);
         std::cout << "   KS statistic: " << ks_stat << std::endl;
         std::cout << "   p-value: " << ks_p << std::endl;
         std::cout << "   Reject normality: " << (ks_reject ? "Yes" : "No") << std::endl;
@@ -78,7 +83,7 @@ int main() {
         std::cout << "   Weights discrepancies at distribution extremes more heavily\n"
                   << std::endl;
         auto [ad_stat, ad_p, ad_reject] =
-            stats::Gaussian::andersonDarlingTest(data, test_dist, 0.05);
+            stats::analysis::andersonDarlingTest(data, test_dist, 0.05);
         std::cout << "   AD statistic: " << ad_stat << std::endl;
         std::cout << "   p-value: " << ad_p << std::endl;
         std::cout << "   Reject normality: " << (ad_reject ? "Yes" : "No") << std::endl;
@@ -101,7 +106,7 @@ int main() {
         std::cout << "   Outputs: MAE (prediction error), StdErr (parameter uncertainty), LogLik "
                      "(fit quality)\n"
                   << std::endl;
-        auto cv_results = stats::Gaussian::kFoldCrossValidation(data, 5, 42);
+        auto cv_results = stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(data, 5, 42);
         std::cout << "   Results per fold (Mean Abs Error, Std Error, Log-Likelihood):"
                   << std::endl;
         double total_mae = 0.0, total_loglik = 0.0;
@@ -131,7 +136,7 @@ int main() {
         std::cout << "   Provides nearly unbiased but high-variance performance estimates\n"
                   << std::endl;
         auto [loocv_mae, loocv_rmse, loocv_loglik] =
-            stats::Gaussian::leaveOneOutCrossValidation(small_data);
+            stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_data);
         std::cout << "   Mean Absolute Error: " << loocv_mae << std::endl;
         std::cout << "   Root Mean Squared Error: " << loocv_rmse << std::endl;
         std::cout << "   Total Log-Likelihood: " << loocv_loglik << std::endl;
@@ -151,7 +156,7 @@ int main() {
         std::cout << "   Fits distribution to each bootstrap sample" << std::endl;
         std::cout << "   Creates confidence intervals from parameter distributions\n" << std::endl;
         auto [mean_ci, std_ci] =
-            stats::Gaussian::bootstrapParameterConfidenceIntervals(data, 0.95, 1000, 456);
+            stats::analysis::bootstrapMeanVarianceCI<stats::GaussianDistribution>(data, 0.95, 1000, 456);
         std::cout << "   95% CI for mean: [" << mean_ci.first << ", " << mean_ci.second << "]"
                   << std::endl;
         std::cout << "   95% CI for std dev: [" << std_ci.first << ", " << std_ci.second << "]"
@@ -171,7 +176,7 @@ int main() {
         stats::Gaussian fitted_dist;
         fitted_dist.fit(data);
         auto [aic, bic, aicc, loglik] =
-            stats::Gaussian::computeInformationCriteria(data, fitted_dist);
+            stats::analysis::informationCriteria(data, fitted_dist);
         std::cout << "   Fitted parameters: μ=" << fitted_dist.getMean()
                   << ", σ=" << fitted_dist.getStandardDeviation() << std::endl;
         std::cout << "   AIC:  " << aic << " (Akaike Information Criterion - general purpose)"
@@ -199,9 +204,9 @@ int main() {
                   << "(50 samples of quadratic sequence: 0², 1², 2², ..., 49²)\n"
                   << std::endl;
         auto [ks_nn_stat, ks_nn_p, ks_nn_reject] =
-            stats::Gaussian::kolmogorovSmirnovTest(non_normal_data, test_dist, 0.05);
+            stats::analysis::kolmogorovSmirnovTest(non_normal_data, test_dist, 0.05);
         auto [ad_nn_stat, ad_nn_p, ad_nn_reject] =
-            stats::Gaussian::andersonDarlingTest(non_normal_data, test_dist, 0.05);
+            stats::analysis::andersonDarlingTest(non_normal_data, test_dist, 0.05);
 
         std::cout << "KS Test - Reject normality: " << (ks_nn_reject ? "Yes ✓" : "No ✗")
                   << " (p=" << ks_nn_p << ")" << std::endl;
