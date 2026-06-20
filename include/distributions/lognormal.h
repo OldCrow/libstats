@@ -58,6 +58,12 @@ namespace stats {
  */
 class LogNormalDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<LogNormalDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::LOG_NORMAL;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

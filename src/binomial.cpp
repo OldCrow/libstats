@@ -450,8 +450,7 @@ double BinomialDistribution::getEntropy() const noexcept {
 void BinomialDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BinomialDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const BinomialDistribution& d, double x) { return d.getProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -512,8 +511,7 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BinomialDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const BinomialDistribution& d, double x) { return d.getLogProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -558,8 +556,7 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
                                                     std::span<double> results,
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BinomialDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const BinomialDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             d.getCumulativeProbabilityBatchImpl(vals, res, count);

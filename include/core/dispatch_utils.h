@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dispatch_thresholds.h"
+#include "distribution_concepts.h"
 #include "libstats/platform/thread_pool.h"  // For ParallelUtils
 #include "libstats/platform/work_stealing_pool.h"
 #include "performance_dispatcher.h"
@@ -62,11 +63,11 @@ class DispatchUtils {
      * @param parallel_func Function to call for parallel operations
      * @param work_stealing_func Function to call for work-stealing operations
      */
-    template <typename Distribution, typename ScalarFunc, typename BatchFunc, typename ParallelFunc,
-              typename WorkStealingFunc>
+    template <stats::concepts::AnyDistribution Distribution, typename ScalarFunc, typename BatchFunc,
+              typename ParallelFunc, typename WorkStealingFunc>
     static void autoDispatch(const Distribution& dist, std::span<const double> values,
                              std::span<double> results, const PerformanceHint& hint,
-                             DistributionType dist_type, OperationType op_type,
+                             OperationType op_type,
                              ScalarFunc&& scalar_func, BatchFunc&& batch_func,
                              ParallelFunc&& parallel_func, WorkStealingFunc&& work_stealing_func) {
         // Validate input
@@ -92,7 +93,8 @@ class DispatchUtils {
         auto strategy = Strategy::SCALAR;
 
         if (hint.strategy == PerformanceHint::PreferredStrategy::AUTO) {
-            strategy = dispatcher.selectStrategy(count, dist_type, op_type, system);
+            strategy = dispatcher.selectStrategy(
+                count, Distribution::kDistributionType, op_type, system);
         } else {
             strategy = mapHintToStrategy(hint.strategy, count);
         }
@@ -237,114 +239,10 @@ class DispatchUtils {
 
 };
 
-/**
- * @brief Distribution traits to map distribution types to enums
- *
- * Specializations should be provided for each distribution type to define
- * their corresponding DistributionType and ComputationComplexity values.
- */
-template <typename Distribution>
-struct DistributionTraits {
-    static constexpr DistributionType distType() = delete;
-    static constexpr ComputationComplexity complexity() = delete;
-};
-
-// Specializations for known distributions
-template <>
-struct DistributionTraits<class DiscreteDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::DISCRETE; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::SIMPLE; }
-};
-
-template <>
-struct DistributionTraits<class PoissonDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::POISSON; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class GaussianDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::GAUSSIAN; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class ExponentialDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::EXPONENTIAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class UniformDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::UNIFORM; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::SIMPLE; }
-};
-
-template <>
-struct DistributionTraits<class GammaDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::GAMMA; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class StudentTDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::STUDENT_T; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class BetaDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::BETA; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class ChiSquaredDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::CHI_SQUARED; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class LogNormalDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::LOG_NORMAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class ParetoDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::PARETO; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class WeibullDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::WEIBULL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class RayleighDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::RAYLEIGH; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class VonMisesDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::VON_MISES; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class BinomialDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::BINOMIAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class NegativeBinomialDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::NEGATIVE_BINOMIAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
+// DistributionTraits<> removed in v2.0.0.
+// Use D::kDistributionType and D::kIsDiscrete directly.
+// Use stats::concepts::AnyDistribution<D>, stats::concepts::ContinuousDistribution<D>,
+// or stats::concepts::DiscreteDistribution<D> to constrain template parameters.
 
 }  // namespace detail
 }  // namespace stats

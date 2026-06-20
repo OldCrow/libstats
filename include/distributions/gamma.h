@@ -128,6 +128,12 @@ namespace stats {
  */
 class GammaDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<GammaDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::GAMMA;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

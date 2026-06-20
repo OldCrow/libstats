@@ -1617,8 +1617,7 @@ double GaussianDistribution::getMode() const noexcept {
 void GaussianDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const GaussianDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1747,8 +1746,7 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const GaussianDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -1883,8 +1881,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                                                     std::span<double> results,
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<GaussianDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const GaussianDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

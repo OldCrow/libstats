@@ -95,6 +95,12 @@ namespace stats {
  */
 class ExponentialDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<ExponentialDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::EXPONENTIAL;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

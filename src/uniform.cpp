@@ -1263,8 +1263,7 @@ double UniformDistribution::getMidpoint() const noexcept {
 void UniformDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1370,8 +1369,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                                             std::span<double> results,
                                             const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1495,8 +1493,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                                                    std::span<double> results,
                                                    const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const UniformDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

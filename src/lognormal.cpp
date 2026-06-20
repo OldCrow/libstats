@@ -506,8 +506,7 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                                            std::span<double> results,
                                            const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<LogNormalDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const LogNormalDistribution& d, double x) { return d.getProbability(x); },
         [](const LogNormalDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -607,8 +606,7 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                                               std::span<double> results,
                                               const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<LogNormalDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const LogNormalDistribution& d, double x) { return d.getLogProbability(x); },
         [](const LogNormalDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -709,8 +707,7 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                                                      std::span<double> results,
                                                      const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<LogNormalDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const LogNormalDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const LogNormalDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);

@@ -511,7 +511,6 @@ void NegativeBinomialDistribution::getProbability(std::span<const double> values
                                                   const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<NegativeBinomialDistribution>::distType(),
         detail::OperationType::PDF,
         [](const NegativeBinomialDistribution& d, double x) { return d.getProbability(x); },
         [](const NegativeBinomialDistribution& d, const double* vals, double* res, size_t count) {
@@ -558,7 +557,6 @@ void NegativeBinomialDistribution::getLogProbability(std::span<const double> val
                                                      const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<NegativeBinomialDistribution>::distType(),
         detail::OperationType::LOG_PDF,
         [](const NegativeBinomialDistribution& d, double x) { return d.getLogProbability(x); },
         [](const NegativeBinomialDistribution& d, const double* vals, double* res, size_t count) {
@@ -605,7 +603,6 @@ void NegativeBinomialDistribution::getCumulativeProbability(
     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<NegativeBinomialDistribution>::distType(),
         detail::OperationType::CDF,
         [](const NegativeBinomialDistribution& d, double x) {
             return d.getCumulativeProbability(x);

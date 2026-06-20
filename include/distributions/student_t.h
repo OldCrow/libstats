@@ -75,6 +75,12 @@ namespace stats {
  */
 class StudentTDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<StudentTDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::STUDENT_T;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

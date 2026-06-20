@@ -126,6 +126,12 @@ namespace stats {
  */
 class PoissonDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<PoissonDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::POISSON;
+    static constexpr bool kIsDiscrete = true;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

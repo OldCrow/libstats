@@ -118,6 +118,12 @@ namespace stats {
  */
 class DiscreteDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<DiscreteDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::DISCRETE;
+    static constexpr bool kIsDiscrete = true;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

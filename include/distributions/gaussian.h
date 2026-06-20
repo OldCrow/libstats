@@ -70,6 +70,12 @@ namespace stats {
  */
 class GaussianDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<GaussianDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::GAUSSIAN;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

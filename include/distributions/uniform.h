@@ -111,6 +111,12 @@ namespace stats {
  */
 class UniformDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<UniformDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::UNIFORM;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

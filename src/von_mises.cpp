@@ -538,8 +538,7 @@ double VonMisesDistribution::getEntropy() const noexcept {
 void VonMisesDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<VonMisesDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const VonMisesDistribution& d, double x) { return d.getProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -613,8 +612,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<VonMisesDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const VonMisesDistribution& d, double x) { return d.getLogProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -688,8 +686,7 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
                                                     std::span<double> results,
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<VonMisesDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const VonMisesDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
             d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count);

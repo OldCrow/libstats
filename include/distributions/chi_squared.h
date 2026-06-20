@@ -91,6 +91,12 @@ namespace stats {
  */
 class ChiSquaredDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<ChiSquaredDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::CHI_SQUARED;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

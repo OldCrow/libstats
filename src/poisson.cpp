@@ -1569,8 +1569,7 @@ double PoissonDistribution::getMedian() const noexcept {
 void PoissonDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<PoissonDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const PoissonDistribution& dist, double value) { return dist.getProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1741,8 +1740,7 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                                             std::span<double> results,
                                             const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<PoissonDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const PoissonDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
             // Ensure cache is valid
@@ -1883,8 +1881,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                                                    std::span<double> results,
                                                    const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<PoissonDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const PoissonDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

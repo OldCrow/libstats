@@ -69,6 +69,12 @@ namespace stats {
  */
 class VonMisesDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<VonMisesDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::VON_MISES;
+    static constexpr bool kIsDiscrete = false;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

@@ -43,6 +43,12 @@ namespace stats {
  */
 class BinomialDistribution : public DistributionBase {
    public:
+    // Dispatch metadata — replaces DistributionTraits<BinomialDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::BINOMIAL;
+    static constexpr bool kIsDiscrete = true;
+
+   public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
     //==========================================================================

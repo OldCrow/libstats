@@ -510,8 +510,7 @@ double BetaDistribution::getEntropy() const {
 void BetaDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                       const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const BetaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -597,8 +596,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
 void BetaDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const BetaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -686,8 +684,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
                                                 std::span<double> results,
                                                 const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const BetaDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

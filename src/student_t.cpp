@@ -421,8 +421,7 @@ double StudentTDistribution::getEntropy() const {
 void StudentTDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const StudentTDistribution& dist, double value) { return dist.getProbability(value); },
         [](const StudentTDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -497,8 +496,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -564,8 +562,7 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
                                                     std::span<double> results,
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

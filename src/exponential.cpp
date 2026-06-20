@@ -1160,7 +1160,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(), detail::OperationType::PDF,
+        detail::OperationType::PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getProbability(value);
         },
@@ -1288,7 +1288,6 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                                                 const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(),
         detail::OperationType::LOG_PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getLogProbability(value);
@@ -1418,7 +1417,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                                                        const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
         *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(), detail::OperationType::CDF,
+        detail::OperationType::CDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
