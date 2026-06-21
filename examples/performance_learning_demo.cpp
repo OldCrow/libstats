@@ -122,14 +122,33 @@ void demonstrate_smart_dispatch() {
                   << (std::to_string(time_speed) + " μs") << std::endl;
     }
 
-    // Check for timing reversals and add note if found
+    // Dynamic observation: scan all sizes and report the actual winner pattern.
+    std::size_t max_wins = 0, min_wins = 0;
+    std::size_t best_ratio_size = 0;
+    double best_ratio = 0.0;
     for (const auto& [size, no_hint, min_latency, max_throughput] : timing_results) {
-        if (size >= 50000 && max_throughput < min_latency) {
-            std::cout << "\nNOTE: at " << size
-                      << " elements, highest overall batch throughput (Max Throughput) "
-                      << "outperforms fastest single element processing (Min Latency)" << std::endl;
-            break;
+        if (min_latency <= 0 || max_throughput <= 0) continue;
+        if (max_throughput < min_latency) {
+            ++max_wins;
+            double ratio = static_cast<double>(min_latency) / static_cast<double>(max_throughput);
+            if (ratio > best_ratio) { best_ratio = ratio; best_ratio_size = size; }
+        } else {
+            ++min_wins;
         }
+    }
+    if (max_wins > 0 && min_wins == 0) {
+        std::cout << "\nOBSERVATION: Max Throughput (vectorized batch) outperforms Min Latency"
+                  << " at all " << max_wins << " tested sizes"
+                  << " (largest advantage: " << std::fixed << std::setprecision(1)
+                  << best_ratio << "x at " << best_ratio_size << " elements).\n"
+                  << "The vectorized batch path pays off even at small sizes on this hardware."
+                  << std::endl;
+    } else if (max_wins > 0) {
+        std::cout << "\nOBSERVATION: Max Throughput outperforms Min Latency at " << max_wins
+                  << " of " << (max_wins + min_wins) << " tested sizes"
+                  << " (best advantage: " << std::fixed << std::setprecision(1)
+                  << best_ratio << "x at " << best_ratio_size << " elements)."
+                  << std::endl;
     }
 }
 
