@@ -1,4 +1,5 @@
 #include "libstats/distributions/weibull.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
 using stats::detail::validateNonNegativeParameter;

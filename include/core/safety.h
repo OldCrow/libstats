@@ -1,6 +1,6 @@
 #pragma once
 
-#include "libstats/platform/simd.h"
+// AQ-7: simd.h removed — no SIMD types are used in safety.h declarations.
 #include "math_constants.h"
 #include "statistical_constants.h"
 

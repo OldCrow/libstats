@@ -1,3 +1,4 @@
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 // Main SIMD dispatch logic — NO SIMD intrinsics in this file.
 // The dispatch table (makeDispatchTable) is the single change point for tier selection:
 //   Adding a new SIMD tier: edit makeDispatchTable() only.

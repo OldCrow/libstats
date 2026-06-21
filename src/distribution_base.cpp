@@ -1,3 +1,4 @@
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/distribution_base.h"
 
 #include "libstats/core/math_constants.h"

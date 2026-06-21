@@ -1,7 +1,9 @@
 #pragma once
 
+// AQ-7/8: simd.h removed from math_utils.h — no SIMD intrinsic types are used
+// in these declarations. The SIMD vector function implementations reside in .cpp
+// files which include simd.h directly.
 #include "libstats/common/utility_common.h"
-#include "libstats/platform/simd.h"
 #include "math_constants.h"
 #include "safety.h"
 #include "statistical_constants.h"

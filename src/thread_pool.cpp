@@ -1,3 +1,4 @@
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/platform/thread_pool.h"
 
 #include "libstats/common/cpu_detection_fwd.h"       // Use lightweight forward declarations

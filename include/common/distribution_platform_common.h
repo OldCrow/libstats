@@ -15,13 +15,11 @@
  * while respecting the architectural distinctiveness of each distribution type.
  */
 
-// Core platform optimization headers used by most distributions
-#include "libstats/platform/parallel_execution.h"  // Parallel execution policies (used by all)
-#include "libstats/platform/simd.h"                // SIMD operations (used by all distributions)
-#include "libstats/platform/work_stealing_pool.h"  // Work-stealing parallelism (used by most)
-
-// Thread pool integration - used by distributions with heavy batch operations
-#include "libstats/platform/thread_pool.h"  // Traditional thread pool (used by most)
+// AQ-7 (v2.0.0): The heavy platform headers (simd.h, parallel_execution.h,
+// work_stealing_pool.h, thread_pool.h) have been moved to
+// distribution_impl_common.h, which is included only in distribution .cpp files.
+// Distribution *headers* should not need SIMD intrinsic types or threading
+// infrastructure in their public class definitions.
 
 namespace stats {
 namespace distributions {

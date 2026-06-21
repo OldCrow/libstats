@@ -1,3 +1,4 @@
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/performance_dispatcher.h"
 #include "libstats/libstats.h"
 #include "libstats/platform/simd_policy.h"

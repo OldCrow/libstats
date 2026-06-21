@@ -1,4 +1,5 @@
 #include "libstats/core/math_utils.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 
 #include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "libstats/common/simd_policy_fwd.h"    // SIMD policy decisions (lightweight)

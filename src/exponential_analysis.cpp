@@ -1,4 +1,5 @@
 #include "libstats/stats/analysis/exponential_analysis.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 
 #include "libstats/core/math_utils.h"
 #include "libstats/core/statistical_constants.h"
