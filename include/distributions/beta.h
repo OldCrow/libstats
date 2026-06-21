@@ -380,16 +380,9 @@ class BetaDistribution : public DistributionBase {
         }
     }
 
+    // Delegate to the free function in error_handling.h (5C, v2.0.0).
     [[nodiscard]] static VoidResult validateBetaParameters(double alpha, double beta) noexcept {
-        if (std::isnan(alpha) || std::isinf(alpha) || alpha <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Alpha (shape1) must be a positive finite number");
-        }
-        if (std::isnan(beta) || std::isinf(beta) || beta <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Beta (shape2) must be a positive finite number");
-        }
-        return VoidResult::ok(true);
+        return ::stats::validateBetaParameters(alpha, beta);
     }
 
     //==========================================================================

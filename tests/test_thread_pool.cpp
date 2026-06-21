@@ -236,7 +236,7 @@ class ThreadPoolTest {
 
         try {
             // Test that error handling types are available
-            auto success = VoidResult::ok(true);
+            auto success = VoidResult::ok({});
             auto error = VoidResult::makeError(ValidationError::InvalidParameter, "Test error");
 
             EXPECT_TRUE(success.isOk());

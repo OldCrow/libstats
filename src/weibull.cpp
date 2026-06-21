@@ -8,7 +8,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -247,7 +246,7 @@ VoidResult WeibullDistribution::trySetShape(double shape) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult WeibullDistribution::trySetScale(double scale) noexcept {
@@ -260,7 +259,7 @@ VoidResult WeibullDistribution::trySetScale(double scale) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult WeibullDistribution::trySetParameters(double shape, double scale) noexcept {
@@ -274,7 +273,7 @@ VoidResult WeibullDistribution::trySetParameters(double shape, double scale) noe
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult WeibullDistribution::validateCurrentParameters() const noexcept {

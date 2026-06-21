@@ -97,4 +97,25 @@ concept ContinuousDistribution = AnyDistribution<D> && !D::kIsDiscrete;
 template <typename D>
 concept DiscreteDistribution = AnyDistribution<D> && D::kIsDiscrete;
 
+// ---------------------------------------------------------------------------
+// FittableDistribution — AnyDistribution that can be default-constructed
+// and fitted to data via fit(const std::vector<double>&)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Concept for distributions that can be fitted to data.
+ *
+ * Extends AnyDistribution with the default-constructibility and fit() method
+ * required by bootstrap and cross-validation templates.
+ *
+ * All 16 standard libstats distributions satisfy this concept.
+ */
+template <typename D>
+concept FittableDistribution =
+    AnyDistribution<D> &&
+    std::default_initializable<D> &&
+    requires(D d, const std::vector<double>& data) {
+        d.fit(data);
+    };
+
 }  // namespace stats::concepts

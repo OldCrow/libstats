@@ -113,7 +113,7 @@
 
 namespace stats {
 
-// Phase 3B: New SIMD namespace structure
+
 namespace simd {
 namespace utils {
 
@@ -521,7 +521,7 @@ class aligned_allocator {
 
 }  // namespace utils
 
-// Phase 3B: VectorOps moved to ops namespace
+
 namespace ops {
 
 //==============================================================================
@@ -827,7 +827,7 @@ class VectorOps {
 
 }  // namespace ops
 
-// Phase 3B: Runtime dispatch logic for selecting SIMD implementations
+
 namespace dispatch {
 
 /**
@@ -875,7 +875,7 @@ class SIMDDispatcher {
 
 }  // namespace dispatch
 
-// Phase 3B: Memory utilities stay in utils namespace
+
 namespace utils {
 
 //==============================================================================

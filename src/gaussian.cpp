@@ -11,7 +11,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/parallel_batch_fit.h"
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "libstats/core/safety.h"
-#include "libstats/core/validation.h"
 // Note: simd.h still included in implementation files that actually use SIMD operations
 
 #include <algorithm>
@@ -186,7 +185,7 @@ VoidResult GaussianDistribution::trySetMean(double mean) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult GaussianDistribution::trySetStandardDeviation(double stdDev) noexcept {
@@ -210,7 +209,7 @@ VoidResult GaussianDistribution::trySetStandardDeviation(double stdDev) noexcept
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult GaussianDistribution::trySetParameters(double mean, double standardDeviation) noexcept {
@@ -228,7 +227,7 @@ VoidResult GaussianDistribution::trySetParameters(double mean, double standardDe
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult GaussianDistribution::validateCurrentParameters() const noexcept {

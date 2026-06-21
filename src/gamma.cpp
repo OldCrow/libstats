@@ -12,7 +12,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/math_utils.h"
 #include "libstats/core/safety.h"
 #include "libstats/core/statistical_constants.h"
-#include "libstats/core/validation.h"
 
 // Platform headers - use forward declarations where available
 #include "libstats/common/cpu_detection_fwd.h"  // Lightweight CPU detection
@@ -250,7 +249,7 @@ VoidResult GammaDistribution::trySetAlpha(double alpha) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult GammaDistribution::trySetBeta(double beta) noexcept {
@@ -274,7 +273,7 @@ VoidResult GammaDistribution::trySetBeta(double beta) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexcept {
@@ -292,7 +291,7 @@ VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexce
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 //==========================================================================

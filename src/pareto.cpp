@@ -8,7 +8,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -241,7 +240,7 @@ VoidResult ParetoDistribution::trySetScale(double scale) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult ParetoDistribution::trySetAlpha(double alpha) noexcept {
@@ -254,7 +253,7 @@ VoidResult ParetoDistribution::trySetAlpha(double alpha) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult ParetoDistribution::trySetParameters(double scale, double alpha) noexcept {
@@ -268,7 +267,7 @@ VoidResult ParetoDistribution::trySetParameters(double scale, double alpha) noex
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult ParetoDistribution::validateCurrentParameters() const noexcept {

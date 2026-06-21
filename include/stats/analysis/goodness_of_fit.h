@@ -4,13 +4,18 @@
  * @file stats/analysis/goodness_of_fit.h
  * @brief Generic goodness-of-fit tests for any libstats distribution.
  *
- * Kolmogorov-Smirnov and Anderson-Darling tests are constrained to
- * stats::concepts::ContinuousDistribution — applying them to discrete
- * distributions is a compile-time error (MC-12).
+ * Three tests, each constrained by distribution category:
+ *   - kolmogorovSmirnovTest    — ContinuousDistribution only (MC-12)
+ *   - andersonDarlingTest      — ContinuousDistribution only (MC-12)
+ *   - chiSquaredGoodnessOfFit  — DiscreteDistribution only  (5E, v2.0.0)
+ *   - likelihoodRatioTest      — AnyDistribution
  *
  * Extracted in v2.0.0. Migration:
  *   GaussianDistribution::kolmogorovSmirnovTest(data, dist, alpha)
  *   → stats::analysis::kolmogorovSmirnovTest(data, dist, alpha)
+ *
+ *   DiscreteDistribution::chiSquaredGoodnessOfFitTest(data, dist, alpha)
+ *   → stats::analysis::chiSquaredGoodnessOfFit(data, dist, alpha)
  */
 
 #include <algorithm>
@@ -169,6 +174,89 @@ likelihoodRatioTest(const std::vector<double>& data,
 
     const double p_value = 1.0 - detail::chi_squared_cdf(lr_stat, df);
     return {lr_stat, p_value, p_value < alpha};
+}
+
+// ---------------------------------------------------------------------------
+// Chi-squared goodness-of-fit test (discrete distributions only)
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Pearson chi-squared goodness-of-fit test for discrete distributions.
+ *
+ * @tparam D Discrete distribution satisfying stats::concepts::DiscreteDistribution.
+ *           Applying this test to a continuous distribution is a compile-time error.
+ * @param data  Observed data (values rounded to nearest integer).
+ * @param dist  Fitted discrete distribution.
+ * @param alpha Significance level (default 0.05).
+ * @return {chi2_statistic, p_value, reject_null}
+ *
+ * Bins observed counts over [min(data), max(data)], computes expected
+ * frequencies from the distribution PMF, and merges cells with expected
+ * count < 1 before computing the Pearson statistic.
+ *
+ * Added in v2.0.0 (5E). Migration:
+ *   DiscreteDistribution::chiSquaredGoodnessOfFitTest(data, dist, alpha)
+ *   → stats::analysis::chiSquaredGoodnessOfFit(data, dist, alpha)
+ */
+template <concepts::DiscreteDistribution D>
+[[nodiscard]] std::tuple<double, double, bool>
+chiSquaredGoodnessOfFit(const std::vector<double>& data,
+                        const D& dist,
+                        double alpha = 0.05) {
+    if (data.size() < 5)
+        throw std::invalid_argument(
+            "At least 5 observations required for chi-square goodness-of-fit");
+    if (alpha <= 0.0 || alpha >= 1.0)
+        throw std::invalid_argument("Alpha must be in (0, 1)");
+
+    const std::size_t n = data.size();
+    const auto [it_min, it_max] = std::minmax_element(data.begin(), data.end());
+    const int lo = static_cast<int>(std::round(*it_min));
+    const int hi = static_cast<int>(std::round(*it_max));
+    const int nbins = hi - lo + 1;
+
+    std::vector<double> observed(static_cast<std::size_t>(nbins), 0.0);
+    for (double v : data) {
+        const int k = static_cast<int>(std::round(v));
+        if (k >= lo && k <= hi)
+            observed[static_cast<std::size_t>(k - lo)] += 1.0;
+    }
+
+    std::vector<double> expected(static_cast<std::size_t>(nbins));
+    for (int k = lo; k <= hi; ++k) {
+        const double p_k = dist.getProbability(static_cast<double>(k));
+        expected[static_cast<std::size_t>(k - lo)] =
+            static_cast<double>(n) * std::max(0.0, p_k);
+    }
+
+    // Merge cells with expected count < 1 into right neighbour.
+    std::vector<double> obs_m, exp_m;
+    double oa = 0.0, ea = 0.0;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(nbins); ++i) {
+        oa += observed[i];
+        ea += expected[i];
+        if (ea >= 1.0 || i == static_cast<std::size_t>(nbins) - 1) {
+            obs_m.push_back(oa);
+            exp_m.push_back(ea);
+            oa = ea = 0.0;
+        }
+    }
+
+    double chi2 = 0.0;
+    for (std::size_t i = 0; i < exp_m.size(); ++i) {
+        if (exp_m[i] > 0.0) {
+            const double d = obs_m[i] - exp_m[i];
+            chi2 += d * d / exp_m[i];
+        }
+    }
+
+    const int df = static_cast<int>(exp_m.size()) - 1;
+    if (df <= 0)
+        throw std::invalid_argument(
+            "Insufficient distinct values after cell merging; collect more data");
+
+    const double p_value = 1.0 - detail::chi_squared_cdf(chi2, static_cast<double>(df));
+    return {chi2, p_value, p_value < alpha};
 }
 
 }  // namespace stats::analysis

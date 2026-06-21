@@ -8,7 +8,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -187,7 +186,7 @@ VoidResult NegativeBinomialDistribution::trySetR(double r) noexcept {
     if (v.isError())
         return v;
     setR(r);
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult NegativeBinomialDistribution::trySetP(double p) noexcept {
@@ -195,7 +194,7 @@ VoidResult NegativeBinomialDistribution::trySetP(double p) noexcept {
     if (v.isError())
         return v;
     setP(p);
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult NegativeBinomialDistribution::trySetParameters(double r, double p) noexcept {
@@ -203,7 +202,7 @@ VoidResult NegativeBinomialDistribution::trySetParameters(double r, double p) no
     if (v.isError())
         return v;
     setParameters(r, p);
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult NegativeBinomialDistribution::validateCurrentParameters() const noexcept {

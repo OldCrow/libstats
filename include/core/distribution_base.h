@@ -98,7 +98,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @note Override for numerical stability when possible
      */
     double getLogProbability(double x) const override {
-        // LP-6: propagate NaN rather than collapsing it to -inf via log(0)
+        // propagate NaN rather than collapsing it to -inf via log(0)
         if (std::isnan(x)) [[unlikely]]
             return std::numeric_limits<double>::quiet_NaN();
         double prob = getProbability(x);
@@ -209,47 +209,9 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      */
     static std::vector<double> calculateEmpiricalCDF(const std::vector<double>& data);
 
-    // =============================================================================
-    // SPECIAL MATHEMATICAL FUNCTIONS - Protected Static Methods
-    // =============================================================================
-
-    /**
-     * @brief Error function erf(x)
-     */
-    static double erf(double x) noexcept;
-
-    /**
-     * @brief Complementary error function erfc(x)
-     */
-    static double erfc(double x) noexcept;
-
-    /**
-     * @brief Log gamma function ln(Γ(x))
-     */
-    static double lgamma(double x) noexcept;
-
-    /**
-     * @brief Regularized incomplete gamma function P(a,x)
-     */
-    static double gammaP(double a, double x) noexcept;
-
-    /**
-     * @brief Regularized incomplete gamma function Q(a,x) = 1 - P(a,x)
-     */
-    static double gammaQ(double a, double x) noexcept;
-
-    /**
-     * @brief Inverse of P(a, x): find x such that gammaP(a, x) = p
-     *
-     * Uses bisection on gammaP. Suitable for computing Gamma-posterior
-     * quantiles in Bayesian credible-interval calculations.
-     */
-    static double gammaQuantile(double a, double p) noexcept;
-
-    /**
-     * @brief Regularized incomplete beta function I_x(a,b)
-     */
-    static double betaI(double x, double a, double b) noexcept;
+    // Special mathematical functions (erf, lgamma, gammaP/Q, betaI) that were
+    // formerly duplicated here as protected wrappers have been removed in
+    // v2.0.0 (AQ-5). Call stats::detail:: functions from math_utils.h directly.
 
    private:
     // =============================================================================

@@ -38,7 +38,7 @@ namespace stats::analysis {
  * @param random_seed Seed for fold shuffle reproducibility.
  * @return Vector of k tuples: {MAE, RMSE, fold_log_likelihood}.
  */
-template <concepts::AnyDistribution D>
+template <concepts::FittableDistribution D>
 [[nodiscard]] std::vector<std::tuple<double, double, double>>
 kFoldCrossValidation(const std::vector<double>& data,
                      int k,
@@ -107,7 +107,7 @@ kFoldCrossValidation(const std::vector<double>& data,
  * @param data Data vector (at least 3 points required).
  * @return {mean_absolute_error, root_mean_squared_error, total_log_likelihood}
  */
-template <concepts::AnyDistribution D>
+template <concepts::FittableDistribution D>
 [[nodiscard]] std::tuple<double, double, double>
 leaveOneOutCrossValidation(const std::vector<double>& data) {
     if (data.size() < 3)

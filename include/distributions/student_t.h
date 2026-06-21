@@ -383,12 +383,9 @@ class StudentTDistribution : public DistributionBase {
         }
     }
 
+    // Delegate to the free function in error_handling.h (5C, v2.0.0).
     [[nodiscard]] static VoidResult validateStudentTParameters(double nu) noexcept {
-        if (std::isnan(nu) || std::isinf(nu) || nu <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Degrees of freedom nu must be a positive finite number");
-        }
-        return VoidResult::ok(true);
+        return ::stats::validateStudentTParameters(nu);
     }
 
     //==========================================================================

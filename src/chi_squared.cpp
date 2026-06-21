@@ -6,7 +6,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -122,7 +121,7 @@ VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
         cacheValidAtomic_.store(false, std::memory_order_release);
     }
     (void)gamma_.trySetAlpha(k / detail::TWO);
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult ChiSquaredDistribution::validateCurrentParameters() const noexcept {

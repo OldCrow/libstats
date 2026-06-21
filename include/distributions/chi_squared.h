@@ -487,12 +487,9 @@ class ChiSquaredDistribution : public DistributionBase {
     /**
      * @brief Result-based parameter validation (no-throw).
      */
+    // Delegate to the free function in error_handling.h (5C, v2.0.0).
     [[nodiscard]] static VoidResult validateChiSquaredParameters(double k) noexcept {
-        if (std::isnan(k) || std::isinf(k) || k <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Degrees of freedom k must be a positive finite number");
-        }
-        return VoidResult::ok(true);
+        return ::stats::validateChiSquaredParameters(k);
     }
 
     //==========================================================================

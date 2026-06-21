@@ -9,7 +9,7 @@
 
 // Forward declaration for platform-specific tuning
 #include "cpu_detection.h"
-#include "cpu_vendor_constants.h"  // Phase 3D: CPU vendor-specific constants
+#include "cpu_vendor_constants.h"
 
 /**
  * @file platform/platform_constants.h
@@ -392,7 +392,6 @@ std::size_t get_max_grain_size();
 namespace memory {
 /// Platform-specific prefetching distance tuning
 namespace prefetch {
-// Phase 3C: Flattened from distance:: namespace
 /// Conservative prefetch distance for older/low-power CPUs (in cache lines)
 inline constexpr std::size_t DISTANCE_CONSERVATIVE = 2;
 
@@ -409,7 +408,6 @@ inline constexpr std::size_t DISTANCE_ULTRA_AGGRESSIVE = 16;
 /// Access via
 /// stats::arch::cpu::{intel,amd,arm,apple_silicon}::{SEQUENTIAL,RANDOM,MATRIX}_PREFETCH_DISTANCE
 
-// Phase 3C: Flattened from strategy:: namespace
 /// Sequential access prefetch multipliers
 inline constexpr double STRATEGY_SEQUENTIAL_MULTIPLIER = 2.0;  // More aggressive for sequential
 inline constexpr double STRATEGY_RANDOM_MULTIPLIER = 0.5;      // Conservative for random
@@ -425,7 +423,6 @@ inline constexpr std::size_t STRATEGY_MAX_PREFETCH_DISTANCE = 1024;
 inline constexpr std::size_t STRATEGY_PREFETCH_GRANULARITY =
     8;  // 64-byte cache line / 8-byte double
 
-// Phase 3C: Flattened from timing:: namespace
 /// Memory latency estimates for prefetch scheduling (in CPU cycles)
 inline constexpr std::size_t TIMING_L1_LATENCY_CYCLES = 4;      // L1 cache hit
 inline constexpr std::size_t TIMING_L2_LATENCY_CYCLES = 12;     // L2 cache hit
@@ -445,7 +442,6 @@ inline constexpr std::size_t CACHE_LINE_SIZE_BYTES = 64;  // Standard cache line
 inline constexpr std::size_t DOUBLES_PER_CACHE_LINE = 8;  // 64 bytes / 8 bytes per double
 inline constexpr std::size_t CACHE_LINE_ALIGNMENT = 64;   // Alignment requirement
 
-// Phase 3C: Flattened from bandwidth:: namespace
 /// Optimal burst sizes for different memory types
 inline constexpr std::size_t BANDWIDTH_DDR4_BURST_SIZE = 64;   // Optimal DDR4 burst
 inline constexpr std::size_t BANDWIDTH_DDR5_BURST_SIZE = 128;  // Optimal DDR5 burst
@@ -455,7 +451,6 @@ inline constexpr std::size_t BANDWIDTH_HBM_BURST_SIZE = 256;   // High Bandwidth
 inline constexpr double BANDWIDTH_TARGET_UTILIZATION = 0.8;  // Aim for 80% bandwidth usage
 inline constexpr double BANDWIDTH_MAX_UTILIZATION = 0.95;    // Maximum before thrashing
 
-// Phase 3C: Flattened from layout:: namespace
 /// Array-of-Structures vs Structure-of-Arrays thresholds
 inline constexpr std::size_t LAYOUT_AOS_TO_SOA_THRESHOLD = 1000;  // Switch to SOA for larger sizes
 
@@ -465,7 +460,6 @@ inline constexpr std::size_t LAYOUT_SMALL_ALLOCATION_THRESHOLD =
     256;  // Use pool for smaller allocations
 inline constexpr std::size_t LAYOUT_LARGE_PAGE_THRESHOLD = 2097152;  // 2MB huge page threshold
 
-// Phase 3C: Flattened from numa:: namespace
 /// NUMA-aware allocation thresholds
 inline constexpr std::size_t NUMA_AWARE_THRESHOLD = 1048576;  // 1MB threshold for NUMA awareness
 
@@ -486,7 +480,7 @@ inline constexpr std::size_t MIN_ALLOCATION_ALIGNMENT = 8;      // Minimum 8-byt
 inline constexpr std::size_t SIMD_ALLOCATION_ALIGNMENT = 32;    // SIMD-friendly alignment
 inline constexpr std::size_t PAGE_ALLOCATION_ALIGNMENT = 4096;  // Page alignment
 
-// Phase 3C: Flattened from growth:: namespace
+
 /// Memory growth strategies
 inline constexpr double GROWTH_EXPONENTIAL_FACTOR = 1.5;  // 50% growth per expansion
 inline constexpr double GROWTH_LINEAR_FACTOR = 1.2;       // 20% growth for large allocations
@@ -551,7 +545,6 @@ struct CacheThresholds {
 
 CacheThresholds get_cache_thresholds();
 // End of consolidated platform constants
-// Phase 3A: Removed unused cache namespaces and constants
 
 }  // namespace arch
 }  // namespace stats

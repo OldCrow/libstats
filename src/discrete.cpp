@@ -11,7 +11,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/statistical_constants.h"
-#include "libstats/core/validation.h"
 
 // Platform headers - use forward declarations where available
 #include "libstats/common/cpu_detection_fwd.h"  // Lightweight CPU detection
@@ -325,7 +324,7 @@ VoidResult DiscreteDistribution::trySetLowerBound(int a) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult DiscreteDistribution::trySetUpperBound(int b) noexcept {
@@ -349,7 +348,7 @@ VoidResult DiscreteDistribution::trySetUpperBound(int b) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult DiscreteDistribution::trySetBounds(int a, int b) noexcept {
@@ -367,7 +366,7 @@ VoidResult DiscreteDistribution::trySetBounds(int a, int b) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
@@ -385,7 +384,7 @@ VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 //==============================================================================

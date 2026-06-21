@@ -35,7 +35,7 @@ namespace stats::analysis {
  * @param random_seed      RNG seed (default 42).
  * @return {lower_bound, upper_bound} for the mean.
  */
-template <concepts::AnyDistribution D>
+template <concepts::FittableDistribution D>
 [[nodiscard]] std::pair<double, double>
 bootstrapMeanCI(const std::vector<double>& data,
                 double confidence_level = 0.95,
@@ -85,7 +85,7 @@ bootstrapMeanCI(const std::vector<double>& data,
  * @tparam D Default-constructible distribution satisfying AnyDistribution.
  * @return {{mean_lower, mean_upper}, {variance_lower, variance_upper}}
  */
-template <concepts::AnyDistribution D>
+template <concepts::FittableDistribution D>
 [[nodiscard]] std::pair<std::pair<double, double>, std::pair<double, double>>
 bootstrapMeanVarianceCI(const std::vector<double>& data,
                         double confidence_level = 0.95,

@@ -6,6 +6,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <variant>  // for std::monostate (VoidResult sentinel)
 
 namespace stats {
 
@@ -86,9 +87,21 @@ struct Result {
 };
 
 /**
- * @brief Specialized result type for void operations
+ * @brief Specialized result type for void (no-value) operations.
+ *
+ * Uses std::monostate as the success sentinel value so the success
+ * branch carries no meaningful payload. The canonical usage pattern is:
+ * @code
+ *   VoidResult::ok({})               // success
+ *   VoidResult::makeError(code, msg) // failure
+ *   if (result.isOk()) { ... }       // check result
+ * @endcode
+ *
+ * **v2.x migration note**: v1.x used `Result<bool>` with `ok(true)` as
+ * the sentinel. v2.0.0 uses `Result<std::monostate>` to make the
+ * absence of a meaningful value explicit.
  */
-using VoidResult = Result<bool>;
+using VoidResult = Result<std::monostate>;
 
 /**
  * @brief Convert ValidationError to human-readable string
@@ -129,7 +142,7 @@ inline VoidResult validateGaussianParameters(double mean, double stdDev) noexcep
                                      "Standard deviation must be a positive finite number");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -143,7 +156,7 @@ inline VoidResult validateExponentialParameters(double lambda) noexcept {
                                      "Lambda (rate parameter) must be a positive finite number");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -164,7 +177,7 @@ inline VoidResult validateUniformParameters(double a, double b) noexcept {
             "Upper bound (b) must be strictly greater than lower bound (a)");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -195,7 +208,7 @@ inline VoidResult validateDiscreteParameters(int a, int b) noexcept {
                                      "Parameter range exceeds maximum supported size");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -215,7 +228,7 @@ inline VoidResult validatePoissonParameters(double lambda) noexcept {
                                      "Lambda too large for accurate Poisson computation");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -235,7 +248,7 @@ inline VoidResult validateGammaParameters(double alpha, double beta) noexcept {
                                      "Beta (rate parameter) must be a positive finite number");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -253,7 +266,7 @@ inline VoidResult validateLogNormalParameters(double mu, double sigma) noexcept 
         return VoidResult::makeError(ValidationError::InvalidStdDev,
                                      "Sigma (log-stddev) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -271,7 +284,7 @@ inline VoidResult validateParetoParameters(double scale, double alpha) noexcept 
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Alpha (shape) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -289,7 +302,7 @@ inline VoidResult validateWeibullParameters(double shape, double scale) noexcept
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale (λ) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -302,7 +315,7 @@ inline VoidResult validateRayleighParameters(double sigma) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Sigma (σ) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -320,7 +333,7 @@ inline VoidResult validateVonMisesParameters(double mu, double kappa) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Kappa (concentration) must be a non-negative finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -338,7 +351,7 @@ inline VoidResult validateBinomialParameters(int n, double p) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in [0, 1]");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -356,7 +369,51 @@ inline VoidResult validateNegativeBinomialParameters(double r, double p) noexcep
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in (0, 1]");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Beta distribution parameters without throwing exceptions
+ * @param alpha Shape parameter α (must be positive and finite)
+ * @param beta  Shape parameter β (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateBetaParameters(double alpha, double beta) noexcept {
+    if (std::isnan(alpha) || std::isinf(alpha) || alpha <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Alpha (shape1) must be a positive finite number");
+    }
+    if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Beta (shape2) must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Chi-squared distribution parameters without throwing exceptions
+ * @param k Degrees of freedom (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateChiSquaredParameters(double k) noexcept {
+    if (std::isnan(k) || std::isinf(k) || k <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Degrees of freedom k must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Student's t distribution parameters without throwing exceptions
+ * @param nu Degrees of freedom ν (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateStudentTParameters(double nu) noexcept {
+    if (std::isnan(nu) || std::isinf(nu) || nu <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Degrees of freedom nu must be a positive finite number");
+    }
+    return VoidResult::ok({});
 }
 
 }  // namespace stats

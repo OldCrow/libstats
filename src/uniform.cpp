@@ -13,7 +13,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/statistical_constants.h"
-#include "libstats/core/validation.h"
 
 // Platform headers - use forward declarations where available
 #include "libstats/common/cpu_detection_fwd.h"  // Lightweight CPU detection
@@ -231,7 +230,7 @@ VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
@@ -252,7 +251,7 @@ VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
@@ -270,7 +269,7 @@ VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 //==============================================================================

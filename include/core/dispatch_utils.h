@@ -188,7 +188,7 @@ class DispatchUtils {
             case PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
                 return (count <= 8) ? Strategy::SCALAR : Strategy::VECTORIZED;
             case PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                // LP-5: MAXIMIZE_THROUGHPUT routes to WORK_STEALING, not PARALLEL.
+                // MAXIMIZE_THROUGHPUT routes to WORK_STEALING, not PARALLEL.
                 // Work-stealing is better for throughput on irregular workloads;
                 // PARALLEL is adequate for uniform ones. A FORCE_PARALLEL hint
                 // exists for callers that specifically need the thread-pool path.
@@ -218,7 +218,7 @@ class DispatchUtils {
 
             case Strategy::VECTORIZED:
                 // Batch path through VectorOps. For Gaussian this uses SIMD intrinsics;
-                // for other distributions it currently uses scalar loops until Phase 6.
+                // for other distributions it currently uses scalar loops.
                 batch_func(dist, values.data(), results.data(), count);
                 break;
 
@@ -229,7 +229,7 @@ class DispatchUtils {
 
             case Strategy::WORK_STEALING: {
                 // Work-stealing pool for irregular or variable-cost workloads.
-                // LP-9/LP-5: Use the shared GlobalWorkStealingPool singleton instead of
+                // Use the shared GlobalWorkStealingPool singleton instead of
                 // a thread_local WorkStealingPool. The thread_local approach spawned
                 // N * hardware_concurrency threads for N concurrent callers, risking
                 // thread explosion under load. The global singleton amortises thread

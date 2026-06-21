@@ -104,7 +104,6 @@ struct ArchTable {
 // adding 7 new distributions to the profiler. Values are derived from both
 // runs; stability was assessed by comparing V→P crossovers across runs.
 //
-// Key changes vs v1.5.0 Phase 3 baseline (2026-06-14):
 //   - Discrete PDF/LogPDF: 128/100000 -> 250000. Native NEON transcendentals
 //     make VECTORIZED fast enough that GCD overhead doesn't pay until 250k.
 //   - Discrete CDF: 512 -> NEVER. VECTORIZED beats PARALLEL at all sizes.
@@ -187,7 +186,6 @@ constexpr ArchTable kAvx = {
 // in both runs, runs produced contradictory best@500k, or crossovers differed
 // by >10×.
 //
-// Key changes vs v1.5.0 Phase 1+2 baseline (2026-06-14):
 //   - Uniform PDF/LogPDF: 64 -> NEVER. Both runs show blank (VECTORIZED wins).
 //   - Gaussian PDF: 100000 -> 64. Both runs crossover at 8 (clamped to 64).
 //   - Discrete all: 64/64/50000 -> NEVER. PDF/LogPDF blank both runs; CDF
@@ -238,7 +236,6 @@ constexpr ArchTable kAvx2 = {
 // WORK_STEALING at max size is treated as a parallel-strategy win for threshold
 // derivation, but PARALLEL vs WORK_STEALING variation between runs is ignored.
 //
-// Key changes vs v1.5.0 Phase 4 (2026-06-14T20-36-11Z):
 //   - Uniform PDF: 100000 -> NEVER. Runs wildly inconsistent (50k vs 256).
 //   - Uniform LogPDF: 5000 -> 1000. Both runs agree.
 //   - Uniform CDF: 64 -> 256. Runs 256/8; conservative after 64 floor = 256.

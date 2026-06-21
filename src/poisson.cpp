@@ -13,7 +13,6 @@ using stats::detail::validateNonNegativeParameter;
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/safety.h"
-#include "libstats/core/validation.h"
 
 // Platform headers - use forward declarations where available
 #include "libstats/common/cpu_detection_fwd.h"  // Lightweight CPU detection
@@ -213,7 +212,7 @@ VoidResult PoissonDistribution::trySetLambda(double lambda) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult PoissonDistribution::trySetParameters(double lambda) noexcept {
@@ -228,7 +227,7 @@ VoidResult PoissonDistribution::trySetParameters(double lambda) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 inline VoidResult PoissonDistribution::validateCurrentParameters() const noexcept {
