@@ -214,22 +214,24 @@ For new features:
 ### Build Configurations
 
 ```bash
-# Debug build with all checks
-cmake -DCMAKE_BUILD_TYPE=Debug -DLIBSTATS_ENABLE_RUNTIME_CHECKS=ON ..
+# Debug build
+cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Release build with optimizations
 cmake -DCMAKE_BUILD_TYPE=Release ..
 
-# Conservative SIMD (for compatibility testing)
-cmake -DLIBSTATS_CONSERVATIVE_SIMD=ON ..
+# Strict warnings (compile error on warnings)
+cmake -DCMAKE_BUILD_TYPE=Strict ..
 ```
 
 ### Useful CMake Options
 
-- `LIBSTATS_ENABLE_RUNTIME_CHECKS`: Enable additional runtime validation
-- `LIBSTATS_CONSERVATIVE_SIMD`: Use conservative SIMD settings
-- `BUILD_TESTING`: Enable/disable test building
-- `BUILD_EXAMPLES`: Enable/disable example building
+- `LIBSTATS_ENABLE_RUNTIME_CHECKS`: Enable runtime CPU feature checks when cross-compiling
+  (controls SIMD detection only; does not add distribution-level validation)
+- `LIBSTATS_VERBOSE_BUILD`: Enable verbose CMake status messages
+- `LIBSTATS_FORCE_TBB`: Force TBB over GCD even on macOS
+- `LIBSTATS_BUILD_TESTS`: Enable/disable test building
+- `LIBSTATS_BUILD_EXAMPLES`: Enable/disable example building
 
 ### IDE Setup
 
@@ -255,9 +257,8 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **New Distributions**: Weibull (reliability engineering), Rayleigh (signal processing),
-   Von Mises (circular statistics), Binomial, and Negative Binomial are the next planned
-   families — see `PROJECT_CONCEPT.md` for the full discussion
+1. **New Distributions**: v2.1 roadmap includes Cauchy, Laplace, Geometric, Inverse Gamma,
+   KDE (kernel density estimation), and GMM (Gaussian mixture models)
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples

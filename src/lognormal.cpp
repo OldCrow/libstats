@@ -1,8 +1,9 @@
 #include "libstats/distributions/lognormal.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
@@ -90,7 +91,6 @@ LogNormalDistribution::LogNormalDistribution(LogNormalDistribution&& other) noex
 
 LogNormalDistribution& LogNormalDistribution::operator=(LogNormalDistribution&& other) noexcept {
     if (this != &other) {
-
         mu_ = other.mu_;
         sigma_ = other.sigma_;
         logSigma_ = other.logSigma_;
@@ -132,8 +132,9 @@ LogNormalDistribution::LogNormalDistribution(double mu, double sigma,
 //==============================================================================
 
 void LogNormalDistribution::setMu(double mu) {
-    validateParameters(mu, getSigma());
+    // Acquire unique lock before reading sigma_ for validation (NEW-TS-3).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu, sigma_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -142,8 +143,9 @@ void LogNormalDistribution::setMu(double mu) {
 }
 
 void LogNormalDistribution::setSigma(double sigma) {
-    validateParameters(getMu(), sigma);
+    // Acquire unique lock before reading mu_ for validation (NEW-TS-3).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu_, sigma);
     sigma_ = sigma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -225,10 +227,11 @@ double LogNormalDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 VoidResult LogNormalDistribution::trySetMu(double mu) noexcept {
-    auto v = validateLogNormalParameters(mu, getSigma());
+    // Acquire unique lock before reading sigma_ for validation (NEW-TS-3).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateLogNormalParameters(mu, sigma_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -238,10 +241,11 @@ VoidResult LogNormalDistribution::trySetMu(double mu) noexcept {
 }
 
 VoidResult LogNormalDistribution::trySetSigma(double sigma) noexcept {
-    auto v = validateLogNormalParameters(getMu(), sigma);
+    // Acquire unique lock before reading mu_ for validation (NEW-TS-3).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateLogNormalParameters(mu_, sigma);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     sigma_ = sigma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -409,15 +413,13 @@ void LogNormalDistribution::fit(const std::vector<double>& values) {
         ++count;
         const double delta = lv - running_mean;
         running_mean += delta / static_cast<double>(count);
-        running_m2   += delta * (lv - running_mean);
+        running_m2 += delta * (lv - running_mean);
     }
     // Sample standard deviation (n-1), matching GaussianDistribution::fit()
-    const double sigma_hat = (n > 1)
-        ? std::sqrt(running_m2 / static_cast<double>(n - 1))
-        : detail::MIN_STD_DEV;
+    const double sigma_hat =
+        (n > 1) ? std::sqrt(running_m2 / static_cast<double>(n - 1)) : detail::MIN_STD_DEV;
 
-    setParameters(running_mean,
-                  sigma_hat > detail::ZERO_DOUBLE ? sigma_hat : detail::MIN_STD_DEV);
+    setParameters(running_mean, sigma_hat > detail::ZERO_DOUBLE ? sigma_hat : detail::MIN_STD_DEV);
 }
 
 void LogNormalDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
@@ -540,18 +542,15 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             lock.unlock();
 
             if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(
-                    std::size_t{0}, count,
-                    [&](std::size_t i) {
-                        const double x = vals[i];
-                        if (x <= detail::ZERO_DOUBLE) {
-                            res[i] = detail::ZERO_DOUBLE;
-                        } else {
-                            const double z = std::log(x) - mu;
-                            res[i] =
-                                std::exp(neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const);
-                        }
-                    });
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    const double x = vals[i];
+                    if (x <= detail::ZERO_DOUBLE) {
+                        res[i] = detail::ZERO_DOUBLE;
+                    } else {
+                        const double z = std::log(x) - mu;
+                        res[i] = std::exp(neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const);
+                    }
+                });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];

@@ -1,8 +1,9 @@
 #include "libstats/distributions/uniform.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/core/math_constants.h"
 #include "libstats/core/parallel_batch_fit.h"
@@ -73,7 +74,6 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
 
 UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other) noexcept {
     if (this != &other) {
-
         a_ = other.a_;
         b_ = other.b_;
         other.a_ = detail::ZERO_DOUBLE;
@@ -494,6 +494,7 @@ void UniformDistribution::reset() noexcept {
     b_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 std::string UniformDistribution::toString() const {

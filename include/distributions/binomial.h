@@ -34,8 +34,12 @@ namespace stats {
  *
  * @par MLE:
  * Given fixed n: p̂ = k̄/n (one-pass, closed-form).
- * When n is unknown: n is estimated as max(observed k) — the smallest n consistent
- * with all observations (following libhmm's EM-compatible approach).
+ * When n is unknown, two paths are tried in order:
+ * 1. Method of moments: n̂ = round(k̄² / (k̄ − s²)) when the data appears underdispersed
+ *    (sample variance < sample mean).
+ * 2. Fallback: n̂ = max(round(kᵢ)) — the smallest n consistent with all observations.
+ *    **Warning:** this fallback estimator is biased downward and can be severely
+ *    inaccurate for large n with limited data; treat it as a lower bound only.
  *
  * @author libstats Development Team
  * @version 2.0.0
@@ -211,8 +215,12 @@ class BinomialDistribution : public DistributionBase {
     /**
      * @brief Fit n and p by MLE.
      *
-     * n̂ = max(round(xᵢ)) — smallest n consistent with all observations.
-     * p̂ = k̄/n̂  (exact MLE for p given n).
+     * p is always estimated as k̄/n̂ (exact MLE for p given n).
+     * n is estimated by method of moments when the data is underdispersed
+     * (sample variance < sample mean), otherwise falls back to max(round(xᵢ)).
+     *
+     * @warning The max(obs) fallback for n is biased downward and should be
+     *          treated as a lower bound, not a reliable point estimate.
      *
      * @param values Non-negative integer observations
      * @throws std::invalid_argument if values is empty
@@ -236,7 +244,13 @@ class BinomialDistribution : public DistributionBase {
     /** @brief Mode = floor((n+1)·p) — with tie-breaking for exact integers. */
     [[nodiscard]] double getMode() const noexcept;
 
-    /** @brief Entropy (bits) ≈ ½ log₂(2πe·n·p·(1−p)) for large n. */
+    /**
+     * @brief Entropy in nats.
+     *
+     * Uses exact PMF summation for n ≤ 1000; falls back to the Stirling
+     * approximation ½ log(2πe·n·p·(1−p)) for larger n.
+     * All paths use std::log (nats), not std::log2 (bits).
+     */
     [[nodiscard]] double getEntropy() const noexcept override;
 
     //==========================================================================

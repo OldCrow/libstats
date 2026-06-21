@@ -155,20 +155,20 @@
 
     // Distribution implementations
     #include "distributions/beta.h"
+    #include "distributions/binomial.h"
     #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
     #include "distributions/exponential.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/lognormal.h"
+    #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
     #include "distributions/poisson.h"
     #include "distributions/rayleigh.h"
     #include "distributions/student_t.h"
     #include "distributions/uniform.h"
     #include "distributions/von_mises.h"
-    #include "distributions/binomial.h"
-    #include "distributions/negative_binomial.h"
     #include "distributions/weibull.h"
 
 // Type aliases — inside the guard because they reference types only defined
@@ -195,13 +195,11 @@ using NegativeBinomial = NegativeBinomialDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 
-// Version constants and initialization — available in both lightweight and
-// full-interface modes; do not require complete distribution types.
+// Version constants — generated from CMakeLists.txt project() declaration so
+// they always match the CMake version (NEW-BS-1). libstats_version.h is
+// produced by configure_file() into the build include shim directory.
+#include "libstats_version.h"  // LIBSTATS_VERSION_MAJOR/MINOR/PATCH, VERSION_STRING
 namespace stats {
-constexpr int LIBSTATS_VERSION_MAJOR = 2;
-constexpr int LIBSTATS_VERSION_MINOR = 0;
-constexpr int LIBSTATS_VERSION_PATCH = 0;
-constexpr const char* VERSION_STRING = "2.0.0";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays

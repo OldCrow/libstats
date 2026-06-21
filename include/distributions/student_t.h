@@ -383,11 +383,6 @@ class StudentTDistribution : public DistributionBase {
         }
     }
 
-    // Delegate to the free function in error_handling.h (5C, v2.0.0).
-    [[nodiscard]] static VoidResult validateStudentTParameters(double nu) noexcept {
-        return ::stats::validateStudentTParameters(nu);
-    }
-
     //==========================================================================
     // 23. DISTRIBUTION PARAMETERS
     //==========================================================================

@@ -114,7 +114,25 @@ TEST(GaussianAnalysis, JarqueBeraThrowsOnTooFew) {
     EXPECT_THROW(stats::analysis::gaussian::jarqueBeraTest(small), std::invalid_argument);
 }
 
-// ── Confidence intervals ──────────────────────────────────────────────────────
+TEST(GaussianAnalysis, JarqueBeraRejectsHeavyTailKurtosis) {
+    // Regression test for NEW-MC-1: kurtosis denominator must be 24, not 225.
+    //
+    // Deterministic construction: 160 zeros + 20 values at +1 + 20 at -1.
+    //   mean = 0, skewness = 0, excess kurtosis = exactly 2.
+    //   JB_correct (denom=24):  200*(0 + 4/24 ) ≈ 33   → p ≈ 0    → reject
+    //   JB_buggy   (denom=225): 200*(0 + 4/225) ≈ 3.6  → p ≈ 0.17 → no reject
+    std::vector<double> data(200, 0.0);
+    for (int i = 0; i < 20; ++i) {
+        data[i] = 1.0;
+        data[i + 20] = -1.0;
+    }
+
+    auto [jb, p, reject] = stats::analysis::gaussian::jarqueBeraTest(data);
+    EXPECT_TRUE(reject) << "JB must reject high-kurtosis data; denominator must be 24, not 225";
+    EXPECT_GT(jb, 10.0) << "JB statistic must reflect the kurtosis contribution";
+}
+
+// ── Confidence intervals ───────────────────────────────────────────────────────────────────
 
 TEST(GaussianAnalysis, ConfidenceIntervalMeanOrdered) {
     auto data = normalSample(100, 5.0, 2.0, 11);

@@ -1,8 +1,9 @@
 #include "libstats/distributions/gaussian.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
 #include "libstats/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
@@ -84,7 +85,6 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other) noexcep
 
 GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) noexcept {
     if (this != &other) {
-
         mean_ = other.mean_;
         standardDeviation_ = other.standardDeviation_;
         other.mean_ = detail::ZERO_DOUBLE;
@@ -110,40 +110,23 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
 //==============================================================================
 
 void GaussianDistribution::setMean(double mean) {
-    // Copy current standard deviation for validation (thread-safe)
-    double currentStdDev;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentStdDev = standardDeviation_;
-    }
-
-    validateParameters(mean, currentStdDev);
-
+    // Acquire unique lock before reading standardDeviation_ for validation so
+    // the read and write are in the same critical section (NEW-TS-3).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mean, standardDeviation_);
     mean_ = mean;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
-
-    // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 void GaussianDistribution::setStandardDeviation(double stdDev) {
-    // Copy current mean for validation (thread-safe)
-    double currentMean;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentMean = mean_;
-    }
-
-    validateParameters(currentMean, stdDev);
-
+    // Acquire unique lock before reading mean_ for validation (NEW-TS-3).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mean_, stdDev);
     standardDeviation_ = stdDev;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
-
-    // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
@@ -166,50 +149,30 @@ void GaussianDistribution::setParameters(double mean, double standardDeviation) 
 //==============================================================================
 
 VoidResult GaussianDistribution::trySetMean(double mean) noexcept {
-    // Copy current standard deviation for validation (thread-safe)
-    double currentStdDev;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentStdDev = standardDeviation_;
-    }
-
-    auto validation = validateGaussianParameters(mean, currentStdDev);
+    // Acquire unique lock before reading standardDeviation_ for validation (NEW-TS-3).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateGaussianParameters(mean, standardDeviation_);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mean_ = mean;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
-
-    // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
-
     return VoidResult::ok({});
 }
 
 VoidResult GaussianDistribution::trySetStandardDeviation(double stdDev) noexcept {
-    // Copy current mean for validation (thread-safe)
-    double currentMean;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentMean = mean_;
-    }
-
-    auto validation = validateGaussianParameters(currentMean, stdDev);
+    // Acquire unique lock before reading mean_ for validation (NEW-TS-3).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateGaussianParameters(mean_, stdDev);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     standardDeviation_ = stdDev;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
-
-    // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
-
     return VoidResult::ok({});
 }
 
@@ -626,6 +589,7 @@ void GaussianDistribution::reset() noexcept {
     standardDeviation_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 std::string GaussianDistribution::toString() const {

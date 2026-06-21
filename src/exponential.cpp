@@ -1,8 +1,9 @@
 #include "libstats/distributions/exponential.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "libstats/core/log_space_ops.h"
@@ -70,9 +71,9 @@ ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other
     // Cache will be updated on first use
 }
 
-ExponentialDistribution& ExponentialDistribution::operator=(ExponentialDistribution&& other) noexcept {
+ExponentialDistribution& ExponentialDistribution::operator=(
+    ExponentialDistribution&& other) noexcept {
     if (this != &other) {
-
         lambda_ = other.lambda_;
         other.lambda_ = detail::ONE;
 
@@ -404,6 +405,7 @@ void ExponentialDistribution::reset() noexcept {
     lambda_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 std::string ExponentialDistribution::toString() const {
@@ -416,7 +418,6 @@ std::string ExponentialDistribution::toString() const {
 //==============================================================================
 // 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
-
 
 //==============================================================================
 // 8. GOODNESS-OF-FIT TESTS
@@ -514,8 +515,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getProbability(value);
         },
@@ -642,8 +642,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                                                 std::span<double> results,
                                                 const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -771,8 +770,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                                                        std::span<double> results,
                                                        const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },

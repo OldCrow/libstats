@@ -8,7 +8,6 @@ endif()
 # Verbose messaging control
 option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 
-
 # Threading system preference control
 option(LIBSTATS_FORCE_TBB
        "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)" OFF)
@@ -48,10 +47,11 @@ if(LIBSTATS_VERBOSE_BUILD)
     message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
 endif()
 
-
 # Enforce Ventura minimum on macOS — prevents accidental use of pre-13 APIs.
 if(APPLE)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "Minimum macOS deployment target")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET
+        "13.0"
+        CACHE STRING "Minimum macOS deployment target")
 endif()
 
 project(
@@ -93,21 +93,14 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         Dev
         CACHE STRING "Choose the type of build." FORCE)
     # Set the possible values of build type for cmake-gui
-    set_property(
-        CACHE CMAKE_BUILD_TYPE
-        PROPERTY STRINGS
-                 "Debug"
-                 "Release"
-                 "RelWithDebInfo"
-                 "Dev"
-                 "Strict")
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "Dev"
+                                                 "Strict")
 endif()
 
 # C++20 requirement
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 
 # C++20 <concepts> and <ranges> are available on all v2.0.0 baseline compilers.
 
@@ -118,17 +111,17 @@ check_cxx_source_compiles("#include <cmath>
 int main() { (void)std::cyl_bessel_i(0.0, 1.0); return 0; }" LIBSTATS_HAS_CXX17_BESSEL)
 if(LIBSTATS_HAS_CXX17_BESSEL)
     message(STATUS "std::cyl_bessel_i (C++17 special functions): available")
-    # LP-4: defer scoping to the SIMD interface target (applied below after target creation).
-    # Do NOT use add_compile_definitions here — that would be global.
+    # LP-4: defer scoping to the SIMD interface target (applied below after target creation). Do NOT
+    # use add_compile_definitions here — that would be global.
 else()
     message(STATUS "std::cyl_bessel_i: unavailable -- Bessel A&S fallback active")
 endif()
 
 # Platform-specific configurations
 # =============================================================================
-# 2B: -stdlib=libc++ — AppleClang 15 defaults to libc++ on Ventura 13+.
-#     Use add_compile_options/add_link_options instead of CMAKE_CXX_FLAGS mutation
-#     so the flag is a proper list entry rather than a string accumulation.
+# 2B: -stdlib=libc++ — AppleClang 15 defaults to libc++ on Ventura 13+. Use
+# add_compile_options/add_link_options instead of CMAKE_CXX_FLAGS mutation so the flag is a proper
+# list entry rather than a string accumulation.
 if(APPLE)
     add_compile_options(-stdlib=libc++)
     add_link_options(-stdlib=libc++)
@@ -145,8 +138,8 @@ elseif(WIN32)
 endif()
 
 # =============================================================================
-# 2A: Unified threading system detection — one function, platform guards inside.
-#     Replaces the three separate detect_threading_systems_*() functions.
+# 2A: Unified threading system detection — one function, platform guards inside. Replaces the three
+# separate detect_threading_systems_*() functions.
 # =============================================================================
 function(detect_threading_systems)
     if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
@@ -161,10 +154,14 @@ function(detect_threading_systems)
     # ── OpenMP (all platforms) ──────────────────────────────────────────────
     find_package(OpenMP QUIET)
     if(OpenMP_CXX_FOUND)
-        set(LIBSTATS_HAS_OPENMP TRUE CACHE BOOL "OpenMP available")
+        set(LIBSTATS_HAS_OPENMP
+            TRUE
+            CACHE BOOL "OpenMP available")
         message(STATUS "  ✓ OpenMP found")
     else()
-        set(LIBSTATS_HAS_OPENMP FALSE CACHE BOOL "OpenMP not available")
+        set(LIBSTATS_HAS_OPENMP
+            FALSE
+            CACHE BOOL "OpenMP not available")
         message(STATUS "  ✗ OpenMP not found")
     endif()
 
@@ -176,48 +173,81 @@ function(detect_threading_systems)
             find_package(Threads QUIET)
         endif()
         if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
-            set(LIBSTATS_HAS_PTHREADS TRUE CACHE BOOL "POSIX threads available")
+            set(LIBSTATS_HAS_PTHREADS
+                TRUE
+                CACHE BOOL "POSIX threads available")
             message(STATUS "  ✓ POSIX threads found")
         else()
-            set(LIBSTATS_HAS_PTHREADS FALSE CACHE BOOL "POSIX threads not available")
+            set(LIBSTATS_HAS_PTHREADS
+                FALSE
+                CACHE BOOL "POSIX threads not available")
             message(STATUS "  ✗ POSIX threads not found")
         endif()
     else()
-        set(LIBSTATS_HAS_PTHREADS FALSE CACHE BOOL "POSIX threads not natively available on Windows")
+        set(LIBSTATS_HAS_PTHREADS
+            FALSE
+            CACHE BOOL "POSIX threads not natively available on Windows")
     endif()
 
     # ── Grand Central Dispatch (macOS only) ────────────────────────────────
     if(APPLE)
-        set(LIBSTATS_HAS_GCD TRUE CACHE BOOL "Grand Central Dispatch available")
+        set(LIBSTATS_HAS_GCD
+            TRUE
+            CACHE BOOL "Grand Central Dispatch available")
         message(STATUS "  ✓ Grand Central Dispatch (GCD) available")
-        set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool not available")
-        set(LIBSTATS_HAS_WIN32_THREADS  FALSE CACHE BOOL "Win32 threads not applicable on macOS")
+        set(LIBSTATS_HAS_WIN_THREADPOOL
+            FALSE
+            CACHE BOOL "Windows Thread Pool not available")
+        set(LIBSTATS_HAS_WIN32_THREADS
+            FALSE
+            CACHE BOOL "Win32 threads not applicable on macOS")
     elseif(WIN32)
         # ── Win32 threads and Thread Pool API (Windows) ────────────────────
-        set(LIBSTATS_HAS_GCD FALSE CACHE BOOL "GCD not available on Windows")
-        set(LIBSTATS_HAS_WIN32_THREADS TRUE CACHE BOOL "Win32 threads available")
+        set(LIBSTATS_HAS_GCD
+            FALSE
+            CACHE BOOL "GCD not available on Windows")
+        set(LIBSTATS_HAS_WIN32_THREADS
+            TRUE
+            CACHE BOOL "Win32 threads available")
         message(STATUS "  ✓ Win32 threads available")
         # Thread Pool API: available on Windows Vista+ (all modern Windows targets)
         if(DEFINED CMAKE_SYSTEM_VERSION AND CMAKE_SYSTEM_VERSION VERSION_GREATER_EQUAL "6.0")
-            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API available")
+            set(LIBSTATS_HAS_WIN_THREADPOOL
+                TRUE
+                CACHE BOOL "Windows Thread Pool API available")
             message(STATUS "  ✓ Windows Thread Pool API available")
         elseif(DEFINED _WIN32_WINNT AND _WIN32_WINNT GREATER_EQUAL 0x0600)
-            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API available")
+            set(LIBSTATS_HAS_WIN_THREADPOOL
+                TRUE
+                CACHE BOOL "Windows Thread Pool API available")
             message(STATUS "  ✓ Windows Thread Pool API available (_WIN32_WINNT >= 0x0600)")
         else()
-            set(LIBSTATS_HAS_WIN_THREADPOOL TRUE CACHE BOOL "Windows Thread Pool API likely available")
+            set(LIBSTATS_HAS_WIN_THREADPOOL
+                TRUE
+                CACHE BOOL "Windows Thread Pool API likely available")
             message(STATUS "  ~ Windows Thread Pool API — assuming Vista+ (modern Windows)")
         endif()
         # TBB detection for Windows is handled by detect_tbb_unified() below
     else()
         # ── Linux ──────────────────────────────────────────────────────────
-        set(LIBSTATS_HAS_GCD FALSE CACHE BOOL "GCD not available on Linux")
-        set(LIBSTATS_HAS_WIN_THREADPOOL FALSE CACHE BOOL "Windows Thread Pool not available")
-        set(LIBSTATS_HAS_WIN32_THREADS  FALSE CACHE BOOL "Win32 threads not available")
+        set(LIBSTATS_HAS_GCD
+            FALSE
+            CACHE BOOL "GCD not available on Linux")
+        set(LIBSTATS_HAS_WIN_THREADPOOL
+            FALSE
+            CACHE BOOL "Windows Thread Pool not available")
+        set(LIBSTATS_HAS_WIN32_THREADS
+            FALSE
+            CACHE BOOL "Win32 threads not available")
     endif()
 
-    set(LIBSTATS_THREADING_DETECTION_COMPLETE TRUE CACHE BOOL "Threading detection complete")
-    message(STATUS "Threading: OpenMP=${LIBSTATS_HAS_OPENMP} Pthreads=${LIBSTATS_HAS_PTHREADS} GCD=${LIBSTATS_HAS_GCD}")
+    set(LIBSTATS_THREADING_DETECTION_COMPLETE
+        TRUE
+        CACHE BOOL "Threading detection complete")
+    message(
+        STATUS
+            "Threading: OpenMP=${LIBSTATS_HAS_OPENMP} Pthreads=${LIBSTATS_HAS_PTHREADS} GCD=${LIBSTATS_HAS_GCD}"
+    )
 endfunction()
 
 detect_threading_systems()
@@ -258,12 +288,18 @@ function(detect_tbb_unified)
         find_package(PkgConfig QUIET)
         if(PkgConfig_FOUND)
             pkg_check_modules(TBB QUIET tbb)
-        if(TBB_FOUND)
+            if(TBB_FOUND)
                 # LP-2: propagate to parent scope; target_include_directories added after targets.
-                set(LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL "${TBB_INCLUDE_DIRS}" PARENT_SCOPE)
-                set(LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL "${TBB_LIBRARY_DIRS}" PARENT_SCOPE)
-                set(CMAKE_CXX_FLAGS
-                    "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
+                set(LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL
+                    "${TBB_INCLUDE_DIRS}"
+                    PARENT_SCOPE)
+                set(LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
+                    "${TBB_LIBRARY_DIRS}"
+                    PARENT_SCOPE)
+                # BS-4: accumulate TBB compile flags in a scoped variable instead of mutating the
+                # global CMAKE_CXX_FLAGS string.
+                set(LIBSTATS_TBB_CFLAGS_INTERNAL
+                    "${TBB_CFLAGS_OTHER}"
                     PARENT_SCOPE)
                 set(LIBSTATS_HAS_TBB TRUE)
                 if(LIBSTATS_VERBOSE_BUILD)
@@ -730,8 +766,7 @@ set(LIBSTATS_INFRASTRUCTURE_SOURCES
 )
 
 # Level 4: Distribution Framework (Depends on Level 0-3)
-set(LIBSTATS_FRAMEWORK_SOURCES
-    src/distribution_base.cpp # Complete distribution base framework
+set(LIBSTATS_FRAMEWORK_SOURCES src/distribution_base.cpp # Complete distribution base framework
 )
 
 # Level 5: Distribution Implementations (Depends on Level 0-4)
@@ -753,11 +788,11 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/binomial.cpp # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
-    src/gaussian_analysis.cpp       # Gaussian-specific analysis
-    src/poisson_analysis.cpp       # Poisson-specific analysis
-    src/exponential_analysis.cpp   # Exponential-specific analysis
-    src/gamma_analysis.cpp         # Gamma-specific analysis
-    src/binomial_analysis.cpp      # Binomial-specific analysis
+    src/gaussian_analysis.cpp # Gaussian-specific analysis
+    src/poisson_analysis.cpp # Poisson-specific analysis
+    src/exponential_analysis.cpp # Exponential-specific analysis
+    src/gamma_analysis.cpp # Gamma-specific analysis
+    src/binomial_analysis.cpp # Binomial-specific analysis
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -766,51 +801,52 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
 # =============================================================================
 # INCLUDE PATH SHIM FOR INSTALLED HEADER PREFIX
 # =============================================================================
-# Headers use #include "libstats/core/foo.h" so the include path is identical
-# in the build tree and the install tree (where headers land in include/libstats/).
+# Headers use #include "libstats/core/foo.h" so the include path is identical in the build tree and
+# the install tree (where headers land in include/libstats/).
 #
-# Implementation strategy (platform-guarded):
-#   macOS/Linux — a single directory symlink:
-#       build/include_shim/libstats → <src>/include
-#     Any edit to a header is immediately visible to the compiler; zero copy
-#     overhead per build. Re-running cmake is not required after header edits.
+# Implementation strategy (platform-guarded): macOS/Linux — a single directory symlink:
+# build/include_shim/libstats → <src>/include Any edit to a header is immediately visible to the
+# compiler; zero copy overhead per build. Re-running cmake is not required after header edits.
 #
-#   Windows — a flat copy (symlinks require Developer Mode or elevated
-#     privileges and can trigger "untrusted mount point" errors):
-#       copy_directory at configure time, refreshed by an ALL custom target
-#       so mid-session header edits are picked up on the next cmake --build.
+# Windows — a flat copy (symlinks require Developer Mode or elevated privileges and can trigger
+# "untrusted mount point" errors): copy_directory at configure time, refreshed by an ALL custom
+# target so mid-session header edits are picked up on the next cmake --build.
 #
-# Long-term: the canonical fix is to restructure include/ to include/libstats/
-# so the source tree mirrors the install tree and no shim is needed at all.
-# Tracked as a post-v2.0 task.
+# Long-term: the canonical fix is to restructure include/ to include/libstats/ so the source tree
+# mirrors the install tree and no shim is needed at all. Tracked as a post-v2.0 task.
 set(LIBSTATS_INCLUDE_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/include_shim")
 set(LIBSTATS_INCLUDE_SHIM_LINK "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats")
 file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
 file(REMOVE_RECURSE "${LIBSTATS_INCLUDE_SHIM_LINK}")
 if(WIN32)
     execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}"
-        RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                "${LIBSTATS_INCLUDE_SHIM_LINK}" RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
     if(NOT LIBSTATS_INCLUDE_SHIM_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to materialise include shim at ${LIBSTATS_INCLUDE_SHIM_LINK}")
     endif()
-    # Re-copy on every build so mid-session header edits are picked up without
-    # requiring a cmake re-run. cmake -E copy_directory is timestamp-aware.
-    add_custom_target(libstats_refresh_shim ALL
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}"
+    # Re-copy on every build so mid-session header edits are picked up without requiring a cmake
+    # re-run. cmake -E copy_directory is timestamp-aware.
+    add_custom_target(
+        libstats_refresh_shim ALL
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                "${LIBSTATS_INCLUDE_SHIM_LINK}"
         COMMENT "Refreshing include shim"
         VERBATIM)
 else()
     execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E create_symlink
-                "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}"
-        RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
+        COMMAND "${CMAKE_COMMAND}" -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                "${LIBSTATS_INCLUDE_SHIM_LINK}" RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
     if(NOT LIBSTATS_INCLUDE_SHIM_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to create include shim symlink at ${LIBSTATS_INCLUDE_SHIM_LINK}")
+        message(
+            FATAL_ERROR "Failed to create include shim symlink at ${LIBSTATS_INCLUDE_SHIM_LINK}")
     endif()
 endif()
+
+# NEW-BS-1: Generate version header from CMake project() metadata so the runtime constants always
+# match the version in CMakeLists.txt.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
+               "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats_version.h" @ONLY)
 
 # =============================================================================
 # CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
@@ -885,9 +921,9 @@ add_library(libstats_static STATIC ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
     libstats_static PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
                            $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
-# LP-13: VERSION/SOVERSION are meaningful only for shared libraries (they affect
-# dylib naming and .so symlinks). Setting them on a static library is a no-op
-# that CMake silently ignores, but it is misleading. Keep only OUTPUT_NAME.
+# LP-13: VERSION/SOVERSION are meaningful only for shared libraries (they affect dylib naming and
+# .so symlinks). Setting them on a static library is a no-op that CMake silently ignores, but it is
+# misleading. Keep only OUTPUT_NAME.
 if(WIN32)
     set_target_properties(libstats_static PROPERTIES OUTPUT_NAME stats_static)
 else()
@@ -930,9 +966,8 @@ endif()
 # Create SIMD interface target for modern CMake approach
 create_simd_interface_target()
 
-# LP-4: scope LIBSTATS_HAS_CXX17_BESSEL to the SIMD interface target so it
-# propagates to all consumers via configure_simd_target() rather than being
-# a global definition.
+# LP-4: scope LIBSTATS_HAS_CXX17_BESSEL to the SIMD interface target so it propagates to all
+# consumers via configure_simd_target() rather than being a global definition.
 if(LIBSTATS_HAS_CXX17_BESSEL)
     target_compile_definitions(libstats_simd_interface INTERFACE LIBSTATS_HAS_CXX17_BESSEL)
 endif()
@@ -960,17 +995,23 @@ if(TARGET Threads::Threads)
     target_link_libraries(libstats_shared PUBLIC Threads::Threads)
 endif()
 
-# Platform-specific library linking: rpath and signing are handled per-target above.
-# -stdlib=libc++ is set via add_compile_options/add_link_options in the platform block.
+# Platform-specific library linking: rpath and signing are handled per-target above. -stdlib=libc++
+# is set via add_compile_options/add_link_options in the platform block.
 
-# LP-2: target-scope TBB includes/link-dirs when found via pkg-config (global
-# include_directories/link_directories calls inside functions removed).
+# LP-2 / BS-4: target-scope TBB includes, link-dirs, and compile flags.
 if(LIBSTATS_HAS_TBB AND DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
     target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
     target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
-    if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL "")
+    if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}"
+                                                      STREQUAL "")
         target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
         target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+    endif()
+    # BS-4: apply any pkg-config compile flags (e.g. -DTBB_USE_GCC_BUILTINS) to the library targets
+    # only, not globally via CMAKE_CXX_FLAGS.
+    if(DEFINED LIBSTATS_TBB_CFLAGS_INTERNAL AND NOT "${LIBSTATS_TBB_CFLAGS_INTERNAL}" STREQUAL "")
+        target_compile_options(libstats_static PRIVATE ${LIBSTATS_TBB_CFLAGS_INTERNAL})
+        target_compile_options(libstats_shared PRIVATE ${LIBSTATS_TBB_CFLAGS_INTERNAL})
     endif()
 endif()
 
@@ -1342,7 +1383,6 @@ if(LIBSTATS_BUILD_TESTS)
 
     # test_new_constants removed - functionality is covered by test_constants --platform --simd
 
-
     # Dynamic library linking tests
     create_libstats_test_dynamic(test_dynamic_linking tests/test_dynamic_linking.cpp)
 
@@ -1384,9 +1424,8 @@ if(LIBSTATS_BUILD_TESTS)
             test_performance_dispatcher
             test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
             PROPERTIES LABELS "timing")
-        set_tests_properties(
-            test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
-            test_discrete_enhanced test_gamma_enhanced PROPERTIES LABELS "timing")
+        set_tests_properties(test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
+                             test_discrete_enhanced test_gamma_enhanced PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 

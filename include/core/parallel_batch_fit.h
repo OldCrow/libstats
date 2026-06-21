@@ -15,6 +15,7 @@
  */
 
 #include "libstats/core/dispatch_thresholds.h"
+#include "libstats/core/distribution_concepts.h"
 #include "libstats/platform/thread_pool.h"
 
 #include <atomic>
@@ -34,12 +35,16 @@ namespace detail {
  * global ThreadPool with full error recording and a serial fallback on pool
  * failure. For smaller counts: runs serially with per-dataset error wrapping.
  *
- * @tparam DistT  Distribution type with a fit(const std::vector<double>&) method.
+ * @tparam DistT  Distribution type satisfying concepts::FittableDistribution.
  * @param datasets Input: one dataset per distribution fit.
  * @param results  In/out: resized to datasets.size() if needed; each element
  *                 receives the parameters fitted to the corresponding dataset.
+ *
+ * @note Serial fallback is attempted only when the thread pool cannot be
+ *       acquired or tasks cannot be submitted. Task-level fit errors are
+ *       reported immediately without re-running successful fits.
  */
-template <typename DistT>
+template <concepts::FittableDistribution DistT>
 void batchFitParallel(const std::vector<std::vector<double>>& datasets,
                       std::vector<DistT>& results) {
     if (datasets.empty()) {
@@ -57,6 +62,12 @@ void batchFitParallel(const std::vector<std::vector<double>>& datasets,
         // across concurrent callers without blocking unrelated distribution types.
         static std::mutex pool_access_mutex;
 
+        // Declared outside the try block so the catch can inspect them (NEW-AR-2).
+        std::atomic<bool> has_error{false};
+        std::mutex error_mutex;
+        std::string error_message;
+        bool tasks_submitted = false;
+
         try {
             ThreadPool* pool_ptr = nullptr;
             {
@@ -69,10 +80,6 @@ void batchFitParallel(const std::vector<std::vector<double>>& datasets,
 
             std::vector<std::future<void>> futures;
             futures.reserve(num_chunks);
-
-            std::atomic<bool> has_error{false};
-            std::mutex error_mutex;
-            std::string error_message;
 
             for (std::size_t i = 0; i < num_datasets; i += grain_size) {
                 const std::size_t chunk_start = i;
@@ -103,6 +110,7 @@ void batchFitParallel(const std::vector<std::vector<double>>& datasets,
                     }
                 }));
             }
+            tasks_submitted = true;
 
             bool all_completed = true;
             for (auto& f : futures) {
@@ -128,14 +136,21 @@ void batchFitParallel(const std::vector<std::vector<double>>& datasets,
             }
 
         } catch (const std::exception& e) {
-            // Pool setup or execution failed: serial fallback with wrapping.
+            // If tasks were already submitted, the fits ran (some may have
+            // written results, others failed). Do not silently re-run the
+            // whole batch: propagate the error as-is (NEW-AR-2).
+            if (tasks_submitted) {
+                throw;
+            }
+            // Pool acquisition or submission failed before any task ran;
+            // fall back to a serial pass with per-dataset error wrapping.
             for (std::size_t i = 0; i < num_datasets; ++i) {
                 try {
                     results[i].fit(datasets[i]);
                 } catch (const std::exception& fit_error) {
                     throw std::runtime_error("Serial fallback failed for dataset " +
                                              std::to_string(i) + ": " + fit_error.what() +
-                                             " (original parallel error: " + e.what() + ")");
+                                             " (pool setup error: " + e.what() + ")");
                 }
             }
         }

@@ -4,7 +4,7 @@ This guide covers every breaking change in v2.0.0 and how to update existing cod
 
 ## Namespace
 
-**v1.x:** `libstats::` was the primary namespace.  
+**v1.x:** `libstats::` was the primary namespace.
 **v2.0.0:** `stats::` is the primary namespace. `libstats::` is retained as an alias
 (`namespace libstats = stats;`) for source compatibility, but all new code should use `stats::`.
 
@@ -164,7 +164,7 @@ dist.getProbabilitiesWithStrategy(xs, ys, SIMD_STRATEGY);
 dist.getProbability(std::span<const double>(xs), std::span<double>(ys));
 // or with an explicit hint:
 detail::PerformanceHint hint;
-hint.strategy = detail::ExecutionStrategy::SIMD;
+hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
 dist.getProbability(std::span<const double>(xs), std::span<double>(ys), hint);
 ```
 

@@ -18,15 +18,15 @@
  *   → stats::analysis::chiSquaredGoodnessOfFit(data, dist, alpha)
  */
 
+#include "libstats/core/distribution_concepts.h"
+#include "libstats/core/math_utils.h"  // detail::calculate_ks_statistic, calculate_ad_statistic
+#include "libstats/core/statistical_constants.h"
+
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <tuple>
 #include <vector>
-
-#include "libstats/core/distribution_concepts.h"
-#include "libstats/core/math_utils.h"         // detail::calculate_ks_statistic, calculate_ad_statistic
-#include "libstats/core/statistical_constants.h"
 
 namespace stats::analysis {
 
@@ -47,10 +47,8 @@ namespace stats::analysis {
  * p-value uses the asymptotic Kolmogorov approximation: 2·exp(−2·n·D²).
  */
 template <concepts::ContinuousDistribution D>
-[[nodiscard]] std::tuple<double, double, bool>
-kolmogorovSmirnovTest(const std::vector<double>& data,
-                      const D& dist,
-                      double alpha = 0.05) {
+[[nodiscard]] std::tuple<double, double, bool> kolmogorovSmirnovTest(
+    const std::vector<double>& data, const D& dist, double alpha = 0.05) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (alpha <= 0.0 || alpha >= 1.0)
@@ -61,8 +59,8 @@ kolmogorovSmirnovTest(const std::vector<double>& data,
 
     const double n = static_cast<double>(data.size());
     // Asymptotic Kolmogorov approximation (distribution-agnostic)
-    const double p_value = std::min(1.0, std::max(0.0,
-        2.0 * std::exp(-2.0 * n * ks_stat * ks_stat)));
+    const double p_value =
+        std::min(1.0, std::max(0.0, 2.0 * std::exp(-2.0 * n * ks_stat * ks_stat)));
 
     return {ks_stat, p_value, p_value < alpha};
 }
@@ -91,10 +89,9 @@ kolmogorovSmirnovTest(const std::vector<double>& data,
  * approximation in earlier versions.
  */
 template <concepts::ContinuousDistribution D>
-[[nodiscard]] std::tuple<double, double, bool>
-andersonDarlingTest(const std::vector<double>& data,
-                    const D& dist,
-                    double alpha = 0.05) {
+[[nodiscard]] std::tuple<double, double, bool> andersonDarlingTest(const std::vector<double>& data,
+                                                                   const D& dist,
+                                                                   double alpha = 0.05) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (alpha <= 0.0 || alpha >= 1.0)
@@ -108,8 +105,7 @@ andersonDarlingTest(const std::vector<double>& data,
     // 1.5 shifts the intercept so that the formula naturally saturates at 1.0
     // (via the min-clamp) for small A. A single segment is used throughout
     // [0, 13) to guarantee strict monotone decrease (MC-6).
-    const double p_value = std::min(1.0, std::max(0.0,
-        std::exp(-1.8 * ad_stat + 1.5)));
+    const double p_value = std::min(1.0, std::max(0.0, std::exp(-1.8 * ad_stat + 1.5)));
 
     return {ad_stat, p_value, p_value < alpha};
 }
@@ -142,12 +138,10 @@ andersonDarlingTest(const std::vector<double>& data,
  * had the same number of parameters. Callers must supply df.
  */
 template <concepts::AnyDistribution D>
-[[nodiscard]] std::tuple<double, double, bool>
-likelihoodRatioTest(const std::vector<double>& data,
-                    const D& restricted,
-                    const D& unrestricted,
-                    int df,
-                    double alpha = 0.05) {
+[[nodiscard]] std::tuple<double, double, bool> likelihoodRatioTest(const std::vector<double>& data,
+                                                                   const D& restricted,
+                                                                   const D& unrestricted, int df,
+                                                                   double alpha = 0.05) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (alpha <= 0.0 || alpha >= 1.0)
@@ -185,24 +179,27 @@ likelihoodRatioTest(const std::vector<double>& data,
  *
  * @tparam D Discrete distribution satisfying stats::concepts::DiscreteDistribution.
  *           Applying this test to a continuous distribution is a compile-time error.
- * @param data  Observed data (values rounded to nearest integer).
- * @param dist  Fitted discrete distribution.
- * @param alpha Significance level (default 0.05).
+ * @param data             Observed data (values rounded to nearest integer).
+ * @param dist             Fitted discrete distribution.
+ * @param alpha            Significance level (default 0.05).
+ * @param estimated_params Number of parameters estimated from @p data (default 0).
+ *                         Pass `dist.getNumParameters()` when the distribution was
+ *                         fitted to the same data being tested; omitting this makes
+ *                         the test too liberal (df is over-counted).
  * @return {chi2_statistic, p_value, reject_null}
  *
  * Bins observed counts over [min(data), max(data)], computes expected
  * frequencies from the distribution PMF, and merges cells with expected
- * count < 1 before computing the Pearson statistic.
+ * count < 1 before computing the Pearson statistic with
+ * df = merged_bins - 1 - estimated_params.
  *
  * Added in v2.0.0 (5E). Migration:
  *   DiscreteDistribution::chiSquaredGoodnessOfFitTest(data, dist, alpha)
  *   → stats::analysis::chiSquaredGoodnessOfFit(data, dist, alpha)
  */
 template <concepts::DiscreteDistribution D>
-[[nodiscard]] std::tuple<double, double, bool>
-chiSquaredGoodnessOfFit(const std::vector<double>& data,
-                        const D& dist,
-                        double alpha = 0.05) {
+[[nodiscard]] std::tuple<double, double, bool> chiSquaredGoodnessOfFit(
+    const std::vector<double>& data, const D& dist, double alpha = 0.05, int estimated_params = 0) {
     if (data.size() < 5)
         throw std::invalid_argument(
             "At least 5 observations required for chi-square goodness-of-fit");
@@ -225,8 +222,7 @@ chiSquaredGoodnessOfFit(const std::vector<double>& data,
     std::vector<double> expected(static_cast<std::size_t>(nbins));
     for (int k = lo; k <= hi; ++k) {
         const double p_k = dist.getProbability(static_cast<double>(k));
-        expected[static_cast<std::size_t>(k - lo)] =
-            static_cast<double>(n) * std::max(0.0, p_k);
+        expected[static_cast<std::size_t>(k - lo)] = static_cast<double>(n) * std::max(0.0, p_k);
     }
 
     // Merge cells with expected count < 1 into right neighbour.
@@ -250,7 +246,7 @@ chiSquaredGoodnessOfFit(const std::vector<double>& data,
         }
     }
 
-    const int df = static_cast<int>(exp_m.size()) - 1;
+    const int df = static_cast<int>(exp_m.size()) - 1 - estimated_params;
     if (df <= 0)
         throw std::invalid_argument(
             "Insufficient distinct values after cell merging; collect more data");

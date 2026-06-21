@@ -195,9 +195,11 @@ class StrategyProfiler {
     }
 
     template <typename Distribution>
-    void perform_operation(const Distribution& distribution, std::span<const double> input_values,
-                           std::span<double> output_values, ProfileOperation operation,
-                           Strategy strategy) const {
+    void perform_operation([[maybe_unused]] const Distribution& distribution,
+                           [[maybe_unused]] std::span<const double> input_values,
+                           [[maybe_unused]] std::span<double> output_values,
+                           [[maybe_unused]] ProfileOperation operation,
+                           [[maybe_unused]] Strategy strategy) const {
         switch (operation) {
             case ProfileOperation::PDF:
                 break;

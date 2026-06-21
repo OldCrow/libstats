@@ -486,7 +486,7 @@ class SIMDVerifier {
                     output[i] = d.getProbability(data[i]);
                 }
             },
-            [](const auto& d, const auto& data, auto& output) {
+            []([[maybe_unused]] const auto& d, const auto& data, auto& output) {
                 // SIMD version - using explicit strategy for SIMD verification
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
@@ -501,7 +501,7 @@ class SIMDVerifier {
                     output[i] = d.getLogProbability(data[i]);
                 }
             },
-            [](const auto& d, const auto& data, auto& output) {
+            []([[maybe_unused]] const auto& d, const auto& data, auto& output) {
                 // SIMD version - using explicit strategy for SIMD verification
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
@@ -516,7 +516,7 @@ class SIMDVerifier {
                     output[i] = d.getCumulativeProbability(data[i]);
                 }
             },
-            [](const auto& d, const auto& data, auto& output) {
+            []([[maybe_unused]] const auto& d, const auto& data, auto& output) {
                 // SIMD version - using explicit strategy for SIMD verification
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);

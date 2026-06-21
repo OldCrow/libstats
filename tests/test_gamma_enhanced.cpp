@@ -169,8 +169,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
     }
 
     auto [ks_stat_non_gamma, ks_p_non_gamma, ks_reject_non_gamma] =
-        stats::analysis::kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution,
-                                                       0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution, 0.05);
     EXPECT_GE(ks_stat_non_gamma, 0.0);
     EXPECT_LE(ks_stat_non_gamma, 1.0);
     EXPECT_GE(ks_p_non_gamma, 0.0);
@@ -182,8 +181,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
               << ", reject=" << ks_reject_non_gamma << "\n";
 
     auto [ad_stat_non_gamma, ad_p_non_gamma, ad_reject_non_gamma] =
-        stats::analysis::andersonDarlingTest(non_gamma_data, fitted_test_distribution,
-                                                     0.05);
+        stats::analysis::andersonDarlingTest(non_gamma_data, fitted_test_distribution, 0.05);
     EXPECT_GE(ad_stat_non_gamma, 0.0);
     EXPECT_GE(ad_p_non_gamma, 0.0);
     EXPECT_LE(ad_p_non_gamma, 1.0);
@@ -217,15 +215,12 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
                      "poor fit)\n";
     }
 
-    // For non-gamma data, we expect it to be rejected
-    if (ks_reject_non_gamma && ad_reject_non_gamma) {
-        std::cout << "  ✓ Both tests correctly rejected non-gamma data\n";
-    } else if (ks_reject_non_gamma || ad_reject_non_gamma) {
-        std::cout << "  ⚠ Only one test rejected non-gamma data (this can happen with small effect "
-                     "sizes)\n";
-    } else {
-        std::cout << "  ⚠ Neither test rejected non-gamma data (effect size may be small, but test "
-                     "statistics should still be higher)\n";
+    // For non-gamma data (deterministic quadratic), both tests must reject.
+    // TC-3: these assertions replace the print-only conditional that allowed
+    // the test to pass silently even when GoF tests wrongly accepted non-gamma data.
+    EXPECT_TRUE(ks_reject_non_gamma) << "KS test should reject non-gamma quadratic data";
+    if (std::isfinite(ad_stat_non_gamma) && ad_stat_non_gamma < 1e15) {
+        EXPECT_TRUE(ad_reject_non_gamma) << "AD test should reject non-gamma quadratic data";
     }
 }
 
@@ -286,8 +281,8 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto [alpha_ci, beta_ci] =
-        stats::analysis::bootstrapMeanVarianceCI<stats::GammaDistribution>(gamma_data_, 0.95, 1000, 456);
+    auto [alpha_ci, beta_ci] = stats::analysis::bootstrapMeanVarianceCI<stats::GammaDistribution>(
+        gamma_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(alpha_ci.first, alpha_ci.second);  // Lower bound < Upper bound
@@ -306,7 +301,8 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
     std::cout << "  Beta 95% CI: [" << beta_ci.first << ", " << beta_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = stats::analysis::kFoldCrossValidation<stats::GammaDistribution>(gamma_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::GammaDistribution>(gamma_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const double log_likelihood : cv_results) {
@@ -318,11 +314,13 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_gamma_data(gamma_data_.begin(), gamma_data_.begin() + 20);
-    const auto total_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::GammaDistribution>(small_gamma_data); // MAE should be non-negative // RMSE should be non-negative // RMSE should be >= MAE
+    const auto total_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::GammaDistribution>(
+            small_gamma_data);  // MAE should be non-negative // RMSE should be non-negative // RMSE
+                                // should be >= MAE
     EXPECT_LE(total_log_likelihood, 0.0);  // Total log-likelihood should be negative
 
     EXPECT_TRUE(std::isfinite(total_log_likelihood));
-
 }
 
 //==============================================================================
@@ -371,7 +369,8 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdGamma.getProbability(input_span, std::span<double>(simd_results), simd_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto simd_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
@@ -380,8 +379,8 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdGamma.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto parallel_time =
-            std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto parallel_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations
         std::vector<double> work_stealing_results(batch_size);
@@ -390,8 +389,8 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdGamma.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto work_stealing_time =
-            std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto work_stealing_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -483,8 +482,8 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
             traditional_results[j] = gamma_dist.getProbability(test_values[j]);
         }
         end = std::chrono::high_resolution_clock::now();
-        auto traditional_time =
-            std::max<long>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto traditional_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Verify correctness
         bool results_match = true;
@@ -602,7 +601,8 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
 
     std::mt19937 gen(42);
     std::gamma_distribution<> dis(2.0, 1.0);
-    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) test_values[i] = dis(gen);
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+        test_values[i] = dis(gen);
 
     for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
         scalar_pdf[i] = gamma_dist.getProbability(test_values[i]);
@@ -612,9 +612,12 @@ TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
 
     detail::PerformanceHint hint;
     hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-    gamma_dist.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results), hint);
-    gamma_dist.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results), hint);
-    gamma_dist.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), hint);
+    gamma_dist.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results),
+                              hint);
+    gamma_dist.getLogProbability(std::span<const double>(test_values),
+                                 std::span<double>(log_pdf_results), hint);
+    gamma_dist.getCumulativeProbability(std::span<const double>(test_values),
+                                        std::span<double>(cdf_results), hint);
 
     for (size_t i = 0; i < 100; ++i) {
         EXPECT_NEAR(pdf_results[i], scalar_pdf[i], 1e-10);

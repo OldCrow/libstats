@@ -47,21 +47,24 @@ namespace stats {
  *
  * @par Usage Examples:
  * @code
- * // Create standard normal distribution
- * GaussianDistribution stdNormal(0.0, 1.0);
+ * // Create standard normal distribution via factory (exception-free)
+ * auto result = GaussianDistribution::create(0.0, 1.0);
+ * if (result.isOk()) {
+ *     auto& stdNormal = result.value;
  *
- * // Evaluate probability density
- * double pdf = stdNormal.getProbability(1.0);
+ *     // Evaluate probability density
+ *     double pdf = stdNormal.getProbability(1.0);
  *
- * // Fit to data
- * std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0};
- * GaussianDistribution fitted;
- * fitted.fit(data);
+ *     // Fit to data
+ *     std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0};
+ *     GaussianDistribution fitted;
+ *     fitted.fit(data);
  *
- * // Batch operations for performance
- * std::vector<double> values(1000);
- * std::vector<double> results(1000);
- * fitted.getProbabilityBatch(values.data(), results.data(), 1000);
+ *     // Batch operations using the span-based API (v2.0.0)
+ *     std::vector<double> values(1000);
+ *     std::vector<double> results(1000);
+ *     fitted.getProbability(std::span<const double>(values), std::span<double>(results));
+ * }
  * @endcode
  *
  * @author libstats Development Team

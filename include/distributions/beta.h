@@ -63,8 +63,7 @@ namespace stats {
 class BetaDistribution : public DistributionBase {
    public:
     // Dispatch metadata — replaces DistributionTraits<BetaDistribution> (v2.0.0)
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::BETA;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::BETA;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -378,11 +377,6 @@ class BetaDistribution : public DistributionBase {
         if (std::isnan(beta) || std::isinf(beta) || beta <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Beta (shape2) must be a positive finite number");
         }
-    }
-
-    // Delegate to the free function in error_handling.h (5C, v2.0.0).
-    [[nodiscard]] static VoidResult validateBetaParameters(double alpha, double beta) noexcept {
-        return ::stats::validateBetaParameters(alpha, beta);
     }
 
     //==========================================================================
