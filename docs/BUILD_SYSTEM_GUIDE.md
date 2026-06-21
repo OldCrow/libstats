@@ -83,13 +83,17 @@ Aliases:
 
 ## Include shim
 
-The build tree materialises headers under:
+The build tree exposes headers under:
 
 ```text
 build/include_shim/libstats/
 ```
 
-This matches installed include paths and avoids symlink traversal issues on Windows.
+This matches the install-tree path (`include/libstats/`) so `#include "libstats/core/foo.h"` works identically in both contexts.
+
+Implementation is platform-guarded:
+- **macOS/Linux**: `build/include_shim/libstats` is a directory symlink to `include/`. Header edits are immediately visible to the compiler with no re-run of cmake required.
+- **Windows**: a flat copy is used (symlinks require Developer Mode or elevated privileges). A `libstats_refresh_shim` build target re-copies the directory on every `cmake --build` so mid-session edits are picked up automatically.
 
 ## SIMD detection
 

@@ -110,14 +110,14 @@ class GaussianDistribution : public DistributionBase {
     /**
      * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
     GaussianDistribution(GaussianDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
     GaussianDistribution& operator=(GaussianDistribution&& other) noexcept;
 
@@ -138,9 +138,8 @@ class GaussianDistribution : public DistributionBase {
     /**
      * @brief Safely create a Gaussian distribution without throwing exceptions
      *
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
+     * This factory method provides exception-free construction.
+     * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param mean Mean parameter μ (any finite value)
      * @param standardDeviation Standard deviation parameter σ (must be positive)

@@ -134,14 +134,14 @@ class ExponentialDistribution : public DistributionBase {
     /**
      * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
     ExponentialDistribution(ExponentialDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
     ExponentialDistribution& operator=(ExponentialDistribution&& other) noexcept;
 
@@ -162,9 +162,8 @@ class ExponentialDistribution : public DistributionBase {
     /**
      * @brief Safely create an Exponential distribution without throwing exceptions
      *
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
+     * This factory method provides exception-free construction.
+     * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param lambda Rate parameter λ (must be positive)
      * @return Result containing either a valid ExponentialDistribution or error info

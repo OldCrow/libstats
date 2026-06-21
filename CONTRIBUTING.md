@@ -2,11 +2,16 @@
 
 Thank you for your interest in contributing to libstats! We welcome contributions from the community and are pleased to have you join us in making this project better.
 
-## 🚀 Quick Start for Contributors
+## Quick Start for Contributors
 
 ### Prerequisites
 
-- **C++20 compatible compiler**: GCC 10+, Clang 14+, MSVC 2019+, or LLVM (recommended)
+| Platform | Minimum compiler |
+|---|---|
+| macOS (Ventura 13+) | AppleClang 15 (Xcode 15+) |
+| Linux | GCC 13+ or Clang 17+ |
+| Windows | MSVC 19.38+ (Visual Studio 2022 17.8+) |
+
 - **CMake**: 3.20 or later
 - **Git**: For version control
 - **Optional**: GTest for running tests, Intel TBB for enhanced parallel support
@@ -15,20 +20,19 @@ Thank you for your interest in contributing to libstats! We welcome contribution
 
 1. **Fork and clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/libstats.git
+   git clone git@github.com:yourusername/libstats.git
    cd libstats
    ```
 
 2. **Build the project**:
    ```bash
-   mkdir build && cd build
-   cmake -DCMAKE_BUILD_TYPE=Debug ..
-   make -j$(nproc)
+   cmake -B build
+   cmake --build build --parallel
    ```
 
 3. **Run the correctness suite**:
    ```bash
-   ctest --output-on-failure -LE "timing|benchmark"
+   ctest --test-dir build --output-on-failure -LE "timing|benchmark"
    ```
 
 ## 📋 How to Contribute
@@ -67,11 +71,12 @@ We follow modern C++20 best practices with specific emphasis on:
   - Private members: `snake_case_` with trailing underscore
 
 #### **Modern C++ Features**
-- **Use C++20 features**: concepts, ranges, span, likely/unlikely attributes
-- **RAII principles**: Always use smart pointers and stack-based resource management
-- **Exception safety**: Provide strong exception guarantee where possible
-- **Thread safety**: All public APIs should be thread-safe
-- **const correctness**: Use const wherever appropriate
+- **Use C++20 features**: concepts, `std::span`, `std::ranges`, `[[likely]]`/`[[unlikely]]`
+- **RAII principles**: Smart pointers and stack-based resource management
+- **Exception safety**: Strong exception guarantee where possible
+- **Thread safety**: All public APIs must be thread-safe
+- **const correctness**: Mark everything `const` or `constexpr` where appropriate
+- **Primary namespace**: Use `stats::` throughout (not `libstats::`)
 
 #### **Performance Guidelines**
 - **Cache efficiency**: Consider memory layout and access patterns

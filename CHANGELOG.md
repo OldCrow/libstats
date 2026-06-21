@@ -1,3 +1,84 @@
+## [2.0.0] - 2026-06-21
+
+### Breaking changes
+
+**Platform baseline raised**
+- Minimum macOS raised to 13 Ventura (Catalina / Ivy Bridge support dropped).
+- Minimum compilers: AppleClang 15, GCC 13, Clang 17, MSVC 19.38 (VS 2022 17.8).
+- Alternate Homebrew LLVM compiler path removed; system AppleClang is the only supported macOS compiler.
+
+**Namespace**
+- `stats::` is now the primary namespace. `libstats::` remains as an alias (`namespace libstats = stats;`) for source compatibility, but all new code should use `stats::`.
+
+**Analysis utilities extracted**
+- Statistical analysis methods previously on distribution classes have moved to the `stats::analysis` namespace:
+  - `GaussianDistribution::shapiroWilkTest` → `stats::analysis::gaussian::shapiroWilkTest`
+  - `GaussianDistribution::kolmogorovSmirnovTest` → `stats::analysis::kolmogorovSmirnovTest`
+  - `GaussianDistribution::andersonDarlingTest` → `stats::analysis::andersonDarlingTest`
+  - `GaussianDistribution::kFoldCrossValidation` → `stats::analysis::kFoldCrossValidation<D>`
+  - `GaussianDistribution::bootstrapParameterConfidenceIntervals` → `stats::analysis::bootstrapMeanCI<D>` / `stats::analysis::bootstrapMeanVarianceCI<D>`
+  - All 16 distributions: `informationCriteria` → `stats::analysis::informationCriteria`
+  - See MIGRATION_GUIDE.md for the complete mapping.
+
+**`likelihoodRatioTest` signature change**
+- `df` is now an explicit required parameter (position 4, before `alpha`).
+- Old: `likelihoodRatioTest(data, restricted, unrestricted, alpha=0.05)`
+- New: `likelihoodRatioTest(data, restricted, unrestricted, df, alpha=0.05)`
+- Automatic df inference from parameter counts was removed (it was unreliable for same-type model comparison).
+
+**KS/AD tests constrained to continuous distributions**
+- `stats::analysis::kolmogorovSmirnovTest` and `andersonDarlingTest` now require `ContinuousDistribution` (C++20 concept). Passing a discrete distribution is a compile-time error. Use `chiSquaredGoodnessOfFitTest` for discrete distributions.
+
+**Removed APIs**
+- Strategy-suffix batch methods (e.g. `getProbabilityBatch`) removed; use the span-based `getProbability(span, span)` overload.
+- `CROSS_PLATFORM` build type removed (replaced by unified `Strict` build type).
+- `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` CMake flag removed.
+- `LibDistributionType` enum removed (`detail::DistributionType` is the canonical enum).
+
+### Fixed
+
+- **Thread safety (Batch 1)**: Gamma copy/move assignment locking; Poisson/Exponential atomic parameter invalidation; Binomial setter TOCTOU race; `cacheValidAtomic_` shadowing removed from derived classes.
+- **Mathematical correctness (Batch 2)**: Gamma CDF duplication using live `detail::gamma_p`; Binomial batch NaN guards for p=0/p=1; Poisson quantile overflow (64-bit); Gaussian standardized-value stale cache rebuild.
+- **Build system (Batch 3)**: `safe_xgetbv` AVX OS-support check; compiler minimum enforcement in CMake; `Threads::Threads` link for Linux; pkg-config private deps; CI workflow GCC 13; run_all_tests target.
+- **AD p-value continuity (MC-6)**: Single monotone formula replaces two-segment piecewise with a jump discontinuity.
+- **Gaussian CI variance estimator (MC-7)**: Bessel-corrected (n-1) variance used throughout when population variance is unknown.
+- **Binomial MLE bias (MC-10)**: `fit()` uses method-of-moments n̂ = x̄²/(x̄−s²) instead of max(obs) as the n estimate.
+
+### Changed
+
+- `stats::analysis::andersonDarlingTest` p-value uses a single continuous exponential approximation, calibrated to the 5% critical value of the distribution-agnostic AD asymptotic distribution (Stephens 1974).
+- `BinomialDistribution::fit()` uses method-of-moments estimation for n, falling back to max(obs) when data is overdispersed relative to Binomial.
+- Version constants in `libstats.h` updated to 2.0.0.
+- Include shim uses directory symlink on macOS/Linux (live updates, no cmake re-run required); flat copy with build-time refresh on Windows.
+- `NOT noexcept` Doxygen warnings removed from all distribution headers; move constructors and assignment operators are `noexcept` throughout.
+
+### Validation
+
+- 43/43 correctness tests pass on Kaby Lake AVX2+FMA (primary). Pending full three-machine (M1 NEON, Asus TUF A16 AVX-512) PR-merge validation.
+
+---
+
+## [1.5.3] - 2026-06-20
+
+### Fixed
+
+- **BF-1**: Remove incorrect `noexcept` specifier from `UniformDistribution` move constructor; the `@warning` comment directly contradicted the specifier, risking `std::terminate` on lock acquisition failure.
+- **BF-2**: Version constants frozen at v1.2.0 corrected to v1.5.3; `CMakeLists.txt` project `VERSION` bumped to 1.5.3.
+- **BF-3**: Type aliases (`Gaussian`, `Normal`, `Exponential`, …) moved inside the `LIBSTATS_FULL_INTERFACE` guard; using them on incomplete types caused confusing linker errors on first use.
+- **BF-4**: `libstats-config.cmake.in` target names corrected (`libstats::static` → `libstats::libstats_static`) to match CMake-exported names at install time.
+
+### Changed
+
+- **Deprecation sweep**: Added `[[deprecated(...)]]` to all 48 `*WithStrategy` batch methods (16 distributions), `getBatchProbabilities`/`LogProbabilities`/`CumulativeProbabilities`/`Quantiles`, `getKLDivergence`, `MemoryPool`, `SmallVector`, `StackAllocator`, `simd_vector`, and `refineWithCapabilities`. These APIs will be removed in v2.0.0.
+- **VonMises**: Added `getMedian()` (= `getMu()`; symmetric distribution). Replaced stale `vector_cos` absence comments with accurate description of the 4-step SIMD pipeline (added in v1.4.0). Renamed `*BatchImpl` → `*BatchUnsafeImpl` for naming convention alignment.
+- **CI**: Fixed swallowed AVX-512 compilation failures; updated `clang-format`/`clang-tidy` from version 15 to 17.
+
+### Validation
+
+- 39/39 correctness tests pass on Kaby Lake AVX2+FMA.
+
+---
+
 ## [1.5.2] - 2026-06-19
 
 ### Fixed

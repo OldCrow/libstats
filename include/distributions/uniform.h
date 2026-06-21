@@ -149,19 +149,15 @@ class UniformDistribution : public DistributionBase {
     UniformDistribution& operator=(const UniformDistribution& other);
 
     /**
-     * @brief Move constructor (DEFENSIVE THREAD SAFETY)
-     * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept — lock acquisition can throw std::system_error.
-     *   std::vector reallocation will copy, not move, UniformDistribution elements.
-     *   This is intentional for correctness; noexcept move constructors require
-     *   atomic-only cache state (v2.0.0 prerequisite).
+     * @brief Move constructor
+     * Implementation in .cpp: Thread-safe move with lock-free atomic cache state.
      */
     UniformDistribution(UniformDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
     UniformDistribution& operator=(UniformDistribution&& other) noexcept;
 
@@ -182,9 +178,8 @@ class UniformDistribution : public DistributionBase {
     /**
      * @brief Safely create a Uniform distribution without throwing exceptions
      *
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
+     * This factory method provides exception-free construction.
+     * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param a Lower bound parameter
      * @param b Upper bound parameter (must be > a)

@@ -70,7 +70,7 @@ class BinomialDistribution : public DistributionBase {
     /** @brief Move constructor. */
     BinomialDistribution(BinomialDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. @warning NOT noexcept. */
+    /** @brief Move assignment operator. */
     BinomialDistribution& operator=(BinomialDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */

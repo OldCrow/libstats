@@ -100,7 +100,7 @@ class VonMisesDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     VonMisesDistribution(VonMisesDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
+    /** @brief Move assignment operator. Implementation in .cpp. */
     VonMisesDistribution& operator=(VonMisesDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
