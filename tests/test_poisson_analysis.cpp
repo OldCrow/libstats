@@ -15,11 +15,17 @@
 
 using namespace stats;
 
+// EXPECT_THROW on [[nodiscard]] functions is intentional: the function throws
+// before returning, so discarding the return value is correct.
+// cppcheck-suppress unusedResult
+#pragma GCC diagnostic ignored "-Wunused-result"
+
 static std::vector<double> poissonSample(std::size_t n, double lambda, unsigned seed = 42) {
     std::mt19937 rng(seed);
     std::poisson_distribution<int> d(lambda);
     std::vector<double> v(n);
-    for (auto& x : v) x = static_cast<double>(d(rng));
+    for (auto& x : v)
+        x = static_cast<double>(d(rng));
     return v;
 }
 
@@ -62,8 +68,10 @@ TEST(PoissonAnalysis, OverdispersionTestPoissonData) {
 TEST(PoissonAnalysis, OverdispersionTestHighVarianceRejected) {
     // Mix of Poisson with very high variance (near-negative-binomial)
     std::vector<double> data(200, 0.0);
-    for (std::size_t i = 0; i < 100; ++i) data[i] = 0.0;
-    for (std::size_t i = 100; i < 200; ++i) data[i] = 20.0;  // high variance
+    for (std::size_t i = 0; i < 100; ++i)
+        data[i] = 0.0;
+    for (std::size_t i = 100; i < 200; ++i)
+        data[i] = 20.0;  // high variance
     auto [d_index, p, is_over] = stats::analysis::poisson::overdispersionTest(data);
     EXPECT_TRUE(is_over);
 }
@@ -86,7 +94,8 @@ TEST(PoissonAnalysis, ExcessZerosTestPoissonData) {
 TEST(PoissonAnalysis, ExcessZerosTestDetectsInflation) {
     // 60% zeros in data where Poisson(2) predicts ~13.5%
     std::vector<double> data(200, 0.0);
-    for (std::size_t i = 80; i < 200; ++i) data[i] = 2.0;
+    for (std::size_t i = 80; i < 200; ++i)
+        data[i] = 2.0;
     auto [z, p, excess] = stats::analysis::poisson::excessZerosTest(data, 0.01);
     EXPECT_TRUE(excess);
 }
@@ -123,7 +132,8 @@ TEST(PoissonAnalysis, ChiSquareBadFit) {
     std::mt19937 rng(55);
     std::normal_distribution<double> nd(50.0, 5.0);
     std::vector<double> data(300);
-    for (auto& x : data) x = std::max(0.0, nd(rng));
+    for (auto& x : data)
+        x = std::max(0.0, nd(rng));
     auto dist = PoissonDistribution::create(3.0).value;
     auto [chi2, p, reject] = stats::analysis::poisson::chiSquareGoodnessOfFit(data, dist);
     EXPECT_TRUE(reject);

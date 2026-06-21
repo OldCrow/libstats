@@ -1,8 +1,9 @@
 #include "libstats/distributions/beta.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_utils.h"
@@ -100,7 +101,6 @@ BetaDistribution::BetaDistribution(BetaDistribution&& other) noexcept
 
 BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) noexcept {
     if (this != &other) {
-
         alpha_ = other.alpha_;
         beta_ = other.beta_;
         alphaMinus1_ = other.alphaMinus1_;
@@ -736,25 +736,6 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
                     res[i] = detail::beta_i(x, a, b, log_prefix);
             });
         });
-}
-
-static detail::PerformanceHint betaStrategyToHint(detail::Strategy strategy) noexcept {
-    detail::PerformanceHint hint;
-    switch (strategy) {
-        case detail::Strategy::SCALAR:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
-            break;
-        case detail::Strategy::VECTORIZED:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-            break;
-        case detail::Strategy::PARALLEL:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-            break;
-        case detail::Strategy::WORK_STEALING:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-            break;
-    }
-    return hint;
 }
 
 //==============================================================================

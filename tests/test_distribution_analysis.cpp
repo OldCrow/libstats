@@ -14,13 +14,19 @@
 #include <random>
 #include <vector>
 
+// EXPECT_THROW on [[nodiscard]] functions is intentional: the function throws
+// before returning, so discarding the return value is correct.
+// cppcheck-suppress unusedResult
+#pragma GCC diagnostic ignored "-Wunused-result"
+
 // ── Exponential analysis ─────────────────────────────────────────────────────
 
 static std::vector<double> expSample(std::size_t n, double lambda, unsigned seed = 42) {
     std::mt19937 rng(seed);
     std::exponential_distribution<double> d(lambda);
     std::vector<double> v(n);
-    for (auto& x : v) x = d(rng);
+    for (auto& x : v)
+        x = d(rng);
     return v;
 }
 
@@ -52,7 +58,8 @@ TEST(ExponentialAnalysis, CVTestRejectsNormal) {
     std::mt19937 rng(22);
     std::normal_distribution<double> nd(5.0, 0.5);  // CV ≈ 0.1, far from 1
     std::vector<double> data(200);
-    for (auto& x : data) x = std::abs(nd(rng)) + 0.01;
+    for (auto& x : data)
+        x = std::abs(nd(rng)) + 0.01;
     auto [stat, p, reject] = stats::analysis::exponential::coefficientOfVariationTest(data);
     EXPECT_TRUE(reject);
 }
@@ -69,7 +76,8 @@ TEST(GammaAnalysis, NormalApproximationTestValidForLargeAlpha) {
     std::mt19937 rng(33);
     std::gamma_distribution<double> gd(100.0, 0.5);  // shape=100, scale=0.5 → rate=2
     std::vector<double> data(500);
-    for (auto& x : data) x = gd(rng);
+    for (auto& x : data)
+        x = gd(rng);
 
     auto [lo, hi, valid] = stats::analysis::gamma::normalApproximationTest(data);
     EXPECT_LT(lo, hi);  // CI is ordered
@@ -84,7 +92,8 @@ TEST(GammaAnalysis, NormalApproximationTestInvalidForSmallAlpha) {
     std::mt19937 rng(44);
     std::gamma_distribution<double> gd(2.0, 1.0);
     std::vector<double> data(200);
-    for (auto& x : data) x = gd(rng);
+    for (auto& x : data)
+        x = gd(rng);
 
     auto [lo, hi, valid] = stats::analysis::gamma::normalApproximationTest(data);
     EXPECT_TRUE(std::isfinite(lo));
@@ -125,7 +134,7 @@ TEST(BinomialAnalysis, ClopperPearsonAllSuccesses) {
 TEST(BinomialAnalysis, ClopperPearsonBadInputThrows) {
     EXPECT_THROW(stats::analysis::binomial::clopperPearsonCI(-1, 10, 0.95), std::invalid_argument);
     EXPECT_THROW(stats::analysis::binomial::clopperPearsonCI(11, 10, 0.95), std::invalid_argument);
-    EXPECT_THROW(stats::analysis::binomial::clopperPearsonCI(5, 0, 0.95),  std::invalid_argument);
+    EXPECT_THROW(stats::analysis::binomial::clopperPearsonCI(5, 0, 0.95), std::invalid_argument);
 }
 
 TEST(BinomialAnalysis, ProportionZTestAcceptsTrueProportion) {
@@ -158,5 +167,6 @@ TEST(BinomialAnalysis, TwoProportionZTestDifferent) {
 
 TEST(BinomialAnalysis, TwoProportionZTestBadInputThrows) {
     EXPECT_THROW(stats::analysis::binomial::twoProportionZTest(5, 0, 5, 10), std::invalid_argument);
-    EXPECT_THROW(stats::analysis::binomial::twoProportionZTest(5, 10, 11, 10), std::invalid_argument);
+    EXPECT_THROW(stats::analysis::binomial::twoProportionZTest(5, 10, 11, 10),
+                 std::invalid_argument);
 }

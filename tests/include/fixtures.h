@@ -471,7 +471,8 @@ class EdgeCaseTester {
         std::cout << "  ✓ " << dist_name << " extreme value handling test passed" << std::endl;
     }
 
-    static void testEmptyBatchOperations(const Distribution& dist, const std::string& dist_name) {
+    static void testEmptyBatchOperations([[maybe_unused]] const Distribution& dist,
+                                         const std::string& dist_name) {
         std::vector<double> empty_values;
         std::vector<double> empty_results;
 

@@ -12,8 +12,8 @@
 
 #define LIBSTATS_ENABLE_GTEST_INTEGRATION
 #include "include/tests.h"
-#include "libstats/stats/analysis/gaussian_analysis.h"
 #include "libstats/stats/analysis/analysis.h"
+#include "libstats/stats/analysis/gaussian_analysis.h"
 
 #include <cmath>
 #include <gtest/gtest.h>
@@ -23,6 +23,11 @@
 
 using namespace stats;
 
+// EXPECT_THROW on [[nodiscard]] functions is intentional: the function throws
+// before returning, so discarding the return value is correct.
+// cppcheck-suppress unusedResult
+#pragma GCC diagnostic ignored "-Wunused-result"
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 static std::vector<double> normalSample(std::size_t n, double mu = 0.0, double sigma = 1.0,
@@ -30,7 +35,8 @@ static std::vector<double> normalSample(std::size_t n, double mu = 0.0, double s
     std::mt19937 rng(seed);
     std::normal_distribution<double> d(mu, sigma);
     std::vector<double> v(n);
-    for (auto& x : v) x = d(rng);
+    for (auto& x : v)
+        x = d(rng);
     return v;
 }
 
@@ -39,7 +45,8 @@ static std::vector<double> uniformSample(std::size_t n, double lo = 0.0, double 
     std::mt19937 rng(seed);
     std::uniform_real_distribution<double> d(lo, hi);
     std::vector<double> v(n);
-    for (auto& x : v) x = d(rng);
+    for (auto& x : v)
+        x = d(rng);
     return v;
 }
 
@@ -96,7 +103,8 @@ TEST(GaussianAnalysis, JarqueBeraRejectsHighlySkewed) {
     auto u = uniformSample(500, 0.0, 1.0, 66);
     std::vector<double> skewed;
     skewed.reserve(u.size());
-    for (double x : u) skewed.push_back(x * x * x);
+    for (double x : u)
+        skewed.push_back(x * x * x);
     auto [jb, p, reject] = stats::analysis::gaussian::jarqueBeraTest(skewed, 0.01);
     EXPECT_TRUE(reject);
 }
@@ -199,10 +207,8 @@ TEST(GaussianAnalysis, TwoSampleTTestDifferentMeans) {
 TEST(GaussianAnalysis, TwoSampleTTestEqualVariancesBothPaths) {
     auto d1 = normalSample(80, 3.0, 1.0, 55);
     auto d2 = normalSample(80, 3.0, 1.0, 66);
-    auto [t_welch, p_welch, r_welch] =
-        stats::analysis::gaussian::twoSampleTTest(d1, d2, false);
-    auto [t_pool, p_pool, r_pool] =
-        stats::analysis::gaussian::twoSampleTTest(d1, d2, true);
+    auto [t_welch, p_welch, r_welch] = stats::analysis::gaussian::twoSampleTTest(d1, d2, false);
+    auto [t_pool, p_pool, r_pool] = stats::analysis::gaussian::twoSampleTTest(d1, d2, true);
     EXPECT_TRUE(std::isfinite(t_welch));
     EXPECT_TRUE(std::isfinite(t_pool));
     EXPECT_FALSE(r_welch);
@@ -230,7 +236,8 @@ TEST(GaussianAnalysis, PairedTTestSameMeanNotRejected) {
 TEST(GaussianAnalysis, PairedTTestLargeConstantShift) {
     auto d1 = normalSample(100, 0.0, 0.5, 88);
     auto d2 = d1;
-    for (auto& x : d2) x += 5.0;
+    for (auto& x : d2)
+        x += 5.0;
     auto [t, p, reject] = stats::analysis::gaussian::pairedTTest(d1, d2);
     EXPECT_TRUE(reject);
     EXPECT_GT(std::abs(t), 5.0);
@@ -246,8 +253,7 @@ TEST(GaussianAnalysis, PairedTTestSizeMismatchThrows) {
 
 TEST(GaussianAnalysis, BayesianEstimationPosteriorIsValid) {
     auto data = normalSample(100, 5.0, 1.0, 99);
-    auto [pm, pp, ps, pr] = stats::analysis::gaussian::bayesianEstimation(
-        data, 0.0, 1.0, 1.0, 1.0);
+    auto [pm, pp, ps, pr] = stats::analysis::gaussian::bayesianEstimation(data, 0.0, 1.0, 1.0, 1.0);
     EXPECT_TRUE(std::isfinite(pm));
     EXPECT_GT(pp, 0.0);
     EXPECT_GT(ps, 0.0);
@@ -324,8 +330,7 @@ TEST(GaussianAnalysis, RobustUnknownTypeThrows) {
 }
 
 TEST(GaussianAnalysis, RobustEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::robustEstimation({}, "huber"),
-                 std::invalid_argument);
+    EXPECT_THROW(stats::analysis::gaussian::robustEstimation({}, "huber"), std::invalid_argument);
 }
 
 // ── Alternative estimators ────────────────────────────────────────────────────
@@ -339,8 +344,7 @@ TEST(GaussianAnalysis, MethodOfMomentsMatchesSampleStats) {
 }
 
 TEST(GaussianAnalysis, MethodOfMomentsEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::methodOfMomentsEstimation({}),
-                 std::invalid_argument);
+    EXPECT_THROW(stats::analysis::gaussian::methodOfMomentsEstimation({}), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, LMomentsProducesFinitePositiveEstimates) {
@@ -358,30 +362,30 @@ TEST(GaussianAnalysis, LMomentsProducesFinitePositiveEstimates) {
 }
 
 TEST(GaussianAnalysis, LMomentsTooFewThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::lMomentsEstimation({1.0}),
-                 std::invalid_argument);
+    EXPECT_THROW(stats::analysis::gaussian::lMomentsEstimation({1.0}), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, HigherMomentsReturnsSix) {
     auto data = normalSample(500, 0.0, 1.0, 111);
     auto moments = stats::analysis::gaussian::calculateHigherMoments(data, true);
     EXPECT_EQ(moments.size(), 6u);
-    for (auto m : moments) EXPECT_TRUE(std::isfinite(m));
+    for (auto m : moments)
+        EXPECT_TRUE(std::isfinite(m));
 }
 
 TEST(GaussianAnalysis, HigherMomentsCenteredStandardNormal) {
     // For N(0,1) with large n: moment_1=mean≈0, moment_2=variance≈1, moment_3≈0
     auto data = normalSample(5000, 0.0, 1.0, 112);
     auto moments = stats::analysis::gaussian::calculateHigherMoments(data, true);
-    EXPECT_NEAR(moments[0], 0.0, 0.05);   // 1st central moment = mean = 0
-    EXPECT_NEAR(moments[1], 1.0, 0.05);   // 2nd central moment = variance ≈ 1
-    EXPECT_NEAR(moments[2], 0.0, 0.10);   // 3rd central moment = skewness ≈ 0
+    EXPECT_NEAR(moments[0], 0.0, 0.05);  // 1st central moment = mean = 0
+    EXPECT_NEAR(moments[1], 1.0, 0.05);  // 2nd central moment = variance ≈ 1
+    EXPECT_NEAR(moments[2], 0.0, 0.10);  // 3rd central moment = skewness ≈ 0
 }
 
 TEST(GaussianAnalysis, HigherMomentsRawVsCentered) {
     auto data = normalSample(200, 5.0, 1.0, 113);
     auto centered = stats::analysis::gaussian::calculateHigherMoments(data, true);
-    auto raw      = stats::analysis::gaussian::calculateHigherMoments(data, false);
+    auto raw = stats::analysis::gaussian::calculateHigherMoments(data, false);
     EXPECT_EQ(centered.size(), 6u);
     EXPECT_EQ(raw.size(), 6u);
     // First raw moment = sample mean ≈ 5; first centered = 0

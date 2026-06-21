@@ -1,8 +1,9 @@
 #include "libstats/distributions/student_t.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_utils.h"
@@ -95,7 +96,6 @@ StudentTDistribution::StudentTDistribution(StudentTDistribution&& other) noexcep
 
 StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) noexcept {
     if (this != &other) {
-
         nu_ = other.nu_;
         halfNu_ = other.halfNu_;
         halfNuPlusOne_ = other.halfNuPlusOne_;
@@ -596,27 +596,6 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             pool.parallelFor(std::size_t{0}, count,
                              [&](std::size_t i) { res[i] = detail::t_cdf(vals[i], cached_nu); });
         });
-}
-
-// Helper: map explicit Strategy to the nearest PerformanceHint::PreferredStrategy.
-// FORCE_VECTORIZED triggers the BatchUnsafeImpl SIMD path (used by simd_verification).
-static detail::PerformanceHint strategyToHint(detail::Strategy strategy) noexcept {
-    detail::PerformanceHint hint;
-    switch (strategy) {
-        case detail::Strategy::SCALAR:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
-            break;
-        case detail::Strategy::VECTORIZED:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-            break;
-        case detail::Strategy::PARALLEL:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-            break;
-        case detail::Strategy::WORK_STEALING:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-            break;
-    }
-    return hint;
 }
 
 //==============================================================================
