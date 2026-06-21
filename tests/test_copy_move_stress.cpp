@@ -181,7 +181,8 @@ void stressTestPoissonCopyMove(int thread_id) {
             worker_failed.store(true);
             break;
         }
-        if (local_ops % 100 == 0) completed_operations.fetch_add(100);
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
     }
     completed_operations.fetch_add(local_ops % 100);
 }
@@ -210,7 +211,8 @@ void stressTestGammaCopyMove(int thread_id) {
             worker_failed.store(true);
             break;
         }
-        if (local_ops % 100 == 0) completed_operations.fetch_add(100);
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
     }
     completed_operations.fetch_add(local_ops % 100);
 }
@@ -239,7 +241,8 @@ void stressTestDiscreteCopyMove(int thread_id) {
             worker_failed.store(true);
             break;
         }
-        if (local_ops % 100 == 0) completed_operations.fetch_add(100);
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
     }
     completed_operations.fetch_add(local_ops % 100);
 }
@@ -291,32 +294,310 @@ void stressTestExponentialCopyMove(int thread_id) {
     completed_operations.fetch_add(local_ops % 100);
 }
 
+// TC-4: runtime concurrent stress tests for the remaining 10 distributions.
+
+void stressTestBetaCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = BetaDistribution::create(1.5 + thread_id * 0.001, 2.5).value;
+            auto d2 = BetaDistribution::create(2.5, 1.5 + thread_id * 0.001).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Beta thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestBinomialCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = BinomialDistribution::create(thread_id % 20 + 5, 0.3).value;
+            auto d2 = BinomialDistribution::create(thread_id % 15 + 8, 0.6).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Binomial thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestChiSquaredCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = ChiSquaredDistribution::create(2.0 + thread_id * 0.001).value;
+            auto d2 = ChiSquaredDistribution::create(5.0 + thread_id * 0.001).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "ChiSquared thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestLogNormalCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = LogNormalDistribution::create(0.0, 0.5 + thread_id * 0.001).value;
+            auto d2 = LogNormalDistribution::create(0.5, 0.5 + thread_id * 0.001).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "LogNormal thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestNegBinomialCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = NegativeBinomialDistribution::create(3.0 + thread_id * 0.001, 0.4).value;
+            auto d2 = NegativeBinomialDistribution::create(5.0 + thread_id * 0.001, 0.6).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "NegBinomial thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestParetoCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = ParetoDistribution::create(1.0, 2.0 + thread_id * 0.001).value;
+            auto d2 = ParetoDistribution::create(1.0, 3.0 + thread_id * 0.001).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Pareto thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestRayleighCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = RayleighDistribution::create(1.0 + thread_id * 0.001).value;
+            auto d2 = RayleighDistribution::create(2.0 + thread_id * 0.001).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Rayleigh thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestStudentTCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = StudentTDistribution::create(3.0 + thread_id * 0.001).value;
+            auto d2 = StudentTDistribution::create(5.0 + thread_id * 0.001).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "StudentT thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestVonMisesCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = VonMisesDistribution::create(0.0, 1.0 + thread_id * 0.001).value;
+            auto d2 = VonMisesDistribution::create(1.0, 2.0 + thread_id * 0.001).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "VonMises thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
+void stressTestWeibullCopyMove(int thread_id) {
+    int local_ops = 0;
+    while (!stop_test.load()) {
+        try {
+            auto d1 = WeibullDistribution::create(1.5 + thread_id * 0.001, 1.0).value;
+            auto d2 = WeibullDistribution::create(2.5 + thread_id * 0.001, 1.0).value;
+            for (int i = 0; i < 10; ++i) {
+                auto c1 = d1;
+                auto c2 = d2;
+                c1 = c2;
+                c2 = d1;
+                auto m1 = std::move(c1);
+                auto m2 = std::move(c2);
+                (void)(m1.getMean() + m2.getMean());
+            }
+            local_ops++;
+        } catch (const std::exception& e) {
+            cout << "Weibull thread " << thread_id << " caught: " << e.what() << endl;
+            worker_failed.store(true);
+            break;
+        }
+        if (local_ops % 100 == 0)
+            completed_operations.fetch_add(100);
+    }
+    completed_operations.fetch_add(local_ops % 100);
+}
+
 int main() {
     cout << "=== Copy/Move Semantics Stress Test ===" << endl;
     cout << "This test performs intensive copy/move operations across multiple threads" << endl;
     cout << "to ensure no deadlocks occur under high load." << endl;
 
-    const int num_threads = 8;
+    const int num_threads = 16;
     const int test_duration_seconds = 5;
 
     vector<thread> threads;
 
     cout << "\nStarting stress test with " << num_threads << " threads for "
-         << test_duration_seconds << " seconds..." << endl;
+         << test_duration_seconds << " seconds (all 16 distributions)..." << endl;
 
     auto start_time = chrono::steady_clock::now();
 
-    // Start threads for each distribution type (6 distributions, ~1 thread each)
+    // One thread per distribution — all 16 distributions have runtime stress coverage.
     threads.emplace_back(stressTestUniformCopyMove, 0);
     threads.emplace_back(stressTestGaussianCopyMove, 100);
     threads.emplace_back(stressTestExponentialCopyMove, 200);
     threads.emplace_back(stressTestPoissonCopyMove, 300);
     threads.emplace_back(stressTestGammaCopyMove, 400);
     threads.emplace_back(stressTestDiscreteCopyMove, 500);
-    // Fill remaining threads with Gaussian (simplest, broadest coverage)
-    for (int i = 6; i < num_threads; ++i) {
-        threads.emplace_back(stressTestGaussianCopyMove, i + 600);
-    }
+    threads.emplace_back(stressTestBetaCopyMove, 600);
+    threads.emplace_back(stressTestBinomialCopyMove, 700);
+    threads.emplace_back(stressTestChiSquaredCopyMove, 800);
+    threads.emplace_back(stressTestLogNormalCopyMove, 900);
+    threads.emplace_back(stressTestNegBinomialCopyMove, 1000);
+    threads.emplace_back(stressTestParetoCopyMove, 1100);
+    threads.emplace_back(stressTestRayleighCopyMove, 1200);
+    threads.emplace_back(stressTestStudentTCopyMove, 1300);
+    threads.emplace_back(stressTestVonMisesCopyMove, 1400);
+    threads.emplace_back(stressTestWeibullCopyMove, 1500);
 
     // Monitor progress
     while (chrono::steady_clock::now() - start_time < chrono::seconds(test_duration_seconds)) {

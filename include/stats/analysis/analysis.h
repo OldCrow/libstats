@@ -9,7 +9,7 @@
  * explicitly when needed.
  */
 
-#include "bootstrap.h"
-#include "cross_validation.h"
-#include "goodness_of_fit.h"
-#include "information_criteria.h"
+#include "libstats/stats/analysis/bootstrap.h"
+#include "libstats/stats/analysis/cross_validation.h"
+#include "libstats/stats/analysis/goodness_of_fit.h"
+#include "libstats/stats/analysis/information_criteria.h"

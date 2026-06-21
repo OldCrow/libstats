@@ -31,8 +31,17 @@
 #ifdef LIBSTATS_ENABLE_GTEST_INTEGRATION
     #include <gtest/gtest.h>
 #else
-// Provide fallback macros for non-gtest mode that support streaming
+    // Provide fallback macros for non-gtest mode that support streaming.
+    // A global counter tracks all failures so callers can check get_failure_count() > 0.
+    #include <atomic>
 namespace libstats_test_impl {
+inline std::atomic<int>& failure_counter() noexcept {
+    static std::atomic<int> count{0};
+    return count;
+}
+inline int get_failure_count() noexcept {
+    return failure_counter().load(std::memory_order_relaxed);
+}
 struct NullStream {
     template <typename T>
     NullStream& operator<<(const T&) {
@@ -42,6 +51,7 @@ struct NullStream {
 inline void expect_true(bool condition, const char* condition_str) {
     if (!condition) {
         std::cout << "  ✗ Assertion failed: " << condition_str << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 inline void expect_eq_impl(const char* a_str, const char* b_str) {
@@ -52,6 +62,7 @@ inline void expect_eq(const A& a, const B& b, const char* a_str, const char* b_s
     if (!(a == b)) {
         std::cout << "  ✗ Expected " << a_str << " == " << b_str << ", got " << a << " != " << b
                   << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 template <typename A, typename B>
@@ -59,6 +70,7 @@ inline void expect_ge(const A& a, const B& b, const char* a_str, const char* b_s
     if (a < b) {
         std::cout << "  ✗ Expected " << a_str << " >= " << b_str << ", got " << a << " < " << b
                   << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 template <typename A, typename B>
@@ -66,6 +78,7 @@ inline void expect_le(const A& a, const B& b, const char* a_str, const char* b_s
     if (a > b) {
         std::cout << "  ✗ Expected " << a_str << " <= " << b_str << ", got " << a << " > " << b
                   << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 }  // namespace libstats_test_impl

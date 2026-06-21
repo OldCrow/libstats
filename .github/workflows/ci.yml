@@ -150,8 +150,7 @@ jobs:
 
     - name: Check formatting
       run: |
-        find include src tests -name '*.h' -o -name '*.cpp' | xargs clang-format-17 --dry-run --Werror || true
-        echo "Note: Format checking configured but not enforced yet"
+        find include src tests -name '*.h' -o -name '*.cpp' | xargs clang-format-17 --dry-run --Werror
 
     - name: Run clang-tidy
       run: |

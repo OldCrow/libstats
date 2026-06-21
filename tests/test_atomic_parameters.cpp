@@ -2,6 +2,7 @@
  * @file test_atomic_parameters.cpp
  * @brief GTest suite for atomic parameter management in libstats distributions
  */
+#include "libstats/distributions/binomial.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gaussian.h"
@@ -216,4 +217,108 @@ TEST(AtomicParameters, ThreadSafety) {
 
     EXPECT_EQ(success_count.load(), num_threads);
     std::cout << "  Thread safety: " << num_threads << " threads x " << ops << " ops OK\n";
+}
+
+// TC-new-1: concurrent write + read to cover the specific scenarios fixed by
+// the TS-2/TS-3 remediations.
+
+TEST(AtomicParameters, ConcurrentWriteReadPoisson) {
+    // One writer alternates lambda between two values; readers use the atomic
+    // getter and verify the returned value is always a valid lambda (> 0).
+    auto dist = PoissonDistribution::create(1.0).value;
+    std::atomic<bool> stop{false};
+    std::atomic<bool> corrupt{false};
+
+    std::thread writer([&dist, &stop]() {
+        const double vals[] = {1.0, 5.0};
+        int idx = 0;
+        while (!stop.load(std::memory_order_relaxed)) {
+            dist.setLambda(vals[idx & 1]);
+            ++idx;
+        }
+    });
+
+    const int reader_ops = 20000;
+    std::vector<std::thread> readers;
+    for (int t = 0; t < 3; ++t) {
+        readers.emplace_back([&dist, &corrupt, reader_ops]() {
+            for (int i = 0; i < reader_ops; ++i) {
+                const double v = dist.getLambdaAtomic();
+                if (v <= 0.0 || !std::isfinite(v))
+                    corrupt.store(true, std::memory_order_relaxed);
+            }
+        });
+    }
+
+    for (auto& r : readers)
+        r.join();
+    stop.store(true);
+    writer.join();
+
+    EXPECT_FALSE(corrupt.load()) << "Atomic getter returned invalid lambda under concurrent writes";
+}
+
+TEST(AtomicParameters, ConcurrentWriteReadExponential) {
+    auto dist = ExponentialDistribution::create(1.0).value;
+    std::atomic<bool> stop{false};
+    std::atomic<bool> corrupt{false};
+
+    std::thread writer([&dist, &stop]() {
+        const double vals[] = {1.0, 4.0};
+        int idx = 0;
+        while (!stop.load(std::memory_order_relaxed)) {
+            dist.setLambda(vals[idx & 1]);
+            ++idx;
+        }
+    });
+
+    const int reader_ops = 20000;
+    std::vector<std::thread> readers;
+    for (int t = 0; t < 3; ++t) {
+        readers.emplace_back([&dist, &corrupt, reader_ops]() {
+            for (int i = 0; i < reader_ops; ++i) {
+                const double v = dist.getLambdaAtomic();
+                if (v <= 0.0 || !std::isfinite(v))
+                    corrupt.store(true, std::memory_order_relaxed);
+            }
+        });
+    }
+
+    for (auto& r : readers)
+        r.join();
+    stop.store(true);
+    writer.join();
+
+    EXPECT_FALSE(corrupt.load()) << "Atomic getter returned invalid lambda under concurrent writes";
+}
+
+TEST(AtomicParameters, BinomialAtomicGetters) {
+    auto dist = BinomialDistribution::create(10, 0.4).value;
+    EXPECT_EQ(dist.getNAtomic(), 10);
+    EXPECT_NEAR(dist.getPAtomic(), 0.4, 1e-15);
+    EXPECT_EQ(dist.getN(), dist.getNAtomic());
+    EXPECT_NEAR(dist.getP(), dist.getPAtomic(), 1e-15);
+}
+
+TEST(AtomicParameters, BinomialAtomicInvalidation) {
+    auto dist = BinomialDistribution::create(5, 0.3).value;
+    EXPECT_EQ(dist.getNAtomic(), 5);
+    EXPECT_NEAR(dist.getPAtomic(), 0.3, 1e-15);
+
+    dist.setN(20);
+    EXPECT_EQ(dist.getNAtomic(), 20);
+    EXPECT_NEAR(dist.getPAtomic(), 0.3, 1e-15);
+
+    dist.setP(0.7);
+    EXPECT_EQ(dist.getNAtomic(), 20);
+    EXPECT_NEAR(dist.getPAtomic(), 0.7, 1e-15);
+
+    dist.setParameters(8, 0.5);
+    EXPECT_EQ(dist.getNAtomic(), 8);
+    EXPECT_NEAR(dist.getPAtomic(), 0.5, 1e-15);
+
+    auto r = dist.trySetParameters(15, 0.6);
+    ASSERT_TRUE(r.isOk());
+    EXPECT_EQ(dist.getNAtomic(), 15);
+    EXPECT_NEAR(dist.getPAtomic(), 0.6, 1e-15);
 }

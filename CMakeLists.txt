@@ -29,14 +29,6 @@ else()
     endif()
 endif()
 
-# Set MAKEFLAGS environment variable for make-based generators
-if(CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
-    set(ENV{MAKEFLAGS} "-j${CPU_COUNT}")
-    if(LIBSTATS_VERBOSE_BUILD)
-        message(STATUS "Set MAKEFLAGS=-j${CPU_COUNT} for make-based build")
-    endif()
-endif()
-
 # Set parallel options for CMake build command (for use with cmake --build)
 if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
     set(CMAKE_BUILD_PARALLEL_LEVEL
@@ -793,6 +785,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/exponential_analysis.cpp # Exponential-specific analysis
     src/gamma_analysis.cpp # Gamma-specific analysis
     src/binomial_analysis.cpp # Binomial-specific analysis
+    src/discrete_analysis.cpp # Discrete-uniform-specific analysis
 )
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -989,8 +982,11 @@ configure_simd_target(libstats_simd_obj)
 configure_simd_target(libstats_static)
 configure_simd_target(libstats_shared)
 
-# POSIX thread functions are used by platform sources on Unix-like systems.
+# POSIX thread functions are used by platform sources on Unix-like systems. NEW-BS-4: also link to
+# platform_obj whose sources (thread_pool, work_stealing_pool) reference pthread directly and may be
+# consumed without the final library targets.
 if(TARGET Threads::Threads)
+    target_link_libraries(libstats_platform_obj PRIVATE Threads::Threads)
     target_link_libraries(libstats_static PUBLIC Threads::Threads)
     target_link_libraries(libstats_shared PUBLIC Threads::Threads)
 endif()
@@ -1093,11 +1089,6 @@ if(LIBSTATS_BUILD_TESTS)
                        ${CMAKE_CURRENT_BINARY_DIR}/tests/RelWithDebInfo
                        RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL
                        ${CMAKE_CURRENT_BINARY_DIR}/tests/MinSizeRel)
-
-        # Apply same compiler flags as main library
-        if(APPLE)
-            target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++)
-        endif()
 
         # Add include directories
         target_include_directories(
@@ -1538,12 +1529,6 @@ if(LIBSTATS_BUILD_TOOLS)
         target_include_directories(${tool_name} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
                                                         ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-        # Apply same compiler flags as main library
-        if(APPLE)
-            target_compile_options(${tool_name} PRIVATE -stdlib=libc++)
-            # Rpath inherited from libstats_static via PUBLIC link options
-        endif()
-
         # Link to SIMD interface target for modern CMake approach
         if(TARGET libstats_simd_interface)
             target_link_libraries(${tool_name} PRIVATE libstats::simd)
@@ -1559,12 +1544,6 @@ if(LIBSTATS_BUILD_TOOLS)
         # No libstats linking - pure standard library tools Still needs include paths for
         # tool_utils.h → libstats headers
         target_include_directories(${tool_name} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
-
-        # Apply same compiler flags as main library
-        if(APPLE)
-            target_compile_options(${tool_name} PRIVATE -stdlib=libc++)
-            # Rpath for LLVM libc++ is handled automatically by CMake
-        endif()
 
         set_target_properties(${tool_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
                                                       ${CMAKE_CURRENT_BINARY_DIR}/tools)

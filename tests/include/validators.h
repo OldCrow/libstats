@@ -407,46 +407,6 @@ inline bool validateBatchAccuracy(const std::vector<double>& batch_results,
 }
 
 //==============================================================================
-// Memory Usage Validation
-//==============================================================================
-
-/**
- * @brief Validate memory allocation patterns for batch operations
- * @param operation_func Function to test
- * @param expected_max_allocs Maximum expected allocations
- * @param batch_size Size of batch being processed
- * @return True if memory usage is reasonable
- * @note This is a placeholder - actual implementation would require memory profiling
- */
-template <typename Func>
-inline bool validateMemoryUsage(Func&& operation_func, std::size_t expected_max_allocs,
-                                std::size_t batch_size) noexcept {
-    // TODO: Implement memory profiling when available
-    // For now, return true but this is a placeholder for future memory tracking
-    (void)operation_func;
-    (void)expected_max_allocs;
-    (void)batch_size;
-    return true;
-}
-
-/**
- * @brief Validate that operations don't leak memory
- * @param operation_func Function to test repeatedly
- * @param iterations Number of iterations to run
- * @return True if no memory leaks detected
- * @note This is a placeholder - actual implementation would require memory profiling
- */
-template <typename Func>
-inline bool validateNoMemoryLeaks(Func&& operation_func, std::size_t iterations = 100) noexcept {
-    // TODO: Implement memory leak detection when available
-    // For now, just run the operation multiple times
-    for (std::size_t i = 0; i < iterations; ++i) {
-        operation_func();
-    }
-    return true;  // Placeholder
-}
-
-//==============================================================================
 // Test Environment Validation
 //==============================================================================
 

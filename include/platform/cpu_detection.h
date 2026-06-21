@@ -264,24 +264,5 @@ TimingResult measure_performance(Func&& func) {
  */
 uint64_t read_tsc();
 
-/**
- * @brief Estimate CPU frequency using TSC
- * @param duration_ms Duration to measure in milliseconds
- * @return Estimated frequency in Hz, or 0 if measurement failed
- */
-std::optional<uint64_t> estimate_cpu_frequency(uint32_t duration_ms = 100);
-
-/**
- * @brief Get detailed CPU information string
- * @return Multi-line string with comprehensive CPU information
- */
-std::string detailed_cpu_info();
-
-/**
- * @brief Validate CPU feature consistency
- * @return True if detected features are consistent, false otherwise
- */
-bool validate_feature_consistency();
-
 }  // namespace arch
 }  // namespace stats

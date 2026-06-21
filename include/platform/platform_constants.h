@@ -81,9 +81,13 @@ inline constexpr std::size_t OPT_AVX512_SMALL_BENEFIT_THRESHOLD = 4;
 }  // namespace simd
 
 /// Parallel processing optimization constants.
-/// Per-architecture grain sizes consumed by the adaptive runtime functions in
-/// platform_constants_impl.cpp. Distribution-specific per-operation thresholds
-/// and the legacy Ivy Bridge section have been removed (AQ-4, v2.0.0).
+///
+/// Each sub-namespace (sse, avx, avx2, avx512, neon, fallback) holds
+/// compile-time constants for one SIMD tier. The `get_*` runtime functions
+/// below this namespace are the intended public API: they dispatch to the
+/// correct sub-namespace at runtime based on detected CPU features.
+/// Callers outside platform_constants_impl.cpp should use `get_*` functions,
+/// not the sub-namespace constants directly.
 namespace parallel {
 
 namespace sse {

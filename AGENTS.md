@@ -539,6 +539,11 @@ include/
 │   ├── distribution_*.h    # Distribution framework components
 │   └── *_common.h         # Consolidated headers for faster compilation
 ├── distributions/          # Concrete distributions (gaussian.h, etc.)
+├── stats/
+│   └── analysis/           # Statistical tests and estimators (stats::analysis::)
+│       ├── analysis.h      # Umbrella include
+│       ├── goodness_of_fit.h, bootstrap.h, cross_validation.h, information_criteria.h
+│       └── gaussian_analysis.h, poisson_analysis.h, exponential_analysis.h, …
 └── platform/              # SIMD, threading, parallel execution
 ```
 

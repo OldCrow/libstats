@@ -74,11 +74,11 @@ struct FeaturesSingleton {
 
     // Non-copyable, non-movable: std::atomic members are non-copyable,
     // but the intent must be explicit (Rule of Five).
-    FeaturesSingleton()                                    = default;
-    FeaturesSingleton(const FeaturesSingleton&)            = delete;
+    FeaturesSingleton() = default;
+    FeaturesSingleton(const FeaturesSingleton&) = delete;
     FeaturesSingleton& operator=(const FeaturesSingleton&) = delete;
-    FeaturesSingleton(FeaturesSingleton&&)                 = delete;
-    FeaturesSingleton& operator=(FeaturesSingleton&&)      = delete;
+    FeaturesSingleton(FeaturesSingleton&&) = delete;
+    FeaturesSingleton& operator=(FeaturesSingleton&&) = delete;
 
     const Features& get() {
         Features* features = ptr.load(std::memory_order_acquire);
@@ -149,17 +149,17 @@ void safe_cpuid(uint32_t eax, uint32_t ecx, uint32_t& out_eax, uint32_t& out_ebx
 }
 
 uint64_t safe_xgetbv(uint32_t index) noexcept {
-#if defined(__GNUC__) || defined(__clang__)
+    #if defined(__GNUC__) || defined(__clang__)
     uint32_t xcr0_eax = 0;
     uint32_t xcr0_edx = 0;
     asm volatile("xgetbv" : "=a"(xcr0_eax), "=d"(xcr0_edx) : "c"(index));
     return (static_cast<uint64_t>(xcr0_edx) << 32) | xcr0_eax;
-#elif defined(_MSC_VER)
+    #elif defined(_MSC_VER)
     return _xgetbv(index);
-#else
+    #else
     (void)index;
     return 0;
-#endif
+    #endif
 }
 
     #if !defined(__APPLE__)
@@ -904,100 +904,6 @@ uint64_t read_tsc() {
 #else
     return 0;
 #endif
-}
-
-std::optional<uint64_t> estimate_cpu_frequency(uint32_t duration_ms) {
-    if (!has_rdtsc()) {
-        return std::nullopt;
-    }
-
-    uint64_t start_tsc = read_tsc();
-    auto start_time = std::chrono::high_resolution_clock::now();
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
-
-    uint64_t end_tsc = read_tsc();
-    auto end_time = std::chrono::high_resolution_clock::now();
-
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
-    uint64_t cycles = end_tsc - start_tsc;
-
-    if (duration.count() > 0) {
-        // Calculate frequency: cycles per nanosecond * conversion factor = Hz
-        double freq = static_cast<double>(cycles) / static_cast<double>(duration.count()) *
-                      arch::simd::CPU_NANOSECONDS_TO_HZ;
-        return static_cast<uint64_t>(freq);
-    }
-
-    return std::nullopt;
-}
-
-std::string detailed_cpu_info() {
-    const Features& f = get_features();
-    std::string result;
-
-    result += "CPU Details:\n";
-    result += "  Vendor: " + f.vendor + "\n";
-    if (!f.brand.empty()) {
-        result += "  Brand: " + f.brand + "\n";
-    }
-    result += "  Family: " + std::to_string(f.family) + "\n";
-    result += "  Model: " + std::to_string(f.model) + "\n";
-    result += "  Stepping: " + std::to_string(f.stepping) + "\n";
-
-    result += "\nSIMD Features: " + features_string() + "\n";
-    result += "Best SIMD Level: " + best_simd_level() + "\n";
-
-    result += "\nOptimal Vector Widths:\n";
-    result += "  Double: " + std::to_string(optimal_double_width()) + "\n";
-    result += "  Float: " + std::to_string(optimal_float_width()) + "\n";
-    result += "  Alignment: " + std::to_string(optimal_alignment()) + " bytes\n";
-
-    result += "\nCache Information:\n";
-    result += "  L1 Data: " + std::to_string(f.l1_data_cache.size) + " bytes\n";
-    result += "  L1 Instruction: " + std::to_string(f.l1_instruction_cache.size) + " bytes\n";
-    result += "  L2: " + std::to_string(f.l2_cache.size) + " bytes\n";
-    result += "  L3: " + std::to_string(f.l3_cache.size) + " bytes\n";
-
-    result += "\nTopology:\n";
-    result += "  Logical Cores: " + std::to_string(f.topology.logical_cores) + "\n";
-    result += "  Physical Cores: " + std::to_string(f.topology.physical_cores) + "\n";
-    result += "  Hyperthreading: " +
-              (f.topology.hyperthreading ? std::string("Yes") : std::string("No")) + "\n";
-
-    return result;
-}
-
-bool validate_feature_consistency() {
-    const Features& f = get_features();
-
-    // Check AVX hierarchy consistency
-    if (f.avx2 && !f.avx)
-        return false;
-    if (f.avx && !f.sse2)
-        return false;
-    if (f.avx512f && !f.avx2)
-        return false;
-
-    // Check SSE hierarchy consistency
-    if (f.sse4_2 && !f.sse4_1)
-        return false;
-    if (f.sse4_1 && !f.ssse3)
-        return false;
-    if (f.ssse3 && !f.sse3)
-        return false;
-    if (f.sse3 && !f.sse2)
-        return false;
-
-    // Check AVX-512 sub-features require AVX-512F
-    if ((f.avx512dq || f.avx512cd || f.avx512bw || f.avx512vl) && !f.avx512f)
-        return false;
-
-    // Check ARM hierarchy consistency
-    if (f.sve2 && !f.sve)
-        return false;
-
-    return true;
 }
 
 // Intel CPU generation detection functions

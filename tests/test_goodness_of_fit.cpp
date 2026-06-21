@@ -144,3 +144,49 @@ TEST(Bootstrap, EmptyDataThrows) {
     EXPECT_THROW((stats::analysis::bootstrapMeanCI<GaussianDistribution>({}, 0.95)),
                  std::invalid_argument);
 }
+
+// ── Anderson-Darling p-value continuity guard (MC-6 regression) ─────────────────
+
+TEST(AndersonDarling, PValueContinuityNearStatSix) {
+    // Regression guard for MC-6: the Anderson-Darling p-value had a 5×
+    // discontinuity near stat ≈6.0 caused by a piecewise polynomial error.
+    //
+    // Guard strategy: build datasets of increasing size from exponential data
+    // tested against a misspecified Gaussian. For each subset:
+    //   (a) stat and p must be finite and in their valid ranges.
+    //   (b) stat must be non-decreasing as n grows (more data → stronger signal).
+    //   (c) p must be non-increasing (weaker: allow equal since p can saturate at 0).
+    // These checks don't depend on p-value ratios (which grow naturally for
+    // a consistently bad fit) and so are robust against the actual MC-6 regression.
+    auto gaussian = GaussianDistribution::create(0.5, 1.0).value;
+
+    std::mt19937 rng(999);
+    std::exponential_distribution<double> ed(1.0);
+    std::vector<double> pool(400);
+    for (auto& x : pool)
+        x = ed(rng);
+
+    double prev_stat = 0.0;
+    double prev_p = 1.0;
+    for (std::size_t n : {50u, 100u, 200u, 300u}) {
+        std::vector<double> data(pool.begin(), pool.begin() + static_cast<long>(n));
+        auto [stat, p, reject] = stats::analysis::andersonDarlingTest(data, gaussian);
+        EXPECT_TRUE(std::isfinite(stat)) << "AD statistic must be finite";
+        EXPECT_TRUE(std::isfinite(p)) << "AD p-value must be finite";
+        EXPECT_GE(stat, 0.0);
+        EXPECT_GE(p, 0.0);
+        EXPECT_LE(p, 1.0);
+        // More data from a bad distribution → stat must not decrease.
+        EXPECT_GE(stat, prev_stat)
+            << "AD stat must not decrease as n grows for a consistently bad fit";
+        // p must not increase as the evidence against H0 strengthens.
+        EXPECT_LE(p, prev_p + 1e-6)  // +epsilon tolerates floating-point equality at p≈0
+            << "AD p-value must not increase as n grows for a consistently bad fit";
+        prev_stat = stat;
+        prev_p = p;
+    }
+    // The worst fit (n=300) must be clearly rejected.
+    auto [stat_max, p_max, rej_max] = stats::analysis::andersonDarlingTest(
+        std::vector<double>(pool.begin(), pool.begin() + 300), gaussian);
+    EXPECT_TRUE(rej_max) << "Exponential data must be rejected against a shifted Gaussian";
+}

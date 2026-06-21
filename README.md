@@ -145,6 +145,7 @@ libstats/
 │   ├── libstats.h        # Complete library (single include)
 │   ├── core/             # Core mathematical and statistical components
 │   ├── distributions/    # Statistical distributions (Gaussian, Exponential, etc.)
+│   ├── stats/analysis/   # Statistical tests and estimators (stats::analysis::)
 │   └── platform/         # SIMD, threading, and platform optimizations
 ├── src/              # Implementation files
 ├── tests/            # Comprehensive unit and integration tests
