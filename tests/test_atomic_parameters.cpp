@@ -19,6 +19,10 @@
 
 using namespace stats;
 
+namespace {
+constexpr int kConcurrentReaderOps = 20000;
+}  // namespace
+
 TEST(AtomicParameters, ExponentialAtomicGetter) {
     auto result = ExponentialDistribution::create(2.5);
     ASSERT_TRUE(result.isOk());
@@ -238,11 +242,10 @@ TEST(AtomicParameters, ConcurrentWriteReadPoisson) {
         }
     });
 
-    const int reader_ops = 20000;
     std::vector<std::thread> readers;
     for (int t = 0; t < 3; ++t) {
-        readers.emplace_back([&dist, &corrupt, reader_ops]() {
-            for (int i = 0; i < reader_ops; ++i) {
+        readers.emplace_back([&dist, &corrupt]() {
+            for (int i = 0; i < kConcurrentReaderOps; ++i) {
                 const double v = dist.getLambdaAtomic();
                 if (v <= 0.0 || !std::isfinite(v))
                     corrupt.store(true, std::memory_order_relaxed);
@@ -272,11 +275,10 @@ TEST(AtomicParameters, ConcurrentWriteReadExponential) {
         }
     });
 
-    const int reader_ops = 20000;
     std::vector<std::thread> readers;
     for (int t = 0; t < 3; ++t) {
-        readers.emplace_back([&dist, &corrupt, reader_ops]() {
-            for (int i = 0; i < reader_ops; ++i) {
+        readers.emplace_back([&dist, &corrupt]() {
+            for (int i = 0; i < 20000; ++i) {
                 const double v = dist.getLambdaAtomic();
                 if (v <= 0.0 || !std::isfinite(v))
                     corrupt.store(true, std::memory_order_relaxed);
