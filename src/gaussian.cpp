@@ -19,6 +19,7 @@ using stats::detail::validatePositiveParameter;
 #include <cmath>
 #include <numeric>
 #include <ranges>
+#include <sstream>  // for toString()
 #include <span>
 #include <vector>
 

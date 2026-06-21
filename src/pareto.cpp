@@ -135,8 +135,8 @@ ParetoDistribution::ParetoDistribution(double scale, double alpha,
 //==============================================================================
 
 void ParetoDistribution::setScale(double scale) {
-    validateParameters(scale, getAlpha());
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(scale, alpha_);
     scale_ = scale;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -145,8 +145,8 @@ void ParetoDistribution::setScale(double scale) {
 }
 
 void ParetoDistribution::setAlpha(double alpha) {
-    validateParameters(getScale(), alpha);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(scale_, alpha);
     alpha_ = alpha;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -232,10 +232,10 @@ double ParetoDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 VoidResult ParetoDistribution::trySetScale(double scale) noexcept {
-    auto v = validateParetoParameters(scale, getAlpha());
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateParetoParameters(scale, alpha_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     scale_ = scale;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -245,10 +245,10 @@ VoidResult ParetoDistribution::trySetScale(double scale) noexcept {
 }
 
 VoidResult ParetoDistribution::trySetAlpha(double alpha) noexcept {
-    auto v = validateParetoParameters(getScale(), alpha);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateParetoParameters(scale_, alpha);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     alpha_ = alpha;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);

@@ -132,8 +132,11 @@ WeibullDistribution::WeibullDistribution(double shape, double scale,
 //==============================================================================
 
 void WeibullDistribution::setShape(double shape) {
-    validateParameters(shape, getScale());
+    // Acquire lock first, then validate against scale_ member to eliminate
+    // the TOCTOU window where a concurrent setScale() could change scale_
+    // between validateParameters() and the unique_lock acquisition.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(shape, scale_);
     shape_ = shape;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -142,8 +145,8 @@ void WeibullDistribution::setShape(double shape) {
 }
 
 void WeibullDistribution::setScale(double scale) {
-    validateParameters(getShape(), scale);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(shape_, scale);
     scale_ = scale;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -238,10 +241,10 @@ double WeibullDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 VoidResult WeibullDistribution::trySetShape(double shape) noexcept {
-    auto v = validateWeibullParameters(shape, getScale());
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateWeibullParameters(shape, scale_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     shape_ = shape;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -251,10 +254,10 @@ VoidResult WeibullDistribution::trySetShape(double shape) noexcept {
 }
 
 VoidResult WeibullDistribution::trySetScale(double scale) noexcept {
-    auto v = validateWeibullParameters(getShape(), scale);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateWeibullParameters(shape_, scale);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     scale_ = scale;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -526,7 +529,7 @@ void WeibullDistribution::fit(const std::vector<double>& values) {
         k < detail::MAX_DISTRIBUTION_PARAMETER && lambda < detail::MAX_DISTRIBUTION_PARAMETER) {
         setParameters(k, lambda);
     } else {
-        reset();
+        throw std::runtime_error("Weibull MLE did not converge to a valid estimate");
     }
 }
 

@@ -327,7 +327,7 @@ void RayleighDistribution::fit(const std::vector<double>& values) {
     if (std::isfinite(sigma_hat) && sigma_hat > detail::ZERO) {
         setSigma(sigma_hat);
     } else {
-        reset();
+        throw std::runtime_error("Rayleigh MLE did not converge to a valid estimate");
     }
 }
 

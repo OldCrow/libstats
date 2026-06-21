@@ -96,11 +96,15 @@
  *
  * This library uses conditional compilation to minimize header inclusion overhead:
  *
- * 1. DEFAULT MODE (forward declarations only):
- *    - By default, libstats.h includes only forward declarations and essential constants
- *    - Provides type information and compile-time features without implementation overhead
- *    - Ideal for header files that only need type information
- *    - Significantly reduces compilation time and preprocessor overhead
+ * 1. DEFAULT MODE:
+ *    - Includes forward_declarations.h, essential_constants.h, and platform/simd.h.
+ *    - platform/simd.h transitively pulls in platform_common.h, which includes <thread>,
+ *      <mutex>, <shared_mutex>, <functional>, <memory>, <atomic>, <chrono>, and OS-specific
+ *      system headers (<mach/mach.h>, <dispatch/dispatch.h>, <sys/sysctl.h> on macOS).
+ *    - NOT a zero-overhead include. Suitable for translation units that need distribution
+ *      type information (pointers, references) but not method implementations.
+ *    - If you need truly minimal includes in your own library headers, include
+ *      common/forward_declarations.h directly instead.
  *
  * 2. FULL INTERFACE MODE:
  *    - Define LIBSTATS_FULL_INTERFACE before including libstats.h to get full functionality
@@ -109,14 +113,14 @@
  *
  * RECOMMENDED USAGE PATTERNS:
  *
- * Header files (.h):
- *   #include "libstats.h"  // Just forward declarations, minimal overhead
+ * Header files (.h) — pointer/reference use only:
+ *   #include "libstats.h"  // Forward declarations + simd.h (pulls OS headers)
  *
  *   class MyClass {
  *       stats::Gaussian* gaussian_;  // Pointer/reference works with forward declaration
  *   };
  *
- * Implementation files (.cpp):
+ * Implementation files (.cpp) — full use:
  *   #define LIBSTATS_FULL_INTERFACE  // Enable full functionality
  *   #include "libstats.h"             // Get complete implementation
  *

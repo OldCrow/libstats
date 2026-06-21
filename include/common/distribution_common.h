@@ -20,10 +20,6 @@
 #include <string>
 #include <vector>
 
-// Modern C++20 standard headers for advanced distributions
-#include <concepts>
-#include <ranges>
-
 // Core libstats headers needed by all distributions
 #include "libstats/core/distribution_base.h"
 #include "libstats/core/distribution_interface.h"

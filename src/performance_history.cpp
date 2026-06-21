@@ -19,7 +19,8 @@ void PerformanceHistory::recordPerformance(Strategy strategy, DistributionType d
     std::string key = generateKey(strategy, distribution_type, categorizeBatchSize(batch_size));
     std::unique_lock<std::timed_mutex> lock(data_mutex_);
     auto& stats = performance_data_[key];
-    lock.unlock();
+    // Hold lock through all updates — prevents clearHistory() from calling
+    // performance_data_.clear() and destroying the node that `stats` references.
     stats.total_time_ns.fetch_add(execution_time_ns, std::memory_order_release);
     stats.execution_count.fetch_add(1, std::memory_order_release);
 

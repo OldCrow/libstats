@@ -183,18 +183,31 @@ double NegativeBinomialDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 VoidResult NegativeBinomialDistribution::trySetR(double r) noexcept {
-    auto v = validateNegativeBinomialParameters(r, getP());
+    // Acquire lock first: validate against member p_ (not getP()) to close the TOCTOU
+    // window where a concurrent setP() could change p_ between validate and update,
+    // causing setR() to throw inside a noexcept context -> std::terminate.
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateNegativeBinomialParameters(r, p_);
     if (v.isError())
         return v;
-    setR(r);
+    r_ = r;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+    updateCacheUnsafe();
     return VoidResult::ok({});
 }
 
 VoidResult NegativeBinomialDistribution::trySetP(double p) noexcept {
-    auto v = validateNegativeBinomialParameters(getR(), p);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateNegativeBinomialParameters(r_, p);
     if (v.isError())
         return v;
-    setP(p);
+    p_ = p;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+    updateCacheUnsafe();
     return VoidResult::ok({});
 }
 
