@@ -210,7 +210,7 @@ class PoissonDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<PoissonDistribution> create(double lambda = detail::ONE) noexcept {
+    [[nodiscard]] static Result<PoissonDistribution> create(double lambda = detail::ONE) {
         auto validation = validatePoissonParameters(lambda);
         if (validation.isError()) {
             return Result<PoissonDistribution>::makeError(validation.error_code,

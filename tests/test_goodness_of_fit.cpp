@@ -86,11 +86,15 @@ TEST(GoodnessOfFit, LR_RejectsWrongModel) {
     EXPECT_GT(lr, 0.0);
     EXPECT_TRUE(reject);
 }
-TEST(GoodnessOfFit, LR_EqualParamsThrows) {
-    // Identical models: LR stat = 0 → non-positive LR throws std::invalid_argument.
+TEST(GoodnessOfFit, LR_EqualParamsReturnsValid) {
+    // Identical models: lr_stat = 0 → valid result {0, 1.0, false} (ANA-4).
+    // Model equivalence is a valid test outcome, not an error condition.
     auto data = normalSample(50);
     auto g = GaussianDistribution::create(0.0, 1.0).value;
-    EXPECT_THROW(stats::analysis::likelihoodRatioTest(data, g, g, 2), std::invalid_argument);
+    auto [lr, p, reject] = stats::analysis::likelihoodRatioTest(data, g, g, 2);
+    EXPECT_DOUBLE_EQ(lr, 0.0);
+    EXPECT_DOUBLE_EQ(p, 1.0);
+    EXPECT_FALSE(reject);
 }
 TEST(GoodnessOfFit, LR_InvalidDfThrows) {
     // df = 0 must throw before any computation.

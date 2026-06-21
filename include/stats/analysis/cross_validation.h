@@ -39,8 +39,10 @@ namespace stats::analysis {
  * @param data        Data vector.
  * @param k           Number of folds (k ≥ 2, k ≤ data.size()).
  * @param random_seed Seed for fold shuffle reproducibility.
- * @return Vector of k fold log-likelihoods: sum of log P(x_i | θ̂) over each
- *         held-out fold under the model fitted to the training fold.
+ * @return Vector of k per-observation log-likelihoods: mean of log P(x_i | θ̂) over
+ *         each held-out fold (ANA-5). Dividing by fold size rather than returning the
+ *         raw sum makes the values comparable across folds and enables unweighted
+ *         averaging even when the last fold is larger (n mod k extra elements).
  */
 template <concepts::FittableDistribution D>
 [[nodiscard]] std::vector<double>
@@ -86,7 +88,9 @@ kFoldCrossValidation(const std::vector<double>& data,
         for (double val : validation)
             fold_ll += fitted.getLogProbability(val);
 
-        results.push_back(fold_ll);
+        // ANA-5: return per-observation average so the last fold (which absorbs
+        // n mod k extra elements) is directly comparable to other folds.
+        results.push_back(fold_ll / static_cast<double>(validation.size()));
     }
 
     return results;

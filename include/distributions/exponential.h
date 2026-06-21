@@ -179,7 +179,7 @@ class ExponentialDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<ExponentialDistribution> create(double lambda = 1.0) noexcept {
+    [[nodiscard]] static Result<ExponentialDistribution> create(double lambda = 1.0) {
         auto validation = validateExponentialParameters(lambda);
         if (validation.isError()) {
             return Result<ExponentialDistribution>::makeError(validation.error_code,

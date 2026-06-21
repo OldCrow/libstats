@@ -118,7 +118,7 @@ class StudentTDistribution : public DistributionBase {
      * @param nu Degrees of freedom (must be positive)
      * @return Result containing either a valid StudentTDistribution or error info
      */
-    [[nodiscard]] static Result<StudentTDistribution> create(double nu = detail::ONE) noexcept {
+    [[nodiscard]] static Result<StudentTDistribution> create(double nu = detail::ONE) {
         auto validation = validateStudentTParameters(nu);
         if (validation.isError()) {
             return Result<StudentTDistribution>::makeError(validation.error_code,
@@ -377,10 +377,10 @@ class StudentTDistribution : public DistributionBase {
     // 21. PRIVATE VALIDATION METHODS
     //==========================================================================
 
+    // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double nu) {
-        if (std::isnan(nu) || std::isinf(nu) || nu <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Degrees of freedom nu must be a positive finite number");
-        }
+        auto v = ::stats::validateStudentTParameters(nu);
+        if (v.isError()) throw std::invalid_argument(v.message);
     }
 
     //==========================================================================

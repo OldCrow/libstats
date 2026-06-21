@@ -108,7 +108,7 @@ class RayleighDistribution : public DistributionBase {
      * @param sigma Scale parameter σ (must be positive)
      * @return Result containing a valid RayleighDistribution or error info
      */
-    [[nodiscard]] static Result<RayleighDistribution> create(double sigma = detail::ONE) noexcept {
+    [[nodiscard]] static Result<RayleighDistribution> create(double sigma = detail::ONE) {
         auto validation = validateRayleighParameters(sigma);
         if (validation.isError()) {
             return Result<RayleighDistribution>::makeError(validation.error_code,

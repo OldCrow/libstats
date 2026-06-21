@@ -85,7 +85,7 @@ class BinomialDistribution : public DistributionBase {
     //==========================================================================
 
     [[nodiscard]] static Result<BinomialDistribution> create(int n = 10,
-                                                             double p = detail::HALF) noexcept {
+                                                             double p = detail::HALF) {
         auto v = validateBinomialParameters(n, p);
         if (v.isError())
             return Result<BinomialDistribution>::makeError(v.error_code, v.message);

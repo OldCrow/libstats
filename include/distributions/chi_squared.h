@@ -151,7 +151,7 @@ class ChiSquaredDistribution : public DistributionBase {
      * @param k Degrees of freedom (must be positive)
      * @return Result containing either a valid ChiSquaredDistribution or error info
      */
-    [[nodiscard]] static Result<ChiSquaredDistribution> create(double k = detail::ONE) noexcept {
+    [[nodiscard]] static Result<ChiSquaredDistribution> create(double k = detail::ONE) {
         auto validation = validateChiSquaredParameters(k);
         if (validation.isError()) {
             return Result<ChiSquaredDistribution>::makeError(validation.error_code,
@@ -478,10 +478,10 @@ class ChiSquaredDistribution : public DistributionBase {
      * @param k Degrees of freedom (must be positive and finite)
      * @throws std::invalid_argument if invalid
      */
+    // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double k) {
-        if (std::isnan(k) || std::isinf(k) || k <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Degrees of freedom k must be a positive finite number");
-        }
+        auto v = ::stats::validateChiSquaredParameters(k);
+        if (v.isError()) throw std::invalid_argument(v.message);
     }
 
     //==========================================================================

@@ -105,7 +105,7 @@ class LogNormalDistribution : public DistributionBase {
      * @return Result containing a valid LogNormalDistribution or error info
      */
     [[nodiscard]] static Result<LogNormalDistribution> create(double mu = detail::ZERO_DOUBLE,
-                                                              double sigma = detail::ONE) noexcept {
+                                                              double sigma = detail::ONE) {
         auto validation = validateLogNormalParameters(mu, sigma);
         if (validation.isError()) {
             return Result<LogNormalDistribution>::makeError(validation.error_code,

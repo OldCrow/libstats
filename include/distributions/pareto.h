@@ -102,7 +102,7 @@ class ParetoDistribution : public DistributionBase {
      * @return Result containing a valid ParetoDistribution or error info
      */
     [[nodiscard]] static Result<ParetoDistribution> create(double scale = detail::ONE,
-                                                           double alpha = detail::ONE) noexcept {
+                                                           double alpha = detail::ONE) {
         auto validation = validateParetoParameters(scale, alpha);
         if (validation.isError()) {
             return Result<ParetoDistribution>::makeError(validation.error_code, validation.message);

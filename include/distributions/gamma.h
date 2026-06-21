@@ -215,7 +215,7 @@ class GammaDistribution : public DistributionBase {
      * @endcode
      */
     [[nodiscard]] static Result<GammaDistribution> create(double alpha = 1.0,
-                                                          double beta = 1.0) noexcept {
+                                                          double beta = 1.0) {
         auto validation = validateGammaParameters(alpha, beta);
         if (validation.isError()) {
             return Result<GammaDistribution>::makeError(validation.error_code, validation.message);

@@ -2,9 +2,11 @@
 
 /**
  * @file stats/analysis/bootstrap.h
- * @brief Parametric bootstrap confidence intervals for any libstats distribution.
+ * @brief Non-parametric percentile bootstrap confidence intervals.
  *
- * Requires D to be default-constructible and to implement fit().
+ * Both functions resample observed data indices (non-parametric bootstrap),
+ * fit D to each resample, and return percentile-based confidence intervals.
+ * See ANA-2: the previous "parametric bootstrap" label was incorrect.
  *
  * Extracted in v2.0.0. Migration:
  *   GaussianDistribution::bootstrapParameterConfidenceIntervals(data, level, n_boot, seed)
@@ -68,11 +70,16 @@ bootstrapMeanCI(const std::vector<double>& data,
 
     std::sort(bootstrap_means.begin(), bootstrap_means.end());
 
+    // ANA-1: standard percentile indices.  The old formula used (B-1) which
+    // shifted both bounds inward by one element, producing a CI ~0.1% too narrow.
     const double alpha_half = (1.0 - confidence_level) / 2.0;
-    const std::size_t lower_idx =
-        static_cast<std::size_t>(alpha_half * (n_bootstrap - 1));
-    const std::size_t upper_idx =
-        static_cast<std::size_t>((1.0 - alpha_half) * (n_bootstrap - 1));
+    const auto B = static_cast<double>(n_bootstrap);
+    const std::size_t lower_idx = std::min(
+        static_cast<std::size_t>(std::floor(alpha_half * B)),
+        static_cast<std::size_t>(n_bootstrap - 1));
+    const std::size_t upper_idx = std::min(
+        static_cast<std::size_t>(std::ceil((1.0 - alpha_half) * B)) - 1u,
+        static_cast<std::size_t>(n_bootstrap - 1));
 
     return {bootstrap_means[lower_idx], bootstrap_means[upper_idx]};
 }
@@ -121,9 +128,15 @@ bootstrapMeanVarianceCI(const std::vector<double>& data,
     std::sort(means.begin(), means.end());
     std::sort(variances.begin(), variances.end());
 
+    // ANA-1: same percentile-index correction as bootstrapMeanCI.
     const double alpha_half = (1.0 - confidence_level) / 2.0;
-    const std::size_t lo = static_cast<std::size_t>(alpha_half * (n_bootstrap - 1));
-    const std::size_t hi = static_cast<std::size_t>((1.0 - alpha_half) * (n_bootstrap - 1));
+    const auto B = static_cast<double>(n_bootstrap);
+    const std::size_t lo = std::min(
+        static_cast<std::size_t>(std::floor(alpha_half * B)),
+        static_cast<std::size_t>(n_bootstrap - 1));
+    const std::size_t hi = std::min(
+        static_cast<std::size_t>(std::ceil((1.0 - alpha_half) * B)) - 1u,
+        static_cast<std::size_t>(n_bootstrap - 1));
 
     return {{means[lo], means[hi]}, {variances[lo], variances[hi]}};
 }

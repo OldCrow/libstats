@@ -84,7 +84,7 @@ class NegativeBinomialDistribution : public DistributionBase {
     //==========================================================================
 
     [[nodiscard]] static Result<NegativeBinomialDistribution> create(
-        double r = detail::ONE, double p = detail::HALF) noexcept {
+        double r = detail::ONE, double p = detail::HALF) {
         auto v = validateNegativeBinomialParameters(r, p);
         if (v.isError())
             return Result<NegativeBinomialDistribution>::makeError(v.error_code, v.message);

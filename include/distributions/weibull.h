@@ -114,7 +114,7 @@ class WeibullDistribution : public DistributionBase {
      * @return Result containing a valid WeibullDistribution or error info
      */
     [[nodiscard]] static Result<WeibullDistribution> create(double shape = detail::ONE,
-                                                            double scale = detail::ONE) noexcept {
+                                                            double scale = detail::ONE) {
         auto validation = validateWeibullParameters(shape, scale);
         if (validation.isError()) {
             return Result<WeibullDistribution>::makeError(validation.error_code,

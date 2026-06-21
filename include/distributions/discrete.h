@@ -204,7 +204,7 @@ class DiscreteDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<DiscreteDistribution> create(int a = 0, int b = 1) noexcept {
+    [[nodiscard]] static Result<DiscreteDistribution> create(int a = 0, int b = 1) {
         auto validation = validateDiscreteParameters(a, b);
         if (validation.isError()) {
             return Result<DiscreteDistribution>::makeError(validation.error_code,

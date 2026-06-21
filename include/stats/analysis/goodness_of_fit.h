@@ -159,12 +159,12 @@ template <concepts::AnyDistribution D>
     }
 
     const double lr_stat = 2.0 * (ll_u - ll_r);
-    // A non-positive LR stat means the restricted model fits at least as well,
-    // which violates the nested-model assumption (or both models are identical).
-    if (lr_stat <= 0)
-        throw std::invalid_argument(
-            "LR statistic is non-positive: restricted model fits at least as well as "
-            "unrestricted. Check model ordering or whether models are identical.");
+    // ANA-4: lr_stat <= 0 is a valid result — the restricted model fits at least as
+    // well as the unrestricted model (models are equivalent). Return p = 1, no
+    // rejection rather than throwing. Callers testing for strict improvement should
+    // check lr_stat > 0 themselves.
+    if (lr_stat <= 0.0)
+        return {0.0, 1.0, false};
 
     const double p_value = 1.0 - detail::chi_squared_cdf(lr_stat, df);
     return {lr_stat, p_value, p_value < alpha};
@@ -225,13 +225,15 @@ template <concepts::DiscreteDistribution D>
         expected[static_cast<std::size_t>(k - lo)] = static_cast<double>(n) * std::max(0.0, p_k);
     }
 
-    // Merge cells with expected count < 1 into right neighbour.
+    // ANA-3: merge cells with expected count < 5 (Cochran 1954 guideline), not < 1.
+    // Using < 1 retained too many bins, inflated df, and produced over-liberal p-values.
+    // The Poisson-specific chiSquareGoodnessOfFit in poisson_analysis.cpp correctly uses 5.
     std::vector<double> obs_m, exp_m;
     double oa = 0.0, ea = 0.0;
     for (std::size_t i = 0; i < static_cast<std::size_t>(nbins); ++i) {
         oa += observed[i];
         ea += expected[i];
-        if (ea >= 1.0 || i == static_cast<std::size_t>(nbins) - 1) {
+        if (ea >= 5.0 || i == static_cast<std::size_t>(nbins) - 1) {
             obs_m.push_back(oa);
             exp_m.push_back(ea);
             oa = ea = 0.0;

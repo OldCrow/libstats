@@ -117,7 +117,7 @@ class VonMisesDistribution : public DistributionBase {
      * @return Result containing a valid VonMisesDistribution or error info
      */
     [[nodiscard]] static Result<VonMisesDistribution> create(double mu = detail::ZERO_DOUBLE,
-                                                             double kappa = detail::ONE) noexcept {
+                                                             double kappa = detail::ONE) {
         auto validation = validateVonMisesParameters(mu, kappa);
         if (validation.isError()) {
             return Result<VonMisesDistribution>::makeError(validation.error_code,

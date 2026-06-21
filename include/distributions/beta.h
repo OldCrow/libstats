@@ -108,7 +108,7 @@ class BetaDistribution : public DistributionBase {
      * @return Result containing a valid BetaDistribution or error info
      */
     [[nodiscard]] static Result<BetaDistribution> create(double alpha = detail::ONE,
-                                                         double beta = detail::ONE) noexcept {
+                                                         double beta = detail::ONE) {
         auto validation = validateBetaParameters(alpha, beta);
         if (validation.isError()) {
             return Result<BetaDistribution>::makeError(validation.error_code, validation.message);
@@ -370,13 +370,10 @@ class BetaDistribution : public DistributionBase {
     // 21. PRIVATE VALIDATION METHODS
     //==========================================================================
 
+    // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double alpha, double beta) {
-        if (std::isnan(alpha) || std::isinf(alpha) || alpha <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Alpha (shape1) must be a positive finite number");
-        }
-        if (std::isnan(beta) || std::isinf(beta) || beta <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Beta (shape2) must be a positive finite number");
-        }
+        auto v = ::stats::validateBetaParameters(alpha, beta);
+        if (v.isError()) throw std::invalid_argument(v.message);
     }
 
     //==========================================================================

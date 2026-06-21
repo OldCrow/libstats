@@ -197,7 +197,7 @@ class UniformDistribution : public DistributionBase {
      * @endcode
      */
     [[nodiscard]] static Result<UniformDistribution> create(double a = 0.0,
-                                                            double b = 1.0) noexcept {
+                                                            double b = 1.0) {
         auto validation = validateUniformParameters(a, b);
         if (validation.isError()) {
             return Result<UniformDistribution>::makeError(validation.error_code,
