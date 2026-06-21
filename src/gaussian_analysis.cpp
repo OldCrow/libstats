@@ -294,6 +294,23 @@ bayesianCredibleInterval(const std::vector<double>& data,
 // Robust estimation
 // ---------------------------------------------------------------------------
 
+/// Compute IRLS weight for a standardised residual sr.
+/// Throws std::invalid_argument on an unrecognised estimator_type.
+static double compute_robust_weight(double sr, const std::string& type, double c) {
+    const double asr = std::abs(sr);
+    if (type == "huber")
+        return (asr <= c) ? 1.0 : c / asr;
+    if (type == "tukey")
+        return (asr <= c) ? std::pow(1.0 - std::pow(sr / c, 2.0), 2.0) : 0.0;
+    if (type == "hampel") {
+        if (asr <= c)         return 1.0;
+        if (asr <= 2.0 * c)   return c / asr;
+        if (asr <= 3.0 * c)   return c * (3.0 - asr / c) / (2.0 * asr);
+        return 0.0;
+    }
+    throw std::invalid_argument("Unknown estimator type. Use 'huber', 'tukey', or 'hampel'");
+}
+
 std::pair<double, double>
 robustEstimation(const std::vector<double>& data,
                  const std::string& estimator_type,
@@ -322,54 +339,26 @@ robustEstimation(const std::vector<double>& data,
     double scale = mad * detail::MAD_SCALING_FACTOR;
 
     // IRLS M-estimator loop (MC-8 documentation):
-    // The scale update uses a weighted RMS (sqrt(wsq/sum_w)) without a
-    // consistency factor. For the Huber estimator with tuning constant k, the
-    // asymptotic scale estimate converges to σ * c where c depends on k and
-    // the unknown distribution; adding the Fisher-consistency correction
-    // c_inv = sqrt(E_φ[ψ²(x)] / E_φ[ψ'(x)]) is omitted for simplicity.
-    // In practice the MAD initialisation and the IRLS converge to a robust
-    // scale estimate that is close to σ but not exactly σ under Gaussianity.
-    //
-    // The Hampel estimator uses equal weights (w = 1) in the scale-update loop
-    // rather than Hampel weights; this is a deliberate simplification (the
-    // location IRLS uses Hampel weights). A fully-consistent Hampel scale
-    // estimate would require a second pass with Hampel weights.
+    // Scale update uses weighted RMS without Fisher-consistency factor;
+    // Hampel uses equal weights in scale update (see MC-8 comment above).
     for (int iter = 0; iter < 50; ++iter) {
         double sum_w = 0.0, sum_wx = 0.0;
         for (double x : data) {
-            const double sr = (x - loc) / scale;
-            const double asr = std::abs(sr);
-            double w = 1.0;
-            if (estimator_type == "huber")
-                w = (asr <= tuning_constant) ? 1.0 : tuning_constant / asr;
-            else if (estimator_type == "tukey")
-                w = (asr <= tuning_constant)
-                    ? std::pow(1.0 - std::pow(sr/tuning_constant, 2.0), 2.0)
-                    : 0.0;
-            else if (estimator_type == "hampel") {
-                if (asr <= tuning_constant) w = 1.0;
-                else if (asr <= 2*tuning_constant) w = tuning_constant / asr;
-                else if (asr <= 3*tuning_constant)
-                    w = tuning_constant*(3.0 - asr/tuning_constant) / (2.0*asr);
-                else w = 0.0;
-            } else throw std::invalid_argument(
-                "Unknown estimator type. Use 'huber', 'tukey', or 'hampel'");
-            sum_w += w; sum_wx += w * x;
+            const double w = compute_robust_weight(
+                (x - loc) / scale, estimator_type, tuning_constant);
+            sum_w += w;
+            sum_wx += w * x;
         }
         const double new_loc = sum_wx / sum_w;
 
-        // Scale update: weighted RMS of residuals (equal weights for Hampel).
+        // Scale update: Huber/Tukey use their weights; Hampel uses w=1 (see MC-8).
         double wsq = 0.0;
         for (double x : data) {
-            const double r = x - new_loc;
+            const double r  = x - new_loc;
             const double sr = r / scale;
-            double w = 1.0;
-            if (estimator_type == "huber")
-                w = (std::abs(sr) <= tuning_constant) ? 1.0 : tuning_constant/std::abs(sr);
-            else if (estimator_type == "tukey")
-                w = (std::abs(sr) <= tuning_constant)
-                    ? std::pow(1.0 - std::pow(sr/tuning_constant, 2.0), 2.0) : 0.0;
-            // Hampel: w = 1.0 (default); see note above.
+            const double w  = (estimator_type == "hampel")
+                ? 1.0
+                : compute_robust_weight(sr, estimator_type, tuning_constant);
             wsq += w * r * r;
         }
         const double new_scale = std::sqrt(wsq / sum_w);

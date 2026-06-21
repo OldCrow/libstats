@@ -66,6 +66,10 @@ concept AnyDistribution =
         { d.getDistributionName() } -> std::convertible_to<std::string>;
         { d.getNumParameters() }    -> std::convertible_to<int>;
 
+        // Support bounds (pure virtual on DistributionInterface)
+        { d.getSupportLowerBound() } -> std::convertible_to<double>;
+        { d.getSupportUpperBound() } -> std::convertible_to<double>;
+
         // Dispatch metadata — replaces DistributionTraits<D>
         { D::kDistributionType } -> std::convertible_to<detail::DistributionType>;
         { D::kIsDiscrete }       -> std::convertible_to<bool>;

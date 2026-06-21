@@ -121,6 +121,40 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     }
 
     // =============================================================================
+    // SURVIVAL ANALYSIS - Concrete (derived from core interface)
+    // =============================================================================
+
+    /**
+     * @brief Survival function S(x) = 1 - F(x).
+     *
+     * Probability that the random variable exceeds x. Naturally interpreted
+     * as a reliability / survival probability for Weibull, Exponential, Pareto
+     * and other positive-support distributions.
+     *
+     * @param x Evaluation point.
+     * @return S(x) in [0, 1].
+     */
+    [[nodiscard]] double getSurvival(double x) const noexcept {
+        return 1.0 - getCumulativeProbability(x);
+    }
+
+    /**
+     * @brief Hazard function h(x) = f(x) / S(x).
+     *
+     * Instantaneous failure rate (or hazard rate) at x. Returns +inf when
+     * the survival function is zero (x past the support upper bound).
+     *
+     * @param x Evaluation point.
+     * @return h(x) ≥ 0, or +inf if S(x) = 0.
+     */
+    [[nodiscard]] double getHazard(double x) const noexcept {
+        const double s = getSurvival(x);
+        if (s <= 0.0)
+            return std::numeric_limits<double>::infinity();
+        return getProbability(x) / s;
+    }
+
+    // =============================================================================
     // INFORMATION THEORY METRICS - Virtual (Override Optional)
     // =============================================================================
 

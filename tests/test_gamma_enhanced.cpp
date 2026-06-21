@@ -309,13 +309,8 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
     auto cv_results = stats::analysis::kFoldCrossValidation<stats::GammaDistribution>(gamma_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mae, rmse, log_likelihood] : cv_results) {
-        EXPECT_GE(mae, 0.0);             // MAE should be non-negative
-        EXPECT_GE(rmse, 0.0);            // RMSE should be non-negative
-        EXPECT_GE(rmse, mae);            // RMSE should be >= MAE
+    for (const double log_likelihood : cv_results) {
         EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mae));
-        EXPECT_TRUE(std::isfinite(rmse));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
 
@@ -323,20 +318,11 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_gamma_data(gamma_data_.begin(), gamma_data_.begin() + 20);
-    auto [mae, rmse, total_log_likelihood] =
-        stats::analysis::leaveOneOutCrossValidation<stats::GammaDistribution>(small_gamma_data);
-
-    EXPECT_GE(mae, 0.0);                   // MAE should be non-negative
-    EXPECT_GE(rmse, 0.0);                  // RMSE should be non-negative
-    EXPECT_GE(rmse, mae);                  // RMSE should be >= MAE
+    const auto total_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::GammaDistribution>(small_gamma_data); // MAE should be non-negative // RMSE should be non-negative // RMSE should be >= MAE
     EXPECT_LE(total_log_likelihood, 0.0);  // Total log-likelihood should be negative
 
-    EXPECT_TRUE(std::isfinite(mae));
-    EXPECT_TRUE(std::isfinite(rmse));
     EXPECT_TRUE(std::isfinite(total_log_likelihood));
 
-    std::cout << "  Leave-one-out CV: MAE=" << mae << ", RMSE=" << rmse
-              << ", Total LogL=" << total_log_likelihood << "\n";
 }
 
 //==============================================================================

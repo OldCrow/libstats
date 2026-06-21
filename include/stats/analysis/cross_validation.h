@@ -4,13 +4,17 @@
  * @file stats/analysis/cross_validation.h
  * @brief K-fold and leave-one-out cross-validation for any libstats distribution.
  *
- * Requires D to be default-constructible (the default parameters represent a
- * valid starting distribution) and to implement fit(const std::vector<double>&).
- * All standard libstats distributions satisfy this contract.
+ * Both functions return only log-likelihood values. MAE and RMSE were removed
+ * in v2.0.0 (AR-3): they were computed as |x_i − μ̂| (mean-prediction errors)
+ * rather than distributional fit metrics, making them misleading in a CV context.
+ * Log-likelihood under the fitted model is the correct distribution-fit statistic.
  *
  * Extracted in v2.0.0. Migration:
  *   GaussianDistribution::kFoldCrossValidation(data, k, seed)
  *   → stats::analysis::kFoldCrossValidation<GaussianDistribution>(data, k, seed)
+ *
+ *   Old: vector<tuple<double,double,double>> {MAE, RMSE, log_likelihood}
+ *   New: vector<double>                     {log_likelihood per fold}
  */
 
 #include <algorithm>
@@ -18,7 +22,6 @@
 #include <numeric>
 #include <random>
 #include <stdexcept>
-#include <tuple>
 #include <vector>
 
 #include "libstats/core/distribution_concepts.h"
@@ -36,17 +39,11 @@ namespace stats::analysis {
  * @param data        Data vector.
  * @param k           Number of folds (k ≥ 2, k ≤ data.size()).
  * @param random_seed Seed for fold shuffle reproducibility.
- * @return Vector of k tuples: {MAE, RMSE, fold_log_likelihood}.
- *
- * **Return-value semantics (AR-3):**
- * - `fold_log_likelihood`: primary distribution-fit statistic; sum of
- *   log P(x_i | θ̂) over held-out observations under the fitted model.
- * - `MAE` / `RMSE`: mean-prediction errors computed as |x_i − μ̂| where μ̂
- *   is the fitted distribution mean (getMean()). They measure how well the
- *   parametric mean tracks held-out values, not the distributional fit.
+ * @return Vector of k fold log-likelihoods: sum of log P(x_i | θ̂) over each
+ *         held-out fold under the model fitted to the training fold.
  */
 template <concepts::FittableDistribution D>
-[[nodiscard]] std::vector<std::tuple<double, double, double>>
+[[nodiscard]] std::vector<double>
 kFoldCrossValidation(const std::vector<double>& data,
                      int k,
                      unsigned int random_seed = 42) {
@@ -63,7 +60,7 @@ kFoldCrossValidation(const std::vector<double>& data,
     std::mt19937 rng(random_seed);
     std::shuffle(indices.begin(), indices.end(), rng);
 
-    std::vector<std::tuple<double, double, double>> results;
+    std::vector<double> results;
     results.reserve(static_cast<std::size_t>(k));
 
     for (int fold = 0; fold < k; ++fold) {
@@ -85,23 +82,11 @@ kFoldCrossValidation(const std::vector<double>& data,
         D fitted;
         fitted.fit(training);
 
-        const double predicted_mean = fitted.getMean();
-        double log_likelihood = 0.0;
-        std::vector<double> errors;
-        errors.reserve(validation.size());
+        double fold_ll = 0.0;
+        for (double val : validation)
+            fold_ll += fitted.getLogProbability(val);
 
-        for (double val : validation) {
-            errors.push_back(std::abs(val - predicted_mean));
-            log_likelihood += fitted.getLogProbability(val);
-        }
-
-        const double mae = std::accumulate(errors.begin(), errors.end(), 0.0)
-                         / static_cast<double>(errors.size());
-        double mse = 0.0;
-        for (double e : errors) mse += e * e;
-        mse /= static_cast<double>(errors.size());
-
-        results.emplace_back(mae, std::sqrt(mse), log_likelihood);
+        results.push_back(fold_ll);
     }
 
     return results;
@@ -112,21 +97,16 @@ kFoldCrossValidation(const std::vector<double>& data,
  *
  * @tparam D Default-constructible distribution satisfying FittableDistribution.
  * @param data Data vector (at least 3 points required).
- * @return {mean_absolute_error, root_mean_squared_error, total_log_likelihood}
- *
- * MAE and RMSE are mean-prediction errors against getMean(); see kFoldCrossValidation
- * for the full return-value semantics note.
+ * @return Total log-likelihood: sum of log P(x_i | θ̂_{-i}) over all leave-one-out
+ *         fits, where θ̂_{-i} is the parameter estimate with x_i held out.
  */
 template <concepts::FittableDistribution D>
-[[nodiscard]] std::tuple<double, double, double>
+[[nodiscard]] double
 leaveOneOutCrossValidation(const std::vector<double>& data) {
     if (data.size() < 3)
         throw std::invalid_argument("At least 3 data points required for LOOCV");
 
     const std::size_t n = data.size();
-    std::vector<double> abs_errors, sq_errors;
-    abs_errors.reserve(n);
-    sq_errors.reserve(n);
     double total_log_likelihood = 0.0;
 
     for (std::size_t i = 0; i < n; ++i) {
@@ -137,20 +117,10 @@ leaveOneOutCrossValidation(const std::vector<double>& data) {
 
         D fitted;
         fitted.fit(training);
-
-        const double pred = fitted.getMean();
-        const double diff = data[i] - pred;
-        abs_errors.push_back(std::abs(diff));
-        sq_errors.push_back(diff * diff);
         total_log_likelihood += fitted.getLogProbability(data[i]);
     }
 
-    const double mae = std::accumulate(abs_errors.begin(), abs_errors.end(), 0.0)
-                     / static_cast<double>(n);
-    const double mse = std::accumulate(sq_errors.begin(), sq_errors.end(), 0.0)
-                     / static_cast<double>(n);
-
-    return {mae, std::sqrt(mse), total_log_likelihood};
+    return total_log_likelihood;
 }
 
 }  // namespace stats::analysis

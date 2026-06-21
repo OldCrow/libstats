@@ -100,8 +100,7 @@ TEST(CrossValidation, KFold_Returns5Folds) {
     auto data = normalSample(100);
     auto folds = stats::analysis::kFoldCrossValidation<GaussianDistribution>(data, 5);
     EXPECT_EQ(folds.size(), 5u);
-    for(auto&[mae,rmse,ll]:folds){
-        EXPECT_GE(mae,0.0); EXPECT_GE(rmse,mae); EXPECT_TRUE(std::isfinite(ll));
+    for(const auto ll : folds){ EXPECT_TRUE(std::isfinite(ll));
     }
 }
 TEST(CrossValidation, KFold_BadKThrows) {
@@ -112,8 +111,7 @@ TEST(CrossValidation, KFold_BadKThrows) {
 // ── LOOCV ────────────────────────────────────────────────────────────────────
 TEST(CrossValidation, LOOCV_FiniteResults) {
     auto data = normalSample(20);
-    auto [mae,rmse,ll] = stats::analysis::leaveOneOutCrossValidation<GaussianDistribution>(data);
-    EXPECT_GE(mae,0.0); EXPECT_GE(rmse,mae); EXPECT_TRUE(std::isfinite(ll));
+    const auto ll = stats::analysis::leaveOneOutCrossValidation<GaussianDistribution>(data); EXPECT_TRUE(std::isfinite(ll));
 }
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────

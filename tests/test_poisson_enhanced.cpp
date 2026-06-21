@@ -193,13 +193,8 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
     auto cv_results = stats::analysis::kFoldCrossValidation<stats::PoissonDistribution>(poisson_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mae, rmse, log_likelihood] : cv_results) {
-        EXPECT_GE(mae, 0.0);
-        EXPECT_GE(rmse, 0.0);
-        EXPECT_GE(rmse, mae);            // RMSE should be >= MAE
+    for (const double log_likelihood : cv_results) {
         EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mae));
-        EXPECT_TRUE(std::isfinite(rmse));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
 
@@ -207,19 +202,9 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation on smaller dataset
     std::vector<double> small_poisson_data(poisson_data_.begin(), poisson_data_.begin() + 20);
-    auto [loocv_mae, loocv_rmse, loocv_log_likelihood] =
-        stats::analysis::leaveOneOutCrossValidation<stats::PoissonDistribution>(small_poisson_data);
-
-    EXPECT_GE(loocv_mae, 0.0);
-    EXPECT_GE(loocv_rmse, 0.0);
-    EXPECT_GE(loocv_rmse, loocv_mae);
-    EXPECT_LE(loocv_log_likelihood, 0.0);
-    EXPECT_TRUE(std::isfinite(loocv_mae));
-    EXPECT_TRUE(std::isfinite(loocv_rmse));
+    const auto loocv_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::PoissonDistribution>(small_poisson_data); EXPECT_LE(loocv_log_likelihood, 0.0);
     EXPECT_TRUE(std::isfinite(loocv_log_likelihood));
 
-    std::cout << "  Leave-one-out CV: MAE=" << loocv_mae << ", RMSE=" << loocv_rmse
-              << ", LogL=" << loocv_log_likelihood << "\n";
 }
 
 //==============================================================================

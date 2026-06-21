@@ -194,12 +194,8 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     auto cv_results = stats::analysis::kFoldCrossValidation<stats::DiscreteDistribution>(discrete_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
-        EXPECT_GE(mean_error, 0.0);      // Mean absolute error should be non-negative
-        EXPECT_GE(std_error, 0.0);       // Standard error should be non-negative
+    for (const double log_likelihood : cv_results) {
         EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mean_error));
-        EXPECT_TRUE(std::isfinite(std_error));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
 
@@ -207,20 +203,11 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_discrete_data(discrete_data_.begin(), discrete_data_.begin() + 20);
-    auto [mae, rmse, loo_log_likelihood] =
-        stats::analysis::leaveOneOutCrossValidation<stats::DiscreteDistribution>(small_discrete_data);
+    const auto loo_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::DiscreteDistribution>(small_discrete_data); // Mean absolute error should be non-negative // RMSE should be non-negative
+    EXPECT_LE(loo_log_likelihood, 0.0);  // Total log-likelihood should be negative // RMSE should be >= MAE
 
-    EXPECT_GE(mae, 0.0);                 // Mean absolute error should be non-negative
-    EXPECT_GE(rmse, 0.0);                // RMSE should be non-negative
-    EXPECT_LE(loo_log_likelihood, 0.0);  // Total log-likelihood should be negative
-    EXPECT_GE(rmse, mae);                // RMSE should be >= MAE
-
-    EXPECT_TRUE(std::isfinite(mae));
-    EXPECT_TRUE(std::isfinite(rmse));
     EXPECT_TRUE(std::isfinite(loo_log_likelihood));
 
-    std::cout << "  Leave-one-out CV: MAE=" << mae << ", RMSE=" << rmse
-              << ", LogL=" << loo_log_likelihood << "\n";
 }
 
 //==============================================================================

@@ -103,29 +103,15 @@ int main() {
         std::cout << "   Splits data into 5 folds, uses 4 for training, 1 for validation"
                   << std::endl;
         std::cout << "   Repeats process 5 times with different validation folds" << std::endl;
-        std::cout << "   Outputs: MAE (prediction error), StdErr (parameter uncertainty), LogLik "
-                     "(fit quality)\n"
+        std::cout << "   Outputs: fold log-likelihoods (distributional fit quality per fold)\n"
                   << std::endl;
         auto cv_results = stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(data, 5, 42);
-        std::cout << "   Results per fold (Mean Abs Error, Std Error, Log-Likelihood):"
-                  << std::endl;
-        double total_mae = 0.0, total_loglik = 0.0;
+        std::cout << "   Results per fold (Log-Likelihood):" << std::endl;
+        double total_loglik = 0.0;
         for (size_t i = 0; i < cv_results.size(); ++i) {
-#if defined(_MSC_VER)
-            const auto& result = cv_results[i];
-            double mae = std::get<0>(result);
-            double std_err = std::get<1>(result);
-            double loglik = std::get<2>(result);
-#else
-            auto [mae, std_err, loglik] = cv_results[i];
-#endif
-            std::cout << "     Fold " << (i + 1) << ": MAE=" << mae << ", StdErr=" << std_err
-                      << ", LogLik=" << loglik << std::endl;
-            total_mae += mae;
-            total_loglik += loglik;
+            std::cout << "     Fold " << (i + 1) << ": LogLik=" << cv_results[i] << std::endl;
+            total_loglik += cv_results[i];
         }
-        std::cout << "   → Average MAE: " << (total_mae / static_cast<double>(cv_results.size()))
-                  << std::endl;
         std::cout << "   → Total Log-Likelihood: " << total_loglik << std::endl;
 
         // Test 4: Leave-one-out cross-validation (smaller dataset for speed)
@@ -135,12 +121,10 @@ int main() {
         std::cout << "   Trains on 19 samples, validates on 1 (repeated 20 times)" << std::endl;
         std::cout << "   Provides nearly unbiased but high-variance performance estimates\n"
                   << std::endl;
-        auto [loocv_mae, loocv_rmse, loocv_loglik] =
+        const double loocv_loglik =
             stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_data);
-        std::cout << "   Mean Absolute Error: " << loocv_mae << std::endl;
-        std::cout << "   Root Mean Squared Error: " << loocv_rmse << std::endl;
         std::cout << "   Total Log-Likelihood: " << loocv_loglik << std::endl;
-        std::cout << "   → LOOCV provides unbiased estimate of model performance" << std::endl;
+        std::cout << "   → LOOCV provides unbiased estimate of distributional fit" << std::endl;
 
         std::cout << "\n" << std::string(70, '=') << std::endl;
         std::cout << "BOOTSTRAP AND INFORMATION CRITERIA" << std::endl;

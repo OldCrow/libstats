@@ -207,13 +207,8 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
     auto cv_results = stats::analysis::kFoldCrossValidation<stats::ExponentialDistribution>(exponential_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mae, rmse, log_likelihood] : cv_results) {
-        EXPECT_GE(mae, 0.0);             // Mean absolute error should be non-negative
-        EXPECT_GE(rmse, 0.0);            // RMSE should be non-negative
-        EXPECT_GE(rmse, mae);            // RMSE should be >= MAE
+    for (const double log_likelihood : cv_results) {
         EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mae));
-        EXPECT_TRUE(std::isfinite(rmse));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
 
@@ -221,20 +216,11 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_exp_data(exponential_data_.begin(), exponential_data_.begin() + 20);
-    auto [loocv_mae, loocv_rmse, loocv_log_likelihood] =
-        stats::analysis::leaveOneOutCrossValidation<stats::ExponentialDistribution>(small_exp_data);
-
-    EXPECT_GE(loocv_mae, 0.0);             // Mean absolute error should be non-negative
-    EXPECT_GE(loocv_rmse, 0.0);            // RMSE should be non-negative
-    EXPECT_GE(loocv_rmse, loocv_mae);      // RMSE should be >= MAE
+    const auto loocv_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::ExponentialDistribution>(small_exp_data); // Mean absolute error should be non-negative // RMSE should be non-negative // RMSE should be >= MAE
     EXPECT_LE(loocv_log_likelihood, 0.0);  // Total log-likelihood should be negative
 
-    EXPECT_TRUE(std::isfinite(loocv_mae));
-    EXPECT_TRUE(std::isfinite(loocv_rmse));
     EXPECT_TRUE(std::isfinite(loocv_log_likelihood));
 
-    std::cout << "  Leave-one-out CV: MAE=" << loocv_mae << ", RMSE=" << loocv_rmse
-              << ", LogL=" << loocv_log_likelihood << "\n";
 }
 
 //==============================================================================

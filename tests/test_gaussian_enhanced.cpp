@@ -258,33 +258,19 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     auto cv_results = stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(normal_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
-        EXPECT_GE(mean_error, 0.0);      // Mean absolute error should be non-negative
-        EXPECT_GE(std_error, 0.0);       // Standard error should be non-negative
-        EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mean_error));
-        EXPECT_TRUE(std::isfinite(std_error));
-        EXPECT_TRUE(std::isfinite(log_likelihood));
+    for (const double fold_ll : cv_results) {
+        EXPECT_LE(fold_ll, 0.0);  // Fold log-likelihood should be negative
+        EXPECT_TRUE(std::isfinite(fold_ll));
     }
 
     std::cout << "  K-fold CV completed with " << cv_results.size() << " folds\n";
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_normal_data(normal_data_.begin(), normal_data_.begin() + 20);
-    auto [mae, rmse, loo_log_likelihood] =
-        stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_normal_data);
-
-    EXPECT_GE(mae, 0.0);                 // Mean absolute error should be non-negative
-    EXPECT_GE(rmse, 0.0);                // RMSE should be non-negative
-    EXPECT_LE(loo_log_likelihood, 0.0);  // Total log-likelihood should be negative
-    EXPECT_GE(rmse, mae);                // RMSE should be >= MAE
-
-    EXPECT_TRUE(std::isfinite(mae));
-    EXPECT_TRUE(std::isfinite(rmse));
+    const auto loo_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_normal_data);
+    EXPECT_LE(loo_log_likelihood, 0.0);
     EXPECT_TRUE(std::isfinite(loo_log_likelihood));
-
-    std::cout << "  Leave-one-out CV: MAE=" << mae << ", RMSE=" << rmse
-              << ", LogL=" << loo_log_likelihood << "\n";
+    std::cout << "  Leave-one-out CV: LogL=" << loo_log_likelihood << "\n";
 }
 
 //==============================================================================
