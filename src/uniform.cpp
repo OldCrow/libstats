@@ -464,6 +464,13 @@ void UniformDistribution::fit(const std::vector<double>& values) {
         throw std::invalid_argument("Cannot fit distribution to empty data");
     }
 
+    // Reject non-finite values before calling minmax_element (UB with NaN)
+    for (double v : values) {
+        if (!std::isfinite(v)) {
+            throw std::invalid_argument("Uniform fit requires all values to be finite");
+        }
+    }
+
     // For uniform distribution, use sample minimum and maximum
     const auto minmax = std::minmax_element(values.begin(), values.end());
     const double sample_min = *minmax.first;

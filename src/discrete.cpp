@@ -617,6 +617,8 @@ void DiscreteDistribution::reset() noexcept {
     b_ = detail::ONE_INT;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+    updateCacheUnsafe();
 }
 
 std::string DiscreteDistribution::toString() const {

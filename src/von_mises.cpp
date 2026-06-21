@@ -322,7 +322,7 @@ double VonMisesDistribution::getLogProbability(double x) const noexcept {
 
 double VonMisesDistribution::getCumulativeProbability(double x) const {
     if (!std::isfinite(x))
-        return std::isnan(x) ? detail::ZERO_DOUBLE : detail::ONE;
+        return std::isnan(x) ? detail::ZERO_DOUBLE : (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
 
     const double v = wrapAngle(x);
 

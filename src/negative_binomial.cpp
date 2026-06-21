@@ -456,6 +456,7 @@ void NegativeBinomialDistribution::reset() noexcept {
     p_ = detail::HALF;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
 }
 

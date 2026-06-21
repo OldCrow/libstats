@@ -341,6 +341,7 @@ void RayleighDistribution::reset() noexcept {
     sigma_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
 }
 

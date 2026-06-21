@@ -361,6 +361,13 @@ double GammaDistribution::getLogProbability(double x) const noexcept {
 }
 
 double GammaDistribution::getCumulativeProbability(double x) const {
+    if (!std::isfinite(x)) {
+        // +inf → all probability mass lies below +∞ → 1.0
+        // -inf → no probability mass lies below -∞  → 0.0
+        // NaN  → propagate NaN
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        return (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
+    }
     if (x <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }

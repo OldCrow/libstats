@@ -384,6 +384,9 @@ void StudentTDistribution::parallelBatchFit(const std::vector<std::vector<double
 void StudentTDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     nu_ = detail::ONE;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
 }
 

@@ -138,8 +138,8 @@ void ChiSquaredDistribution::fit(const std::vector<double>& values) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
     for (double v : values) {
-        if (v <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("All values must be positive for chi-squared MLE");
+        if (v <= detail::ZERO_DOUBLE || !std::isfinite(v)) {
+            throw std::invalid_argument("All values must be positive and finite for chi-squared MLE");
         }
     }
 
