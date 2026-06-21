@@ -332,40 +332,34 @@ void WorkStealingPool::executeTask(Task&& task, int workerId) {
 }
 
 std::size_t WorkStealingPool::getOptimalThreadCount() noexcept {
+    // Upper bound on worker threads. Beyond this, work-stealing overhead and
+    // cache/memory contention outweigh parallelism gains for typical statistical
+    // batch sizes. Configurable via the constructor; this is the default cap.
+    constexpr std::size_t MAX_WORKERS = 32;
+
     // Use Level 0 CPU detection for accurate thread count determination
     const auto& features = arch::get_features();
     const auto physicalCores = features.topology.physical_cores;
     const auto logicalCores = features.topology.logical_cores;
 
+    std::size_t count;
+
     // Handle cases where CPU detection fails (common in CI/VM environments)
     if (logicalCores == 0 && physicalCores == 0) {
-        // Fall back to std::thread::hardware_concurrency()
         const auto hwConcurrency = std::thread::hardware_concurrency();
-        if (hwConcurrency > 0) {
-            return hwConcurrency;
-        }
-        // If even hardware_concurrency fails, default to 2 threads
-        // (minimum for meaningful work stealing)
-        return 2;
+        count = (hwConcurrency > 0) ? hwConcurrency : 2;
+    } else if (features.topology.hyperthreading && logicalCores > 0) {
+        count = logicalCores;
+    } else if (physicalCores > 0) {
+        count = physicalCores;
+    } else if (logicalCores > 0) {
+        count = logicalCores;
+    } else {
+        count = std::max(static_cast<std::size_t>(std::thread::hardware_concurrency()),
+                         std::size_t(2));
     }
 
-    // For work-stealing pools, we can use more threads than regular thread pools
-    // because work stealing handles load balancing automatically
-    if (features.topology.hyperthreading && logicalCores > 0) {
-        // Use logical cores for work-stealing - the work stealing algorithm
-        // can handle the increased parallelism effectively
-        return logicalCores;
-    } else if (physicalCores > 0) {
-        // No hyperthreading, use physical cores
-        return physicalCores;
-    } else if (logicalCores > 0) {
-        // If we only have logical cores info, use it
-        return logicalCores;
-    } else {
-        // Should not reach here, but be safe
-        return std::max(static_cast<std::size_t>(std::thread::hardware_concurrency()),
-                        std::size_t(2));
-    }
+    return std::min(count, MAX_WORKERS);
 }
 
 void WorkStealingPool::optimizeCurrentThread([[maybe_unused]] int workerId,

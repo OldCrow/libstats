@@ -18,7 +18,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "../../core/distribution_concepts.h"
+#include "libstats/core/distribution_concepts.h"
 
 namespace stats::analysis {
 

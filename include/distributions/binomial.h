@@ -38,8 +38,8 @@ namespace stats {
  * with all observations (following libhmm's EM-compatible approach).
  *
  * @author libstats Development Team
- * @version 1.3.0
- * @since 1.3.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class BinomialDistribution : public DistributionBase {
    public:

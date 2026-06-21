@@ -90,8 +90,8 @@ namespace stats {
  * - IEEE 754 compliant floating-point handling
  *
  * @author libstats Development Team
- * @version 1.1.0
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class ExponentialDistribution : public DistributionBase {
    public:

@@ -62,8 +62,8 @@ namespace stats {
  * - Finance: extreme event modelling
  *
  * @author libstats Development Team
- * @version 1.2.0
- * @since 1.2.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class WeibullDistribution : public DistributionBase {
    public:

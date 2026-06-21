@@ -24,9 +24,9 @@
 #include <tuple>
 #include <vector>
 
-#include "../../core/distribution_concepts.h"
-#include "../../core/math_utils.h"         // detail::calculate_ks_statistic, calculate_ad_statistic
-#include "../../core/statistical_constants.h"
+#include "libstats/core/distribution_concepts.h"
+#include "libstats/core/math_utils.h"         // detail::calculate_ks_statistic, calculate_ad_statistic
+#include "libstats/core/statistical_constants.h"
 
 namespace stats::analysis {
 

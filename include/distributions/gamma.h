@@ -123,8 +123,8 @@ namespace stats {
  * - Specialized algorithms for different parameter regimes
  *
  * @author libstats Development Team
- * @version 2.9.1
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class GammaDistribution : public DistributionBase {
    public:

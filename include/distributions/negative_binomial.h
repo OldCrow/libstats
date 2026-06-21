@@ -41,8 +41,8 @@ namespace stats {
  * Seeded with method-of-moments: r̂ = k̄²/(s²−k̄) when s² > k̄.
  *
  * @author libstats Development Team
- * @version 1.3.0
- * @since 1.3.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class NegativeBinomialDistribution : public DistributionBase {
    public:

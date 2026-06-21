@@ -8,13 +8,36 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v2.0.0 on `feat/v2-architecture` (in progress). v1.5.3 is the final v1.x release.
-16 distributions across 6 families. v2.0.0 breaking changes: platform baseline raised to
-macOS 13 Ventura (minimum), alternate LLVM compiler path removed, `validateParameter` moved to
-`stats::detail`, analysis utilities extracted to `stats::analysis`, strategy-suffix batch methods
-removed, vector-returning batch helpers removed, `noexcept` move constructors across all 16
-distributions, `WorkStealingPool::parallelFor` per-call fence (A-2). Three-machine
-validation ecosystem: Kaby Lake AVX2+FMA, Mac Mini M1 NEON, Asus TUF A16 AVX-512.
+**Current Status**: v2.0.0 on `feat/v2-architecture` — development complete, pending three-machine
+validation before merge to `main`. v1.5.3 is the final v1.x release.
+
+16 distributions across 6 families. v2.0.0 breaking changes (relative to v1.5.3):
+- Platform baseline raised to macOS 13 Ventura; AppleClang 15+, GCC 13+, Clang 17+, MSVC 19.38+.
+- Alternate Homebrew LLVM compiler path removed; system AppleClang only on macOS.
+- All statistical analysis methods extracted from distribution classes to `stats::analysis` namespace
+  (see `MIGRATION_GUIDE.md` for the complete old→new call mapping).
+- `likelihoodRatioTest` requires explicit `df` parameter (position 4, before `alpha`).
+- `kolmogorovSmirnovTest`/`andersonDarlingTest` constrained to `ContinuousDistribution` concept.
+- `VoidResult = Result<std::monostate>`; success path is `VoidResult::ok({})` not `ok(true)`.
+- `validateBetaParameters`, `validateChiSquaredParameters`, `validateStudentTParameters` are now
+  free functions in `error_handling.h`; they are no longer private static members of their
+  respective distribution classes.
+- `FittableDistribution` concept enforces `std::default_initializable<D>` + `fit()` on bootstrap
+  and cross-validation templates.
+- `AnyDistribution` concept now requires `getSkewness()` and `getKurtosis()`.
+- `SIMDPolicy::Level` is a type alias for `SIMDLevel` (one enum instead of two).
+- `DistributionType` extracted to `include/core/distribution_type.h`.
+- `WorkStealingPool::getOptimalThreadCount()` capped at 32 workers.
+- Strategy-suffix batch methods, vector-returning batch helpers, `LibDistributionType`,
+  `CROSS_PLATFORM` build type, and `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` removed.
+- `noexcept` move constructors across all 16 distributions.
+- `WorkStealingPool::parallelFor` per-call fence.
+- Legacy `validation.cpp` / `validation.h` ecosystem deleted; use `stats::analysis` instead.
+- `BinomialDistribution::getEntropy()` now uses exact PMF summation for n ≤ 1000 (nats).
+- `PoissonDistribution::sample()` large-lambda path uses `std::poisson_distribution<int>` (exact).
+- Include shim uses directory symlink on macOS/Linux; header edits are live without cmake re-run.
+
+Three-machine validation ecosystem: Kaby Lake AVX2+FMA, Mac Mini M1 NEON, Asus TUF A16 AVX-512.
 
 ## Session Start Baseline Workflow (Required)
 
@@ -71,9 +94,9 @@ minimum macOS raised to 13 Ventura).
 
 | Machine | SIMD | Target | Notes |
 |---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 40/40 ✅ | v2.0.0 baseline |
-| Mac Mini M1 | NEON | 40/40 ✅ | v2.0.0 baseline |
-| Asus TUF A16 (Windows) | AVX-512 | 40/40 ✅ | v2.0.0 baseline |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 42/42 ✅ | v2.0.0 (dev) baseline |
+| Mac Mini M1 | NEON | pending | v2.0.0 validation pending |
+| Asus TUF A16 (Windows) | AVX-512 | pending | v2.0.0 validation pending |
 
 **v1.5.2 — final v1.x release (four machines)**
 
