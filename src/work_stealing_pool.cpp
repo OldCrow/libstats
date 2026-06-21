@@ -1,4 +1,5 @@
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+#include "libstats/core/debug_flags.h"                 // kDebugThreading sentinel
 #include "libstats/platform/work_stealing_pool.h"
 
 #include "libstats/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
@@ -120,7 +121,8 @@ void WorkStealingPool::submit(Task task) {
     if (workerId >= detail::ZERO_INT && workerId < static_cast<int>(workers_.size())) {
         std::lock_guard<std::mutex> lock(workers_[static_cast<std::size_t>(workerId)]->queueMutex);
         workers_[static_cast<std::size_t>(workerId)]->localQueue.push_back(std::move(task));
-        activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
+        // POOL-2: release ensures the task is visible to waitForAll()'s acquire load on ARM.
+        activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_release);
         return;
     }
 
@@ -131,7 +133,7 @@ void WorkStealingPool::submit(Task task) {
 
     std::lock_guard<std::mutex> lock(workers_[targetWorker]->queueMutex);
     workers_[targetWorker]->localQueue.push_back(std::move(task));
-    activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
+    activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_release);  // POOL-2
 }
 
 void WorkStealingPool::waitForAll() {
@@ -205,11 +207,12 @@ void WorkStealingPool::workerLoop(int workerId) {
             readyThreads_.fetch_add(detail::ONE_INT, std::memory_order_release) + detail::ONE_INT;
         readinessCondition_.notify_one();
 
-// Optional: Log readiness for debugging (can be removed in production)
-#ifdef LIBSTATS_DEBUG_THREADING
-        std::cout << "Worker " << workerId << " ready (" << ready << "/" << workers_.size() << ")"
-                  << std::endl;
-#endif
+        // DEBUG-IDIOM: if constexpr preserves the branch for type-checking
+        // while guaranteeing zero runtime cost when kDebugThreading is false.
+        if constexpr (kDebugThreading) {
+            std::clog << "Worker " << workerId << " ready ("
+                      << ready << "/" << workers_.size() << ")\n";
+        }
     }
 
     while (!shutdown_.load(std::memory_order_acquire)) {
@@ -247,9 +250,10 @@ void WorkStealingPool::workerLoop(int workerId) {
                 std::this_thread::yield();
                 backoffCount++;
             } else {
-                std::this_thread::sleep_for(
-                    std::chrono::microseconds(detail::MAX_NEWTON_ITERATIONS));
-                backoffCount = 0;  // Reset backoff counter
+            // POOL-3: use a named pool constant, not a math-solver constant.
+            static constexpr std::size_t WORKER_BACKOFF_SLEEP_US = 100;
+            std::this_thread::sleep_for(std::chrono::microseconds(WORKER_BACKOFF_SLEEP_US));
+            backoffCount = 0;  // Reset backoff counter
             }
         }
     }
@@ -278,8 +282,9 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
                                             static_cast<int>(numWorkers) - detail::ONE_INT);
     const int startVictim = dist(thiefData.rng);
 
-    for (std::size_t attempt = detail::ZERO_INT; attempt < numWorkers - detail::ONE_INT;
-         ++attempt) {
+    // POOL-4: iterate numWorkers times (not numWorkers-1) so no victim is skipped
+    // when startVictim == thiefId on the first attempt.
+    for (std::size_t attempt = detail::ZERO_INT; attempt < numWorkers; ++attempt) {
         const int victimId =
             static_cast<int>((static_cast<std::size_t>(startVictim) + attempt) % numWorkers);
         if (victimId == thiefId)

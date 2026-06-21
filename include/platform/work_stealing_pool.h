@@ -265,11 +265,19 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
 
         // Capture shared_ptrs by value so the latch outlives the submission scope.
         submit([func, taskStart, taskEnd, pendingTasks, doneMutex, doneCv]() {
-            // Execute function for this range
-            for (std::size_t i = taskStart; i < taskEnd; ++i) {
-                func(i);
+            // Execute function for this range. The latch decrement must happen
+            // unconditionally: if func throws, executeTask() catches the exception
+            // and swallows it, but pendingTasks would never reach zero and
+            // doneCv->wait() in the caller would deadlock forever (POOL-1).
+            try {
+                for (std::size_t i = taskStart; i < taskEnd; ++i) {
+                    func(i);
+                }
+            } catch (...) {
+                // Exception already logged by executeTask(); swallow here so
+                // the latch decrement below always runs.
             }
-            // Signal per-call completion
+            // Signal per-call completion unconditionally.
             if (pendingTasks->fetch_sub(1u, std::memory_order_acq_rel) == 1u) {
                 std::lock_guard<std::mutex> lock(*doneMutex);
                 doneCv->notify_all();

@@ -201,3 +201,33 @@ TEST(WorkStealingPool, CPUDetectionIntegration) {
               << ", Logical: " << features.topology.logical_cores << ", Optimal: " << optimalThreads
               << "\n";
 }
+
+// POOL-1 regression: parallelFor must return (not deadlock) when a task throws.
+// Before the fix the per-call latch was never decremented after an exception,
+// causing doneCv->wait() to block forever.
+TEST(WorkStealingPool, ParallelForDoesNotDeadlockOnTaskException) {
+    WorkStealingPool pool(2);
+
+    std::atomic<int> completed{0};
+    // Use a range larger than get_min_elements_for_parallel() (typically 4096)
+    // so that parallelFor takes the multi-task parallel path and the per-call
+    // latch is actually exercised. The sequential fast path propagates exceptions
+    // directly and has no latch to deadlock.
+    const std::size_t kTasks = arch::get_min_elements_for_parallel() * 2;
+
+    // One task mid-range throws; all others increment completed.
+    // The pool swallows the exception in executeTask(); parallelFor must
+    // return without deadlocking and the majority of work must still run.
+    const std::size_t kThrowAt = kTasks / 2;
+    pool.parallelFor(std::size_t{0}, kTasks, [&completed, kThrowAt](std::size_t i) {
+        if (i == kThrowAt)
+            throw std::runtime_error("intentional test exception");
+        completed.fetch_add(1, std::memory_order_relaxed);
+    });
+
+    // At least most tasks should have completed (the throwing task's whole
+    // grain is aborted, but all other grains run normally).
+    EXPECT_GT(completed.load(), static_cast<int>(kTasks / 2));
+    std::cout << "  parallelFor returned after task exception at index " << kThrowAt
+              << " (" << completed.load() << "/" << (kTasks - 1) << " non-throwing tasks ran)\n";
+}

@@ -539,6 +539,7 @@ void WeibullDistribution::reset() noexcept {
     scale_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);  // NEW-TS-4
     updateCacheUnsafe();
 }
 
