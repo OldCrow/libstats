@@ -333,7 +333,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override;
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Poisson"; }
 
     /**
      * @brief Checks if the distribution is discrete.

@@ -179,7 +179,7 @@ class WeibullDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override { return "WeibullDistribution"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "WeibullDistribution"; }
 
     /** @brief Weibull is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }

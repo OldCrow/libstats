@@ -294,7 +294,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override;
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Gaussian"; }
 
     /**
      * @brief Gets the number of parameters for this distribution.

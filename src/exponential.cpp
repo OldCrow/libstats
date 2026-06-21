@@ -463,10 +463,6 @@ int ExponentialDistribution::getNumParameters() const noexcept {
     return 1;
 }
 
-std::string ExponentialDistribution::getDistributionName() const {
-    return "Exponential";
-}
-
 bool ExponentialDistribution::isDiscrete() const noexcept {
     return false;
 }

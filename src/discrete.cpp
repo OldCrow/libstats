@@ -255,10 +255,6 @@ int DiscreteDistribution::getNumParameters() const noexcept {
     return 2;  // Lower bound (a) and upper bound (b)
 }
 
-std::string DiscreteDistribution::getDistributionName() const {
-    return "DiscreteUniform";
-}
-
 bool DiscreteDistribution::isDiscrete() const noexcept {
     return true;  // Discrete uniform distribution is always discrete
 }

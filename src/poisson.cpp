@@ -176,10 +176,6 @@ inline int PoissonDistribution::getNumParameters() const noexcept {
     return 1;
 }
 
-inline std::string PoissonDistribution::getDistributionName() const {
-    return "Poisson";
-}
-
 inline bool PoissonDistribution::isDiscrete() const noexcept {
     return true;
 }

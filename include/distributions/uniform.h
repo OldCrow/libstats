@@ -356,7 +356,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override { return "Uniform"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Uniform"; }
 
     /**
      * @brief Checks if the distribution is discrete.

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string_view>
 #include "libstats/common/distribution_base_common.h"
 
 namespace stats {
@@ -150,7 +151,7 @@ class DistributionInterface {
      * @brief Get distribution name
      * @return Human-readable distribution name
      */
-    virtual std::string getDistributionName() const = 0;
+    virtual std::string_view getDistributionName() const noexcept = 0;
 
     /**
      * @brief Get string representation of distribution with current parameters

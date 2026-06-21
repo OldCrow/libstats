@@ -245,7 +245,7 @@ class ChiSquaredDistribution : public DistributionBase {
     /**
      * @brief Get the distribution name.
      */
-    [[nodiscard]] std::string getDistributionName() const override {
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
         return "ChiSquaredDistribution";
     }
 

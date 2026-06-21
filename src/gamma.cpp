@@ -536,10 +536,6 @@ int GammaDistribution::getNumParameters() const noexcept {
     return 2;
 }
 
-std::string GammaDistribution::getDistributionName() const {
-    return "Gamma";
-}
-
 bool GammaDistribution::isDiscrete() const noexcept {
     return false;
 }

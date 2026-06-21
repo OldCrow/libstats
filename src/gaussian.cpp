@@ -210,10 +210,6 @@ double GaussianDistribution::getKurtosis() const noexcept {
     return detail::ZERO_DOUBLE;  // Gaussian has zero excess kurtosis
 }
 
-std::string GaussianDistribution::getDistributionName() const {
-    return "Gaussian";
-}
-
 int GaussianDistribution::getNumParameters() const noexcept {
     return 2;  // Mean and standard deviation
 }

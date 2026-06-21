@@ -23,6 +23,7 @@
 #include <random>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include "distribution_type.h"  // for detail::DistributionType (AQ-2: minimal include)
 
@@ -63,7 +64,7 @@ concept AnyDistribution =
         d.getProbability(xs, ys);
 
         // Identity
-        { d.getDistributionName() } -> std::convertible_to<std::string>;
+        { d.getDistributionName() } -> std::convertible_to<std::string_view>;
         { d.getNumParameters() }    -> std::convertible_to<int>;
 
         // Support bounds (pure virtual on DistributionInterface)

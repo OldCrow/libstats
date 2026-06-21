@@ -147,7 +147,7 @@ class BinomialDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
         return "BinomialDistribution";
     }
 
