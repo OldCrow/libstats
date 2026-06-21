@@ -398,15 +398,12 @@ VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
 double DiscreteDistribution::getProbability(double x) const {
     // For discrete distribution, check if x is an integer in range
     if (std::floor(x) != x) {
-        return detail::ZERO_DOUBLE;  // Not an integer
+        return detail::ZERO_DOUBLE;  // Not an integer (NaN also caught: floor(NaN)!=NaN)
     }
 
     const int k = static_cast<int>(x);
-    if (k < a_ || k > b_) {
-        return detail::ZERO_DOUBLE;  // Outside support
-    }
 
-    // Ensure cache is valid
+    // Acquire lock before reading a_/b_ — prevents data race with concurrent setters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -418,9 +415,13 @@ double DiscreteDistribution::getProbability(double x) const {
         lock.lock();
     }
 
+    if (k < a_ || k > b_) {
+        return detail::ZERO_DOUBLE;  // Outside support
+    }
+
     // Fast path optimizations
     if (isBinary_) {
-        return detail::HALF;  // detail::AD_THRESHOLD_1 for binary [0,1]
+        return detail::HALF;
     }
 
     return probability_;  // 1/(b-a+1)
@@ -429,15 +430,12 @@ double DiscreteDistribution::getProbability(double x) const {
 double DiscreteDistribution::getLogProbability(double x) const noexcept {
     // For discrete distribution, check if x is an integer in range
     if (std::floor(x) != x) {
-        return detail::NEGATIVE_INFINITY;  // Not an integer
+        return detail::NEGATIVE_INFINITY;  // Not an integer (NaN also caught: floor(NaN)!=NaN)
     }
 
     const int k = static_cast<int>(x);
-    if (k < a_ || k > b_) {
-        return detail::NEGATIVE_INFINITY;  // Outside support
-    }
 
-    // Ensure cache is valid
+    // Acquire lock before reading a_/b_ — prevents data race with concurrent setters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -449,23 +447,24 @@ double DiscreteDistribution::getLogProbability(double x) const noexcept {
         lock.lock();
     }
 
+    if (k < a_ || k > b_) {
+        return detail::NEGATIVE_INFINITY;  // Outside support
+    }
+
     // Fast path optimizations
     if (isBinary_) {
-        return -detail::LN2;  // log(detail::AD_THRESHOLD_1)
+        return -detail::LN2;
     }
 
     return logProbability_;  // -log(b-a+1)
 }
 
 double DiscreteDistribution::getCumulativeProbability(double x) const {
-    if (x < static_cast<double>(a_)) {
-        return detail::ZERO_DOUBLE;
-    }
-    if (x >= static_cast<double>(b_)) {
-        return detail::ONE;
-    }
+    // NaN and ±inf must be handled before any member reads (R5-D4: static_cast<int>(NaN) is UB)
+    if (!std::isfinite(x))
+        return std::isnan(x) ? detail::ZERO_DOUBLE : (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
 
-    // Ensure cache is valid
+    // Acquire lock before reading a_/b_ — prevents data race with concurrent setters (R5-D1)
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -475,6 +474,13 @@ double DiscreteDistribution::getCumulativeProbability(double x) const {
         }
         ulock.unlock();
         lock.lock();
+    }
+
+    if (x < static_cast<double>(a_)) {
+        return detail::ZERO_DOUBLE;
+    }
+    if (x >= static_cast<double>(b_)) {
+        return detail::ONE;
     }
 
     // For discrete uniform: F(k) = (floor(k) - a + 1) / (b - a + 1)
@@ -494,12 +500,7 @@ double DiscreteDistribution::getQuantile(double p) const {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == detail::ZERO_DOUBLE)
-        return static_cast<double>(a_);
-    if (p == detail::ONE)
-        return static_cast<double>(b_);
-
-    // Ensure cache is valid
+    // Ensure cache is valid — a_ and b_ must be read under the lock (R5-D1)
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -607,6 +608,7 @@ void DiscreteDistribution::fit(const std::vector<double>& values) {
     b_ = new_b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);  // R5-D2: prevent stale atomic reads
 }
 
 void DiscreteDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,

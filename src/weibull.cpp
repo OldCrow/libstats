@@ -299,11 +299,13 @@ double WeibullDistribution::getProbability(double x) const {
         ulock.unlock();
         lock.lock();
     }
-    // At x = 0: PDF = k/λ for k=1; 0 for k>1; +∞ for k<1
+    // At x = 0: PDF = 1/λ for k=1; 0 for k>1; +∞ for k<1
+    // getLogProbability correctly returns +inf / -inf; getProbability must match.
     if (x == detail::ZERO_DOUBLE) {
-        return (std::abs(shape_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-                   ? (detail::ONE / scale_)
-                   : detail::ZERO_DOUBLE;
+        if (std::abs(shape_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+            return detail::ONE / scale_;
+        return (shape_ > detail::ONE) ? detail::ZERO_DOUBLE
+                                      : std::numeric_limits<double>::infinity();
     }
     return std::exp(getLogProbability(x));
 }
