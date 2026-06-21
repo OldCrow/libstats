@@ -49,6 +49,21 @@ namespace stats {
  *   on distinct objects; acquiring the outer lock and then calling `gamma_`'s setters (which
  *   acquire the inner lock) has no lock-ordering conflict because `gamma_` is private and
  *   never exposed to external code
+ * - ChiSquaredDistribution has **no** `atomicParamsValid_` member and no per-parameter atomic
+ *   copies of its own. The atomic fast-path is provided entirely by `gamma_`'s own atomics.
+ *   If a `getKAtomic()` fast-path is ever added, `atomicParamsValid_` and corresponding atomic
+ *   storage must be added and invalidated in `setK`, `trySetK`, and `reset()`.
+ *
+ * @par Implementation Notes for Contributors:
+ * - **Two-phase setters**: `setK` / `trySetK` release the ChiSquaredDistribution lock *before*
+ *   calling `gamma_.trySetAlpha()`. Do not collapse into a single locked block — that would
+ *   acquire two mutexes simultaneously without a defined ordering convention.
+ * - **`updateCacheUnsafe()` is a sync trigger, not a computation**: it calls
+ *   `gamma_.trySetAlpha(k_/2)` and sets `cache_valid_ = true`. All parameter derivation
+ *   happens inside `gamma_`; ChiSquared itself caches nothing.
+ * - **`k_` is a redundant API copy** of `gamma_.getAlpha() * 2`, kept for O(1) reads via
+ *   `getK()` without entering `gamma_`'s mutex. Every setter and `reset()` must keep the
+ *   invariant `k_ == gamma_.getAlpha() * 2`.
  *
  * @par Performance:
  * Batch operations (SIMD/parallel) run through GammaDistribution's dispatch infrastructure,
@@ -461,11 +476,13 @@ class ChiSquaredDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief Sync gamma_ with current k_ and mark cache valid.
+     * @brief Sync `gamma_` with current `k_` and mark cache valid.
      *
-     * Called from within a held unique_lock on cache_mutex_.
-     * Acquires gamma_'s own mutex internally via trySetAlpha — no lock-ordering
-     * conflict because gamma_ is private and never locked by external code.
+     * Unlike regular distributions, this does not compute anything locally.
+     * It calls `gamma_.trySetAlpha(k_ / 2)` (which updates `gamma_`'s own internals)
+     * then sets `cache_valid_ = true` and `cacheValidAtomic_ = true` on this object.
+     * Called from within a held unique_lock on `cache_mutex_`; acquires `gamma_`'s
+     * own mutex internally — no lock-ordering conflict since `gamma_` is private.
      */
     void updateCacheUnsafe() const noexcept override;
 
@@ -495,7 +512,13 @@ class ChiSquaredDistribution : public DistributionBase {
     // 23. DISTRIBUTION PARAMETERS
     //==========================================================================
 
-    /** @brief Degrees of freedom k — must be positive. */
+    /**
+     * @brief Degrees of freedom k — must be positive.
+     *
+     * Redundant API copy of `gamma_.getAlpha() * 2`. Exists for O(1) locked reads
+     * without entering `gamma_`'s mutex. The invariant `k_ == gamma_.getAlpha() * 2`
+     * must hold after every setter and `reset()`.
+     */
     double k_{detail::ONE};
 
     //==========================================================================

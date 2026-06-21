@@ -185,6 +185,7 @@ void DiscreteDistribution::setLowerBound(int a) {
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 void DiscreteDistribution::setUpperBound(int b) {
@@ -193,6 +194,7 @@ void DiscreteDistribution::setUpperBound(int b) {
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 void DiscreteDistribution::setBounds(int a, int b) {
@@ -202,6 +204,7 @@ void DiscreteDistribution::setBounds(int a, int b) {
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 void DiscreteDistribution::setParameters(int a, int b) {
