@@ -292,8 +292,11 @@ double BinomialDistribution::getLogProbability(double x) const noexcept {
 }
 
 double BinomialDistribution::getCumulativeProbability(double x) const {
+    // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
     if (!std::isfinite(x))
-        return std::isnan(x) ? detail::ZERO_DOUBLE : detail::ONE;
+        return std::isnan(x)  ? detail::ZERO_DOUBLE
+               : (x < 0)      ? detail::ZERO_DOUBLE   // -inf
+                               : detail::ONE;           // +inf
     const int k = static_cast<int>(std::floor(x));
     if (k < 0)
         return detail::ZERO_DOUBLE;

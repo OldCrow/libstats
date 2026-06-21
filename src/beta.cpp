@@ -433,15 +433,12 @@ void BetaDistribution::fit(const std::vector<double>& values) {
         if (std::abs(sa) < tol && std::abs(sb) < tol)
             break;
 
-        // Diagonal Newton step: use trigamma for the Jacobian diagonal
-        // trigamma(x) ≈ (digamma(x+h) - digamma(x-h)) / (2h) — numerical derivative
-        const double h = 1e-4;
-        const double tpsi_a =
-            (detail::digamma(alpha_cur + h) - detail::digamma(alpha_cur - h)) / (detail::TWO * h);
-        const double tpsi_b =
-            (detail::digamma(beta_cur + h) - detail::digamma(beta_cur - h)) / (detail::TWO * h);
-        const double tpsi_ab =
-            (detail::digamma(ab + h) - detail::digamma(ab - h)) / (detail::TWO * h);
+        // Diagonal Newton step (FIT-3): use detail::trigamma() directly instead of
+        // finite-differencing digamma (which required 6 digamma calls per step).
+        // Exact derivatives give quadratic Newton convergence.
+        const double tpsi_a  = detail::trigamma(alpha_cur);
+        const double tpsi_b  = detail::trigamma(beta_cur);
+        const double tpsi_ab = detail::trigamma(ab);
 
         // 2×2 Jacobian (negated Hessian of log-likelihood per observation):
         // J = [[tpsi_a - tpsi_ab, -tpsi_ab],

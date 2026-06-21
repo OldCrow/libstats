@@ -264,8 +264,11 @@ double NegativeBinomialDistribution::getLogProbability(double x) const noexcept 
 }
 
 double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
+    // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
     if (!std::isfinite(x))
-        return std::isnan(x) ? detail::ZERO_DOUBLE : detail::ONE;
+        return std::isnan(x)  ? detail::ZERO_DOUBLE
+               : (x < 0)      ? detail::ZERO_DOUBLE   // -inf
+                               : detail::ONE;           // +inf
     const int k = static_cast<int>(std::floor(x));
     if (k < 0)
         return detail::ZERO_DOUBLE;
@@ -354,13 +357,19 @@ void NegativeBinomialDistribution::fit(const std::vector<double>& values) {
     if (values.empty())
         throw std::invalid_argument("Cannot fit distribution to empty data");
 
-    // Collect valid observations
+    // FIT-5: align with the rest of the library by throwing on invalid data.
+    // Previous behaviour silently discarded negatives, inconsistent with Poisson etc.
+    for (double v : values) {
+        if (!std::isfinite(v) || v < detail::ZERO_DOUBLE)
+            throw std::invalid_argument(
+                "NegativeBinomial fit: all values must be non-negative and finite");
+    }
+
     std::vector<double> obs;
     obs.reserve(values.size());
-    for (double v : values) {
-        if (v >= detail::ZERO_DOUBLE && std::isfinite(v))
-            obs.push_back(std::round(v));
-    }
+    for (double v : values)
+        obs.push_back(std::round(v));
+
     if (obs.empty()) {
         reset();
         return;

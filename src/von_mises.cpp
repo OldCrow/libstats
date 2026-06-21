@@ -448,6 +448,10 @@ void VonMisesDistribution::fit(const std::vector<double>& values) {
 
     double S = detail::ZERO_DOUBLE, C = detail::ZERO_DOUBLE;
     for (double x : values) {
+        // FIT-4: NaN or Inf corrupts the sin/cos accumulation silently.
+        if (!std::isfinite(x))
+            throw std::invalid_argument(
+                "All values must be finite for VonMises fit");
         S += std::sin(x);
         C += std::cos(x);
     }

@@ -438,17 +438,18 @@ void GammaDistribution::fit(const std::vector<double>& values) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
 
-    // Check for non-positive values
+    // Check for invalid values (FIT-1: NaN passes `<= 0` since NaN comparisons are false)
     for (double value : values) {
-        if (value <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("All values must be positive for Gamma distribution");
+        if (!std::isfinite(value) || value <= detail::ZERO_DOUBLE) {
+            throw std::invalid_argument(
+                "All values must be positive and finite for Gamma distribution");
         }
     }
 
-    // Start with method of moments as initial guess
-    fitMethodOfMoments(values);
-
-    // Refine with maximum likelihood estimation
+    // FIT-2: fitMethodOfMoments() was called here as an initial-estimate step but
+    // fitMaximumLikelihood() computes its own Choi-Wette initial estimate and
+    // overwrites alpha_/beta_ unconditionally.  The MoM call was pure dead work;
+    // removed to avoid two wasted lock acquisitions and O(n) compute per fit call.
     fitMaximumLikelihood(values);
 }
 
@@ -1162,10 +1163,23 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
                                                       double alpha_minus_one) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
+    // EDGE-4 helper: write the correct PDF(0) value consistent with scalar path.
+    // For alpha < 1: PDF(0) = +inf. For alpha = 1: PDF(0) = beta. For alpha > 1: PDF(0) = 0.
+    auto fixup_zero = [&](std::size_t i) {
+        if (alpha_minus_one < 0.0)
+            results[i] = std::numeric_limits<double>::infinity();
+        else if (alpha_minus_one == 0.0)
+            results[i] = beta;
+        else
+            results[i] = detail::ZERO_DOUBLE;
+    };
+
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= detail::ZERO_DOUBLE) {
+            if (values[i] < detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
+            } else if (values[i] == detail::ZERO_DOUBLE) {
+                fixup_zero(i);
             } else {
                 results[i] = std::exp(alpha_log_beta - log_gamma_alpha +
                                       alpha_minus_one * std::log(values[i]) - beta * values[i]);
@@ -1191,10 +1205,12 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
     arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
     // Step 6: results = exp(log-space result)
     arch::simd::VectorOps::vector_exp(results, results, count);
-    // Fixup: x <= 0 is outside support; PDF = 0.
+    // Fixup: x < 0 → 0; x = 0 → depends on alpha (EDGE-4).
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
+        if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
+        } else if (values[i] == detail::ZERO_DOUBLE) {
+            fixup_zero(i);
         }
     }
 }
