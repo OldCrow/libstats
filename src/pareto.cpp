@@ -1,8 +1,9 @@
 #include "libstats/distributions/pareto.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
@@ -92,7 +93,6 @@ ParetoDistribution::ParetoDistribution(ParetoDistribution&& other) noexcept
 
 ParetoDistribution& ParetoDistribution::operator=(ParetoDistribution&& other) noexcept {
     if (this != &other) {
-
         scale_ = other.scale_;
         alpha_ = other.alpha_;
         logScale_ = other.logScale_;

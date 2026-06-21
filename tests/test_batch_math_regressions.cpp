@@ -8,7 +8,9 @@
 #include "libstats/distributions/binomial.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/poisson.h"
+#include "libstats/distributions/von_mises.h"
 
 #include <cmath>
 #include <gtest/gtest.h>
@@ -80,6 +82,36 @@ TEST(BatchMathRegressions, PoissonLargeLambdaQuantileFiniteAndOrdered) {
     EXPECT_GT(q95, q50);
     EXPECT_GT(q50, 900'000.0);
     EXPECT_LT(q50, 1'100'000.0);
+}
+
+// TEST-8: fit() with degenerate data — regression guards for FIT-1 (Gamma NaN),
+// FIT-4 (VonMises non-finite), FIT-5 (NegBin negative).
+
+TEST(BatchMathRegressions, GammaFitRejectsNaN) {
+    // FIT-1: NaN inputs silently passed `value <= 0` before this fix.
+    GammaDistribution g;
+    EXPECT_THROW(g.fit({1.0, std::numeric_limits<double>::quiet_NaN(), 2.0}),
+                 std::invalid_argument);
+    EXPECT_THROW(g.fit({1.0, std::numeric_limits<double>::infinity(), 2.0}),
+                 std::invalid_argument);
+    EXPECT_THROW(g.fit({1.0, 0.0, 2.0}), std::invalid_argument);
+    EXPECT_THROW(g.fit({1.0, -1.0, 2.0}), std::invalid_argument);
+}
+
+TEST(BatchMathRegressions, VonMisesFitRejectsNonFinite) {
+    // FIT-4: NaN/Inf inputs corrupted sin/cos accumulation silently.
+    VonMisesDistribution vm;
+    EXPECT_THROW(vm.fit({0.0, std::numeric_limits<double>::quiet_NaN(), 1.0}),
+                 std::invalid_argument);
+    EXPECT_THROW(vm.fit({0.0, std::numeric_limits<double>::infinity(), 1.0}),
+                 std::invalid_argument);
+}
+
+TEST(BatchMathRegressions, NegativeBinomialFitRejectsNegative) {
+    // FIT-5: negative inputs were silently discarded instead of throwing.
+    NegativeBinomialDistribution nb;
+    EXPECT_THROW(nb.fit({2.0, -1.0, 3.0}), std::invalid_argument);
+    EXPECT_THROW(nb.fit({std::numeric_limits<double>::quiet_NaN(), 2.0}), std::invalid_argument);
 }
 
 TEST(BatchMathRegressions, GaussianStandardizedValueRebuildsCacheAfterReset) {

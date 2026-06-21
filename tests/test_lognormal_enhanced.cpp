@@ -126,10 +126,18 @@ TEST_F(LogNormalEnhancedTest, VectorizedMatchesScalar) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
 
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    std_ln_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    std_ln_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+
     for (size_t i = 0; i < N; ++i) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF SIMD mismatch at i=" << i;
     }
 
+    std_ln_.getCumulativeProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    std_ln_.getCumulativeProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     for (size_t i = 0; i < N; ++i) {
         // erf SIMD approx vs std::erf; tighter than A&S tolerance for most values
         EXPECT_NEAR(out_vec[i], out_scl[i], 2e-7) << "CDF SIMD mismatch at i=" << i;

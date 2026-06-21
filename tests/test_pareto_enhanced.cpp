@@ -148,7 +148,13 @@ TEST_F(ParetoEnhancedTest, VectorizedMatchesScalar) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF SIMD mismatch at i=" << i;
     }
 
-    for (size_t i = 0; i < N; ++i) {
+    
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    p12_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    p12_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+for (size_t i = 0; i < N; ++i) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF SIMD mismatch at i=" << i;
     }
 }

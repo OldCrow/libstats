@@ -28,6 +28,8 @@ namespace ops {
 // editing when a new SIMD tier is added to the library.
 //==============================================================================
 
+// clang-format off  // Aligned dispatch-table assignments: column alignment is intentional
+//                    // and improves readability of the tier-selection ladder.
 VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
     DispatchTable t{};
 
@@ -137,6 +139,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
     return t;
 }
 
+// clang-format on
 const VectorOps::DispatchTable& VectorOps::getDispatchTable() noexcept {
     static const DispatchTable table = makeDispatchTable();
     return table;

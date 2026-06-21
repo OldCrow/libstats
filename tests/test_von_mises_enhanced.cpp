@@ -105,6 +105,13 @@ TEST_F(VonMisesEnhancedTest, VectorizedEqualsScalar) {
     vector<double> xs(N), out_vec(N), out_scl(N);
     for (size_t i = 0; i < N; ++i)
         xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
+
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    vm01_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    vm01_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "i=" << i;
 }

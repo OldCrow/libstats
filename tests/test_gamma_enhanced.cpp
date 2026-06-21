@@ -193,13 +193,10 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
 
     // The non-gamma data should have much higher test statistics and lower p-values than gamma data
     EXPECT_GT(ks_stat_non_gamma, ks_stat_gamma) << "Non-gamma data should have higher KS statistic";
-    // Note: AD test comparison may not always hold due to numerical issues, so we make it
-    // conditional
-    if (std::isfinite(ad_stat_gamma) && std::isfinite(ad_stat_non_gamma) && ad_stat_gamma < 1e15 &&
-        ad_stat_non_gamma < 1e15) {
-        EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma)
-            << "Non-gamma data should have higher AD statistic";
-    }
+    // TC-3: EXPECT_TRUE(isfinite) assertions above already validate finiteness;
+    // the < 1e15 safety guard was masking real failures. Assert unconditionally.
+    EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma)
+        << "Non-gamma data should have higher AD statistic";
     EXPECT_LT(ks_p_non_gamma, ks_p_gamma) << "Non-gamma data should have lower KS p-value";
     if (ad_p_gamma > 0.0 && ad_p_non_gamma > 0.0) {
         EXPECT_LT(ad_p_non_gamma, ad_p_gamma) << "Non-gamma data should have lower AD p-value";
@@ -219,9 +216,8 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
     // TC-3: these assertions replace the print-only conditional that allowed
     // the test to pass silently even when GoF tests wrongly accepted non-gamma data.
     EXPECT_TRUE(ks_reject_non_gamma) << "KS test should reject non-gamma quadratic data";
-    if (std::isfinite(ad_stat_non_gamma) && ad_stat_non_gamma < 1e15) {
-        EXPECT_TRUE(ad_reject_non_gamma) << "AD test should reject non-gamma quadratic data";
-    }
+    // TC-3: isfinite already asserted above; remove the conditional guard.
+    EXPECT_TRUE(ad_reject_non_gamma) << "AD test should reject non-gamma quadratic data";
 }
 
 //==============================================================================

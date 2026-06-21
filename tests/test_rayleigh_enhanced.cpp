@@ -119,9 +119,17 @@ TEST_F(RayleighEnhancedTest, VectorizedMatchesScalar) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
 
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    r1_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    r1_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF mismatch at i=" << i;
 
+    r1_.getCumulativeProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    r1_.getCumulativeProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF mismatch at i=" << i;
 }
