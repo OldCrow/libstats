@@ -243,8 +243,8 @@ double BinomialDistribution::logBinomCoeff(int k) const noexcept {
 }
 
 double BinomialDistribution::getProbability(double x) const {
-    if (!std::isfinite(x))
-        return detail::ZERO_DOUBLE;
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x)) return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
     const int k = static_cast<int>(std::round(x));
     if (k < 0 || k > n_)
         return detail::ZERO_DOUBLE;
@@ -268,8 +268,8 @@ double BinomialDistribution::getProbability(double x) const {
 }
 
 double BinomialDistribution::getLogProbability(double x) const noexcept {
-    if (!std::isfinite(x))
-        return detail::NEGATIVE_INFINITY;
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → -∞
     const int k = static_cast<int>(std::round(x));
     if (k < 0 || k > n_)
         return detail::NEGATIVE_INFINITY;
@@ -293,10 +293,10 @@ double BinomialDistribution::getLogProbability(double x) const noexcept {
 
 double BinomialDistribution::getCumulativeProbability(double x) const {
     // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
-    if (!std::isfinite(x))
-        return std::isnan(x)  ? detail::ZERO_DOUBLE
-               : (x < 0)      ? detail::ZERO_DOUBLE   // -inf
-                               : detail::ONE;           // +inf
+    if (!std::isfinite(x)) {
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
+    }
     const int k = static_cast<int>(std::floor(x));
     if (k < 0)
         return detail::ZERO_DOUBLE;

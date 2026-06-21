@@ -241,6 +241,7 @@ inline VoidResult PoissonDistribution::validateCurrentParameters() const noexcep
 //==============================================================================
 
 double PoissonDistribution::getProbability(double x) const {
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
@@ -252,6 +253,7 @@ double PoissonDistribution::getProbability(double x) const {
 }
 
 double PoissonDistribution::getLogProbability(double x) const noexcept {
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
         return detail::MIN_LOG_PROBABILITY;
 
@@ -263,6 +265,7 @@ double PoissonDistribution::getLogProbability(double x) const noexcept {
 }
 
 double PoissonDistribution::getCumulativeProbability(double x) const {
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 

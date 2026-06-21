@@ -289,8 +289,8 @@ VoidResult VonMisesDistribution::validateCurrentParameters() const noexcept {
 //==============================================================================
 
 double VonMisesDistribution::getProbability(double x) const {
-    if (!std::isfinite(x))
-        return detail::ZERO_DOUBLE;
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x)) return detail::ZERO_DOUBLE;  // ±inf → PDF is 0
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -305,8 +305,8 @@ double VonMisesDistribution::getProbability(double x) const {
 }
 
 double VonMisesDistribution::getLogProbability(double x) const noexcept {
-    if (!std::isfinite(x))
-        return detail::NEGATIVE_INFINITY;
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → log PDF is -∞
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -321,8 +321,10 @@ double VonMisesDistribution::getLogProbability(double x) const noexcept {
 }
 
 double VonMisesDistribution::getCumulativeProbability(double x) const {
-    if (!std::isfinite(x))
-        return std::isnan(x) ? detail::ZERO_DOUBLE : (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
+    if (!std::isfinite(x)) {
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        return (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
+    }
 
     const double v = wrapAngle(x);
 

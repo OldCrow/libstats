@@ -531,14 +531,15 @@ class GaussianDistribution : public DistributionBase {
      */
     [[nodiscard]] double getMode() const noexcept;
 
-#ifdef DEBUG
     /**
-     * Debug method to check if standard normal optimization is active
-     * Only available in debug builds
-     * @return true if this distribution is detected as standard normal
+     * @brief Check if the standard-normal fast-path optimization is active.
+     *
+     * Returns true when kDebugOptimizations is enabled (compile with
+     * -DLIBSTATS_DEBUG_OPTIMIZATIONS) and the distribution is currently
+     * detected as a standard normal (\u03bc≈0, σ≈1). Returns false in all
+     * other cases, including release builds.
      */
     bool isUsingStandardNormalOptimization() const;
-#endif
 
     //==========================================================================
     // 8. SMART AUTO-DISPATCH BATCH OPERATIONS

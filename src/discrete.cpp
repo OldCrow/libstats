@@ -237,10 +237,18 @@ double DiscreteDistribution::getSkewness() const noexcept {
 }
 
 double DiscreteDistribution::getKurtosis() const noexcept {
-    // For discrete uniform: excess kurtosis ≈ -1.2 for large ranges
-    // For exact calculation: -6/5 * (n²+1)/(n²-1) where n = b-a+1
-    // But approximation is sufficient for performance-critical inline method
-    return -1.2;
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) updateCacheUnsafe();
+        ulock.unlock();
+        lock.lock();
+    }
+    const double n = static_cast<double>(range_);  // b - a + 1
+    // Exact excess kurtosis for discrete uniform: -6(n²+1) / (5(n²-1))
+    // Approximates -1.2 for large n; gives exact -2.0 for binary (n=2).
+    return -detail::SIX * (n * n + detail::ONE) / (detail::FIVE * (n * n - detail::ONE));
 }
 
 int DiscreteDistribution::getNumParameters() const noexcept {
@@ -396,12 +404,12 @@ VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
 //==============================================================================
 
 double DiscreteDistribution::getProbability(double x) const {
-    // For discrete distribution, check if x is an integer in range
-    if (std::floor(x) != x) {
-        return detail::ZERO_DOUBLE;  // Not an integer (NaN also caught: floor(NaN)!=NaN)
-    }
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    // Note: floor(±inf)==±inf so the next check would NOT catch ±inf; guard first.
+    if (!std::isfinite(x)) return detail::ZERO_DOUBLE;  // ±inf → PMF is 0
+    if (std::floor(x) != x) return detail::ZERO_DOUBLE;  // non-integer finite
 
-    const int k = static_cast<int>(x);
+    const int k = static_cast<int>(x);  // safe: x is finite integer
 
     // Acquire lock before reading a_/b_ — prevents data race with concurrent setters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -428,12 +436,11 @@ double DiscreteDistribution::getProbability(double x) const {
 }
 
 double DiscreteDistribution::getLogProbability(double x) const noexcept {
-    // For discrete distribution, check if x is an integer in range
-    if (std::floor(x) != x) {
-        return detail::NEGATIVE_INFINITY;  // Not an integer (NaN also caught: floor(NaN)!=NaN)
-    }
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → log PMF is -∞
+    if (std::floor(x) != x) return detail::NEGATIVE_INFINITY;  // non-integer finite
 
-    const int k = static_cast<int>(x);
+    const int k = static_cast<int>(x);  // safe: x is finite integer
 
     // Acquire lock before reading a_/b_ — prevents data race with concurrent setters
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -461,8 +468,10 @@ double DiscreteDistribution::getLogProbability(double x) const noexcept {
 
 double DiscreteDistribution::getCumulativeProbability(double x) const {
     // NaN and ±inf must be handled before any member reads (R5-D4: static_cast<int>(NaN) is UB)
-    if (!std::isfinite(x))
-        return std::isnan(x) ? detail::ZERO_DOUBLE : (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
+    if (!std::isfinite(x)) {
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        return (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
+    }
 
     // Acquire lock before reading a_/b_ — prevents data race with concurrent setters (R5-D1)
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -592,6 +601,9 @@ void DiscreteDistribution::fit(const std::vector<double>& values) {
     rounded_values.reserve(values.size());
 
     for (double val : values) {
+        if (!std::isfinite(val)) {
+            throw std::invalid_argument("Values must be finite for discrete distribution fit");
+        }
         if (!isValidIntegerValue(val)) {
             throw std::invalid_argument("Value outside valid integer range");
         }

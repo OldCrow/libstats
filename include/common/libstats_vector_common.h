@@ -16,7 +16,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <thread>
 #include <vector>
 
 namespace stats {
@@ -127,7 +126,9 @@ inline bool is_simd_friendly_size(std::size_t size, std::size_t simd_width = 8) 
 /// Get optimal chunk size for parallel vector operations
 inline std::size_t get_optimal_chunk_size(std::size_t total_size, std::size_t num_threads = 0) {
     if (num_threads == 0) {
-        num_threads = std::thread::hardware_concurrency();
+        // Use a conservative default — callers that need true hardware concurrency
+        // should pass std::thread::hardware_concurrency() explicitly.
+        num_threads = 4;
     }
 
     // Aim for chunks that are:

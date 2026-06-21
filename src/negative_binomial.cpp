@@ -229,8 +229,8 @@ VoidResult NegativeBinomialDistribution::validateCurrentParameters() const noexc
 //==============================================================================
 
 double NegativeBinomialDistribution::getProbability(double x) const {
-    if (!std::isfinite(x))
-        return detail::ZERO_DOUBLE;
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x)) return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
     const int k = static_cast<int>(std::round(x));
     if (k < 0)
         return detail::ZERO_DOUBLE;
@@ -254,8 +254,8 @@ double NegativeBinomialDistribution::getProbability(double x) const {
 }
 
 double NegativeBinomialDistribution::getLogProbability(double x) const noexcept {
-    if (!std::isfinite(x))
-        return detail::NEGATIVE_INFINITY;
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → -∞
     const int k = static_cast<int>(std::round(x));
     if (k < 0)
         return detail::NEGATIVE_INFINITY;
@@ -278,10 +278,10 @@ double NegativeBinomialDistribution::getLogProbability(double x) const noexcept 
 
 double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
     // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
-    if (!std::isfinite(x))
-        return std::isnan(x)  ? detail::ZERO_DOUBLE
-               : (x < 0)      ? detail::ZERO_DOUBLE   // -inf
-                               : detail::ONE;           // +inf
+    if (!std::isfinite(x)) {
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
+    }
     const int k = static_cast<int>(std::floor(x));
     if (k < 0)
         return detail::ZERO_DOUBLE;

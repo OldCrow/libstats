@@ -29,4 +29,12 @@ inline constexpr bool kDebugThreading = true;
 inline constexpr bool kDebugThreading = false;
 #endif
 
+/// Enable diagnostic output from distribution optimization paths (e.g. standard-normal
+/// fast-path detection). Define LIBSTATS_DEBUG_OPTIMIZATIONS at compile time to activate.
+#ifdef LIBSTATS_DEBUG_OPTIMIZATIONS
+inline constexpr bool kDebugOptimizations = true;
+#else
+inline constexpr bool kDebugOptimizations = false;
+#endif
+
 }  // namespace stats

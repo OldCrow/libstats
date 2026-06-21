@@ -12,6 +12,7 @@ using stats::detail::validatePositiveParameter;
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
+#include "libstats/core/debug_flags.h"  // for kDebugOptimizations
 #include "libstats/core/safety.h"
 // Note: simd.h still included in implementation files that actually use SIMD operations
 
@@ -624,9 +625,11 @@ std::string GaussianDistribution::toString() const {
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-#ifdef DEBUG
-
 bool GaussianDistribution::isUsingStandardNormalOptimization() const {
+    // No-op in release mode; only introspects when kDebugOptimizations is true.
+    if constexpr (!stats::kDebugOptimizations) {
+        return false;
+    }
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -637,12 +640,8 @@ bool GaussianDistribution::isUsingStandardNormalOptimization() const {
         ulock.unlock();
         lock.lock();
     }
-
-    // Return the current state of the standard normal optimization flag
     return isStandardNormal_;
 }
-
-#endif  // DEBUG
 
 // Utility methods moved from header for PIMPL optimization - no longer inline
 
