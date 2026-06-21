@@ -17,6 +17,8 @@ class SIMDPolicy;
 }  // namespace stats
 
 #include "libstats/platform/simd_policy.h"
+// DistributionType is defined in a minimal header with no platform deps (AQ-2).
+#include "distribution_type.h"
 
 // Forward declare OperationType so it can be used in selectStrategy
 namespace stats {
@@ -65,29 +67,6 @@ enum class Strategy {
     VECTORIZED,    ///< Batch path through VectorOps
     PARALLEL,      ///< Multi-threaded via ParallelUtils::parallelFor
     WORK_STEALING  ///< Work-stealing pool for irregular workloads
-};
-
-/**
- * @brief Distribution types for strategy optimization
- */
-enum class DistributionType {
-    UNIFORM,      ///< Simple uniform distribution
-    GAUSSIAN,     ///< Normal distribution (moderate complexity)
-    EXPONENTIAL,  ///< Exponential distribution (moderate complexity)
-    DISCRETE,     ///< Discrete uniform distribution
-    POISSON,      ///< Poisson distribution (complex)
-    GAMMA,        ///< Gamma distribution (most complex)
-    STUDENT_T,    ///< Student's t distribution (log+transcendental, full real-line domain)
-    BETA,         ///< Beta distribution (log-space, bounded support [0,1])
-    CHI_SQUARED,  ///< Chi-squared distribution (delegates to Gamma; positive real-line support)
-    LOG_NORMAL,   ///< Log-normal distribution (log+exp pipeline, positive real-line support)
-    PARETO,       ///< Pareto distribution (log-only pipeline, power-law tail, x >= scale)
-    WEIBULL,      ///< Weibull distribution (log+exp pipeline, two-stage power, x >= 0)
-    RAYLEIGH,     ///< Rayleigh distribution (x² pipeline, positive real-line support)
-    VON_MISES,    ///< Von Mises distribution (circular, cos kernel; PARALLEL preferred)
-    BINOMIAL,     ///< Binomial distribution (discrete, lgamma PMF; PARALLEL preferred)
-    NEGATIVE_BINOMIAL  ///< Negative Binomial distribution (discrete, lgamma PMF; PARALLEL
-                       ///< preferred)
 };
 
 /**

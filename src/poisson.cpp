@@ -347,15 +347,11 @@ double PoissonDistribution::sample(std::mt19937& rng) const {
 
         return static_cast<double>(k - 1);
     } else {
-        // Normal approximation method for large lambda
-        std::normal_distribution<double> normal(cached_lambda, std::sqrt(cached_lambda));
-
-        while (true) {
-            double sample = normal(rng);
-            if (sample >= detail::ZERO_DOUBLE) {
-                return std::round(sample);
-            }
-        }
+        // For large lambda, delegate to the standard library's Poisson sampler
+        // which uses an exact algorithm (e.g. Atkinson's PA or similar) rather
+        // than the biased normal-approximation-plus-rounding path (MC-15).
+        std::poisson_distribution<int> dist(cached_lambda);
+        return static_cast<double>(dist(rng));
     }
 }
 
@@ -398,18 +394,10 @@ std::vector<double> PoissonDistribution::sample(std::mt19937& rng, size_t n) con
             samples.push_back(static_cast<double>(k - 1));
         }
     } else {
-        // Normal approximation method for large lambda - optimized for batch
-        std::normal_distribution<double> normal(cached_lambda, std::sqrt(cached_lambda));
-
-        for (size_t i = 0; i < n; ++i) {
-            while (true) {
-                double sample = normal(rng);
-                if (sample >= detail::ZERO_DOUBLE) {
-                    samples.push_back(std::round(sample));
-                    break;
-                }
-            }
-        }
+        // Exact large-lambda path via std::poisson_distribution (MC-15).
+        std::poisson_distribution<int> dist(cached_lambda);
+        for (size_t i = 0; i < n; ++i)
+            samples.push_back(static_cast<double>(dist(rng)));
     }
 
     return samples;

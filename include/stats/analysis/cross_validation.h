@@ -32,11 +32,18 @@ namespace stats::analysis {
  * evaluates on the held-out fold using the fitted model's mean as the
  * point prediction.
  *
- * @tparam D Default-constructible distribution satisfying AnyDistribution.
+ * @tparam D Default-constructible distribution satisfying FittableDistribution.
  * @param data        Data vector.
  * @param k           Number of folds (k ≥ 2, k ≤ data.size()).
  * @param random_seed Seed for fold shuffle reproducibility.
  * @return Vector of k tuples: {MAE, RMSE, fold_log_likelihood}.
+ *
+ * **Return-value semantics (AR-3):**
+ * - `fold_log_likelihood`: primary distribution-fit statistic; sum of
+ *   log P(x_i | θ̂) over held-out observations under the fitted model.
+ * - `MAE` / `RMSE`: mean-prediction errors computed as |x_i − μ̂| where μ̂
+ *   is the fitted distribution mean (getMean()). They measure how well the
+ *   parametric mean tracks held-out values, not the distributional fit.
  */
 template <concepts::FittableDistribution D>
 [[nodiscard]] std::vector<std::tuple<double, double, double>>
@@ -103,9 +110,12 @@ kFoldCrossValidation(const std::vector<double>& data,
 /**
  * @brief Leave-one-out cross-validation (LOOCV).
  *
- * @tparam D Default-constructible distribution satisfying AnyDistribution.
+ * @tparam D Default-constructible distribution satisfying FittableDistribution.
  * @param data Data vector (at least 3 points required).
  * @return {mean_absolute_error, root_mean_squared_error, total_log_likelihood}
+ *
+ * MAE and RMSE are mean-prediction errors against getMean(); see kFoldCrossValidation
+ * for the full return-value semantics note.
  */
 template <concepts::FittableDistribution D>
 [[nodiscard]] std::tuple<double, double, double>

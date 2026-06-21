@@ -24,7 +24,7 @@
 #include <span>
 #include <string>
 
-#include "performance_dispatcher.h"  // for detail::DistributionType
+#include "distribution_type.h"  // for detail::DistributionType (AQ-2: minimal include)
 
 namespace stats::concepts {
 
@@ -49,9 +49,12 @@ concept AnyDistribution =
         { d.getCumulativeProbability(x) } -> std::convertible_to<double>;
         { d.getQuantile(x) }              -> std::convertible_to<double>;
 
-        // Statistical moments
-        { d.getMean() }     -> std::convertible_to<double>;
-        { d.getVariance() } -> std::convertible_to<double>;
+        // Statistical moments (AR-2: getSkewness/getKurtosis added; pure virtual
+        // on DistributionInterface, implemented by all 16 distributions)
+        { d.getMean() }      -> std::convertible_to<double>;
+        { d.getVariance() }  -> std::convertible_to<double>;
+        { d.getSkewness() }  -> std::convertible_to<double>;
+        { d.getKurtosis() }  -> std::convertible_to<double>;
 
         // Sampling
         { d.sample(rng) } -> std::convertible_to<double>;

@@ -710,7 +710,6 @@ set(LIBSTATS_FOUNDATION_SOURCES
 # Level 2: Core Utilities (Depends on Level 0-1)
 set(LIBSTATS_CORE_UTILITIES_SOURCES
     src/safety.cpp # Safe numerical operations
-    src/validation.cpp # Parameter validation and constraint checking
     src/math_utils.cpp # Mathematical utilities and special functions
     src/log_space_ops.cpp # Log-space arithmetic for numerical stability
 )
@@ -1189,9 +1188,6 @@ if(LIBSTATS_BUILD_TESTS)
     # Consolidated math utilities (math_utils.h)
     create_libstats_gtest(test_math_comprehensive tests/test_math_comprehensive.cpp)
 
-    # Enhanced validation (validation.h)
-    create_libstats_test(test_validation_enhanced tests/test_validation_enhanced.cpp)
-
     # =======================================================================
     # LEVEL 2: Statistical Infrastructure
     # =======================================================================
@@ -1409,7 +1405,6 @@ if(LIBSTATS_BUILD_TESTS)
                 test_error_handling_comprehensive
                 test_numerical_safety
                 test_math_comprehensive
-                test_validation_enhanced
                 # Level 2: Statistical infrastructure
                 test_goodness_of_fit
                 test_gaussian_analysis

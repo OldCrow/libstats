@@ -481,8 +481,43 @@ double BinomialDistribution::getEntropy() const noexcept {
         ulock.unlock();
         lock.lock();
     }
-    // Normal approximation: H ≈ ½ log(2πe·n·p·(1−p))
-    const double var = static_cast<double>(n_) * p_ * (detail::ONE - p_);
+    const int n = n_;
+    const double p = p_;
+    const double lnf = logNFact_;
+    lock.unlock();
+
+    // Entropy is returned in nats (natural units; std::log = log base e).
+    //
+    // For n ≤ 1000: exact Pearson-Shannon entropy via the PMF.
+    //   H = -Σ_{k=0}^{n} P(k) · ln P(k)
+    //   ln P(k) = ln C(n,k) + k·ln(p) + (n-k)·ln(1-p)
+    //           = (logNFact - lgamma(k+1) - lgamma(n-k+1)) + k*lp + (n-k)*l1mp
+    // This is exact up to floating-point rounding for any p in [0,1].
+    //
+    // For n > 1000: Gaussian approximation H ≈ ½ ln(2πe·npq), which
+    // has <0.1% relative error for n·1000 and any non-degenerate p.
+    constexpr int kExactThreshold = 1000;
+    if (n <= kExactThreshold) {
+        if (p <= detail::ZERO_DOUBLE || p >= detail::ONE)
+            return detail::ZERO_DOUBLE;  // degenerate: all mass at one point
+        const double lp   = std::log(p);
+        const double l1mp = std::log(detail::ONE - p);
+        double h = detail::ZERO_DOUBLE;
+        for (int k = 0; k <= n; ++k) {
+            // log P(k): log-binomial coefficient + log p^k (1-p)^(n-k)
+            const double log_pmf = lnf
+                - std::lgamma(static_cast<double>(k + 1))
+                - std::lgamma(static_cast<double>(n - k + 1))
+                + static_cast<double>(k) * lp
+                + static_cast<double>(n - k) * l1mp;
+            // P(k) * log P(k); guard against log_pmf = -inf when P(k) is tiny
+            if (std::isfinite(log_pmf))
+                h -= std::exp(log_pmf) * log_pmf;
+        }
+        return h;
+    }
+    // Large n: Gaussian approximation (MC-14)
+    const double var = static_cast<double>(n) * p * (detail::ONE - p);
     if (var <= detail::ZERO)
         return detail::ZERO_DOUBLE;
     return detail::HALF * std::log(detail::TWO * detail::PI * detail::E * var);
