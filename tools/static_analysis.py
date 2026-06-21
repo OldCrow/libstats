@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+
+import subprocess as _sp
+def _llvm_prefix():
+    """Detect Homebrew LLVM prefix on macOS; fall back to system."""
+    try:
+        return _sp.check_output(['brew', '--prefix', 'llvm'],
+                                 stderr=_sp.DEVNULL, text=True).strip()
+    except Exception:
+        return '/usr/local/opt/llvm'  # best-guess fallback
+
+_LLVM_PREFIX = _llvm_prefix()
 """
 Static Analysis Tool for Header Optimization
 
@@ -33,15 +44,15 @@ class StaticAnalyzer:
 
             # Run clang with unused include detection
             # Use Homebrew LLVM if available, otherwise fall back to system clang++
-            compiler = '/usr/local/opt/llvm/bin/clang++' if os.path.exists('/usr/local/opt/llvm/bin/clang++') else 'clang++'
+            compiler = f'{_LLVM_PREFIX}/bin/clang++' if os.path.exists(f'{_LLVM_PREFIX}/bin/clang++') else 'clang++'
 
-            if compiler.startswith('/usr/local/opt/llvm'):
+            if compiler.startswith(f'{_LLVM_PREFIX}'):
                 # Homebrew LLVM configuration
                 cmd = [
                     compiler,
                     '-std=c++20',
                     '-stdlib=libc++',
-                    '-I/usr/local/opt/llvm/include/c++/v1',
+                    '-I{_LLVM_PREFIX}/include/c++/v1',
                     f'-I{self.project_root}/include',
                     '-Wunused-macros',
                     '-Wall',

@@ -195,18 +195,30 @@ class StrategyProfiler {
     }
 
     template <typename Distribution>
-    void perform_operation([[maybe_unused]] const Distribution& distribution,
-                           [[maybe_unused]] std::span<const double> input_values,
-                           [[maybe_unused]] std::span<double> output_values,
-                           [[maybe_unused]] ProfileOperation operation,
-                           [[maybe_unused]] Strategy strategy) const {
+    void perform_operation(const Distribution& distribution,
+                           std::span<const double> input_values,
+                           std::span<double> output_values,
+                           ProfileOperation operation,
+                           Strategy strategy) const {
+        // Map Strategy -> PerformanceHint::PreferredStrategy (TOOL-1)
+        PerformanceHint hint;
+        switch (strategy) {
+            case Strategy::SCALAR:
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SCALAR; break;
+            case Strategy::VECTORIZED:
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED; break;
+            case Strategy::PARALLEL:
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_PARALLEL; break;
+            case Strategy::WORK_STEALING:
+                hint.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT; break;
+        }
         switch (operation) {
             case ProfileOperation::PDF:
-                break;
+                distribution.getProbability(input_values, output_values, hint); break;
             case ProfileOperation::LOG_PDF:
-                break;
+                distribution.getLogProbability(input_values, output_values, hint); break;
             case ProfileOperation::CDF:
-                break;
+                distribution.getCumulativeProbability(input_values, output_values, hint); break;
         }
     }
 

@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+
+import subprocess as _sp
+def _llvm_prefix():
+    """Detect Homebrew LLVM prefix on macOS; fall back to system."""
+    try:
+        return _sp.check_output(['brew', '--prefix', 'llvm'],
+                                 stderr=_sp.DEVNULL, text=True).strip()
+    except Exception:
+        return '/usr/local/opt/llvm'  # best-guess fallback
+
+_LLVM_PREFIX = _llvm_prefix()
 """
 Mathematical Function Cache Benchmarking Tool
 
@@ -460,19 +471,19 @@ int main() {{
             exe_file = cpp_file.replace('.cpp', '')
 
             # Use Homebrew LLVM if available, otherwise fall back to system clang++
-            compiler = "/usr/local/opt/llvm/bin/clang++" if os.path.exists("/usr/local/opt/llvm/bin/clang++") else "clang++"
+            compiler = f"{_LLVM_PREFIX}/bin/clang++" if os.path.exists(f"{_LLVM_PREFIX}/bin/clang++") else "clang++"
 
             # Configure compiler with proper C++20 flags based on compiler type
-            if compiler.startswith("/usr/local/opt/llvm"):
+            if compiler.startswith(f"{_LLVM_PREFIX}"):
                 # Homebrew LLVM configuration
                 compile_cmd = [
                     compiler, '-std=c++20', '-stdlib=libc++',
-                    '-I/usr/local/opt/llvm/include/c++/v1',
+                    '-I{_LLVM_PREFIX}/include/c++/v1',
                     '-O3', '-DNDEBUG',
                     '-I' + str(self.project_root), cpp_file,
-                    '-L/usr/local/opt/llvm/lib/c++',
+                    '-L{_LLVM_PREFIX}/lib/c++',
                     '-L' + str(self.build_dir),
-                    '-Wl,-rpath,/usr/local/opt/llvm/lib/c++',
+                    '-Wl,-rpath,{_LLVM_PREFIX}/lib/c++',
                     str(self.build_dir / 'libstats.a'),  # Use static library for local linking
                     '-o', exe_file
                 ]

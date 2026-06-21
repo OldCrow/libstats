@@ -28,16 +28,20 @@ These remain useful for include and compilation-health work:
 See `docs/HEADER_TOOLS_GUIDE.md` for the header-analysis workflow.
 
 ## Historical or specialized utilities
-Some tools exist to support earlier refactoring work or narrow one-off investigations.
-Keep them only if there is a concrete reason to run them again; otherwise treat them as archival.
 
-Examples:
-- `demo_phase1_optimization.py`
-- `demo_phase2_optimization.py`
-- `replace_magic_numbers.py`
-- `replace_domain_constants.py`
-- `analyze_magic_numbers.py`
-- `find_unsafe_constructor_usage.py`
+The following one-time refactoring tools have been **deleted** from the repository
+(v2.0.0 cleanup). They are listed here for historical reference only:
+`demo_phase1_optimization.py`, `demo_phase2_optimization.py`,
+`replace_magic_numbers.py`, `replace_domain_constants.py`,
+`analyze_magic_numbers.py`, `find_unsafe_constructor_usage.py`,
+`test_include_analysis.cpp`.
+
+The following header-analysis tools are **archival** (the header optimization
+work they supported is complete). They remain in the repository but are not
+part of the active development workflow:
+- `header_optimization_analysis.py`
+- `header_optimization_summary.py`
+- `header_insights.py`
 
 ## Guidance
 

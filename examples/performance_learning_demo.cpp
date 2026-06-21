@@ -233,30 +233,33 @@ void demonstrate_adaptive_learning() {
                                 std::chrono::high_resolution_clock::now() - start)
                                 .count();
 
-            // Test multiple strategies for comparison
+            // EX-2: time each strategy for real; no fabricated multipliers.
             for (auto strategy : test_strategies) {
-                // Add some realistic variance based on strategy (simulated)
-                uint64_t adjusted_duration = static_cast<uint64_t>(duration);
+                stats::detail::PerformanceHint hint;
                 switch (strategy) {
                     case stats::detail::Strategy::SCALAR:
-                        adjusted_duration =
-                            static_cast<uint64_t>(static_cast<double>(duration) * 1.5);  // Slower
+                        hint.strategy =
+                            stats::detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
                         break;
                     case stats::detail::Strategy::VECTORIZED:
-                        adjusted_duration = static_cast<uint64_t>(duration);  // Baseline
+                        hint.strategy =
+                            stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                         break;
                     case stats::detail::Strategy::PARALLEL:
-                        if (size > 5000) {
-                            adjusted_duration = static_cast<uint64_t>(
-                                static_cast<double>(duration) * 0.7);  // Faster for large sizes
-                        } else {
-                            adjusted_duration = static_cast<uint64_t>(
-                                static_cast<double>(duration) * 1.2);  // Slower for small sizes
-                        }
+                        hint.strategy =
+                            stats::detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
                         break;
                     default:
-                        break;
+                        continue;
                 }
+                std::vector<double> strat_output(size);
+                auto t0 = std::chrono::high_resolution_clock::now();
+                normal.getProbability(std::span<const double>(input_data),
+                                      std::span<double>(strat_output), hint);
+                auto t1 = std::chrono::high_resolution_clock::now();
+                uint64_t adjusted_duration =
+                    static_cast<uint64_t>(
+                        std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count());
 
                 // Record performance data
                 stats::detail::PerformanceDispatcher::recordPerformance(

@@ -486,10 +486,14 @@ class SIMDVerifier {
                     output[i] = d.getProbability(data[i]);
                 }
             },
-            []([[maybe_unused]] const auto& d, const auto& data, auto& output) {
-                // SIMD version - using explicit strategy for SIMD verification
+            [](const auto& d, const auto& data, auto& output) {
+                // SIMD version: force-vectorized span batch call (TOOL-2)
+                stats::detail::PerformanceHint hint;
+                hint.strategy =
+                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
+                d.getProbability(input_span, output_span, hint);
             });
 
         // Test LogPDF operation
@@ -501,10 +505,14 @@ class SIMDVerifier {
                     output[i] = d.getLogProbability(data[i]);
                 }
             },
-            []([[maybe_unused]] const auto& d, const auto& data, auto& output) {
-                // SIMD version - using explicit strategy for SIMD verification
+            [](const auto& d, const auto& data, auto& output) {
+                // SIMD version: force-vectorized span batch call (TOOL-2)
+                stats::detail::PerformanceHint hint;
+                hint.strategy =
+                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
+                d.getLogProbability(input_span, output_span, hint);
             });
 
         // Test CDF operation
@@ -516,10 +524,14 @@ class SIMDVerifier {
                     output[i] = d.getCumulativeProbability(data[i]);
                 }
             },
-            []([[maybe_unused]] const auto& d, const auto& data, auto& output) {
-                // SIMD version - using explicit strategy for SIMD verification
+            [](const auto& d, const auto& data, auto& output) {
+                // SIMD version: force-vectorized span batch call (TOOL-2)
+                stats::detail::PerformanceHint hint;
+                hint.strategy =
+                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
+                d.getCumulativeProbability(input_span, output_span, hint);
             });
     }
 
