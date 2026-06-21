@@ -382,12 +382,15 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
 
     int maxObs = 0;
     double sum = detail::ZERO_DOUBLE;
+    double sum_sq = detail::ZERO_DOUBLE;
     std::size_t count = 0;
     for (double v : values) {
         if (v >= detail::ZERO_DOUBLE && std::isfinite(v)) {
             const int k = static_cast<int>(std::round(v));
             maxObs = std::max(maxObs, k);
-            sum += static_cast<double>(k);
+            const double kd = static_cast<double>(k);
+            sum    += kd;
+            sum_sq += kd * kd;
             ++count;
         }
     }
@@ -396,9 +399,28 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
         return;
     }
 
-    const int n_hat = maxObs;
-    const double p_hat =
-        std::clamp(sum / (static_cast<double>(count) * n_hat), detail::ZERO_DOUBLE, detail::ONE);
+    const double n_d  = static_cast<double>(count);
+    const double xbar = sum / n_d;
+
+    // Method-of-moments (MC-10): n̂ = x̄² / (x̄ − s²),  p̂ = x̄ / n̂
+    // Valid when s² < x̄ (underdispersion consistent with Binomial).
+    // Falls back to n̂ = max(obs) when MoM is inapplicable (overdispersed or
+    // all observations equal).
+    const double var = sum_sq / n_d - xbar * xbar;  // biased MLE sample variance
+
+    int n_hat;
+    double p_hat;
+    if (count >= 2 && var > detail::ZERO_DOUBLE && var < xbar) {
+        const double n_mom = xbar * xbar / (xbar - var);
+        n_hat = std::max(maxObs, static_cast<int>(std::round(n_mom)));
+        p_hat = std::clamp(xbar / static_cast<double>(n_hat),
+                           detail::ZERO_DOUBLE, detail::ONE);
+    } else {
+        // Fallback: max(obs) is a lower bound for n; MLE p̂ = x̄ / n given n.
+        n_hat = maxObs;
+        p_hat = std::clamp(xbar / static_cast<double>(n_hat),
+                           detail::ZERO_DOUBLE, detail::ONE);
+    }
     setParameters(n_hat, p_hat);
 }
 

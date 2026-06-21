@@ -49,8 +49,13 @@ shapiroWilkTest(const std::vector<double>& data, double alpha) {
         ? std::min(1.0, (numerator * numerator) / (ss * m_norm_sq))
         : 0.0;
 
-    // p-value: asymptotic approximation — n*(1-W) ~ χ²(1) under H₀.
-    // This gives p≈1 for W close to 1 (good fit) and p≈0 for W far from 1.
+    // p-value: asymptotic approximation n·(1−W) ~ χ²(1) under H₀ (MC-13).
+    // This formula is crude and known to over-reject for small n or extreme W.
+    // Royston (1992) provides a more accurate normalising transformation of W;
+    // implementing it requires distribution-specific coefficient tables. For
+    // better accuracy on small samples (n < 50) prefer a table-lookup or Monte
+    // Carlo p-value; this approximation is retained for its zero-dependency
+    // property and is adequate for large samples and exploratory analysis.
     const double chi2_approx = static_cast<double>(n) * (1.0 - w);
     const double p_value = std::min(1.0, std::max(0.0, std::exp(-chi2_approx / 2.0)));
 
@@ -106,19 +111,35 @@ confidenceIntervalMean(const std::vector<double>& data,
     const double alpha = 1.0 - confidence_level;
     double margin;
 
-    if (population_variance_known || n >= 30) {
+    // MC-7: Use Bessel-corrected (n-1) variance whenever the population variance
+    // is not known, regardless of sample size. The biased estimator (n denominator)
+    // is reserved for the truly-known-population case.
+    if (population_variance_known) {
+        // Population variance known: plug-in biased estimator, z critical value.
         const double var = std::inner_product(data.begin(), data.end(),
             data.begin(), 0.0) / n - mean * mean;
         const double z = detail::inverse_normal_cdf(1.0 - alpha * 0.5);
         margin = z * std::sqrt(var) / std::sqrt(static_cast<double>(n));
     } else {
-        double var = std::inner_product(data.begin(), data.end(), data.begin(),
+        // Population variance unknown: Bessel-corrected estimator throughout;
+        // switch between z (n >= 30, CLT) and t (n < 30) critical values.
+        if (n < 2) {
+            // Single observation: variance undefined; return degenerate interval.
+            return {mean, mean};
+        }
+        const double var = std::inner_product(data.begin(), data.end(), data.begin(),
             0.0, std::plus<>(),
             [mean](double x, double y){ return (x - mean) * (y - mean); }) /
             static_cast<double>(n - 1);
-        const double t = detail::inverse_t_cdf(1.0 - alpha * 0.5,
-                                               static_cast<double>(n - 1));
-        margin = t * std::sqrt(var) / std::sqrt(static_cast<double>(n));
+        const double std_err = std::sqrt(var) / std::sqrt(static_cast<double>(n));
+        if (n >= 30) {
+            const double z = detail::inverse_normal_cdf(1.0 - alpha * 0.5);
+            margin = z * std_err;
+        } else {
+            const double t = detail::inverse_t_cdf(1.0 - alpha * 0.5,
+                                                   static_cast<double>(n - 1));
+            margin = t * std_err;
+        }
     }
     return {mean - margin, mean + margin};
 }
@@ -300,6 +321,19 @@ robustEstimation(const std::vector<double>& data,
     double loc = median;
     double scale = mad * detail::MAD_SCALING_FACTOR;
 
+    // IRLS M-estimator loop (MC-8 documentation):
+    // The scale update uses a weighted RMS (sqrt(wsq/sum_w)) without a
+    // consistency factor. For the Huber estimator with tuning constant k, the
+    // asymptotic scale estimate converges to σ * c where c depends on k and
+    // the unknown distribution; adding the Fisher-consistency correction
+    // c_inv = sqrt(E_φ[ψ²(x)] / E_φ[ψ'(x)]) is omitted for simplicity.
+    // In practice the MAD initialisation and the IRLS converge to a robust
+    // scale estimate that is close to σ but not exactly σ under Gaussianity.
+    //
+    // The Hampel estimator uses equal weights (w = 1) in the scale-update loop
+    // rather than Hampel weights; this is a deliberate simplification (the
+    // location IRLS uses Hampel weights). A fully-consistent Hampel scale
+    // estimate would require a second pass with Hampel weights.
     for (int iter = 0; iter < 50; ++iter) {
         double sum_w = 0.0, sum_wx = 0.0;
         for (double x : data) {
@@ -324,6 +358,7 @@ robustEstimation(const std::vector<double>& data,
         }
         const double new_loc = sum_wx / sum_w;
 
+        // Scale update: weighted RMS of residuals (equal weights for Hampel).
         double wsq = 0.0;
         for (double x : data) {
             const double r = x - new_loc;
@@ -334,6 +369,7 @@ robustEstimation(const std::vector<double>& data,
             else if (estimator_type == "tukey")
                 w = (std::abs(sr) <= tuning_constant)
                     ? std::pow(1.0 - std::pow(sr/tuning_constant, 2.0), 2.0) : 0.0;
+            // Hampel: w = 1.0 (default); see note above.
             wsq += w * r * r;
         }
         const double new_scale = std::sqrt(wsq / sum_w);
@@ -381,7 +417,8 @@ lMomentsEstimation(const std::vector<double>& data) {
                          static_cast<double>(n);
         l2 += w * sorted[i];
     }
-    l2 = (n > 1) ? l2 / static_cast<double>(n - 1) : 0.0;
+    // SA-3: The throw above guarantees n >= 2, so n - 1 is always positive.
+    l2 /= static_cast<double>(n - 1);
 
     // For Gaussian: λ₂ = σ/√π, so σ = λ₂·√π
     return {l1, l2 * std::sqrt(detail::PI)};

@@ -463,61 +463,7 @@ class GaussianDistribution : public DistributionBase {
     std::string toString() const override;
 
     //==========================================================================
-    // 7. ADVANCED STATISTICAL METHODS
-    //==========================================================================
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    /**
-     * @brief Bootstrap parameter confidence intervals
-     *
-     * Uses bootstrap resampling to estimate confidence intervals for
-     * the distribution parameters (mean and standard deviation).
-     *
-     * @param data Sample data for bootstrap resampling
-     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
-     * @param n_bootstrap Number of bootstrap samples (default: 1000)
-     * @param random_seed Seed for random sampling (default: 42)
-     * @return Tuple of ((mean_CI_lower, mean_CI_upper), (std_CI_lower, std_CI_upper))
-     */
-    //==========================================================================
-    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
+    // 7. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
 
     /**
@@ -593,7 +539,7 @@ class GaussianDistribution : public DistributionBase {
 #endif
 
     //==========================================================================
-    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
+    // 8. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
 
     /**

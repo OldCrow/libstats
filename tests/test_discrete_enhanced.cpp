@@ -103,31 +103,10 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
 TEST_F(DiscreteEnhancedTest, GoodnessOfFitTests) {
     std::cout << "\n=== Goodness-of-Fit Tests ===\n";
 
-    // Kolmogorov-Smirnov test with uniform discrete data
-    auto [ks_stat_uniform, ks_p_uniform, ks_reject_uniform] =
-        stats::analysis::kolmogorovSmirnovTest(discrete_data_, test_distribution_, 0.05);
+    // KS test removed (MC-12): stats::analysis::kolmogorovSmirnovTest requires
+    // ContinuousDistribution. Use chi-square GOF for discrete distributions instead.
 
-    EXPECT_GE(ks_stat_uniform, 0.0);
-    EXPECT_LE(ks_stat_uniform, 1.0);
-    EXPECT_GE(ks_p_uniform, 0.0);
-    EXPECT_LE(ks_p_uniform, 1.0);
-    EXPECT_TRUE(std::isfinite(ks_stat_uniform));
-    EXPECT_TRUE(std::isfinite(ks_p_uniform));
-
-    std::cout << "  KS test (uniform data): D=" << ks_stat_uniform << ", p=" << ks_p_uniform
-              << ", reject=" << ks_reject_uniform << "\n";
-
-    // Kolmogorov-Smirnov test with non-uniform data (should reject)
-    auto [ks_stat_non_uniform, ks_p_non_uniform, ks_reject_non_uniform] =
-        stats::analysis::kolmogorovSmirnovTest(non_uniform_data_, test_distribution_, 0.05);
-
-    EXPECT_TRUE(ks_reject_non_uniform);  // Should reject uniform distribution for skewed data
-    EXPECT_LT(ks_p_non_uniform, ks_p_uniform);  // Non-uniform data should have lower p-value
-
-    std::cout << "  KS test (non-uniform data): D=" << ks_stat_non_uniform
-              << ", p=" << ks_p_non_uniform << ", reject=" << ks_reject_non_uniform << "\n";
-
-    // Chi-square test (more appropriate for discrete distributions)
+    // Chi-square test (correct test for discrete distributions)
     auto [chi_stat_uniform, chi_p_uniform, chi_reject_uniform] =
         DiscreteDistribution::chiSquaredGoodnessOfFitTest(discrete_data_, test_distribution_, 0.05);
     auto [chi_stat_non_uniform, chi_p_non_uniform, chi_reject_non_uniform] =

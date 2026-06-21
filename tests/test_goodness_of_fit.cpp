@@ -63,16 +63,25 @@ TEST(GoodnessOfFit, AD_BadFit) {
 
 // ── Likelihood ratio test ────────────────────────────────────────────────────
 TEST(GoodnessOfFit, LR_RejectsWrongModel) {
+    // Joint test on μ and σ²: both parameters differ → df = 2.
     auto data = normalSample(100, 5.0, 2.0);
     auto restricted   = GaussianDistribution::create(0.0, 1.0).value;
     auto unrestricted = GaussianDistribution::create(5.0, 2.0).value;
-    auto [lr, p, reject] = stats::analysis::likelihoodRatioTest(data, restricted, unrestricted);
+    auto [lr, p, reject] = stats::analysis::likelihoodRatioTest(data, restricted, unrestricted, 2);
     EXPECT_GT(lr, 0.0); EXPECT_TRUE(reject);
 }
 TEST(GoodnessOfFit, LR_EqualParamsThrows) {
+    // Identical models: LR stat = 0 → non-positive LR throws std::invalid_argument.
     auto data = normalSample(50);
     auto g = GaussianDistribution::create(0.0,1.0).value;
-    EXPECT_THROW(stats::analysis::likelihoodRatioTest(data,g,g), std::invalid_argument);
+    EXPECT_THROW(stats::analysis::likelihoodRatioTest(data, g, g, 2), std::invalid_argument);
+}
+TEST(GoodnessOfFit, LR_InvalidDfThrows) {
+    // df = 0 must throw before any computation.
+    auto data = normalSample(50);
+    auto g0 = GaussianDistribution::create(0.0,1.0).value;
+    auto g1 = GaussianDistribution::create(1.0,1.0).value;
+    EXPECT_THROW(stats::analysis::likelihoodRatioTest(data, g0, g1, 0), std::invalid_argument);
 }
 
 // ── Information criteria ─────────────────────────────────────────────────────

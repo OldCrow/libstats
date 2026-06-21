@@ -129,19 +129,9 @@ TEST_F(PoissonEnhancedTest, GoodnessOfFitTests) {
     std::cout << "  Chi-square test (non-Poisson data): χ²=" << chi2_stat_non_poisson
               << ", p=" << chi2_p_non_poisson << ", reject=" << chi2_reject_non_poisson << "\n";
 
-    // Kolmogorov-Smirnov test (adapted for discrete distributions)
-    auto [ks_stat, ks_p_value, ks_reject] =
-        stats::analysis::kolmogorovSmirnovTest(poisson_data_, test_distribution_, 0.05);
-
-    EXPECT_GE(ks_stat, 0.0);
-    EXPECT_LE(ks_stat, 1.0);
-    EXPECT_GE(ks_p_value, 0.0);
-    EXPECT_LE(ks_p_value, 1.0);
-    EXPECT_TRUE(std::isfinite(ks_stat));
-    EXPECT_TRUE(std::isfinite(ks_p_value));
-
-    std::cout << "  KS test: D=" << ks_stat << ", p=" << ks_p_value << ", reject=" << ks_reject
-              << "\n";
+    // KS test removed (MC-12): stats::analysis::kolmogorovSmirnovTest requires
+    // ContinuousDistribution. For Poisson (discrete), use chiSquareGoodnessOfFit
+    // (already tested above).
 }
 
 //==============================================================================

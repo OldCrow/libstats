@@ -4,9 +4,9 @@
  * @file stats/analysis/goodness_of_fit.h
  * @brief Generic goodness-of-fit tests for any libstats distribution.
  *
- * Functions here accept any type D satisfying stats::concepts::AnyDistribution.
- * They replace the identical static methods previously duplicated across 16
- * distribution classes.
+ * Kolmogorov-Smirnov and Anderson-Darling tests are constrained to
+ * stats::concepts::ContinuousDistribution — applying them to discrete
+ * distributions is a compile-time error (MC-12).
  *
  * Extracted in v2.0.0. Migration:
  *   GaussianDistribution::kolmogorovSmirnovTest(data, dist, alpha)
@@ -32,15 +32,16 @@ namespace stats::analysis {
 /**
  * @brief Kolmogorov-Smirnov goodness-of-fit test.
  *
- * @tparam D Any distribution satisfying stats::concepts::AnyDistribution.
+ * @tparam D Continuous distribution satisfying stats::concepts::ContinuousDistribution.
+ *           Applying this test to a discrete distribution is a compile-time error.
  * @param data  Observed data vector (unsorted; sorted internally).
  * @param dist  Distribution to test against.
  * @param alpha Significance level (default 0.05).
  * @return {ks_statistic, p_value, reject_null}
  *
- * p-value uses the asymptotic approximation: 2·exp(−2·n·D²).
+ * p-value uses the asymptotic Kolmogorov approximation: 2·exp(−2·n·D²).
  */
-template <concepts::AnyDistribution D>
+template <concepts::ContinuousDistribution D>
 [[nodiscard]] std::tuple<double, double, bool>
 kolmogorovSmirnovTest(const std::vector<double>& data,
                       const D& dist,
@@ -68,17 +69,23 @@ kolmogorovSmirnovTest(const std::vector<double>& data,
 /**
  * @brief Anderson-Darling goodness-of-fit test.
  *
- * @tparam D Any distribution satisfying stats::concepts::AnyDistribution.
+ * @tparam D Continuous distribution satisfying stats::concepts::ContinuousDistribution.
+ *           Applying this test to a discrete distribution is a compile-time error.
  * @param data  Observed data vector.
  * @param dist  Distribution to test against.
  * @param alpha Significance level (default 0.05).
  * @return {ad_statistic, p_value, reject_null}
  *
- * p-value uses a general exponential approximation. For distribution-specific
- * critical values (e.g. Gaussian AD with Lilliefors correction) use the
- * per-distribution analysis header instead.
+ * p-value: single-segment exponential approximation calibrated to the 5% critical
+ * value of the distribution-agnostic AD asymptotic distribution (Stephens 1974).
+ * For distribution-specific critical values (e.g. Gaussian AD with Lilliefors
+ * correction) use the per-distribution analysis header instead.
+ *
+ * **Continuity guarantee (MC-6)**: a single formula is used for all A < 13,
+ * eliminating the jump discontinuity that existed between the two-segment
+ * approximation in earlier versions.
  */
-template <concepts::AnyDistribution D>
+template <concepts::ContinuousDistribution D>
 [[nodiscard]] std::tuple<double, double, bool>
 andersonDarlingTest(const std::vector<double>& data,
                     const D& dist,
@@ -90,16 +97,14 @@ andersonDarlingTest(const std::vector<double>& data,
 
     const double ad_stat = detail::calculate_ad_statistic(data, dist);
 
-    // General exponential p-value approximation (distribution-agnostic)
-    double p_value;
-    if (ad_stat >= 13.0) {
-        p_value = 0.0;
-    } else if (ad_stat >= 6.0) {
-        p_value = std::exp(-1.28 * ad_stat);
-    } else {
-        p_value = std::exp(-1.8 * ad_stat + 1.5);
-    }
-    p_value = std::min(1.0, std::max(0.0, p_value));
+    // Single-formula asymptotic approximation: p ≈ 4.48·exp(−1.8·A).
+    // Calibrated to the 5% critical value (A ≈ 2.49 → p ≈ 0.05) of the
+    // distribution-agnostic AD test (Stephens 1974, Table 4.2). The constant
+    // 1.5 shifts the intercept so that the formula naturally saturates at 1.0
+    // (via the min-clamp) for small A. A single segment is used throughout
+    // [0, 13) to guarantee strict monotone decrease (MC-6).
+    const double p_value = std::min(1.0, std::max(0.0,
+        std::exp(-1.8 * ad_stat + 1.5)));
 
     return {ad_stat, p_value, p_value < alpha};
 }
@@ -112,26 +117,41 @@ andersonDarlingTest(const std::vector<double>& data,
  * @brief Likelihood ratio test comparing two nested models.
  *
  * Tests H₀: restricted model is adequate against H₁: unrestricted model.
- * The statistic −2(ℓ_r − ℓ_u) is asymptotically χ²(df) where
- * df = Δparameters.
+ * The statistic −2(ℓ_r − ℓ_u) is asymptotically χ²(df) where df = Δparameters.
  *
  * @tparam D Any distribution satisfying stats::concepts::AnyDistribution.
  * @param data               Observed data vector.
  * @param restricted         Restricted (null) model.
  * @param unrestricted       Unrestricted (alternative) model.
  * @param alpha              Significance level (default 0.05).
+ * @param df                 Degrees of freedom (number of constraints; df > 0).
+ *                           Must be specified explicitly (MC-11):
+ *                           - Nested models: df = k_unrestricted − k_restricted.
+ *                           - Same distribution, different parameters: df = number
+ *                             of fixed parameters tested (e.g. 1 for a single mean).
+ *                           A zero or negative value causes an exception.
  * @return {lr_statistic, p_value, reject_null}
+ *
+ * **Migration note (v2.0.0, MC-11):** `df` is now an explicit required parameter.
+ * Previous versions silently inferred df, which was ambiguous when both models
+ * had the same number of parameters. Callers must supply df.
  */
 template <concepts::AnyDistribution D>
 [[nodiscard]] std::tuple<double, double, bool>
 likelihoodRatioTest(const std::vector<double>& data,
                     const D& restricted,
                     const D& unrestricted,
+                    int df,
                     double alpha = 0.05) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (alpha <= 0.0 || alpha >= 1.0)
         throw std::invalid_argument("Alpha must be in (0, 1)");
+    if (df <= 0)
+        throw std::invalid_argument(
+            "Degrees of freedom must be positive. "
+            "Supply df = k_unrestricted - k_restricted for nested models, or the "
+            "number of tested constraints for same-distribution comparisons.");
 
     double ll_r = 0.0, ll_u = 0.0;
     for (double x : data) {
@@ -146,15 +166,6 @@ likelihoodRatioTest(const std::vector<double>& data,
         throw std::invalid_argument(
             "LR statistic is non-positive: restricted model fits at least as well as "
             "unrestricted. Check model ordering or whether models are identical.");
-
-    const int k_r = restricted.getNumParameters();
-    const int k_u = unrestricted.getNumParameters();
-    // Same-type comparison (both models have k parameters): treat as a joint
-    // hypothesis test on all k parameters → df = k_r.
-    // Different-type comparison (nested models): df = |k_u - k_r|.
-    const int df = (k_u != k_r) ? std::abs(k_u - k_r) : k_r;
-    if (df <= 0)
-        throw std::invalid_argument("Degrees of freedom must be positive");
 
     const double p_value = 1.0 - detail::chi_squared_cdf(lr_stat, df);
     return {lr_stat, p_value, p_value < alpha};

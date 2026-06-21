@@ -197,13 +197,11 @@ using NegativeBinomial = NegativeBinomialDistribution;
 
 // Version constants and initialization — available in both lightweight and
 // full-interface modes; do not require complete distribution types.
-// TODO(v2.0.0): generate these from ${PROJECT_VERSION} via configure_file so
-// they cannot drift from the CMakeLists.txt version again.
 namespace stats {
-constexpr int LIBSTATS_VERSION_MAJOR = 1;
-constexpr int LIBSTATS_VERSION_MINOR = 5;
-constexpr int LIBSTATS_VERSION_PATCH = 3;
-constexpr const char* VERSION_STRING = "1.5.3";
+constexpr int LIBSTATS_VERSION_MAJOR = 2;
+constexpr int LIBSTATS_VERSION_MINOR = 0;
+constexpr int LIBSTATS_VERSION_PATCH = 0;
+constexpr const char* VERSION_STRING = "2.0.0";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays
