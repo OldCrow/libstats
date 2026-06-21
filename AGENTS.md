@@ -95,7 +95,7 @@ minimum macOS raised to 13 Ventura).
 | Machine | SIMD | Target | Notes |
 |---|---|---|---|
 | Kaby Lake (2017 MBP) | AVX2+FMA | 42/42 ✅ | v2.0.0 (dev) baseline |
-| Mac Mini M1 | NEON | pending | v2.0.0 validation pending |
+| Mac Mini M1 | NEON | 42/42 ✅ | v2.0.0 validated |
 | Asus TUF A16 (Windows) | AVX-512 | pending | v2.0.0 validation pending |
 
 **v1.5.2 — final v1.x release (four machines)**
