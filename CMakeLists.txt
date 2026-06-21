@@ -767,21 +767,50 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
 # =============================================================================
 # INCLUDE PATH SHIM FOR INSTALLED HEADER PREFIX
 # =============================================================================
-# Headers use #include "libstats/core/foo.h" for correct resolution in both build-tree and
-# install-tree. In the build tree, we materialize: ${CMAKE_BINARY_DIR}/include_shim/libstats/* as a
-# copied tree of ${CMAKE_SOURCE_DIR}/include/*. This avoids Windows symlink traversal issues
-# ("untrusted mount point") observed in some environments. In the install tree, headers are
-# installed to include/libstats/ directly.
+# Headers use #include "libstats/core/foo.h" so the include path is identical
+# in the build tree and the install tree (where headers land in include/libstats/).
+#
+# Implementation strategy (platform-guarded):
+#   macOS/Linux — a single directory symlink:
+#       build/include_shim/libstats → <src>/include
+#     Any edit to a header is immediately visible to the compiler; zero copy
+#     overhead per build. Re-running cmake is not required after header edits.
+#
+#   Windows — a flat copy (symlinks require Developer Mode or elevated
+#     privileges and can trigger "untrusted mount point" errors):
+#       copy_directory at configure time, refreshed by an ALL custom target
+#       so mid-session header edits are picked up on the next cmake --build.
+#
+# Long-term: the canonical fix is to restructure include/ to include/libstats/
+# so the source tree mirrors the install tree and no shim is needed at all.
+# Tracked as a post-v2.0 task.
 set(LIBSTATS_INCLUDE_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/include_shim")
 set(LIBSTATS_INCLUDE_SHIM_LINK "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats")
 file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
-# Refresh shim on each configure to avoid stale headers.
 file(REMOVE_RECURSE "${LIBSTATS_INCLUDE_SHIM_LINK}")
-execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/include"
-            "${LIBSTATS_INCLUDE_SHIM_LINK}" RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_COPY_RESULT)
-if(NOT LIBSTATS_INCLUDE_SHIM_COPY_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to materialize include shim at ${LIBSTATS_INCLUDE_SHIM_LINK}")
+if(WIN32)
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}"
+        RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
+    if(NOT LIBSTATS_INCLUDE_SHIM_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to materialise include shim at ${LIBSTATS_INCLUDE_SHIM_LINK}")
+    endif()
+    # Re-copy on every build so mid-session header edits are picked up without
+    # requiring a cmake re-run. cmake -E copy_directory is timestamp-aware.
+    add_custom_target(libstats_refresh_shim ALL
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}"
+        COMMENT "Refreshing include shim"
+        VERBATIM)
+else()
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E create_symlink
+                "${CMAKE_CURRENT_SOURCE_DIR}/include" "${LIBSTATS_INCLUDE_SHIM_LINK}"
+        RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
+    if(NOT LIBSTATS_INCLUDE_SHIM_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to create include shim symlink at ${LIBSTATS_INCLUDE_SHIM_LINK}")
+    endif()
 endif()
 
 # =============================================================================
