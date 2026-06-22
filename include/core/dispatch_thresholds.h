@@ -224,50 +224,48 @@ constexpr ArchTable kAvx2 = {
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
-// data/profiles/dispatcher/2026-06-15T22-43-11Z_windows-x86_64_fix-audit-remediation_sha-932addd
-// data/profiles/dispatcher/2026-06-15T22-46-33Z_windows-x86_64_fix-audit-remediation_sha-932addd
+// data/profiles/dispatcher/2026-06-22T02-52-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
+// data/profiles/dispatcher/2026-06-22T02-55-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
+// data/profiles/dispatcher/2026-06-22T02-59-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
 //
-// Two Release-mode bundles captured on fix/audit-remediation after audit
-// remediation changes and 7 new distributions added to the profiler.
-// Method: where both runs agree (≤~5× ratio), take the larger V→P crossover
-// (conservative, 64 floor). NEVER where best@500k was VECTORIZED in both runs,
-// runs produced contradictory best@500k, or crossovers differed by >10×.
-// Note: Windows/Thread Pool always dispatches PARALLEL, not WORK_STEALING;
-// WORK_STEALING at max size is treated as a parallel-strategy win for threshold
-// derivation, but PARALLEL vs WORK_STEALING variation between runs is ignored.
+// Three sequential Release-mode runs on feat/v2-architecture (9b2c1a3).
+// Method: clamp < 64 → 64; all three within 10× → max (conservative);
+// two within 10× + one outlier → discard outlier, max of valid pair; else NEVER.
+// Windows/Thread Pool always dispatches PARALLEL (not WORK_STEALING); variation
+// between PARALLEL and WORK_STEALING at max size is ignored for threshold derivation.
 //
-//   - Uniform PDF: 100000 -> NEVER. Runs wildly inconsistent (50k vs 256).
-//   - Uniform LogPDF: 5000 -> 1000. Both runs agree.
-//   - Uniform CDF: 64 -> 256. Runs 256/8; conservative after 64 floor = 256.
-//   - Gaussian PDF: 500000 -> NEVER. Contradictory best@500k across runs.
-//   - Gaussian CDF: 20000 -> NEVER. Runs wildly inconsistent (64 vs 50k).
-//   - Exponential PDF: NEVER -> 500000. Both runs show first crossover at 500k.
-//   - Exponential LogPDF: 500000 -> NEVER. Contradictory best@500k.
-//   - Exponential CDF: 250000 -> NEVER. Runs wildly inconsistent.
-//   - Discrete PDF/LogPDF/CDF: all -> NEVER. All pairs wildly inconsistent.
-//   - Poisson PDF/CDF: -> NEVER (wildly inconsistent). LogPDF: 20000 -> 50000.
-//   - Gamma PDF: 64 -> 250000. Audit remediation made SIMD path faster;
-//     both runs show late crossover (100k/250k), conservative = 250k.
-//   - Gamma LogPDF: 100000 -> 64. Both runs agree crossover at 16 (clamped).
-//   - StudentT CDF: 64 -> NEVER. Contradictory best@500k across runs.
-//   - ChiSquared PDF: 250000 -> NEVER. Runs wildly inconsistent (64 vs 250k).
-//   - 7 new distributions calibrated from these two Windows/AVX-512 runs.
+// Key changes vs prior kAvx512 (fix/audit-remediation sha-932addd):
+//   - Uniform LogPDF: 1000 → 100000 (parallel competitive much later on v2 paths)
+//   - Uniform CDF:    256 → 64
+//   - Gaussian LogPDF: NEVER → 64; Gaussian CDF: NEVER → 20000
+//   - Exponential LogPDF: NEVER → 64; Exponential CDF: NEVER → 500000
+//   - Discrete: all NEVER → {64, 250000, 100000} (parallel now consistently competitive)
+//   - Poisson: {NEVER, 50000, NEVER} → {64, 128, 256} (parallel competitive much earlier)
+//   - ChiSquared PDF: NEVER → 64
+//   - LogNormal PDF/LogPDF: NEVER → 64
+//   - Rayleigh CDF: 64 → 500000 (vectorized dominant at medium sizes; parallel only at 500k)
+//   - VonMises PDF: NEVER → 64; VonMises CDF: 256 → 64
+//   - Binomial: {NEVER, NEVER, 64} → {2000, 50000, 128}
+//   - NegBinomial CDF: 128 → 512
+//   - Weibull LogPDF: 250000 → 64
+//   - Gamma {250000, 64, 64}: unchanged — perfectly stable across all three runs
+//   - StudentT PDF/LogPDF, Pareto all, Weibull CDF: NEVER unchanged
 constexpr ArchTable kAvx512 = {
-    /* uniform     */ {NEVER,  1000,   256},
-    /* gaussian    */ {NEVER,  NEVER,  NEVER},
-    /* exponential */ {500000, NEVER,  NEVER},
-    /* discrete    */ {NEVER,  NEVER,  NEVER},
-    /* poisson     */ {NEVER,  50000,  NEVER},
+    /* uniform     */ {NEVER,  100000, 64},
+    /* gaussian    */ {NEVER,  64,     20000},
+    /* exponential */ {500000, 64,     500000},
+    /* discrete    */ {64,     250000, 100000},
+    /* poisson     */ {64,     128,    256},
     /* gamma       */ {250000, 64,     64},
-    /* student_t   */ {NEVER,  NEVER,  NEVER},
-    /* chi_squared */ {NEVER,  64,     64},
-    /* lognormal         */ {NEVER,  NEVER,  64},
+    /* student_t   */ {NEVER,  NEVER,  256},
+    /* chi_squared */ {64,     64,     64},
+    /* lognormal         */ {64,     64,     64},
     /* pareto            */ {NEVER,  NEVER,  NEVER},
-    /* weibull           */ {250000, 250000, NEVER},
-    /* rayleigh          */ {64,     64,     64},
-    /* von_mises         */ {NEVER,  100000, 256},
-    /* binomial          */ {NEVER,  NEVER,  64},
-    /* negative_binomial */ {NEVER,  NEVER,  128},
+    /* weibull           */ {250000, 64,     NEVER},
+    /* rayleigh          */ {64,     64,     500000},
+    /* von_mises         */ {64,     100000, 64},
+    /* binomial          */ {2000,   50000,  128},
+    /* negative_binomial */ {NEVER,  NEVER,  512},
 };
 
 /**
