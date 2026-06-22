@@ -40,7 +40,6 @@ std::vector<double> generate_samples(Dist& dist, std::size_t n, std::uint32_t se
 }
 
 constexpr double kTol = 1e-9;
-bool near(double a, double b, double tol = kTol) { return std::fabs(a - b) < tol; }
 
 }  // namespace
 

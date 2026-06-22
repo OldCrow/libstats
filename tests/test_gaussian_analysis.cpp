@@ -110,8 +110,8 @@ TEST(GaussianAnalysis, JarqueBeraRejectsHighlySkewed) {
 }
 
 TEST(GaussianAnalysis, JarqueBeraThrowsOnTooFew) {
-    std::vector<double> small = {1.0, 2.0, 3.0};
-    EXPECT_THROW(stats::analysis::gaussian::jarqueBeraTest(small), std::invalid_argument);
+    std::vector<double> tiny = {1.0, 2.0, 3.0};
+    EXPECT_THROW(stats::analysis::gaussian::jarqueBeraTest(tiny), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, JarqueBeraRejectsHeavyTailKurtosis) {

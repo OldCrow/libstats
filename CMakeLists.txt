@@ -890,6 +890,22 @@ target_include_directories(libstats_simd_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_simd_obj libstats_foundation_obj) # SIMD depends on CPU detection
 
+# Windows: ensure the shim copy finishes before any cl.exe job opens the copied headers.
+# MSBuild runs ALL custom targets in parallel with compilation; without this ordering the
+# copy_directory and compiler reads race on the same files, producing "Permission denied".
+if(WIN32)
+    foreach(_shim_dep
+            libstats_foundation_obj
+            libstats_core_utilities_obj
+            libstats_platform_obj
+            libstats_infrastructure_obj
+            libstats_framework_obj
+            libstats_distributions_obj
+            libstats_simd_obj)
+        add_dependencies(${_shim_dep} libstats_refresh_shim)
+    endforeach()
+endif()
+
 # =============================================================================
 # COMBINED SOURCE LIST FOR FINAL LIBRARIES
 # =============================================================================
