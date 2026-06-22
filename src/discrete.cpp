@@ -151,7 +151,7 @@ DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& oth
 // 3. PARAMETER GETTERS AND SETTERS
 //==============================================================================
 
-double DiscreteDistribution::getMean() const noexcept {
+double DiscreteDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -165,7 +165,7 @@ double DiscreteDistribution::getMean() const noexcept {
     return mean_;
 }
 
-double DiscreteDistribution::getVariance() const noexcept {
+double DiscreteDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -232,11 +232,11 @@ int DiscreteDistribution::getUpperBound() const noexcept {
 }
 
 // Simple getters for constant values - no longer inline
-double DiscreteDistribution::getSkewness() const noexcept {
+double DiscreteDistribution::getSkewness() const {
     return 0.0;  // Discrete uniform distribution is perfectly symmetric
 }
 
-double DiscreteDistribution::getKurtosis() const noexcept {
+double DiscreteDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -259,27 +259,27 @@ bool DiscreteDistribution::isDiscrete() const noexcept {
     return true;  // Discrete uniform distribution is always discrete
 }
 
-double DiscreteDistribution::getSupportLowerBound() const noexcept {
+double DiscreteDistribution::getSupportLowerBound() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return static_cast<double>(a_);
 }
 
-double DiscreteDistribution::getSupportUpperBound() const noexcept {
+double DiscreteDistribution::getSupportUpperBound() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return static_cast<double>(b_);
 }
 
-double DiscreteDistribution::getMode() const noexcept {
+double DiscreteDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
 }
 
-double DiscreteDistribution::getMedian() const noexcept {
+double DiscreteDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return (static_cast<double>(a_) + static_cast<double>(b_)) / 2.0;
 }
 
-int DiscreteDistribution::getRange() const noexcept {
+int DiscreteDistribution::getRange() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -431,7 +431,7 @@ double DiscreteDistribution::getProbability(double x) const {
     return probability_;  // 1/(b-a+1)
 }
 
-double DiscreteDistribution::getLogProbability(double x) const noexcept {
+double DiscreteDistribution::getLogProbability(double x) const {
     if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → log PMF is -∞
     if (std::floor(x) != x) return detail::NEGATIVE_INFINITY;  // non-integer finite

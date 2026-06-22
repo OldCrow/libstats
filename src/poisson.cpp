@@ -119,17 +119,17 @@ void PoissonDistribution::setParameters(double lambda) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
-double PoissonDistribution::getMean() const noexcept {
+double PoissonDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return lambda_;
 }
 
-double PoissonDistribution::getVariance() const noexcept {
+double PoissonDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return lambda_;
 }
 
-double PoissonDistribution::getSkewness() const noexcept {
+double PoissonDistribution::getSkewness() const {
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -145,7 +145,7 @@ double PoissonDistribution::getSkewness() const noexcept {
     return detail::ONE / sqrtLambda_;  // 1/√λ
 }
 
-double PoissonDistribution::getKurtosis() const noexcept {
+double PoissonDistribution::getKurtosis() const {
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -188,7 +188,7 @@ inline double PoissonDistribution::getSupportUpperBound() const noexcept {
     return std::numeric_limits<double>::infinity();
 }
 
-double PoissonDistribution::getMode() const noexcept {
+double PoissonDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return std::floor(lambda_);
 }
@@ -248,7 +248,7 @@ double PoissonDistribution::getProbability(double x) const {
     return getProbabilityExact(k);
 }
 
-double PoissonDistribution::getLogProbability(double x) const noexcept {
+double PoissonDistribution::getLogProbability(double x) const {
     if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
         return detail::MIN_LOG_PROBABILITY;
@@ -556,7 +556,7 @@ bool PoissonDistribution::canUseNormalApproximation() const noexcept {
                                                               // reasonable normal approximation
 }
 
-double PoissonDistribution::getMedian() const noexcept {
+double PoissonDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     // For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ for large λ
     // For small λ, use numerical approximation via quantile function

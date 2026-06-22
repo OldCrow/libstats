@@ -221,17 +221,17 @@ VoidResult BetaDistribution::validateCurrentParameters() const noexcept {
 // 3. STATISTICAL MOMENTS
 //==============================================================================
 
-double BetaDistribution::getMean() const noexcept {
+double BetaDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mean_;
 }
 
-double BetaDistribution::getVariance() const noexcept {
+double BetaDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return variance_;
 }
 
-double BetaDistribution::getSkewness() const noexcept {
+double BetaDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (alpha_ <= detail::ZERO_DOUBLE || beta_ <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
@@ -241,7 +241,7 @@ double BetaDistribution::getSkewness() const noexcept {
            ((ab + detail::TWO) * std::sqrt(alpha_ * beta_));
 }
 
-double BetaDistribution::getKurtosis() const noexcept {
+double BetaDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double ab = alpha_ + beta_;
     const double num = 6.0 * ((alpha_ - beta_) * (alpha_ - beta_) * (ab + detail::ONE) -
@@ -250,7 +250,7 @@ double BetaDistribution::getKurtosis() const noexcept {
     return num / den;
 }
 
-double BetaDistribution::getMode() const noexcept {
+double BetaDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mode_;
 }
@@ -292,7 +292,7 @@ double BetaDistribution::getProbability(double x) const {
                     betaMinus1_ * std::log(detail::ONE - x));
 }
 
-double BetaDistribution::getLogProbability(double x) const noexcept {
+double BetaDistribution::getLogProbability(double x) const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -491,7 +491,7 @@ std::string BetaDistribution::toString() const {
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-double BetaDistribution::getEntropy() const noexcept {
+double BetaDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     // H = lbeta(α,β) - (α-1)*ψ(α) - (β-1)*ψ(β) + (α+β-2)*ψ(α+β)
     const double ab = alpha_ + beta_;

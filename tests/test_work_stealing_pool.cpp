@@ -231,3 +231,65 @@ TEST(WorkStealingPool, ParallelForDoesNotDeadlockOnTaskException) {
     std::cout << "  parallelFor returned after task exception at index " << kThrowAt
               << " (" << completed.load() << "/" << (kTasks - 1) << " non-throwing tasks ran)\n";
 }
+
+// TEST-7a: getOptimalThreadCount() must be capped at 32.
+// AGENTS.md / Batch 9A: 'WorkStealingPool::getOptimalThreadCount() capped at 32 workers'.
+TEST(WorkStealingPool, OptimalThreadCountCappedAt32) {
+    const unsigned int cap = 32u;
+    const unsigned int optimal = WorkStealingPool::getOptimalThreadCount();
+    EXPECT_GE(optimal, 1u);
+    EXPECT_LE(optimal, cap)
+        << "getOptimalThreadCount() returned " << optimal
+        << " which exceeds the hard cap of 32";
+    std::cout << "  getOptimalThreadCount()=" << optimal
+              << " (hardware_concurrency=" << std::thread::hardware_concurrency() << ")\n";
+}
+
+// TEST-7b: Destructor drains all pending tasks before the pool exits.
+// A pool destroyed with outstanding work must complete every submitted task;
+// otherwise the atomic counter would not reach the expected value.
+TEST(WorkStealingPool, DestructorDrainsAllPendingTasks) {
+    std::atomic<int> completed{0};
+    constexpr int kTasks = 200;
+    {
+        WorkStealingPool pool(2);
+        for (int i = 0; i < kTasks; ++i) {
+            pool.submit([&completed]() {
+                // Simulate a small amount of work so tasks are still in-flight
+                // when the pool destructor runs.
+                std::this_thread::yield();
+                completed.fetch_add(1, std::memory_order_relaxed);
+            });
+        }
+        // Pool destructor runs here — must drain before returning.
+    }
+    EXPECT_EQ(completed.load(), kTasks)
+        << "Pool destructor did not drain all " << kTasks << " submitted tasks";
+    std::cout << "  All " << completed.load() << " tasks completed before destructor returned\n";
+}
+
+// TEST-7c: Sequential parallelFor calls are linearised — the second call
+// cannot observe results from the first call's tasks unless a full fence
+// (the per-call latch wait) has occurred.  Verify by accumulating into a
+// non-atomic variable protected only by the per-call boundary.
+TEST(WorkStealingPool, ParallelForPerCallFencePreventsDataRace) {
+    WorkStealingPool pool(4);
+    std::vector<int> data(1024, 0);
+
+    // First pass: write 1 into every element.
+    pool.parallelFor(std::size_t{0}, data.size(), [&data](std::size_t i) {
+        data[i] = 1;
+    });
+    // The per-call fence guarantees all writes above are visible here.
+
+    // Second pass: accumulate — relies on first pass being fully visible.
+    std::atomic<int> sum{0};
+    pool.parallelFor(std::size_t{0}, data.size(), [&data, &sum](std::size_t i) {
+        sum.fetch_add(data[i], std::memory_order_relaxed);
+    });
+
+    EXPECT_EQ(sum.load(), static_cast<int>(data.size()))
+        << "Per-call fence broken: second parallelFor saw incomplete writes from first";
+    std::cout << "  Per-call fence verified: sum=" << sum.load()
+              << " (expected " << data.size() << ")\n";
+}

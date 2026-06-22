@@ -217,12 +217,12 @@ void VonMisesDistribution::setParameters(double mu, double kappa) {
     updateCacheUnsafe();
 }
 
-double VonMisesDistribution::getMean() const noexcept {
+double VonMisesDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mu_;
 }
 
-double VonMisesDistribution::getVariance() const noexcept {
+double VonMisesDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -304,7 +304,7 @@ double VonMisesDistribution::getProbability(double x) const {
     return std::exp(kappa_ * std::cos(x - mu_) - logNormaliser_);
 }
 
-double VonMisesDistribution::getLogProbability(double x) const noexcept {
+double VonMisesDistribution::getLogProbability(double x) const {
     if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → log PDF is -∞
 
@@ -504,16 +504,16 @@ double VonMisesDistribution::getKappaAtomic() const noexcept {
     return getKappa();
 }
 
-double VonMisesDistribution::getCircularVariance() const noexcept {
+double VonMisesDistribution::getCircularVariance() const {
     return getVariance();
 }
 
-double VonMisesDistribution::getMode() const noexcept {
+double VonMisesDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mu_;
 }
 
-double VonMisesDistribution::getEntropy() const noexcept {
+double VonMisesDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

@@ -170,13 +170,13 @@ class VonMisesDistribution : public DistributionBase {
      * @brief getMean() returns the circular mean direction μ.
      * (Not a linear mean; meaningful only in circular statistics context.)
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * @brief getVariance() returns the circular variance = 1 − I₁(κ)/I₀(κ).
      * Range [0, 1]: 0 = fully concentrated, 1 = uniform.
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Skewness = 0 (Von Mises is symmetric about μ).
@@ -228,7 +228,7 @@ class VonMisesDistribution : public DistributionBase {
      * @brief Log-PDF: κ·cos(x−μ) − logNormaliser_.
      * Returns −∞ for non-finite x.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via 512-step trapezoidal integration from −π to x.
@@ -286,19 +286,19 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Circular variance = 1 − I₁(κ)/I₀(κ). Same as getVariance(). */
-    [[nodiscard]] double getCircularVariance() const noexcept;
+    [[nodiscard]] double getCircularVariance() const;
 
     /** @brief Median = μ (Von Mises is symmetric about μ). */
     [[nodiscard]] double getMedian() const noexcept { return getMu(); }
 
     /** @brief Mode = μ (always at the mean direction). */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * @brief Entropy = log(2π) − log I₀(κ) + κ·I₁(κ)/I₀(κ).
      * Matches the uniform entropy log(2π) at κ = 0.
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if κ = 0 within tolerance (uniform circular distribution).

@@ -164,16 +164,16 @@ class WeibullDistribution : public DistributionBase {
     void setParameters(double shape, double scale);
 
     /** @brief Mean = λ·Γ(1 + 1/k). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = λ²·[Γ(1 + 2/k) − Γ(1 + 1/k)²]. */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness (complex gamma expression, computed on demand). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis (complex gamma expression, computed on demand). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -217,7 +217,7 @@ class WeibullDistribution : public DistributionBase {
      * @brief Log-PDF at x: log(k) − k·log(λ) + (k−1)·log(x) − (x/λ)^k.
      * Returns −∞ for x < 0; special case at x = 0 depends on shape.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF: 1 − exp(−(x/λ)^k) for x ≥ 0; 0 for x < 0.
@@ -274,13 +274,13 @@ class WeibullDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = λ·((k−1)/k)^(1/k) for k > 1; 0 for k ≤ 1. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = λ·(ln 2)^(1/k). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /** @brief Entropy = γ·(1 − 1/k) + log(λ/k) + 1 (γ = Euler-Mascheroni). */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if k = 1 within tolerance (reduces to Exponential(rate = 1/λ)).

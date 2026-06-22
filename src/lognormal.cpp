@@ -164,7 +164,7 @@ void LogNormalDistribution::setParameters(double mu, double sigma) {
     updateCacheUnsafe();
 }
 
-double LogNormalDistribution::getMean() const noexcept {
+double LogNormalDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -177,7 +177,7 @@ double LogNormalDistribution::getMean() const noexcept {
     return mean_;
 }
 
-double LogNormalDistribution::getVariance() const noexcept {
+double LogNormalDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -190,7 +190,7 @@ double LogNormalDistribution::getVariance() const noexcept {
     return variance_;
 }
 
-double LogNormalDistribution::getSkewness() const noexcept {
+double LogNormalDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -206,7 +206,7 @@ double LogNormalDistribution::getSkewness() const noexcept {
     return (esigma2 + detail::TWO) * std::sqrt(esigma2 - detail::ONE);
 }
 
-double LogNormalDistribution::getKurtosis() const noexcept {
+double LogNormalDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -293,7 +293,7 @@ double LogNormalDistribution::getProbability(double x) const {
     return std::exp(getLogProbability(x));
 }
 
-double LogNormalDistribution::getLogProbability(double x) const noexcept {
+double LogNormalDistribution::getLogProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::NEGATIVE_INFINITY;
 
@@ -463,7 +463,7 @@ double LogNormalDistribution::getSigmaAtomic() const noexcept {
     return getSigma();
 }
 
-double LogNormalDistribution::getMode() const noexcept {
+double LogNormalDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -476,12 +476,12 @@ double LogNormalDistribution::getMode() const noexcept {
     return std::exp(mu_ - sigma_ * sigma_);
 }
 
-double LogNormalDistribution::getMedian() const noexcept {
+double LogNormalDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return std::exp(mu_);
 }
 
-double LogNormalDistribution::getEntropy() const noexcept {
+double LogNormalDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

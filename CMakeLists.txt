@@ -1353,6 +1353,13 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_gtest(test_negative_binomial_enhanced tests/test_negative_binomial_enhanced.cpp)
 
     # =======================================================================
+    # LEVEL 6 TESTS: Integration and cross-distribution workflow
+    # =======================================================================
+    # End-to-end API interoperability (factory, fit, moments, survival,
+    # batch, KS test, bootstrap, NaN/±inf boundary values across all 16 distributions)
+    create_libstats_gtest(test_integration_workflow tests/test_integration_workflow.cpp)
+
+    # =======================================================================
     # ADDITIONAL TESTS: Cross-cutting concerns and integration
     # =======================================================================
     # These test cross-cutting functionality and integration scenarios
@@ -1488,6 +1495,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_negative_binomial_enhanced
                 # Level 7: Integration tests
                 test_dynamic_linking
+                test_integration_workflow
                 # On-demand tests (stress, diagnostic, redundant)
                 test_parallel_execution_comprehensive
                 test_benchmark

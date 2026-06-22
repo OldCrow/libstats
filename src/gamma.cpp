@@ -105,7 +105,7 @@ GammaDistribution& GammaDistribution::operator=(GammaDistribution&& other) noexc
 // 3. PARAMETER GETTERS AND SETTERS
 //==========================================================================
 
-double GammaDistribution::getScale() const noexcept {
+double GammaDistribution::getScale() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -119,7 +119,7 @@ double GammaDistribution::getScale() const noexcept {
     return scale_;
 }
 
-double GammaDistribution::getMean() const noexcept {
+double GammaDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -133,7 +133,7 @@ double GammaDistribution::getMean() const noexcept {
     return mean_;
 }
 
-double GammaDistribution::getVariance() const noexcept {
+double GammaDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -147,7 +147,7 @@ double GammaDistribution::getVariance() const noexcept {
     return variance_;
 }
 
-double GammaDistribution::getSkewness() const noexcept {
+double GammaDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -161,12 +161,12 @@ double GammaDistribution::getSkewness() const noexcept {
     return detail::TWO / sqrtAlpha_;
 }
 
-double GammaDistribution::getKurtosis() const noexcept {
+double GammaDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return detail::SIX / alpha_;  // Direct computation is safe
 }
 
-double GammaDistribution::getMode() const noexcept {
+double GammaDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (alpha_ < detail::ONE) {
         return detail::ZERO_DOUBLE;
@@ -328,7 +328,7 @@ double GammaDistribution::getProbability(double x) const {
     return std::exp(log_pdf);
 }
 
-double GammaDistribution::getLogProbability(double x) const noexcept {
+double GammaDistribution::getLogProbability(double x) const {
     if (x < detail::ZERO_DOUBLE) {
         return detail::NEGATIVE_INFINITY;
     }
@@ -553,7 +553,7 @@ VoidResult GammaDistribution::validateCurrentParameters() const noexcept {
     return validateGammaParameters(alpha_, beta_);
 }
 
-double GammaDistribution::getMedian() const noexcept {
+double GammaDistribution::getMedian() const {
     return getQuantile(0.5);
 }
 
@@ -615,7 +615,7 @@ double GammaDistribution::getDegreesOfFreedom() const {
     return detail::TWO * alpha_;
 }
 
-double GammaDistribution::getEntropy() const noexcept {
+double GammaDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

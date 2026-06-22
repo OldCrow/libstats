@@ -308,7 +308,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Mean value
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * Gets the variance of the distribution.
@@ -317,7 +317,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Variance value
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Gets the skewness of the distribution.
@@ -396,7 +396,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Width of the distribution
      */
-    [[nodiscard]] double getWidth() const noexcept;
+    [[nodiscard]] double getWidth() const;
 
     //==========================================================================
     // 4. RESULT-BASED SETTERS
@@ -460,7 +460,7 @@ class UniformDistribution : public DistributionBase {
      * @param x The value at which to evaluate the log-PDF
      * @return Natural logarithm of the probability density, or -∞ for values outside support
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * Evaluates the CDF at x using the standard uniform CDF formula.
@@ -647,7 +647,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Range value (b - a)
      */
-    [[nodiscard]] double getRange() const noexcept;
+    [[nodiscard]] double getRange() const;
 
     /**
      * @brief Check if a value is contained within the distribution's support
@@ -667,7 +667,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief Check if this is the unit interval [0,1]
@@ -695,7 +695,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Median value
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /**
      * Gets the mode of the distribution.
@@ -704,7 +704,7 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Mode value (midpoint of the range)
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * Gets the midpoint of the distribution (a + b)/2.

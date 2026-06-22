@@ -131,16 +131,16 @@ class NegativeBinomialDistribution : public DistributionBase {
     void setParameters(double r, double p);
 
     /** @brief Mean = r(1−p)/p. */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = r(1−p)/p². */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = (2−p)/√(r(1−p)). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = 6/r + p²/(r(1−p)). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -186,7 +186,7 @@ class NegativeBinomialDistribution : public DistributionBase {
      * @brief Log-PMF at k.
      * Returns −∞ for negative or non-finite values.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via regularized incomplete beta I_p(r, k+1).
@@ -237,10 +237,10 @@ class NegativeBinomialDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = floor((r−1)(1−p)/p) for r > 1; 0 otherwise. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Entropy (nats) — Sterling approximation for large r. */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

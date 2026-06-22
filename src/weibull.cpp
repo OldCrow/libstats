@@ -165,7 +165,7 @@ void WeibullDistribution::setParameters(double shape, double scale) {
     updateCacheUnsafe();
 }
 
-double WeibullDistribution::getMean() const noexcept {
+double WeibullDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -178,7 +178,7 @@ double WeibullDistribution::getMean() const noexcept {
     return mean_;
 }
 
-double WeibullDistribution::getVariance() const noexcept {
+double WeibullDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -191,7 +191,7 @@ double WeibullDistribution::getVariance() const noexcept {
     return variance_;
 }
 
-double WeibullDistribution::getSkewness() const noexcept {
+double WeibullDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -213,7 +213,7 @@ double WeibullDistribution::getSkewness() const noexcept {
     return scale_ * scale_ * scale_ * num / (variance_ * std::sqrt(variance_));
 }
 
-double WeibullDistribution::getKurtosis() const noexcept {
+double WeibullDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -313,7 +313,7 @@ double WeibullDistribution::getProbability(double x) const {
     return std::exp(getLogProbability(x));
 }
 
-double WeibullDistribution::getLogProbability(double x) const noexcept {
+double WeibullDistribution::getLogProbability(double x) const {
     if (x < detail::ZERO_DOUBLE)
         return detail::NEGATIVE_INFINITY;
 
@@ -574,7 +574,7 @@ double WeibullDistribution::getScaleAtomic() const noexcept {
     return getScale();
 }
 
-double WeibullDistribution::getMode() const noexcept {
+double WeibullDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -589,7 +589,7 @@ double WeibullDistribution::getMode() const noexcept {
     return scale_ * std::pow((shape_ - detail::ONE) / shape_, detail::ONE / shape_);
 }
 
-double WeibullDistribution::getMedian() const noexcept {
+double WeibullDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -603,7 +603,7 @@ double WeibullDistribution::getMedian() const noexcept {
     return scale_ * std::pow(detail::LN2, detail::ONE / shape_);
 }
 
-double WeibullDistribution::getEntropy() const noexcept {
+double WeibullDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

@@ -356,7 +356,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Scale parameter value
      */
-    [[nodiscard]] double getScale() const noexcept;
+    [[nodiscard]] double getScale() const;
 
     /**
      * Gets the mean of the distribution.
@@ -365,7 +365,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Mean value
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * Gets the variance of the distribution.
@@ -374,7 +374,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Variance value
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Gets the skewness of the distribution.
@@ -383,7 +383,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Skewness value (2/√α)
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -392,7 +392,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (6/α)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -494,7 +494,7 @@ class GammaDistribution : public DistributionBase {
      * @param x The value at which to evaluate the log-PDF
      * @return Natural logarithm of the probability density, or -∞ for x ≤ 0
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * Evaluates the CDF at x using the regularized incomplete gamma function.
@@ -695,7 +695,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief Get the median of the distribution
@@ -703,7 +703,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Median value (quantile at p=0.5)
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /**
      * Gets the mode of the distribution.
@@ -711,7 +711,7 @@ class GammaDistribution : public DistributionBase {
      *
      * @return Mode value
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * @brief Check if the distribution is suitable for normal approximation

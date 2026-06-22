@@ -153,16 +153,16 @@ class StudentTDistribution : public DistributionBase {
     void setParameters(double nu) { setNu(nu); }
 
     /** @brief Mean = 0 for ν > 1; NaN otherwise. */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = ν/(ν−2) for ν > 2; +∞ for 1 < ν ≤ 2; NaN for ν ≤ 1. */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = 0 for ν > 3; NaN otherwise. */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = 6/(ν−4) for ν > 4; NaN otherwise. */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 1). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 1; }
@@ -214,7 +214,7 @@ class StudentTDistribution : public DistributionBase {
     /**
      * @brief Log-PDF at x: log_norm_const − (ν+1)/2 · log(1+x²/ν)
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via detail::t_cdf(x, ν) (regularized incomplete beta).
@@ -278,7 +278,7 @@ class StudentTDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Entropy of the distribution. */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief Median (always 0 by symmetry).

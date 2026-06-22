@@ -144,17 +144,17 @@ void BinomialDistribution::setParameters(int n, double p) {
     updateCacheUnsafe();
 }
 
-double BinomialDistribution::getMean() const noexcept {
+double BinomialDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return static_cast<double>(n_) * p_;
 }
 
-double BinomialDistribution::getVariance() const noexcept {
+double BinomialDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return static_cast<double>(n_) * p_ * (detail::ONE - p_);
 }
 
-double BinomialDistribution::getSkewness() const noexcept {
+double BinomialDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double var = static_cast<double>(n_) * p_ * (detail::ONE - p_);
     if (var <= detail::ZERO)
@@ -162,7 +162,7 @@ double BinomialDistribution::getSkewness() const noexcept {
     return (detail::ONE - detail::TWO * p_) / std::sqrt(var);
 }
 
-double BinomialDistribution::getKurtosis() const noexcept {
+double BinomialDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double var = static_cast<double>(n_) * p_ * (detail::ONE - p_);
     if (var <= detail::ZERO)
@@ -267,7 +267,7 @@ double BinomialDistribution::getProbability(double x) const {
     return std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
 }
 
-double BinomialDistribution::getLogProbability(double x) const noexcept {
+double BinomialDistribution::getLogProbability(double x) const {
     if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → -∞
     const int k = static_cast<int>(std::round(x));
@@ -466,7 +466,7 @@ double BinomialDistribution::getPAtomic() const noexcept {
     return getP();
 }
 
-double BinomialDistribution::getMode() const noexcept {
+double BinomialDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double np1p = static_cast<double>(n_ + 1) * p_;
     const int mode = static_cast<int>(std::floor(np1p));
@@ -476,7 +476,7 @@ double BinomialDistribution::getMode() const noexcept {
     return static_cast<double>(mode);
 }
 
-double BinomialDistribution::getEntropy() const noexcept {
+double BinomialDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

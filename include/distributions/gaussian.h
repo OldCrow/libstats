@@ -279,7 +279,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Skewness value (always 0)
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -287,7 +287,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (always 0)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /**
      * @brief Gets the distribution name.
@@ -387,7 +387,7 @@ class GaussianDistribution : public DistributionBase {
      * @param x The value at which to evaluate the log PDF
      * @return Log probability density
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief Evaluates the CDF at x using the error function
@@ -509,7 +509,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief Get the median of the distribution
@@ -519,7 +519,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Median value (equals μ)
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /**
      * @brief Get the mode of the distribution
@@ -529,7 +529,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Mode value (equals μ)
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * @brief Check if the standard-normal fast-path optimization is active.

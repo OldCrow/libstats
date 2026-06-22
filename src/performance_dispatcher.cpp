@@ -70,10 +70,12 @@ Strategy PerformanceDispatcher::selectMultiThreadedStrategy(
 
 bool PerformanceDispatcher::shouldUseWorkStealing(
     size_t batch_size, [[maybe_unused]] DistributionType dist_type) const {
+    std::lock_guard<std::mutex> lock(thresholds_mutex_);
     return batch_size >= thresholds_.work_stealing_min;
 }
 
 void PerformanceDispatcher::updateThresholds(const Thresholds& new_thresholds) {
+    std::lock_guard<std::mutex> lock(thresholds_mutex_);
     thresholds_ = new_thresholds;
 }
 

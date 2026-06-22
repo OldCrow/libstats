@@ -151,17 +151,17 @@ void NegativeBinomialDistribution::setParameters(double r, double p) {
     updateCacheUnsafe();
 }
 
-double NegativeBinomialDistribution::getMean() const noexcept {
+double NegativeBinomialDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return r_ * (detail::ONE - p_) / p_;
 }
 
-double NegativeBinomialDistribution::getVariance() const noexcept {
+double NegativeBinomialDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return r_ * (detail::ONE - p_) / (p_ * p_);
 }
 
-double NegativeBinomialDistribution::getSkewness() const noexcept {
+double NegativeBinomialDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double denom = r_ * (detail::ONE - p_);
     if (denom <= detail::ZERO)
@@ -169,7 +169,7 @@ double NegativeBinomialDistribution::getSkewness() const noexcept {
     return (detail::TWO - p_) / std::sqrt(denom);
 }
 
-double NegativeBinomialDistribution::getKurtosis() const noexcept {
+double NegativeBinomialDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double q = detail::ONE - p_;
     const double denom = r_ * q;
@@ -253,7 +253,7 @@ double NegativeBinomialDistribution::getProbability(double x) const {
     return std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
 }
 
-double NegativeBinomialDistribution::getLogProbability(double x) const noexcept {
+double NegativeBinomialDistribution::getLogProbability(double x) const {
     if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → -∞
     const int k = static_cast<int>(std::round(x));
@@ -497,14 +497,14 @@ double NegativeBinomialDistribution::getPAtomic() const noexcept {
     return getP();
 }
 
-double NegativeBinomialDistribution::getMode() const noexcept {
+double NegativeBinomialDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (r_ <= detail::ONE)
         return detail::ZERO_DOUBLE;
     return std::floor((r_ - detail::ONE) * (detail::ONE - p_) / p_);
 }
 
-double NegativeBinomialDistribution::getEntropy() const noexcept {
+double NegativeBinomialDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

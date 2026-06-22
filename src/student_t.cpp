@@ -167,7 +167,7 @@ VoidResult StudentTDistribution::validateCurrentParameters() const noexcept {
 // 3. STATISTICAL MOMENTS
 //==============================================================================
 
-double StudentTDistribution::getMean() const noexcept {
+double StudentTDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!isMeanDefined_) {
         return std::numeric_limits<double>::quiet_NaN();
@@ -175,12 +175,12 @@ double StudentTDistribution::getMean() const noexcept {
     return detail::ZERO_DOUBLE;
 }
 
-double StudentTDistribution::getVariance() const noexcept {
+double StudentTDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return variance_;
 }
 
-double StudentTDistribution::getSkewness() const noexcept {
+double StudentTDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (nu_ <= 3.0) {
         return std::numeric_limits<double>::quiet_NaN();
@@ -188,7 +188,7 @@ double StudentTDistribution::getSkewness() const noexcept {
     return detail::ZERO_DOUBLE;
 }
 
-double StudentTDistribution::getKurtosis() const noexcept {
+double StudentTDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return kurtosis_;
 }
@@ -211,7 +211,7 @@ double StudentTDistribution::getProbability(double x) const {
     return std::exp(logNormConst_ + negHalfNuPlusOne_ * std::log(detail::ONE + x * x * invNu_));
 }
 
-double StudentTDistribution::getLogProbability(double x) const noexcept {
+double StudentTDistribution::getLogProbability(double x) const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -401,7 +401,7 @@ std::string StudentTDistribution::toString() const {
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-double StudentTDistribution::getEntropy() const noexcept {
+double StudentTDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     // H = (nu+1)/2 * [psi((nu+1)/2) - psi(nu/2)] + log(sqrt(nu)*B(nu/2, 1/2))
     // where B is the beta function.

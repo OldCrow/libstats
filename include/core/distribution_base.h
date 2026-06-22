@@ -134,7 +134,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @param x Evaluation point.
      * @return S(x) in [0, 1].
      */
-    [[nodiscard]] double getSurvival(double x) const noexcept {
+    [[nodiscard]] double getSurvival(double x) const {
         return 1.0 - getCumulativeProbability(x);
     }
 
@@ -147,7 +147,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @param x Evaluation point.
      * @return h(x) ≥ 0, or +inf if S(x) = 0.
      */
-    [[nodiscard]] double getHazard(double x) const noexcept {
+    [[nodiscard]] double getHazard(double x) const {
         const double s = getSurvival(x);
         if (s <= 0.0)
             return std::numeric_limits<double>::infinity();
@@ -163,7 +163,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @return Differential entropy (continuous) or entropy (discrete)
      * @note Return NaN if not analytically computable
      */
-    [[nodiscard]] virtual double getEntropy() const noexcept {
+    [[nodiscard]] virtual double getEntropy() const {
         return std::numeric_limits<double>::quiet_NaN();
     }
 

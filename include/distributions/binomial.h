@@ -132,16 +132,16 @@ class BinomialDistribution : public DistributionBase {
     void setParameters(int n, double p);
 
     /** @brief Mean = n·p. */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = n·p·(1−p). */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = (1−2p)/√(n·p·(1−p)). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = (1−6p(1−p))/(n·p·(1−p)). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -188,7 +188,7 @@ class BinomialDistribution : public DistributionBase {
      * @brief Log-PMF at k.
      * Returns −∞ for out-of-range values.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via regularized incomplete beta I_{1−p}(n−k, k+1).
@@ -242,7 +242,7 @@ class BinomialDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = floor((n+1)·p) — with tie-breaking for exact integers. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * @brief Entropy in nats.
@@ -251,7 +251,7 @@ class BinomialDistribution : public DistributionBase {
      * approximation ½ log(2πe·n·p·(1−p)) for larger n.
      * All paths use std::log (nats), not std::log2 (bits).
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

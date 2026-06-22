@@ -165,7 +165,7 @@ void ParetoDistribution::setParameters(double scale, double alpha) {
     updateCacheUnsafe();
 }
 
-double ParetoDistribution::getMean() const noexcept {
+double ParetoDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -178,7 +178,7 @@ double ParetoDistribution::getMean() const noexcept {
     return mean_;
 }
 
-double ParetoDistribution::getVariance() const noexcept {
+double ParetoDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -191,7 +191,7 @@ double ParetoDistribution::getVariance() const noexcept {
     return variance_;
 }
 
-double ParetoDistribution::getSkewness() const noexcept {
+double ParetoDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -208,7 +208,7 @@ double ParetoDistribution::getSkewness() const noexcept {
            std::sqrt((alpha_ - detail::TWO) / alpha_);
 }
 
-double ParetoDistribution::getKurtosis() const noexcept {
+double ParetoDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -295,7 +295,7 @@ double ParetoDistribution::getProbability(double x) const {
     return std::exp(getLogProbability(x));
 }
 
-double ParetoDistribution::getLogProbability(double x) const noexcept {
+double ParetoDistribution::getLogProbability(double x) const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -462,12 +462,12 @@ double ParetoDistribution::getAlphaAtomic() const noexcept {
     return getAlpha();
 }
 
-double ParetoDistribution::getMode() const noexcept {
+double ParetoDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return scale_;  // Mode is always at the lower boundary x_m.
 }
 
-double ParetoDistribution::getMedian() const noexcept {
+double ParetoDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -481,7 +481,7 @@ double ParetoDistribution::getMedian() const noexcept {
     return scale_ * std::exp(detail::LN2 * invAlpha_);
 }
 
-double ParetoDistribution::getEntropy() const noexcept {
+double ParetoDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

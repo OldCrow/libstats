@@ -289,7 +289,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Mean value (equals λ)
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * Gets the variance of the distribution.
@@ -298,7 +298,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Variance value (equals λ)
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Gets the skewness of the distribution.
@@ -307,7 +307,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Skewness value (1/√λ)
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -316,7 +316,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (1/λ)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -416,7 +416,7 @@ class PoissonDistribution : public DistributionBase {
      * integer)
      * @return Natural logarithm of the probability mass, or -∞ for negative values
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * Evaluates the CDF at x using the regularized incomplete gamma function.
@@ -636,7 +636,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Median value (approximate)
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /**
      * Gets the mode of the distribution.
@@ -644,7 +644,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Mode value
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

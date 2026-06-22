@@ -125,7 +125,7 @@ void RayleighDistribution::setParameters(double sigma) {
     setSigma(sigma);
 }
 
-double RayleighDistribution::getMean() const noexcept {
+double RayleighDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -138,7 +138,7 @@ double RayleighDistribution::getMean() const noexcept {
     return mean_;
 }
 
-double RayleighDistribution::getVariance() const noexcept {
+double RayleighDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -151,14 +151,14 @@ double RayleighDistribution::getVariance() const noexcept {
     return variance_;
 }
 
-double RayleighDistribution::getSkewness() const noexcept {
+double RayleighDistribution::getSkewness() const {
     // Skewness is a constant for Rayleigh: 2√π(π−3) / (4−π)^(3/2)
     const double four_minus_pi = detail::FOUR - detail::PI;
     return detail::TWO * detail::SQRT_PI * (detail::PI - detail::THREE) /
            (four_minus_pi * std::sqrt(four_minus_pi));
 }
 
-double RayleighDistribution::getKurtosis() const noexcept {
+double RayleighDistribution::getKurtosis() const {
     // Excess kurtosis: −(6π²−24π+16) / (4−π)²
     const double four_minus_pi = detail::FOUR - detail::PI;
     return -(detail::SIX * detail::PI * detail::PI - 24.0 * detail::PI + 16.0) /
@@ -211,7 +211,7 @@ double RayleighDistribution::getProbability(double x) const {
     return std::exp(getLogProbability(x));
 }
 
-double RayleighDistribution::getLogProbability(double x) const noexcept {
+double RayleighDistribution::getLogProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::NEGATIVE_INFINITY;
 
@@ -364,18 +364,18 @@ double RayleighDistribution::getSigmaAtomic() const noexcept {
     return getSigma();
 }
 
-double RayleighDistribution::getMode() const noexcept {
+double RayleighDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return sigma_;  // Mode is always σ.
 }
 
-double RayleighDistribution::getMedian() const noexcept {
+double RayleighDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     // σ·√(2·ln 2)
     return sigma_ * std::sqrt(detail::TWO * detail::LN2);
 }
 
-double RayleighDistribution::getEntropy() const noexcept {
+double RayleighDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();

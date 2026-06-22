@@ -3,6 +3,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 
@@ -167,9 +168,13 @@ class PerformanceDispatcher {
                             const SystemCapabilities& system) const;
 
     /**
-     * @brief Get current decision thresholds
+     * @brief Get a snapshot of the current decision thresholds.
+     * Returns by value so callers always see a consistent snapshot.
      */
-    const Thresholds& getThresholds() const noexcept { return thresholds_; }
+    Thresholds getThresholds() const {
+        std::lock_guard<std::mutex> lock(thresholds_mutex_);
+        return thresholds_;
+    }
 
     /**
      * @brief Update thresholds based on performance feedback
@@ -195,6 +200,7 @@ class PerformanceDispatcher {
 
    private:
     mutable Thresholds thresholds_;
+    mutable std::mutex thresholds_mutex_;  ///< Guards thresholds_ against concurrent read/write
 
     bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
 

@@ -140,16 +140,16 @@ class RayleighDistribution : public DistributionBase {
     void setParameters(double sigma);
 
     /** @brief Mean = σ·√(π/2). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = σ²·(4−π)/2. */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness ≈ 0.6311 (constant, independent of σ). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis ≈ 0.2451 (constant, independent of σ). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 1). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 1; }
@@ -194,7 +194,7 @@ class RayleighDistribution : public DistributionBase {
      * @brief Log-PDF at x: log(x) − 2·log(σ) − x²/(2σ²).
      * Returns −∞ for x ≤ 0.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF: 1 − exp(−x²/(2σ²)) for x ≥ 0; 0 for x < 0.
@@ -246,13 +246,13 @@ class RayleighDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = σ. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = σ·√(2·ln 2). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /** @brief Entropy = 1 + log(σ/√2) + γ/2 (γ = Euler–Mascheroni constant). */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

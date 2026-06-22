@@ -151,16 +151,16 @@ class BetaDistribution : public DistributionBase {
     void setParameters(double alpha, double beta);
 
     /** @brief Mean = α/(α+β). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = αβ / ((α+β)²(α+β+1)). */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness. */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis. */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -202,7 +202,7 @@ class BetaDistribution : public DistributionBase {
      * @brief Log-PDF at x: (α−1)·log(x) + (β−1)·log(1−x) − lbeta(α,β).
      * Returns −∞ for x outside (0,1) (or ±∞ at boundaries for α,β < 1).
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via detail::beta_i(x, α, β) (regularized incomplete beta).
@@ -264,10 +264,10 @@ class BetaDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Entropy of the distribution (uses detail::digamma). */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /** @brief Mode: (α−1)/(α+β−2) for α,β>1; boundary values otherwise. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median — numerical via getQuantile(0.5). */
     [[nodiscard]] double getMedian() const noexcept { return getQuantile(detail::HALF); }

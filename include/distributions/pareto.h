@@ -159,22 +159,22 @@ class ParetoDistribution : public DistributionBase {
     /**
      * @brief Mean = α·x_m/(α−1) for α > 1; returns +∞ for α ≤ 1.
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * @brief Variance = x_m²·α/((α−1)²·(α−2)) for α > 2; returns +∞ otherwise.
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Skewness = 2(1+α)/(α−3)·√((α−2)/α) for α > 3; returns +∞ otherwise.
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Excess kurtosis for α > 4; returns +∞ otherwise.
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -219,7 +219,7 @@ class ParetoDistribution : public DistributionBase {
      * @brief Log-PDF at x: log(α) + α·log(x_m) − (α+1)·log(x) for x ≥ x_m.
      * Returns −∞ for x < x_m.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF: 1 − (x_m/x)^α for x ≥ x_m; 0 for x < x_m.
@@ -272,16 +272,16 @@ class ParetoDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = scale (x_m) — always at the lower boundary. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = x_m·2^(1/α) = x_m·exp(log(2)/α). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /**
      * @brief Entropy = log(x_m/α) + 1 + 1/α.
      * Differential entropy for Pareto(x_m, α).
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if α > 1 (mean is finite).

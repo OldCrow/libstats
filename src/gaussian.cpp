@@ -202,11 +202,11 @@ VoidResult GaussianDistribution::validateCurrentParameters() const noexcept {
 }
 
 // Simple getters for constant values - moved from header to reduce compilation load
-double GaussianDistribution::getSkewness() const noexcept {
+double GaussianDistribution::getSkewness() const {
     return detail::ZERO_DOUBLE;  // Gaussian distribution is symmetric
 }
 
-double GaussianDistribution::getKurtosis() const noexcept {
+double GaussianDistribution::getKurtosis() const {
     return detail::ZERO_DOUBLE;  // Gaussian has zero excess kurtosis
 }
 
@@ -265,7 +265,7 @@ double GaussianDistribution::getProbability(double x) const {
     return normalizationConstant_ * std::exp(negHalfSigmaSquaredInv_ * sq_diff);
 }
 
-double GaussianDistribution::getLogProbability(double x) const noexcept {
+double GaussianDistribution::getLogProbability(double x) const {
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -666,18 +666,18 @@ bool GaussianDistribution::isStandardNormal() const noexcept {
            (std::abs(standardDeviation_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
 }
 
-double GaussianDistribution::getEntropy() const noexcept {
+double GaussianDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     // H(X) = 0.5 * (ln(2π) + 1 + 2*ln(σ))
     return detail::HALF_LN_2PI + detail::HALF + std::log(standardDeviation_);
 }
 
-double GaussianDistribution::getMedian() const noexcept {
+double GaussianDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mean_;  // For Gaussian, median = mean
 }
 
-double GaussianDistribution::getMode() const noexcept {
+double GaussianDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mean_;  // For Gaussian, mode = mean
 }

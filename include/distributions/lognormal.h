@@ -161,16 +161,16 @@ class LogNormalDistribution : public DistributionBase {
     void setParameters(double mu, double sigma);
 
     /** @brief Mean = exp(μ + σ²/2). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = (exp(σ²) − 1)·exp(2μ + σ²). */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = (exp(σ²) + 2)·√(exp(σ²) − 1). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = exp(4σ²) + 2exp(3σ²) + 3exp(2σ²) − 6. */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -216,7 +216,7 @@ class LogNormalDistribution : public DistributionBase {
      * @brief Log-PDF at x: −(log x − μ)²/(2σ²) − log x − log σ − ½ log(2π).
      * Returns −∞ for x ≤ 0.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via Φ((log x − μ)/σ) = 0.5·(1 + erf((log x − μ)/(σ√2))).
@@ -270,15 +270,15 @@ class LogNormalDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = exp(μ − σ²). */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = exp(μ). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     /**
      * @brief Entropy = log(σ·√(2πe)) + μ = log σ + μ + ½(1 + log(2π)).
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if μ = 0 and σ = 1 (standard log-normal) within tolerance.

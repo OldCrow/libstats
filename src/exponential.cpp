@@ -105,7 +105,7 @@ void ExponentialDistribution::setLambda(double lambda) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
-double ExponentialDistribution::getMean() const noexcept {
+double ExponentialDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -120,7 +120,7 @@ double ExponentialDistribution::getMean() const noexcept {
     return invLambda_;
 }
 
-double ExponentialDistribution::getVariance() const noexcept {
+double ExponentialDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -135,7 +135,7 @@ double ExponentialDistribution::getVariance() const noexcept {
     return invLambdaSquared_;
 }
 
-double ExponentialDistribution::getScale() const noexcept {
+double ExponentialDistribution::getScale() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -215,7 +215,7 @@ double ExponentialDistribution::getProbability(double x) const {
     return lambda_ * std::exp(negLambda_ * x);
 }
 
-double ExponentialDistribution::getLogProbability(double x) const noexcept {
+double ExponentialDistribution::getLogProbability(double x) const {
     // Return -∞ for negative values
     if (x < detail::ZERO_DOUBLE) {
         return detail::NEGATIVE_INFINITY;
@@ -451,11 +451,11 @@ double ExponentialDistribution::getLambdaAtomic() const noexcept {
     return getLambda();
 }
 
-double ExponentialDistribution::getSkewness() const noexcept {
+double ExponentialDistribution::getSkewness() const {
     return 2.0;  // Exponential distribution is always right-skewed
 }
 
-double ExponentialDistribution::getKurtosis() const noexcept {
+double ExponentialDistribution::getKurtosis() const {
     return 6.0;  // Exponential distribution has high kurtosis
 }
 
@@ -480,7 +480,7 @@ VoidResult ExponentialDistribution::validateCurrentParameters() const noexcept {
     return validateExponentialParameters(lambda_);
 }
 
-double ExponentialDistribution::getHalfLife() const noexcept {
+double ExponentialDistribution::getHalfLife() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return std::log(2.0) / lambda_;
 }
@@ -489,17 +489,17 @@ bool ExponentialDistribution::isMemoryless() const noexcept {
     return true;
 }
 
-double ExponentialDistribution::getMedian() const noexcept {
+double ExponentialDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return detail::LN2 / lambda_;  // Use precomputed ln(2)
 }
 
-double ExponentialDistribution::getEntropy() const noexcept {
+double ExponentialDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return detail::ONE - std::log(lambda_);
 }
 
-double ExponentialDistribution::getMode() const noexcept {
+double ExponentialDistribution::getMode() const {
     return detail::ZERO_DOUBLE;
 }
 

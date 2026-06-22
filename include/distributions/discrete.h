@@ -335,7 +335,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Mean value
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * Gets the variance of the distribution.
@@ -344,7 +344,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Variance value
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Gets the skewness of the distribution.
@@ -353,7 +353,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Skewness value (always 0)
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -362,7 +362,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (approximately -1.2)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -396,7 +396,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Lower bound (parameter a as double)
      */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override;
+    [[nodiscard]] double getSupportLowerBound() const override;
 
     /**
      * @brief Gets the upper bound of the distribution support.
@@ -404,7 +404,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Upper bound (parameter b as double)
      */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override;
+    [[nodiscard]] double getSupportUpperBound() const override;
 
     /**
      * Gets the range of the distribution (b - a + 1).
@@ -413,7 +413,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Range of the distribution
      */
-    [[nodiscard]] int getRange() const noexcept;
+    [[nodiscard]] int getRange() const;
 
     /**
      * Gets the probability of any single outcome.
@@ -431,7 +431,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Mode value (midpoint of the range)
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * Gets the median of the distribution.
@@ -440,7 +440,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Median value
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const;
 
     //==============================================================================
     // 4. RESULT-BASED SETTERS
@@ -509,7 +509,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param x The value at which to evaluate the log-PMF (will be rounded to nearest integer)
      * @return Natural logarithm of the probability mass, or -∞ for values outside support
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * Evaluates the CDF at x using the discrete uniform CDF formula.

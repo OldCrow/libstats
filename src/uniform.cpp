@@ -164,7 +164,7 @@ void UniformDistribution::setParameters(double a, double b) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
-double UniformDistribution::getMean() const noexcept {
+double UniformDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -179,7 +179,7 @@ double UniformDistribution::getMean() const noexcept {
     return midpoint_;
 }
 
-double UniformDistribution::getVariance() const noexcept {
+double UniformDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -194,7 +194,7 @@ double UniformDistribution::getVariance() const noexcept {
     return variance_;
 }
 
-double UniformDistribution::getWidth() const noexcept {
+double UniformDistribution::getWidth() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
@@ -290,6 +290,10 @@ double UniformDistribution::getProbability(double x) const {
         lock.lock();
     }
 
+    // NaN must propagate before the bounds checks (both comparisons are false for NaN,
+    // so NaN would silently pass through and return the density constant).
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
         return detail::ZERO_DOUBLE;
@@ -304,7 +308,7 @@ double UniformDistribution::getProbability(double x) const {
     return invWidth_;
 }
 
-double UniformDistribution::getLogProbability(double x) const noexcept {
+double UniformDistribution::getLogProbability(double x) const {
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -316,6 +320,8 @@ double UniformDistribution::getLogProbability(double x) const noexcept {
         ulock.unlock();
         lock.lock();
     }
+
+    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
 
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
@@ -587,7 +593,7 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
 // Inline utility methods moved from header for PIMPL optimization
 // These retain 'inline' hint to allow compiler optimization while reducing header bloat
 
-double UniformDistribution::getRange() const noexcept {
+double UniformDistribution::getRange() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return b_ - a_;  // Direct subtraction is most efficient
 }
@@ -597,7 +603,7 @@ bool UniformDistribution::contains(double x) const noexcept {
     return x >= a_ && x <= b_;
 }
 
-double UniformDistribution::getEntropy() const noexcept {
+double UniformDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return std::log(b_ - a_);  // ln(range)
 }
@@ -613,12 +619,12 @@ bool UniformDistribution::isSymmetricAroundZero() const noexcept {
     return std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE;
 }
 
-double UniformDistribution::getMedian() const noexcept {
+double UniformDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return (a_ + b_) / 2.0;
 }
 
-double UniformDistribution::getMode() const noexcept {
+double UniformDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return (a_ + b_) / 2.0;
 }
