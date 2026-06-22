@@ -125,6 +125,19 @@ Threading detection is unified in one CMake function and sets cache variables fo
 
 macOS prefers Grand Central Dispatch unless `LIBSTATS_FORCE_TBB=ON` is set.
 
+## macOS deployment target
+
+The build validates `CMAKE_OSX_DEPLOYMENT_TARGET` against the library minimum (13.0 / Ventura) but does not force it:
+
+- If `-DCMAKE_OSX_DEPLOYMENT_TARGET=<version>` is passed and `<version>` is below 13.0, configuration fails with a fatal error.
+- If it is not set, the compiler default is used and configuration prints a reminder of the minimum. This avoids the "object file was built for newer macOS version than being linked" linker warnings that occur when the forced target mismatches the system or dependency libraries (e.g. GTest via vcpkg/Homebrew).
+
+To pin explicitly:
+
+```bash
+cmake -B build -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+```
+
 ## macOS shared library signing
 
 The shared library target is ad-hoc signed when `codesign` is available. This satisfies macOS Library Validation for locally built libraries.
@@ -182,3 +195,16 @@ Check the SIMD detection summary.
 ### Timing tests fail under load
 
 Run only correctness tests for normal validation. Timing tests should run serially on an idle machine.
+
+### Windows SDK reserved identifiers in tests
+
+Several identifiers are reserved by Windows SDK headers and must not be used as variable or function names in test or source files:
+
+| Name | Source | Expands to |
+|---|---|---|
+| `near` | `windef.h` | empty macro |
+| `far` | `windef.h` | empty macro |
+| `small` | `rpcndr.h` | `typedef char small` |
+| `interface` | `objbase.h` | `struct` |
+
+Using these as identifiers causes parse errors on MSVC even though the code compiles cleanly on macOS/Linux. Use unambiguous alternatives (e.g. `tiny` instead of `small`, `within_tol` instead of `near`).
