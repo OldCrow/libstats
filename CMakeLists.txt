@@ -39,11 +39,27 @@ if(LIBSTATS_VERBOSE_BUILD)
     message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
 endif()
 
-# Enforce Ventura minimum on macOS — prevents accidental use of pre-13 APIs.
+# libstats v2.x supports macOS 13 Ventura and newer.  Do not force every local build to target the
+# minimum: when CMAKE_OSX_DEPLOYMENT_TARGET is unset, let AppleClang/CMake use the host/compiler
+# default. This avoids linker warnings when local dependencies such as Homebrew GTest were built for
+# the host macOS version (for example 15.0).  Packagers who need Ventura-compatible binaries should
+# set -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 explicitly.
+set(LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET "13.0")
 if(APPLE)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET
-        "13.0"
-        CACHE STRING "Minimum macOS deployment target")
+    if(DEFINED CMAKE_OSX_DEPLOYMENT_TARGET AND NOT "${CMAKE_OSX_DEPLOYMENT_TARGET}" STREQUAL "")
+        if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET)
+            message(
+                FATAL_ERROR
+                    "libstats v2.x requires CMAKE_OSX_DEPLOYMENT_TARGET >= "
+                    "${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET}; got ${CMAKE_OSX_DEPLOYMENT_TARGET}")
+        endif()
+        message(STATUS "macOS deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET} "
+                       "(minimum supported: ${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET})")
+    else()
+        message(STATUS "macOS deployment target: compiler default "
+                       "(minimum supported: ${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET}; "
+                       "set -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 for Ventura-compatible binaries)")
+    endif()
 endif()
 
 project(
@@ -890,18 +906,19 @@ target_include_directories(libstats_simd_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_simd_obj libstats_foundation_obj) # SIMD depends on CPU detection
 
-# Windows: ensure the shim copy finishes before any cl.exe job opens the copied headers.
-# MSBuild runs ALL custom targets in parallel with compilation; without this ordering the
-# copy_directory and compiler reads race on the same files, producing "Permission denied".
+# Windows: ensure the shim copy finishes before any cl.exe job opens the copied headers. MSBuild
+# runs ALL custom targets in parallel with compilation; without this ordering the copy_directory and
+# compiler reads race on the same files, producing "Permission denied".
 if(WIN32)
-    foreach(_shim_dep
-            libstats_foundation_obj
-            libstats_core_utilities_obj
-            libstats_platform_obj
-            libstats_infrastructure_obj
-            libstats_framework_obj
-            libstats_distributions_obj
-            libstats_simd_obj)
+    foreach(
+        _shim_dep
+        libstats_foundation_obj
+        libstats_core_utilities_obj
+        libstats_platform_obj
+        libstats_infrastructure_obj
+        libstats_framework_obj
+        libstats_distributions_obj
+        libstats_simd_obj)
         add_dependencies(${_shim_dep} libstats_refresh_shim)
     endforeach()
 endif()
@@ -1371,8 +1388,8 @@ if(LIBSTATS_BUILD_TESTS)
     # =======================================================================
     # LEVEL 6 TESTS: Integration and cross-distribution workflow
     # =======================================================================
-    # End-to-end API interoperability (factory, fit, moments, survival,
-    # batch, KS test, bootstrap, NaN/±inf boundary values across all 16 distributions)
+    # End-to-end API interoperability (factory, fit, moments, survival, batch, KS test, bootstrap,
+    # NaN/±inf boundary values across all 16 distributions)
     create_libstats_gtest(test_integration_workflow tests/test_integration_workflow.cpp)
 
     # =======================================================================

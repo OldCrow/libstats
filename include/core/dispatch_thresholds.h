@@ -97,43 +97,46 @@ struct ArchTable {
 };
 
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-15T04-55-46Z_darwin-arm64_fix-audit-remediation_sha-b583fb3
-// data/profiles/dispatcher/2026-06-15T05-04-15Z_darwin-arm64_fix-audit-remediation_sha-b583fb3
+// data/profiles/dispatcher/2026-06-22T05-19-18Z_darwin-arm64_feat-v2-architecture_sha-2904d63
+// data/profiles/dispatcher/2026-06-22T05-21-44Z_darwin-arm64_feat-v2-architecture_sha-2904d63
+// data/profiles/dispatcher/2026-06-22T05-24-10Z_darwin-arm64_feat-v2-architecture_sha-2904d63
 //
-// Two Release-mode bundles captured on the audit-remediation branch after
-// adding 7 new distributions to the profiler. Values are derived from both
-// runs; stability was assessed by comparing V→P crossovers across runs.
+// Three sequential Release-mode bundles captured on feat/v2-architecture after
+// the v2.0.0 remediation and dispatch-path cleanup work.
 //
-//   - Discrete PDF/LogPDF: 128/100000 -> 250000. Native NEON transcendentals
-//     make VECTORIZED fast enough that GCD overhead doesn't pay until 250k.
-//   - Discrete CDF: 512 -> NEVER. VECTORIZED beats PARALLEL at all sizes.
-//   - Poisson PDF/LogPDF: 64 -> 20000. Same cause: fast NEON exp/log paths.
-//   - Poisson CDF: 64 -> 2000.
-//   - StudentT CDF: 64 -> 64 (unchanged; 32-128 noisy range, clamped).
-//   - 7 new distributions added with Release-mode measurements.
+// Derivation rules:
+//   - Crossover is the first batch size where min(PARALLEL, WORK_STEALING)
+//     beats VECTORIZED.
+//   - Results below 64 are clamped to 64.
+//   - If all three finite results agree within one order of magnitude, use the
+//     most conservative (largest) result.
+//   - If two finite results agree within one order of magnitude and the third is
+//     far away, discard the outlier and use the larger of the coherent pair.
+//   - If two or more runs are NEVER, use NEVER.
+//   - If all finite values are mutually incoherent, use NEVER.
 //
-// Stability note: GCD thread-pool variability makes crossover detection noisy
-// for thresholds in the tens-of-thousands range. Where two runs disagreed
-// significantly and best_strategy_at_max_size was consistent, the more
-// conservative (larger) crossover value was used. Where best_strategy_at_max_size
-// itself disagreed across runs (VonMises PDF), NEVER was used.
+// Manual overrides applied after review:
+//   - Pareto: measured {PDF=64, LogPDF=50000, CDF=100000}; CDF held at 50000
+//     because the upward move looked overly conservative for the log-only path.
+//   - Weibull: measured CDF suggested 100000 from {50000, 64, 100000}; held at
+//     64 because the 50k/100k result looked like GCD scheduling variability
+//     rather than a real path regression.
 constexpr ArchTable kNeon = {
-    /* uniform     */ {NEVER, NEVER, 64},
+    /* uniform     */ {64, 1000, 64},
     /* gaussian    */ {64, 64, NEVER},
     /* exponential */ {64, 64, 64},
-    /* discrete    */ {250000, 250000, NEVER},
-    /* poisson     */ {20000, 20000, 2000},
+    /* discrete    */ {100000, 100000, 64},
+    /* poisson     */ {2000, 64, 64},
     /* gamma       */ {64, 64, 64},
     /* student_t   */ {64, 64, 64},
     /* chi_squared */ {64, 64, 64},
     /* lognormal         */ {64, 64, NEVER},
-    /* pareto            */ {100000, 100000, 50000},  // PDF=LogPDF (log-only SIMD; PDF run
-                                                      // unstable)
-    /* weibull           */ {64, 64, 64},
+    /* pareto            */ {64, 50000, 50000},  // CDF manually held at 50k
+    /* weibull           */ {64, 64, 64},        // CDF manually held at 64
     /* rayleigh          */ {64, 64, 64},
-    /* von_mises         */ {NEVER, NEVER, 64},     // PDF: best@500k disagreed across runs
-    /* binomial          */ {NEVER, NEVER, NEVER},  // GCD overhead > lgamma benefit up to 500k
-    /* negative_binomial */ {NEVER, NEVER, NEVER},  // GCD overhead > lgamma benefit up to 500k
+    /* von_mises         */ {250000, 250000, 64},
+    /* binomial          */ {NEVER, NEVER, 64},
+    /* negative_binomial */ {NEVER, NEVER, 128},
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
@@ -206,21 +209,21 @@ constexpr ArchTable kAvx = {
 //       NegBinomial PDF/LogPDF: NEVER (blank); CDF: NEVER (wildly
 //         inconsistent crossovers; contradictory best@500k across runs).
 constexpr ArchTable kAvx2 = {
-    /* uniform     */ {NEVER,  NEVER,  64},
-    /* gaussian    */ {64,     64,     20000},
-    /* exponential */ {64,     64,     64},
-    /* discrete    */ {NEVER,  NEVER,  NEVER},
-    /* poisson     */ {20000,  NEVER,  NEVER},
-    /* gamma       */ {64,     64,     64},
-    /* student_t   */ {NEVER,  64,     64},
-    /* chi_squared */ {64,     64,     64},
-    /* lognormal         */ {64,     64,     64},
-    /* pareto            */ {250000, NEVER,  NEVER},
-    /* weibull           */ {64,     64,     NEVER},
-    /* rayleigh          */ {64,     64,     64},
-    /* von_mises         */ {NEVER,  NEVER,  64},
-    /* binomial          */ {NEVER,  NEVER,  64},
-    /* negative_binomial */ {NEVER,  NEVER,  NEVER},
+    /* uniform     */ {NEVER, NEVER, 64},
+    /* gaussian    */ {64, 64, 20000},
+    /* exponential */ {64, 64, 64},
+    /* discrete    */ {NEVER, NEVER, NEVER},
+    /* poisson     */ {20000, NEVER, NEVER},
+    /* gamma       */ {64, 64, 64},
+    /* student_t   */ {NEVER, 64, 64},
+    /* chi_squared */ {64, 64, 64},
+    /* lognormal         */ {64, 64, 64},
+    /* pareto            */ {250000, NEVER, NEVER},
+    /* weibull           */ {64, 64, NEVER},
+    /* rayleigh          */ {64, 64, 64},
+    /* von_mises         */ {NEVER, NEVER, 64},
+    /* binomial          */ {NEVER, NEVER, 64},
+    /* negative_binomial */ {NEVER, NEVER, NEVER},
 };
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
@@ -251,21 +254,21 @@ constexpr ArchTable kAvx2 = {
 //   - Gamma {250000, 64, 64}: unchanged — perfectly stable across all three runs
 //   - StudentT PDF/LogPDF, Pareto all, Weibull CDF: NEVER unchanged
 constexpr ArchTable kAvx512 = {
-    /* uniform     */ {NEVER,  100000, 64},
-    /* gaussian    */ {NEVER,  64,     20000},
-    /* exponential */ {500000, 64,     500000},
-    /* discrete    */ {64,     250000, 100000},
-    /* poisson     */ {64,     128,    256},
-    /* gamma       */ {250000, 64,     64},
-    /* student_t   */ {NEVER,  NEVER,  256},
-    /* chi_squared */ {64,     64,     64},
-    /* lognormal         */ {64,     64,     64},
-    /* pareto            */ {NEVER,  NEVER,  NEVER},
-    /* weibull           */ {250000, 64,     NEVER},
-    /* rayleigh          */ {64,     64,     500000},
-    /* von_mises         */ {64,     100000, 64},
-    /* binomial          */ {2000,   50000,  128},
-    /* negative_binomial */ {NEVER,  NEVER,  512},
+    /* uniform     */ {NEVER, 100000, 64},
+    /* gaussian    */ {NEVER, 64, 20000},
+    /* exponential */ {500000, 64, 500000},
+    /* discrete    */ {64, 250000, 100000},
+    /* poisson     */ {64, 128, 256},
+    /* gamma       */ {250000, 64, 64},
+    /* student_t   */ {NEVER, NEVER, 256},
+    /* chi_squared */ {64, 64, 64},
+    /* lognormal         */ {64, 64, 64},
+    /* pareto            */ {NEVER, NEVER, NEVER},
+    /* weibull           */ {250000, 64, NEVER},
+    /* rayleigh          */ {64, 64, 500000},
+    /* von_mises         */ {64, 100000, 64},
+    /* binomial          */ {2000, 50000, 128},
+    /* negative_binomial */ {NEVER, NEVER, 512},
 };
 
 /**
