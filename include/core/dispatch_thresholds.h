@@ -179,50 +179,57 @@ constexpr ArchTable kAvx = {
 };
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-16T00-16-34Z_darwin-x86_64_fix-audit-remediation_sha-5675c93
-// data/profiles/dispatcher/2026-06-16T00-26-28Z_darwin-x86_64_fix-audit-remediation_sha-5675c93
+// data/profiles/dispatcher/2026-06-22T21-15-44Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
+// data/profiles/dispatcher/2026-06-22T21-25-20Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
+// data/profiles/dispatcher/2026-06-22T21-33-55Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
 //
-// Two Release-mode bundles captured on fix/audit-remediation after audit
-// remediation changes and 7 new distributions added to the profiler.
-// Method: where both runs agree (same order of magnitude), take the larger
-// V→P crossover (conservative, 64 floor). NEVER when best@500k was VECTORIZED
-// in both runs, runs produced contradictory best@500k, or crossovers differed
-// by >10×.
+// Three sequential Release-mode bundles captured on feat/v2-architecture (909dc9a).
+// Method: clamp < 64 → 64; if best@500k = VECTORIZED, use NEVER regardless of
+// apparent crossover (transient, not sustainable). Aggregation: all three within
+// 10× → max (conservative); two within 10× + outlier → discard outlier, max of
+// coherent pair; else NEVER.
 //
-//   - Uniform PDF/LogPDF: 64 -> NEVER. Both runs show blank (VECTORIZED wins).
-//   - Gaussian PDF: 100000 -> 64. Both runs crossover at 8 (clamped to 64).
-//   - Discrete all: 64/64/50000 -> NEVER. PDF/LogPDF blank both runs; CDF
-//     wildly inconsistent (100k vs 8).
-//   - Poisson PDF: 64 -> 20000. Runs 10k/20k, same order; conservative = 20k.
-//   - Poisson LogPDF: 20000 -> NEVER. Wildly inconsistent (50k vs 8).
-//   - Poisson CDF: 64 -> NEVER. Wildly inconsistent (5k vs 32).
-//   - StudentT PDF: 250000 -> NEVER. Runs 250k/500k; higher = 500k = NEVER.
-//   - 7 new distributions calibrated from these two Kaby Lake/AVX2 runs:
-//       LogNormal: 64/64/64 (all crossovers at 8, clamped to floor).
-//       Rayleigh: 64/64/64 (same).
-//       Weibull PDF/LogPDF: 64/64; CDF: NEVER (blank + 500k both runs).
-//       Pareto PDF: 250000 (consistent across runs); LogPDF: NEVER (wildly
-//         inconsistent 8 vs 250k); CDF: NEVER (500k both runs).
-//       VonMises PDF/LogPDF: NEVER (blank both runs); CDF: 64 (8 vs 64,
-//         take higher, already at floor).
-//       Binomial PDF/LogPDF: NEVER (blank); CDF: 64 (clamped from 16).
-//       NegBinomial PDF/LogPDF: NEVER (blank); CDF: NEVER (wildly
-//         inconsistent crossovers; contradictory best@500k across runs).
+// Manual override applied after review:
+//   - Discrete LogPDF: three-run rule gave 64 from {64, 500k, 64}, but the
+//     500k result in Run 2 indicates a real cold-pool / warm-pool bimodal
+//     instability — parallel only wins reliably on a warm GCD pool. On a cold
+//     pool the crossover is at 500k+, making 64 incorrect roughly one run in
+//     three. Held at NEVER as the conservative defensible value.
+//
+// Key changes vs prior kAvx2 (fix/audit-remediation sha-5675c93, 2 runs):
+//   - Gaussian CDF: 20000 → 100000 (vectorized CDF path improvements in v2.0.0
+//     push the parallel breakeven to a higher batch size)
+//   - Discrete PDF: NEVER → 500000 (parallel wins at 500k, two-run majority;
+//     bimodal but majority signal is conservative)
+//   - Discrete LogPDF: NEVER → NEVER (manual override; bimodal instability)
+//   - Discrete CDF: NEVER → 64 (three-run consensus)
+//   - Poisson PDF: 20000 → 64 (dispatch path cleanup, parallel competitive much
+//     earlier)
+//   - Poisson LogPDF/CDF: NEVER → 64 (three-run consensus; previously blank)
+//   - StudentT PDF: NEVER → 250000 (three-run consensus: 250k/250k/100k, all
+//     within OOM)
+//   - Pareto LogPDF/CDF: NEVER → 64 (three-run consensus; previously incoherent)
+//   - Weibull CDF: NEVER → 64 (three-run consensus)
+//   - VonMises PDF/LogPDF: NEVER → 64 (three-run consensus; blank + WS@max →
+//     clamped to 64 floor)
+//   - Binomial CDF: 64 → NEVER (best@500k = VECTORIZED in all three runs;
+//     parallel was briefly competitive at small sizes but vectorized dominates
+//     at production batch sizes)
 constexpr ArchTable kAvx2 = {
     /* uniform     */ {NEVER, NEVER, 64},
-    /* gaussian    */ {64, 64, 20000},
+    /* gaussian    */ {64, 64, 100000},
     /* exponential */ {64, 64, 64},
-    /* discrete    */ {NEVER, NEVER, NEVER},
-    /* poisson     */ {20000, NEVER, NEVER},
+    /* discrete    */ {500000, NEVER, 64},  // PDF: bimodal, conservative 500k; LogPDF: manual NEVER
+    /* poisson     */ {64, 64, 64},
     /* gamma       */ {64, 64, 64},
-    /* student_t   */ {NEVER, 64, 64},
+    /* student_t   */ {250000, 64, 64},
     /* chi_squared */ {64, 64, 64},
     /* lognormal         */ {64, 64, 64},
-    /* pareto            */ {250000, NEVER, NEVER},
-    /* weibull           */ {64, 64, NEVER},
+    /* pareto            */ {250000, 64, 64},
+    /* weibull           */ {64, 64, 64},
     /* rayleigh          */ {64, 64, 64},
-    /* von_mises         */ {NEVER, NEVER, 64},
-    /* binomial          */ {NEVER, NEVER, 64},
+    /* von_mises         */ {64, 64, 64},
+    /* binomial          */ {NEVER, NEVER, NEVER},
     /* negative_binomial */ {NEVER, NEVER, NEVER},
 };
 
