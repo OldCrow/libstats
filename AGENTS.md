@@ -94,9 +94,9 @@ minimum macOS raised to 13 Ventura).
 
 | Machine | SIMD | Target | Notes |
 |---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 42/42 ✅ | v2.0.0 (dev) baseline |
-| Mac Mini M1 | NEON | 42/42 ✅ | v2.0.0 validated |
-| Asus TUF A16 (Windows) | AVX-512 | pending | v2.0.0 validation pending |
+| Kaby Lake (2017 MBP) | AVX2+FMA | pending | kAvx2 thresholds need 3-run recalibration |
+| Mac Mini M1 | NEON | 43/43 ✅ | v2.0.0 validated; kNeon thresholds recalibrated (3-run) |
+| Asus TUF A16 (Windows) | AVX-512 | 43/43 ✅ | v2.0.0 validated; kAvx512 thresholds recalibrated (3-run); 61/61 simd_verification |
 
 **v1.5.2 — final v1.x release (four machines)**
 
