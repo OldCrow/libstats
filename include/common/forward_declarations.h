@@ -23,6 +23,10 @@ class VonMisesDistribution;
 class BinomialDistribution;
 class NegativeBinomialDistribution;
 
+// Pending implementation (registered in DistributionType enum and kDistributionMeta,
+// but headers/sources not yet available): GeometricDistribution, LaplaceDistribution,
+// CauchyDistribution.
+
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
 using Normal = GaussianDistribution;

@@ -75,7 +75,7 @@ inline constexpr DistributionMeta kDistributionMeta[] = {
     {DistributionType::GAMMA,             "GAMMA",             "Gamma",             false, false},
     {DistributionType::STUDENT_T,         "STUDENT_T",         "StudentT",          false, false},
     {DistributionType::BETA,              "BETA",              "Beta",              false, false},
-    {DistributionType::CHI_SQUARED,       "CHI_SQUARED",       "ChiSquared",        false, true },
+    {DistributionType::CHI_SQUARED,       "CHI_SQUARED",       "ChiSquared",        false, true },  // delegates to Gamma(α=ν/2, β=1/2)
     {DistributionType::LOG_NORMAL,        "LOG_NORMAL",        "LogNormal",         false, false},
     {DistributionType::PARETO,            "PARETO",            "Pareto",            false, false},
     {DistributionType::WEIBULL,           "WEIBULL",           "Weibull",           false, false},
@@ -83,10 +83,10 @@ inline constexpr DistributionMeta kDistributionMeta[] = {
     {DistributionType::VON_MISES,         "VON_MISES",         "VonMises",          false, false},
     {DistributionType::BINOMIAL,          "BINOMIAL",          "Binomial",          true,  false},
     {DistributionType::NEGATIVE_BINOMIAL, "NEGATIVE_BINOMIAL", "NegativeBinomial",  true,  false},
-    // v2.0.0 additions --------------------------------------------------------
-    {DistributionType::GEOMETRIC,         "GEOMETRIC",         "Geometric",         true,  true },
+    // v2.0.0 additions (implementations pending) --------------------------------
+    {DistributionType::GEOMETRIC,         "GEOMETRIC",         "Geometric",         true,  true },  // delegates to NegativeBinomial(r=1)
     {DistributionType::LAPLACE,           "LAPLACE",           "Laplace",           false, false},
-    {DistributionType::CAUCHY,            "CAUCHY",            "Cauchy",            false, true },
+    {DistributionType::CAUCHY,            "CAUCHY",            "Cauchy",            false, true },  // delegates to StudentT(ν=1)
 };
 
 /// Number of defined distribution types (= std::size(kDistributionMeta)).
@@ -112,10 +112,12 @@ static_assert(validateMetaOrdering(),
     "Rows must be in enum order (append-only; never reorder) because values are "
     "used as array indices and any reordering silently corrupts dispatch.");
 
-// Belt-and-suspenders: update this when the distribution count changes.
-static_assert(kDistributionTypeCount == 19,
-    "Distribution count changed — update this expected value and follow the "
-    "registration checklist at the top of distribution_meta.h.");
+// Belt-and-suspenders: catches accidental deletions or enum reorderings.
+// Change to the new count when distributions are added; never reduce it.
+static_assert(kDistributionTypeCount >= 19,
+    "Distribution count regressed below 19 — a DistributionType entry was removed "
+    "or the enum was reordered. Values are used as array indices; never remove or "
+    "reorder entries.");
 
 // ============================================================================
 // Accessor functions

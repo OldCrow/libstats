@@ -142,7 +142,9 @@ std::optional<std::pair<std::size_t, std::size_t>> PerformanceHistory::learnOpti
 
     for (const auto& [key, stats] : performance_data_) {
         std::string dist_str = distributionTypeToString(distribution_type);
-        if (key.find(dist_str) != std::string::npos && stats.hasReliableData()) {
+        // Anchor with '_' on both sides to prevent e.g. "NORMAL" matching
+        // inside "LOG_NORMAL" keys if a future enum entry uses a shared substring.
+        if (key.find("_" + dist_str + "_") != std::string::npos && stats.hasReliableData()) {
             // Parse the key to extract strategy and batch category
             auto last_underscore = key.find_last_of('_');
             if (last_underscore != std::string::npos) {

@@ -23,7 +23,7 @@ namespace detail {
  * so the dispatch system and generic analysis templates can identify the distribution
  * without relying on dynamic dispatch or RTTI.
  */
-enum class DistributionType {
+enum class DistributionType : uint8_t {
     UNIFORM,           ///< Uniform distribution
     GAUSSIAN,          ///< Gaussian (Normal) distribution
     EXPONENTIAL,       ///< Exponential distribution

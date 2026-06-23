@@ -80,7 +80,10 @@ struct ThresholdRow {
  * Indexed by static_cast<std::size_t>(DistributionType); must match enum order.
  * Adding a distribution requires appending one ThresholdRow to every kXxx
  * table instance below — no switch changes needed.
- * The ordering is validated by kDistributionMeta's consteval check.
+ * The std::array<ThresholdRow, kDistributionTypeCount> type fixes the table
+ * size to exactly kDistributionTypeCount entries. Omitted trailing rows are
+ * zero-initialized ({0,0,0}), which is threshold 0 (always parallel) not NEVER;
+ * always append explicit {NEVER,NEVER,NEVER} rows for unimplemented distributions.
  */
 using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>;
 
@@ -334,15 +337,38 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
     return avx_parallel_threshold(dist, op);
 }
 
-// --- No SIMD: conservative high thresholds ---
+// --- No SIMD: conservative parallel thresholds ---
+// Without SIMD, VECTORIZED is just a scalar loop; parallel helps earlier
+// because there is no SIMD advantage to protect.
+// Threshold: 8192 doubles = 64 KB, which exceeds L1d cache (32-64 KB) on all
+// target CPUs. Below this the scalar loop stays in L1 and threading overhead
+// is hard to amortise; above it L2 latency makes parallel competitive.
+// Unprofiled — treat as a principled placeholder until a no-SIMD build is
+// measured with strategy_profile. BETA: no parallel batch.
+// GEOMETRIC/LAPLACE/CAUCHY: pending implementation.
+constexpr ArchTable kNone = {{
+    /* UNIFORM(0)            */ {8192, 8192, 8192},
+    /* GAUSSIAN(1)           */ {8192, 8192, 8192},
+    /* EXPONENTIAL(2)        */ {8192, 8192, 8192},
+    /* DISCRETE(3)           */ {8192, 8192, 8192},
+    /* POISSON(4)            */ {8192, 8192, 8192},
+    /* GAMMA(5)              */ {8192, 8192, 8192},
+    /* STUDENT_T(6)          */ {8192, 8192, 8192},
+    /* BETA(7)               */ {NEVER, NEVER, NEVER},  // no parallel batch
+    /* CHI_SQUARED(8)        */ {8192, 8192, 8192},
+    /* LOG_NORMAL(9)         */ {8192, 8192, 8192},
+    /* PARETO(10)            */ {8192, 8192, 8192},
+    /* WEIBULL(11)           */ {8192, 8192, 8192},
+    /* RAYLEIGH(12)          */ {8192, 8192, 8192},
+    /* VON_MISES(13)         */ {8192, 8192, 8192},
+    /* BINOMIAL(14)          */ {8192, 8192, 8192},
+    /* NEGATIVE_BINOMIAL(15) */ {8192, 8192, 8192},
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // pending implementation
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // pending implementation
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // pending implementation
+}};
 constexpr std::size_t none_parallel_threshold(DistributionType dist, OperationType op) {
-    if (op == OperationType::BATCH_FIT)
-        return BATCH_FIT_MIN;
-    if (dist == DistributionType::BETA)
-        return NEVER;
-    // Without SIMD, VECTORIZED is just a scalar loop via the batch path.
-    // Parallel helps earlier because there is no SIMD advantage to protect.
-    return 5000;
+    return parallelThresholdFromTable(kNone, dist, op);
 }
 
 }  // namespace dispatch_table
