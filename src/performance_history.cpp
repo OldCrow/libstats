@@ -1,4 +1,5 @@
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+#include "libstats/core/distribution_meta.h"  // distributionEnumName()
 #include "libstats/core/performance_history.h"
 
 #include "libstats/core/math_constants.h"
@@ -223,22 +224,7 @@ const char* PerformanceHistory::strategyToString(Strategy strategy) noexcept {
 }
 
 const char* PerformanceHistory::distributionTypeToString(DistributionType dist_type) noexcept {
-    switch (dist_type) {
-        case DistributionType::UNIFORM:
-            return "UNIFORM";
-        case DistributionType::GAUSSIAN:
-            return "GAUSSIAN";
-        case DistributionType::EXPONENTIAL:
-            return "EXPONENTIAL";
-        case DistributionType::DISCRETE:
-            return "DISCRETE";
-        case DistributionType::POISSON:
-            return "POISSON";
-        case DistributionType::GAMMA:
-            return "GAMMA";
-        default:
-            return "UNKNOWN";
-    }
+    return distributionEnumName(dist_type).data();
 }
 
 std::size_t PerformanceHistory::findOptimalThreshold(

@@ -39,7 +39,11 @@ enum class DistributionType {
     RAYLEIGH,          ///< Rayleigh distribution
     VON_MISES,         ///< Von Mises distribution
     BINOMIAL,          ///< Binomial distribution
-    NEGATIVE_BINOMIAL  ///< Negative Binomial distribution
+    NEGATIVE_BINOMIAL, ///< Negative Binomial distribution
+    // --- v2.0.0 additions (append only; existing values must never change) ---
+    GEOMETRIC,         ///< Geometric distribution (delegates to NegativeBinomial with r=1)
+    LAPLACE,           ///< Laplace (double-exponential) distribution
+    CAUCHY,            ///< Cauchy distribution (delegates to StudentT with ν=1)
 };
 
 }  // namespace detail

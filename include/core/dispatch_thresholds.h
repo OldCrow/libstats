@@ -17,7 +17,9 @@
 
 #include "libstats/platform/simd_policy.h"
 #include "performance_dispatcher.h"
+#include "distribution_meta.h"  // kDistributionTypeCount, DistributionType ordering
 
+#include <array>
 #include <cstddef>
 #include <limits>
 
@@ -51,7 +53,7 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 // NEVER means VECTORIZED always wins on that machine for that operation.
 //
 // Table layout: {pdf, log_pdf, cdf} per distribution row.
-// Beta is excluded (NEVER across all architectures and operations).
+// BETA, GEOMETRIC, LAPLACE, CAUCHY: NEVER across all entries (no parallel batch).
 //
 // Measurement resolution caveat (applies to all architectures):
 //   Profiler timing resolution floors out around 0.1–0.2 µs. At batch sizes
@@ -75,26 +77,12 @@ struct ThresholdRow {
 /**
  * @brief Empirical parallel thresholds for one SIMD architecture.
  *
- * Rows correspond to distributions in DistributionType enum order;
- * see the per-architecture constexpr instances below for data.
+ * Indexed by static_cast<std::size_t>(DistributionType); must match enum order.
+ * Adding a distribution requires appending one ThresholdRow to every kXxx
+ * table instance below — no switch changes needed.
+ * The ordering is validated by kDistributionMeta's consteval check.
  */
-struct ArchTable {
-    ThresholdRow uniform;
-    ThresholdRow gaussian;
-    ThresholdRow exponential;
-    ThresholdRow discrete;
-    ThresholdRow poisson;
-    ThresholdRow gamma;
-    ThresholdRow student_t;
-    ThresholdRow chi_squared;
-    ThresholdRow lognormal;
-    ThresholdRow pareto;
-    ThresholdRow weibull;
-    ThresholdRow rayleigh;
-    ThresholdRow von_mises;
-    ThresholdRow binomial;
-    ThresholdRow negative_binomial;
-};
+using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>;
 
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
 // data/profiles/dispatcher/2026-06-22T05-19-18Z_darwin-arm64_feat-v2-architecture_sha-2904d63
@@ -118,23 +106,27 @@ struct ArchTable {
 //     at 64 misidentified the warm-pool run as the representative value.
 //   - Binomial CDF: 64 → NEVER. All 3 runs: best@max = VECTORIZED.
 //   - NegBinomial CDF: 128 → NEVER. All 3 runs: best@max = VECTORIZED/SCALAR.
-constexpr ArchTable kNeon = {
-    /* uniform     */ {64, NEVER, 64},
-    /* gaussian    */ {64, 64, NEVER},
-    /* exponential */ {64, 64, 64},
-    /* discrete    */ {100000, 100000, NEVER},
-    /* poisson     */ {2000, 64, 64},
-    /* gamma       */ {64, 64, 64},
-    /* student_t   */ {64, 64, 64},
-    /* chi_squared */ {64, 64, 64},
-    /* lognormal         */ {64, 64, NEVER},
-    /* pareto            */ {64, 50000, 100000},
-    /* weibull           */ {64, 64, 100000},
-    /* rayleigh          */ {64, 64, 64},
-    /* von_mises         */ {250000, 250000, 64},
-    /* binomial          */ {NEVER, NEVER, NEVER},
-    /* negative_binomial */ {NEVER, NEVER, NEVER},
-};
+constexpr ArchTable kNeon = {{
+    /* UNIFORM(0)            */ {64, NEVER, 64},
+    /* GAUSSIAN(1)           */ {64, 64, NEVER},
+    /* EXPONENTIAL(2)        */ {64, 64, 64},
+    /* DISCRETE(3)           */ {100000, 100000, NEVER},
+    /* POISSON(4)            */ {2000, 64, 64},
+    /* GAMMA(5)              */ {64, 64, 64},
+    /* STUDENT_T(6)          */ {64, 64, 64},
+    /* BETA(7)               */ {NEVER, NEVER, NEVER},
+    /* CHI_SQUARED(8)        */ {64, 64, 64},
+    /* LOG_NORMAL(9)         */ {64, 64, NEVER},
+    /* PARETO(10)            */ {64, 50000, 100000},
+    /* WEIBULL(11)           */ {64, 64, 100000},
+    /* RAYLEIGH(12)          */ {64, 64, 64},
+    /* VON_MISES(13)         */ {250000, 250000, 64},
+    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+}};
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
 // data/profiles/dispatcher/2026-06-15T05-25-42Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
@@ -158,23 +150,27 @@ constexpr ArchTable kNeon = {
 //     VECTORIZED; inferred same sustainability failure for kAvx)
 //   - NegBinomial CDF: 50000 → NEVER  (same reasoning as Binomial CDF)
 // SSE2 delegates to kAvx (line 364); both are updated together.
-constexpr ArchTable kAvx = {
-    /* uniform     */ {NEVER, NEVER, 64},
-    /* gaussian    */ {64, 64, 64},
-    /* exponential */ {64, 64, 64},    // PDF: inferred 100000→64
-    /* discrete    */ {100000, 100000, 100000},  // PDF: inferred 128→100000
-    /* poisson     */ {64, 64, 64},    // inferred from kAvx2 (was 50000)
-    /* gamma       */ {64, 64, 64},
-    /* student_t   */ {100000, 64, 64},
-    /* chi_squared */ {64, 64, 64},
-    /* lognormal         */ {64, 64, 64},
-    /* pareto            */ {100000, 64, 250000},
-    /* weibull           */ {64, 64, 100000},
-    /* rayleigh          */ {64, 64, 64},
-    /* von_mises         */ {64, 64, 64},   // PDF: inferred 500000→64
-    /* binomial          */ {NEVER, NEVER, NEVER},  // CDF: inferred 50000→NEVER
-    /* negative_binomial */ {NEVER, NEVER, NEVER},  // CDF: inferred 50000→NEVER
-};
+constexpr ArchTable kAvx = {{
+    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
+    /* GAUSSIAN(1)           */ {64, 64, 64},
+    /* EXPONENTIAL(2)        */ {64, 64, 64},
+    /* DISCRETE(3)           */ {100000, 100000, 100000},
+    /* POISSON(4)            */ {64, 64, 64},
+    /* GAMMA(5)              */ {64, 64, 64},
+    /* STUDENT_T(6)          */ {100000, 64, 64},
+    /* BETA(7)               */ {NEVER, NEVER, NEVER},
+    /* CHI_SQUARED(8)        */ {64, 64, 64},
+    /* LOG_NORMAL(9)         */ {64, 64, 64},
+    /* PARETO(10)            */ {100000, 64, 250000},
+    /* WEIBULL(11)           */ {64, 64, 100000},
+    /* RAYLEIGH(12)          */ {64, 64, 64},
+    /* VON_MISES(13)         */ {64, 64, 64},
+    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+}};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
 // data/profiles/dispatcher/2026-06-22T21-15-44Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
@@ -214,23 +210,27 @@ constexpr ArchTable kAvx = {
 //   - VonMises PDF: NEVER → 250000 (corrected WS at {250k,250k,100k})
 //   - VonMises LogPDF: NEVER → 500000 (WS at {250k,250k,500k}; ceiling hit)
 //   - Binomial CDF: 64 → NEVER (best@max = VECTORIZED all 3 runs)
-constexpr ArchTable kAvx2 = {
-    /* uniform     */ {NEVER, NEVER, 64},
-    /* gaussian    */ {64, 64, 20000},
-    /* exponential */ {64, 64, 64},
-    /* discrete    */ {100000, 100000, 64},
-    /* poisson     */ {64, 64, 64},
-    /* gamma       */ {64, 64, 64},
-    /* student_t   */ {50000, 64, 64},
-    /* chi_squared */ {64, 64, 64},
-    /* lognormal         */ {64, 64, 64},
-    /* pareto            */ {50000, 64, 100000},
-    /* weibull           */ {64, 64, 250000},
-    /* rayleigh          */ {64, 64, 64},
-    /* von_mises         */ {250000, 500000, 64},  // LogPDF ceiling hit; --large advisory
-    /* binomial          */ {NEVER, NEVER, NEVER},
-    /* negative_binomial */ {NEVER, NEVER, NEVER},
-};
+constexpr ArchTable kAvx2 = {{
+    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
+    /* GAUSSIAN(1)           */ {64, 64, 20000},
+    /* EXPONENTIAL(2)        */ {64, 64, 64},
+    /* DISCRETE(3)           */ {100000, 100000, 64},
+    /* POISSON(4)            */ {64, 64, 64},
+    /* GAMMA(5)              */ {64, 64, 64},
+    /* STUDENT_T(6)          */ {50000, 64, 64},
+    /* BETA(7)               */ {NEVER, NEVER, NEVER},
+    /* CHI_SQUARED(8)        */ {64, 64, 64},
+    /* LOG_NORMAL(9)         */ {64, 64, 64},
+    /* PARETO(10)            */ {50000, 64, 100000},
+    /* WEIBULL(11)           */ {64, 64, 250000},
+    /* RAYLEIGH(12)          */ {64, 64, 64},
+    /* VON_MISES(13)         */ {250000, 500000, 64},  // LogPDF ceiling hit; --large advisory
+    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+}};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
 // data/profiles/dispatcher/2026-06-22T02-52-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
@@ -267,23 +267,27 @@ constexpr ArchTable kAvx2 = {
 //   - Weibull LogPDF: 250000 → 64
 //   - Gamma {250000, 64, 64}: unchanged — perfectly stable across all three runs
 //   - StudentT PDF/LogPDF, Pareto all, Weibull CDF: NEVER unchanged
-constexpr ArchTable kAvx512 = {
-    /* uniform     */ {NEVER, 100000, 64},
-    /* gaussian    */ {NEVER, 64, 20000},
-    /* exponential */ {500000, 64, 500000},
-    /* discrete    */ {64, 250000, 100000},
-    /* poisson     */ {64, 128, 256},
-    /* gamma       */ {250000, 64, 64},
-    /* student_t   */ {NEVER, NEVER, 256},
-    /* chi_squared */ {64, 64, 64},
-    /* lognormal         */ {64, 64, 64},
-    /* pareto            */ {NEVER, NEVER, NEVER},
-    /* weibull           */ {250000, 64, NEVER},
-    /* rayleigh          */ {64, 64, 500000},
-    /* von_mises         */ {64, 100000, 64},
-    /* binomial          */ {2000, 50000, 128},
-    /* negative_binomial */ {NEVER, NEVER, 512},
-};
+constexpr ArchTable kAvx512 = {{
+    /* UNIFORM(0)            */ {NEVER, 100000, 64},
+    /* GAUSSIAN(1)           */ {NEVER, 64, 20000},
+    /* EXPONENTIAL(2)        */ {500000, 64, 500000},
+    /* DISCRETE(3)           */ {64, 250000, 100000},
+    /* POISSON(4)            */ {64, 128, 256},
+    /* GAMMA(5)              */ {250000, 64, 64},
+    /* STUDENT_T(6)          */ {NEVER, NEVER, 256},
+    /* BETA(7)               */ {NEVER, NEVER, NEVER},
+    /* CHI_SQUARED(8)        */ {64, 64, 64},
+    /* LOG_NORMAL(9)         */ {64, 64, 64},
+    /* PARETO(10)            */ {NEVER, NEVER, NEVER},
+    /* WEIBULL(11)           */ {250000, 64, NEVER},
+    /* RAYLEIGH(12)          */ {64, 64, 500000},
+    /* VON_MISES(13)         */ {64, 100000, 64},
+    /* BINOMIAL(14)          */ {2000, 50000, 128},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+}};
 
 /**
  * @brief Single shared implementation: look up (dist, op) in one ArchTable.
@@ -295,66 +299,17 @@ constexpr std::size_t parallelThresholdFromTable(const ArchTable& table, Distrib
                                                  OperationType op) noexcept {
     if (op == OperationType::BATCH_FIT)
         return BATCH_FIT_MIN;
-    if (dist == DistributionType::BETA)
+    const auto idx = static_cast<std::size_t>(dist);
+    if (idx >= table.size())
         return NEVER;
-
-    const ThresholdRow* row = nullptr;
-    switch (dist) {
-        case DistributionType::UNIFORM:
-            row = &table.uniform;
-            break;
-        case DistributionType::GAUSSIAN:
-            row = &table.gaussian;
-            break;
-        case DistributionType::EXPONENTIAL:
-            row = &table.exponential;
-            break;
-        case DistributionType::DISCRETE:
-            row = &table.discrete;
-            break;
-        case DistributionType::POISSON:
-            row = &table.poisson;
-            break;
-        case DistributionType::GAMMA:
-            row = &table.gamma;
-            break;
-        case DistributionType::STUDENT_T:
-            row = &table.student_t;
-            break;
-        case DistributionType::CHI_SQUARED:
-            row = &table.chi_squared;
-            break;
-        case DistributionType::LOG_NORMAL:
-            row = &table.lognormal;
-            break;
-        case DistributionType::PARETO:
-            row = &table.pareto;
-            break;
-        case DistributionType::WEIBULL:
-            row = &table.weibull;
-            break;
-        case DistributionType::RAYLEIGH:
-            row = &table.rayleigh;
-            break;
-        case DistributionType::VON_MISES:
-            row = &table.von_mises;
-            break;
-        case DistributionType::BINOMIAL:
-            row = &table.binomial;
-            break;
-        case DistributionType::NEGATIVE_BINOMIAL:
-            row = &table.negative_binomial;
-            break;
-        default:
-            return NEVER;
-    }
+    const ThresholdRow& row = table[idx];
     switch (op) {
         case OperationType::PDF:
-            return row->pdf;
+            return row.pdf;
         case OperationType::LOG_PDF:
-            return row->log_pdf;
+            return row.log_pdf;
         case OperationType::CDF:
-            return row->cdf;
+            return row.cdf;
         default:
             return NEVER;
     }

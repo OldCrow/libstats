@@ -11,6 +11,7 @@
 // Use libstats.h for complete library functionality
 #define LIBSTATS_FULL_INTERFACE
 #include "libstats/libstats.h"
+#include "libstats/core/distribution_meta.h"  // distributionDisplayName()
 
 // Additional standard library includes for tool-specific functionality
 #include <iomanip>
@@ -107,33 +108,12 @@ inline std::string strategyToDisplayString(stats::detail::Strategy strategy) {
 }
 
 /**
- * @brief Converts DistributionType enum to string representation
+ * @brief Converts DistributionType enum to display-friendly string
  * @param type The distribution type enum value
- * @return String representation of the distribution type
+ * @return PascalCase display name (e.g. "NegativeBinomial")
  */
 inline std::string distributionTypeToString(stats::detail::DistributionType type) {
-    switch (type) {
-        case stats::detail::DistributionType::UNIFORM:
-            return "Uniform";
-        case stats::detail::DistributionType::GAUSSIAN:
-            return "Gaussian";
-        case stats::detail::DistributionType::EXPONENTIAL:
-            return "Exponential";
-        case stats::detail::DistributionType::DISCRETE:
-            return "Discrete";
-        case stats::detail::DistributionType::POISSON:
-            return "Poisson";
-        case stats::detail::DistributionType::GAMMA:
-            return "Gamma";
-        case stats::detail::DistributionType::CHI_SQUARED:
-            return "ChiSquared";
-        case stats::detail::DistributionType::STUDENT_T:
-            return "StudentT";
-        case stats::detail::DistributionType::BETA:
-            return "Beta";
-        default:
-            return "Unknown";
-    }
+    return std::string(stats::detail::distributionDisplayName(type));
 }
 
 /**
