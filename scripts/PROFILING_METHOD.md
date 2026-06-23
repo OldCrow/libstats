@@ -214,24 +214,36 @@ constexpr ArchTable kArch = {
 |---|---|---|
 | AVX2+FMA (kAvx2) | Kaby Lake i7-7820HQ | ✅ current (3-run, canonical method) |
 | NEON (kNeon)     | Mac Mini M1         | ✅ current (3-run, corrected) |
-| AVX-512 (kAvx512)| Asus TUF A16 Zen 4  | ⚠ needs re-validation — bundles missing strategy_profile_results.csv |
+| AVX-512 (kAvx512)| Asus TUF A16 Zen 4  | ✅ current (3-run standard + 3-run --large, canonical method) |
 | AVX (kAvx)       | Ivy Bridge (retired) | ⚠ hardware gone; values inferred from kAvx2 trends |
 | SSE2 (kSse2)     | no dedicated hardware | delegates to kAvx by design |
 
 ---
 
+## Windows capture
+
+Use `scripts/capture_dispatcher_profile.ps1` (requires `pwsh`, i.e. PowerShell 7):
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File scripts\capture_dispatcher_profile.ps1
+pwsh -ExecutionPolicy Bypass -File scripts\capture_dispatcher_profile.ps1 -Large
+```
+
+Do **not** invoke with the legacy `powershell` command — it runs Windows
+PowerShell 5.x which lacks the `utf8NoBOM` encoding identifier.
+
+---
+
 ## Known issues with historical bundles
 
-**kAvx512 (Windows, June 2026):** The three Windows bundles committed under
-`data/profiles/dispatcher/2026-06-22T02-*` contain only
-`strategy_profile_output.txt` and `manifest.txt`.  The
-`strategy_profile_results.csv` required by the summarizer was not committed.
-Re-run on the Windows machine and commit the full bundles before the next
-kAvx512 update.
+*No outstanding issues.  All active bundles contain the full set of required
+files.*  Resolved issues are recorded below for reference.
 
-**kNeon (M1, June 2026):** The three M1 bundles contain all required files.
-The original kNeon encoding used the correct 100k crossover for Discrete
-PDF/LogPDF (by reading best_strategies.csv directly) but applied the V→P
-crossover from `crossovers.csv` for other entries — which at the time used the
-buggy PARALLEL-only definition (not min(PARALLEL,WS)).  The summarizer has been
-corrected; re-derive from the existing raw data before next update.
+**kAvx512 (Windows, 2026-06-22):** Three bundles under
+`2026-06-22T02-*_sha-9b2c1a3` contained only `strategy_profile_output.txt`
+and `manifest.txt` — no `strategy_profile_results.csv`.  These bundles have
+been removed and replaced by six complete bundles captured 2026-06-23.
+
+**kNeon (M1, 2026-06-22):** The original kNeon encoding used the buggy
+PARALLEL-only V→P definition.  Corrected by re-deriving from the existing raw
+data after fixing `summarize_dispatcher_profile.py` (commit e927ebf).
