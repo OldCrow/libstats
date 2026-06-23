@@ -51,6 +51,21 @@
 - Version constants in `libstats.h` updated to 2.0.0.
 - Include shim uses directory symlink on macOS/Linux (live updates, no cmake re-run required); flat copy with build-time refresh on Windows.
 - `NOT noexcept` Doxygen warnings removed from all distribution headers; move constructors and assignment operators are `noexcept` throughout.
+- **Distribution metadata table** (`include/core/distribution_meta.h`): new canonical `kDistributionMeta[]`
+  constexpr array replaces all scattered per-site distribution registration. `consteval validateMetaOrdering()`
+  enforces enum-index alignment at compile time. `distributionEnumName()` / `distributionDisplayName()`
+  accessors replace incomplete switches in `performance_history.cpp` (was 6/16 cases — silent key collision
+  bug) and `tool_utils.h` (was 9/16 cases). `system_inspector.cpp` hardcoded 5-type list replaced with
+  metadata iteration.
+- **`DistributionType` enum**: GEOMETRIC(16), LAPLACE(17), CAUCHY(18) appended; implementations pending.
+- **`dispatch_thresholds.h`**: `ArchTable` replaced with `using ArchTable = std::array<ThresholdRow,
+  kDistributionTypeCount>`; `parallelThresholdFromTable` replaces a 15-case switch with an array index
+  lookup; all four `kXxx` tables extended with NEVER rows for the three new types.
+- **Dispatch profiling infrastructure**: `summarize_dispatcher_profile.py` V→P crossover definition
+  corrected to `min(PARALLEL, WORK_STEALING) < VECTORIZED` (was PARALLEL-only); `strategy_profile.cpp`
+  batch grid updated; `capture_dispatcher_profile.sh` rewritten; `scripts/PROFILING_METHOD.md` added as
+  canonical profiling procedure; kNeon (6 entries), kAvx2 (9 entries), kAvx (inferences) recalibrated;
+  16 stale pre-v2.0.0 profile bundles removed.
 
 ### Validation
 

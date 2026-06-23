@@ -84,6 +84,13 @@ std::string operation_to_string(ProfileOperation operation) {
 constexpr std::array<ProfileOperation, 3> OPERATIONS = {
     ProfileOperation::PDF, ProfileOperation::LOG_PDF, ProfileOperation::CDF};
 
+// REGISTRATION: list every Strategy value here.
+// The executeStrategy() switch in dispatch_utils.h has no default, so the
+// compiler enforces completeness there — but this array is invisible to the
+// compiler.  When a new strategy (e.g. GPU_ACCELERATED, NUMA) is added:
+//   1. Add it to this array so the profiler measures it.
+//   2. Add a PerformanceHint::PreferredStrategy mapping in mapHintToStrategy()
+//      (dispatch_utils.h) if forced-strategy profiling is needed.
 constexpr std::array<Strategy, 4> STRATEGIES = {Strategy::SCALAR, Strategy::VECTORIZED,
                                                 Strategy::PARALLEL, Strategy::WORK_STEALING};
 

@@ -116,16 +116,21 @@ libstats/
 
 ### Adding New Distributions
 
-When contributing new probability distributions:
+When contributing new probability distributions, follow the 5-step registration
+checklist in `include/core/distribution_meta.h` (authoritative), then implement:
 
-1. **Inherit from `DistributionBase`**
-2. **Implement all pure virtual methods**
-3. **Follow the 24-section template** (see `exponential.h`/`.cpp` or `beta.h`/`.cpp` as reference)
-4. **Include the full statistical interface** (PDF/LogPDF/CDF/quantile/sampling/MLE/`parallelBatchFit`)
-5. **Add parameter validation and safe factory methods** (exception-throwing + `Result<T>`/`VoidResult` API)
-6. **Implement SIMD-optimized batch operations** via the `VectorOps` pipeline in `*BatchUnsafeImpl`
-7. **Register in** `CMakeLists.txt`, `libstats.h`, `forward_declarations.h`, `performance_dispatcher.h`, and `dispatch_utils.h`
-8. **Provide thorough test coverage** (`*_basic.cpp` standalone + `*_enhanced.cpp` GTest with speedup assertions)
+1. **Append** the `DistributionType` enum value to `include/core/distribution_type.h`
+   (append-only — values are used as array indices).
+2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/core/distribution_meta.h`.
+3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
+   `include/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
+4. **Implement** the distribution (see `exponential.h`/`.cpp` as the reference template):
+   - Inherit from `DistributionBase`, implement all pure virtual methods.
+   - Full statistical interface: PDF/LogPDF/CDF/quantile/sampling/MLE/`parallelBatchFit`.
+   - Parameter validation and factory methods (`Result<T>`/`VoidResult` API).
+   - SIMD-optimized batch operations via the `VectorOps` pipeline in `*BatchUnsafeImpl`.
+   - Tests: `*_basic.cpp` standalone + `*_enhanced.cpp` GTest with speedup assertions.
+5. **Register** in `CMakeLists.txt` and `include/libstats.h`.
 
 ### SIMD Development
 
@@ -257,8 +262,9 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **New Distributions**: v2.1 roadmap includes Cauchy, Laplace, Geometric, Inverse Gamma,
-   KDE (kernel density estimation), and GMM (Gaussian mixture models)
+1. **New Distributions**: Cauchy, Laplace, and Geometric are registered in v2.0.0 (enum +
+   metadata, pending implementation). Inverse Gamma, KDE (kernel density estimation), and
+   GMM (Gaussian mixture models) remain on the v2.1+ roadmap.
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples

@@ -11,7 +11,9 @@ libstats is a **design and teaching library**: a demonstration of how to build s
 **Current Status**: v2.0.0 on `feat/v2-architecture` — development complete, pending three-machine
 validation before merge to `main`. v1.5.3 is the final v1.x release.
 
-16 distributions across 6 families. v2.0.0 breaking changes (relative to v1.5.3):
+16 distributions implemented across 6 families. 3 additional distributions — Geometric, Laplace,
+Cauchy — are registered in the enum and metadata table (pending implementation).
+v2.0.0 breaking changes (relative to v1.5.3):
 - Platform baseline raised to macOS 13 Ventura; AppleClang 15+, GCC 13+, Clang 17+, MSVC 19.38+.
 - Alternate Homebrew LLVM compiler path removed; system AppleClang only on macOS.
 - All statistical analysis methods extracted from distribution classes to `stats::analysis` namespace
@@ -36,6 +38,8 @@ validation before merge to `main`. v1.5.3 is the final v1.x release.
 - `BinomialDistribution::getEntropy()` now uses exact PMF summation for n ≤ 1000 (nats).
 - `PoissonDistribution::sample()` large-lambda path uses `std::poisson_distribution<int>` (exact).
 - Include shim uses directory symlink on macOS/Linux; header edits are live without cmake re-run.
+- `include/core/distribution_meta.h` (new): canonical `kDistributionMeta[]` table is the single
+  registration point for all distribution metadata; `include/core/distribution_type.h` holds the enum.
 
 Three-machine validation ecosystem: Kaby Lake AVX2+FMA, Mac Mini M1 NEON, Asus TUF A16 AVX-512.
 
@@ -156,6 +160,34 @@ Selected per-distribution speedups:
 | Exponential | PDF | 14.5x |
 | Exponential | CDF | 7.5x |
 | Gamma | PDF | 8.2x |
+
+### Changes in v2.0.0
+- **Distribution metadata table** (`include/core/distribution_meta.h`): canonical
+  `kDistributionMeta[]` constexpr array with enum name, display name, `is_discrete`, and
+  `is_delegation_wrapper` fields for all 19 registered types. `consteval validateMetaOrdering()`
+  enforces index == enum value at compile time. Accessors: `distributionMeta()`,
+  `distributionMetaSafe()`, `distributionEnumName()`, `distributionDisplayName()`.
+- **`DistributionType` enum extended**: GEOMETRIC(16), LAPLACE(17), CAUCHY(18) appended
+  (implementations pending; NEVER dispatch thresholds set in all four kXxx tables).
+- **`dispatch_thresholds.h` refactored**: `ArchTable` changed from a named-field struct to
+  `using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>`. `parallelThresholdFromTable`
+  replaces a 15-case switch with a 3-line array index lookup. Adding a distribution now requires
+  only an enum append, a metadata row, and a ThresholdRow per table — no switch edits.
+- **Registration drift fixed**: `performance_history.cpp::distributionTypeToString` (was 6/16 cases,
+  silent key collision) and `tool_utils.h::distributionTypeToString` (was 9/16 cases) replaced with
+  `distributionEnumName()` / `distributionDisplayName()` lookups. `system_inspector.cpp` hardcoded
+  5-type list replaced with `kDistributionMeta` iteration.
+- **Dispatch profiling infrastructure**: `summarize_dispatcher_profile.py` V→P crossover corrected
+  to `min(PARALLEL, WORK_STEALING) < VECTORIZED`; `strategy_profile.cpp` batch grid updated;
+  `capture_dispatcher_profile.sh` rewritten; `scripts/PROFILING_METHOD.md` added as canonical
+  profiling procedure. kNeon (6 entries), kAvx2 (9 entries), and kAvx (inferences) recalibrated;
+  16 pre-v2.0.0 profile bundles removed.
+- **`strategy_profile.cpp` `STRATEGIES` array** documented with a registration comment pointing to
+  the compiler-enforced `executeStrategy` switch as the completeness counterpart.
+
+43/43 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON after all v2.0.0
+infrastructure work. Asus TUF A16 (AVX-512): re-run `strategy_profile` with corrected
+`summarize_dispatcher_profile.py` to regenerate canonical kAvx512 thresholds before PR merge.
 
 ### Deferred Items
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
@@ -503,7 +535,7 @@ Level 5: Complete Library Interface (libstats.h)
 
 ### Core Components
 
-#### Statistical Distributions (16 across 6 families)
+#### Statistical Distributions (16 implemented + 3 registered, across 6 families)
 1. **Gaussian** (Normal) - N(μ, σ²)
 2. **Exponential** - Exp(λ)
 3. **Uniform** - U(a, b)
@@ -520,8 +552,11 @@ Level 5: Complete Library Interface (libstats.h)
 14. **Von Mises** - VM(μ, κ) — circular distribution, SIMD via vector_cos
 15. **Binomial** - B(n, p) — discrete, PMF via lgamma
 16. **Negative Binomial** - NB(r, p) — discrete, real-valued r, Newton–Raphson MLE
+17. **Geometric** - Geo(p) — *(registered, pending implementation)* delegate over NegBinomial(r=1)
+18. **Laplace** - Laplace(μ, b) — *(registered, pending implementation)* standalone, median/MAD fit
+19. **Cauchy** - Cauchy(x₀, γ) — *(registered, pending implementation)* delegate over StudentT(ν=1)
 
-Each provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
+Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
 
 #### Platform Optimization
 - **CPU Feature Detection**: Runtime SIMD capability detection
@@ -536,6 +571,9 @@ include/
 ├── libstats.h              # Complete library (single include)
 ├── core/                   # Core mathematical and statistical components
 │   ├── constants/          # Mathematical, precision, statistical constants
+│   ├── distribution_type.h     # DistributionType enum (append-only)
+│   ├── distribution_meta.h     # kDistributionMeta[] — canonical registration table
+│   ├── dispatch_thresholds.h   # Per-architecture parallel thresholds (indexed by DistributionType)
 │   ├── distribution_*.h    # Distribution framework components
 │   └── *_common.h         # Consolidated headers for faster compilation
 ├── distributions/          # Concrete distributions (gaussian.h, etc.)
@@ -567,9 +605,19 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 ### Working with Distributions
 
 #### Creating New Distributions
-1. Use consolidated headers: `#include "../core/distribution_common.h"`
-2. Follow the 24-section standardized template (see `exponential.h` as reference)
-3. Implement the standardized test patterns (`*_basic.cpp` and `*_enhanced.cpp`)
+The registration checklist is authoritative in `include/core/distribution_meta.h`. Summary:
+1. **Append** the new `DistributionType` enum value to `include/core/distribution_type.h`
+   (append-only; never reorder — values are used as array indices).
+2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/core/distribution_meta.h`
+   (enum name, display name, `is_discrete`, `is_delegation_wrapper`).
+3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
+   `include/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
+4. **Implement** the distribution header (`include/distributions/`), source (`src/`), and tests
+   (`tests/*_basic.cpp`, `tests/*_enhanced.cpp`) — see `exponential.h` as the reference template.
+5. **Register** in `CMakeLists.txt` and `include/libstats.h`.
+
+The `consteval validateMetaOrdering()` in `distribution_meta.h` enforces step 1↔2 alignment at
+compile time. After any enum or table change, a clean build verifies consistency.
 
 #### Testing Strategy
 - **All levels**: GTest-based tests registered with CTest
