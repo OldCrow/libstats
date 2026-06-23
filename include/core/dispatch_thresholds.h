@@ -103,69 +103,67 @@ struct ArchTable {
 //
 // Three sequential Release-mode bundles captured on feat/v2-architecture after
 // the v2.0.0 remediation and dispatch-path cleanup work.
+// Method: see scripts/PROFILING_METHOD.md (canonical; V→P = min(P,WS) < VECT;
+// NEVER when best@max = VECTORIZED or SCALAR).
 //
-// Derivation rules:
-//   - Crossover is the first batch size where min(PARALLEL, WORK_STEALING)
-//     beats VECTORIZED.
-//   - Results below 64 are clamped to 64.
-//   - If all three finite results agree within one order of magnitude, use the
-//     most conservative (largest) result.
-//   - If two finite results agree within one order of magnitude and the third is
-//     far away, discard the outlier and use the larger of the coherent pair.
-//   - If two or more runs are NEVER, use NEVER.
-//   - If all finite values are mutually incoherent, use NEVER.
-//
-// Manual overrides applied after review:
-//   - Pareto: measured {PDF=64, LogPDF=50000, CDF=100000}; CDF held at 50000
-//     because the upward move looked overly conservative for the log-only path.
-//   - Weibull: measured CDF suggested 100000 from {50000, 64, 100000}; held at
-//     64 because the 50k/100k result looked like GCD scheduling variability
-//     rather than a real path regression.
+// Corrections applied relative to original encoding (buggy PARALLEL-only V→P):
+//   - Uniform LogPDF: 1000 → NEVER. All 3 runs: best@max = VECTORIZED (parallel
+//     crossed briefly but didn’t sustain). Original encoding used a transient
+//     PARALLEL crossover that the sustainability check correctly rejects.
+//   - Discrete CDF: 64 → NEVER. All 3 runs: best@max = VECTORIZED.
+//   - Pareto CDF: 50000 → 100000. Three-run rule: {20k,50k,100k} all within
+//     OOM → max = 100000. Prior encoding was manually held at 50k; removed.
+//   - Weibull CDF: 64 → 100000. Three-run rule: {50k,64,100k}; discard outlier
+//     64 (warm GCD pool), max of coherent pair {50k,100k} = 100000. Prior hold
+//     at 64 misidentified the warm-pool run as the representative value.
+//   - Binomial CDF: 64 → NEVER. All 3 runs: best@max = VECTORIZED.
+//   - NegBinomial CDF: 128 → NEVER. All 3 runs: best@max = VECTORIZED/SCALAR.
 constexpr ArchTable kNeon = {
-    /* uniform     */ {64, 1000, 64},
+    /* uniform     */ {64, NEVER, 64},
     /* gaussian    */ {64, 64, NEVER},
     /* exponential */ {64, 64, 64},
-    /* discrete    */ {100000, 100000, 64},
+    /* discrete    */ {100000, 100000, NEVER},
     /* poisson     */ {2000, 64, 64},
     /* gamma       */ {64, 64, 64},
     /* student_t   */ {64, 64, 64},
     /* chi_squared */ {64, 64, 64},
     /* lognormal         */ {64, 64, NEVER},
-    /* pareto            */ {64, 50000, 50000},  // CDF manually held at 50k
-    /* weibull           */ {64, 64, 64},        // CDF manually held at 64
+    /* pareto            */ {64, 50000, 100000},
+    /* weibull           */ {64, 64, 100000},
     /* rayleigh          */ {64, 64, 64},
     /* von_mises         */ {250000, 250000, 64},
-    /* binomial          */ {NEVER, NEVER, 64},
-    /* negative_binomial */ {NEVER, NEVER, 128},
+    /* binomial          */ {NEVER, NEVER, NEVER},
+    /* negative_binomial */ {NEVER, NEVER, NEVER},
 };
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
 // data/profiles/dispatcher/2026-06-15T05-25-42Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
 // data/profiles/dispatcher/2026-06-15T05-40-12Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
 //
-// Two Release-mode bundles captured on fix/audit-remediation. Method: where both
-// runs agree that a multi-threaded strategy wins at 500k, use the larger V→P
-// crossover as a conservative threshold (64 floor). NEVER only when VECTORIZED
-// is consistently best at max size across both runs.
-// Note: PARALLEL vs WORK_STEALING variation between runs is irrelevant for this
-// table; selectMultiThreadedStrategy resolves that choice at runtime.
+// Two Release-mode bundles on fix/audit-remediation (Ivy Bridge retired; hardware
+// no longer in the ecosystem).  Original encoding used the buggy PARALLEL-only
+// V→P definition and predates the v2.0.0 dispatch-path improvements.
 //
-// Key changes vs v1.5.0 main baseline (2026-06-15T00-33-56Z):
-//   - Gaussian CDF: 50000 -> 64. Both runs show crossover at 8 (clamped to 64
-//     floor). Branch changes made parallel competitive earlier on erf-heavy path.
-//   - Exponential PDF: 64 -> 100000. Conservative upper bound (runs: 100k vs 8;
-//     both WORK_STEALING at max size).
-//   - Discrete PDF/LogPDF/CDF: 64/1000/250000 -> 128/100000/100000.
-//   - Poisson PDF/CDF: 128/64 -> 50000/50000. Both runs consistent at 50000.
-//   - StudentT PDF/LogPDF/CDF: unchanged at 100000/64/64. Both runs agree
-//     exactly on V→P values (100k/8/8); PARALLEL vs WORK_STEALING at max size
-//     is irrelevant.
+// Inferred updates applied (architecture-independent dispatch improvements from
+// v2.0.0; same code paths affect AVX as AVX2; see kAvx2 for measured evidence):
+//   - Exponential PDF: 100000 → 64  (kAvx2 measured 64; parallel competitive
+//     much earlier on fixed dispatch paths)
+//   - Discrete PDF: 128 → 100000   (128 was a PARALLEL-only noise artifact;
+//     kNeon measured 100000 stably; inferred same for kAvx)
+//   - Poisson: {50000,50000,50000} → {64,64,64}  (kAvx2 measured 64; dispatch
+//     path fix makes parallel competitive much earlier)
+//   - VonMises PDF: 500000 → 64    (kAvx2 measured 64; kAvx512 measured 64;
+//     architecture-independent GCD improvement)
+//   - Binomial CDF: 50000 → NEVER  (kAvx2 and kNeon both show best@max =
+//     VECTORIZED; inferred same sustainability failure for kAvx)
+//   - NegBinomial CDF: 50000 → NEVER  (same reasoning as Binomial CDF)
+// SSE2 delegates to kAvx (line 364); both are updated together.
 constexpr ArchTable kAvx = {
     /* uniform     */ {NEVER, NEVER, 64},
     /* gaussian    */ {64, 64, 64},
-    /* exponential */ {100000, 64, 64},
-    /* discrete    */ {128, 100000, 100000},
-    /* poisson     */ {50000, 50000, 50000},
+    /* exponential */ {64, 64, 64},    // PDF: inferred 100000→64
+    /* discrete    */ {100000, 100000, 100000},  // PDF: inferred 128→100000
+    /* poisson     */ {64, 64, 64},    // inferred from kAvx2 (was 50000)
     /* gamma       */ {64, 64, 64},
     /* student_t   */ {100000, 64, 64},
     /* chi_squared */ {64, 64, 64},
@@ -173,9 +171,9 @@ constexpr ArchTable kAvx = {
     /* pareto            */ {100000, 64, 250000},
     /* weibull           */ {64, 64, 100000},
     /* rayleigh          */ {64, 64, 64},
-    /* von_mises         */ {500000, 64, 64},
-    /* binomial          */ {NEVER, NEVER, 50000},  // PDF/LogPDF: VECTORIZED wins at 500k
-    /* negative_binomial */ {NEVER, NEVER, 50000},  // PDF/LogPDF: VECTORIZED wins at 500k
+    /* von_mises         */ {64, 64, 64},   // PDF: inferred 500000→64
+    /* binomial          */ {NEVER, NEVER, NEVER},  // CDF: inferred 50000→NEVER
+    /* negative_binomial */ {NEVER, NEVER, NEVER},  // CDF: inferred 50000→NEVER
 };
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
@@ -184,51 +182,52 @@ constexpr ArchTable kAvx = {
 // data/profiles/dispatcher/2026-06-22T21-33-55Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
 //
 // Three sequential Release-mode bundles captured on feat/v2-architecture (909dc9a).
-// Method: clamp < 64 → 64; if best@500k = VECTORIZED, use NEVER regardless of
-// apparent crossover (transient, not sustainable). Aggregation: all three within
-// 10× → max (conservative); two within 10× + outlier → discard outlier, max of
-// coherent pair; else NEVER.
+// Method: see scripts/PROFILING_METHOD.md (canonical; V→P = min(P,WS) < VECT;
+// NEVER when best@max = VECTORIZED or SCALAR).
+//
+// Note: initial encoding of this table used a buggy PARALLEL-only V→P definition.
+// Corrected values below use min(PARALLEL, WORK_STEALING) < VECTORIZED, which
+// revealed WS was beating VECTORIZED at much lower thresholds than PARALLEL was.
+// This explains why many entries that appeared as 64 ("blank clamped to floor")
+// were actually 50k–250k range: WS was crossing early; PARALLEL was not.
 //
 // Manual override applied after review:
-//   - Discrete LogPDF: three-run rule gave 64 from {64, 500k, 64}, but the
-//     500k result in Run 2 indicates a real cold-pool / warm-pool bimodal
-//     instability — parallel only wins reliably on a warm GCD pool. On a cold
-//     pool the crossover is at 500k+, making 64 incorrect roughly one run in
-//     three. Held at NEVER as the conservative defensible value.
+//   - Discrete LogPDF: bimodal {64, 100k, 100k}; 64 is the warm-pool outlier.
+//     Two-run majority at 100k, same as Discrete PDF; encoded as 100000.
+//   - VonMises LogPDF: R3 = 500000 (measurement ceiling; advisory printed).
+//     500000 is conservative and valid; re-run with --large to refine if needed.
 //
 // Key changes vs prior kAvx2 (fix/audit-remediation sha-5675c93, 2 runs):
-//   - Gaussian CDF: 20000 → 100000 (vectorized CDF path improvements in v2.0.0
-//     push the parallel breakeven to a higher batch size)
-//   - Discrete PDF: NEVER → 500000 (parallel wins at 500k, two-run majority;
-//     bimodal but majority signal is conservative)
-//   - Discrete LogPDF: NEVER → NEVER (manual override; bimodal instability)
-//   - Discrete CDF: NEVER → 64 (three-run consensus)
-//   - Poisson PDF: 20000 → 64 (dispatch path cleanup, parallel competitive much
-//     earlier)
-//   - Poisson LogPDF/CDF: NEVER → 64 (three-run consensus; previously blank)
-//   - StudentT PDF: NEVER → 250000 (three-run consensus: 250k/250k/100k, all
-//     within OOM)
-//   - Pareto LogPDF/CDF: NEVER → 64 (three-run consensus; previously incoherent)
-//   - Weibull CDF: NEVER → 64 (three-run consensus)
-//   - VonMises PDF/LogPDF: NEVER → 64 (three-run consensus; blank + WS@max →
-//     clamped to 64 floor)
-//   - Binomial CDF: 64 → NEVER (best@500k = VECTORIZED in all three runs;
-//     parallel was briefly competitive at small sizes but vectorized dominates
-//     at production batch sizes)
+//   - Gaussian CDF: 20000 → 20000  (corrected: WS at {10k,20k,10k} vs old
+//     PARALLEL-only {100k,50k,100k}; conserved max within OOM = 20000)
+//   - Discrete PDF: NEVER → 100000 (corrected: WS at 100k all 3 runs; old
+//     PARALLEL-only showed bimodal {blank/500k/500k} = artifact)
+//   - Discrete LogPDF: NEVER → 100000 (corrected bimodal; see manual override)
+//   - Discrete CDF: NEVER → 64 (three-run consensus; best@max = WS)
+//   - Poisson PDF/LogPDF/CDF: NEVER → 64 (parallel competitive at floor)
+//   - StudentT PDF: NEVER → 50000 (corrected WS at {50k,20k,50k}; old
+//     PARALLEL-only showed {250k,250k,100k})
+//   - Pareto PDF: NEVER → 50000 (corrected WS at {50k,20k,50k})
+//   - Pareto LogPDF: NEVER → 64 (WS at floor; consistent 3 runs)
+//   - Pareto CDF: NEVER → 100000 (WS at {100k,100k,20k})
+//   - Weibull CDF: NEVER → 250000 (corrected WS at {50k,250k,50k})
+//   - VonMises PDF: NEVER → 250000 (corrected WS at {250k,250k,100k})
+//   - VonMises LogPDF: NEVER → 500000 (WS at {250k,250k,500k}; ceiling hit)
+//   - Binomial CDF: 64 → NEVER (best@max = VECTORIZED all 3 runs)
 constexpr ArchTable kAvx2 = {
     /* uniform     */ {NEVER, NEVER, 64},
-    /* gaussian    */ {64, 64, 100000},
+    /* gaussian    */ {64, 64, 20000},
     /* exponential */ {64, 64, 64},
-    /* discrete    */ {500000, NEVER, 64},  // PDF: bimodal, conservative 500k; LogPDF: manual NEVER
+    /* discrete    */ {100000, 100000, 64},
     /* poisson     */ {64, 64, 64},
     /* gamma       */ {64, 64, 64},
-    /* student_t   */ {250000, 64, 64},
+    /* student_t   */ {50000, 64, 64},
     /* chi_squared */ {64, 64, 64},
     /* lognormal         */ {64, 64, 64},
-    /* pareto            */ {250000, 64, 64},
-    /* weibull           */ {64, 64, 64},
+    /* pareto            */ {50000, 64, 100000},
+    /* weibull           */ {64, 64, 250000},
     /* rayleigh          */ {64, 64, 64},
-    /* von_mises         */ {64, 64, 64},
+    /* von_mises         */ {250000, 500000, 64},  // LogPDF ceiling hit; --large advisory
     /* binomial          */ {NEVER, NEVER, NEVER},
     /* negative_binomial */ {NEVER, NEVER, NEVER},
 };
@@ -239,7 +238,15 @@ constexpr ArchTable kAvx2 = {
 // data/profiles/dispatcher/2026-06-22T02-59-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
 //
 // Three sequential Release-mode runs on feat/v2-architecture (9b2c1a3).
-// Method: clamp < 64 → 64; all three within 10× → max (conservative);
+// Method: PARALLEL-only V→P (pre-correction). Needs re-validation with the
+// canonical min(P,WS) method (scripts/PROFILING_METHOD.md). The raw bundles
+// are missing strategy_profile_results.csv; re-run on Windows to regenerate.
+// Values below are best-available and not expected to change dramatically
+// (Windows/Thread Pool uses only PARALLEL, so min(P,WS) == PARALLEL for
+// Windows), but the sustainability check (NEVER when best@max=VECTORIZED) was
+// not applied. See PROFILING_METHOD.md § Known Issues.
+//
+// Method (as applied at time of encoding): clamp < 64 → 64; all three within 10× → max (conservative);
 // two within 10× + one outlier → discard outlier, max of valid pair; else NEVER.
 // Windows/Thread Pool always dispatches PARALLEL (not WORK_STEALING); variation
 // between PARALLEL and WORK_STEALING at max size is ignored for threshold derivation.

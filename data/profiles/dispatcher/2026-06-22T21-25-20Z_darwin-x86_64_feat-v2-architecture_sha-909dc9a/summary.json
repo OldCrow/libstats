@@ -73,7 +73,7 @@
       {
         "distribution": "Beta",
         "operation": "CDF",
-        "vectorized_to_parallel": 64
+        "vectorized_to_parallel": 32
       },
       {
         "distribution": "Beta",
@@ -113,12 +113,12 @@
       {
         "distribution": "Discrete",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 500000
+        "vectorized_to_parallel": 100000
       },
       {
         "distribution": "Discrete",
         "operation": "PDF",
-        "vectorized_to_parallel": 500000
+        "vectorized_to_parallel": 100000
       },
       {
         "distribution": "Exponential",
@@ -153,7 +153,7 @@
       {
         "distribution": "Gaussian",
         "operation": "CDF",
-        "vectorized_to_parallel": 50000
+        "vectorized_to_parallel": 20000
       },
       {
         "distribution": "Gaussian",
@@ -187,13 +187,18 @@
       },
       {
         "distribution": "Pareto",
+        "operation": "CDF",
+        "vectorized_to_parallel": 100000
+      },
+      {
+        "distribution": "Pareto",
         "operation": "LogPDF",
         "vectorized_to_parallel": 8
       },
       {
         "distribution": "Pareto",
         "operation": "PDF",
-        "vectorized_to_parallel": 250000
+        "vectorized_to_parallel": 20000
       },
       {
         "distribution": "Poisson",
@@ -238,7 +243,7 @@
       {
         "distribution": "StudentT",
         "operation": "PDF",
-        "vectorized_to_parallel": 250000
+        "vectorized_to_parallel": 20000
       },
       {
         "distribution": "Uniform",
@@ -259,6 +264,21 @@
         "distribution": "VonMises",
         "operation": "CDF",
         "vectorized_to_parallel": 16
+      },
+      {
+        "distribution": "VonMises",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 250000
+      },
+      {
+        "distribution": "VonMises",
+        "operation": "PDF",
+        "vectorized_to_parallel": 250000
+      },
+      {
+        "distribution": "Weibull",
+        "operation": "CDF",
+        "vectorized_to_parallel": 250000
       },
       {
         "distribution": "Weibull",

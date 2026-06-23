@@ -116,11 +116,27 @@ class StrategyProfiler {
     std::vector<std::size_t> batch_sizes_;
 
     void initialize_batch_sizes(bool include_large) {
-        batch_sizes_ = {8,    16,   32,    64,    128,   256,    512,    1000,
-                        2000, 5000, 10000, 20000, 50000, 100000, 250000, 500000};
+        // Standard grid: powers-of-2 to L1/L2 cache boundary (8 doubles per
+        // cache line; L1 boundary ~4-8 KiB on all target CPUs), then
+        // geometrically spaced large-batch points for precise V→P threshold
+        // resolution.  Sizes < 64 are excluded: timing resolution (~0.1-0.2 µs)
+        // is too coarse to distinguish strategies at those batch sizes, and
+        // the dispatch table clamps all thresholds to a minimum of 64.
+        batch_sizes_ = {
+            // Cache-line-aligned small sizes (8 doubles = 1 cache line)
+            64, 128, 256, 512, 1024, 2048, 4096, 6144, 8192,
+            // Medium/large: dense coverage of the 10k-500k band where most
+            // V→P crossovers actually occur.
+            10000, 25000, 50000, 75000,
+            100000, 150000, 200000, 250000, 300000, 400000, 500000
+        };
 
         if (include_large) {
+            // Extended range for resolving crossovers that hit the 500k ceiling.
+            // Use --large when any standard run reports V→P = 500000.
+            batch_sizes_.push_back(750000);
             batch_sizes_.push_back(1000000);
+            batch_sizes_.push_back(1500000);
             batch_sizes_.push_back(2000000);
         }
     }

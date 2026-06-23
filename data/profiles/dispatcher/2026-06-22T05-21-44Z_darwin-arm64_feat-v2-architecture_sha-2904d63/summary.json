@@ -73,24 +73,24 @@
       {
         "distribution": "Beta",
         "operation": "CDF",
-        "vectorized_to_parallel": 256
-      },
-      {
-        "distribution": "Beta",
-        "operation": "LogPDF",
-        "vectorized_to_parallel": 512
-      },
-      {
-        "distribution": "Beta",
-        "operation": "PDF",
-        "vectorized_to_parallel": 8
-      },
-      {
-        "distribution": "Binomial",
-        "operation": "CDF",
         "vectorized_to_parallel": 32
       },
       {
+        "distribution": "Beta",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 128
+      },
+      {
+        "distribution": "Beta",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8
+      },
+      {
+        "distribution": "Binomial",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8
+      },
+      {
         "distribution": "Binomial",
         "operation": "PDF",
         "vectorized_to_parallel": 512
@@ -118,12 +118,12 @@
       {
         "distribution": "Discrete",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 250000
+        "vectorized_to_parallel": 100000
       },
       {
         "distribution": "Discrete",
         "operation": "PDF",
-        "vectorized_to_parallel": 250000
+        "vectorized_to_parallel": 50000
       },
       {
         "distribution": "Exponential",
@@ -188,7 +188,7 @@
       {
         "distribution": "Pareto",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 100000
+        "vectorized_to_parallel": 50000
       },
       {
         "distribution": "Pareto",
@@ -203,12 +203,12 @@
       {
         "distribution": "Poisson",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 128
+        "vectorized_to_parallel": 64
       },
       {
         "distribution": "Poisson",
         "operation": "PDF",
-        "vectorized_to_parallel": 10000
+        "vectorized_to_parallel": 2000
       },
       {
         "distribution": "Rayleigh",
@@ -258,7 +258,7 @@
       {
         "distribution": "VonMises",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 500000
+        "vectorized_to_parallel": 16
       },
       {
         "distribution": "VonMises",

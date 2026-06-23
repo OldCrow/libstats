@@ -113,12 +113,12 @@
       {
         "distribution": "Discrete",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 250000
+        "vectorized_to_parallel": 100000
       },
       {
         "distribution": "Discrete",
         "operation": "PDF",
-        "vectorized_to_parallel": 250000
+        "vectorized_to_parallel": 100000
       },
       {
         "distribution": "Exponential",
@@ -138,7 +138,7 @@
       {
         "distribution": "Gamma",
         "operation": "CDF",
-        "vectorized_to_parallel": 16
+        "vectorized_to_parallel": 8
       },
       {
         "distribution": "Gamma",
@@ -178,7 +178,7 @@
       {
         "distribution": "Pareto",
         "operation": "CDF",
-        "vectorized_to_parallel": 100000
+        "vectorized_to_parallel": 20000
       },
       {
         "distribution": "Pareto",
@@ -193,12 +193,12 @@
       {
         "distribution": "Poisson",
         "operation": "CDF",
-        "vectorized_to_parallel": 512
+        "vectorized_to_parallel": 64
       },
       {
         "distribution": "Poisson",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 128
+        "vectorized_to_parallel": 32
       },
       {
         "distribution": "Poisson",
@@ -246,6 +246,11 @@
         "vectorized_to_parallel": 16
       },
       {
+        "distribution": "Uniform",
+        "operation": "PDF",
+        "vectorized_to_parallel": 16
+      },
+      {
         "distribution": "VonMises",
         "operation": "CDF",
         "vectorized_to_parallel": 16
@@ -253,7 +258,7 @@
       {
         "distribution": "VonMises",
         "operation": "LogPDF",
-        "vectorized_to_parallel": 500000
+        "vectorized_to_parallel": 250000
       },
       {
         "distribution": "VonMises",
