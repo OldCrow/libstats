@@ -25,7 +25,9 @@ from typing import Any
 
 
 def load_metadata(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
+    # Use utf-8-sig to transparently strip a UTF-8 BOM if present (Windows PS1
+    # writers may produce BOM-prefixed UTF-8; utf-8-sig handles both cases).
+    with path.open("r", encoding="utf-8-sig") as handle:
         return json.load(handle)
 
 

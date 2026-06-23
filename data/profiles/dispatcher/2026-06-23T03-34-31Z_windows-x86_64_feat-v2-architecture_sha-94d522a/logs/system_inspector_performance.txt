@@ -1,0 +1,158 @@
+﻿
+=======================================
+  System Inspector - Performance Mode
+=======================================
+
+System capabilities analysis with performance measurements
+
+System: 12 logical cores, AVX-512 SIMD, 16384 KB L3 cache
+
+
+--- CPU Features ---
+Feature             Support   Description                   
+------------------------------------------------------------
+AVX-512             Yes       Foundation instructions       
+AVX2                Yes       Advanced Vector Ext 2         
+AVX                 Yes       Advanced Vector Ext           
+SSE2                Yes       Streaming SIMD Ext 2          
+NEON                No        ARM SIMD instructions         
+FMA                 Yes       Fused Multiply-Add            
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size      
+------------------------------------------
+L1             32          64 bytes       
+L2             1024        64 bytes       
+L3             16384       64 bytes       
+
+
+--- CPU Topology ---
+Hardware Threads:        12
+Logical Cores:           12
+Physical Cores:          6
+Hyperthreading:          Enabled
+
+
+--- SIMD Capabilities ---
+Instruction Support   Vector Width   Description              
+--------------------------------------------------------------
+SSE2        Yes       128-bit        Basic SIMD operations    
+AVX         Yes       256-bit        Advanced vector ext      
+AVX2        Yes       256-bit        Integer AVX operations   
+AVX-512     Yes       512-bit        Foundation instructions  
+NEON        No        128-bit        ARM SIMD instructions    
+
+Active SIMD Level: AVX-512
+
+
+--- Performance Baselines ---
+Operation Type           Time (μs)     Throughput (MOps/s) 
+------------------------------------------------------------
+SIMD Multiply            434            2302                
+Scalar Multiply          213            4679                
+
+SIMD Speedup: 0.49x
+
+
+--- Performance Dispatcher Configuration ---
+Example Strategy Selections:
+Batch Size          Distribution   Operation      Strategy            
+----------------------------------------------------------------------
+100                 Uniform        PDF            Vectorized          
+100                 Gaussian       PDF            Vectorized          
+100                 Exponential    PDF            Vectorized          
+100                 Discrete       PDF            Parallel            
+100                 Poisson        PDF            Parallel            
+100                 Gamma          PDF            Vectorized          
+100                 StudentT       PDF            Vectorized          
+100                 Beta           PDF            Vectorized          
+100                 ChiSquared     PDF            Parallel            
+100                 LogNormal      PDF            Parallel            
+100                 Pareto         PDF            Vectorized          
+100                 Weibull        PDF            Vectorized          
+100                 Rayleigh       PDF            Parallel            
+100                 VonMises       PDF            Parallel            
+100                 Binomial       PDF            Vectorized          
+100                 NegativeBinomialPDF            Vectorized          
+100                 Geometric      PDF            Vectorized          
+100                 Laplace        PDF            Vectorized          
+100                 Cauchy         PDF            Vectorized          
+1000                Uniform        PDF            Vectorized          
+1000                Gaussian       PDF            Vectorized          
+1000                Exponential    PDF            Vectorized          
+1000                Discrete       PDF            Parallel            
+1000                Poisson        PDF            Parallel            
+1000                Gamma          PDF            Vectorized          
+1000                StudentT       PDF            Vectorized          
+1000                Beta           PDF            Vectorized          
+1000                ChiSquared     PDF            Parallel            
+1000                LogNormal      PDF            Parallel            
+1000                Pareto         PDF            Vectorized          
+1000                Weibull        PDF            Vectorized          
+1000                Rayleigh       PDF            Parallel            
+1000                VonMises       PDF            Parallel            
+1000                Binomial       PDF            Vectorized          
+1000                NegativeBinomialPDF            Vectorized          
+1000                Geometric      PDF            Vectorized          
+1000                Laplace        PDF            Vectorized          
+1000                Cauchy         PDF            Vectorized          
+10000               Uniform        PDF            Vectorized          
+10000               Gaussian       PDF            Vectorized          
+10000               Exponential    PDF            Vectorized          
+10000               Discrete       PDF            Parallel            
+10000               Poisson        PDF            Parallel            
+10000               Gamma          PDF            Vectorized          
+10000               StudentT       PDF            Vectorized          
+10000               Beta           PDF            Vectorized          
+10000               ChiSquared     PDF            Parallel            
+10000               LogNormal      PDF            Parallel            
+10000               Pareto         PDF            Vectorized          
+10000               Weibull        PDF            Vectorized          
+10000               Rayleigh       PDF            Parallel            
+10000               VonMises       PDF            Parallel            
+10000               Binomial       PDF            Parallel            
+10000               NegativeBinomialPDF            Vectorized          
+10000               Geometric      PDF            Vectorized          
+10000               Laplace        PDF            Vectorized          
+10000               Cauchy         PDF            Vectorized          
+100000              Uniform        PDF            Vectorized          
+100000              Gaussian       PDF            Vectorized          
+100000              Exponential    PDF            Vectorized          
+100000              Discrete       PDF            Parallel            
+100000              Poisson        PDF            Parallel            
+100000              Gamma          PDF            Vectorized          
+100000              StudentT       PDF            Vectorized          
+100000              Beta           PDF            Vectorized          
+100000              ChiSquared     PDF            Parallel            
+100000              LogNormal      PDF            Parallel            
+100000              Pareto         PDF            Vectorized          
+100000              Weibull        PDF            Vectorized          
+100000              Rayleigh       PDF            Parallel            
+100000              VonMises       PDF            Parallel            
+100000              Binomial       PDF            Parallel            
+100000              NegativeBinomialPDF            Vectorized          
+100000              Geometric      PDF            Vectorized          
+100000              Laplace        PDF            Vectorized          
+100000              Cauchy         PDF            Vectorized          
+
+
+--- Platform Constants ---
+Constant                           Value          
+--------------------------------------------------
+SIMD Block Size                    4 doubles      
+Memory Alignment                   64 bytes       
+Min SIMD Size                      16 elements    
+Optimal Grain Size                 64 elements    
+Fast Transcendental Support        Yes            
+
+
+--- Adaptive Constants ---
+Constant                           Value          
+--------------------------------------------------
+Min Elements for Parallel          8192           
+Default Grain Size                 256            
+Simple Operation Grain Size        128            
+Complex Operation Grain Size       512            
+
+System inspection completed successfully.

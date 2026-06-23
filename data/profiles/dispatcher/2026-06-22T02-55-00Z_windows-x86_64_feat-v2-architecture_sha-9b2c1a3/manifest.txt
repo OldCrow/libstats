@@ -1,7 +1,0 @@
-platform=windows
-arch=x86_64
-simd=avx512
-cpu=AMD Ryzen 7 7445HS (Zen 4)
-cores=6P/12T
-branch=feat/v2-architecture
-sha=9b2c1a3

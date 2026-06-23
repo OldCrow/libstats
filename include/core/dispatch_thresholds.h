@@ -236,60 +236,55 @@ constexpr ArchTable kAvx2 = {{
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
-// data/profiles/dispatcher/2026-06-22T02-52-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
-// data/profiles/dispatcher/2026-06-22T02-55-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
-// data/profiles/dispatcher/2026-06-22T02-59-00Z_windows-x86_64_feat-v2-architecture_sha-9b2c1a3
+// Standard 3-run bundles (64–500k grid):
+//   data/profiles/dispatcher/2026-06-23T03-20-53Z_windows-x86_64_feat-v2-architecture_sha-94d522a
+//   data/profiles/dispatcher/2026-06-23T03-27-10Z_windows-x86_64_feat-v2-architecture_sha-94d522a
+//   data/profiles/dispatcher/2026-06-23T03-34-31Z_windows-x86_64_feat-v2-architecture_sha-94d522a
+// Extended 3-run bundles (--large, 64–2M grid):
+//   data/profiles/dispatcher/2026-06-23T03-55-00Z_windows-x86_64_feat-v2-architecture_sha-94d522a
+//   data/profiles/dispatcher/2026-06-23T04-15-45Z_windows-x86_64_feat-v2-architecture_sha-94d522a
+//   data/profiles/dispatcher/2026-06-23T04-36-00Z_windows-x86_64_feat-v2-architecture_sha-94d522a
 //
-// Three sequential Release-mode runs on feat/v2-architecture (9b2c1a3).
-// Method: PARALLEL-only V→P (pre-correction). Needs re-validation with the
-// canonical min(P,WS) method (scripts/PROFILING_METHOD.md). The raw bundles
-// are missing strategy_profile_results.csv; re-run on Windows to regenerate.
-// Values below are best-available and not expected to change dramatically
-// (Windows/Thread Pool uses only PARALLEL, so min(P,WS) == PARALLEL for
-// Windows), but the sustainability check (NEVER when best@max=VECTORIZED) was
-// not applied. See PROFILING_METHOD.md § Known Issues.
-//
-// Method (as applied at time of encoding): clamp < 64 → 64; all three within 10× → max (conservative);
-// two within 10× + one outlier → discard outlier, max of valid pair; else NEVER.
-// Windows/Thread Pool always dispatches PARALLEL (not WORK_STEALING); variation
-// between PARALLEL and WORK_STEALING at max size is ignored for threshold derivation.
-//
-// Key changes vs prior kAvx512 (fix/audit-remediation sha-932addd):
-//   - Uniform LogPDF: 1000 → 100000 (parallel competitive much later on v2 paths)
-//   - Uniform CDF:    256 → 64
-//   - Gaussian LogPDF: NEVER → 64; Gaussian CDF: NEVER → 20000
-//   - Exponential LogPDF: NEVER → 64; Exponential CDF: NEVER → 500000
-//   - Discrete: all NEVER → {64, 250000, 100000} (parallel now consistently competitive)
-//   - Poisson: {NEVER, 50000, NEVER} → {64, 128, 256} (parallel competitive much earlier)
-//   - ChiSquared PDF: NEVER → 64
-//   - LogNormal PDF/LogPDF: NEVER → 64
-//   - Rayleigh CDF: 64 → 500000 (vectorized dominant at medium sizes; parallel only at 500k)
-//   - VonMises PDF: NEVER → 64; VonMises CDF: 256 → 64
-//   - Binomial: {NEVER, NEVER, 64} → {2000, 50000, 128}
-//   - NegBinomial CDF: 128 → 512
-//   - Weibull LogPDF: 250000 → 64
-//   - Gamma {250000, 64, 64}: unchanged — perfectly stable across all three runs
-//   - StudentT PDF/LogPDF, Pareto all, Weibull CDF: NEVER unchanged
+// Method: see scripts/PROFILING_METHOD.md (canonical; sustainability check applied;
+// min(P,WS) == PARALLEL on Windows Thread Pool).
+// Base: --large derived table (resolves 500k ceiling entries in standard runs).
+// Bimodal overrides (warm-pool/cold-pool, per PROFILING_METHOD.md §Bimodal —
+// use NEVER or the more conservative threshold):
+//   - Exponential LogPDF: standard {NEVER,500k,300k}→500k vs large {64,64,400k}→64;
+//     complete flip indicates warm-pool artifact; conservative = NEVER.
+//   - Poisson PDF: standard {64,8192,8192}→8192 vs large {8192,64,128}→128;
+//     bimodal; conservative = 8192 (standard).
+//   - Poisson CDF: standard {256,2048,512}→2048 vs large {64,8192,64}→64;
+//     bimodal; conservative = 2048 (standard).
+// Ceiling advisories (--large ceiling = 2M):
+//   - Pareto PDF: 2M ceiling in 2 of 3 large runs; 2000000 is valid conservative.
+//   - Gaussian PDF/LogPDF: resolved at 1M in large runs (were 500k ceiling or NEVER
+//     in standard runs).
+//   - Weibull CDF: 1500000 emerged only in large runs; not visible below 500k.
+//   - Pareto LogPDF: 1000000 emerged only in large runs.
+// Beta: first real thresholds on any SIMD tier; Windows Thread Pool overhead
+//   amortises earlier than GCD for the expensive incomplete-beta path (kAvx2=NEVER).
+// Binomial PDF/LogPDF: NEVER — VECTORIZED dominates at max size in large runs.
 constexpr ArchTable kAvx512 = {{
-    /* UNIFORM(0)            */ {NEVER, 100000, 64},
-    /* GAUSSIAN(1)           */ {NEVER, 64, 20000},
-    /* EXPONENTIAL(2)        */ {500000, 64, 500000},
-    /* DISCRETE(3)           */ {64, 250000, 100000},
-    /* POISSON(4)            */ {64, 128, 256},
-    /* GAMMA(5)              */ {250000, 64, 64},
-    /* STUDENT_T(6)          */ {NEVER, NEVER, 256},
-    /* BETA(7)               */ {NEVER, NEVER, NEVER},
-    /* CHI_SQUARED(8)        */ {64, 64, 64},
-    /* LOG_NORMAL(9)         */ {64, 64, 64},
-    /* PARETO(10)            */ {NEVER, NEVER, NEVER},
-    /* WEIBULL(11)           */ {250000, 64, NEVER},
-    /* RAYLEIGH(12)          */ {64, 64, 500000},
-    /* VON_MISES(13)         */ {64, 100000, 64},
-    /* BINOMIAL(14)          */ {2000, 50000, 128},
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* UNIFORM(0)            */ {50000,   50000,   256},
+    /* GAUSSIAN(1)           */ {1000000, 1000000, 50000},
+    /* EXPONENTIAL(2)        */ {500000,  NEVER,   300000},  // LogPDF bimodal → NEVER
+    /* DISCRETE(3)           */ {200000,  200000,  75000},
+    /* POISSON(4)            */ {8192,    25000,   2048},    // PDF/CDF bimodal → standard
+    /* GAMMA(5)              */ {150000,  150000,  64},
+    /* STUDENT_T(6)          */ {NEVER,   NEVER,   256},
+    /* BETA(7)               */ {256,     128,     6144},
+    /* CHI_SQUARED(8)        */ {150000,  150000,  128},
+    /* LOG_NORMAL(9)         */ {150000,  150000,  50000},
+    /* PARETO(10)            */ {2000000, 1000000, NEVER},   // PDF at 2M ceiling
+    /* WEIBULL(11)           */ {150000,  150000,  1500000}, // CDF emerged in large
+    /* RAYLEIGH(12)          */ {150000,  150000,  300000},
+    /* VON_MISES(13)         */ {50000,   100000,  64},
+    /* BINOMIAL(14)          */ {NEVER,   NEVER,   128},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER,   NEVER,   2048},
+    /* GEOMETRIC(16)         */ {NEVER,   NEVER,   NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER,   NEVER,   NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER,   NEVER,   NEVER},  // not yet profiled
 }};
 
 /**
