@@ -15,9 +15,9 @@
  * and is architecture-independent within a SIMD level (typically 4–8 elements).
  */
 
+#include "distribution_meta.h"  // kDistributionTypeCount, DistributionType ordering
 #include "libstats/platform/simd_policy.h"
 #include "performance_dispatcher.h"
-#include "distribution_meta.h"  // kDistributionTypeCount, DistributionType ordering
 
 #include <array>
 #include <cstddef>
@@ -88,44 +88,73 @@ struct ThresholdRow {
 using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>;
 
 // --- NEON (Apple M1, 128-bit, 8C/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-22T05-19-18Z_darwin-arm64_feat-v2-architecture_sha-2904d63
-// data/profiles/dispatcher/2026-06-22T05-21-44Z_darwin-arm64_feat-v2-architecture_sha-2904d63
-// data/profiles/dispatcher/2026-06-22T05-24-10Z_darwin-arm64_feat-v2-architecture_sha-2904d63
+// data/profiles/dispatcher/2026-06-24T02-38-54Z_darwin-arm64_feat-v2-architecture_sha-fb8e8b6
+// data/profiles/dispatcher/2026-06-24T02-44-18Z_darwin-arm64_feat-v2-architecture_sha-fb8e8b6
+// data/profiles/dispatcher/2026-06-24T02-49-41Z_darwin-arm64_feat-v2-architecture_sha-fb8e8b6
 //
-// Three sequential Release-mode bundles captured on feat/v2-architecture after
-// the v2.0.0 remediation and dispatch-path cleanup work.
+// Three sequential Release-mode bundles on feat/v2-architecture (fb8e8b6).
 // Method: see scripts/PROFILING_METHOD.md (canonical; V→P = min(P,WS) < VECT;
 // NEVER when best@max = VECTORIZED or SCALAR).
 //
-// Corrections applied relative to original encoding (buggy PARALLEL-only V→P):
-//   - Uniform LogPDF: 1000 → NEVER. All 3 runs: best@max = VECTORIZED (parallel
-//     crossed briefly but didn’t sustain). Original encoding used a transient
-//     PARALLEL crossover that the sustainability check correctly rejects.
-//   - Discrete CDF: 64 → NEVER. All 3 runs: best@max = VECTORIZED.
-//   - Pareto CDF: 50000 → 100000. Three-run rule: {20k,50k,100k} all within
-//     OOM → max = 100000. Prior encoding was manually held at 50k; removed.
-//   - Weibull CDF: 64 → 100000. Three-run rule: {50k,64,100k}; discard outlier
-//     64 (warm GCD pool), max of coherent pair {50k,100k} = 100000. Prior hold
-//     at 64 misidentified the warm-pool run as the representative value.
-//   - Binomial CDF: 64 → NEVER. All 3 runs: best@max = VECTORIZED.
-//   - NegBinomial CDF: 128 → NEVER. All 3 runs: best@max = VECTORIZED/SCALAR.
+// Profiler grid change: previous bundles (sha-2904d63) used a floor of 8 elements;
+// these bundles use a floor of 64 (matching the table's minimum encodable threshold).
+// Many prior entries encoded as 64 were noise artifacts from sub-64 timing resolution;
+// the new grid reveals the true crossovers, which are substantially higher for
+// medium-complexity distributions.
+//
+// GCD warm/cold pool fingerprints identified and discarded:
+//   - Beta CDF: {256,2048,128}; R2 cold-pool → discard 2048, result = 256.
+//   - ChiSquared CDF: {64,2048,64}; R2 cold-pool → discard 2048, result = 64.
+//   - Poisson PDF: {6144,512,512}; R1 warm from build → discard 6144, result = 512.
+//   - Rayleigh CDF: {64,25000,10000}; R1 warm from build → discard 64, result = 25000.
+//
+// Key changes vs prior kNeon (sha-2904d63, 2026-06-22):
+//   - Gaussian PDF:        64 → 25000  (prior 64 was sub-floor noise; true crossover)
+//   - Exponential PDF:     64 → 50000  (same; {50k,10k,25k} all within OOM → max)
+//   - Exponential CDF:     64 → 25000  (same; {25k,25k,10k} → max)
+//   - Gamma PDF:           64 → 50000  (same; {50k,10k,8192} within OOM → max)
+//   - LogNormal PDF:       64 → 25000  (same; {25k,6144,25k} → max)
+//   - StudentT PDF:        64 → 50000  ({25k,50k,25k} → max)
+//   - StudentT LogPDF:     64 → 50000  ({25k,50k,25k} → max)
+//   - StudentT CDF:        64 → 256    ({64,256,256} → max)
+//   - ChiSquared PDF:      64 → 8192   ({8192,4096,4096} → max)
+//   - Rayleigh PDF:        64 → 25000  ({25k,25k,6144} → max)
+//   - Rayleigh CDF:        64 → 25000  (warm-pool R1 discarded; upper pair {25k,10k} → max)
+//   - Rayleigh LogPDF:     64 → 128    ({128,64,64} → max)
+//   - Pareto PDF:          64 → 100000 ({50k,100k,25k} → max)
+//   - Pareto CDF:       100000 → 50000 ({50k,50k,8192} → max)
+//   - Weibull PDF:         64 → 25000  ({25k,25k,8192} → max)
+//   - Weibull LogPDF:      64 → 75000  ({25k,75k,8192}; 9.15× within OOM → max)
+//   - VonMises PDF:    250000 → 100000 ({100k,50k,100k} → max)
+//   - VonMises LogPDF: 250000 → 300000 ({300k,300k,150k} → max)
+//   - VonMises CDF:        64 → 128    ({64,64,128} → max)
+//   - Discrete PDF:    100000 → 75000  ({50k,75k,50k} → max)
+//   - Discrete LogPDF: 100000 → 50000  ({50k,50k,50k} → max)
+//   - Poisson PDF:       2000 → 512    (warm-pool R1 discarded; lower pair {512,512} → 512)
+//   - Poisson LogPDF:      64 → 1024   ({1024,512,256} → max)
+//   - Poisson CDF:         64 → 256    ({128,64,256} → max)
+//   - Beta PDF:         NEVER → 512    ({64,512,128}; new GCD-viable crossover)
+//   - Beta LogPDF:      NEVER → 256    ({128,256,256} → max)
+//   - Beta CDF:         NEVER → 256    (warm-pool R2 discarded; {256,128} lower pair → 256)
+//   - Binomial CDF:     NEVER → 64     ({64,64,64}; best@max = parallel all 3 runs)
+//   - NegBinomial CDF:  NEVER → 256    ({256,64,256}; best@max = parallel all 3 runs)
 constexpr ArchTable kNeon = {{
-    /* UNIFORM(0)            */ {64, NEVER, 64},
-    /* GAUSSIAN(1)           */ {64, 64, NEVER},
-    /* EXPONENTIAL(2)        */ {64, 64, 64},
-    /* DISCRETE(3)           */ {100000, 100000, NEVER},
-    /* POISSON(4)            */ {2000, 64, 64},
-    /* GAMMA(5)              */ {64, 64, 64},
-    /* STUDENT_T(6)          */ {64, 64, 64},
-    /* BETA(7)               */ {NEVER, NEVER, NEVER},
-    /* CHI_SQUARED(8)        */ {64, 64, 64},
-    /* LOG_NORMAL(9)         */ {64, 64, NEVER},
-    /* PARETO(10)            */ {64, 50000, 100000},
-    /* WEIBULL(11)           */ {64, 64, 100000},
-    /* RAYLEIGH(12)          */ {64, 64, 64},
-    /* VON_MISES(13)         */ {250000, 250000, 64},
-    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
+    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
+    /* GAUSSIAN(1)           */ {25000, 64, NEVER},
+    /* EXPONENTIAL(2)        */ {50000, 64, 25000},
+    /* DISCRETE(3)           */ {75000, 50000, NEVER},
+    /* POISSON(4)            */ {512, 1024, 256},
+    /* GAMMA(5)              */ {50000, 64, 64},
+    /* STUDENT_T(6)          */ {50000, 50000, 256},
+    /* BETA(7)               */ {512, 256, 256},
+    /* CHI_SQUARED(8)        */ {8192, 64, 64},
+    /* LOG_NORMAL(9)         */ {25000, 64, NEVER},
+    /* PARETO(10)            */ {100000, 50000, 50000},
+    /* WEIBULL(11)           */ {25000, 75000, 100000},
+    /* RAYLEIGH(12)          */ {25000, 128, 25000},
+    /* VON_MISES(13)         */ {100000, 300000, 128},
+    /* BINOMIAL(14)          */ {NEVER, NEVER, 64},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
     /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
     /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
@@ -266,25 +295,25 @@ constexpr ArchTable kAvx2 = {{
 //   amortises earlier than GCD for the expensive incomplete-beta path (kAvx2=NEVER).
 // Binomial PDF/LogPDF: NEVER — VECTORIZED dominates at max size in large runs.
 constexpr ArchTable kAvx512 = {{
-    /* UNIFORM(0)            */ {50000,   50000,   256},
+    /* UNIFORM(0)            */ {50000, 50000, 256},
     /* GAUSSIAN(1)           */ {1000000, 1000000, 50000},
-    /* EXPONENTIAL(2)        */ {500000,  NEVER,   300000},  // LogPDF bimodal → NEVER
-    /* DISCRETE(3)           */ {200000,  200000,  75000},
-    /* POISSON(4)            */ {8192,    25000,   2048},    // PDF/CDF bimodal → standard
-    /* GAMMA(5)              */ {150000,  150000,  64},
-    /* STUDENT_T(6)          */ {NEVER,   NEVER,   256},
-    /* BETA(7)               */ {256,     128,     6144},
-    /* CHI_SQUARED(8)        */ {150000,  150000,  128},
-    /* LOG_NORMAL(9)         */ {150000,  150000,  50000},
-    /* PARETO(10)            */ {2000000, 1000000, NEVER},   // PDF at 2M ceiling
-    /* WEIBULL(11)           */ {150000,  150000,  1500000}, // CDF emerged in large
-    /* RAYLEIGH(12)          */ {150000,  150000,  300000},
-    /* VON_MISES(13)         */ {50000,   100000,  64},
-    /* BINOMIAL(14)          */ {NEVER,   NEVER,   128},
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER,   NEVER,   2048},
-    /* GEOMETRIC(16)         */ {NEVER,   NEVER,   NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER,   NEVER,   NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER,   NEVER,   NEVER},  // not yet profiled
+    /* EXPONENTIAL(2)        */ {500000, NEVER, 300000},  // LogPDF bimodal → NEVER
+    /* DISCRETE(3)           */ {200000, 200000, 75000},
+    /* POISSON(4)            */ {8192, 25000, 2048},  // PDF/CDF bimodal → standard
+    /* GAMMA(5)              */ {150000, 150000, 64},
+    /* STUDENT_T(6)          */ {NEVER, NEVER, 256},
+    /* BETA(7)               */ {256, 128, 6144},
+    /* CHI_SQUARED(8)        */ {150000, 150000, 128},
+    /* LOG_NORMAL(9)         */ {150000, 150000, 50000},
+    /* PARETO(10)            */ {2000000, 1000000, NEVER},  // PDF at 2M ceiling
+    /* WEIBULL(11)           */ {150000, 150000, 1500000},  // CDF emerged in large
+    /* RAYLEIGH(12)          */ {150000, 150000, 300000},
+    /* VON_MISES(13)         */ {50000, 100000, 64},
+    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 2048},
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
 }};
 
 /**

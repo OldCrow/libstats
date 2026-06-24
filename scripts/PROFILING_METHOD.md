@@ -31,6 +31,102 @@ parallel strategy chosen at runtime by `selectMultiThreadedStrategy()`.
 
 ---
 
+## Measurement artifacts and warm-state bias
+
+Two distinct artifact classes affect profiler measurements.  Understanding
+them is necessary to interpret crossover data correctly and to recognise when
+a threshold was derived from noise rather than a real performance difference.
+
+### Timer jitter and the sub-64 measurement floor
+
+The profiler measures wall-clock elapsed time per strategy per batch size.
+On all target platforms the per-sample jitter (scheduler preemption, timer
+interrupt alignment, memory-bus contention) is approximately 0.1–0.2 µs.
+For batch sizes below ~64 elements, this jitter exceeds the actual compute
+time for any strategy:
+
+- A VECTORIZED loop over 8 doubles finishes in well under 0.1 µs.
+- PARALLEL or WORK_STEALING also finish quickly at that size, but their
+  GCD / Thread Pool dispatch latency (typically 1–5 µs warm, 50–200 µs
+  cold) contributes an overhead that is also smaller than one timer tick
+  when the pool is warm.
+
+When the per-sample jitter exceeds the signal, comparisons are dominated by
+noise.  A false "PARALLEL wins" outcome at batch=8 is then detected as a
+crossover, which the Step 2 rule clamps to the minimum encodable threshold
+(64).  The resulting table entry of 64 has no physical meaning — it reflects
+timer granularity, not an actual performance advantage at that batch size.
+
+**The grid floor requirement**: the profiler's measurement grid must start at
+no lower than 64 elements.  The `capture_dispatcher_profile.sh` script
+enforces this.  Do not add sub-64 batch sizes to `strategy_profile.cpp`'s
+measurement grid.
+
+**Effect on historical data**: the kNeon table encoded from sha-2904d63
+bundles (2026-06-22) used a grid starting at 8 elements.  Approximately 12
+entries were encoded as 64 from clamped sub-floor crossovers.  The fb8e8b6
+recalibration (2026-06-24) with a 64-element grid floor revealed the true
+crossovers, which range from 128 to 75 000 for the affected distributions.
+
+### Warm-state bias and how it compounds the floor problem
+
+The timer floor becomes worse when the machine is in a warm state — thread
+pool workers active, CPU caches loaded from a preceding build or prior
+profiling run.  The two warm-state components interact multiplicatively:
+
+**Warm thread pool (GCD / Windows Thread Pool)**
+
+After a build, GCD workers remain active for tens of seconds.  When the
+profiler launches immediately after a build, the first run (R1) executes with
+a warm pool.  GCD dispatch latency in this state drops to ~1–2 µs from a
+cold-start baseline of 50–200 µs.  This makes parallel appear competitive at
+much smaller batch sizes than it is in typical production use (where the pool
+is cold on first call).  The effect is most visible at sub-64 sizes where it
+pushes the already-noisy measurement toward a false crossover.
+
+**Warm CPU cache**
+
+The build also loads executable code and stack data into L1/L2 caches.  At
+sub-64 batch sizes, the entire input array fits inside the warm L1 cache
+(64 elements × 8 bytes = 512 bytes; L1 is 32–192 KB on all target CPUs).
+VECTORIZED benefits disproportionately: its tight loop runs with zero cache
+misses.  PARALLEL also benefits, but the fixed dispatch overhead — even when
+pool-warm — still dominates at these sizes.  Paradoxically, a warm cache
+worsens the floor problem rather than improving measurement quality, because
+both strategies complete faster, narrowing the already-marginal signal below
+the timer jitter threshold.
+
+**The compound effect**
+
+A session that starts immediately after a build experiences all of the
+following simultaneously:
+
+1. Timer jitter exceeds compute time at sub-64 sizes (floor condition).
+2. Warm pool eliminates dispatch overhead → parallel looks faster than at
+   cold-start (warm-pool condition).
+3. Warm cache reduces compute time for both strategies → signal-to-noise
+   ratio falls further (warm-cache condition).
+
+In this combined state, false crossovers at batch=8–32 are highly probable.
+The three-run sequential protocol spreads runs across time: by R2 or R3 the
+GCD pool may have shed idle workers (cold-pool outlier in the opposite
+direction) and cache state has changed.  This produces the run-to-run spread
+that the Step 3 outlier-discard rule is designed to handle.
+
+Warm-state bias at ≥64 is a separate, less severe phenomenon (covered in
+Step 4 as the bimodal flag): pool-warm runs show earlier crossovers (e.g.,
+64 or 256) while pool-cold runs show later crossovers (e.g., 500 000).  The
+three-run rule discards the outlier; the resulting threshold is conservative
+but valid.  This is expected and does not require a grid floor change.
+
+**Practical implication**: always wait at least 30 seconds after a build
+before starting a profiling session.  This allows GCD workers to idle down,
+bringing the pool closer to the cold-start state that production callers
+experience.  On macOS, `sleep 30 && bash scripts/capture_dispatcher_profile.sh`
+is sufficient.
+
+---
+
 ## Step 1 — Capture profiling bundles
 
 ### macOS / Linux (Bash)
@@ -213,7 +309,7 @@ constexpr ArchTable kArch = {
 | SIMD tier | Machine | Status |
 |---|---|---|
 | AVX2+FMA (kAvx2) | Kaby Lake i7-7820HQ | ✅ current (3-run, canonical method) |
-| NEON (kNeon)     | Mac Mini M1         | ✅ current (3-run, corrected) |
+| NEON (kNeon)     | Mac Mini M1         | ✅ current (3-run, fb8e8b6; 64-floor grid; warm/cold pool recalibrated) |
 | AVX-512 (kAvx512)| Asus TUF A16 Zen 4  | ✅ current (3-run standard + 3-run --large, canonical method) |
 | AVX (kAvx)       | Ivy Bridge (retired) | ⚠ hardware gone; values inferred from kAvx2 trends |
 | SSE2 (kSse2)     | no dedicated hardware | delegates to kAvx by design |
@@ -244,6 +340,12 @@ files.*  Resolved issues are recorded below for reference.
 and `manifest.txt` — no `strategy_profile_results.csv`.  These bundles have
 been removed and replaced by six complete bundles captured 2026-06-23.
 
-**kNeon (M1, 2026-06-22):** The original kNeon encoding used the buggy
-PARALLEL-only V→P definition.  Corrected by re-deriving from the existing raw
-data after fixing `summarize_dispatcher_profile.py` (commit e927ebf).
+**kNeon (M1, 2026-06-22, sha-2904d63):** These three bundles had two
+compounding defects and have been removed.  First, they used a profiler grid
+starting at 8 elements, producing false crossovers below the timer-jitter
+floor that were clamped to 64 (see "Measurement artifacts" above).  Second,
+the original kNeon encoding derived from them used a buggy PARALLEL-only V→P
+definition; the corrected definition was applied to the raw data
+(commit e927ebf) but could not undo the sub-64 grid contamination.  Replaced
+by the fb8e8b6 bundles (2026-06-24) which use a 64-element grid floor and
+reveal true crossovers of 128–75 000 for the previously mis-encoded entries.
