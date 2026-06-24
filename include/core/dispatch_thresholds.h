@@ -53,7 +53,10 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 // NEVER means VECTORIZED always wins on that machine for that operation.
 //
 // Table layout: {pdf, log_pdf, cdf} per distribution row.
-// BETA, GEOMETRIC, LAPLACE, CAUCHY: NEVER across all entries (no parallel batch).
+// GEOMETRIC, LAPLACE, CAUCHY: NEVER across all entries (pending implementation).
+// BETA: NEVER on kAvx (retired hardware, no re-measure); real thresholds on
+// kNeon, kAvx2, kAvx512 (GCD/Thread-Pool overhead amortises for expensive
+// incomplete-beta path at ~256–512 elements).
 //
 // Measurement resolution caveat (applies to all architectures):
 //   Profiler timing resolution floors out around 0.1–0.2 µs. At batch sizes
@@ -205,63 +208,85 @@ constexpr ArchTable kAvx = {{
 }};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-22T21-15-44Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
-// data/profiles/dispatcher/2026-06-22T21-25-20Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
-// data/profiles/dispatcher/2026-06-22T21-33-55Z_darwin-x86_64_feat-v2-architecture_sha-909dc9a
+// Standard 3-run bundles (64–500k grid):
+//   data/profiles/dispatcher/2026-06-23T23-22-49Z_darwin-x86_64_feat-v2-architecture_sha-fb8e8b6
+//   data/profiles/dispatcher/2026-06-23T23-37-49Z_darwin-x86_64_feat-v2-architecture_sha-fb8e8b6
+//   data/profiles/dispatcher/2026-06-23T23-51-53Z_darwin-x86_64_feat-v2-architecture_sha-fb8e8b6
+// Extended 3-run bundles (--large, 64–2M grid):
+//   data/profiles/dispatcher/2026-06-24T00-28-01Z_darwin-x86_64_feat-v2-architecture_sha-fb8e8b6
+//   data/profiles/dispatcher/2026-06-24T01-21-12Z_darwin-x86_64_feat-v2-architecture_sha-fb8e8b6
+//   data/profiles/dispatcher/2026-06-24T02-18-20Z_darwin-x86_64_feat-v2-architecture_sha-fb8e8b6
 //
-// Three sequential Release-mode bundles captured on feat/v2-architecture (909dc9a).
-// Method: see scripts/PROFILING_METHOD.md (canonical; V→P = min(P,WS) < VECT;
-// NEVER when best@max = VECTORIZED or SCALAR).
+// Method: see scripts/PROFILING_METHOD.md (canonical; sustainability check applied).
+// Base: --large derived table; standard used conservatively where standard > large
+// (standard runs see a colder GCD pool; --large runs see a warming pool from prior
+// distributions, yielding lower thresholds that can understate the cold-start cost).
 //
-// Note: initial encoding of this table used a buggy PARALLEL-only V→P definition.
-// Corrected values below use min(PARALLEL, WORK_STEALING) < VECTORIZED, which
-// revealed WS was beating VECTORIZED at much lower thresholds than PARALLEL was.
-// This explains why many entries that appeared as 64 ("blank clamped to floor")
-// were actually 50k–250k range: WS was crossing early; PARALLEL was not.
+// Primary finding: many entries encoded as 64 in sha-909dc9a were GCD warm-pool
+// artifacts. Both standard and large runs on this sha consistently show 25k–75k
+// true cold-pool crossovers for medium-complexity SIMD distributions.
 //
-// Manual override applied after review:
-//   - Discrete LogPDF: bimodal {64, 100k, 100k}; 64 is the warm-pool outlier.
-//     Two-run majority at 100k, same as Discrete PDF; encoded as 100000.
-//   - VonMises LogPDF: R3 = 500000 (measurement ceiling; advisory printed).
-//     500000 is conservative and valid; re-run with --large to refine if needed.
+// Bimodal overrides (standard vs large disagree or within-run spread > OOM):
+//   - Discrete CDF: standard {25k,25k,25k} vs large {25k,2k,1k};
+//     large shows warm-pool drop; use standard → 25000.
+//   - Pareto LogPDF: bimodal in both runs; lower-pair method → 512 (conservative).
+//   - VonMises PDF: large R2 BEST=VECTORIZED (NEVER); finite pair {25k,100k}→100k;
+//     standard {150k,75k,200k}→200k is more conservative → 200000.
 //
-// Key changes vs prior kAvx2 (fix/audit-remediation sha-5675c93, 2 runs):
-//   - Gaussian CDF: 20000 → 20000  (corrected: WS at {10k,20k,10k} vs old
-//     PARALLEL-only {100k,50k,100k}; conserved max within OOM = 20000)
-//   - Discrete PDF: NEVER → 100000 (corrected: WS at 100k all 3 runs; old
-//     PARALLEL-only showed bimodal {blank/500k/500k} = artifact)
-//   - Discrete LogPDF: NEVER → 100000 (corrected bimodal; see manual override)
-//   - Discrete CDF: NEVER → 64 (three-run consensus; best@max = WS)
-//   - Poisson PDF/LogPDF/CDF: NEVER → 64 (parallel competitive at floor)
-//   - StudentT PDF: NEVER → 50000 (corrected WS at {50k,20k,50k}; old
-//     PARALLEL-only showed {250k,250k,100k})
-//   - Pareto PDF: NEVER → 50000 (corrected WS at {50k,20k,50k})
-//   - Pareto LogPDF: NEVER → 64 (WS at floor; consistent 3 runs)
-//   - Pareto CDF: NEVER → 100000 (WS at {100k,100k,20k})
-//   - Weibull CDF: NEVER → 250000 (corrected WS at {50k,250k,50k})
-//   - VonMises PDF: NEVER → 250000 (corrected WS at {250k,250k,100k})
-//   - VonMises LogPDF: NEVER → 500000 (WS at {250k,250k,500k}; ceiling hit)
-//   - Binomial CDF: 64 → NEVER (best@max = VECTORIZED all 3 runs)
+// Beta: first real threshold on kAvx2 (was NEVER — incorrectly assumed no parallel
+//   batch). All 6 runs show BEST = WS or PARALLEL; crossover varies 64–8192 due to
+//   GCD cold/warm state. Encoded as conservative max(standard, large) = 512.
+//   kNeon (512/256/256) and kAvx512 (256/128/6144) confirm cross-architecture.
+//
+// VonMises LogPDF: large R1 V→P=500000 (2M run ceiling); standard 2/3 runs at
+//   400000, 1 NEVER. Aggregate: {500k,200k,400k} → max=500000 (unchanged).
+//
+// Key changes vs prior kAvx2 (sha-909dc9a, standard-only 3-run):
+//   - Gaussian PDF:     64 → 50000  (cold-pool; {50k,50k,50k} all runs)
+//   - Gaussian CDF:  20000 → 25000  (cold-pool; standard max=10k, large max=25k)
+//   - Exponential PDF:  64 → 50000  (cold-pool; consistent standard + large)
+//   - Exponential CDF:  64 → 50000  (cold-pool; consistent)
+//   - Discrete PDF: 100000 → 75000  ({75k,50k,50k} large; standard was 50k → max=75k)
+//   - Discrete CDF:     64 → 25000  (standard {25k,25k,25k}; warm-pool large discarded)
+//   - Poisson PDF:      64 → 128    (floor noise; max across runs)
+//   - Poisson LogPDF:   64 → 128    (floor noise; max across runs)
+//   - Poisson CDF:      64 → 128    (floor noise; max across runs)
+//   - Gamma PDF:        64 → 25000  (cold-pool; {25k,25k,10k} large)
+//   - StudentT LogPDF:  64 → 25000  (cold-pool; {25k,25k,25k} consistent)
+//   - Beta:          NEVER → {512,512,512}  (new finding — see note above)
+//   - ChiSquared PDF:   64 → 50000  (cold-pool; standard max=50k)
+//   - LogNormal PDF:    64 → 25000  (cold-pool; {25k,25k,25k} standard)
+//   - LogNormal CDF:    64 → 10000  (cold-pool; {6k,6k,10k} consistent)
+//   - Pareto LogPDF:    64 → 512    (bimodal; lower-pair conservative)
+//   - Pareto CDF:   100000 → 150000 (standard {50k,50k,150k} → max)
+//   - Weibull PDF:      64 → 75000  (cold-pool; large {50k,50k,75k} → max)
+//   - Weibull LogPDF:   64 → 50000  (cold-pool; large {50k,10k,10k} → max)
+//   - Weibull CDF:  250000 → 75000  (was over-conservative; standard {50k,50k,50k},
+//     large {50k,75k,50k} → max=75k)
+//   - Rayleigh PDF:     64 → 50000  (cold-pool; {25k,25k,50k} standard)
+//   - Rayleigh CDF:     64 → 75000  (cold-pool; standard {75k,25k,25k} → max)
+//   - VonMises PDF: 250000 → 200000 (standard max; large R2 unreliable)
+//   - VonMises CDF:     64 → 128    ({128,64,64} standard → max)
 constexpr ArchTable kAvx2 = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
-    /* GAUSSIAN(1)           */ {64, 64, 20000},
-    /* EXPONENTIAL(2)        */ {64, 64, 64},
-    /* DISCRETE(3)           */ {100000, 100000, 64},
-    /* POISSON(4)            */ {64, 64, 64},
-    /* GAMMA(5)              */ {64, 64, 64},
-    /* STUDENT_T(6)          */ {50000, 64, 64},
-    /* BETA(7)               */ {NEVER, NEVER, NEVER},
-    /* CHI_SQUARED(8)        */ {64, 64, 64},
-    /* LOG_NORMAL(9)         */ {64, 64, 64},
-    /* PARETO(10)            */ {50000, 64, 100000},
-    /* WEIBULL(11)           */ {64, 64, 250000},
-    /* RAYLEIGH(12)          */ {64, 64, 64},
-    /* VON_MISES(13)         */ {250000, 500000, 64},  // LogPDF ceiling hit; --large advisory
-    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* UNIFORM(0)            */ {NEVER,  NEVER,  64},
+    /* GAUSSIAN(1)           */ {50000,  64,     25000},
+    /* EXPONENTIAL(2)        */ {50000,  64,     50000},
+    /* DISCRETE(3)           */ {75000,  100000, 25000},   // CDF: warm-pool large discarded
+    /* POISSON(4)            */ {128,    128,    128},
+    /* GAMMA(5)              */ {25000,  64,     64},
+    /* STUDENT_T(6)          */ {50000,  25000,  64},
+    /* BETA(7)               */ {512,    512,    512},     // was NEVER — see Beta note above
+    /* CHI_SQUARED(8)        */ {50000,  64,     64},
+    /* LOG_NORMAL(9)         */ {25000,  64,     10000},
+    /* PARETO(10)            */ {50000,  512,    150000},  // LogPDF bimodal → conservative
+    /* WEIBULL(11)           */ {75000,  50000,  75000},   // CDF: 250k was over-conservative
+    /* RAYLEIGH(12)          */ {50000,  64,     75000},
+    /* VON_MISES(13)         */ {200000, 500000, 128},     // LogPDF: 2M ceiling confirmed
+    /* BINOMIAL(14)          */ {NEVER,  NEVER,  NEVER},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER,  NEVER,  NEVER},
+    /* GEOMETRIC(16)         */ {NEVER,  NEVER,  NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER,  NEVER,  NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER,  NEVER,  NEVER},  // not yet profiled
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
