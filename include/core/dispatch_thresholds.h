@@ -112,6 +112,8 @@ using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>;
 //   - Rayleigh CDF: {64,25000,10000}; R1 warm from build → discard 64, result = 25000.
 //
 // Key changes vs prior kNeon (sha-2904d63, 2026-06-22):
+//   - Uniform PDF:         64 → NEVER  (VECTORIZED dominant at all profiled sizes; no crossover in
+//   all 3 runs)
 //   - Gaussian PDF:        64 → 25000  (prior 64 was sub-floor noise; true crossover)
 //   - Exponential PDF:     64 → 50000  (same; {50k,10k,25k} all within OOM → max)
 //   - Exponential CDF:     64 → 25000  (same; {25k,25k,10k} → max)
@@ -200,25 +202,25 @@ constexpr ArchTable kNeon = {{
 //   VECTORIZED not weaker enough to change this given GCD overhead).
 // SSE2 delegates to kAvx; both updated together.
 constexpr ArchTable kAvx = {{
-    /* UNIFORM(0)            */ {NEVER,  NEVER,  64},
-    /* GAUSSIAN(1)           */ {25000,  64,     10000},
-    /* EXPONENTIAL(2)        */ {25000,  64,     25000},
-    /* DISCRETE(3)           */ {75000,  50000,  25000},
-    /* POISSON(4)            */ {128,    128,    128},
-    /* GAMMA(5)              */ {10000,  64,     64},
-    /* STUDENT_T(6)          */ {25000,  10000,  64},
-    /* BETA(7)               */ {512,    512,    512},     // compute-bound; kNeon=kAvx2=512
-    /* CHI_SQUARED(8)        */ {25000,  64,     64},
-    /* LOG_NORMAL(9)         */ {10000,  64,     6144},
-    /* PARETO(10)            */ {50000,  50000,  100000},  // log-pipeline; kNeon reference
-    /* WEIBULL(11)           */ {25000,  25000,  50000},
-    /* RAYLEIGH(12)          */ {25000,  64,     50000},
-    /* VON_MISES(13)         */ {100000, 300000, 128},     // GCD-dominated; match kNeon
-    /* BINOMIAL(14)          */ {NEVER,  NEVER,  128},     // CDF inferred from kNeon/kAvx512
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER,  NEVER,  256},     // CDF inferred from kNeon
-    /* GEOMETRIC(16)         */ {NEVER,  NEVER,  NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER,  NEVER,  NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER,  NEVER,  NEVER},  // not yet profiled
+    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
+    /* GAUSSIAN(1)           */ {25000, 64, 10000},
+    /* EXPONENTIAL(2)        */ {25000, 64, 25000},
+    /* DISCRETE(3)           */ {75000, 50000, 25000},
+    /* POISSON(4)            */ {128, 128, 128},
+    /* GAMMA(5)              */ {10000, 64, 64},
+    /* STUDENT_T(6)          */ {25000, 10000, 64},
+    /* BETA(7)               */ {512, 512, 512},  // compute-bound; kNeon=kAvx2=512
+    /* CHI_SQUARED(8)        */ {25000, 64, 64},
+    /* LOG_NORMAL(9)         */ {10000, 64, 6144},
+    /* PARETO(10)            */ {50000, 50000, 100000},  // log-pipeline; kNeon reference
+    /* WEIBULL(11)           */ {25000, 25000, 50000},
+    /* RAYLEIGH(12)          */ {25000, 64, 50000},
+    /* VON_MISES(13)         */ {100000, 300000, 128},  // GCD-dominated; match kNeon
+    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},    // CDF inferred from kNeon/kAvx512
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},    // CDF inferred from kNeon
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
 }};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
@@ -283,26 +285,26 @@ constexpr ArchTable kAvx = {{
 //   - VonMises PDF: 250000 → 200000 (standard max; large R2 unreliable)
 //   - VonMises CDF:     64 → 128    ({128,64,64} standard → max)
 constexpr ArchTable kAvx2 = {{
-    /* UNIFORM(0)            */ {NEVER,  NEVER,  64},
-    /* GAUSSIAN(1)           */ {50000,  64,     25000},
-    /* EXPONENTIAL(2)        */ {50000,  64,     50000},
-    /* DISCRETE(3)           */ {75000,  100000, 25000},   // CDF: warm-pool large discarded
-    /* POISSON(4)            */ {128,    128,    128},
-    /* GAMMA(5)              */ {25000,  64,     64},
-    /* STUDENT_T(6)          */ {50000,  25000,  64},
-    /* BETA(7)               */ {512,    512,    512},     // was NEVER — see Beta note above
-    /* CHI_SQUARED(8)        */ {50000,  64,     64},
-    /* LOG_NORMAL(9)         */ {25000,  64,     10000},
-    /* PARETO(10)            */ {50000,  50000,  150000},  // LogPDF: 512 was bimodal noise-floor
+    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
+    /* GAUSSIAN(1)           */ {50000, 64, 25000},
+    /* EXPONENTIAL(2)        */ {50000, 64, 50000},
+    /* DISCRETE(3)           */ {75000, 100000, 25000},  // CDF: warm-pool large discarded
+    /* POISSON(4)            */ {128, 128, 128},
+    /* GAMMA(5)              */ {25000, 64, 64},
+    /* STUDENT_T(6)          */ {50000, 25000, 64},
+    /* BETA(7)               */ {512, 512, 512},  // was NEVER — see Beta note above
+    /* CHI_SQUARED(8)        */ {50000, 64, 64},
+    /* LOG_NORMAL(9)         */ {25000, 64, 10000},
+    /* PARETO(10)            */ {50000, 50000, 150000},  // LogPDF: 512 was bimodal noise-floor
     //   artifact; manual override to 50000 (kNeon=50k; kAvx2 VECTORIZED log≥kNeon → threshold≥50k)
-    /* WEIBULL(11)           */ {75000,  50000,  75000},   // CDF: 250k was over-conservative
-    /* RAYLEIGH(12)          */ {50000,  64,     75000},
-    /* VON_MISES(13)         */ {200000, 500000, 128},     // LogPDF: 2M ceiling confirmed
-    /* BINOMIAL(14)          */ {NEVER,  NEVER,  NEVER},
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER,  NEVER,  NEVER},
-    /* GEOMETRIC(16)         */ {NEVER,  NEVER,  NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER,  NEVER,  NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER,  NEVER,  NEVER},  // not yet profiled
+    /* WEIBULL(11)           */ {75000, 50000, 75000},  // CDF: 250k was over-conservative
+    /* RAYLEIGH(12)          */ {50000, 64, 75000},
+    /* VON_MISES(13)         */ {200000, 500000, 128},  // LogPDF: 2M ceiling confirmed
+    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
@@ -427,21 +429,21 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
 // placeholders with measured values.
 constexpr ArchTable kNone = {{
     /* UNIFORM(0)            */ {16384, 16384, 16384},  // T3: trivial arithmetic
-    /* GAUSSIAN(1)           */ {8192,  8192,  8192},   // T2: exp + erf
-    /* EXPONENTIAL(2)        */ {8192,  8192,  8192},   // T2: exp/log
+    /* GAUSSIAN(1)           */ {8192, 8192, 8192},     // T2: exp + erf
+    /* EXPONENTIAL(2)        */ {8192, 8192, 8192},     // T2: exp/log
     /* DISCRETE(3)           */ {16384, 16384, 16384},  // T3: table lookup
-    /* POISSON(4)            */ {2048,  2048,  2048},   // T1: lgamma
-    /* GAMMA(5)              */ {2048,  2048,  2048},   // T1: lgamma + exp
-    /* STUDENT_T(6)          */ {2048,  2048,  2048},   // T1: incomplete beta
-    /* BETA(7)               */ {2048,  2048,  2048},   // T1: iterative incomplete beta
-    /* CHI_SQUARED(8)        */ {2048,  2048,  2048},   // T1: delegates to Gamma
-    /* LOG_NORMAL(9)         */ {8192,  8192,  8192},   // T2: log + exp
-    /* PARETO(10)            */ {8192,  8192,  8192},   // T2: log + exp pipeline
-    /* WEIBULL(11)           */ {8192,  8192,  8192},   // T2: log + exp
-    /* RAYLEIGH(12)          */ {8192,  8192,  8192},   // T2: x² + log
-    /* VON_MISES(13)         */ {2048,  2048,  2048},   // T1: cos + cached Bessel Z
-    /* BINOMIAL(14)          */ {2048,  2048,  2048},   // T1: lgamma + incomplete beta
-    /* NEGATIVE_BINOMIAL(15) */ {2048,  2048,  2048},   // T1: lgamma + digamma/trigamma
+    /* POISSON(4)            */ {2048, 2048, 2048},     // T1: lgamma
+    /* GAMMA(5)              */ {2048, 2048, 2048},     // T1: lgamma + exp
+    /* STUDENT_T(6)          */ {2048, 2048, 2048},     // T1: incomplete beta
+    /* BETA(7)               */ {2048, 2048, 2048},     // T1: iterative incomplete beta
+    /* CHI_SQUARED(8)        */ {2048, 2048, 2048},     // T1: delegates to Gamma
+    /* LOG_NORMAL(9)         */ {8192, 8192, 8192},     // T2: log + exp
+    /* PARETO(10)            */ {8192, 8192, 8192},     // T2: log + exp pipeline
+    /* WEIBULL(11)           */ {8192, 8192, 8192},     // T2: log + exp
+    /* RAYLEIGH(12)          */ {8192, 8192, 8192},     // T2: x² + log
+    /* VON_MISES(13)         */ {2048, 2048, 2048},     // T1: cos + cached Bessel Z
+    /* BINOMIAL(14)          */ {2048, 2048, 2048},     // T1: lgamma + incomplete beta
+    /* NEGATIVE_BINOMIAL(15) */ {2048, 2048, 2048},     // T1: lgamma + digamma/trigamma
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // pending implementation
     /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // pending implementation
     /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // pending implementation

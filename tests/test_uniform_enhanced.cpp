@@ -188,8 +188,8 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap mean confidence interval
-    auto [mean_lower, mean_upper] =
-        stats::analysis::bootstrapMeanCI<stats::UniformDistribution>(uniform_data_, 0.95, 1000, 456);
+    auto [mean_lower, mean_upper] = stats::analysis::bootstrapMeanCI<stats::UniformDistribution>(
+        uniform_data_, 0.95, 1000, 456);
 
     // Check that confidence interval is reasonable
     EXPECT_LT(mean_lower, mean_upper);
@@ -200,7 +200,8 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
 
     std::cout << "  Mean 95% CI: [" << mean_lower << ", " << mean_upper << "]\n";
     // K-fold cross-validation
-    auto cv_results = stats::analysis::kFoldCrossValidation<stats::UniformDistribution>(uniform_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::UniformDistribution>(uniform_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const double log_likelihood : cv_results) {
@@ -213,10 +214,12 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation on smaller dataset
     std::vector<double> small_uniform_data(uniform_data_.begin(), uniform_data_.begin() + 20);
-    const auto loocv_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::UniformDistribution>(small_uniform_data); // Mean absolute error should be non-negative // RMSE should be non-negative // RMSE should be >= MAE
+    const auto loocv_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::UniformDistribution>(
+            small_uniform_data);  // Mean absolute error should be non-negative // RMSE should be
+                                  // non-negative // RMSE should be >= MAE
     // LOOCV log-likelihood can be -inf for Uniform when test datum is outside [a,b].
     EXPECT_LE(loocv_log_likelihood, 0.0);
-
 }
 
 //==============================================================================
@@ -266,7 +269,8 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
                                       std::span<double>(simd_results), h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto simd_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
@@ -279,8 +283,8 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdUniform.getProbability(input_span, output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto parallel_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
@@ -292,8 +296,8 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdUniform.getProbability(input_span, ws_output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto work_stealing_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto work_stealing_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -486,9 +490,9 @@ TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
         std::vector<double> trad_logpdf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
         for (size_t j = 0; j < batch_size; ++j) {
-            trad_pdf_results[j]    = uniform_dist.getProbability(test_values[j]);
+            trad_pdf_results[j] = uniform_dist.getProbability(test_values[j]);
             trad_logpdf_results[j] = uniform_dist.getLogProbability(test_values[j]);
-            trad_cdf_results[j]    = uniform_dist.getCumulativeProbability(test_values[j]);
+            trad_cdf_results[j] = uniform_dist.getCumulativeProbability(test_values[j]);
         }
 
         // Verify correctness
@@ -569,11 +573,14 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) pdf_results[i] = stdUniform.getProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                pdf_results[i] = stdUniform.getProbability(test_values[i]);
         } else if (op == "LogPDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) log_pdf_results[i] = stdUniform.getLogProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                log_pdf_results[i] = stdUniform.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) cdf_results[i] = stdUniform.getCumulativeProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                cdf_results[i] = stdUniform.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
@@ -585,11 +592,14 @@ TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
             h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
             start = std::chrono::high_resolution_clock::now();
             if (op == "PDF") {
-                stdUniform.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results), h);
+                stdUniform.getProbability(std::span<const double>(test_values),
+                                          std::span<double>(pdf_results), h);
             } else if (op == "LogPDF") {
-                stdUniform.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results), h);
+                stdUniform.getLogProbability(std::span<const double>(test_values),
+                                             std::span<double>(log_pdf_results), h);
             } else if (op == "CDF") {
-                stdUniform.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), h);
+                stdUniform.getCumulativeProbability(std::span<const double>(test_values),
+                                                    std::span<double>(cdf_results), h);
             }
             end = std::chrono::high_resolution_clock::now();
         }

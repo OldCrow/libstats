@@ -166,11 +166,13 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto [lower_ci, upper_ci] = stats::analysis::bootstrapMeanVarianceCI<stats::DiscreteDistribution>(
-        discrete_data_, 0.95, 1000, 456);
+    auto [lower_ci, upper_ci] =
+        stats::analysis::bootstrapMeanVarianceCI<stats::DiscreteDistribution>(discrete_data_, 0.95,
+                                                                              1000, 456);
 
     // Check that confidence intervals are reasonable
-    EXPECT_LE(lower_ci.first, lower_ci.second);  // Bootstrap CI may be degenerate for discrete params
+    EXPECT_LE(lower_ci.first,
+              lower_ci.second);  // Bootstrap CI may be degenerate for discrete params
     EXPECT_LE(upper_ci.first, upper_ci.second);
 
     // Parameter CIs should be finite and make statistical sense
@@ -191,7 +193,8 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     std::cout << "  Upper bound 95% CI: [" << upper_ci.first << ", " << upper_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = stats::analysis::kFoldCrossValidation<stats::DiscreteDistribution>(discrete_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::DiscreteDistribution>(discrete_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const double log_likelihood : cv_results) {
@@ -203,11 +206,14 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_discrete_data(discrete_data_.begin(), discrete_data_.begin() + 20);
-    const auto loo_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::DiscreteDistribution>(small_discrete_data); // Mean absolute error should be non-negative // RMSE should be non-negative
-    EXPECT_LE(loo_log_likelihood, 0.0);  // Total log-likelihood should be negative // RMSE should be >= MAE
+    const auto loo_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::DiscreteDistribution>(
+            small_discrete_data);  // Mean absolute error should be non-negative // RMSE should be
+                                   // non-negative
+    EXPECT_LE(loo_log_likelihood,
+              0.0);  // Total log-likelihood should be negative // RMSE should be >= MAE
 
     EXPECT_TRUE(std::isfinite(loo_log_likelihood));
-
 }
 
 //==============================================================================
@@ -257,7 +263,8 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
                                        std::span<double>(simd_results), h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto simd_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
@@ -270,8 +277,8 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdDiscrete.getProbability(input_span, output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto parallel_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
@@ -283,8 +290,8 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdDiscrete.getProbability(input_span, ws_output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto work_stealing_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto work_stealing_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -483,9 +490,9 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
         std::vector<double> trad_logpmf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
         for (size_t j = 0; j < batch_size; ++j) {
-            trad_pmf_results[j]    = discrete_dist.getProbability(test_values[j]);
+            trad_pmf_results[j] = discrete_dist.getProbability(test_values[j]);
             trad_logpmf_results[j] = discrete_dist.getLogProbability(test_values[j]);
-            trad_cdf_results[j]    = discrete_dist.getCumulativeProbability(test_values[j]);
+            trad_cdf_results[j] = discrete_dist.getCumulativeProbability(test_values[j]);
         }
 
         // Verify correctness
@@ -561,11 +568,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PMF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) pmf_results[i] = dice.getProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                pmf_results[i] = dice.getProbability(test_values[i]);
         } else if (op == "LogPMF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) log_pmf_results[i] = dice.getLogProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                log_pmf_results[i] = dice.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) cdf_results[i] = dice.getCumulativeProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                cdf_results[i] = dice.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
@@ -577,11 +587,14 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
             h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
             start = std::chrono::high_resolution_clock::now();
             if (op == "PMF") {
-                dice.getProbability(std::span<const double>(test_values), std::span<double>(pmf_results), h);
+                dice.getProbability(std::span<const double>(test_values),
+                                    std::span<double>(pmf_results), h);
             } else if (op == "LogPMF") {
-                dice.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pmf_results), h);
+                dice.getLogProbability(std::span<const double>(test_values),
+                                       std::span<double>(log_pmf_results), h);
             } else if (op == "CDF") {
-                dice.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), h);
+                dice.getCumulativeProbability(std::span<const double>(test_values),
+                                              std::span<double>(cdf_results), h);
             }
             end = std::chrono::high_resolution_clock::now();
         }

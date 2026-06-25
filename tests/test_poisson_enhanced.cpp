@@ -6,8 +6,8 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/poisson.h"
-#include "libstats/stats/analysis/poisson_analysis.h"
 #include "libstats/stats/analysis/analysis.h"
+#include "libstats/stats/analysis/poisson_analysis.h"
 
 // Standard library includes
 #include <algorithm>  // for std::sort, std::min, std::max
@@ -121,7 +121,8 @@ TEST_F(PoissonEnhancedTest, GoodnessOfFitTests) {
 
     // Chi-square test with obviously non-Poisson data - should reject
     auto [chi2_stat_non_poisson, chi2_p_non_poisson, chi2_reject_non_poisson] =
-        stats::analysis::poisson::chiSquareGoodnessOfFit(non_poisson_data_, test_distribution_, 0.05);
+        stats::analysis::poisson::chiSquareGoodnessOfFit(non_poisson_data_, test_distribution_,
+                                                         0.05);
 
     // Should typically reject non-Poisson data (though not guaranteed for any single test)
     EXPECT_TRUE(std::isfinite(chi2_stat_non_poisson));
@@ -176,8 +177,8 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto lambda_ci =
-        stats::analysis::bootstrapMeanCI<stats::PoissonDistribution>(poisson_data_, 0.95, 1000, 456);
+    auto lambda_ci = stats::analysis::bootstrapMeanCI<stats::PoissonDistribution>(poisson_data_,
+                                                                                  0.95, 1000, 456);
 
     // Check that confidence interval is reasonable
     EXPECT_LT(lambda_ci.first, lambda_ci.second);  // Lower bound < Upper bound
@@ -190,7 +191,8 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
     std::cout << "  Lambda 95% CI: [" << lambda_ci.first << ", " << lambda_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = stats::analysis::kFoldCrossValidation<stats::PoissonDistribution>(poisson_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::PoissonDistribution>(poisson_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const double log_likelihood : cv_results) {
@@ -202,9 +204,10 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation on smaller dataset
     std::vector<double> small_poisson_data(poisson_data_.begin(), poisson_data_.begin() + 20);
-    const auto loocv_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::PoissonDistribution>(small_poisson_data); EXPECT_LE(loocv_log_likelihood, 0.0);
+    const auto loocv_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::PoissonDistribution>(small_poisson_data);
+    EXPECT_LE(loocv_log_likelihood, 0.0);
     EXPECT_TRUE(std::isfinite(loocv_log_likelihood));
-
 }
 
 //==============================================================================
@@ -254,7 +257,8 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
                                       std::span<double>(simd_results), h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto simd_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
@@ -267,8 +271,8 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdPoisson.getProbability(input_span, output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto parallel_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
@@ -280,8 +284,8 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdPoisson.getProbability(input_span, ws_output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto work_stealing_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto work_stealing_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -474,9 +478,9 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
         std::vector<double> trad_logpmf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
         for (size_t j = 0; j < batch_size; ++j) {
-            trad_pmf_results[j]    = poisson_dist.getProbability(test_values[j]);
+            trad_pmf_results[j] = poisson_dist.getProbability(test_values[j]);
             trad_logpmf_results[j] = poisson_dist.getLogProbability(test_values[j]);
-            trad_cdf_results[j]    = poisson_dist.getCumulativeProbability(test_values[j]);
+            trad_cdf_results[j] = poisson_dist.getCumulativeProbability(test_values[j]);
         }
 
         // Verify correctness
@@ -552,11 +556,14 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PMF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) pdf_results[i] = stdPoisson.getProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                pdf_results[i] = stdPoisson.getProbability(test_values[i]);
         } else if (op == "LogPMF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) log_pdf_results[i] = stdPoisson.getLogProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                log_pdf_results[i] = stdPoisson.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) cdf_results[i] = stdPoisson.getCumulativeProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                cdf_results[i] = stdPoisson.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
@@ -568,11 +575,14 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
             h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
             start = std::chrono::high_resolution_clock::now();
             if (op == "PMF") {
-                stdPoisson.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results), h);
+                stdPoisson.getProbability(std::span<const double>(test_values),
+                                          std::span<double>(pdf_results), h);
             } else if (op == "LogPMF") {
-                stdPoisson.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results), h);
+                stdPoisson.getLogProbability(std::span<const double>(test_values),
+                                             std::span<double>(log_pdf_results), h);
             } else if (op == "CDF") {
-                stdPoisson.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), h);
+                stdPoisson.getCumulativeProbability(std::span<const double>(test_values),
+                                                    std::span<double>(cdf_results), h);
             }
             end = std::chrono::high_resolution_clock::now();
         }

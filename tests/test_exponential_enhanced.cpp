@@ -119,8 +119,7 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with non-exponential data (should reject)
     auto [ks_stat_non_exp, ks_p_non_exp, ks_reject_non_exp] =
-        stats::analysis::kolmogorovSmirnovTest(non_exponential_data_, test_distribution_,
-                                                       0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_exponential_data_, test_distribution_, 0.05);
 
     EXPECT_TRUE(ks_reject_non_exp);     // Should reject exponential distribution for normal data
     EXPECT_LT(ks_p_non_exp, ks_p_exp);  // Non-exponential data should have lower p-value
@@ -132,8 +131,7 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
     auto [ad_stat_exp, ad_p_exp, ad_reject_exp] =
         stats::analysis::andersonDarlingTest(exponential_data_, test_distribution_, 0.05);
     auto [ad_stat_non_exp, ad_p_non_exp, ad_reject_non_exp] =
-        stats::analysis::andersonDarlingTest(non_exponential_data_, test_distribution_,
-                                                     0.05);
+        stats::analysis::andersonDarlingTest(non_exponential_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ad_stat_exp, 0.0);
     EXPECT_GE(ad_p_exp, 0.0);
@@ -190,7 +188,7 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
     // Bootstrap parameter confidence intervals
     auto [lambda_ci_lower, lambda_ci_upper] =
         stats::analysis::bootstrapMeanCI<stats::ExponentialDistribution>(exponential_data_, 0.95,
-                                                                       1000, 456);
+                                                                         1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(lambda_ci_lower, lambda_ci_upper);
@@ -204,7 +202,8 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
     std::cout << "  Lambda 95% CI: [" << lambda_ci_lower << ", " << lambda_ci_upper << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = stats::analysis::kFoldCrossValidation<stats::ExponentialDistribution>(exponential_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::ExponentialDistribution>(
+        exponential_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const double log_likelihood : cv_results) {
@@ -216,11 +215,13 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_exp_data(exponential_data_.begin(), exponential_data_.begin() + 20);
-    const auto loocv_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::ExponentialDistribution>(small_exp_data); // Mean absolute error should be non-negative // RMSE should be non-negative // RMSE should be >= MAE
+    const auto loocv_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::ExponentialDistribution>(
+            small_exp_data);  // Mean absolute error should be non-negative // RMSE should be
+                              // non-negative // RMSE should be >= MAE
     EXPECT_LE(loocv_log_likelihood, 0.0);  // Total log-likelihood should be negative
 
     EXPECT_TRUE(std::isfinite(loocv_log_likelihood));
-
 }
 
 //==============================================================================
@@ -270,7 +271,8 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
                                   std::span<double>(simd_results), h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto simd_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
@@ -283,8 +285,8 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdExp.getProbability(input_span, output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto parallel_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
@@ -296,8 +298,8 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdExp.getProbability(input_span, ws_output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto work_stealing_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto work_stealing_time = std::max<long>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -489,9 +491,9 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
         std::vector<double> trad_logpdf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
         for (size_t j = 0; j < batch_size; ++j) {
-            trad_pdf_results[j]    = exp_dist.getProbability(test_values[j]);
+            trad_pdf_results[j] = exp_dist.getProbability(test_values[j]);
             trad_logpdf_results[j] = exp_dist.getLogProbability(test_values[j]);
-            trad_cdf_results[j]    = exp_dist.getCumulativeProbability(test_values[j]);
+            trad_cdf_results[j] = exp_dist.getCumulativeProbability(test_values[j]);
         }
 
         // Verify correctness
@@ -567,11 +569,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) pdf_results[i] = unitExp.getProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                pdf_results[i] = unitExp.getProbability(test_values[i]);
         } else if (op == "LogPDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) log_pdf_results[i] = unitExp.getLogProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                log_pdf_results[i] = unitExp.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) cdf_results[i] = unitExp.getCumulativeProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                cdf_results[i] = unitExp.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
@@ -583,11 +588,14 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
             h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
             start = std::chrono::high_resolution_clock::now();
             if (op == "PDF") {
-                unitExp.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results), h);
+                unitExp.getProbability(std::span<const double>(test_values),
+                                       std::span<double>(pdf_results), h);
             } else if (op == "LogPDF") {
-                unitExp.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results), h);
+                unitExp.getLogProbability(std::span<const double>(test_values),
+                                          std::span<double>(log_pdf_results), h);
             } else if (op == "CDF") {
-                unitExp.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), h);
+                unitExp.getCumulativeProbability(std::span<const double>(test_values),
+                                                 std::span<double>(cdf_results), h);
             }
             end = std::chrono::high_resolution_clock::now();
         }
