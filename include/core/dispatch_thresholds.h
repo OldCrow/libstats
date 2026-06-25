@@ -169,42 +169,56 @@ constexpr ArchTable kNeon = {{
 //
 // Two Release-mode bundles on fix/audit-remediation (Ivy Bridge retired; hardware
 // no longer in the ecosystem).  Original encoding used the buggy PARALLEL-only
-// V→P definition and predates the v2.0.0 dispatch-path improvements.
+// V→P definition; values below are inferred from recalibrated kNeon (fb8e8b6)
+// and kAvx2 (fb8e8b6) reference tables.
 //
-// Inferred updates applied (architecture-independent dispatch improvements from
-// v2.0.0; same code paths affect AVX as AVX2; see kAvx2 for measured evidence):
-//   - Exponential PDF: 100000 → 64  (kAvx2 measured 64; parallel competitive
-//     much earlier on fixed dispatch paths)
-//   - Discrete PDF: 128 → 100000   (128 was a PARALLEL-only noise artifact;
-//     kNeon measured 100000 stably; inferred same for kAvx)
-//   - Poisson: {50000,50000,50000} → {64,64,64}  (kAvx2 measured 64; dispatch
-//     path fix makes parallel competitive much earlier)
-//   - VonMises PDF: 500000 → 64    (kAvx2 measured 64; kAvx512 measured 64;
-//     architecture-independent GCD improvement)
-//   - Binomial CDF: 50000 → NEVER  (kAvx2 and kNeon both show best@max =
-//     VECTORIZED; inferred same sustainability failure for kAvx)
-//   - NegBinomial CDF: 50000 → NEVER  (same reasoning as Binomial CDF)
-// SSE2 delegates to kAvx (line 364); both are updated together.
+// Inference principle:
+//   kAvx VECTORIZED lacks FMA — roughly 2× less efficient than kAvx2 for
+//   transcendental operations.  GCD pool overhead is identical (same OS).
+//   For SIMD-bound distributions: threshold ≈ kAvx2/2.
+//   For GCD-overhead-dominated distributions (VonMises, Discrete): ≈ kNeon.
+//   For compute-bound distributions (Beta, StudentT, NegBinomial): ≈ kNeon
+//   (SIMD advantage smaller for iterative algorithms; GCD cost dominates).
+//
+// Key inference updates vs prior kAvx (sha-65b1c61, stale references):
+//   - Gaussian PDF/CDF:     64 → 25000/10000  (kAvx2 recalibrated to 50k/25k ÷ 2)
+//   - Exponential PDF/CDF:  64 → 25000/25000  (kAvx2=50k ÷ 2)
+//   - Discrete:      100000 → {75k,50k,25k}   (match kNeon/kAvx2; non-SIMD-bound)
+//   - Poisson:           64 → 128             (kAvx2 recalibrated; floor noise)
+//   - Gamma PDF:          64 → 10000          (kAvx2=25k ÷ 2)
+//   - StudentT:      100000 → 25000/10000     (kAvx2 recalibrated ÷ 2)
+//   - Beta:           NEVER → {512,512,512}   (kNeon=kAvx2=512; compute-bound)
+//   - ChiSquared PDF:    64 → 25000           (kAvx2=50k ÷ 2)
+//   - LogNormal PDF/CDF: 64 → 10000/6144     (kAvx2=25k/10k ÷ 2 approx)
+//   - Pareto:    100000/64 → 50000/50000      (kNeon reference; log-pipeline)
+//   - Weibull:           64 → 25000/25000/50k (kAvx2 ÷ 2 approx)
+//   - Rayleigh:          64 → 25000/64/50000  (kAvx2 ÷ 2 approx)
+//   - VonMises:          64 → 100k/300k/128   (GCD-dominated; match kNeon)
+//   - Binomial CDF:   NEVER → 128            (kNeon=64, kAvx512=128; infer 128)
+//   - NegBinomial CDF:NEVER → 256            (kNeon=256; kAvx closer to kNeon)
+//   Note: Binomial/NegBinomial PDF/LogPDF remain NEVER (kAvx2=NEVER; kAvx
+//   VECTORIZED not weaker enough to change this given GCD overhead).
+// SSE2 delegates to kAvx; both updated together.
 constexpr ArchTable kAvx = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
-    /* GAUSSIAN(1)           */ {64, 64, 64},
-    /* EXPONENTIAL(2)        */ {64, 64, 64},
-    /* DISCRETE(3)           */ {100000, 100000, 100000},
-    /* POISSON(4)            */ {64, 64, 64},
-    /* GAMMA(5)              */ {64, 64, 64},
-    /* STUDENT_T(6)          */ {100000, 64, 64},
-    /* BETA(7)               */ {NEVER, NEVER, NEVER},
-    /* CHI_SQUARED(8)        */ {64, 64, 64},
-    /* LOG_NORMAL(9)         */ {64, 64, 64},
-    /* PARETO(10)            */ {100000, 64, 250000},
-    /* WEIBULL(11)           */ {64, 64, 100000},
-    /* RAYLEIGH(12)          */ {64, 64, 64},
-    /* VON_MISES(13)         */ {64, 64, 64},
-    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* UNIFORM(0)            */ {NEVER,  NEVER,  64},
+    /* GAUSSIAN(1)           */ {25000,  64,     10000},
+    /* EXPONENTIAL(2)        */ {25000,  64,     25000},
+    /* DISCRETE(3)           */ {75000,  50000,  25000},
+    /* POISSON(4)            */ {128,    128,    128},
+    /* GAMMA(5)              */ {10000,  64,     64},
+    /* STUDENT_T(6)          */ {25000,  10000,  64},
+    /* BETA(7)               */ {512,    512,    512},     // compute-bound; kNeon=kAvx2=512
+    /* CHI_SQUARED(8)        */ {25000,  64,     64},
+    /* LOG_NORMAL(9)         */ {10000,  64,     6144},
+    /* PARETO(10)            */ {50000,  50000,  100000},  // log-pipeline; kNeon reference
+    /* WEIBULL(11)           */ {25000,  25000,  50000},
+    /* RAYLEIGH(12)          */ {25000,  64,     50000},
+    /* VON_MISES(13)         */ {100000, 300000, 128},     // GCD-dominated; match kNeon
+    /* BINOMIAL(14)          */ {NEVER,  NEVER,  128},     // CDF inferred from kNeon/kAvx512
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER,  NEVER,  256},     // CDF inferred from kNeon
+    /* GEOMETRIC(16)         */ {NEVER,  NEVER,  NEVER},  // not yet profiled
+    /* LAPLACE(17)           */ {NEVER,  NEVER,  NEVER},  // not yet profiled
+    /* CAUCHY(18)            */ {NEVER,  NEVER,  NEVER},  // not yet profiled
 }};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
@@ -229,7 +243,8 @@ constexpr ArchTable kAvx = {{
 // Bimodal overrides (standard vs large disagree or within-run spread > OOM):
 //   - Discrete CDF: standard {25k,25k,25k} vs large {25k,2k,1k};
 //     large shows warm-pool drop; use standard → 25000.
-//   - Pareto LogPDF: bimodal in both runs; lower-pair method → 512 (conservative).
+//   - Pareto LogPDF: bimodal in both runs; lower-pair method gave 512, but 512 is
+//     sub-floor noise (kNeon=50k, kAvx512=1M confirm kAvx2≥50k); manual override 50000.
 //   - VonMises PDF: large R2 BEST=VECTORIZED (NEVER); finite pair {25k,100k}→100k;
 //     standard {150k,75k,200k}→200k is more conservative → 200000.
 //
@@ -257,7 +272,7 @@ constexpr ArchTable kAvx = {{
 //   - ChiSquared PDF:   64 → 50000  (cold-pool; standard max=50k)
 //   - LogNormal PDF:    64 → 25000  (cold-pool; {25k,25k,25k} standard)
 //   - LogNormal CDF:    64 → 10000  (cold-pool; {6k,6k,10k} consistent)
-//   - Pareto LogPDF:    64 → 512    (bimodal; lower-pair conservative)
+//   - Pareto LogPDF:    64 → 50000  (bimodal noise-floor; manual override — see note above)
 //   - Pareto CDF:   100000 → 150000 (standard {50k,50k,150k} → max)
 //   - Weibull PDF:      64 → 75000  (cold-pool; large {50k,50k,75k} → max)
 //   - Weibull LogPDF:   64 → 50000  (cold-pool; large {50k,10k,10k} → max)
@@ -278,7 +293,8 @@ constexpr ArchTable kAvx2 = {{
     /* BETA(7)               */ {512,    512,    512},     // was NEVER — see Beta note above
     /* CHI_SQUARED(8)        */ {50000,  64,     64},
     /* LOG_NORMAL(9)         */ {25000,  64,     10000},
-    /* PARETO(10)            */ {50000,  512,    150000},  // LogPDF bimodal → conservative
+    /* PARETO(10)            */ {50000,  50000,  150000},  // LogPDF: 512 was bimodal noise-floor
+    //   artifact; manual override to 50000 (kNeon=50k; kAvx2 VECTORIZED log≥kNeon → threshold≥50k)
     /* WEIBULL(11)           */ {75000,  50000,  75000},   // CDF: 250k was over-conservative
     /* RAYLEIGH(12)          */ {50000,  64,     75000},
     /* VON_MISES(13)         */ {200000, 500000, 128},     // LogPDF: 2M ceiling confirmed
@@ -386,32 +402,46 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
     return avx_parallel_threshold(dist, op);
 }
 
-// --- No SIMD: conservative parallel thresholds ---
-// Without SIMD, VECTORIZED is just a scalar loop; parallel helps earlier
-// because there is no SIMD advantage to protect.
-// Threshold: 8192 doubles = 64 KB, which exceeds L1d cache (32-64 KB) on all
-// target CPUs. Below this the scalar loop stays in L1 and threading overhead
-// is hard to amortise; above it L2 latency makes parallel competitive.
-// Unprofiled — treat as a principled placeholder until a no-SIMD build is
-// measured with strategy_profile. BETA: no parallel batch.
-// GEOMETRIC/LAPLACE/CAUCHY: pending implementation.
+// --- No SIMD: per-compute-complexity parallel thresholds ---
+// VECTORIZED is a plain scalar loop; parallel wins when threading overhead is
+// small relative to per-element compute cost.  Three tiers (unprofiled —
+// principled placeholders based on approximate per-element cost analysis):
+//
+//   T1 — 2048: iterative/special-function distributions.  Per-element cost
+//     ~1000–10000 ns (incomplete beta, lgamma, digamma).  Threading overhead
+//     (~500 µs / 8 cores) amortises at ~500 elements; 2048 is conservative.
+//     Distributions: Beta, StudentT, ChiSquared, Gamma, Poisson, Binomial,
+//     NegBinomial, VonMises (cos + cached Bessel Z).
+//
+//   T2 — 8192: elementary transcendental distributions.  Per-element cost
+//     ~20–50 ns (exp, log, erf).  Amortises at ~80000 elements; 8192 is the
+//     L1d cache boundary and a conservative lower bound.
+//     Distributions: Gaussian, Exponential, LogNormal, Weibull, Rayleigh, Pareto.
+//
+//   T3 — 16384: arithmetic/bandwidth-limited distributions.  Per-element cost
+//     ~2–5 ns.  Amortises at ~800000 elements; 16384 is conservative.
+//     Distributions: Uniform, Discrete.
+//
+// GEOMETRIC/LAPLACE/CAUCHY: NEVER (pending implementation).
+// Re-profile with strategy_profile on an actual no-SIMD build to replace these
+// placeholders with measured values.
 constexpr ArchTable kNone = {{
-    /* UNIFORM(0)            */ {8192, 8192, 8192},
-    /* GAUSSIAN(1)           */ {8192, 8192, 8192},
-    /* EXPONENTIAL(2)        */ {8192, 8192, 8192},
-    /* DISCRETE(3)           */ {8192, 8192, 8192},
-    /* POISSON(4)            */ {8192, 8192, 8192},
-    /* GAMMA(5)              */ {8192, 8192, 8192},
-    /* STUDENT_T(6)          */ {8192, 8192, 8192},
-    /* BETA(7)               */ {NEVER, NEVER, NEVER},  // no parallel batch
-    /* CHI_SQUARED(8)        */ {8192, 8192, 8192},
-    /* LOG_NORMAL(9)         */ {8192, 8192, 8192},
-    /* PARETO(10)            */ {8192, 8192, 8192},
-    /* WEIBULL(11)           */ {8192, 8192, 8192},
-    /* RAYLEIGH(12)          */ {8192, 8192, 8192},
-    /* VON_MISES(13)         */ {8192, 8192, 8192},
-    /* BINOMIAL(14)          */ {8192, 8192, 8192},
-    /* NEGATIVE_BINOMIAL(15) */ {8192, 8192, 8192},
+    /* UNIFORM(0)            */ {16384, 16384, 16384},  // T3: trivial arithmetic
+    /* GAUSSIAN(1)           */ {8192,  8192,  8192},   // T2: exp + erf
+    /* EXPONENTIAL(2)        */ {8192,  8192,  8192},   // T2: exp/log
+    /* DISCRETE(3)           */ {16384, 16384, 16384},  // T3: table lookup
+    /* POISSON(4)            */ {2048,  2048,  2048},   // T1: lgamma
+    /* GAMMA(5)              */ {2048,  2048,  2048},   // T1: lgamma + exp
+    /* STUDENT_T(6)          */ {2048,  2048,  2048},   // T1: incomplete beta
+    /* BETA(7)               */ {2048,  2048,  2048},   // T1: iterative incomplete beta
+    /* CHI_SQUARED(8)        */ {2048,  2048,  2048},   // T1: delegates to Gamma
+    /* LOG_NORMAL(9)         */ {8192,  8192,  8192},   // T2: log + exp
+    /* PARETO(10)            */ {8192,  8192,  8192},   // T2: log + exp pipeline
+    /* WEIBULL(11)           */ {8192,  8192,  8192},   // T2: log + exp
+    /* RAYLEIGH(12)          */ {8192,  8192,  8192},   // T2: x² + log
+    /* VON_MISES(13)         */ {2048,  2048,  2048},   // T1: cos + cached Bessel Z
+    /* BINOMIAL(14)          */ {2048,  2048,  2048},   // T1: lgamma + incomplete beta
+    /* NEGATIVE_BINOMIAL(15) */ {2048,  2048,  2048},   // T1: lgamma + digamma/trigamma
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // pending implementation
     /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // pending implementation
     /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // pending implementation
