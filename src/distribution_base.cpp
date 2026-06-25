@@ -1,6 +1,6 @@
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/distribution_base.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/math_constants.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/performance_dispatcher.h"
@@ -25,16 +25,9 @@ namespace stats {
 // =============================================================================
 
 DistributionBase::DistributionBase() {
-    // Initialize all critical system components during base class construction
-    // This ensures one-time initialization overhead happens during object creation,
-    // not during the first method call, providing predictable performance.
-
-    // Initialize SystemCapabilities (thread_local singleton)
+    // Warm up SystemCapabilities on first construction so the SIMD detection
+    // singleton is initialised before any batch call.
     detail::SystemCapabilities::current();
-
-    // Initialize PerformanceHistory (static global singleton)
-    // This ensures the performance tracking system is ready
-    [[maybe_unused]] auto& history = detail::PerformanceDispatcher::getPerformanceHistory();
 }
 
 DistributionBase::DistributionBase(const DistributionBase& /* other */) {
@@ -214,15 +207,13 @@ bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, doubl
     // which would cause NaN distributions to be treated as approximately equal.
     const double myMean = getMean();
     const double otherMean = other.getMean();
-    if (std::isnan(myMean) || std::isnan(otherMean) ||
-        std::abs(myMean - otherMean) > tolerance) {
+    if (std::isnan(myMean) || std::isnan(otherMean) || std::abs(myMean - otherMean) > tolerance) {
         return false;
     }
 
     const double myVar = getVariance();
     const double otherVar = other.getVariance();
-    if (std::isnan(myVar) || std::isnan(otherVar) ||
-        std::abs(myVar - otherVar) > tolerance) {
+    if (std::isnan(myVar) || std::isnan(otherVar) || std::abs(myVar - otherVar) > tolerance) {
         return false;
     }
 
@@ -317,12 +308,12 @@ double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf
 
         // Numerical derivative
         double fpx = (cdf_func(x + h) - cdf_func(x - h)) / (detail::TWO * h);
-        if (i == 0) fpx0 = std::abs(fpx);  // Latch initial magnitude once
+        if (i == 0)
+            fpx0 = std::abs(fpx);  // Latch initial magnitude once
 
         // Q-2: relative derivative guard — guards both absolute zero and collapse
         // relative to the initial derivative magnitude (avoids divergent steps).
-        if (std::abs(fpx) < detail::ZERO ||
-            (fpx0 > detail::ZERO && std::abs(fpx) < 1e-12 * fpx0)) {
+        if (std::abs(fpx) < detail::ZERO || (fpx0 > detail::ZERO && std::abs(fpx) < 1e-12 * fpx0)) {
             return x;  // Hard stop: current estimate is the best available
         }
 
@@ -399,10 +390,12 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
         int m2 = detail::TWO_INT * m;
         double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
         d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
+        if (std::abs(d) < detail::ZERO)
+            d = detail::ZERO;
         // Guard c BEFORE dividing by it: a near-zero c from the previous
         // iteration would otherwise produce aa/c ≈ 1e+30 before being caught.
-        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
+        if (std::abs(c) < detail::ZERO)
+            c = detail::ZERO;
         c = detail::ONE + aa / c;
 
         d = detail::ONE / d;
@@ -410,8 +403,10 @@ double DistributionBase::betaI_continued_fraction(double x, double a, double b) 
 
         aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
         d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
-        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
+        if (std::abs(d) < detail::ZERO)
+            d = detail::ZERO;
+        if (std::abs(c) < detail::ZERO)
+            c = detail::ZERO;
         c = detail::ONE + aa / c;
 
         d = detail::ONE / d;

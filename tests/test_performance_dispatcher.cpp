@@ -6,8 +6,6 @@
 // Use focused header for performance dispatcher testing
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/performance_dispatcher.h"
-#include "libstats/core/performance_history.h"
-
 // Standard library includes
 #include <gtest/gtest.h>
 #include <thread>  // for std::thread
@@ -15,13 +13,7 @@
 
 using namespace stats::detail;
 
-class PerformanceDispatcherTest : public ::testing::Test {
-   protected:
-    void SetUp() override {
-        // Clear any existing performance history
-        PerformanceDispatcher::getPerformanceHistory().clearHistory();
-    }
-};
+class PerformanceDispatcherTest : public ::testing::Test {};
 
 class SystemCapabilitiesTest : public ::testing::Test {
    protected:
@@ -38,17 +30,9 @@ TEST_F(SystemCapabilitiesTest, BasicCapabilityDetection) {
     EXPECT_GT(capabilities.l1_cache_size(), 0);
 
     // Should have some form of SIMD on modern systems (but fallback gracefully)
-    // Note: These might be false on very old systems
     [[maybe_unused]] bool has_any_simd = capabilities.has_sse2() || capabilities.has_avx() ||
-                                         capabilities.has_avx2() || capabilities.has_neon();
-
-    // Performance characteristics should be positive
-    EXPECT_GE(capabilities.simd_efficiency(), 0.0);
-    EXPECT_GE(capabilities.threading_overhead_ns(), 0.0);
-    EXPECT_GE(capabilities.memory_bandwidth_gb_s(), 0.0);
-
-    // Efficiency should be reasonable (not greater than 1.0 in most cases)
-    EXPECT_LE(capabilities.simd_efficiency(), 2.0);  // Allow some margin for exceptional systems
+                                         capabilities.has_avx2() || capabilities.has_avx512() ||
+                                         capabilities.has_neon();
 }
 
 TEST_F(PerformanceDispatcherTest, BasicStrategySelection) {
@@ -71,7 +55,8 @@ TEST_F(PerformanceDispatcherTest, BasicStrategySelection) {
         getParallelThreshold(stats::arch::simd::SIMDPolicy::getBestLevel(),
                              DistributionType::GAUSSIAN, OperationType::CDF);
     if (gaussian_cdf_threshold != SIZE_MAX && gaussian_cdf_threshold <= 100000) {
-        EXPECT_TRUE(strategy_large == Strategy::PARALLEL || strategy_large == Strategy::WORK_STEALING);
+        EXPECT_TRUE(strategy_large == Strategy::PARALLEL ||
+                    strategy_large == Strategy::WORK_STEALING);
     } else {
         EXPECT_EQ(strategy_large, Strategy::VECTORIZED);
     }
@@ -115,71 +100,6 @@ TEST_F(PerformanceDispatcherTest, ComplexityInfluencesStrategy) {
     // (This is a general trend, though specific results depend on system capabilities)
     EXPECT_TRUE(simple_strategy !=
                 Strategy::WORK_STEALING);  // Simple ops unlikely to need GPU acceleration
-}
-
-TEST_F(PerformanceDispatcherTest, ThresholdUpdating) {
-    PerformanceDispatcher dispatcher;
-
-    // Get current thresholds
-    auto original_thresholds = dispatcher.getThresholds();
-
-    // Update with new thresholds
-    PerformanceDispatcher::Thresholds new_thresholds = original_thresholds;
-    new_thresholds.simd_min = 16;        // Change from default
-    new_thresholds.parallel_min = 2000;  // Change from default
-
-    dispatcher.updateThresholds(new_thresholds);
-
-    // Verify thresholds were updated
-    auto updated_thresholds = dispatcher.getThresholds();
-    EXPECT_EQ(updated_thresholds.simd_min, 16);
-    EXPECT_EQ(updated_thresholds.parallel_min, 2000);
-}
-
-TEST_F(PerformanceDispatcherTest, PerformanceRecording) {
-    // Test static performance recording function
-    PerformanceDispatcher::recordPerformance(Strategy::VECTORIZED, DistributionType::EXPONENTIAL,
-                                             500, 1500);
-    PerformanceDispatcher::recordPerformance(Strategy::SCALAR, DistributionType::EXPONENTIAL, 500,
-                                             2000);
-
-    // Verify data was recorded in the global history
-    auto& history = PerformanceDispatcher::getPerformanceHistory();
-
-    auto simd_stats =
-        history.getPerformanceStats(Strategy::VECTORIZED, DistributionType::EXPONENTIAL);
-    auto scalar_stats =
-        history.getPerformanceStats(Strategy::SCALAR, DistributionType::EXPONENTIAL);
-
-    ASSERT_TRUE(simd_stats.has_value());
-    ASSERT_TRUE(scalar_stats.has_value());
-
-    EXPECT_EQ(simd_stats->execution_count, 1);
-    EXPECT_EQ(simd_stats->getAverageTimeNs(), 1500);
-    EXPECT_EQ(scalar_stats->execution_count, 1);
-    EXPECT_EQ(scalar_stats->getAverageTimeNs(), 2000);
-}
-
-TEST_F(PerformanceDispatcherTest, PerformanceHints) {
-    // Test performance hint structures
-    auto minimal_latency = PerformanceHint::minimal_latency();
-    EXPECT_EQ(minimal_latency.strategy, PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY);
-    // thread_count is unset: strategy tag alone drives dispatch in minimal_latency().
-    EXPECT_FALSE(minimal_latency.thread_count.has_value());
-
-    auto max_throughput = PerformanceHint::maximum_throughput();
-    EXPECT_EQ(max_throughput.strategy, PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT);
-    EXPECT_FALSE(max_throughput.thread_count.has_value());
-
-    // Test custom hint
-    PerformanceHint custom_hint;
-    custom_hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-    custom_hint.disable_learning = true;
-    custom_hint.force_strategy = true;
-
-    EXPECT_EQ(custom_hint.strategy, PerformanceHint::PreferredStrategy::FORCE_VECTORIZED);
-    EXPECT_TRUE(custom_hint.disable_learning);
-    EXPECT_TRUE(custom_hint.force_strategy);
 }
 
 TEST_F(PerformanceDispatcherTest, EdgeCases) {
@@ -237,10 +157,6 @@ TEST_F(PerformanceDispatcherTest, ThreadSafety) {
 
                 auto strategy = dispatcher.selectStrategy(batch_size, dist_type, op_type, system);
                 results[t].push_back(strategy);
-
-                // Also record some performance data
-                PerformanceDispatcher::recordPerformance(strategy, dist_type, batch_size,
-                                                         static_cast<uint64_t>(1000 + (i % 5000)));
             }
         });
     }
@@ -253,15 +169,10 @@ TEST_F(PerformanceDispatcherTest, ThreadSafety) {
     // Verify results
     for (std::size_t t = 0; t < num_threads; ++t) {
         EXPECT_EQ(results[t].size(), selections_per_thread);
-        // All strategies should be valid
         for (auto strategy : results[t]) {
             EXPECT_TRUE(strategy >= Strategy::SCALAR && strategy <= Strategy::WORK_STEALING);
         }
     }
-
-    // Should have recorded performance data
-    auto& history = PerformanceDispatcher::getPerformanceHistory();
-    EXPECT_GT(history.getTotalExecutions(), 0);
 }
 
 #ifdef _MSC_VER

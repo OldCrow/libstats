@@ -100,60 +100,22 @@ class SystemCapabilities {
     bool has_avx512() const noexcept { return has_avx512_; }
     bool has_neon() const noexcept { return has_neon_; }
 
-    // Performance characteristics
-    double simd_efficiency() const noexcept { return simd_efficiency_; }
-    double threading_overhead_ns() const noexcept { return threading_overhead_ns_; }
-    double memory_bandwidth_gb_s() const noexcept { return memory_bandwidth_gb_s_; }
-
    private:
     SystemCapabilities();
     void detectCapabilities();
-    void benchmarkPerformance();
 
     // Cached capability data
     size_t logical_cores_, physical_cores_;
     size_t l1_cache_size_, l2_cache_size_, l3_cache_size_;
     bool has_sse2_, has_avx_, has_avx2_, has_avx512_, has_neon_;
-    double simd_efficiency_, threading_overhead_ns_, memory_bandwidth_gb_s_;
 };
-
-/// Forward declaration — defined in performance_history.h.
-class PerformanceHistory;
 
 /**
  * @brief Performance decision engine for strategy selection
  */
 class PerformanceDispatcher {
    public:
-    /**
-     * @brief Default constructor - initializes with architecture-aware thresholds
-     */
     PerformanceDispatcher();
-
-    /**
-     * @brief Constructor with explicit system capabilities
-     * @param system System capabilities for threshold initialization
-     */
-    explicit PerformanceDispatcher(const SystemCapabilities& system);
-    /**
-     * @brief Decision thresholds for strategy selection.
-     * Distribution-specific per-arch thresholds live in dispatch_thresholds.h.
-     */
-    struct Thresholds {
-        size_t simd_min = 8;               ///< Below this, SIMD overhead exceeds benefit
-        size_t parallel_min = 1000;        ///< Below this, threading overhead exceeds benefit
-        size_t work_stealing_min = 10000;  ///< Minimum batch size where work-stealing helps
-
-        static Thresholds createForSIMDLevel(arch::simd::SIMDPolicy::Level level,
-                                             const SystemCapabilities& system);
-
-        static Thresholds getSSE2Profile();
-        static Thresholds getAVXProfile();
-        static Thresholds getAVX2Profile();
-        static Thresholds getAVX512Profile();
-        static Thresholds getNEONProfile();
-        static Thresholds getScalarProfile();
-    };
 
     /**
      * @brief Select optimal execution strategy using profiling-derived lookup table
@@ -168,51 +130,17 @@ class PerformanceDispatcher {
                             const SystemCapabilities& system) const;
 
     /**
-     * @brief Get a snapshot of the current decision thresholds.
-     * Returns by value so callers always see a consistent snapshot.
-     */
-    Thresholds getThresholds() const {
-        std::lock_guard<std::mutex> lock(thresholds_mutex_);
-        return thresholds_;
-    }
-
-    /**
-     * @brief Update thresholds based on performance feedback
-     */
-    void updateThresholds(const Thresholds& new_thresholds);
-
-    /**
-     * @brief Record performance data for learning optimization
-     *
-     * @param strategy The strategy that was used
-     * @param distribution_type Type of distribution processed
-     * @param batch_size Number of elements processed
-     * @param execution_time_ns Actual execution time in nanoseconds
-     */
-    static void recordPerformance(Strategy strategy, DistributionType distribution_type,
-                                  std::size_t batch_size, std::uint64_t execution_time_ns) noexcept;
-
-    /**
-     * @brief Get access to the global performance history for advanced users
-     * @return Reference to the performance history instance
-     */
-    static PerformanceHistory& getPerformanceHistory() noexcept;
-
-   private:
-    mutable Thresholds thresholds_;
-    mutable std::mutex thresholds_mutex_;  ///< Guards thresholds_ against concurrent read/write
-
-    bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
-
-    /**
      * @brief Select multi-threaded strategy (PARALLEL vs WORK_STEALING)
      *
      * The choice depends on the threading backend (GCD vs Windows TP) and
      * whether hyperthreading is present, per four-architecture profiling data.
+     * Public so DispatchUtils::mapHintToStrategy can route MAXIMIZE_THROUGHPUT
+     * through the same OS-aware selection instead of hardcoding WORK_STEALING.
      */
     static Strategy selectMultiThreadedStrategy(DistributionType dist_type,
                                                 const SystemCapabilities& system) noexcept;
 
+   private:
     /// Cached SIMD level for table lookups
     arch::simd::SIMDPolicy::Level simd_level_;
 };
@@ -231,17 +159,14 @@ struct PerformanceHint {
     };
 
     PreferredStrategy strategy = PreferredStrategy::AUTO;
-    bool disable_learning = false;       ///< Don't record performance data
-    bool force_strategy = false;         ///< Override all safety checks
-    std::optional<size_t> thread_count;  ///< Override thread count
+    std::optional<size_t> thread_count;  ///< Override thread count (not yet wired into dispatch)
 
     static PerformanceHint minimal_latency() {
-        // Strategy tag drives dispatch; thread_count left unset.
-        return {PreferredStrategy::MINIMIZE_LATENCY, false, false, std::nullopt};
+        return {PreferredStrategy::MINIMIZE_LATENCY, std::nullopt};
     }
 
     static PerformanceHint maximum_throughput() {
-        return {PreferredStrategy::MAXIMIZE_THROUGHPUT, false, false, std::nullopt};
+        return {PreferredStrategy::MAXIMIZE_THROUGHPUT, std::nullopt};
     }
 };
 

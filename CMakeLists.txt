@@ -767,7 +767,6 @@ set(LIBSTATS_PLATFORM_SOURCES src/thread_pool.cpp # Thread pool implementation
 set(LIBSTATS_INFRASTRUCTURE_SOURCES
     src/distribution_cache.cpp # Distribution-specific cache optimization
     src/benchmark.cpp # Performance benchmarking utilities
-    src/performance_history.cpp # Performance data collection and analysis
     src/performance_dispatcher.cpp # Smart auto-dispatch system
     src/system_capabilities.cpp # System capability detection
     src/libstats_init.cpp # Performance system initialization
@@ -1287,10 +1286,6 @@ if(LIBSTATS_BUILD_TESTS)
     # benchmark.h - Comprehensive benchmark infrastructure testing
     create_libstats_gtest(test_benchmark tests/test_benchmark.cpp)
 
-    # PHASE 3 PERFORMANCE OPTIMIZATION FRAMEWORK (NEW TESTS) performance_history.h - Performance
-    # data collection and analysis
-    create_libstats_gtest(test_performance_history tests/test_performance_history.cpp)
-
     # performance_dispatcher.h - Smart auto-dispatch system
     create_libstats_gtest(test_performance_dispatcher tests/test_performance_dispatcher.cpp)
 
@@ -1453,7 +1448,7 @@ if(LIBSTATS_BUILD_TESTS)
             test_binomial_enhanced
             test_negative_binomial_enhanced
             test_performance_dispatcher
-            test_system_capabilities # runs live SIMD/threading/bandwidth benchmarks
+            test_system_capabilities
             PROPERTIES LABELS "timing")
         set_tests_properties(test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
                              test_discrete_enhanced test_gamma_enhanced PROPERTIES LABELS "timing")
@@ -1487,7 +1482,6 @@ if(LIBSTATS_BUILD_TESTS)
                 test_parallel_execution_integration
                 test_benchmark_basic
                 # Level 4: Performance framework tests
-                test_performance_history
                 test_performance_dispatcher
                 test_system_capabilities
                 test_performance_initialization

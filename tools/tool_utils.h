@@ -10,8 +10,8 @@
 
 // Use libstats.h for complete library functionality
 #define LIBSTATS_FULL_INTERFACE
-#include "libstats/libstats.h"
 #include "libstats/core/distribution_meta.h"  // distributionDisplayName()
+#include "libstats/libstats.h"
 
 // Additional standard library includes for tool-specific functionality
 #include <iomanip>
@@ -247,25 +247,6 @@ class ColumnFormatter {
 };
 }  // namespace detail
 
-// Performance recording utilities
-namespace detail {  // perf_utils utilities
-/**
- * @brief Record performance data with automatic unit conversion
- * @param strategy Strategy used
- * @param dist_type Distribution type
- * @param data_size Size of data processed
- * @param time_microseconds Execution time in microseconds
- */
-inline void recordPerformanceMicroseconds(stats::detail::Strategy strategy,
-                                          stats::detail::DistributionType dist_type,
-                                          size_t data_size, double time_microseconds) {
-    constexpr double MICROSECONDS_TO_NANOSECONDS = 1000.0;
-    stats::detail::PerformanceDispatcher::recordPerformance(
-        strategy, dist_type, data_size,
-        static_cast<uint64_t>(time_microseconds * MICROSECONDS_TO_NANOSECONDS));
-}
-}  // namespace detail
-
 // Common display utilities
 namespace detail {  // display utilities
 /**
@@ -360,12 +341,6 @@ inline void displaySystemCapabilities() {
               << (capabilities.logical_cores() > capabilities.physical_cores() ? "Enabled"
                                                                                : "Disabled")
               << "\n";
-    std::cout << std::setw(25) << "SIMD Efficiency:" << std::fixed << std::setprecision(3)
-              << capabilities.simd_efficiency() << "\n";
-    std::cout << std::setw(25) << "Memory Bandwidth:" << std::setprecision(2)
-              << capabilities.memory_bandwidth_gb_s() << " GB/s\n";
-    std::cout << std::setw(25) << "Thread Overhead:" << std::setprecision(1)
-              << capabilities.threading_overhead_ns() << " ns\n";
 
     std::cout << "\n";
 }

@@ -63,13 +63,13 @@ class DispatchUtils {
      * @param parallel_func Function to call for parallel operations
      * @param work_stealing_func Function to call for work-stealing operations
      */
-    template <stats::concepts::AnyDistribution Distribution, typename ScalarFunc, typename BatchFunc,
-              typename ParallelFunc, typename WorkStealingFunc>
+    template <stats::concepts::AnyDistribution Distribution, typename ScalarFunc,
+              typename BatchFunc, typename ParallelFunc, typename WorkStealingFunc>
     static void autoDispatch(const Distribution& dist, std::span<const double> values,
                              std::span<double> results, const PerformanceHint& hint,
-                             OperationType op_type,
-                             ScalarFunc&& scalar_func, BatchFunc&& batch_func,
-                             ParallelFunc&& parallel_func, WorkStealingFunc&& work_stealing_func) {
+                             OperationType op_type, ScalarFunc&& scalar_func,
+                             BatchFunc&& batch_func, ParallelFunc&& parallel_func,
+                             WorkStealingFunc&& work_stealing_func) {
         // Validate input
         if (values.size() != results.size()) {
             throw std::invalid_argument("Input and output spans must have the same size");
@@ -85,16 +85,20 @@ class DispatchUtils {
             return;
         }
 
-        // Get global dispatcher and system capabilities
-        static thread_local PerformanceDispatcher dispatcher;
+        // Get global dispatcher and system capabilities.
+        // A process-wide static is correct here: PerformanceDispatcher stores only
+        // simd_level_ (fixed at runtime, identical on all threads) and selectStrategy()
+        // is const. A thread_local would create one copy per thread per callers thread
+        // count — redundant construction with identical state.
+        static PerformanceDispatcher dispatcher;
         const SystemCapabilities& system = SystemCapabilities::current();
 
         // Smart dispatch based on problem characteristics
         auto strategy = Strategy::SCALAR;
 
         if (hint.strategy == PerformanceHint::PreferredStrategy::AUTO) {
-            strategy = dispatcher.selectStrategy(
-                count, Distribution::kDistributionType, op_type, system);
+            strategy =
+                dispatcher.selectStrategy(count, Distribution::kDistributionType, op_type, system);
         } else {
             strategy = mapHintToStrategy(hint.strategy, count);
         }
@@ -186,13 +190,16 @@ class DispatchUtils {
             case PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
                 return Strategy::PARALLEL;
             case PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                return (count <= 8) ? Strategy::SCALAR : Strategy::VECTORIZED;
+                // Use the architecture-correct SIMD minimum threshold, not a
+                // hardcoded 8. AVX-512 and other wide tiers may have higher minimums.
+                return (count <= arch::simd::SIMDPolicy::getMinThreshold()) ? Strategy::SCALAR
+                                                                            : Strategy::VECTORIZED;
             case PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                // MAXIMIZE_THROUGHPUT routes to WORK_STEALING, not PARALLEL.
-                // Work-stealing is better for throughput on irregular workloads;
-                // PARALLEL is adequate for uniform ones. A FORCE_PARALLEL hint
-                // exists for callers that specifically need the thread-pool path.
-                return Strategy::WORK_STEALING;
+                // Route through selectMultiThreadedStrategy() so Windows gets
+                // PARALLEL (3.3:1 win over WS) rather than being hardcoded to WS.
+                return PerformanceDispatcher::selectMultiThreadedStrategy(
+                    DistributionType::GAUSSIAN,  // dist_type unused; OS is the deciding factor
+                    SystemCapabilities::current());
             default:
                 return Strategy::SCALAR;
         }
@@ -239,7 +246,6 @@ class DispatchUtils {
             }
         }
     }
-
 };
 
 // DistributionTraits<> removed in v2.0.0.

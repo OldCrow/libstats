@@ -242,8 +242,11 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
         const std::size_t simdWidth = arch::simd::double_vector_width();
         grainSize = ((grainSize + simdWidth - 1) / simdWidth) * simdWidth;
 
-        // Ensure grain size is reasonable (not too small or too large)
-        grainSize = std::max(std::size_t{8}, std::min(grainSize, std::size_t{1024}));
+        // Clamp grain size below to SIMD-width minimum; no upper cap — the
+        // calculated value is already bounded by totalWork and baseGrainSize,
+        // and capping at 1024 defeats the "4x tasks per thread" design goal for
+        // large batches (e.g. 1M / 8 workers / 4 = 31250, not 1024).
+        grainSize = std::max(std::size_t{8}, grainSize);
     }
 
     // Calculate number of tasks we'll submit
@@ -255,8 +258,8 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     // caller's waitForAll() would unblock as soon as any caller's tasks finish,
     // not necessarily its own (A-2 correctness fix).
     auto pendingTasks = std::make_shared<std::atomic<std::size_t>>(numTasks);
-    auto doneMutex    = std::make_shared<std::mutex>();
-    auto doneCv       = std::make_shared<std::condition_variable>();
+    auto doneMutex = std::make_shared<std::mutex>();
+    auto doneCv = std::make_shared<std::condition_variable>();
 
     // Submit all tasks
     for (std::size_t taskId = 0; taskId < numTasks; ++taskId) {
@@ -287,9 +290,8 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
 
     // Wait only for this invocation's tasks (not for tasks from other callers).
     std::unique_lock<std::mutex> lock(*doneMutex);
-    doneCv->wait(lock, [&pendingTasks] {
-        return pendingTasks->load(std::memory_order_acquire) == 0u;
-    });
+    doneCv->wait(lock,
+                 [&pendingTasks] { return pendingTasks->load(std::memory_order_acquire) == 0u; });
 }
 
 /**

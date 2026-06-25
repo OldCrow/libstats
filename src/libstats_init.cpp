@@ -29,25 +29,13 @@ void initialize_performance_systems() {
     }
 
     try {
-        // 1. Initialize system capabilities (triggers CPU detection and benchmarking)
-        // This is the most expensive operation (~10-30ms)
+        // 1. Warm up system capabilities (CPUID + core detection; ~0.1ms after benchmark removal)
         [[maybe_unused]] const auto& system_capabilities = detail::SystemCapabilities::current();
 
-        // 2. Initialize SIMD policy (triggers SIMD feature detection)
-        // Moderate cost (~1-5ms)
+        // 2. Warm up SIMD policy (amortises CPUID detection on first batch call)
         [[maybe_unused]] auto simd_level = arch::simd::SIMDPolicy::getBestLevel();
 
-        // 3. Initialize performance dispatcher with detected capabilities
-        // Creates optimized thresholds based on system characteristics (~1-2ms)
-        [[maybe_unused]] detail::PerformanceDispatcher dispatcher(system_capabilities);
-
-        // 4. Initialize performance history singleton
-        // Creates the global performance history instance (~0.1ms)
-        [[maybe_unused]] auto& perf_history =
-            detail::PerformanceDispatcher::getPerformanceHistory();
-
-        // 5. Initialize thread pool infrastructure
-        // Creates optimal thread pool for parallel operations (~1-3ms)
+        // 3. Warm up thread pool infrastructure (amortises thread-launch cost)
         [[maybe_unused]] auto optimal_threads = ThreadPool::getOptimalThreadCount();
 
         // Mark as initialized
