@@ -3,6 +3,7 @@
 #include "libstats/libstats.h"
 #include "libstats/platform/simd_policy.h"
 #include "libstats/platform/thread_pool.h"
+#include "libstats/platform/work_stealing_pool.h"
 
 #include <atomic>
 #include <mutex>
@@ -35,8 +36,11 @@ void initialize_performance_systems() {
         // 2. Warm up SIMD policy (amortises CPUID detection on first batch call)
         [[maybe_unused]] auto simd_level = arch::simd::SIMDPolicy::getBestLevel();
 
-        // 3. Warm up thread pool infrastructure (amortises thread-launch cost)
-        [[maybe_unused]] auto optimal_threads = ThreadPool::getOptimalThreadCount();
+        // 3. Warm up thread pool singletons (amortises thread-launch cost on first
+        // batch call). getOptimalThreadCount() only returns a number; the singletons
+        // must be touched explicitly to trigger thread creation.
+        [[maybe_unused]] auto& thread_pool = ParallelUtils::getGlobalThreadPool();
+        [[maybe_unused]] auto& ws_pool = GlobalWorkStealingPool::getInstance();
 
         // Mark as initialized
         initialized.store(true, std::memory_order_release);

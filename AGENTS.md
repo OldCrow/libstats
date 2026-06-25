@@ -8,8 +8,9 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v2.0.0 on `feat/v2-architecture` — development complete, pending three-machine
-validation before merge to `main`. v1.5.3 is the final v1.x release.
+**Current Status**: v2.0.0 on `feat/v2-architecture` — three-machine validation complete (43/43
+on all machines); awaiting API rationalization cleanup before merge to `main`.
+v1.5.3 is the final v1.x release.
 
 16 distributions implemented across 6 families. 3 additional distributions — Geometric, Laplace,
 Cauchy — are registered in the enum and metadata table (pending implementation).
@@ -98,9 +99,9 @@ minimum macOS raised to 13 Ventura).
 
 | Machine | SIMD | Target | Notes |
 |---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 43/43 ✅ | v2.0.0 validated; kAvx2 thresholds recalibrated (3-run) |
-| Mac Mini M1 | NEON | 43/43 ✅ | v2.0.0 validated; kNeon thresholds recalibrated (3-run) |
-| Asus TUF A16 (Windows) | AVX-512 | 43/43 ✅ | v2.0.0 validated; kAvx512 thresholds recalibrated (3-run); 61/61 simd_verification |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 43/43 ✅ | v2.0.0 validated; kAvx2 recalibrated (3-run standard + 3-run --large, fb8e8b6) |
+| Mac Mini M1 | NEON | 43/43 ✅ | v2.0.0 validated; kNeon recalibrated with 64-element grid floor (fb8e8b6, 2026-06-24) |
+| Asus TUF A16 (Windows) | AVX-512 | 43/43 ✅ | v2.0.0 validated; kAvx512 recalibrated (3-run standard + 3-run --large); 61/61 simd_verification |
 
 **v1.5.2 — final v1.x release (four machines)**
 
@@ -161,6 +162,27 @@ Selected per-distribution speedups:
 | Exponential | CDF | 7.5x |
 | Gamma | PDF | 8.2x |
 
+### Post-completion fixes (2026-06-24 to 2026-06-25, still on feat/v2-architecture)
+- **kNeon recalibration** (2026-06-24, fb8e8b6 bundles): Prior kNeon table used a profiler grid
+  starting at 8 elements; timer jitter at sub-64 sizes produced false parallel-wins clamped to 64.
+  New 64-element grid floor reveals true crossovers of 128–75 000 for ~12 affected entries.
+  Notable changes: Gaussian PDF 64→25 000; Exponential PDF/CDF 64→50 000/25 000; Gamma PDF 64→50 000;
+  Beta/Binomial CDF/NegBinomial CDF gained new crossovers (previously NEVER).
+  Measurement artifacts and warm-state bias documented in `scripts/PROFILING_METHOD.md`.
+- **Dispatch correctness fixes**: `MAXIMIZE_THROUGHPUT` hint now routes through
+  `selectMultiThreadedStrategy()` (was hardcoded to WORK_STEALING; Windows gets PARALLEL, 3.3:1 win).
+  `MINIMIZE_LATENCY` cutoff now uses `SIMDPolicy::getMinThreshold()` (was hardcoded 8).
+  `WorkStealingPool::parallelFor` grain size cap of 1024 removed (was overriding the 4x-tasks-per-
+  thread calculation; e.g., 1M/8 workers/4=31 250 was capped to 1024).
+  `thread_local PerformanceDispatcher` changed to `static` (all threads make identical decisions).
+- **Vestigial v1 performance infrastructure removed**: `PerformanceHistory` class (adaptive learning
+  never wired into dispatch), `PerformanceDispatcher::Thresholds` struct and 6 profile factory
+  methods (never consulted by `selectStrategy()`), `SystemCapabilities::benchmarkPerformance()`
+  (3 microbenchmarks including 16 MB bandwidth test ran at cold-start; results never read by
+  dispatch path). `initialize_performance_systems()` now warms up actual thread pool singletons
+  (`GlobalThreadPool`, `GlobalWorkStealingPool`) instead of calling `getOptimalThreadCount()`.
+- **R7 test fixes**: `std::max<long>(1,...)` guard on `simd_time`/`parallel_time`/`work_stealing_time`
+  in four enhanced tests; kNeon changelog comment gap (`UNIFORM PDF: 64→NEVER`) filled.
 ### Changes in v2.0.0
 - **Distribution metadata table** (`include/core/distribution_meta.h`): canonical
   `kDistributionMeta[]` constexpr array with enum name, display name, `is_discrete`, and
@@ -185,9 +207,7 @@ Selected per-distribution speedups:
 - **`strategy_profile.cpp` `STRATEGIES` array** documented with a registration comment pointing to
   the compiler-enforced `executeStrategy` switch as the completeness counterpart.
 
-43/43 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON after all v2.0.0
-infrastructure work. Asus TUF A16 (AVX-512): re-run `strategy_profile` with corrected
-`summarize_dispatcher_profile.py` to regenerate canonical kAvx512 thresholds before PR merge.
+43/43 correctness tests pass on all three machines after all v2.0.0 infrastructure work.
 
 ### Deferred Items
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to enable

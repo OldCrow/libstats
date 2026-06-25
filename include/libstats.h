@@ -155,7 +155,6 @@
     // Cache infrastructure
     #include "core/distribution_cache.h"  // Distribution parameter caching
     #include "core/performance_dispatcher.h"
-    #include "core/performance_history.h"
 
     // Distribution implementations
     #include "distributions/beta.h"
@@ -212,11 +211,9 @@ namespace stats {
  * systems to eliminate cold-start latency during first-time batch operation dispatch.
  *
  * **What gets initialized:**
- * - System capability detection and benchmarking (CPU features, SIMD support)
- * - Performance dispatcher with optimized thresholds
+ * - System capability detection (CPU features, SIMD support)
  * - SIMD policy detection and configuration
- * - Performance history singleton
- * - Thread pool infrastructure
+ * - Thread pool singletons (GlobalThreadPool, GlobalWorkStealingPool)
  *
  * **When to call:**
  * - Once at application startup, before using batch operations
@@ -224,9 +221,9 @@ namespace stats {
  * - Before performance-critical code sections to avoid cold-start penalty
  *
  * **Performance impact:**
- * - First call: ~10-50ms initialization time (system-dependent)
+ * - First call: ~1-5ms (thread pool startup dominates)
  * - Subsequent calls: ~1-2ns (fast path with static flag)
- * - Eliminates 10-50ms delay from first batch operation call
+ * - Eliminates thread-launch latency from first parallel batch operation
  *
  * **Thread safety:**
  * - Thread-safe: safe to call from multiple threads concurrently
