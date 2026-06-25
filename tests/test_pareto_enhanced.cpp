@@ -208,9 +208,14 @@ TEST_F(ParetoEnhancedTest, VectorizedSpeedup) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 1.0 + 0.001 * static_cast<double>(i + 1);
     vector<double> out(N), scl(N);
+    detail::PerformanceHint vec_hint, scl_hint;
+    vec_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    scl_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
 
     const auto t0 = std::chrono::high_resolution_clock::now();
+    p12_.getLogProbability(span<const double>(xs), span<double>(out), vec_hint);
     const auto t1 = std::chrono::high_resolution_clock::now();
+    p12_.getLogProbability(span<const double>(xs), span<double>(scl), scl_hint);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double vec_us =

@@ -246,26 +246,40 @@ TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
-        start = std::chrono::high_resolution_clock::now();
-        end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            stdPoisson.getProbability(std::span<const double>(test_values),
+                                      std::span<double>(simd_results), h);
+            end = std::chrono::high_resolution_clock::now();
+        }
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
         std::span<const double> input_span(test_values);
         std::span<double> output_span(parallel_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            start = std::chrono::high_resolution_clock::now();
+            stdPoisson.getProbability(input_span, output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
         std::span<double> ws_output_span(work_stealing_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            start = std::chrono::high_resolution_clock::now();
+            stdPoisson.getProbability(input_span, ws_output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
         auto work_stealing_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -455,11 +469,15 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
         auto auto_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        // Compare with traditional batch methods for correctness
+        // Reference: per-element scalar calls
         std::vector<double> trad_pmf_results(batch_size);
         std::vector<double> trad_logpmf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
-
+        for (size_t j = 0; j < batch_size; ++j) {
+            trad_pmf_results[j]    = poisson_dist.getProbability(test_values[j]);
+            trad_logpmf_results[j] = poisson_dist.getLogProbability(test_values[j]);
+            trad_cdf_results[j]    = poisson_dist.getCumulativeProbability(test_values[j]);
+        }
 
         // Verify correctness
         bool pmf_correct = true, logpmf_correct = true, cdf_correct = true;
@@ -534,55 +552,78 @@ TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PMF") {
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) pdf_results[i] = stdPoisson.getProbability(test_values[i]);
         } else if (op == "LogPMF") {
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) log_pdf_results[i] = stdPoisson.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) cdf_results[i] = stdPoisson.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 2. SIMD Batch operations
-        start = std::chrono::high_resolution_clock::now();
-        if (op == "PMF") {
-        } else if (op == "LogPMF") {
-        } else if (op == "CDF") {
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            if (op == "PMF") {
+                stdPoisson.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results), h);
+            } else if (op == "LogPMF") {
+                stdPoisson.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results), h);
+            } else if (op == "CDF") {
+                stdPoisson.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), h);
+            }
+            end = std::chrono::high_resolution_clock::now();
         }
-        end = std::chrono::high_resolution_clock::now();
         result.vectorized_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Parallel Batch Operations (PARALLEL strategy) - fallback to SCALAR
+        // 3. Parallel Batch Operations (PARALLEL strategy)
         std::span<const double> input_span(test_values);
-
-        if (op == "PMF") {
-            std::span<double> output_span(pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPMF") {
-            std::span<double> log_output_span(log_pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            if (op == "PMF") {
+                std::span<double> output_span(pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                stdPoisson.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPMF") {
+                std::span<double> log_output_span(log_pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                stdPoisson.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                stdPoisson.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            }
         }
         result.parallel_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Work-Stealing Operations (if available) - fallback to SCALAR
-        if (op == "PMF") {
-            std::span<double> output_span(pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPMF") {
-            std::span<double> log_output_span(log_pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
+        // 4. Work-Stealing Operations
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            if (op == "PMF") {
+                std::span<double> output_span(pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                stdPoisson.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPMF") {
+                std::span<double> log_output_span(log_pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                stdPoisson.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                stdPoisson.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            }
         }
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());

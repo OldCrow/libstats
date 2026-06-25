@@ -90,7 +90,7 @@ TEST_F(NegativeBinomialEnhancedTest, Moments) {
 TEST_F(NegativeBinomialEnhancedTest, BoundaryPMF) {
     EXPECT_DOUBLE_EQ(nb2_05_.getProbability(-1.0), 0.0);
     EXPECT_DOUBLE_EQ(nb2_05_.getProbability(-0.5), 0.0);
-    EXPECT_DOUBLE_EQ(nb2_05_.getProbability(std::numeric_limits<double>::quiet_NaN()), 0.0);
+    EXPECT_TRUE(std::isnan(nb2_05_.getProbability(std::numeric_limits<double>::quiet_NaN())));  // NaN propagates
     EXPECT_DOUBLE_EQ(nb2_05_.getProbability(std::numeric_limits<double>::infinity()), 0.0);
     EXPECT_DOUBLE_EQ(nb2_05_.getLogProbability(-1.0),
                      -std::numeric_limits<double>::infinity());

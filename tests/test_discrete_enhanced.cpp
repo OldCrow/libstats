@@ -74,7 +74,7 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(dice.getMean(), 3.5);
     EXPECT_NEAR(dice.getVariance(), 35.0 / 12.0, 1e-10);  // (6-1)(6-1+2)/12 = 5*7/12
     EXPECT_DOUBLE_EQ(dice.getSkewness(), 0.0);
-    EXPECT_DOUBLE_EQ(dice.getKurtosis(), -1.2);
+    EXPECT_NEAR(dice.getKurtosis(), -222.0 / 175.0, 1e-10);  // exact: -6(n²+1)/5(n²-1), n=6
 
     // Test known PMF/CDF values
     double pmf_at_3 = dice.getProbability(3.0);
@@ -170,8 +170,8 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
         discrete_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
-    EXPECT_LT(lower_ci.first, lower_ci.second);  // Lower bound CI
-    EXPECT_LT(upper_ci.first, upper_ci.second);  // Upper bound CI
+    EXPECT_LE(lower_ci.first, lower_ci.second);  // Bootstrap CI may be degenerate for discrete params
+    EXPECT_LE(upper_ci.first, upper_ci.second);
 
     // Parameter CIs should be finite and make statistical sense
     // Note: For discrete uniform bounds, the true parameter 'a' could be below the sample minimum
@@ -249,26 +249,40 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
-        start = std::chrono::high_resolution_clock::now();
-        end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            stdDiscrete.getProbability(std::span<const double>(test_values),
+                                       std::span<double>(simd_results), h);
+            end = std::chrono::high_resolution_clock::now();
+        }
         auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
         std::span<const double> input_span(test_values);
         std::span<double> output_span(parallel_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            start = std::chrono::high_resolution_clock::now();
+            stdDiscrete.getProbability(input_span, output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
         auto parallel_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
         std::span<double> ws_output_span(work_stealing_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            start = std::chrono::high_resolution_clock::now();
+            stdDiscrete.getProbability(input_span, ws_output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
         auto work_stealing_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
@@ -464,11 +478,15 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
         auto auto_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        // Compare with traditional batch methods for correctness
+        // Reference: per-element scalar calls
         std::vector<double> trad_pmf_results(batch_size);
         std::vector<double> trad_logpmf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
-
+        for (size_t j = 0; j < batch_size; ++j) {
+            trad_pmf_results[j]    = discrete_dist.getProbability(test_values[j]);
+            trad_logpmf_results[j] = discrete_dist.getLogProbability(test_values[j]);
+            trad_cdf_results[j]    = discrete_dist.getCumulativeProbability(test_values[j]);
+        }
 
         // Verify correctness
         bool pmf_correct = true, logpmf_correct = true, cdf_correct = true;
@@ -543,55 +561,78 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PMF") {
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) pmf_results[i] = dice.getProbability(test_values[i]);
         } else if (op == "LogPMF") {
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) log_pmf_results[i] = dice.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) cdf_results[i] = dice.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 2. SIMD Batch operations
-        start = std::chrono::high_resolution_clock::now();
-        if (op == "PMF") {
-        } else if (op == "LogPMF") {
-        } else if (op == "CDF") {
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            if (op == "PMF") {
+                dice.getProbability(std::span<const double>(test_values), std::span<double>(pmf_results), h);
+            } else if (op == "LogPMF") {
+                dice.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pmf_results), h);
+            } else if (op == "CDF") {
+                dice.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), h);
+            }
+            end = std::chrono::high_resolution_clock::now();
         }
-        end = std::chrono::high_resolution_clock::now();
         result.vectorized_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Parallel Batch Operations (PARALLEL strategy) - fallback to SCALAR
+        // 3. Parallel Batch Operations (PARALLEL strategy)
         std::span<const double> input_span(test_values);
-
-        if (op == "PMF") {
-            std::span<double> output_span(pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPMF") {
-            std::span<double> log_output_span(log_pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            if (op == "PMF") {
+                std::span<double> output_span(pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPMF") {
+                std::span<double> log_output_span(log_pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            }
         }
         result.parallel_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Work-Stealing Operations (if available) - fallback to SCALAR
-        if (op == "PMF") {
-            std::span<double> output_span(pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPMF") {
-            std::span<double> log_output_span(log_pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            end = std::chrono::high_resolution_clock::now();
+        // 4. Work-Stealing Operations
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            if (op == "PMF") {
+                std::span<double> output_span(pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPMF") {
+                std::span<double> log_output_span(log_pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            }
         }
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());

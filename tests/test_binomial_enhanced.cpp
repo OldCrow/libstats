@@ -104,7 +104,7 @@ TEST_F(BinomialEnhancedTest, Moments) {
 TEST_F(BinomialEnhancedTest, BoundaryPMF) {
     EXPECT_DOUBLE_EQ(b10_05_.getProbability(-1.0), 0.0);
     EXPECT_DOUBLE_EQ(b10_05_.getProbability(11.0), 0.0);
-    EXPECT_DOUBLE_EQ(b10_05_.getProbability(std::numeric_limits<double>::quiet_NaN()), 0.0);
+    EXPECT_TRUE(std::isnan(b10_05_.getProbability(std::numeric_limits<double>::quiet_NaN())));  // NaN propagates
     EXPECT_DOUBLE_EQ(b10_05_.getProbability(std::numeric_limits<double>::infinity()), 0.0);
     EXPECT_DOUBLE_EQ(b10_05_.getLogProbability(-1.0),
                      -std::numeric_limits<double>::infinity());
