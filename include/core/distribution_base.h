@@ -168,7 +168,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @param tolerance Numerical tolerance for comparison
      * @return true if distributions are approximately equal
      */
-    virtual bool isApproximatelyEqual(const DistributionBase& other,
+    virtual bool isApproximatelyEqual(const DistributionInterface& other,
                                       double tolerance = 1e-10) const;
 
     // =============================================================================

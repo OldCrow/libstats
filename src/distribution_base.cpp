@@ -216,7 +216,7 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
 // DISTRIBUTION COMPARISON
 // =============================================================================
 
-bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, double tolerance) const {
+bool DistributionBase::isApproximatelyEqual(const DistributionInterface& other, double tolerance) const {
     // Compare basic properties
     if (getDistributionName() != other.getDistributionName()) {
         return false;
