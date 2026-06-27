@@ -1,4 +1,5 @@
 #include "libstats/core/math_utils.h"
+#include "libstats/stats/analysis/statistical_utilities.h"
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 
 #include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
@@ -1207,4 +1208,31 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
 }
 
 }  // namespace detail
+}  // namespace stats
+
+// =============================================================================
+// stats::analysis:: public wrappers
+// Delegate to the detail:: implementations above; no logic is duplicated.
+// =============================================================================
+namespace stats {
+namespace analysis {
+
+std::vector<double> empirical_cdf(std::span<const double> data) {
+    return detail::empirical_cdf(data);
+}
+
+std::vector<double> calculate_quantiles(std::span<const double> data,
+                                         std::span<const double> quantiles) {
+    return detail::calculate_quantiles(data, quantiles);
+}
+
+std::array<double, 4> sample_moments(std::span<const double> data) {
+    return detail::sample_moments(data);
+}
+
+bool validate_fitting_data(std::span<const double> data) noexcept {
+    return detail::validate_fitting_data(data);
+}
+
+}  // namespace analysis
 }  // namespace stats

@@ -402,39 +402,10 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  */
 [[nodiscard]] double gamma_inverse_cdf(double p, double shape, double scale) noexcept;
 
-// =============================================================================
-// STATISTICAL UTILITIES
-// =============================================================================
-
-/**
- * @brief Calculate empirical CDF from sorted data
- * @param data Sorted data vector
- * @return Vector of empirical CDF values
- */
-[[nodiscard]] std::vector<double> empirical_cdf(std::span<const double> data);
-
-/**
- * @brief Calculate quantiles from sorted data
- * @param data Sorted data vector
- * @param quantiles Quantile levels to calculate
- * @return Vector of quantile values
- */
-[[nodiscard]] std::vector<double> calculate_quantiles(std::span<const double> data,
-                                                      std::span<const double> quantiles);
-
-/**
- * @brief Calculate sample moments (mean, variance, skewness, kurtosis)
- * @param data Data vector
- * @return Array [mean, variance, skewness, excess_kurtosis]
- */
-[[nodiscard]] std::array<double, 4> sample_moments(std::span<const double> data);
-
-/**
- * @brief Validate data for statistical fitting
- * @param data Data to validate
- * @return true if data is valid for fitting
- */
-[[nodiscard]] bool validate_fitting_data(std::span<const double> data) noexcept;
+// empirical_cdf, calculate_quantiles, sample_moments, validate_fitting_data
+// promoted to stats::analysis:: in v2.0.0 (API rationalization, D3).
+// Use: #include "libstats/stats/analysis/statistical_utilities.h"
+//      stats::analysis::empirical_cdf(data)  etc.
 
 // =============================================================================
 // GOODNESS-OF-FIT TESTING

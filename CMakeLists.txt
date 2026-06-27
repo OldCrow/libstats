@@ -1252,6 +1252,7 @@ if(LIBSTATS_BUILD_TESTS)
 
     # Consolidated math utilities (math_utils.h)
     create_libstats_gtest(test_math_comprehensive tests/test_math_comprehensive.cpp)
+    create_libstats_gtest(test_statistical_utilities tests/test_statistical_utilities.cpp)
 
     # =======================================================================
     # LEVEL 2: Statistical Infrastructure

@@ -13,3 +13,4 @@
 #include "libstats/stats/analysis/cross_validation.h"
 #include "libstats/stats/analysis/goodness_of_fit.h"
 #include "libstats/stats/analysis/information_criteria.h"
+#include "libstats/stats/analysis/statistical_utilities.h"
