@@ -116,23 +116,7 @@ inline std::string distributionTypeToString(stats::detail::DistributionType type
     return std::string(stats::detail::distributionDisplayName(type));
 }
 
-/**
- * @brief Converts ComputationComplexity enum to string representation
- * @param complexity The computation complexity enum value
- * @return String representation of the complexity
- */
-inline std::string complexityToString(stats::detail::ComputationComplexity complexity) {
-    switch (complexity) {
-        case stats::detail::ComputationComplexity::SIMPLE:
-            return "Simple";
-        case stats::detail::ComputationComplexity::MODERATE:
-            return "Moderate";
-        case stats::detail::ComputationComplexity::COMPLEX:
-            return "Complex";
-        default:
-            return "Unknown";
-    }
-}
+// complexityToString() removed in v2.0.0 (Part 4) alongside ComputationComplexity.
 }  // namespace detail
 
 // Formatting utilities

@@ -70,14 +70,9 @@ enum class Strategy {
     WORK_STEALING  ///< Work-stealing pool for irregular workloads
 };
 
-/**
- * @brief Computational complexity levels
- */
-enum class ComputationComplexity {
-    SIMPLE,    ///< Basic arithmetic operations
-    MODERATE,  ///< Transcendental functions (exp, log)
-    COMPLEX    ///< Special functions (gamma, erf)
-};
+// ComputationComplexity removed in v2.0.0 (Part 4): was the old
+// complexity-aware dispatch parameter; never used after the dispatch refactor.
+// complexityToString() in tool_utils.h removed alongside it.
 
 /**
  * @brief System capabilities and performance characteristics
