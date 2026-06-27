@@ -21,6 +21,36 @@
 namespace stats {
 
 // =============================================================================
+// INTERNAL HELPERS
+// =============================================================================
+
+/**
+ * Computes log-likelihood, AIC and BIC for a fitted DistributionBase.
+ *
+ * Implements the same formula as stats::analysis::informationCriteria<D>().
+ * A file-local function is used here because DistributionBase cannot satisfy
+ * the AnyDistribution concept (it lacks static kDistributionType / kIsDiscrete
+ * members, which are only meaningful on concrete distribution types).
+ *
+ * Formula:
+ *   log_likelihood = Σ log P(x_i | θ)
+ *   AIC  = 2k − 2ℓ
+ *   BIC  = k ln n − 2ℓ
+ *
+ * Sync note: if the formula in information_criteria.h ever changes, update here.
+ */
+static void compute_fit_ic(const std::vector<double>& data, const DistributionBase& dist,
+                            double& log_likelihood, double& aic, double& bic) noexcept {
+    const int k = dist.getNumParameters();
+    const double n = static_cast<double>(data.size());
+    log_likelihood = 0.0;
+    for (double x : data)
+        log_likelihood += dist.getLogProbability(x);
+    aic = 2.0 * k - 2.0 * log_likelihood;
+    bic = k * std::log(n) - 2.0 * log_likelihood;
+}
+
+// =============================================================================
 // RULE OF FIVE IMPLEMENTATION
 // =============================================================================
 
@@ -74,20 +104,13 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
         results.fit_successful = true;
         results.fit_diagnostics = "Fit completed successfully";
 
-        // Calculate log-likelihood
-        results.log_likelihood = detail::ZERO_DOUBLE;
-        for (double x : data) {
-            double log_prob = getLogProbability(x);
-            if (std::isfinite(log_prob)) {
-                results.log_likelihood += log_prob;
-            }
-        }
-
-        // Calculate AIC and BIC
-        int k = getNumParameters();
-        int n = static_cast<int>(data.size());
-        results.aic = detail::TWO * k - detail::TWO * results.log_likelihood;
-        results.bic = k * std::log(n) - detail::TWO * results.log_likelihood;
+        // Compute log-likelihood, AIC, BIC via shared helper (same formula as
+        // stats::analysis::informationCriteria; see compute_fit_ic comment above).
+        // The previous isfinite guard is removed: silently skipping -inf
+        // log-probs was incorrect (it inflated the log-likelihood for
+        // out-of-support data). Letting -inf propagate is mathematically right.
+        compute_fit_ic(data, *this,
+                       results.log_likelihood, results.aic, results.bic);
 
         // Calculate residuals
         std::vector<double> sorted_data = data;

@@ -895,6 +895,70 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
 
 }  // namespace stats
 
+// =============================================================================
+// FitWithDiagnostics: base-class virtual method that bundles fit() +
+// AIC/BIC + CDF residuals + validate(). Tested here on Gaussian because
+// the base-class implementation is shared by all 16 distributions.
+// Part 2D — API rationalization plan.
+// =============================================================================
+
+TEST(FitWithDiagnosticsTest, GaussianReturnsValidResults) {
+    using namespace stats;
+
+    // Generate a sample from N(3, 2).
+    std::mt19937 rng(42);
+    std::normal_distribution<double> gen(3.0, 2.0);
+    std::vector<double> data(200);
+    for (double& x : data) x = gen(rng);
+
+    auto dist = GaussianDistribution::create(0.0, 1.0).value;
+    const auto results = dist.fitWithDiagnostics(data);
+
+    // Fit must succeed.
+    EXPECT_TRUE(results.fit_successful) << results.fit_diagnostics;
+
+    // AIC and BIC must be finite and positive.
+    EXPECT_TRUE(std::isfinite(results.aic))  << "AIC must be finite";
+    EXPECT_TRUE(std::isfinite(results.bic))  << "BIC must be finite";
+    EXPECT_GT(results.aic, 0.0)             << "AIC is typically positive";
+    EXPECT_GT(results.bic, 0.0)             << "BIC is typically positive";
+
+    // Log-likelihood must be finite and negative (for continuous density).
+    EXPECT_TRUE(std::isfinite(results.log_likelihood)) << "Log-likelihood must be finite";
+    EXPECT_LT(results.log_likelihood, 0.0)             << "Log-likelihood should be negative";
+
+    // AIC == 2k - 2LL; BIC == k*ln(n) - 2LL; for Gaussian k=2.
+    const int k = 2;
+    const double n = static_cast<double>(data.size());
+    EXPECT_NEAR(results.aic, 2.0 * k - 2.0 * results.log_likelihood, 1e-9);
+    EXPECT_NEAR(results.bic, k * std::log(n) - 2.0 * results.log_likelihood, 1e-9);
+
+    // Residuals: one per datum, all in [-1, 1].
+    EXPECT_EQ(results.residuals.size(), data.size());
+    for (double r : results.residuals) {
+        EXPECT_GE(r, -1.0) << "Residual out of range";
+        EXPECT_LE(r, 1.0)  << "Residual out of range";
+    }
+
+    // Validation fields must be finite and non-negative.
+    EXPECT_TRUE(std::isfinite(results.validation.ks_statistic));
+    EXPECT_GE(results.validation.ks_statistic, 0.0);
+    EXPECT_GE(results.validation.ks_p_value, 0.0);
+    EXPECT_LE(results.validation.ks_p_value, 1.0);
+    EXPECT_FALSE(results.validation.recommendations.empty());
+}
+
+TEST(FitWithDiagnosticsTest, FailurePathPopulatesNaN) {
+    using namespace stats;
+    // Empty data must trigger the failure path.
+    auto dist = GaussianDistribution::create(0.0, 1.0).value;
+    const auto results = dist.fitWithDiagnostics({});
+    EXPECT_FALSE(results.fit_successful);
+    EXPECT_TRUE(std::isnan(results.log_likelihood));
+    EXPECT_TRUE(std::isnan(results.aic));
+    EXPECT_TRUE(std::isnan(results.bic));
+}
+
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
