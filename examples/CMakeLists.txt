@@ -46,6 +46,7 @@ create_example(distribution_families_demo distribution_families_demo.cpp)
 
 # Distribution and scenario examples
 create_example(error_handling_demo error_handling_demo.cpp)
+create_example(logpdf_and_likelihood_demo logpdf_and_likelihood_demo.cpp)
 
 # Advanced examples
 create_example(statistical_validation_demo statistical_validation_demo.cpp)

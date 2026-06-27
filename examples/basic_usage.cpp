@@ -68,6 +68,8 @@ int main() {
               << std::endl;
     std::cout << "     Kurtosis: " << normal.getKurtosis() << " [Expected: 3.0000 - mesokurtic]"
               << std::endl;
+    std::cout << "     Entropy: " << normal.getEntropy() << " [Expected: ~1.4189 nats]"
+              << std::endl;
 
     std::cout << "\n📈 Exponential(λ=2.0) properties:" << std::endl;
     std::cout << "     Mean (1/λ): " << exponential.getMean() << " [Expected: 0.5000]" << std::endl;
