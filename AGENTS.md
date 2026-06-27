@@ -99,9 +99,9 @@ minimum macOS raised to 13 Ventura).
 
 | Machine | SIMD | Target | Notes |
 |---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 43/43 ✅ | v2.0.0 validated; kAvx2 recalibrated (3-run standard + 3-run --large, fb8e8b6) |
-| Mac Mini M1 | NEON | 43/43 ✅ | v2.0.0 validated; kNeon recalibrated with 64-element grid floor (fb8e8b6, 2026-06-24) |
-| Asus TUF A16 (Windows) | AVX-512 | 43/43 ✅ | v2.0.0 validated; kAvx512 recalibrated (3-run standard + 3-run --large); 61/61 simd_verification |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 44/44 ✅ | v2.0.0 validated; kAvx2 recalibrated (3-run standard + 3-run --large, fb8e8b6) |
+|| Mac Mini M1 | NEON | 44/44 ✅ | v2.0.0 validated; kNeon recalibrated with 64-element grid floor (fb8e8b6, 2026-06-24) |
+|| Asus TUF A16 (Windows) | AVX-512 | 44/44 ✅ | v2.0.0 validated; kAvx512 recalibrated (3-run standard + 3-run --large); 61/61 simd_verification |
 
 **v1.5.2 — final v1.x release (four machines)**
 
@@ -206,8 +206,28 @@ Selected per-distribution speedups:
   16 pre-v2.0.0 profile bundles removed.
 - **`strategy_profile.cpp` `STRATEGIES` array** documented with a registration comment pointing to
   the compiler-enforced `executeStrategy` switch as the completeness counterpart.
+- **API rationalization (Parts 1–4)**: `CpuTier` enum collapses 24 vendor-string cascades in
+  `platform_constants_impl.cpp`; Intel classifier functions and redundant cache getters removed
+  from `cpu_detection.h`. `empirical_cdf`, `calculate_quantiles`, `sample_moments`,
+  `validate_fitting_data` promoted from `stats::detail::` to `stats::analysis::` with tests.
+  Deferred SIMD/quantile stubs documented in `math_utils.h` and `safety.h`.
+  `fitWithDiagnostics()` delegates AIC/BIC/log-likelihood to a file-local helper (same formula
+  as `informationCriteria`; bug fix: removed erroneous `isfinite` guard on accumulation).
+  `getEntropy()` promoted from `DistributionBase` to `DistributionInterface`; added to
+  `AnyDistribution` concept. `numericalIntegration`, `newtonRaphsonQuantile`,
+  `adaptiveSimpsonIntegration`, `betaI_continued_fraction` removed from `DistributionBase`
+  (no derived-class callers). `isApproximatelyEqual()` parameter fixed from `const
+  DistributionBase&` to `const DistributionInterface&`. `DistributionValidator` abstract class,
+  `ExtendedValidationError` enum, and 9 dead `detail::` utility functions removed from
+  `distribution_validation.h`; `ValidationResult` and `FitResults` retained. Three orphaned
+  performance constants, `ComputationComplexity` enum, and `complexityToString()` removed.
+  `stats::analysis::discrete::runsTest` and `frequencyTest` now have GTest coverage.
+- **v2.0.0 API migration test debt cleared**: 9 enhanced test files updated to use the
+  span+`PerformanceHint` API; stale NaN/kurtosis/Bootstrap assertions corrected.
 
-43/43 correctness tests pass on all three machines after all v2.0.0 infrastructure work.
+44/44 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON after all v2.0.0
+infrastructure work. Asus TUF A16 (AVX-512): re-run correctness suite to confirm 44/44
+before PR merge (two new test files added after Asus validation).
 
 ### Deferred Items
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to enable

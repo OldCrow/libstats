@@ -308,7 +308,7 @@ constexpr ArchTable kArch = {
 
 | SIMD tier | Machine | Status |
 |---|---|---|
-| AVX2+FMA (kAvx2) | Kaby Lake i7-7820HQ | ✅ current (3-run, canonical method) |
+| AVX2+FMA (kAvx2) | Kaby Lake i7-7820HQ | ✅ current (3-run standard + 3-run --large, canonical method, fb8e8b6) |
 | NEON (kNeon)     | Mac Mini M1         | ✅ current (3-run, fb8e8b6; 64-floor grid; warm/cold pool recalibrated) |
 | AVX-512 (kAvx512)| Asus TUF A16 Zen 4  | ✅ current (3-run standard + 3-run --large, canonical method) |
 | AVX (kAvx)       | Ivy Bridge (retired) | ⚠ hardware gone; values inferred from kAvx2 trends |

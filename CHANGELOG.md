@@ -67,9 +67,30 @@
   canonical profiling procedure; kNeon (6 entries), kAvx2 (9 entries), kAvx (inferences) recalibrated;
   16 stale pre-v2.0.0 profile bundles removed.
 
+- **API rationalization**: `CpuTier` enum (`include/platform/internal/cpu_tier.h`) collapses
+  24 vendor-string cascades in platform_constants_impl.cpp. Intel CPU classifier functions
+  (`is_sandy_ivy_bridge()` etc.) and redundant cache getters removed from `cpu_detection.h`.
+  `empirical_cdf`, `calculate_quantiles`, `sample_moments`, `validate_fitting_data` promoted
+  from `stats::detail::` to `stats::analysis::` (`statistical_utilities.h`). `getEntropy()`
+  moved from `DistributionBase` to `DistributionInterface`; added to `AnyDistribution` concept.
+  `numericalIntegration`, `newtonRaphsonQuantile`, `adaptiveSimpsonIntegration`,
+  `betaI_continued_fraction` removed from `DistributionBase` (no callers). `isApproximatelyEqual()`
+  parameter changed from `const DistributionBase&` to `const DistributionInterface&`.
+  `DistributionValidator`, `ExtendedValidationError`, and 9 dead `detail::` functions removed
+  from `distribution_validation.h`. `ComputationComplexity` enum and `complexityToString()`
+  removed. Three orphaned performance constants removed.
+- **Full dispatch threshold recalibration**: kAvx2 (Kaby Lake) and kNeon (M1) re-profiled with
+  3-run standard + 3-run --large; Beta thresholds corrected from NEVER to real values on all
+  three architectures; kAvx inferences rebased; kNone three-tier complexity split (2048/8192/16384).
+- **Correctness suite**: 44 tests (up from 43); new `test_statistical_utilities` and
+  `test_discrete_analysis` added; 9 enhanced test files updated to span+PerformanceHint API;
+  stale NaN/kurtosis/Bootstrap assertions corrected.
+
 ### Validation
 
-- 43/43 correctness tests pass on Kaby Lake AVX2+FMA (primary). Pending full three-machine (M1 NEON, Asus TUF A16 AVX-512) PR-merge validation.
+- 44/44 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON.
+  Asus TUF A16 (AVX-512): pending re-run of correctness suite (2 new test files added after
+  Asus validation; kAvx512 threshold values unchanged so no regressions expected).
 
 ---
 
