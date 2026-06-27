@@ -157,55 +157,40 @@ namespace detail {
  */
 void vector_erf(std::span<const double> input, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized complementary error function computation using SIMD optimization
- * @param input Input values
- * @param output Output array for erfc(input[i])
- * @param size Number of elements to process
- */
+// DEFERRED: vector_erfc
+// Target: Gaussian CDF error-function-complement SIMD path; would eliminate
+//   the scalar fallback for erfc() in the Gaussian CDF batch kernel.
+// Prerequisite: an erfc SIMD primitive (currently only vector_erf exists).
+//   Low priority: erf is the dominant operation; erfc is a derived quantity.
 void vector_erfc(std::span<const double> input, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized regularized incomplete gamma function P(a,x) using SIMD
- * @param a Shape parameter (constant for all x values)
- * @param x_values Input x values
- * @param output Output array for gamma_p(a, x_values[i])
- * @note Uses SIMD optimization for the series expansion when beneficial
- */
+// DEFERRED: vector_gamma_p / vector_gamma_q
+// Target: Gamma/ChiSquared/Poisson CDF batch SIMD acceleration.
+// Prerequisite: SIMD series expansion for the regularized incomplete gamma
+//   function — requires branch-free iteration or a lookup table approach
+//   for the alternating series (hard to vectorize with early exit).
+// Estimated impact: moderate; Gamma CDF is already fast at 64 per scalar.
 void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept;
-
-/**
- * @brief Vectorized regularized incomplete gamma function Q(a,x) using SIMD
- * @param a Shape parameter (constant for all x values)
- * @param x_values Input x values
- * @param output Output array for math::gamma_q(a, x_values[i])
- */
 void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized regularized incomplete beta function I_x(a,b) using SIMD
- * @param x_values Input x values in [0,1]
- * @param a First shape parameter (constant for all x values)
- * @param b Second shape parameter (constant for all x values)
- * @param output Output array for beta_i(x_values[i], a, b)
- */
+// DEFERRED: vector_beta_i
+// Target: Beta/Binomial-CDF/Student-t CDF SIMD batch acceleration.
+// Prerequisite: SIMD continued fraction for the regularized incomplete beta;
+//   Lentz's algorithm is sequential by nature. A table/polynomial substitute
+//   is needed for batched evaluation.
+// Estimated impact: high for Beta and StudentT CDF paths.
 void vector_beta_i(std::span<const double> x_values, double a, double b,
                    std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized natural logarithm of gamma function using SIMD
- * @param input Input values (x > 0)
- * @param output Output array for lgamma(input[i])
- */
+// DEFERRED: vector_lgamma — indefinitely deferred (see AGENTS.md Deferred Items).
+// Too complex to implement correctly as a SIMD primitive; low immediate
+// distribution impact given the existing scalar batch speeds.
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized natural logarithm of beta function using SIMD
- * @param a_values First parameter values (a > 0)
- * @param b_values Second parameter values (b > 0)
- * @param output Output array for lbeta(a_values[i], b_values[i])
- * @note Requires a_values.size() == b_values.size() == output.size()
- */
+// DEFERRED: vector_lbeta
+// Target: NegativeBinomial PMF/CDF SIMD batch (lbeta appears in the lgamma-based PMF).
+// Prerequisite: vector_lgamma (itself indefinitely deferred; see above).
+//   Once vector_lgamma is available, vector_lbeta is a trivial wrapper.
 void vector_lbeta(std::span<const double> a_values, std::span<const double> b_values,
                   std::span<double> output) noexcept;
 
@@ -382,6 +367,10 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * @param df2 denominator degrees of freedom (df2 > 0)
  * @return x such that P(F <= x) = p where F ~ F(df1, df2)
  */
+// DEFERRED: inverse_f_cdf
+// Forward-looking stub for the F-distribution quantile function.
+// Will be called by FDistribution::getQuantile() once an F-distribution is
+// implemented. Currently has no callers.
 [[nodiscard]] double inverse_f_cdf(double p, double df1, double df2) noexcept;
 
 /**
@@ -400,6 +389,11 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * @param scale scale parameter (beta > 0)
  * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale)
  */
+// DEFERRED: gamma_inverse_cdf
+// Forward-looking stub for an analytic Gamma/ChiSquared quantile path.
+// Currently has no callers — GammaDistribution::getQuantile() uses a
+// numerical inversion. Replace the numerical path with this function once
+// the analytic implementation is validated to be faster and equally accurate.
 [[nodiscard]] double gamma_inverse_cdf(double p, double shape, double scale) noexcept;
 
 // empirical_cdf, calculate_quantiles, sample_moments, validate_fitting_data
