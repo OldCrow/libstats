@@ -249,7 +249,7 @@ class RayleighDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /** @brief Median = σ·√(2·ln 2). */
-    [[nodiscard]] double getMedian() const;
+    [[nodiscard]] double getMedian() const override;
 
     /** @brief Entropy = 1 + log(σ/√2) + γ/2 (γ = Euler–Mascheroni constant). */
     [[nodiscard]] double getEntropy() const override;
@@ -266,10 +266,6 @@ class RayleighDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
 
     //==========================================================================
     // 15. COMPARISON OPERATORS

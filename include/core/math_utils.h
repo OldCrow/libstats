@@ -211,20 +211,11 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
 // NUMERICAL INTEGRATION
 // =============================================================================
 
-#if LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK
-    #define LIBSTATS_MATHFUNC_TEMPLATE_1(name)                                                     \
-        template <typename name>                                                                   \
-            requires MathFunction<name, double>
-    #define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
-        template <typename name1, typename name2>                                                  \
-            requires MathFunction<name1, double> && MathFunction<name2, double>
-    #define LIBSTATS_CONSTRAINED_NODISCARD
-#else
-    #define LIBSTATS_MATHFUNC_TEMPLATE_1(name) template <MathFunction<double> name>
-    #define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
-        template <MathFunction<double> name1, MathFunction<double> name2>
-    #define LIBSTATS_CONSTRAINED_NODISCARD [[nodiscard]]
-#endif
+// Catalina concept-syntax fallback removed in v2.0.0 (v2.0.0 requires macOS 13+).
+#define LIBSTATS_MATHFUNC_TEMPLATE_1(name) template <MathFunction<double> name>
+#define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
+    template <MathFunction<double> name1, MathFunction<double> name2>
+#define LIBSTATS_CONSTRAINED_NODISCARD [[nodiscard]]
 
 /**
  * @brief Adaptive Simpson's rule for numerical integration

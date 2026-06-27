@@ -387,7 +387,7 @@ class ChiSquaredDistribution : public DistributionBase {
     /**
      * @brief Median — delegates to GammaDistribution (numerical, via quantile).
      */
-    [[nodiscard]] double getMedian() const noexcept { return gamma_.getMedian(); }
+    [[nodiscard]] double getMedian() const noexcept override { return gamma_.getMedian(); }
 
     /**
      * @brief Mode = max(k - 2, 0) — delegates to GammaDistribution.
@@ -425,13 +425,6 @@ class ChiSquaredDistribution : public DistributionBase {
         gamma_.getCumulativeProbability(values, results, hint);
     }
 
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS — delegated to gamma_
-    //==========================================================================
-
-    /** @brief Explicit-strategy batch PDF — delegates to GammaDistribution. */
-    /** @brief Explicit-strategy batch log-PDF — delegates to GammaDistribution. */
-    /** @brief Explicit-strategy batch CDF — delegates to GammaDistribution. */
     //==========================================================================
     // 15. COMPARISON OPERATORS
     //==========================================================================

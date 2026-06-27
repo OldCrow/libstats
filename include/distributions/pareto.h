@@ -275,7 +275,7 @@ class ParetoDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /** @brief Median = x_m·2^(1/α) = x_m·exp(log(2)/α). */
-    [[nodiscard]] double getMedian() const;
+    [[nodiscard]] double getMedian() const override;
 
     /**
      * @brief Entropy = log(x_m/α) + 1 + 1/α.
@@ -311,10 +311,6 @@ class ParetoDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
 
     //==========================================================================
     // 15. COMPARISON OPERATORS

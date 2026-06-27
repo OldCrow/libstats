@@ -150,6 +150,22 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
 ValidationResult DistributionBase::validate(const std::vector<double>& data) const {
     ValidationResult result;
 
+    // KS and AD tests assume a continuous null distribution and are statistically
+    // invalid for discrete distributions (Poisson, Binomial, NegBinomial, Discrete).
+    // The stats::analysis:: layer already gates them behind ContinuousDistribution;
+    // mirror that guard here so validate() / fitWithDiagnostics() are consistent.
+    if (isDiscrete()) {
+        result.ks_statistic     = std::numeric_limits<double>::quiet_NaN();
+        result.ks_p_value       = std::numeric_limits<double>::quiet_NaN();
+        result.ad_statistic     = std::numeric_limits<double>::quiet_NaN();
+        result.ad_p_value       = std::numeric_limits<double>::quiet_NaN();
+        result.distribution_adequate = true;  // no evidence against
+        result.recommendations  =
+            "KS and AD tests are not valid for discrete distributions. "
+            "Use stats::analysis::chiSquaredGoodnessOfFitTest instead.";
+        return result;
+    }
+
     try {
         validateFittingData(data);
 

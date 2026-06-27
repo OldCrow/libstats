@@ -273,7 +273,7 @@ class LogNormalDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /** @brief Median = exp(μ). */
-    [[nodiscard]] double getMedian() const;
+    [[nodiscard]] double getMedian() const override;
 
     /**
      * @brief Entropy = log(σ·√(2πe)) + μ = log σ + μ + ½(1 + log(2π)).
@@ -300,10 +300,6 @@ class LogNormalDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
 
     //==========================================================================
     // 15. COMPARISON OPERATORS

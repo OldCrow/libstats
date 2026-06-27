@@ -519,7 +519,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Median value (equals μ)
      */
-    [[nodiscard]] double getMedian() const;
+    [[nodiscard]] double getMedian() const override;
 
     /**
      * @brief Get the mode of the distribution
@@ -587,43 +587,6 @@ class GaussianDistribution : public DistributionBase {
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
 
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    /**
-     * @brief Explicit strategy batch probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     */
-    /**
-     * @brief Explicit strategy batch log probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for log probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     */
-    /**
-     * @brief Explicit strategy batch cumulative probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for cumulative probabilities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     */
     //==========================================================================
     // 15. COMPARISON OPERATORS
     //==========================================================================

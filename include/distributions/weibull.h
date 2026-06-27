@@ -277,7 +277,7 @@ class WeibullDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /** @brief Median = λ·(ln 2)^(1/k). */
-    [[nodiscard]] double getMedian() const;
+    [[nodiscard]] double getMedian() const override;
 
     /** @brief Entropy = γ·(1 − 1/k) + log(λ/k) + 1 (γ = Euler-Mascheroni). */
     [[nodiscard]] double getEntropy() const override;
@@ -302,10 +302,6 @@ class WeibullDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
 
     //==========================================================================
     // 15. COMPARISON OPERATORS

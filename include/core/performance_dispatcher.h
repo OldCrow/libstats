@@ -154,7 +154,12 @@ struct PerformanceHint {
     };
 
     PreferredStrategy strategy = PreferredStrategy::AUTO;
-    std::optional<size_t> thread_count;  ///< Override thread count (not yet wired into dispatch)
+    /// Override thread count for parallel strategies.
+    /// @note NOT YET WIRED INTO DISPATCH — setting this field has no effect.
+    ///       Both PARALLEL (ParallelUtils::parallelFor) and WORK_STEALING pool
+    ///       use their own thread counts determined at construction time.
+    ///       This field is reserved for a future release. Do not rely on it.
+    std::optional<size_t> thread_count;
 
     static PerformanceHint minimal_latency() {
         return {PreferredStrategy::MINIMIZE_LATENCY, std::nullopt};

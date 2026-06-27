@@ -283,7 +283,7 @@ class StudentTDistribution : public DistributionBase {
     /**
      * @brief Median (always 0 by symmetry).
      */
-    [[nodiscard]] double getMedian() const noexcept { return detail::ZERO_DOUBLE; }
+    [[nodiscard]] double getMedian() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /**
      * @brief Mode (always 0).
@@ -310,10 +310,6 @@ class StudentTDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
 
     //==========================================================================
     // 15. COMPARISON OPERATORS

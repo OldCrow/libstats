@@ -289,7 +289,7 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getCircularVariance() const;
 
     /** @brief Median = μ (Von Mises is symmetric about μ). */
-    [[nodiscard]] double getMedian() const noexcept { return getMu(); }
+    [[nodiscard]] double getMedian() const noexcept override { return getMu(); }
 
     /** @brief Mode = μ (always at the mean direction). */
     [[nodiscard]] double getMode() const;
@@ -321,10 +321,6 @@ class VonMisesDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
 
     //==========================================================================
     // 15. COMPARISON OPERATORS

@@ -270,7 +270,7 @@ class BetaDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /** @brief Median — numerical via getQuantile(0.5). */
-    [[nodiscard]] double getMedian() const noexcept { return getQuantile(detail::HALF); }
+    [[nodiscard]] double getMedian() const noexcept override { return getQuantile(detail::HALF); }
 
     /**
      * @brief True if α = β = 1 within tolerance (Uniform(0,1) distribution).
@@ -300,10 +300,6 @@ class BetaDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
 
     //==========================================================================
     // 15. COMPARISON OPERATORS

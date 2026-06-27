@@ -193,6 +193,17 @@ class DistributionInterface {
     [[nodiscard]] virtual double getEntropy() const {
         return std::numeric_limits<double>::quiet_NaN();
     }
+
+    /**
+     * @brief Median of the distribution.
+     * @return Median value; NaN if not analytically available (default: getQuantile(0.5)).
+     * @note Added to the interface so Laplace, Cauchy, and future distributions can expose
+     *       a well-defined median even when the mean is undefined.
+     *       Distributions that do not override this return NaN.
+     */
+    [[nodiscard]] virtual double getMedian() const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
 };
 
 // =============================================================================
