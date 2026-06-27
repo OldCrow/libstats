@@ -1,5 +1,6 @@
 // Focused unit test for Von Mises distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/von_mises.h"
 
 #include <cmath>
@@ -186,53 +187,26 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
-        cout << "No SIMD (no vector_cos); VECTORIZED = scalar loop with cached logNormaliser_."
-             << endl;
+        // pdf_tolerance relaxed to 1e-10: SIMD vector_cos has documented max error ~1e-10
+        // vs std::cos in the scalar path; this propagates into the PDF via the exp.
+        stats::tests::BasicDistConfig cfg{
+            "VonMises",
+            {-1.5, -0.5, 0.0, 0.5, 1.5},
+            -3.14159265358979, 3.14159265358979,
+            1e-10,  // pdf_tolerance
+            1e-10   // cdf_tolerance
+        };
+        cfg.invalid_scenarios = {
+            {"mu=inf", [] { return VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError(); }},
+            {"kappa=-1", [] { return VonMisesDistribution::create(0.0, -1.0).isError(); }},
+            {"mu=NaN", [] { return VonMisesDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError(); }},
+        };
+        auto batch_dist = VonMisesDistribution::create(0.0, 1.0).value;
+        stats::tests::runBatchTests(cfg, batch_dist);
 
-        auto batch_dist = VonMisesDistribution::create(0.0, 2.0).value;
-        const vector<double> xs = {-1.5, -0.5, 0.0, 0.5, 1.5};
-        vector<double> pdf_b(xs.size()), lpdf_b(xs.size()), cdf_b(xs.size());
-
-        batch_dist.getProbability(span<const double>(xs), span<double>(pdf_b));
-        batch_dist.getLogProbability(span<const double>(xs), span<double>(lpdf_b));
-        batch_dist.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
-
-        bool batch_ok = true;
-        for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_b[i] - batch_dist.getProbability(xs[i])) > 1e-12 ||
-                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i])) > 1e-12 ||
-                std::abs(cdf_b[i] - batch_dist.getCumulativeProbability(xs[i])) > 1e-6) {
-                batch_ok = false;
-                break;
-            }
-        }
-        cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        const size_t N = 500;
-        vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i)
-            large_in[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
-        bool large_ok = true;
-        for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-12) {
-                large_ok = false;
-                break;
-            }
-        }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
-             << endl;
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto d1 = VonMisesDistribution::create(0.0, 2.0).value;
@@ -254,20 +228,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-
-        auto err1 = VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0);
-        if (err1.isError())
-            BasicTestFormatter::printTestSuccess("mu=Inf rejected: " + err1.message);
-        auto err2 = VonMisesDistribution::create(0.0, -1.0);
-        if (err2.isError())
-            BasicTestFormatter::printTestSuccess("kappa=-1 rejected: " + err2.message);
-        auto err3 = VonMisesDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0);
-        if (err3.isError())
-            BasicTestFormatter::printTestSuccess("mu=NaN rejected: " + err3.message);
-
-        BasicTestFormatter::printTestSuccess("All error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestSuccess("All Von Mises tests completed successfully");
         return 0;

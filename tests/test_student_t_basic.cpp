@@ -1,5 +1,6 @@
 // Focused unit test for Student's t distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/student_t.h"
 
 #include <cmath>
@@ -187,36 +188,19 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations — scalar matches batch
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Batch Operations");
-        cout << "SIMD batch PDF/LogPDF vs scalar. CDF batch matches scalar t_cdf." << endl;
-
+        stats::tests::BasicDistConfig cfg{
+            "Studentt",
+            {-3.0, -1.0, 0.0, 1.0, 3.0},
+            -5.0, 5.0,
+            1e-12,
+            1e-12
+        };
         auto t_batch = StudentTDistribution::create(3.0).value;
-        const size_t N = 1000;
-        vector<double> xs(N), pdf_r(N), logpdf_r(N), cdf_r(N);
-        for (size_t i = 0; i < N; ++i) {
-            xs[i] = -5.0 + static_cast<double>(i) * 10.0 / static_cast<double>(N - 1);
-        }
-        t_batch.getProbability(span<const double>(xs), span<double>(pdf_r));
-        t_batch.getLogProbability(span<const double>(xs), span<double>(logpdf_r));
-        t_batch.getCumulativeProbability(span<const double>(xs), span<double>(cdf_r));
+        stats::tests::runBatchTests(cfg, t_batch);
 
-        const double scalar_pdf = t_batch.getProbability(xs[100]);
-        const bool batch_ok = std::abs(pdf_r[100] - scalar_pdf) < 1e-12;
-        cout << "Batch PDF vs scalar at x=" << xs[100] << ": " << (batch_ok ? "PASS" : "FAIL")
-             << endl;
-        BasicTestFormatter::printProperty("Batch CDF(0) = 0.5",
-                                          cdf_r[N / 2]);  // xs[500] = 0.0
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto a = StudentTDistribution::create(3.0).value;

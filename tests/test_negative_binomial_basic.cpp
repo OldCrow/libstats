@@ -1,5 +1,6 @@
 // Focused unit test for Negative Binomial distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/negative_binomial.h"
 
 #include <cmath>
@@ -228,51 +229,25 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
-        cout << "VECTORIZED = scalar loop with cached logGammaR_, logP_, log1mP_." << endl;
+        stats::tests::BasicDistConfig cfg{
+            "Negativebinomial",
+            {0.0, 1.0, 2.0, 5.0, 10.0},
+            0.0, 19.5,
+            1e-12,
+            1e-12
+        };
+        cfg.invalid_scenarios = {
+            {"r=0", [] { return NegativeBinomialDistribution::create(0.0, 0.5).isError(); }},
+            {"r=-1", [] { return NegativeBinomialDistribution::create(-1.0, 0.5).isError(); }},
+            {"p=0", [] { return NegativeBinomialDistribution::create(1.0, 0.0).isError(); }},
+            {"p=1.1", [] { return NegativeBinomialDistribution::create(1.0, 1.1).isError(); }},
+        };
+        auto batch_nb = NegativeBinomialDistribution::create(5.0, 0.4).value;
+        stats::tests::runBatchTests(cfg, batch_nb);
 
-        auto batch_nb = NegativeBinomialDistribution::create(2.0, 0.5).value;
-        const vector<double> xs = {0.0, 1.0, 2.0, 5.0, 10.0};
-        vector<double> pdf_out(xs.size()), lpdf_out(xs.size()), cdf_out(xs.size());
-
-        batch_nb.getProbability(span<const double>(xs), span<double>(pdf_out));
-        batch_nb.getLogProbability(span<const double>(xs), span<double>(lpdf_out));
-        batch_nb.getCumulativeProbability(span<const double>(xs), span<double>(cdf_out));
-
-        bool batch_ok = true;
-        for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_out[i] - batch_nb.getProbability(xs[i])) > 1e-12 ||
-                std::abs(lpdf_out[i] - batch_nb.getLogProbability(xs[i])) > 1e-12 ||
-                std::abs(cdf_out[i] - batch_nb.getCumulativeProbability(xs[i])) > 1e-9) {
-                batch_ok = false;
-                break;
-            }
-        }
-        cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        const size_t N = 200;
-        vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i)
-            large_in[i] = static_cast<double>(i % 20);
-        bool large_ok = true;
-        for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-12) { large_ok = false; break; }
-        }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL") << endl;
-
-        if (!batch_ok || !large_ok)
-            throw runtime_error("Batch operation test failed");
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto d1 = NegativeBinomialDistribution::create(2.0, 0.5).value;
@@ -297,30 +272,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-
-        auto e1 = NegativeBinomialDistribution::create(0.0, 0.5);
-        if (e1.isError())
-            BasicTestFormatter::printTestSuccess("r=0 rejected: " + e1.message);
-        auto e2 = NegativeBinomialDistribution::create(-0.5, 0.5);
-        if (e2.isError())
-            BasicTestFormatter::printTestSuccess("r=-0.5 rejected: " + e2.message);
-        auto e3 = NegativeBinomialDistribution::create(2.0, 0.0);
-        if (e3.isError())
-            BasicTestFormatter::printTestSuccess("p=0 rejected: " + e3.message);
-        auto e4 = NegativeBinomialDistribution::create(2.0, 1.5);
-        if (e4.isError())
-            BasicTestFormatter::printTestSuccess("p=1.5 rejected: " + e4.message);
-
-        // PMF / CDF with non-finite x
-        auto enb = NegativeBinomialDistribution::create(2.0, 0.5).value;
-        const double pmf_nan = enb.getProbability(std::numeric_limits<double>::quiet_NaN());
-        const double pmf_inf = enb.getProbability(std::numeric_limits<double>::infinity());
-        cout << "PMF(NaN)=0: " << (pmf_nan == 0.0 ? "PASS" : "FAIL") << endl;
-        cout << "PMF(Inf)=0: " << (pmf_inf == 0.0 ? "PASS" : "FAIL") << endl;
-
-        BasicTestFormatter::printTestSuccess("All error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestSuccess("All NegativeBinomial tests completed successfully");
         return 0;

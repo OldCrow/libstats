@@ -1,5 +1,6 @@
 // Focused unit test for Beta distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/beta.h"
 
 #include <cmath>
@@ -193,35 +194,24 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Batch Operations");
-        cout << "SIMD two-log pipeline vs scalar. Interior values match; boundary fixup applied."
-             << endl;
-
+        stats::tests::BasicDistConfig cfg{
+            "Beta",
+            {0.1, 0.3, 0.5, 0.7, 0.9},
+            0.01, 0.99,
+            1e-12,
+            1e-12
+        };
+        cfg.invalid_scenarios = {
+            {"alpha=0", [] { return BetaDistribution::create(0.0, 1.0).isError(); }},
+            {"alpha=-1", [] { return BetaDistribution::create(-1.0, 2.0).isError(); }},
+            {"beta=0", [] { return BetaDistribution::create(2.0, 0.0).isError(); }},
+        };
         auto b_batch = BetaDistribution::create(2.0, 3.0).value;
-        const size_t N = 1000;
-        vector<double> xs(N), pdf_r(N), logpdf_r(N), cdf_r(N);
-        // Interior [0.01, 0.99] — avoid boundaries
-        for (size_t i = 0; i < N; ++i) {
-            xs[i] = 0.01 + static_cast<double>(i) * 0.98 / static_cast<double>(N - 1);
-        }
-        b_batch.getProbability(span<const double>(xs), span<double>(pdf_r));
-        b_batch.getLogProbability(span<const double>(xs), span<double>(logpdf_r));
-        b_batch.getCumulativeProbability(span<const double>(xs), span<double>(cdf_r));
+        stats::tests::runBatchTests(cfg, b_batch);
 
-        const double scalar_pdf = b_batch.getProbability(xs[200]);
-        const bool batch_ok = std::abs(pdf_r[200] - scalar_pdf) < 1e-12;
-        cout << "Batch PDF vs scalar at index 200: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto a1 = BetaDistribution::create(2.0, 3.0).value;
@@ -246,24 +236,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-        cout << "Uses create() factory (Result-based API) to test validation." << endl;
-        cout << "Note: Throwing constructor not tested directly on macOS Catalina/" << endl;
-        cout << "Homebrew LLVM due to known ABI exception-unwinding limitation." << endl;
-
-        auto e0 = BetaDistribution::create(0.0, 1.0);
-        cout << "create(0,1) isError: " << (e0.isError() ? "YES" : "NO") << endl;
-        auto en = BetaDistribution::create(-1.0, 2.0);
-        cout << "create(-1,2) isError: " << (en.isError() ? "YES" : "NO") << endl;
-        auto eb = BetaDistribution::create(2.0, 0.0);
-        cout << "create(2,0) isError: " << (eb.isError() ? "YES" : "NO") << endl;
-
-        if (!e0.isError() || !en.isError() || !eb.isError()) {
-            throw std::runtime_error("Error handling test failed");
-        }
-
-        BasicTestFormatter::printTestSuccess("Error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestHeader("Beta - ALL TESTS PASSED");
 

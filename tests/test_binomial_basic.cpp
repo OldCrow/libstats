@@ -1,5 +1,6 @@
 // Focused unit test for Binomial distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/binomial.h"
 
 #include <cmath>
@@ -208,51 +209,25 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
-        cout << "VECTORIZED = scalar loop with cached logNFact_, logP_, log1mP_." << endl;
-
+        stats::tests::BasicDistConfig cfg{
+            "Binomial",
+            {0.0, 2.0, 5.0, 8.0, 10.0},
+            0.0, 10.5,
+            1e-12,
+            1e-9  // cdf_tolerance
+        };
+        cfg.invalid_scenarios = {
+            {"n=0", [] { return BinomialDistribution::create(0, 0.5).isError(); }},
+            {"n=-1", [] { return BinomialDistribution::create(-1, 0.5).isError(); }},
+            {"p=-0.1", [] { return BinomialDistribution::create(10, -0.1).isError(); }},
+            {"p=1.1", [] { return BinomialDistribution::create(10, 1.1).isError(); }},
+        };
         auto batch_b = BinomialDistribution::create(10, 0.5).value;
-        const vector<double> xs = {0.0, 2.0, 5.0, 8.0, 10.0};
-        vector<double> pdf_out(xs.size()), lpdf_out(xs.size()), cdf_out(xs.size());
+        stats::tests::runBatchTests(cfg, batch_b);
 
-        batch_b.getProbability(span<const double>(xs), span<double>(pdf_out));
-        batch_b.getLogProbability(span<const double>(xs), span<double>(lpdf_out));
-        batch_b.getCumulativeProbability(span<const double>(xs), span<double>(cdf_out));
-
-        bool batch_ok = true;
-        for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_out[i] - batch_b.getProbability(xs[i])) > 1e-12 ||
-                std::abs(lpdf_out[i] - batch_b.getLogProbability(xs[i])) > 1e-12 ||
-                std::abs(cdf_out[i] - batch_b.getCumulativeProbability(xs[i])) > 1e-9) {
-                batch_ok = false;
-                break;
-            }
-        }
-        cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        const size_t N = 200;
-        vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i)
-            large_in[i] = static_cast<double>(i % 11);
-        bool large_ok = true;
-        for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-12) { large_ok = false; break; }
-        }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL") << endl;
-
-        if (!batch_ok || !large_ok)
-            throw runtime_error("Batch operation test failed");
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto d1 = BinomialDistribution::create(10, 0.5).value;
@@ -277,30 +252,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-
-        auto e1 = BinomialDistribution::create(0, 0.5);
-        if (e1.isError())
-            BasicTestFormatter::printTestSuccess("n=0 rejected: " + e1.message);
-        auto e2 = BinomialDistribution::create(-1, 0.5);
-        if (e2.isError())
-            BasicTestFormatter::printTestSuccess("n=-1 rejected: " + e2.message);
-        auto e3 = BinomialDistribution::create(10, -0.1);
-        if (e3.isError())
-            BasicTestFormatter::printTestSuccess("p=-0.1 rejected: " + e3.message);
-        auto e4 = BinomialDistribution::create(10, 1.1);
-        if (e4.isError())
-            BasicTestFormatter::printTestSuccess("p=1.1 rejected: " + e4.message);
-
-        // PMF / CDF with non-finite x
-        auto eb = BinomialDistribution::create(10, 0.5).value;
-        const double pmf_nan = eb.getProbability(std::numeric_limits<double>::quiet_NaN());
-        const double pmf_inf = eb.getProbability(std::numeric_limits<double>::infinity());
-        cout << "PMF(NaN)=0: " << (pmf_nan == 0.0 ? "PASS" : "FAIL") << endl;
-        cout << "PMF(Inf)=0: " << (pmf_inf == 0.0 ? "PASS" : "FAIL") << endl;
-
-        BasicTestFormatter::printTestSuccess("All error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestSuccess("All Binomial tests completed successfully");
         return 0;

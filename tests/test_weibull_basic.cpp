@@ -1,5 +1,6 @@
 // Focused unit test for Weibull distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/weibull.h"
 
 #include <cmath>
@@ -195,51 +196,23 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
-
+        stats::tests::BasicDistConfig cfg{
+            "Weibull",
+            {0.5, 1.0, 1.5, 2.0, 3.0},
+            0.1, 10.0,
+            1e-12,
+            1e-12
+        };
+        cfg.invalid_scenarios = {
+            {"shape=-1", [] { return WeibullDistribution::create(-1.0, 1.0).isError(); }},
+            {"scale=0", [] { return WeibullDistribution::create(1.0, 0.0).isError(); }},
+        };
         auto batch_dist = WeibullDistribution::create(2.0, 1.0).value;
-        const vector<double> xs = {0.5, 1.0, 1.5, 2.0, 3.0};
-        vector<double> pdf_b(xs.size()), lpdf_b(xs.size()), cdf_b(xs.size());
+        stats::tests::runBatchTests(cfg, batch_dist);
 
-        batch_dist.getProbability(span<const double>(xs), span<double>(pdf_b));
-        batch_dist.getLogProbability(span<const double>(xs), span<double>(lpdf_b));
-        batch_dist.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
-
-        bool batch_ok = true;
-        for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_b[i] - batch_dist.getProbability(xs[i])) > 1e-12 ||
-                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i])) > 1e-12 ||
-                std::abs(cdf_b[i] - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
-                batch_ok = false;
-                break;
-            }
-        }
-        cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        const size_t N = 2000;
-        vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i)
-            large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
-        bool large_ok = true;
-        for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-10) {
-                large_ok = false;
-                break;
-            }
-        }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
-             << endl;
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto d1 = WeibullDistribution::create(2.0, 1.0).value;
@@ -261,17 +234,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-
-        auto err1 = WeibullDistribution::create(-1.0, 1.0);
-        if (err1.isError())
-            BasicTestFormatter::printTestSuccess("shape=-1 rejected: " + err1.message);
-        auto err2 = WeibullDistribution::create(1.0, 0.0);
-        if (err2.isError())
-            BasicTestFormatter::printTestSuccess("scale=0 rejected: " + err2.message);
-
-        BasicTestFormatter::printTestSuccess("All error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestSuccess("All Weibull tests completed successfully");
         return 0;

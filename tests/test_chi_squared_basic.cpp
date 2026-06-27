@@ -1,5 +1,6 @@
 // Focused unit test for chi-squared distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/chi_squared.h"
 
 #include <cmath>
@@ -188,38 +189,19 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations (delegation to gamma_)
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Batch Operations");
-        cout << "Batch calls delegate to gamma_; SIMD dispatch runs inside GammaDistribution."
-             << endl;
-
+        stats::tests::BasicDistConfig cfg{
+            "Chisquared",
+            {0.5, 1.0, 2.0, 4.0, 8.0},
+            0.1, 10.0,
+            1e-14, // pdf_tolerance
+            1e-12
+        };
         auto chi2_batch = stats::ChiSquaredDistribution::create(3.0).value;
-        const size_t N = 1000;
-        vector<double> xs(N), pdf_results(N), logpdf_results(N), cdf_results(N);
-        for (size_t i = 0; i < N; ++i)
-            xs[i] = 0.01 + static_cast<double>(i) * 0.02;
+        stats::tests::runBatchTests(cfg, chi2_batch);
 
-        chi2_batch.getProbability(span<const double>(xs), span<double>(pdf_results));
-        chi2_batch.getLogProbability(span<const double>(xs), span<double>(logpdf_results));
-        chi2_batch.getCumulativeProbability(span<const double>(xs), span<double>(cdf_results));
-
-        // Spot-check first and last: PDF batch vs single
-        const double batch_pdf_0 = pdf_results[0];
-        const double scalar_pdf_0 = chi2_batch.getProbability(xs[0]);
-        const bool batch_ok = std::abs(batch_pdf_0 - scalar_pdf_0) < 1e-14;
-        cout << "Batch PDF vs scalar (first element): " << (batch_ok ? "PASS" : "FAIL") << endl;
-        BasicTestFormatter::printProperty("Batch PDF[0]  (computed)", batch_pdf_0);
-        BasicTestFormatter::printProperty("Scalar PDF[0] (reference)", scalar_pdf_0);
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto a = stats::ChiSquaredDistribution::create(3.0).value;

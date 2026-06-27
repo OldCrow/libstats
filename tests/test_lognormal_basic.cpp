@@ -1,5 +1,6 @@
 // Focused unit test for Log-Normal distribution
 #include "include/tests.h"
+#include "include/basic_test_runner.h"
 #include "libstats/distributions/lognormal.h"
 
 #include <cmath>
@@ -204,56 +205,24 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
-        cout << "Batch PDF/LogPDF/CDF via auto-dispatch. Verify against scalar." << endl;
+        stats::tests::BasicDistConfig cfg{
+            "Lognormal",
+            {0.5, 1.0, 2.0, 5.0, 10.0},
+            0.1, 10.0,
+            1e-12,
+            2e-7  // cdf_tolerance
+        };
+        cfg.invalid_scenarios = {
+            {"sigma=-1", [] { return LogNormalDistribution::create(0.0, -1.0).isError(); }},
+            {"sigma=0", [] { return LogNormalDistribution::create(0.0, 0.0).isError(); }},
+            {"mu=inf", [] { return LogNormalDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError(); }},
+        };
+        auto batch_dist = stats::LogNormalDistribution::create(0.0, 1.0).value;
+        stats::tests::runBatchTests(cfg, batch_dist);
 
-        auto batch_dist = LogNormalDistribution::create(0.0, 1.0).value;
-        const vector<double> xs = {0.5, 1.0, 2.0, 5.0, 10.0};
-        vector<double> pdf_b(xs.size()), lpdf_b(xs.size()), cdf_b(xs.size());
-
-        batch_dist.getProbability(span<const double>(xs), span<double>(pdf_b));
-        batch_dist.getLogProbability(span<const double>(xs), span<double>(lpdf_b));
-        batch_dist.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
-
-        bool batch_ok = true;
-        for (size_t i = 0; i < xs.size(); ++i) {
-            const double scalar_pdf = batch_dist.getProbability(xs[i]);
-            const double scalar_lpdf = batch_dist.getLogProbability(xs[i]);
-            const double scalar_cdf = batch_dist.getCumulativeProbability(xs[i]);
-            if (std::abs(pdf_b[i] - scalar_pdf) > 1e-12 ||
-                std::abs(lpdf_b[i] - scalar_lpdf) > 1e-12 ||
-                std::abs(cdf_b[i] - scalar_cdf) > 1e-8) {
-                batch_ok = false;
-                break;
-            }
-        }
-        cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        // Large batch via explicit VECTORIZED strategy
-        const size_t N = 2000;
-        vector<double> large_in(N), large_out(N), large_scalar(N);
-        for (size_t i = 0; i < N; ++i)
-            large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
-        bool large_ok = true;
-        for (size_t i = 0; i < N; ++i) {
-            if (std::abs(large_out[i] - large_scalar[i]) > 1e-10) {
-                large_ok = false;
-                break;
-            }
-        }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
-             << endl;
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
         auto d1 = LogNormalDistribution::create(0.0, 1.0).value;
@@ -282,25 +251,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-
-        auto err1 = LogNormalDistribution::create(0.0, -1.0);
-        if (err1.isError()) {
-            BasicTestFormatter::printTestSuccess("sigma=-1 rejected: " + err1.message);
-        }
-
-        auto err2 = LogNormalDistribution::create(0.0, 0.0);
-        if (err2.isError()) {
-            BasicTestFormatter::printTestSuccess("sigma=0 rejected: " + err2.message);
-        }
-
-        auto err3 = LogNormalDistribution::create(std::numeric_limits<double>::infinity(), 1.0);
-        if (err3.isError()) {
-            BasicTestFormatter::printTestSuccess("mu=Inf rejected: " + err3.message);
-        }
-
-        BasicTestFormatter::printTestSuccess("All error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestSuccess("All LogNormal tests completed successfully");
         return 0;
