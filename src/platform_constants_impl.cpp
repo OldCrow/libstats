@@ -2,6 +2,7 @@
 #include "libstats/core/math_constants.h"
 #include "libstats/platform/cpu_detection.h"
 #include "libstats/platform/cpu_vendor_constants.h"
+#include "libstats/platform/internal/cpu_tier.h"
 #include "libstats/platform/platform_constants.h"
 #include "libstats/platform/simd_policy.h"
 
@@ -27,6 +28,9 @@ namespace arch {
 /// These provide CPU feature-based optimization for parallel processing
 
 // Adaptive functions (runtime platform optimization)
+// SIMD-based parallel threshold functions: use feature flags.
+// is_sandy_ivy_bridge() replaced with cpu_tier() == CpuTier::Intel_Legacy.
+
 std::size_t get_min_elements_for_parallel() {
     const auto& features = stats::arch::get_features();
 
@@ -34,7 +38,8 @@ std::size_t get_min_elements_for_parallel() {
         return parallel::avx512::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.avx2) {
         return parallel::avx2::MIN_ELEMENTS_FOR_PARALLEL;
-    } else if (stats::arch::is_sandy_ivy_bridge()) {
+    } else if (stats::arch::cpu_tier() == stats::arch::CpuTier::Intel_Legacy) {
+        // Sandy/Ivy Bridge: AVX without FMA — same threshold as generic AVX.
         return parallel::avx::MIN_ELEMENTS_FOR_PARALLEL;
     } else if (features.avx) {
         return parallel::avx::MIN_ELEMENTS_FOR_PARALLEL;
@@ -54,7 +59,7 @@ std::size_t get_min_elements_for_distribution_parallel() {
         return parallel::avx512::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.avx2) {
         return parallel::avx2::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
-    } else if (stats::arch::is_sandy_ivy_bridge()) {
+    } else if (stats::arch::cpu_tier() == stats::arch::CpuTier::Intel_Legacy) {
         return parallel::avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
     } else if (features.avx) {
         return parallel::avx::MIN_ELEMENTS_FOR_DISTRIBUTION_PARALLEL;
@@ -74,7 +79,7 @@ std::size_t get_min_elements_for_simple_distribution_parallel() {
         return parallel::avx512::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.avx2) {
         return parallel::avx2::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
-    } else if (stats::arch::is_sandy_ivy_bridge()) {
+    } else if (stats::arch::cpu_tier() == stats::arch::CpuTier::Intel_Legacy) {
         return parallel::avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
     } else if (features.avx) {
         return parallel::avx::MIN_ELEMENTS_FOR_SIMPLE_DISTRIBUTION_PARALLEL;
@@ -87,136 +92,106 @@ std::size_t get_min_elements_for_simple_distribution_parallel() {
     }
 }
 
-std::size_t get_default_grain_size() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
+// Grain-size and prefetch functions: vendor-cascade replaced with switch(cpu_tier()).
+// x86_Generic case falls back to SIMD feature flags for unknown vendors.
 
-    // Use vendor-specific grain sizes when available
-#if defined(__APPLE__) && defined(__aarch64__)
-    // Apple Silicon - use vendor-specific optimizations
-    return stats::arch::cpu::apple_silicon::DEFAULT_GRAIN_SIZE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    // x86-64 - consider both vendor and SIMD features
-    if (features.vendor == "GenuineIntel") {
-        if (stats::arch::is_sandy_ivy_bridge()) {
-            return stats::arch::cpu::intel::legacy::MAX_GRAIN_SIZE;  // Use larger grain size for
-                                                                     // legacy Intel
-        } else {
+std::size_t get_default_grain_size() {
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::DEFAULT_GRAIN_SIZE;
+        case stats::arch::CpuTier::Intel_Legacy:
+            // Sandy/Ivy Bridge benefits from larger grain (no FMA throughput)
+            return stats::arch::cpu::intel::legacy::MAX_GRAIN_SIZE;
+        case stats::arch::CpuTier::Intel_Modern:
             return stats::arch::cpu::intel::modern::DEFAULT_GRAIN_SIZE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::ryzen::DEFAULT_GRAIN_SIZE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::DEFAULT_GRAIN_SIZE;
+        case stats::arch::CpuTier::x86_Generic: {
+            const auto& f = stats::arch::get_features();
+            if (f.avx512f) return parallel::avx512::DEFAULT_GRAIN_SIZE;
+            if (f.avx2)    return parallel::avx2::DEFAULT_GRAIN_SIZE;
+            if (f.avx)     return parallel::avx::DEFAULT_GRAIN_SIZE;
+            if (f.sse2)    return parallel::sse::DEFAULT_GRAIN_SIZE;
+            [[fallthrough]];
         }
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::ryzen::DEFAULT_GRAIN_SIZE;
-    } else {
-        // Unknown x86 vendor - fallback to SIMD-based selection
-        if (features.avx512f) {
-            return parallel::avx512::DEFAULT_GRAIN_SIZE;
-        } else if (features.avx2) {
-            return parallel::avx2::DEFAULT_GRAIN_SIZE;
-        } else if (features.avx) {
-            return parallel::avx::DEFAULT_GRAIN_SIZE;
-        } else if (features.sse2) {
-            return parallel::sse::DEFAULT_GRAIN_SIZE;
-        }
+        default:
+            return parallel::fallback::DEFAULT_GRAIN_SIZE;
     }
-#else
-    // ARM or other architectures
-    if (features.neon) {
-        return stats::arch::cpu::arm::DEFAULT_GRAIN_SIZE;
-    }
-#endif
-    return parallel::fallback::DEFAULT_GRAIN_SIZE;
 }
 
 std::size_t get_simple_operation_grain_size() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-    // Use vendor-specific grain sizes when available
-#if defined(__APPLE__) && defined(__aarch64__)
-    return stats::arch::cpu::apple_silicon::SIMPLE_OPERATION_GRAIN_SIZE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::modern::SIMPLE_OPERATION_GRAIN_SIZE;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::ryzen::SIMPLE_OPERATION_GRAIN_SIZE;
-    } else {
-        // Fallback to SIMD-based selection
-        if (features.avx512f) {
-            return parallel::avx512::SIMPLE_OPERATION_GRAIN_SIZE;
-        } else if (features.avx2) {
-            return parallel::avx2::SIMPLE_OPERATION_GRAIN_SIZE;
-        } else if (features.avx) {
-            return parallel::avx::SIMPLE_OPERATION_GRAIN_SIZE;
-        } else if (features.sse2) {
-            return parallel::sse::SIMPLE_OPERATION_GRAIN_SIZE;
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::SIMPLE_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:
+            // No legacy-specific simple-op constant; both use intel::modern.
+            return stats::arch::cpu::intel::modern::SIMPLE_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::ryzen::SIMPLE_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::SIMPLE_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::x86_Generic: {
+            const auto& f = stats::arch::get_features();
+            if (f.avx512f) return parallel::avx512::SIMPLE_OPERATION_GRAIN_SIZE;
+            if (f.avx2)    return parallel::avx2::SIMPLE_OPERATION_GRAIN_SIZE;
+            if (f.avx)     return parallel::avx::SIMPLE_OPERATION_GRAIN_SIZE;
+            if (f.sse2)    return parallel::sse::SIMPLE_OPERATION_GRAIN_SIZE;
+            [[fallthrough]];
         }
+        default:
+            return parallel::fallback::SIMPLE_OPERATION_GRAIN_SIZE;
     }
-#else
-    if (features.neon) {
-        return stats::arch::cpu::arm::SIMPLE_OPERATION_GRAIN_SIZE;
-    }
-#endif
-    return parallel::fallback::SIMPLE_OPERATION_GRAIN_SIZE;
 }
 
 std::size_t get_complex_operation_grain_size() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-    // Use vendor-specific grain sizes when available
-#if defined(__APPLE__) && defined(__aarch64__)
-    return stats::arch::cpu::apple_silicon::COMPLEX_OPERATION_GRAIN_SIZE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::modern::COMPLEX_OPERATION_GRAIN_SIZE;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::ryzen::COMPLEX_OPERATION_GRAIN_SIZE;
-    } else {
-        // Fallback to SIMD-based selection
-        if (features.avx512f) {
-            return parallel::avx512::COMPLEX_OPERATION_GRAIN_SIZE;
-        } else if (features.avx2) {
-            return parallel::avx2::COMPLEX_OPERATION_GRAIN_SIZE;
-        } else if (features.avx) {
-            return parallel::avx::COMPLEX_OPERATION_GRAIN_SIZE;
-        } else if (features.sse2) {
-            return parallel::sse::COMPLEX_OPERATION_GRAIN_SIZE;
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::COMPLEX_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:
+            return stats::arch::cpu::intel::modern::COMPLEX_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::ryzen::COMPLEX_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::COMPLEX_OPERATION_GRAIN_SIZE;
+        case stats::arch::CpuTier::x86_Generic: {
+            const auto& f = stats::arch::get_features();
+            if (f.avx512f) return parallel::avx512::COMPLEX_OPERATION_GRAIN_SIZE;
+            if (f.avx2)    return parallel::avx2::COMPLEX_OPERATION_GRAIN_SIZE;
+            if (f.avx)     return parallel::avx::COMPLEX_OPERATION_GRAIN_SIZE;
+            if (f.sse2)    return parallel::sse::COMPLEX_OPERATION_GRAIN_SIZE;
+            [[fallthrough]];
         }
+        default:
+            return parallel::fallback::COMPLEX_OPERATION_GRAIN_SIZE;
     }
-#else
-    if (features.neon) {
-        return stats::arch::cpu::arm::COMPLEX_OPERATION_GRAIN_SIZE;
-    }
-#endif
-    return parallel::fallback::COMPLEX_OPERATION_GRAIN_SIZE;
 }
 
 std::size_t get_monte_carlo_grain_size() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-    // Use vendor-specific grain sizes when available
-#if defined(__APPLE__) && defined(__aarch64__)
-    return stats::arch::cpu::apple_silicon::MONTE_CARLO_GRAIN_SIZE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::modern::MONTE_CARLO_GRAIN_SIZE;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::ryzen::MONTE_CARLO_GRAIN_SIZE;
-    } else {
-        // Fallback to SIMD-based selection
-        if (features.avx512f) {
-            return parallel::avx512::MONTE_CARLO_GRAIN_SIZE;
-        } else if (features.avx2) {
-            return parallel::avx2::MONTE_CARLO_GRAIN_SIZE;
-        } else if (features.avx) {
-            return parallel::avx::MONTE_CARLO_GRAIN_SIZE;
-        } else if (features.sse2) {
-            return parallel::sse::MONTE_CARLO_GRAIN_SIZE;
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::MONTE_CARLO_GRAIN_SIZE;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:
+            return stats::arch::cpu::intel::modern::MONTE_CARLO_GRAIN_SIZE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::ryzen::MONTE_CARLO_GRAIN_SIZE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::MONTE_CARLO_GRAIN_SIZE;
+        case stats::arch::CpuTier::x86_Generic: {
+            const auto& f = stats::arch::get_features();
+            if (f.avx512f) return parallel::avx512::MONTE_CARLO_GRAIN_SIZE;
+            if (f.avx2)    return parallel::avx2::MONTE_CARLO_GRAIN_SIZE;
+            if (f.avx)     return parallel::avx::MONTE_CARLO_GRAIN_SIZE;
+            if (f.sse2)    return parallel::sse::MONTE_CARLO_GRAIN_SIZE;
+            [[fallthrough]];
         }
+        default:
+        return parallel::fallback::MONTE_CARLO_GRAIN_SIZE;
     }
-#else
-    if (features.neon) {
-        return stats::arch::cpu::arm::MONTE_CARLO_GRAIN_SIZE;
-    }
-#endif
-    return parallel::fallback::MONTE_CARLO_GRAIN_SIZE;
 }
 
 std::size_t get_max_grain_size() {
@@ -244,76 +219,51 @@ namespace prefetch {
 // No more duplication - just reference the proper namespace
 
 std::size_t get_sequential_prefetch_distance() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-// Platform-specific prefetch distances based on architecture
-#if defined(__APPLE__) && defined(__aarch64__)
-    return stats::arch::cpu::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::SEQUENTIAL_PREFETCH_DISTANCE;
-    } else {
-        return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;  // Default to Intel
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:
+        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::SEQUENTIAL_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::SEQUENTIAL_PREFETCH_DISTANCE;
+        default:                                   return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;
     }
-#else
-    return stats::arch::cpu::arm::SEQUENTIAL_PREFETCH_DISTANCE;
-#endif
 }
 
 std::size_t get_random_prefetch_distance() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-#if defined(__APPLE__) && defined(__aarch64__)
-    return stats::arch::cpu::apple_silicon::RANDOM_PREFETCH_DISTANCE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::RANDOM_PREFETCH_DISTANCE;
-    } else {
-        return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::RANDOM_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:
+        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::RANDOM_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::RANDOM_PREFETCH_DISTANCE;
+        default:                                   return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
     }
-#else
-    return stats::arch::cpu::arm::RANDOM_PREFETCH_DISTANCE;
-#endif
 }
 
 std::size_t get_matrix_prefetch_distance() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-#if defined(__APPLE__) && defined(__aarch64__)
-    return stats::arch::cpu::apple_silicon::MATRIX_PREFETCH_DISTANCE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::MATRIX_PREFETCH_DISTANCE;
-    } else {
-        return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::MATRIX_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:
+        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::MATRIX_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::MATRIX_PREFETCH_DISTANCE;
+        default:                                   return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
     }
-#else
-    return stats::arch::cpu::arm::MATRIX_PREFETCH_DISTANCE;
-#endif
 }
 
 std::size_t get_prefetch_stride() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-#if defined(__APPLE__) && defined(__aarch64__)
-    return stats::arch::cpu::apple_silicon::PREFETCH_STRIDE;
-#elif defined(__x86_64__) || defined(_M_X64)
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::PREFETCH_STRIDE;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::PREFETCH_STRIDE;
-    } else {
-        return stats::arch::cpu::intel::PREFETCH_STRIDE;
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::PREFETCH_STRIDE;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:
+        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::PREFETCH_STRIDE;
+        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::PREFETCH_STRIDE;
+        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::PREFETCH_STRIDE;
+        default:                                   return stats::arch::cpu::intel::PREFETCH_STRIDE;
     }
-#else
-    return stats::arch::cpu::arm::PREFETCH_STRIDE;
-#endif
 }
 }  // namespace prefetch
 
@@ -322,35 +272,21 @@ std::size_t get_prefetch_stride() {
 
 /// Platform-specific tuning functions (implementation)
 std::size_t get_optimal_simd_block_size() {
-    [[maybe_unused]] const auto& features = stats::arch::get_features();
-
-    // Use vendor-specific SIMD block sizes when available, fallback to SIMD features
-#if defined(__APPLE__) && defined(__aarch64__)
-    // Apple Silicon - use vendor-specific SIMD optimization
-    return stats::arch::cpu::apple_silicon::OPTIMAL_SIMD_BLOCK;
-#elif defined(__x86_64__) || defined(_M_X64)
-    // x86-64 - consider both vendor and SIMD capabilities
-    if (features.vendor == "GenuineIntel") {
-        return stats::arch::cpu::intel::OPTIMAL_SIMD_BLOCK;
-    } else if (features.vendor == "AuthenticAMD") {
-        return stats::arch::cpu::amd::OPTIMAL_SIMD_BLOCK;
-    } else {
-        // Unknown vendor - use SIMD features
-        if (features.avx512f) {
-            return 8;  // AVX-512: 8 doubles per register
-        } else if (features.avx || features.avx2) {
-            return 4;  // AVX/AVX2: 4 doubles per register
-        } else if (features.sse2) {
-            return 2;  // SSE2: 2 doubles per register
+    switch (stats::arch::cpu_tier()) {
+        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::Intel_Legacy:
+        case stats::arch::CpuTier::Intel_Modern:   return stats::arch::cpu::intel::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::x86_Generic: {
+            const auto& f = stats::arch::get_features();
+            if (f.avx512f) return 8;  // 8 doubles per 512-bit register
+            if (f.avx || f.avx2) return 4;  // 4 doubles per 256-bit register
+            if (f.sse2)  return 2;  // 2 doubles per 128-bit register
+            [[fallthrough]];
         }
+        default: return 1;  // Scalar only
     }
-#else
-    // ARM or other architectures
-    if (features.neon) {
-        return stats::arch::cpu::arm::OPTIMAL_SIMD_BLOCK;
-    }
-#endif
-    return 1;  // No SIMD support
 }
 
 std::size_t get_optimal_alignment() {

@@ -747,6 +747,7 @@ endif()
 set(LIBSTATS_FOUNDATION_SOURCES
     src/cpu_detection.cpp # Runtime CPU feature detection
     src/cpu_vendor_detection.cpp # Phase 3D: CPU vendor-specific detection
+    src/cpu_tier.cpp # CPU tier classification (absorbs vendor-string cascade)
     src/simd_policy.cpp # SIMD policy and feature detection
     src/platform_constants_impl.cpp # Platform constants PIMPL implementation (Phase 2)
 )
