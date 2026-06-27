@@ -193,10 +193,16 @@ TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
         xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
     vector<double> out(N);
 
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+
     const auto t0 = std::chrono::high_resolution_clock::now();
+    std_ln_.getLogProbability(span<const double>(xs), span<double>(out), hint_vec);
     const auto t1 = std::chrono::high_resolution_clock::now();
 
     vector<double> scalar_out(N);
+    std_ln_.getLogProbability(span<const double>(xs), span<double>(scalar_out), hint_scl);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double vec_us =

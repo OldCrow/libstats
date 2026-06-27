@@ -218,11 +218,6 @@ class TestDataGenerators {
         return sumSquaredDiffs / static_cast<double>(samples.size() - 1);
     }
 
-    // Helper function to check if two values are approximately equal
-    static bool approxEqual(double a, double b, double tolerance = 1e-10) {
-        return std::abs(a - b) < tolerance;
-    }
-
     // Standard test data generators
     static std::vector<double> generateUniformTestData() {
         return {0.1, 0.3, 0.7, 0.2, 0.9, 0.4, 0.8, 0.6, 0.15, 0.85};
@@ -347,10 +342,6 @@ class StatisticalTestUtils {
         }
         variance /= static_cast<double>(samples.size());
         return {mean, variance};
-    }
-
-    static bool approxEqual(double a, double b, double tolerance = 1e-12) {
-        return std::abs(a - b) <= tolerance;
     }
 
     template <typename Distribution>

@@ -16,6 +16,7 @@
  */
 
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 
 namespace stats {
@@ -28,6 +29,24 @@ namespace constants {
 
 /// Default tolerance for approximate equality in tests
 inline constexpr double DEFAULT_TOLERANCE = 1e-10;
+
+/**
+ * @brief Relative-error approximate equality with a near-zero absolute floor.
+ *
+ * Returns true if |a - b| <= tol * max(|a|, |b|), or if both values are
+ * smaller than tol (near-zero case). Prefer this over absolute-tolerance
+ * comparisons for values that may span many orders of magnitude.
+ *
+ * @param a First value
+ * @param b Second value
+ * @param tol Relative tolerance (default: DEFAULT_TOLERANCE = 1e-10)
+ */
+[[nodiscard]] inline bool nearly_equal(double a, double b,
+                                       double tol = DEFAULT_TOLERANCE) noexcept {
+    const double diff = std::abs(a - b);
+    const double largest = std::max(std::abs(a), std::abs(b));
+    return largest < tol ? diff < tol : diff <= tol * largest;
+}
 
 /// High precision tolerance for critical mathematical tests
 inline constexpr double HIGH_PRECISION_TOLERANCE = 1e-12;

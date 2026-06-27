@@ -269,16 +269,22 @@ int main() {
         vector<double> small_cdf_traditional(small_test_values.size());
 
         start = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < small_test_values.size(); ++i)
+            small_pdf_traditional[i] = test_dist.getProbability(small_test_values[i]);
         end = std::chrono::high_resolution_clock::now();
         auto trad_pdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         start = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < small_test_values.size(); ++i)
+            small_log_pdf_traditional[i] = test_dist.getLogProbability(small_test_values[i]);
         end = std::chrono::high_resolution_clock::now();
         auto trad_logpdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         start = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < small_test_values.size(); ++i)
+            small_cdf_traditional[i] = test_dist.getCumulativeProbability(small_test_values[i]);
         end = std::chrono::high_resolution_clock::now();
         auto trad_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -339,6 +345,8 @@ int main() {
 
         // Compare with traditional batch method
         start = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < large_size; ++i)
+            large_output_traditional[i] = test_dist.getProbability(large_input[i]);
         end = std::chrono::high_resolution_clock::now();
         auto large_trad_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
