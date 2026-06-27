@@ -16,6 +16,7 @@
 #include <random>    // for std::mt19937, std::uniform_int_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -905,3 +906,23 @@ TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::DiscreteDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::DiscreteDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::DiscreteDistribution make() { return stats::DiscreteDistribution::create(1, 6).value; }
+    static std::vector<double> domain() { return {1.0, 2.0, 3.0, 4.0, 5.0, 6.0}; }
+    static double batch_lo() { return 1.0; }
+    static double batch_hi() { return 6.5; }
+    static constexpr bool is_discrete = true;
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::DiscreteDistribution::create(5, 3).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Discrete, DistributionEnhancedTest,
+                               ::testing::Types<stats::DiscreteDistribution>);

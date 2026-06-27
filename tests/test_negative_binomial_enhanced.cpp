@@ -14,6 +14,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -220,3 +221,26 @@ TEST_F(NegativeBinomialEnhancedTest, ParallelBatchCorrectness) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::NegativeBinomialDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::NegativeBinomialDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::NegativeBinomialDistribution make() { return stats::NegativeBinomialDistribution::create(5.0, 0.4).value; }
+    static std::vector<double> domain() { return {0.0, 1.0, 2.0, 5.0, 10.0}; }
+    static double batch_lo() { return 0.0; }
+    static double batch_hi() { return 19.0; }
+    static constexpr bool is_discrete = true;
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::NegativeBinomialDistribution::create(0.0, 0.5).isError(); },
+            [] { return stats::NegativeBinomialDistribution::create(-1.0, 0.5).isError(); },
+            [] { return stats::NegativeBinomialDistribution::create(1.0, 0.0).isError(); },
+            [] { return stats::NegativeBinomialDistribution::create(1.0, 1.1).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(NegativeBinomial, DistributionEnhancedTest,
+                               ::testing::Types<stats::NegativeBinomialDistribution>);

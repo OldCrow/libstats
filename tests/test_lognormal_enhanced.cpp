@@ -13,6 +13,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -222,3 +223,24 @@ TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::LogNormalDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::LogNormalDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::LogNormalDistribution make() { return stats::LogNormalDistribution::create(0.0, 1.0).value; }
+    static std::vector<double> domain() { return {0.5, 1.0, 2.0, 5.0, 10.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 10.0; }
+    static double cdf_tolerance() { return 2e-07; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::LogNormalDistribution::create(0.0, -1.0).isError(); },
+            [] { return stats::LogNormalDistribution::create(0.0, 0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Lognormal, DistributionEnhancedTest,
+                               ::testing::Types<stats::LogNormalDistribution>);

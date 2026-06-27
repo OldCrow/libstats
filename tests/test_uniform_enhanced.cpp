@@ -23,6 +23,7 @@
 #include <utility>  // for std::move, std::pair
 #include <vector>   // for std::vector
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -857,3 +858,23 @@ TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::UniformDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::UniformDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::UniformDistribution make() { return stats::UniformDistribution::create(0.0, 1.0).value; }
+    static std::vector<double> domain() { return {0.05, 0.25, 0.5, 0.75, 0.95}; }
+    static double batch_lo() { return 0.0; }
+    static double batch_hi() { return 1.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::UniformDistribution::create(5.0, 2.0).isError(); },
+            [] { return stats::UniformDistribution::create(1.0, 1.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Uniform, DistributionEnhancedTest,
+                               ::testing::Types<stats::UniformDistribution>);

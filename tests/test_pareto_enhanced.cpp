@@ -13,6 +13,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -234,3 +235,23 @@ TEST_F(ParetoEnhancedTest, VectorizedSpeedup) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::ParetoDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::ParetoDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::ParetoDistribution make() { return stats::ParetoDistribution::create(1.0, 2.0).value; }
+    static std::vector<double> domain() { return {1.0, 1.5, 2.0, 3.0, 5.0}; }
+    static double batch_lo() { return 1.0; }
+    static double batch_hi() { return 21.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::ParetoDistribution::create(-1.0, 1.0).isError(); },
+            [] { return stats::ParetoDistribution::create(1.0, 0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Pareto, DistributionEnhancedTest,
+                               ::testing::Types<stats::ParetoDistribution>);

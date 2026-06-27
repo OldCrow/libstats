@@ -13,6 +13,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -196,3 +197,23 @@ TEST_F(WeibullEnhancedTest, VectorizedSpeedup) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::WeibullDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::WeibullDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::WeibullDistribution make() { return stats::WeibullDistribution::create(2.0, 1.0).value; }
+    static std::vector<double> domain() { return {0.5, 1.0, 1.5, 2.0, 3.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 5.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::WeibullDistribution::create(-1.0, 1.0).isError(); },
+            [] { return stats::WeibullDistribution::create(1.0, 0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Weibull, DistributionEnhancedTest,
+                               ::testing::Types<stats::WeibullDistribution>);

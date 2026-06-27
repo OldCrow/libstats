@@ -17,6 +17,7 @@
 #include <random>    // for std::mt19937, std::gamma_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -846,3 +847,24 @@ int main(int argc, char** argv) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::GammaDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::GammaDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::GammaDistribution make() { return stats::GammaDistribution::create(2.0, 1.0).value; }
+    static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 8.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::GammaDistribution::create(0.0, 1.0).isError(); },
+            [] { return stats::GammaDistribution::create(1.0, 0.0).isError(); },
+            [] { return stats::GammaDistribution::create(-1.0, 1.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Gamma, DistributionEnhancedTest,
+                               ::testing::Types<stats::GammaDistribution>);

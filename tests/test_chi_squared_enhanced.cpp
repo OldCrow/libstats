@@ -13,6 +13,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -198,3 +199,25 @@ TEST_F(ChiSquaredEnhancedTest, SupportBoundaries) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::ChiSquaredDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::ChiSquaredDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::ChiSquaredDistribution make() { return stats::ChiSquaredDistribution::create(3.0).value; }
+    static std::vector<double> domain() { return {0.5, 1.0, 2.0, 4.0, 8.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 10.0; }
+    static double pdf_tolerance() { return 1e-12; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::ChiSquaredDistribution::create(0.0).isError(); },
+            [] { return stats::ChiSquaredDistribution::create(-1.0).isError(); },
+            [] { return stats::ChiSquaredDistribution::create(std::numeric_limits<double>::quiet_NaN()).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(ChiSquared, DistributionEnhancedTest,
+                               ::testing::Types<stats::ChiSquaredDistribution>);

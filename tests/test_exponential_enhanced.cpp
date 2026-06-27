@@ -16,6 +16,7 @@
 #include <random>    // for std::mt19937, std::exponential_distribution, std::normal_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -841,3 +842,23 @@ TEST_F(ExponentialEnhancedTest, NumericalStabilityAndEdgeCases) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::ExponentialDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::ExponentialDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::ExponentialDistribution make() { return stats::ExponentialDistribution::create(1.0).value; }
+    static std::vector<double> domain() { return {0.1, 0.5, 1.0, 2.0, 5.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 5.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::ExponentialDistribution::create(-1.0).isError(); },
+            [] { return stats::ExponentialDistribution::create(0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Exponential, DistributionEnhancedTest,
+                               ::testing::Types<stats::ExponentialDistribution>);

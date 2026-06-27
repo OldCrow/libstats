@@ -14,6 +14,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -226,3 +227,27 @@ TEST_F(BinomialEnhancedTest, ParallelBatchCorrectness) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::BinomialDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::BinomialDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::BinomialDistribution make() { return stats::BinomialDistribution::create(10, 0.5).value; }
+    static std::vector<double> domain() { return {0.0, 2.0, 5.0, 8.0, 10.0}; }
+    static double batch_lo() { return 0.0; }
+    static double batch_hi() { return 10.0; }
+    static constexpr bool is_discrete = true;
+    static double cdf_tolerance() { return 1e-09; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::BinomialDistribution::create(0, 0.5).isError(); },
+            [] { return stats::BinomialDistribution::create(-1, 0.5).isError(); },
+            [] { return stats::BinomialDistribution::create(10, -0.1).isError(); },
+            [] { return stats::BinomialDistribution::create(10, 1.1).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Binomial, DistributionEnhancedTest,
+                               ::testing::Types<stats::BinomialDistribution>);

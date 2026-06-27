@@ -13,6 +13,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -196,3 +197,23 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::RayleighDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::RayleighDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::RayleighDistribution make() { return stats::RayleighDistribution::create(1.0).value; }
+    static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 10.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::RayleighDistribution::create(-1.0).isError(); },
+            [] { return stats::RayleighDistribution::create(0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Rayleigh, DistributionEnhancedTest,
+                               ::testing::Types<stats::RayleighDistribution>);

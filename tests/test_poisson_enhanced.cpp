@@ -24,6 +24,7 @@
 #include <utility>  // for std::move, std::pair
 #include <vector>   // for std::vector
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -830,3 +831,24 @@ TEST_F(PoissonEnhancedTest, NumericalStabilityAndEdgeCases) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::PoissonDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::PoissonDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::PoissonDistribution make() { return stats::PoissonDistribution::create(3.0).value; }
+    static std::vector<double> domain() { return {0.0, 1.0, 2.0, 3.0, 4.0, 5.0}; }
+    static double batch_lo() { return 0.0; }
+    static double batch_hi() { return 10.5; }
+    static constexpr bool is_discrete = true;
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::PoissonDistribution::create(-1.0).isError(); },
+            [] { return stats::PoissonDistribution::create(0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Poisson, DistributionEnhancedTest,
+                               ::testing::Types<stats::PoissonDistribution>);

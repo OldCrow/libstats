@@ -13,6 +13,7 @@
 #include <random>
 #include <span>
 #include <vector>
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -188,3 +189,25 @@ TEST_F(VonMisesEnhancedTest, ParallelBatchCorrectness) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::VonMisesDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::VonMisesDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::VonMisesDistribution make() { return stats::VonMisesDistribution::create(0.0, 1.0).value; }
+    static std::vector<double> domain() { return {-1.5, -0.5, 0.0, 0.5, 1.5}; }
+    static double batch_lo() { return -3.14159265358979; }
+    static double batch_hi() { return 3.14159265358979; }
+    static double pdf_tolerance() { return 1e-10; }
+    static double cdf_tolerance() { return 1e-08; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError(); },
+            [] { return stats::VonMisesDistribution::create(0.0, -1.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(VonMises, DistributionEnhancedTest,
+                               ::testing::Types<stats::VonMisesDistribution>);

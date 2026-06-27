@@ -17,6 +17,7 @@
 #include <random>    // for std::mt19937, std::normal_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
+#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -962,3 +963,23 @@ TEST(FitWithDiagnosticsTest, FailurePathPopulatesNaN) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::GaussianDistribution
+//==============================================================================
+template<>
+struct stats::tests::DistTraits<stats::GaussianDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::GaussianDistribution make() { return stats::GaussianDistribution::create(0.0, 1.0).value; }
+    static std::vector<double> domain() { return {-2.5, -1.2, 0.3, 1.8, 2.1}; }
+    static double batch_lo() { return -3.0; }
+    static double batch_hi() { return 3.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::GaussianDistribution::create(0.0, -1.0).isError(); },
+            [] { return stats::GaussianDistribution::create(0.0, 0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Gaussian, DistributionEnhancedTest,
+                               ::testing::Types<stats::GaussianDistribution>);
