@@ -154,18 +154,9 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
         return getProbability(x) / s;
     }
 
-    // =============================================================================
-    // INFORMATION THEORY METRICS - Virtual (Override Optional)
-    // =============================================================================
-
-    /**
-     * @brief Calculate entropy of the distribution
-     * @return Differential entropy (continuous) or entropy (discrete)
-     * @note Return NaN if not analytically computable
-     */
-    [[nodiscard]] virtual double getEntropy() const {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
+    // getEntropy() promoted to DistributionInterface in v2.0.0 (Step 3A).
+    // DistributionBase inherits the NaN default from DistributionInterface;
+    // distributions that compute entropy override it directly.
 
     // =============================================================================
     // DISTRIBUTION COMPARISON - Virtual (Override Optional)
@@ -205,29 +196,11 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     // =============================================================================
     // NUMERICAL UTILITIES - Protected Static Methods
     // =============================================================================
-
-    /**
-     * @brief Numerical integration for CDF calculation
-     * @param pdf_func PDF function to integrate
-     * @param lower_bound Integration lower bound
-     * @param upper_bound Integration upper bound
-     * @param tolerance Numerical tolerance
-     * @return Integral approximation
-     */
-    static double numericalIntegration(std::function<double(double)> pdf_func, double lower_bound,
-                                       double upper_bound, double tolerance = 1e-8);
-
-    /**
-     * @brief Newton-Raphson method for quantile calculation
-     * @param cdf_func CDF function
-     * @param target_probability Target probability value
-     * @param initial_guess Initial guess for root
-     * @param tolerance Numerical tolerance
-     * @return Quantile approximation
-     */
-    static double newtonRaphsonQuantile(std::function<double(double)> cdf_func,
-                                        double target_probability, double initial_guess,
-                                        double tolerance = 1e-10);
+    // numericalIntegration(), newtonRaphsonQuantile() and their private helpers
+    // (adaptiveSimpsonIntegration, betaI_continued_fraction) have been removed
+    // in v2.0.0 (Step 3B). No derived class called them through the protected
+    // interface. Use detail::adaptive_simpson() and detail::newton_raphson()
+    // from math_utils.h directly in distribution subclasses.
 
     /**
      * @brief Validate data for fitting
@@ -246,22 +219,6 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     // Special mathematical functions (erf, lgamma, gammaP/Q, betaI) that were
     // formerly duplicated here as protected wrappers have been removed in
     // v2.0.0 (AQ-5). Call stats::detail:: functions from math_utils.h directly.
-
-   private:
-    // =============================================================================
-    // INTERNAL IMPLEMENTATION DETAILS
-    // =============================================================================
-
-    /**
-     * @brief Helper function for incomplete beta function continued fraction
-     */
-    static double betaI_continued_fraction(double x, double a, double b) noexcept;
-
-    /**
-     * @brief Helper function for adaptive Simpson's rule integration
-     */
-    static double adaptiveSimpsonIntegration(std::function<double(double)> func, double a, double b,
-                                             double tolerance, int depth, int max_depth);
 };
 
 }  // namespace stats

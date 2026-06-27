@@ -254,97 +254,10 @@ bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, doubl
 
 // Cache management is handled by ThreadSafeCacheManager base class
 
-// =============================================================================
-// NUMERICAL UTILITIES
-// =============================================================================
-
-double DistributionBase::numericalIntegration(std::function<double(double)> pdf_func,
-                                              double lower_bound, double upper_bound,
-                                              double tolerance) {
-    // Adaptive Simpson's rule implementation
-    return adaptiveSimpsonIntegration(pdf_func, lower_bound, upper_bound, tolerance, 0,
-                                      detail::MAX_ADAPTIVE_SIMPSON_DEPTH);
-}
-
-// Helper function for adaptive Simpson's rule
-double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)> func, double a,
-                                                    double b, double tolerance, int depth,
-                                                    int max_depth) {
-    if (depth > max_depth) {
-        // Fallback to simple Simpson's rule if max depth exceeded
-        double mid = (a + b) / detail::TWO;
-        double fa = func(a);
-        double fb = func(b);
-        double fmid = func(mid);
-        return (b - a) / detail::SIX * (fa + detail::FOUR * fmid + fb);
-    }
-
-    double mid = (a + b) / detail::TWO;
-    double left_mid = (a + mid) / detail::TWO;
-    double right_mid = (mid + b) / detail::TWO;
-
-    // Evaluate function at all points
-    double fa = func(a);
-    double fb = func(b);
-    double fmid = func(mid);
-    double fleft_mid = func(left_mid);
-    double fright_mid = func(right_mid);
-
-    // Compute Simpson's rule for whole interval
-    double whole = (b - a) / detail::SIX * (fa + detail::FOUR * fmid + fb);
-
-    // Compute Simpson's rule for left and right halves
-    double left = (mid - a) / detail::SIX * (fa + detail::FOUR * fleft_mid + fmid);
-    double right = (b - mid) / detail::SIX * (fmid + detail::FOUR * fright_mid + fb);
-
-    double combined = left + right;
-
-    // Check if the error is within tolerance
-    if (std::abs(combined - whole) < 15.0 * tolerance) {
-        return combined + (combined - whole) / 15.0;  // Richardson extrapolation
-    }
-
-    // Recursively refine both halves with half the tolerance
-    return adaptiveSimpsonIntegration(func, a, mid, tolerance / detail::TWO,
-                                      depth + detail::ONE_INT, max_depth) +
-           adaptiveSimpsonIntegration(func, mid, b, tolerance / detail::TWO,
-                                      depth + detail::ONE_INT, max_depth);
-}
-
-double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf_func,
-                                               double target_probability, double initial_guess,
-                                               double tolerance) {
-    detail::check_probability(target_probability, "target_probability");
-
-    double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double h = detail::FORWARD_DIFF_STEP;  // For numerical derivative
-    // Q-2: capture initial derivative magnitude for relative guard (first iteration).
-    double fpx0 = 0.0;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double fx = cdf_func(x) - target_probability;
-
-        if (std::abs(fx) < tolerance) {
-            return x;
-        }
-
-        // Numerical derivative
-        double fpx = (cdf_func(x + h) - cdf_func(x - h)) / (detail::TWO * h);
-        if (i == 0)
-            fpx0 = std::abs(fpx);  // Latch initial magnitude once
-
-        // Q-2: relative derivative guard — guards both absolute zero and collapse
-        // relative to the initial derivative magnitude (avoids divergent steps).
-        if (std::abs(fpx) < detail::ZERO || (fpx0 > detail::ZERO && std::abs(fpx) < 1e-12 * fpx0)) {
-            return x;  // Hard stop: current estimate is the best available
-        }
-
-        x = x - fx / fpx;
-    }
-
-    return x;
-}
+// numericalIntegration, adaptiveSimpsonIntegration, newtonRaphsonQuantile removed
+// in v2.0.0 (Step 3B). Use detail::adaptive_simpson() and detail::newton_raphson()
+// from math_utils.h directly. No derived distribution called these through the
+// protected interface.
 
 void DistributionBase::validateFittingData(const std::vector<double>& data) {
     if (data.empty()) {
@@ -381,67 +294,8 @@ std::vector<double> DistributionBase::calculateEmpiricalCDF(const std::vector<do
     return cdf_values;
 }
 
-// =============================================================================
-// INTERNAL IMPLEMENTATION DETAILS
-// =============================================================================
-// NOTE: The erf/erfc/lgamma/gammaP/gammaQ/gammaQuantile/betaI protected
-// wrappers that were here have been removed in v2.0.0 (AQ-5). Subclasses
-// should call stats::detail:: functions from math_utils.h directly.
-//
-// betaI_continued_fraction is still defined below as a private helper
-// used by distribution_base's own validate/fitWithDiagnostics paths.
-
-double DistributionBase::betaI_continued_fraction(double x, double a, double b) noexcept {
-    // Continued fraction for incomplete beta function
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    double qab = a + b;
-    double qap = a + detail::ONE;
-    double qam = a - detail::ONE;
-    double c = detail::ONE;
-    double d = detail::ONE - qab * x / qap;
-
-    if (std::abs(d) < detail::ZERO) {
-        d = detail::ZERO;
-    }
-
-    d = detail::ONE / d;
-    double h = d;
-
-    for (int m = 1; m <= max_iterations; ++m) {
-        int m2 = detail::TWO_INT * m;
-        double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
-        d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO)
-            d = detail::ZERO;
-        // Guard c BEFORE dividing by it: a near-zero c from the previous
-        // iteration would otherwise produce aa/c ≈ 1e+30 before being caught.
-        if (std::abs(c) < detail::ZERO)
-            c = detail::ZERO;
-        c = detail::ONE + aa / c;
-
-        d = detail::ONE / d;
-        h *= d * c;
-
-        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
-        d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO)
-            d = detail::ZERO;
-        if (std::abs(c) < detail::ZERO)
-            c = detail::ZERO;
-        c = detail::ONE + aa / c;
-
-        d = detail::ONE / d;
-        double del = d * c;
-        h *= del;
-
-        if (std::abs(del - detail::ONE) < tolerance) {
-            break;
-        }
-    }
-
-    return h;
-}
+// erf/erfc/lgamma/gammaP/gammaQ protected wrappers removed in v2.0.0 (AQ-5).
+// betaI_continued_fraction removed in v2.0.0 (Step 3B): defined but never
+// called. Use detail::beta_i() from math_utils.h if needed.
 
 }  // namespace stats

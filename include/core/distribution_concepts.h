@@ -71,6 +71,9 @@ concept AnyDistribution =
         { d.getSupportLowerBound() } -> std::convertible_to<double>;
         { d.getSupportUpperBound() } -> std::convertible_to<double>;
 
+        // Information theory (Step 3A: promoted from DistributionBase to the interface)
+        { d.getEntropy() } -> std::convertible_to<double>;
+
         // Dispatch metadata — replaces DistributionTraits<D>
         { D::kDistributionType } -> std::convertible_to<detail::DistributionType>;
         { D::kIsDiscrete }       -> std::convertible_to<bool>;

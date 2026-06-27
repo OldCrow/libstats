@@ -180,6 +180,19 @@ class DistributionInterface {
      * @return Maximum possible value (or +infinity)
      */
     virtual double getSupportUpperBound() const = 0;
+
+    // =============================================================================
+    // INFORMATION THEORY METRICS - Virtual (Override Optional)
+    // =============================================================================
+
+    /**
+     * @brief Differential entropy (continuous) or entropy (discrete) of the distribution.
+     * @return Entropy in nats; NaN if not analytically computable for this distribution.
+     * @note Distributions that do not override this return NaN.
+     */
+    [[nodiscard]] virtual double getEntropy() const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
 };
 
 // =============================================================================
