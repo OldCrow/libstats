@@ -821,37 +821,9 @@ bool supports_sve2() {
 }
 
 // Cache information queries
-std::optional<CacheInfo> get_l1_data_cache() {
-    const Features& f = get_features();
-    if (f.l1_data_cache.size > 0) {
-        return f.l1_data_cache;
-    }
-    return std::nullopt;
-}
-
-std::optional<CacheInfo> get_l1_instruction_cache() {
-    const Features& f = get_features();
-    if (f.l1_instruction_cache.size > 0) {
-        return f.l1_instruction_cache;
-    }
-    return std::nullopt;
-}
-
-std::optional<CacheInfo> get_l2_cache() {
-    const Features& f = get_features();
-    if (f.l2_cache.size > 0) {
-        return f.l2_cache;
-    }
-    return std::nullopt;
-}
-
-std::optional<CacheInfo> get_l3_cache() {
-    const Features& f = get_features();
-    if (f.l3_cache.size > 0) {
-        return f.l3_cache;
-    }
-    return std::nullopt;
-}
+// get_l1_data_cache / get_l1_instruction_cache / get_l2_cache / get_l3_cache removed.
+// Access cache information directly via get_features():
+//   get_features().l1_data_cache, .l1_instruction_cache, .l2_cache, .l3_cache
 
 // CPU topology queries
 TopologyInfo get_topology() {
@@ -870,11 +842,7 @@ bool has_hyperthreading() {
     return get_features().topology.hyperthreading;
 }
 
-// Performance monitoring utilities
-PerformanceInfo get_performance_info() {
-    return get_features().performance;
-}
-
+// get_performance_info() removed — use get_features().performance directly.
 bool has_rdtsc() {
     return get_features().performance.has_rdtsc;
 }
@@ -906,43 +874,8 @@ uint64_t read_tsc() {
 #endif
 }
 
-// Intel CPU generation detection functions
-bool is_sandy_ivy_bridge() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 42 || features.model == 58);  // Sandy Bridge: 42, Ivy Bridge: 58
-}
-
-bool is_haswell_broadwell() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 60 || features.model == 61     // Haswell: 60, Broadwell: 61
-            || features.model == 69 || features.model == 70  // Haswell-ULT: 69, Haswell-GT3e: 70
-            || features.model == 71);                        // Broadwell-GT3e: 71
-}
-
-bool is_skylake_generation() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 78 || features.model == 94);  // Skylake-U/Y: 78, Skylake-S/H: 94
-}
-
-bool is_kaby_coffee_lake() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 142 ||
-            features.model == 158  // Kaby Lake-U/Y: 142, Coffee Lake-S: 158
-            || features.model == 165 ||
-            features.model == 166);  // Coffee Lake-H: 165, Cannon Lake: 166
-}
-
-bool is_modern_intel() {
-    const Features& features = get_features();
-    // Modern Intel includes Ice Lake (2019+) with AVX-512 or newer architectures
-    return features.vendor == "GenuineIntel" &&
-           (features.avx512f                                      // Any CPU with AVX-512 is modern
-            || (features.family == 6 && features.model >= 125));  // Ice Lake and newer models
-}
+// Intel CPU generation classifiers (is_sandy_ivy_bridge etc.) removed.
+// Classification is now handled by stats::arch::cpu_tier() in cpu_tier.cpp.
 
 }  // namespace stats::arch
 

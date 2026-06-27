@@ -13,6 +13,7 @@
  */
 
 #include "libstats/platform/cpu_detection.h"
+#include "libstats/platform/internal/cpu_tier.h"
 #include "libstats/platform/simd.h"
 
 #include <algorithm>
@@ -246,13 +247,12 @@ void test_vendor_specific(const TestOptions& opts) {
     const auto& features = arch::get_features();
 
     if (features.vendor == "GenuineIntel") {
+        const auto tier = arch::cpu_tier();
         cout << "\nIntel-Specific Analysis:" << endl;
         cout << "  Microarchitecture: " << get_intel_microarchitecture() << endl;
-        cout << "  Sandy/Ivy Bridge: " << (arch::is_sandy_ivy_bridge() ? "✓" : "✗") << endl;
-        cout << "  Haswell/Broadwell: " << (arch::is_haswell_broadwell() ? "✓" : "✗") << endl;
-        cout << "  Skylake Generation: " << (arch::is_skylake_generation() ? "✓" : "✗") << endl;
-        cout << "  Kaby/Coffee Lake: " << (arch::is_kaby_coffee_lake() ? "✓" : "✗") << endl;
-        cout << "  Modern Intel: " << (arch::is_modern_intel() ? "✓" : "✗") << endl;
+        cout << "  CPU Tier: "
+             << (tier == arch::CpuTier::Intel_Legacy ? "Legacy (Sandy/Ivy Bridge, AVX)" :
+                                                       "Modern (Haswell+, AVX2+FMA)") << endl;
 
         if (opts.verbose) {
             cout << "  Intel Optimization Strategy: ";
@@ -440,29 +440,38 @@ void test_performance_benchmarks(const TestOptions& opts) {
 }
 
 void test_generation_detection(const TestOptions& opts) {
-    cout << "\n=== CPU GENERATION DETECTION ===" << endl;
+    // Per-generation classifier functions (is_sandy_ivy_bridge etc.) have been
+    // removed from the public API. Classification is now done via cpu_tier().
+    cout << "\n=== CPU TIER DETECTION ===" << endl;
 
-    cout << "\nGeneration Detection Results:" << endl;
-    cout << "  Sandy/Ivy Bridge: " << (arch::is_sandy_ivy_bridge() ? "✓" : "✗") << endl;
-    cout << "  Haswell/Broadwell: " << (arch::is_haswell_broadwell() ? "✓" : "✗") << endl;
-    cout << "  Skylake Generation: " << (arch::is_skylake_generation() ? "✓" : "✗") << endl;
-    cout << "  Kaby/Coffee Lake: " << (arch::is_kaby_coffee_lake() ? "✓" : "✗") << endl;
-    cout << "  Modern Intel: " << (arch::is_modern_intel() ? "✓" : "✗") << endl;
+    const auto tier = arch::cpu_tier();
+    const auto& features = arch::get_features();
+
+    const char* tier_name = []( arch::CpuTier t) -> const char* {
+        switch (t) {
+            case arch::CpuTier::Apple_Silicon: return "Apple_Silicon";
+            case arch::CpuTier::Intel_Legacy:  return "Intel_Legacy (Sandy/Ivy Bridge, AVX)";
+            case arch::CpuTier::Intel_Modern:  return "Intel_Modern (Haswell+, AVX2+FMA)";
+            case arch::CpuTier::AMD_Zen:       return "AMD_Zen";
+            case arch::CpuTier::ARM_Generic:   return "ARM_Generic";
+            case arch::CpuTier::x86_Generic:   return "x86_Generic (unknown vendor)";
+            default:                           return "Scalar_Only";
+        }
+    }(tier);
+
+    cout << "\n  CPU Tier: " << tier_name << endl;
+    cout << "  Microarchitecture: " << get_intel_microarchitecture() << endl;
 
     if (opts.verbose) {
-        cout << "\nGeneration Analysis:" << endl;
-        cout << "  Microarchitecture: " << get_intel_microarchitecture() << endl;
-
-        // Provide optimization recommendations based on generation
-        if (arch::is_modern_intel()) {
-            cout << "  Optimization: Modern CPU - use aggressive SIMD and threading" << endl;
-        } else if (arch::is_skylake_generation()) {
-            cout << "  Optimization: Skylake era - balance SIMD with cache efficiency" << endl;
-        } else if (arch::is_haswell_broadwell()) {
-            cout << "  Optimization: Haswell era - careful with AVX2 power management" << endl;
-        } else {
-            cout << "  Optimization: Legacy CPU - conservative vectorization" << endl;
-        }
+        cout << "\nTier Analysis:" << endl;
+        if (features.avx512f)
+            cout << "  Optimization: AVX-512 capable — aggressive vectorization" << endl;
+        else if (tier == arch::CpuTier::Intel_Modern || tier == arch::CpuTier::AMD_Zen)
+            cout << "  Optimization: AVX2+FMA — balanced SIMD and threading" << endl;
+        else if (tier == arch::CpuTier::Intel_Legacy)
+            cout << "  Optimization: AVX without FMA — conservative thresholds" << endl;
+        else
+            cout << "  Optimization: Using SIMD-capability-based defaults" << endl;
     }
 }
 
@@ -672,29 +681,22 @@ void output_json_summary([[maybe_unused]] const TestOptions& opts) {
 }
 
 string get_intel_microarchitecture() {
+    // Classifier functions removed from public API; use cpu_tier() + features.
     const auto& features = arch::get_features();
+    const auto tier = arch::cpu_tier();
 
-    if (arch::is_modern_intel())
-        return "Modern (10th gen+)";
-    if (arch::is_kaby_coffee_lake())
-        return "Kaby/Coffee Lake";
-    if (arch::is_skylake_generation())
-        return "Skylake";
-    if (arch::is_haswell_broadwell())
-        return "Haswell/Broadwell";
-    if (arch::is_sandy_ivy_bridge())
-        return "Sandy/Ivy Bridge";
-
-    // Fallback based on features
-    if (features.avx512f)
-        return "AVX-512 capable";
-    if (features.avx2)
-        return "AVX2 era";
-    if (features.avx)
-        return "AVX era";
-    if (features.sse4_2)
-        return "SSE4 era";
-    return "Legacy";
+    if (tier == arch::CpuTier::Intel_Legacy)
+        return "Sandy/Ivy Bridge (AVX, no FMA)";
+    if (tier == arch::CpuTier::Intel_Modern) {
+        if (features.avx512f) return "Modern Intel (AVX-512)";
+        return "Modern Intel (Haswell+, AVX2+FMA)";
+    }
+    // Non-Intel or unknown
+    if (features.avx512f) return "AVX-512 capable";
+    if (features.avx2)    return "AVX2 era";
+    if (features.avx)     return "AVX era";
+    if (features.sse4_2)  return "SSE4 era";
+    return "Legacy / Non-Intel";
 }
 
 string get_amd_architecture() {

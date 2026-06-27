@@ -44,13 +44,6 @@ bool cpu_supports_avx512() noexcept;
 bool cpu_supports_neon() noexcept;
 bool cpu_supports_sve() noexcept;
 
-/// CPU generation detection (implementation hidden)
-bool cpu_is_sandy_ivy_bridge() noexcept;
-bool cpu_is_haswell_broadwell() noexcept;
-bool cpu_is_skylake_generation() noexcept;
-bool cpu_is_kaby_coffee_lake() noexcept;
-bool cpu_is_modern_intel() noexcept;
-
 /// Optimal configuration queries (implementation hidden)
 std::size_t get_optimal_cpu_double_width() noexcept;
 std::size_t get_optimal_cpu_float_width() noexcept;
