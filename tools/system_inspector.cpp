@@ -213,7 +213,6 @@ class SystemInspector {
 
     void displayAdditionalAdaptiveConstants() {
         using namespace stats::detail;
-        using namespace stats::detail;
 
         stats::detail::detail::subsectionHeader("Additional Adaptive Constants");
 
@@ -243,7 +242,6 @@ class SystemInspector {
     }
 
     void displayCacheThresholds() {
-        using namespace stats::detail;
         using namespace stats::detail;
 
         stats::detail::detail::subsectionHeader("Cache Thresholds");
@@ -275,7 +273,6 @@ class SystemInspector {
     }
 
     void displayArchitectureComparison() {
-        using namespace stats::detail;
         using namespace stats::detail;
 
         stats::detail::detail::subsectionHeader("Architecture-Specific Constants Comparison");

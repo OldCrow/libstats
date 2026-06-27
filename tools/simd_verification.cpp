@@ -51,8 +51,6 @@ using namespace stats::detail;
 namespace {
 constexpr int VERIFICATION_SEED = 12345;
 constexpr size_t TEST_SIZE = 1024;  // Size for correctness tests
-[[maybe_unused]] constexpr size_t LARGE_TEST_SIZE =
-    65536;  // Size for performance tests - reserved for future benchmarking features
 constexpr int TEST_ITERATIONS = 5;
 constexpr double TOLERANCE_NORMAL = 1e-14;   // Normal numerical precision
 constexpr double TOLERANCE_RELAXED = 1e-12;  // Relaxed for complex operations
@@ -607,24 +605,26 @@ class SIMDVerifier {
         size_t valid_comparisons = 0;  // Track number of non-special-case comparisons
         std::ostringstream error_stream;
 
-        // Gaussian CDF uses SIMD erf (A&S 7.1.26, documented max error ~1.5e-7).
-        // Beta LogPDF uses two vector_log calls whose SIMD rounding order differs from
-        // scalar; the ~1 ULP difference is real but acceptable at machine precision.
-        // Both use absolute tolerance only (relative error is misleading near zero).
-        const double default_tolerance =
-            (result.distribution_name.find("Gaussian") != std::string::npos &&
-             result.operation_name == "CDF")
-                ? TOLERANCE_ERF_APPROX
-            : (result.distribution_name.find("Beta") != std::string::npos &&
-               result.operation_name == "LogPDF")
-                ? TOLERANCE_RELAXED
-            // VonMises PDF/LogPDF both route through the vector_cos SIMD batch path,
-            // which has an absolute error floor of ~1e-10. Use absolute tolerance only
-            // (relative error is misleading for values near the tails).
-            : (result.distribution_name.find("VonMises") != std::string::npos &&
-               result.operation_name != "CDF")
-                ? TOLERANCE_VONMISES
-                : TOLERANCE_NORMAL;
+        // Per-distribution tolerance table keyed by exact (dist_name, op_name) pairs.
+        // Uses == rather than find() so a name change does not silently fall through
+        // to TOLERANCE_NORMAL — any rename is immediately visible as a table miss.
+        struct ToleranceEntry { const char* dist; const char* op; double tol; };
+        static const ToleranceEntry kToleranceTable[] = {
+            // Gaussian CDF routes through vector_erf (musl polynomial, max ~2.2e-16)
+            { "Gaussian", "CDF",    TOLERANCE_ERF_APPROX },
+            // Beta LogPDF: two vector_log calls accumulate ~1 ULP rounding vs scalar
+            { "Beta",     "LogPDF", TOLERANCE_RELAXED     },
+            // VonMises PDF/LogPDF route through vector_cos (7-term Horner, ~1e-10 floor)
+            { "VonMises", "PDF",    TOLERANCE_VONMISES    },
+            { "VonMises", "LogPDF", TOLERANCE_VONMISES    },
+        };
+        double default_tolerance = TOLERANCE_NORMAL;
+        for (const auto& e : kToleranceTable) {
+            if (result.distribution_name == e.dist && result.operation_name == e.op) {
+                default_tolerance = e.tol;
+                break;
+            }
+        }
 
         for (size_t i = 0; i < scalar_results.size(); ++i) {
             double scalar_val = scalar_results[i];
@@ -872,8 +872,6 @@ class SIMDVerifier {
         // Mixing them produces a meaningless composite that changes with test composition.
         stats::detail::detail::subsectionHeader("Performance Analysis");
 
-        [[maybe_unused]] double prim_scalar = 0, prim_simd = 0;
-
         // Per-operation-type geometric mean speedups.
         // Partitioning by PDF/LogPDF/CDF reveals meaningful structure:
         //   LogPDF: log-space paths, exp-dominated, typically highest speedup
@@ -890,10 +888,9 @@ class SIMDVerifier {
         std::map<std::string, OpStats> op_stats;  // keyed by operation_name
 
         for (const auto& result : results_) {
-            if (result.operation_name == "---") {
-                prim_scalar += result.scalar_time_ns;
-                prim_simd += result.simd_time_ns;
-            } else if (result.speedup_ratio > 0.0) {
+            // Primitive ops (operation_name == "---") are excluded from the distribution
+            // suite geometric mean — they are reported individually below.
+            if (result.operation_name != "---" && result.speedup_ratio > 0.0) {
                 auto& s = op_stats[result.operation_name];
                 s.log_sum += std::log(result.speedup_ratio);
                 ++s.count;

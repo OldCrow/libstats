@@ -554,7 +554,7 @@ class StrategyProfiler {
 void print_usage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [OPTIONS]\n";
     std::cout << "\nOptions:\n";
-    std::cout << "  -l, --large              Include 1M and 2M batch sizes\n";
+    std::cout << "  -l, --large              Include 750K, 1M, 1.5M, and 2M batch sizes\n";
     std::cout << "  -o, --output-csv PATH    Write CSV results to PATH\n";
     std::cout << "  -h, --help               Show this help message\n";
     std::cout << "\nDefault output file: " << RESULTS_CSV_FILENAME << "\n";
