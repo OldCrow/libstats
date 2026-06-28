@@ -51,6 +51,7 @@ CauchyDistribution::CauchyDistribution(const CauchyDistribution& other)
     log_gamma_ = other.log_gamma_;
     atomicX0_.store(x0_, std::memory_order_release);
     atomicGamma_.store(gamma_, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 CauchyDistribution& CauchyDistribution::operator=(const CauchyDistribution& other) {

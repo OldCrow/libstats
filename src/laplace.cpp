@@ -385,9 +385,10 @@ void LaplaceDistribution::fit(const std::vector<double>& values) {
     }
     const double b_hat = mad / static_cast<double>(n);
 
-    // Guard against degenerate b
+    // Guard against degenerate b (e.g. all values identical → MAD = 0).
+    // Clamp rather than throw so callers get a valid (if extreme) distribution.
     if (!std::isfinite(b_hat) || b_hat <= detail::ZERO_DOUBLE)
-        throw std::runtime_error("Laplace MLE did not converge to a valid b estimate");
+        throw std::invalid_argument("Laplace MLE produced a degenerate scale estimate (b ≤ 0); data may be constant or contain non-finite values");
 
     setParameters(mu_hat, b_hat);
 }

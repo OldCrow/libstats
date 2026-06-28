@@ -167,7 +167,7 @@ void GeometricDistribution::fit(const std::vector<double>& values) {
 
     // Clamp to valid range (x̄ = 0 → p̂ = 1; protect against floating-point
     // edge cases where x̄ is very large)
-    setP(std::clamp(p_hat, std::numeric_limits<double>::min(), detail::ONE));
+    setP(std::clamp(p_hat, detail::HIGH_PRECISION_TOLERANCE, detail::ONE));
 }
 
 void GeometricDistribution::parallelBatchFit(
