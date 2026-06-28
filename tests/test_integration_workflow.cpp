@@ -196,6 +196,7 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     auto vonmises     = VonMisesDistribution::create(0.0, 1.0).value;
     auto binomial     = BinomialDistribution::create(10, 0.5).value;
     auto negbinomial  = NegativeBinomialDistribution::create(3.0, 0.5).value;
+    auto geometric    = GeometricDistribution::create(0.5).value;
     auto poisson      = PoissonDistribution::create(3.0).value;
     auto discrete     = DiscreteDistribution::create(0, 9).value;
 
@@ -213,8 +214,51 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     check("VonMises",         vonmises);
     check("Binomial",         binomial);
     check("NegativeBinomial", negbinomial);
+    check("Geometric",        geometric);
     check("Poisson",          poisson);
     check("Discrete",         discrete);
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Geometric end-to-end workflow
+// ────────────────────────────────────────────────────────────────────────────────
+
+TEST(IntegrationWorkflow, GeometricWorkflow) {
+    // Convention: X = failures before first success, support {0,1,2,...}
+    // Delegation: wraps NegativeBinomial(r=1, p)
+    auto r = GeometricDistribution::create(0.4);
+    ASSERT_TRUE(r.isOk());
+    auto g = std::move(r.value);
+
+    // Moment formulas
+    EXPECT_NEAR(g.getMean(),     0.6 / 0.4,          1e-10);
+    EXPECT_NEAR(g.getVariance(), 0.6 / (0.4 * 0.4),  1e-10);
+    EXPECT_EQ(g.getMode(), 0.0);
+    EXPECT_TRUE(g.isDiscrete());
+
+    // Known PMF: PMF(0) = p = 0.4, PMF(1) = p*(1-p) = 0.24
+    EXPECT_NEAR(g.getProbability(0.0), 0.4,  1e-12);
+    EXPECT_NEAR(g.getProbability(1.0), 0.24, 1e-12);
+    EXPECT_EQ(g.getProbability(-1.0), 0.0);  // out of support
+
+    // Known CDF: CDF(0) = p = 0.4
+    EXPECT_NEAR(g.getCumulativeProbability(0.0), 0.4, 1e-12);
+
+    // Sampling: all values >= 0
+    std::mt19937 rng(42);
+    auto samples = g.sample(rng, 200);
+    EXPECT_EQ(samples.size(), 200u);
+    for (double v : samples)
+        EXPECT_GE(v, 0.0) << "Geometric samples must be non-negative";
+
+    // MLE round-trip: fit to Geometric(0.4) data
+    g.fit(samples);
+    EXPECT_NEAR(g.getP(), 0.4, 0.08) << "MLE p should recover ~0.4";
+
+    // Invalid parameters rejected
+    EXPECT_TRUE(GeometricDistribution::create(0.0).isError());
+    EXPECT_TRUE(GeometricDistribution::create(-1.0).isError());
+    EXPECT_TRUE(GeometricDistribution::create(1.5).isError());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

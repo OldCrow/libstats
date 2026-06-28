@@ -19,6 +19,7 @@
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/geometric.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -87,6 +88,8 @@ auto createTestDistribution() {
         return BinomialDistribution::create(10, 0.5);           // n=10, p=0.5
     else if constexpr (std::is_same_v<Dist, NegativeBinomialDistribution>)
         return NegativeBinomialDistribution::create(5.0, 0.4);  // r=5, p=0.4
+    else if constexpr (std::is_same_v<Dist, GeometricDistribution>)
+        return GeometricDistribution::create(0.4);              // p=0.4
     else if constexpr (std::is_same_v<Dist, BetaDistribution>)
         return BetaDistribution::create(2.0, 3.0);              // α=2, β=3
     else if constexpr (std::is_same_v<Dist, ChiSquaredDistribution>)
@@ -145,6 +148,10 @@ class ParallelCorrectnessVerifier {
             // Non-negative integers matching create(5, 0.4)
             for (size_t i = 0; i < size; ++i)
                 data[i] = static_cast<double>(gen() % 25);
+        } else if constexpr (std::is_same_v<Dist, GeometricDistribution>) {
+            // Non-negative integers matching create(0.4): failures before first success
+            for (size_t i = 0; i < size; ++i)
+                data[i] = static_cast<double>(gen() % 20);
         } else if constexpr (std::is_same_v<Dist, ParetoDistribution>) {
             // x >= xm = 1.0 matching create(1.0, 2.0)
             std::uniform_real_distribution<> uniform(1.0, 20.0);
@@ -569,6 +576,7 @@ class ParallelCorrectnessVerifier {
         test_distribution<VonMisesDistribution>("VonMises");
         test_distribution<BinomialDistribution>("Binomial");
         test_distribution<NegativeBinomialDistribution>("NegativeBinomial");
+        test_distribution<GeometricDistribution>("Geometric");
         test_distribution<BetaDistribution>("Beta");
         test_distribution<ChiSquaredDistribution>("ChiSquared");
         test_distribution<StudentTDistribution>("StudentT");

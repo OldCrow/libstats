@@ -16,6 +16,7 @@
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/geometric.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -165,6 +166,7 @@ class StrategyProfiler {
         profile_von_mises_distribution();
         profile_binomial_distribution();
         profile_negative_binomial_distribution();
+        profile_geometric_distribution();
     }
 
     template <typename Distribution, typename Generator>
@@ -435,6 +437,20 @@ class StrategyProfiler {
         profile_distribution("NegBinomial", neg_binom, [this](std::size_t count) {
             std::vector<double> values(count);
             std::negative_binomial_distribution<int> dist(5, HALF);
+            for (auto& value : values) {
+                value = static_cast<double>(dist(gen_));
+            }
+            return values;
+        });
+    }
+
+    void profile_geometric_distribution() {
+        // Geometric(p=0.5) delegates to NegBinomial(r=1, p=0.5).
+        // Inputs: non-negative integers (failure counts).
+        const auto geometric = stats::GeometricDistribution::create(HALF).value;
+        profile_distribution("Geometric", geometric, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::geometric_distribution<int> dist(HALF);
             for (auto& value : values) {
                 value = static_cast<double>(dist(gen_));
             }

@@ -28,6 +28,7 @@
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/geometric.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -297,6 +298,10 @@ int main(int argc, char* argv[]) {
             BinomialDistribution::create(10, 0.5).value));
         results.push_back(test_discrete("NegBinomial",   "NB(5,0.4)",
             NegativeBinomialDistribution::create(5.0, 0.4).value));
+        results.push_back(test_discrete("Geometric",      "Geo(0.5)",
+            GeometricDistribution::create(0.5).value));
+        results.push_back(test_discrete("Geometric",      "Geo(0.3)",
+            GeometricDistribution::create(0.3).value));
 
         printResults(results);
 

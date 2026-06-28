@@ -374,6 +374,17 @@ class DatasetGenerator {
         return datasets;
     }
 
+    static std::vector<std::vector<double>> generateGeometricDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> p_dist(0.2, 0.8);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = GeometricDistribution::create(p_dist(rng)).value;
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
     static std::vector<std::vector<double>> generateBetaDatasets(
             size_t count, size_t size, std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
@@ -607,6 +618,11 @@ class ParallelBatchFittingBenchmark {
         if (config_.target_distribution == "all" || config_.target_distribution == "negativebinomial") {
             runDistributionBenchmark<NegativeBinomialDistribution>(
                 "NegativeBinomial", &DatasetGenerator::generateNegBinomialDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "geometric") {
+            runDistributionBenchmark<GeometricDistribution>(
+                "Geometric", &DatasetGenerator::generateGeometricDatasets, summary);
         }
 
         if (config_.target_distribution == "all" || config_.target_distribution == "beta") {

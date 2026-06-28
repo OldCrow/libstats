@@ -414,4 +414,53 @@ inline VoidResult validateStudentTParameters(double nu) noexcept {
     return VoidResult::ok({});
 }
 
+/**
+ * @brief Validate Geometric distribution parameters without throwing exceptions
+ * @param p Success probability (must be in (0, 1])
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateGeometricParameters(double p) noexcept {
+    if (std::isnan(p) || std::isinf(p) || p <= 0.0 || p > 1.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Success probability p must be in (0, 1]");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Laplace distribution parameters without throwing exceptions
+ * @param mu Location parameter (must be finite)
+ * @param b  Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateLaplaceParameters(double mu, double b) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(b) || std::isinf(b) || b <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter b must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Cauchy distribution parameters without throwing exceptions
+ * @param x0    Location parameter (must be finite)
+ * @param gamma Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
+    if (!std::isfinite(x0)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter x0 must be a finite number");
+    }
+    if (std::isnan(gamma) || std::isinf(gamma) || gamma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter gamma must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
 }  // namespace stats

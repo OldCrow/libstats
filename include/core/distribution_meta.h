@@ -113,7 +113,9 @@ static_assert(validateMetaOrdering(),
     "used as array indices and any reordering silently corrupts dispatch.");
 
 // Belt-and-suspenders: catches accidental deletions or enum reorderings.
-// Change to the new count when distributions are added; never reduce it.
+// Geometric (16), Laplace (17), Cauchy (18) are registered but not yet
+// implemented. The count is 19 = all registered types (implemented + pending).
+// Bump to 20 only when a genuinely new DistributionType enum value is appended.
 static_assert(kDistributionTypeCount >= 19,
     "Distribution count regressed below 19 — a DistributionType entry was removed "
     "or the enum was reordered. Values are used as array indices; never remove or "

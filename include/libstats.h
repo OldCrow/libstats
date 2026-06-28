@@ -165,6 +165,7 @@
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/lognormal.h"
+    #include "distributions/geometric.h"
     #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
     #include "distributions/poisson.h"
@@ -194,6 +195,7 @@ using Weibull = WeibullDistribution;
 using Rayleigh = RayleighDistribution;
 using VonMises = VonMisesDistribution;
 using Binomial = BinomialDistribution;
+using Geometric = GeometricDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE

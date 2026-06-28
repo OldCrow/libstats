@@ -138,6 +138,11 @@ class SIMDVerifier {
         // rng_ state (and hence test data) for the original 54 tests is identical
         // to v1.4.0 baselines. Both new functions are rng_-independent.
         testVonMisesDistribution();  // uses local RNG
+
+        // New v2.0.0 distributions — placed after all existing tests to preserve
+        // rng_ state for the established baselines.
+        testGeometricDistribution();  // uses local RNG (integer outputs)
+
         testPrimitiveVectorOps();    // uses deterministic linspace data
 
         // Analyze and report results
@@ -182,6 +187,49 @@ class SIMDVerifier {
         std::cout << "\nOptimal SIMD block size: " << stats::arch::get_optimal_simd_block_size()
                   << " elements\n";
         std::cout << "Memory alignment: " << stats::arch::get_optimal_alignment() << " bytes\n\n";
+    }
+
+    void testGeometricDistribution() {
+        stats::detail::detail::subsectionHeader("Geometric Distribution (delegates to NegBinomial)");
+        // Geometric(p=0.5): PMF(k) = 0.5^(k+1), inputs are non-negative integers.
+        // Batch correctness: scalar vs auto-dispatch must match exactly (discrete,
+        // no SIMD approximation).
+        auto dist = stats::GeometricDistribution::create(0.5).value;
+
+        // Generate integer test data {0, 1, 2, ..., TEST_SIZE-1} mod 20
+        std::vector<double> test_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            test_data[i] = static_cast<double>(i % 20);
+
+        verifyOperation(
+            dist, test_data, "PMF", "Geometric",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "LogPDF", "Geometric",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getLogProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getLogProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "CDF", "Geometric",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getCumulativeProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+            });
     }
 
     void testPrimitiveVectorOps() {

@@ -794,6 +794,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/rayleigh.cpp # Rayleigh distribution (x² pipeline, signal processing)
     src/von_mises.cpp # Von Mises distribution (circular, cos kernel; Bessel functions)
     src/binomial.cpp # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
+    src/geometric.cpp          # Geometric distribution (discrete delegation wrapper over NegBinomial(r=1))
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
@@ -1383,6 +1384,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_negative_binomial_basic tests/test_negative_binomial_basic.cpp)
     create_libstats_gtest(test_negative_binomial_enhanced tests/test_negative_binomial_enhanced.cpp)
 
+    # geometric.h - Geometric distribution (discrete, delegation wrapper over NegBinomial(r=1))
+    create_libstats_test(test_geometric_basic tests/test_geometric_basic.cpp)
+    create_libstats_gtest(test_geometric_enhanced tests/test_geometric_enhanced.cpp)
+
     # =======================================================================
     # LEVEL 6 TESTS: Integration and cross-distribution workflow
     # =======================================================================
@@ -1454,7 +1459,8 @@ if(LIBSTATS_BUILD_TESTS)
             test_system_capabilities
             PROPERTIES LABELS "timing")
         set_tests_properties(test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
-                             test_discrete_enhanced test_gamma_enhanced PROPERTIES LABELS "timing")
+                             test_discrete_enhanced test_gamma_enhanced
+                             test_geometric_enhanced PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 
@@ -1523,7 +1529,9 @@ if(LIBSTATS_BUILD_TESTS)
                 test_von_mises_enhanced
                 test_binomial_enhanced
                 test_negative_binomial_enhanced
-                # Level 7: Integration tests
+                test_geometric_basic
+                test_geometric_enhanced
+                # Level 6: Integration tests
                 test_dynamic_linking
                 test_integration_workflow
                 # On-demand tests (stress, diagnostic, redundant)
