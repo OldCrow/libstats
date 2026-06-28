@@ -27,6 +27,8 @@
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/platform/simd.h"
 
@@ -142,6 +144,7 @@ class SIMDVerifier {
         // New v2.0.0 distributions — placed after all existing tests to preserve
         // rng_ state for the established baselines.
         testGeometricDistribution();  // uses local RNG (integer outputs)
+        testLaplaceDistribution();     // uses deterministic linspace data
 
         testPrimitiveVectorOps();    // uses deterministic linspace data
 
@@ -187,6 +190,48 @@ class SIMDVerifier {
         std::cout << "\nOptimal SIMD block size: " << stats::arch::get_optimal_simd_block_size()
                   << " elements\n";
         std::cout << "Memory alignment: " << stats::arch::get_optimal_alignment() << " bytes\n\n";
+    }
+
+    void testLaplaceDistribution() {
+        stats::detail::detail::subsectionHeader("Laplace Distribution (standalone)");
+        // Standard Laplace(0,1): LogPDF uses fabs + vector_exp pipeline.
+        // Correctness: VECTORIZED vs SCALAR should match to TOLERANCE_NORMAL.
+        auto dist = stats::LaplaceDistribution::create(0.0, 1.0).value;
+
+        std::vector<double> test_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            test_data[i] = -5.0 + 10.0 * static_cast<double>(i) /
+                           static_cast<double>(TEST_SIZE - 1);
+
+        verifyOperation(
+            dist, test_data, "PDF", "Laplace",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "LogPDF", "Laplace",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getLogProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getLogProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "CDF", "Laplace",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getCumulativeProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+            });
     }
 
     void testGeometricDistribution() {

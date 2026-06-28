@@ -795,6 +795,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/von_mises.cpp # Von Mises distribution (circular, cos kernel; Bessel functions)
     src/binomial.cpp # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
     src/geometric.cpp          # Geometric distribution (discrete delegation wrapper over NegBinomial(r=1))
+    src/laplace.cpp            # Laplace distribution (double-exponential, standalone)
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
@@ -1388,6 +1389,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_test(test_geometric_basic tests/test_geometric_basic.cpp)
     create_libstats_gtest(test_geometric_enhanced tests/test_geometric_enhanced.cpp)
 
+    # laplace.h - Laplace distribution (double-exponential, standalone, median/MAD MLE)
+    create_libstats_test(test_laplace_basic tests/test_laplace_basic.cpp)
+    create_libstats_gtest(test_laplace_enhanced tests/test_laplace_enhanced.cpp)
+
     # =======================================================================
     # LEVEL 6 TESTS: Integration and cross-distribution workflow
     # =======================================================================
@@ -1460,7 +1465,7 @@ if(LIBSTATS_BUILD_TESTS)
             PROPERTIES LABELS "timing")
         set_tests_properties(test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
                              test_discrete_enhanced test_gamma_enhanced
-                             test_geometric_enhanced PROPERTIES LABELS "timing")
+                             test_geometric_enhanced test_laplace_enhanced PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 
@@ -1531,6 +1536,8 @@ if(LIBSTATS_BUILD_TESTS)
                 test_negative_binomial_enhanced
                 test_geometric_basic
                 test_geometric_enhanced
+                test_laplace_basic
+                test_laplace_enhanced
                 # Level 6: Integration tests
                 test_dynamic_linking
                 test_integration_workflow

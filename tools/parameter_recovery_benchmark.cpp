@@ -254,6 +254,18 @@ int main(int argc, char* argv[]) {
                 sample_sizes, n_reps, fmt);
         }
 
+        // Laplace Lap(1.5, 0.7) — mean=1.5, var=2*0.49=0.98
+        {
+            auto true_d = LaplaceDistribution::create(1.5, 0.7).value;
+            std::cout << "\n--- Laplace Lap(1.5,0.7)  true mean=1.5, var≈0.98 ---\n";
+            print_header();
+            run_recovery<LaplaceDistribution>("Laplace", "Lap(1.5,0.7)",
+                [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
+                [] { return LaplaceDistribution::create(0.0, 1.0).value; },
+                true_d.getMean(), true_d.getVariance(),
+                sample_sizes, n_reps, fmt);
+        }
+
         std::cout << "\n\nNote: MeanRMSE and VarRMSE should decrease as n increases.\n"
                   << "Bias that does not shrink with n indicates MLE inconsistency\n"
                   << "(e.g. Pareto scale underestimation at small n).\n";

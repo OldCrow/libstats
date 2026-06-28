@@ -17,6 +17,7 @@
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -167,6 +168,7 @@ class StrategyProfiler {
         profile_binomial_distribution();
         profile_negative_binomial_distribution();
         profile_geometric_distribution();
+        profile_laplace_distribution();
     }
 
     template <typename Distribution, typename Generator>
@@ -454,6 +456,18 @@ class StrategyProfiler {
             for (auto& value : values) {
                 value = static_cast<double>(dist(gen_));
             }
+            return values;
+        });
+    }
+
+    void profile_laplace_distribution() {
+        // Laplace(mu=0, b=1): standard double-exponential, full real line.
+        const auto laplace = stats::LaplaceDistribution::create(ZERO_DOUBLE, ONE).value;
+        profile_distribution("Laplace", laplace, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-5.0, 5.0);
+            for (auto& value : values)
+                value = dist(gen_);
             return values;
         });
     }

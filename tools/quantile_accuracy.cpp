@@ -29,6 +29,7 @@
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -270,6 +271,10 @@ int main(int argc, char* argv[]) {
             LogNormalDistribution::create(2.0, 0.5).value));
 
         // Pareto: closed-form power-law; avoid p→1 (unbounded)
+        results.push_back(test_continuous("Laplace",     "Lap(0,1)",
+            LaplaceDistribution::create(0.0, 1.0).value));
+        results.push_back(test_continuous("Laplace",     "Lap(2,0.5)",
+            LaplaceDistribution::create(2.0, 0.5).value));
         results.push_back(test_continuous("Pareto",      "Pa(1,2)",
             ParetoDistribution::create(1.0, 2.0).value));
 

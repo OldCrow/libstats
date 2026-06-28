@@ -197,6 +197,7 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     auto binomial     = BinomialDistribution::create(10, 0.5).value;
     auto negbinomial  = NegativeBinomialDistribution::create(3.0, 0.5).value;
     auto geometric    = GeometricDistribution::create(0.5).value;
+    auto laplace      = LaplaceDistribution::create(0.0, 1.0).value;
     auto poisson      = PoissonDistribution::create(3.0).value;
     auto discrete     = DiscreteDistribution::create(0, 9).value;
 
@@ -215,6 +216,7 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     check("Binomial",         binomial);
     check("NegativeBinomial", negbinomial);
     check("Geometric",        geometric);
+    check("Laplace",          laplace);
     check("Poisson",          poisson);
     check("Discrete",         discrete);
 }
@@ -259,6 +261,49 @@ TEST(IntegrationWorkflow, GeometricWorkflow) {
     EXPECT_TRUE(GeometricDistribution::create(0.0).isError());
     EXPECT_TRUE(GeometricDistribution::create(-1.0).isError());
     EXPECT_TRUE(GeometricDistribution::create(1.5).isError());
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Laplace end-to-end workflow
+// ────────────────────────────────────────────────────────────────────────────────
+
+TEST(IntegrationWorkflow, LaplaceWorkflow) {
+    auto r = LaplaceDistribution::create(1.0, 2.0);
+    ASSERT_TRUE(r.isOk());
+    auto l = std::move(r.value);
+
+    // Moments
+    EXPECT_NEAR(l.getMean(),     1.0, 1e-10);
+    EXPECT_NEAR(l.getVariance(), 8.0, 1e-10);  // 2*b^2 = 2*4 = 8
+    EXPECT_NEAR(l.getMedian(),   1.0, 1e-10);
+    EXPECT_NEAR(l.getSkewness(), 0.0, 1e-12);
+    EXPECT_NEAR(l.getKurtosis(), 3.0, 1e-12);
+    EXPECT_FALSE(l.isDiscrete());
+
+    // Known PDF: PDF(mu=1) = 1/(2b) = 0.25
+    EXPECT_NEAR(l.getProbability(1.0), 0.25, 1e-12);
+    // CDF at location = 0.5
+    EXPECT_NEAR(l.getCumulativeProbability(1.0), 0.5, 1e-12);
+    // Symmetry
+    EXPECT_NEAR(l.getProbability(1.5), l.getProbability(0.5), 1e-12);
+
+    // Sampling: all finite
+    std::mt19937 rng(42);
+    auto samples = l.sample(rng, 200);
+    EXPECT_EQ(samples.size(), 200u);
+    for (double v : samples)
+        EXPECT_TRUE(std::isfinite(v)) << "Laplace samples must be finite";
+
+    // MLE round-trip
+    l.fit(samples);
+    EXPECT_NEAR(l.getMu(), 1.0, 0.3) << "MLE mu should recover ~1.0";
+    EXPECT_NEAR(l.getB(),  2.0, 0.5) << "MLE b should recover ~2.0";
+
+    // Invalid parameters
+    EXPECT_TRUE(LaplaceDistribution::create(0.0, -1.0).isError());
+    EXPECT_TRUE(LaplaceDistribution::create(0.0, 0.0).isError());
+    EXPECT_TRUE(LaplaceDistribution::create(
+        std::numeric_limits<double>::infinity(), 1.0).isError());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
