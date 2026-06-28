@@ -7,17 +7,20 @@
 # and an identical copy under data/profiles/dispatcher/ (tracked in VCS).
 #
 # USAGE
-#   .\scripts\capture_dispatcher_profile.ps1              # 3 runs (default)
-#   .\scripts\capture_dispatcher_profile.ps1 -Runs 1      # single smoke test
-#   .\scripts\capture_dispatcher_profile.ps1 -Large       # extend to 2M
+#   .\scripts\capture_dispatcher_profile.ps1                   # 3 runs, 30 s sleep (default)
+#   .\scripts\capture_dispatcher_profile.ps1 -Runs 1           # single smoke test
+#   .\scripts\capture_dispatcher_profile.ps1 -Large            # extend to 2M
 #   .\scripts\capture_dispatcher_profile.ps1 -Runs 3 -Large
+#   .\scripts\capture_dispatcher_profile.ps1 -Sleep 60         # longer cool-down between runs
+#   .\scripts\capture_dispatcher_profile.ps1 -Sleep 0          # disable sleep (quick smoke test)
 #
 # See scripts/PROFILING_METHOD.md for threshold derivation rules.
 # =============================================================================
 [CmdletBinding()]
 param(
     [int]   $Runs  = 3,
-    [switch]$Large
+    [switch]$Large,
+    [int]   $Sleep = 30   # seconds to pause before each run; 0 = disabled
 )
 
 Set-StrictMode -Off
@@ -78,15 +81,23 @@ $LogicalCores  = [int]$cpu_inst.NumberOfLogicalProcessors
 Write-Host "=================================================================="
 Write-Host "  Dispatcher profile capture"
 Write-Host "  Branch: $Branch  SHA: $GitSha  Arch: $OsName/$Arch"
-Write-Host "  Runs: $Runs  Large: $($Large.IsPresent)"
+Write-Host "  Runs: $Runs  Large: $($Large.IsPresent)  Sleep: ${Sleep}s"
 Write-Host "=================================================================="
 
-# ── RUN LOOP ──────────────────────────────────────────────────────────────────
+# ── RUN LOOP ───────────────────────────────────────────────────────────────────────────────────────
 $LastTrackedDir = ''
 
 for ($i = 1; $i -le $Runs; $i++) {
     Write-Host ""
     Write-Host "--- Run $i / $Runs ---"
+
+    # Sleep before every run to let the thread pools drain and the CPU return
+    # to an idle thermal state, minimising warm-pool bias.
+    # Use -Sleep 0 to skip (quick smoke tests only).
+    if ($Sleep -gt 0) {
+        Write-Host "  Sleeping ${Sleep}s before run $i (-Sleep ${Sleep} to adjust; -Sleep 0 to skip)..."
+        Start-Sleep -Seconds $Sleep
+    }
 
     $Timestamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH-mm-ssZ')
     $RunId     = "${Timestamp}_${OsName}-${Arch}_${Branch}_sha-${GitSha}"

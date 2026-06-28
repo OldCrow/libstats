@@ -122,8 +122,10 @@ but valid.  This is expected and does not require a grid floor change.
 **Practical implication**: always wait at least 30 seconds after a build
 before starting a profiling session.  This allows GCD workers to idle down,
 bringing the pool closer to the cold-start state that production callers
-experience.  On macOS, `sleep 30 && bash scripts/capture_dispatcher_profile.sh`
-is sufficient.
+experience.  The capture script's built-in `--sleep 30` default handles this
+automatically — it sleeps 30 seconds before each run.  Increase with
+`--sleep 60` if bimodal instability persists; use `--sleep 0` only for
+smoke tests where measurement accuracy is not required.
 
 ---
 
@@ -132,7 +134,7 @@ is sufficient.
 ### macOS / Linux (Bash)
 
 ```bash
-# Standard capture (3 runs, default):
+# Standard capture (3 runs, 30 s sleep before each; default):
 bash scripts/capture_dispatcher_profile.sh
 
 # Extended batch sizes (use when V→P = 500000 is reported by any run):
@@ -140,6 +142,12 @@ bash scripts/capture_dispatcher_profile.sh --large
 
 # Custom run count:
 bash scripts/capture_dispatcher_profile.sh --runs 5
+
+# Longer cool-down (use when bimodal instability persists):
+bash scripts/capture_dispatcher_profile.sh --sleep 60
+
+# Disable sleep — quick smoke test only, not for threshold calibration:
+bash scripts/capture_dispatcher_profile.sh --sleep 0
 ```
 
 ### Windows (PowerShell)

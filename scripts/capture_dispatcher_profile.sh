@@ -7,10 +7,12 @@
 # identical copy under data/profiles/dispatcher/ (tracked in version control).
 #
 # USAGE
-#   bash scripts/capture_dispatcher_profile.sh              # 3 runs (default)
+#   bash scripts/capture_dispatcher_profile.sh              # 3 runs, 30 s sleep (default)
 #   bash scripts/capture_dispatcher_profile.sh --runs 1    # single run
 #   bash scripts/capture_dispatcher_profile.sh --large      # extend to 2M
 #   bash scripts/capture_dispatcher_profile.sh --runs 3 --large
+#   bash scripts/capture_dispatcher_profile.sh --sleep 60   # longer cool-down between runs
+#   bash scripts/capture_dispatcher_profile.sh --sleep 0    # disable sleep (quick smoke test)
 #
 # Three sequential runs are the default because the dispatch threshold
 # derivation rules (see scripts/PROFILING_METHOD.md) require at least three
@@ -51,6 +53,7 @@
 # ── ARGUMENT PARSING ─────────────────────────────────────────────────────────
 RUNS=3
 INCLUDE_LARGE=false
+SLEEP_SECONDS=30  # seconds to pause before each run; 0 = disabled
 
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -62,9 +65,13 @@ while [[ "$#" -gt 0 ]]; do
             INCLUDE_LARGE=true
             shift
             ;;
+        --sleep)
+            SLEEP_SECONDS="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1" >&2
-            echo "Usage: $0 [--runs N] [--large]" >&2
+            echo "Usage: $0 [--runs N] [--large] [--sleep N]" >&2
             exit 1
             ;;
     esac
@@ -72,6 +79,10 @@ done
 
 if ! [[ "$RUNS" =~ ^[1-9][0-9]*$ ]]; then
     echo "Error: --runs must be a positive integer (got: '$RUNS')" >&2
+    exit 1
+fi
+if ! [[ "$SLEEP_SECONDS" =~ ^[0-9]+$ ]]; then
+    echo "Error: --sleep must be a non-negative integer (got: '$SLEEP_SECONDS')" >&2
     exit 1
 fi
 
@@ -127,7 +138,7 @@ if $INCLUDE_LARGE; then LARGE_FLAG="--large"; fi
 echo "=================================================================="
 echo " Dispatcher profile capture"
 echo " Branch: $BRANCH  SHA: $GIT_SHA  Arch: $OS_NAME/$ARCH"
-echo " Runs: $RUNS  Large: $INCLUDE_LARGE"
+echo " Runs: $RUNS  Large: $INCLUDE_LARGE  Sleep: ${SLEEP_SECONDS}s"
 echo "=================================================================="
 
 # ── RUN LOOP ─────────────────────────────────────────────────────────────────
@@ -140,6 +151,14 @@ LAST_TRACKED_DIR=""
 for (( i=1; i<=RUNS; i++ )); do
     echo ""
     echo "--- Run $i / $RUNS ---"
+
+    # Sleep before every run to let the thread pools drain and the CPU return
+    # to an idle thermal state between runs, minimising warm-pool bias.
+    # Use --sleep 0 to skip (quick smoke tests only).
+    if (( SLEEP_SECONDS > 0 )); then
+        echo "  Sleeping ${SLEEP_SECONDS}s before run $i (--sleep ${SLEEP_SECONDS} to adjust; --sleep 0 to skip)..."
+        sleep "$SLEEP_SECONDS"
+    fi
 
     # Fresh timestamp per iteration guarantees unique directory names.
     # PS1: $Timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH-mm-ssZ")
