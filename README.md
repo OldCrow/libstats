@@ -31,7 +31,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
 - **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
-### 📊 **Available Distributions** (16 across 6 families)
+### 📊 **Available Distributions** (19 across 6 families)
 
 **Symmetric, unbounded continuous**
 - Gaussian (Normal) N(μ, σ²) · Student's t t(ν)
@@ -51,7 +51,10 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 
 **Discrete**
 - Poisson P(λ) · Discrete (integer range)
-- Binomial B(n, p) · Negative Binomial NB(r, p)
+- Binomial B(n, p) · Negative Binomial NB(r, p) · Geometric Geo(p)
+
+**Heavy-tailed / real-line continuous**
+- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -161,7 +164,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 16 distributions across 6 families (symmetric, positive-support, power-law, bounded, circular, discrete)
+- 19 distributions across 6 families (symmetric, positive-support, power-law, bounded, circular, discrete)
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -198,7 +201,7 @@ libstats/
 ### 📚 **Examples** (`examples/` directory)
 - `quick_start_tutorial.cpp` - 5-minute introduction to the core API
 - `basic_usage.cpp` - End-to-end usage of creation, evaluation, sampling, fitting, and batch APIs
-- `distribution_families_demo.cpp` - The 16 distributions organized by family: what each models, when to use it, and how to choose within a family
+- `distribution_families_demo.cpp` - The 19 distributions organized by family: what each models, when to use it, and how to choose within a family
 - `statistical_validation_demo.cpp` - Goodness-of-fit tests, cross-validation, bootstrap CIs, and model selection
 - `parallel_execution_demo.cpp` - Batch-processing and dispatch workflow
 
@@ -326,7 +329,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 v2.0.0 is released. v1.5.3 was the final v1.x release.
 
-**16 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
+**19 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
 - Span-based SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds

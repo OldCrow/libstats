@@ -263,7 +263,7 @@ int main() {
     }
 
     std::cout << "\nKey points:\n"
-              << "  • getLogProbability() is available for all 16 distributions\n"
+              << "  \u2022 getLogProbability() is available for all 19 distributions\n"
               << "  • Batch span API routes through SIMD for large inputs\n"
               << "  • Always use log-space when multiplying > ~100 densities\n"
               << "  • Log-likelihood is the natural objective for MLE and model selection\n";

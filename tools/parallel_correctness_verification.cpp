@@ -568,7 +568,7 @@ class ParallelCorrectnessVerifier {
         std::cout << "  - POSIX threads\n";
 #endif
 
-        // Test all 16 distributions
+        // Test all 19 distributions
         test_distribution<UniformDistribution>("Uniform");
         test_distribution<GaussianDistribution>("Gaussian");
         test_distribution<ExponentialDistribution>("Exponential");

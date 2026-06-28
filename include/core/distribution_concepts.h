@@ -51,7 +51,7 @@ concept AnyDistribution =
         { d.getQuantile(x) }              -> std::convertible_to<double>;
 
         // Statistical moments (AR-2: getSkewness/getKurtosis added; pure virtual
-        // on DistributionInterface, implemented by all 16 distributions)
+        // on DistributionInterface, implemented by all 19 distributions)
         { d.getMean() }      -> std::convertible_to<double>;
         { d.getVariance() }  -> std::convertible_to<double>;
         { d.getSkewness() }  -> std::convertible_to<double>;
@@ -119,7 +119,7 @@ concept DiscreteDistribution = AnyDistribution<D> && D::kIsDiscrete;
  * Extends AnyDistribution with the default-constructibility and fit() method
  * required by bootstrap and cross-validation templates.
  *
- * All 16 standard libstats distributions satisfy this concept.
+ * All 19 standard libstats distributions satisfy this concept.
  */
 template <typename D>
 concept FittableDistribution =

@@ -8,7 +8,7 @@ Distribution instances are mutable: setters and `fit()` update parameters and in
 
 ## Move semantics
 
-All 16 distributions have `noexcept` move constructors and move assignment operators in v2.x. This ensures containers such as `std::vector<GaussianDistribution>` move rather than copy during reallocation.
+All 19 distributions have `noexcept` move constructors and move assignment operators in v2.x. This ensures containers such as `std::vector<GaussianDistribution>` move rather than copy during reallocation.
 
 The standard move contract applies: callers must not concurrently access an object while it is being moved from.
 

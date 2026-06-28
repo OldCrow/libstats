@@ -8,12 +8,11 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v2.0.0 on `feat/v2-architecture` — three-machine validation complete (43/43
-on all machines); awaiting API rationalization cleanup before merge to `main`.
+**Current Status**: v2.0.0 on `feat/v2-architecture` — 47/47 correctness tests pass on Kaby Lake
+AVX2+FMA and Mac Mini M1 NEON; Asus TUF A16 AVX-512 re-validation pending.
 v1.5.3 is the final v1.x release.
 
-16 distributions implemented across 6 families. 3 additional distributions — Geometric, Laplace,
-Cauchy — are registered in the enum and metadata table (pending implementation).
+19 distributions implemented across 6 families (Geometric, Laplace, Cauchy added 2026-06-28).
 v2.0.0 breaking changes (relative to v1.5.3):
 - Platform baseline raised to macOS 13 Ventura; AppleClang 15+, GCC 13+, Clang 17+, MSVC 19.38+.
 - Alternate Homebrew LLVM compiler path removed; system AppleClang only on macOS.
@@ -33,7 +32,7 @@ v2.0.0 breaking changes (relative to v1.5.3):
 - `WorkStealingPool::getOptimalThreadCount()` capped at 32 workers.
 - Strategy-suffix batch methods, vector-returning batch helpers, `LibDistributionType`,
   `CROSS_PLATFORM` build type, and `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` removed.
-- `noexcept` move constructors across all 16 distributions.
+- `noexcept` move constructors across all 19 distributions.
 - `WorkStealingPool::parallelFor` per-call fence.
 - Legacy `validation.cpp` / `validation.h` ecosystem deleted; use `stats::analysis` instead.
 - `BinomialDistribution::getEntropy()` now uses exact PMF summation for n ≤ 1000 (nats).
@@ -99,9 +98,9 @@ minimum macOS raised to 13 Ventura).
 
 | Machine | SIMD | Target | Notes |
 |---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 44/44 ✅ | v2.0.0 validated; kAvx2 recalibrated (3-run standard + 3-run --large, fb8e8b6) |
-|| Mac Mini M1 | NEON | 44/44 ✅ | v2.0.0 validated; kNeon recalibrated with 64-element grid floor (fb8e8b6, 2026-06-24) |
-|| Asus TUF A16 (Windows) | AVX-512 | 44/44 ✅ | v2.0.0 validated; kAvx512 recalibrated (3-run standard + 3-run --large); 61/61 simd_verification |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 47/47 ✅ | 44/44 v2.0.0 + Geometric/Laplace/Cauchy (2026-06-28) |
+||| Mac Mini M1 | NEON | 47/47 ✅ | 44/44 v2.0.0 + Geometric/Laplace/Cauchy (2026-06-28) |
+||| Asus TUF A16 (Windows) | AVX-512 | 44/44 ✅ | v2.0.0 validated; Geometric/Laplace/Cauchy pending re-run; 61/61 simd_verification |
 
 **v1.5.2 — final v1.x release (four machines)**
 
@@ -189,8 +188,8 @@ Selected per-distribution speedups:
   `is_delegation_wrapper` fields for all 19 registered types. `consteval validateMetaOrdering()`
   enforces index == enum value at compile time. Accessors: `distributionMeta()`,
   `distributionMetaSafe()`, `distributionEnumName()`, `distributionDisplayName()`.
-- **`DistributionType` enum extended**: GEOMETRIC(16), LAPLACE(17), CAUCHY(18) appended
-  (implementations pending; NEVER dispatch thresholds set in all four kXxx tables).
+- **`DistributionType` enum extended**: GEOMETRIC(16), LAPLACE(17), CAUCHY(18) appended;
+  all three implemented 2026-06-28; NEVER dispatch thresholds remain until profiled on all machines.
 - **`dispatch_thresholds.h` refactored**: `ArchTable` changed from a named-field struct to
   `using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>`. `parallelThresholdFromTable`
   replaces a 15-case switch with a 3-line array index lookup. Adding a distribution now requires
@@ -225,9 +224,9 @@ Selected per-distribution speedups:
 - **v2.0.0 API migration test debt cleared**: 9 enhanced test files updated to use the
   span+`PerformanceHint` API; stale NaN/kurtosis/Bootstrap assertions corrected.
 
-44/44 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON after all v2.0.0
-infrastructure work. Asus TUF A16 (AVX-512): re-run correctness suite to confirm 44/44
-before PR merge (two new test files added after Asus validation).
+47/47 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON (44/44 at v2.0.0;
+Geometric, Laplace, Cauchy added 2026-06-28). Asus TUF A16 (AVX-512): re-run correctness
+suite before PR merge.
 
 ### Deferred Items
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
@@ -575,7 +574,7 @@ Level 5: Complete Library Interface (libstats.h)
 
 ### Core Components
 
-#### Statistical Distributions (16 implemented + 3 registered, across 6 families)
+#### Statistical Distributions (19 implemented, across 6 families)
 1. **Gaussian** (Normal) - N(μ, σ²)
 2. **Exponential** - Exp(λ)
 3. **Uniform** - U(a, b)
@@ -592,9 +591,9 @@ Level 5: Complete Library Interface (libstats.h)
 14. **Von Mises** - VM(μ, κ) — circular distribution, SIMD via vector_cos
 15. **Binomial** - B(n, p) — discrete, PMF via lgamma
 16. **Negative Binomial** - NB(r, p) — discrete, real-valued r, Newton–Raphson MLE
-17. **Geometric** - Geo(p) — *(registered, pending implementation)* delegate over NegBinomial(r=1)
-18. **Laplace** - Laplace(μ, b) — *(registered, pending implementation)* standalone, median/MAD fit
-19. **Cauchy** - Cauchy(x₀, γ) — *(registered, pending implementation)* delegate over StudentT(ν=1)
+17. **Geometric** - Geo(p) — discrete, delegate over NegBinomial(r=1); MLE: p̂=1/(1+x̄)
+18. **Laplace** - Laplace(μ, b) — standalone, fabs+vector_exp SIMD; MLE: median/MAD
+19. **Cauchy** - Cauchy(x₀, γ) — delegate over StudentT(ν=1); moments NaN; Fisher-scoring MLE
 
 Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
 
@@ -647,9 +646,8 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 #### Creating New Distributions
 The registration checklist is authoritative in `include/core/distribution_meta.h`.
 
-**Pre-completed for Geometric (16), Laplace (17), Cauchy (18):**
-Steps 1–3 below are already done for all three pending distributions. Their enum values,
-metadata rows, and `{NEVER, NEVER, NEVER}` threshold rows are all in place. Start at step 4.
+**Geometric (16), Laplace (17), and Cauchy (18) are fully implemented** (2026-06-28).
+For any future distribution (N+1), follow all 6 steps below starting from step 1.
 
 **Steps for any future distribution (N+1):**
 
@@ -735,7 +733,7 @@ compile time. A clean build after any enum or table change verifies consistency.
 - **All levels**: GTest-based tests registered with CTest
 - Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
 - Timing tests: run `ctest -j1 -L timing` on a quiet machine
-- **Coverage**: 44 CTest targets (each basic and enhanced test file registers as one target;
+- **Coverage**: 50 CTest targets (each basic and enhanced test file registers as one target;
   each enhanced binary runs additional typed test cases from the shared `DistributionEnhancedTest` suite)
 
 ### Performance Optimization

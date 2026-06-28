@@ -31,7 +31,8 @@ Distribution-specific analysis coverage:
 
 ## Copy/move tests
 
-`test_copy_move_stress.cpp` includes static assertions for all 16 distributions:
+`test_copy_move_stress.cpp` includes static assertions for the original 16 distributions
+(Geometric, Laplace, Cauchy not yet added to the stress test):
 
 - `std::is_nothrow_move_constructible_v<D>`
 - `std::is_nothrow_move_assignable_v<D>`

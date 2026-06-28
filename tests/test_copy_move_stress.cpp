@@ -577,11 +577,11 @@ int main() {
     vector<thread> threads;
 
     cout << "\nStarting stress test with " << num_threads << " threads for "
-         << test_duration_seconds << " seconds (all 16 distributions)..." << endl;
+         << test_duration_seconds << " seconds (original 16 distributions)..." << endl;
 
     auto start_time = chrono::steady_clock::now();
 
-    // One thread per distribution — all 16 distributions have runtime stress coverage.
+    // One thread per distribution — original 16 (Geometric/Laplace/Cauchy not yet added).
     threads.emplace_back(stressTestUniformCopyMove, 0);
     threads.emplace_back(stressTestGaussianCopyMove, 100);
     threads.emplace_back(stressTestExponentialCopyMove, 200);

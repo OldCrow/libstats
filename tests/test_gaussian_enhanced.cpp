@@ -899,7 +899,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
 // =============================================================================
 // FitWithDiagnostics: base-class virtual method that bundles fit() +
 // AIC/BIC + CDF residuals + validate(). Tested here on Gaussian because
-// the base-class implementation is shared by all 16 distributions.
+// the base-class implementation is shared by all 19 distributions.
 // Part 2D — API rationalization plan.
 // =============================================================================
 

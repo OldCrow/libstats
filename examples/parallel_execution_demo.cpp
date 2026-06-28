@@ -311,7 +311,7 @@ void demonstrate_parallel_batch_fit() {
         std::cout << "  Parallel fit: " << t_par << " us\n";
     }
 
-    std::cout << "\nparallelBatchFit() is available on all 16 distributions.\n"
+    std::cout << "\nparallelBatchFit() is available on all 19 distributions.\n"
               << "For batch PDF/LogPDF/CDF dispatch, see performance_dispatch_demo.\n";
 }
 

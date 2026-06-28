@@ -1402,7 +1402,7 @@ if(LIBSTATS_BUILD_TESTS)
     # LEVEL 6 TESTS: Integration and cross-distribution workflow
     # =======================================================================
     # End-to-end API interoperability (factory, fit, moments, survival, batch, KS test, bootstrap,
-    # NaN/±inf boundary values across all 16 distributions)
+    # NaN/±inf boundary values across all 19 distributions)
     create_libstats_gtest(test_integration_workflow tests/test_integration_workflow.cpp)
 
     # =======================================================================

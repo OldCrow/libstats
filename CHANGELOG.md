@@ -150,6 +150,19 @@
 
 ### Added (post-2026-06-21)
 
+**New distributions (Geometric, Laplace, Cauchy — 2026-06-28):**
+- **GeometricDistribution** — Geo(p), discrete, support {0,1,2,...}; delegates to
+  NegativeBinomial(r=1, p). PMF(k)=p(1-p)^k; closed-form quantile; MLE: p̂=1/(1+x̄).
+- **LaplaceDistribution** — Laplace(μ, b), continuous, standalone (no delegation).
+  PDF=(1/2b)exp(-|x-μ|/b); four-step SIMD pipeline (scalar_add→fabs→scalar_multiply→vector_exp);
+  MLE: μ̂=median (O(n log n)), b̂=MAD; closed-form quantile and all moments.
+- **CauchyDistribution** — Cauchy(x₀, γ), continuous; delegates to StudentT(ν=1) via
+  z=(x-x₀)/γ transform. getMean/getVariance/getSkewness/getKurtosis return NaN (moments undefined);
+  getMedian()=getMode()=x₀; getEntropy()=log(4πγ); closed-form quantile=x₀+γ·tan(π(p-0.5));
+  MLE: median/IQR seed + 20 Fisher-scoring iterations on the Cauchy score equations.
+- All three are fully integrated: 5 tools, integration workflow NaN test, 47/47 correctness tests pass.
+- Commits: 64eeedc (Geometric), 04e187e (Laplace), 662e4a3 (Cauchy).
+
 **Test infrastructure:**
 - `tests/include/basic_test_runner.h`: `BasicDistConfig` struct and `runBatchTests<Dist>()` /
   `runErrorTests()` template functions. Tests 6 and 8 in all 16 basic test files now use the

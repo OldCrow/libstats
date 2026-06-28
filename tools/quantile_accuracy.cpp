@@ -3,7 +3,7 @@
  * @brief Quantile function accuracy tool
  *
  * Verifies getQuantile() numerical accuracy across the full [0, 1] domain
- * for all 16 distributions, analogous to simd_verification.cpp for PDF/LogPDF/CDF.
+ * for all 19 distributions, analogous to simd_verification.cpp for PDF/LogPDF/CDF.
  *
  * For each distribution:
  *   - Continuous: verifies CDF(quantile(p)) ≈ p for 1000 p values from 0.001 to 0.999

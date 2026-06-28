@@ -528,7 +528,7 @@ void demo_batch_api() {
     for (size_t i = 0; i < xs.size(); ++i) {
         std::cout << "  x=" << xs[i] << "  ->  " << out[i] << "\n";
     }
-    std::cout << "\nThe same batch interface works identically for all 16 distributions.\n";
+    std::cout << "\nThe same batch interface works identically for all 19 distributions.\n";
 }
 
 int main() {
@@ -542,7 +542,7 @@ int main() {
     demo_batch_api();
 
     std::cout << "\n" << std::string(72, '=') << "\n";
-    std::cout << "16 distributions across 5 families.\n";
+    std::cout << "19 distributions across 5 families (plus Laplace/Cauchy on the full real line).\n";
     std::cout << "See the individual distribution headers for the full API surface.\n";
     std::cout << std::string(72, '=') << "\n";
 
