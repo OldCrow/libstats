@@ -1342,18 +1342,37 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
         return std::numeric_limits<double>::infinity();
     }
 
-    // Initial guess using Wilson-Hilferty transformation for large α
+    // Initial guess.
+    //
+    // Wilson-Hilferty (WH) is reliable for moderate p but can produce a
+    // negative value when alpha > 1 and p is very small (z << 0 with
+    // small h makes the cube negative).  Clamping a negative WH result to
+    // NEWTON_RAPHSON_TOLERANCE (1e-10) then causes the first Newton step
+    // to shoot x to ~p/pdf(1e-10) ~ 1e9, after which the PDF underflows
+    // and the solver exits without converging.
+    //
+    // Fix: when WH is negative use the small-x asymptotic expansion of the
+    // Gamma CDF: P(alpha,beta*x) ~ (beta*x)^alpha / (alpha * Gamma(alpha))
+    // => x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
     double initial_guess;
     if (alpha_ > detail::ONE) {
         double h = detail::TWO / (detail::NINE * alpha_);
         double z = detail::inverse_normal_cdf(p);
-        initial_guess = alpha_ * std::pow(detail::ONE - h + z * std::sqrt(h), 3) / beta_;
+        double wh = detail::ONE - h + z * std::sqrt(h);
+        if (wh > detail::ZERO_DOUBLE) {
+            initial_guess = alpha_ * std::pow(wh, 3) / beta_;
+        } else {
+            // WH failed; small-p asymptotic: x ~ (p * Gamma(alpha+1))^(1/alpha) / beta
+            initial_guess =
+                std::pow(p * std::exp(std::lgamma(alpha_ + detail::ONE)), detail::ONE / alpha_) /
+                beta_;
+        }
     } else {
-        // For small α, use exponential approximation
+        // For alpha <= 1, use exponential approximation
         initial_guess = -std::log(detail::ONE - p) / beta_;
     }
 
-    // Newton-Raphson iteration
+    // Newton-Raphson iteration with positive-x guard.
     double x = std::max(initial_guess, detail::NEWTON_RAPHSON_TOLERANCE);
     const double tolerance = detail::HIGH_PRECISION_TOLERANCE;
     const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
@@ -1367,7 +1386,17 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
         }
 
         if (pdf < detail::ULTRA_SMALL_THRESHOLD) {
-            // If PDF is too small, use bisection method fallback
+            // PDF underflow: fall back to bisection between current x and a
+            // simple upper bound so the solver doesn't stall.
+            double lo = detail::NEWTON_RAPHSON_TOLERANCE, hi = x;
+            if (cdf < p) hi = x * 10.0;  // need to go higher
+            for (int j = 0; j < 60; ++j) {
+                double mid = (lo + hi) * detail::HALF;
+                double cmid = getCumulativeProbability(mid);
+                if (std::abs(cmid - p) < tolerance) { x = mid; break; }
+                if (cmid < p) lo = mid; else hi = mid;
+                if (hi - lo < tolerance) { x = (lo + hi) * detail::HALF; break; }
+            }
             break;
         }
 

@@ -186,8 +186,11 @@ int main(int argc, char* argv[]) {
             auto op_opt = op_to_type(op_name);
             if (!dt_opt || !op_opt) continue;
 
-            // Compiled threshold — returns std::numeric_limits<size_t>::max() for NEVER
-            size_t compiled_sv_raw = parallelThresholdFromTable(*dt_opt, *op_opt);
+            // Compiled threshold for the active SIMD level on this machine.
+            // Returns dispatch_table::NEVER (SIZE_MAX) when the distribution/op
+            // is always handled by VECTORIZED.
+            const auto simd_level = stats::arch::simd::SIMDPolicy::getBestLevel();
+            size_t compiled_sv_raw = stats::detail::getParallelThreshold(simd_level, *dt_opt, *op_opt);
             std::optional<size_t> compiled_sv = (compiled_sv_raw == std::numeric_limits<size_t>::max())
                 ? std::nullopt : std::make_optional(compiled_sv_raw);
 

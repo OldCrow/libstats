@@ -78,10 +78,20 @@ double erf_inv(double x) noexcept {
     double result;
 
     if (a <= detail::ERF_INV_CENTRAL_CUTOFF) {
-        // Central region: use rational approximation
-        double z = a * a;
-        result = a * (((a3 * z + a2) * z + a1) * z + a0) /
-                 ((((b3 * z + b2) * z + b1) * z + b0) * z + detail::ONE);
+        // Moro's rational approximation for Phi^{-1}(p) converted to erf_inv.
+        //
+        // Identity: erf_inv(a) = Phi^{-1}((a+1)/2) / sqrt(2).
+        // Moro's formula is parameterised by y = p - 0.5 = a/2 (not by a).
+        //
+        // Bug that was here: used z = a*a instead of z = (a/2)*(a/2),
+        // evaluating the polynomial at 4x the correct argument. For a~0.5
+        // this produced ~2.8 instead of the true ~0.48, causing Halley's
+        // method to diverge over ~48 consecutive grid points.
+        double y = a * detail::HALF;  // y = a/2
+        double z = y * y;             // z = y^2 as required by Moro
+        result = y * (((a3 * z + a2) * z + a1) * z + a0) /
+                 ((((b3 * z + b2) * z + b1) * z + b0) * z + detail::ONE) *
+                 detail::INV_SQRT_2;  // Phi^{-1} / sqrt(2) = erf_inv
     } else if (a < detail::ERF_INV_TAIL_CUTOFF) {
         // Moderate tail region: use improved asymptotic expansion with better coefficients
         double z = std::sqrt(-std::log((detail::ONE - a) * detail::HALF));
@@ -416,7 +426,6 @@ double trigamma(double x) noexcept {
 
 double inverse_beta_i(double p, double a, double b) noexcept {
     // Inverse regularized incomplete beta I_x(a,b) = p  =>  solve for x in (0,1).
-    // Follows the same pattern as inverse_t_cdf and inverse_chi_squared_cdf.
     if (p <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
     if (p >= detail::ONE)
@@ -425,11 +434,39 @@ double inverse_beta_i(double p, double a, double b) noexcept {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Initial estimate using the normal approximation to the Beta distribution.
-    // For large a and b the Beta is approximately Normal(a/(a+b), sqrt(ab)/((a+b)*sqrt(a+b+1))).
-    const double mu = a / (a + b);
-    const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
-    double x = mu + sigma * inverse_normal_cdf(p);
+    // Initial estimate.
+    // The normal approximation N(a/(a+b), sqrt(ab/(a+b)^2/(a+b+1))) is accurate
+    // in the middle of [0,1] but can give x <= 0 or x >= 1 in the tails, after
+    // which Newton oscillates between the clamp boundaries and never converges.
+    //
+    // Tail asymptotic: I_x(a,b) ~ x^a / (a*B(a,b)) for small x
+    //   => x ~ (p * a * B(a,b))^(1/a)
+    // Symmetry for large p: use (1-p) and reversed parameters.
+    const double lb = lbeta(a, b);
+    double x;
+    {
+        const double mu    = a / (a + b);
+        const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
+        x = mu + sigma * inverse_normal_cdf(p);
+    }
+    // Blend normal approximation with the tail asymptotic.
+    // For small p the normal approximation can give x slightly above 0 (e.g. 4e-4
+    // instead of the true ~0.06 for Beta(2,3) at p=0.023).  Clamping a very small
+    // positive x to max(1e-8,...) leaves Newton too far from the root and the first
+    // step diverges.  Taking max(normal, asymptotic) for p<0.1 avoids this.
+    if (x <= detail::ZERO_DOUBLE) {
+        x = std::pow(p * a * std::exp(lb), 1.0 / a);
+    } else if (x >= detail::ONE) {
+        x = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
+    } else {
+        if (p < 0.1) {
+            const double x_asymp = std::pow(p * a * std::exp(lb), 1.0 / a);
+            x = std::max(x, x_asymp);  // never start below the asymptotic estimate
+        } else if (p > 0.9) {
+            const double x_asymp = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
+            x = std::min(x, x_asymp);
+        }
+    }
     x = std::max(1e-8, std::min(1.0 - 1e-8, x));  // clamp to (0,1)
 
     // Newton-Raphson: x_{n+1} = x_n - (I_{x_n}(a,b) - p) / f(x_n)
