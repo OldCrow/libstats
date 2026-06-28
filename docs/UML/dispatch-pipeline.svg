@@ -1,0 +1,133 @@
+<svg viewBox="0 0 860 620" xmlns="http://www.w3.org/2000/svg" style="font-family:system-ui,sans-serif;background:#fff">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#8a8a9a"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4aaa60"/></marker>
+    <marker id="ay" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#b8a830"/></marker>
+  </defs>
+
+  <!-- Entry point -->
+  <rect x="280" y="10" width="300" height="52" rx="4" fill="#E6F1FB" stroke="#4A90C4" stroke-width="0.5"/>
+  <text x="430" y="30" text-anchor="middle" font-size="13" font-weight="500" fill="#0C447C">User call — span-based batch API</text>
+  <text x="430" y="46" text-anchor="middle" font-size="11" fill="#2266A0">dist.getProbability(span&lt;const double&gt;, span&lt;double&gt;, hint)</text>
+
+  <line x1="430" y1="62" x2="430" y2="88" stroke="#8a8a9a" stroke-width="0.5" marker-end="url(#a)"/>
+
+  <!-- autoDispatch -->
+  <rect x="250" y="88" width="360" height="44" rx="4" fill="#F8F8FC" stroke="#aaa" stroke-width="0.5"/>
+  <text x="430" y="107" text-anchor="middle" font-size="13" font-weight="500" fill="#333">DispatchUtils::autoDispatch&lt;D&gt;</text>
+  <text x="430" y="122" text-anchor="middle" font-size="11" fill="#666">validate spans · check count=0 early-exit · call selectStrategy()</text>
+
+  <line x1="430" y1="132" x2="430" y2="158" stroke="#8a8a9a" stroke-width="0.5" marker-end="url(#a)"/>
+
+  <!-- Decision diamond -->
+  <polygon points="430,158 560,196 430,234 300,196" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
+  <text x="430" y="191" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">hint.strategy</text>
+  <text x="430" y="206" text-anchor="middle" font-size="11" fill="#8a7a10">== AUTO ?</text>
+
+  <!-- YES → PerformanceDispatcher -->
+  <text x="262" y="215" font-size="10" fill="#666">YES</text>
+  <line x1="300" y1="196" x2="190" y2="196" stroke="#b8a830" stroke-width="0.5" marker-end="url(#ay)"/>
+
+  <rect x="20" y="172" width="170" height="72" rx="4" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
+  <text x="105" y="190" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">PerformanceDispatcher</text>
+  <text x="105" y="204" text-anchor="middle" font-size="10" fill="#8a7a10">SIMDPolicy::getBestLevel()</text>
+  <text x="105" y="216" text-anchor="middle" font-size="10" fill="#8a7a10">→ kNeon / kAvx2 / kAvx512</text>
+  <text x="105" y="228" text-anchor="middle" font-size="10" fill="#8a7a10">lookup threshold[dist][op]</text>
+  <text x="105" y="240" text-anchor="middle" font-size="10" fill="#8a7a10">count ≥ threshold? → PARALLEL</text>
+
+  <!-- NO → mapHintToStrategy -->
+  <text x="564" y="215" font-size="10" fill="#666">NO (forced hint)</text>
+  <line x1="560" y1="196" x2="670" y2="196" stroke="#b8a830" stroke-width="0.5" marker-end="url(#ay)"/>
+
+  <rect x="670" y="172" width="172" height="72" rx="4" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
+  <text x="756" y="190" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">mapHintToStrategy</text>
+  <text x="756" y="204" text-anchor="middle" font-size="10" fill="#8a7a10">FORCE_SCALAR → SCALAR</text>
+  <text x="756" y="216" text-anchor="middle" font-size="10" fill="#8a7a10">FORCE_VECTORIZED → VECTORIZED</text>
+  <text x="756" y="228" text-anchor="middle" font-size="10" fill="#8a7a10">MINIMIZE_LATENCY → size check</text>
+  <text x="756" y="240" text-anchor="middle" font-size="10" fill="#8a7a10">MAXIMIZE_THROUGHPUT → OS-aware</text>
+
+  <!-- Converge to executeStrategy -->
+  <line x1="105" y1="244" x2="105" y2="280" stroke="#b8a830" stroke-width="0.5"/>
+  <line x1="105" y1="280" x2="350" y2="280" stroke="#b8a830" stroke-width="0.5"/>
+  <line x1="756" y1="244" x2="756" y2="280" stroke="#b8a830" stroke-width="0.5"/>
+  <line x1="756" y1="280" x2="510" y2="280" stroke="#b8a830" stroke-width="0.5"/>
+  <line x1="430" y1="234" x2="430" y2="280" stroke="#b8a830" stroke-width="0.5"/>
+  <line x1="430" y1="280" x2="430" y2="304" stroke="#b8a830" stroke-width="0.5" marker-end="url(#a)"/>
+
+  <!-- executeStrategy -->
+  <rect x="280" y="304" width="300" height="36" rx="4" fill="#F8F8FC" stroke="#aaa" stroke-width="0.5"/>
+  <text x="430" y="320" text-anchor="middle" font-size="13" font-weight="500" fill="#333">executeStrategy(strategy, …)</text>
+  <text x="430" y="334" text-anchor="middle" font-size="11" fill="#666">branch on Strategy enum value</text>
+
+  <!-- Four branches -->
+  <line x1="430" y1="340" x2="430" y2="364" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="100" y1="364" x2="760" y2="364" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="100" y1="364" x2="100" y2="390" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="305" y1="364" x2="305" y2="390" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="555" y1="364" x2="555" y2="390" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="760" y1="364" x2="760" y2="390" stroke="#8a8a9a" stroke-width="0.5"/>
+
+  <!-- SCALAR -->
+  <rect x="16" y="390" width="168" height="72" rx="4" fill="#F5F0FB" stroke="#7c6ab8" stroke-width="0.5"/>
+  <text x="100" y="408" text-anchor="middle" font-size="12" font-weight="500" fill="#3d1a8a">SCALAR</text>
+  <text x="100" y="422" text-anchor="middle" font-size="10" fill="#6040b0">for i in 0..count</text>
+  <text x="100" y="434" text-anchor="middle" font-size="10" fill="#6040b0">  results[i] = scalar_func(</text>
+  <text x="100" y="446" text-anchor="middle" font-size="10" fill="#6040b0">    dist, values[i])</text>
+  <text x="100" y="458" text-anchor="middle" font-size="10" fill="#888">~2–5 ns/elem</text>
+
+  <!-- VECTORIZED -->
+  <rect x="196" y="390" width="218" height="102" rx="4" fill="#EDF3FB" stroke="#5b8bd0" stroke-width="0.5"/>
+  <text x="305" y="408" text-anchor="middle" font-size="12" font-weight="500" fill="#1a3a6b">VECTORIZED</text>
+  <text x="305" y="422" text-anchor="middle" font-size="10" fill="#3357a0">batch_func(dist, values, results)</text>
+  <text x="305" y="436" text-anchor="middle" font-size="10" fill="#3357a0">↓ *BatchUnsafeImpl()</text>
+  <text x="305" y="450" text-anchor="middle" font-size="10" fill="#3357a0">VectorOps SIMD loop</text>
+  <text x="305" y="464" text-anchor="middle" font-size="10" fill="#3357a0">width: 8d (AVX-512) / 4d (AVX2)</text>
+  <text x="305" y="478" text-anchor="middle" font-size="10" fill="#3357a0">       2d (NEON/SSE2) / 1d (scalar)</text>
+  <text x="305" y="490" text-anchor="middle" font-size="10" fill="#888">fastest for moderate N</text>
+
+  <!-- PARALLEL -->
+  <rect x="426" y="390" width="218" height="102" rx="4" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="535" y="408" text-anchor="middle" font-size="12" font-weight="500" fill="#1a5c28">PARALLEL</text>
+  <text x="535" y="422" text-anchor="middle" font-size="10" fill="#2d7a3a">parallel_func(dist, values, res)</text>
+  <text x="535" y="436" text-anchor="middle" font-size="10" fill="#2d7a3a">ParallelUtils::parallelFor()</text>
+  <text x="535" y="450" text-anchor="middle" font-size="10" fill="#2d7a3a">macOS: Grand Central Dispatch</text>
+  <text x="535" y="464" text-anchor="middle" font-size="10" fill="#2d7a3a">Linux:  std::execution::par</text>
+  <text x="535" y="478" text-anchor="middle" font-size="10" fill="#2d7a3a">Win:    Win32 Thread Pool</text>
+  <text x="535" y="490" text-anchor="middle" font-size="10" fill="#888">best for large N, all-core</text>
+
+  <!-- WORK_STEALING -->
+  <rect x="656" y="390" width="190" height="102" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="751" y="408" text-anchor="middle" font-size="12" font-weight="500" fill="#7a1a1a">WORK_STEALING</text>
+  <text x="751" y="422" text-anchor="middle" font-size="10" fill="#a03030">work_stealing_func()</text>
+  <text x="751" y="436" text-anchor="middle" font-size="10" fill="#a03030">GlobalWorkStealingPool</text>
+  <text x="751" y="450" text-anchor="middle" font-size="10" fill="#a03030">  ::getInstance()</text>
+  <text x="751" y="464" text-anchor="middle" font-size="10" fill="#a03030">WorkStealingPool</text>
+  <text x="751" y="478" text-anchor="middle" font-size="10" fill="#a03030">  ::parallelFor()</text>
+  <text x="751" y="490" text-anchor="middle" font-size="10" fill="#888">irregular / uneven loads</text>
+
+  <!-- Threshold tables annotation -->
+  <rect x="16" y="506" width="828" height="98" rx="4" fill="#F8F8FC" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,2"/>
+  <text x="430" y="522" text-anchor="middle" font-size="12" font-weight="500" fill="#444">Threshold tables in dispatch_thresholds.h  —  count ≥ threshold[dist][op] → PARALLEL beats VECTORIZED</text>
+
+  <text x="90" y="542" text-anchor="middle" font-size="11" font-weight="500" fill="#555">kNeon (M1)</text>
+  <text x="90" y="556" text-anchor="middle" font-size="10" fill="#666">Gaussian PDF ≥ 25 000</text>
+  <text x="90" y="568" text-anchor="middle" font-size="10" fill="#666">Gaussian logPDF ≥ 64</text>
+  <text x="90" y="580" text-anchor="middle" font-size="10" fill="#666">Gaussian CDF: NEVER</text>
+
+  <text x="265" y="542" text-anchor="middle" font-size="11" font-weight="500" fill="#555">kAvx2 (Kaby Lake)</text>
+  <text x="265" y="556" text-anchor="middle" font-size="10" fill="#666">Gamma PDF ≥ 50 000</text>
+  <text x="265" y="568" text-anchor="middle" font-size="10" fill="#666">Gamma logPDF ≥ 64</text>
+  <text x="265" y="580" text-anchor="middle" font-size="10" fill="#666">Gamma CDF ≥ 64</text>
+
+  <text x="450" y="542" text-anchor="middle" font-size="11" font-weight="500" fill="#555">kAvx512 (Zen 4)</text>
+  <text x="450" y="556" text-anchor="middle" font-size="10" fill="#666">wider SIMD → thresholds</text>
+  <text x="450" y="568" text-anchor="middle" font-size="10" fill="#666">generally higher before</text>
+  <text x="450" y="580" text-anchor="middle" font-size="10" fill="#666">parallel wins</text>
+
+  <text x="660" y="542" text-anchor="middle" font-size="11" font-weight="500" fill="#555">NEVER sentinel</text>
+  <text x="660" y="556" text-anchor="middle" font-size="10" fill="#666">VECTORIZED always preferred</text>
+  <text x="660" y="568" text-anchor="middle" font-size="10" fill="#666">(SIMD dominates at all sizes,</text>
+  <text x="660" y="580" text-anchor="middle" font-size="10" fill="#666">or impl pending)</text>
+
+  <text x="430" y="608" text-anchor="middle" font-size="10" fill="#bbb">libstats v2.0.0  ·  docs/UML/dispatch-pipeline.svg</text>
+</svg>

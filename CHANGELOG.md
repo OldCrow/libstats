@@ -1,4 +1,4 @@
-## [2.0.0] - 2026-06-21
+## [2.0.0] - 2026-06-21 (updated 2026-06-28)
 
 ### Breaking changes
 
@@ -86,11 +86,139 @@
   `test_discrete_analysis` added; 9 enhanced test files updated to span+PerformanceHint API;
   stale NaN/kurtosis/Bootstrap assertions corrected.
 
+### Fixed (post-2026-06-21)
+
+**Quantile inversion bugs** — found by the new `quantile_accuracy` tool; all pre-existing:
+- **`erf_inv` Moro central-region variable substitution** (`math_utils.cpp`): the polynomial was
+  evaluated at `z = a²` instead of the correct `z = (a/2)²`, producing an initial estimate of ~2.8
+  instead of ~0.48 for `a ≈ 0.5`. This caused Halley's method to diverge over 48 consecutive grid
+  points (p ∈ [0.204, 0.252]), propagating incorrect quantiles to Gaussian, LogNormal, and StudentT.
+  Fix: use `y = a/2` and multiply by `1/√2` to convert Φ⁻¹ to erf_inv.
+- **`GammaDistribution::computeQuantile` Wilson-Hilferty failure** (`gamma.cpp`): for α > 1 at
+  very small p the Wilson-Hilferty cube is negative. Clamping to NEWTON_RAPHSON_TOLERANCE (1e-10)
+  caused the first Newton step to produce x ≈ 5×10⁶, after which the PDF underflowed and the
+  solver exited with the wrong answer (34 failures for Gamma(α=2), propagating to ChiSquared(k=4)).
+  Fix: detect negative WH result and substitute the small-p asymptotic
+  `x ≈ (p · Γ(α+1))^(1/α) / β`; added bisection fallback when PDF underflows mid-iteration.
+- **`inverse_beta_i` Newton oscillation for small/large p** (`math_utils.cpp`): the normal
+  approximation initial estimate goes negative (or very small positive) for p near the tails of
+  Beta(a,b) when the mean is far from 0. After clamping to 1e-8, Newton-Raphson oscillated
+  between the two boundary sentinels (1e-10 and 1−1e-10) and never converged (60 failures for
+  Beta(2,3)). Fix: when normal approximation ≤ 0 use the tail asymptotic
+  `x ≈ (p·a·B(a,b))^(1/a)`; for p < 0.1 take `max(normal, asymptotic)` to prevent starting below
+  the reliable estimate even when the normal approximation is small-but-positive.
+
+**Tools audit fixes:**
+- `cpp20_features_inspector`: execution-policy detection tested `std::execution::seq` (a
+  compile-time constant that cannot throw) inside a `try/catch`, then set all three of `has_par`,
+  `has_par_unseq`, `has_unseq` to `true` simultaneously — actively misreporting `par` and
+  `par_unseq` as available on platforms without TBB. Replaced with per-policy `#ifdef` checks
+  using `__cpp_lib_parallel_algorithm` and `__cpp_lib_execution`.
+- `parallel_batch_fitting_benchmark`: `--threads N` flag was parsed and stored in `config.num_threads`
+  but never forwarded to `parallelBatchFit()` (which takes no thread-count argument). Flag removed.
+- `parallel_correctness_verification`: all six `Dist::create()` no-argument calls replaced with
+  explicit documented parameters via a `createTestDistribution<Dist>()` helper.
+- `simd_verification`: `[[maybe_unused]] LARGE_TEST_SIZE` stub and `prim_scalar`/`prim_simd`
+  accumulators (accumulated but never read) removed. String-find tolerance dispatch
+  (`find("Gaussian")` etc.) replaced with an exact-match `kToleranceTable[]`.
+- `strategy_profile`: `--large` help text said "1M and 2M" but adds four sizes (750K, 1M, 1.5M, 2M).
+- `system_inspector`: 3 back-to-back duplicate `using namespace stats::detail` declarations removed.
+
+**Test suite audit fixes:**
+- Six basic test files (Gaussian, Exponential, Gamma, Discrete, Poisson, Uniform) had empty
+  `start/end` timing pairs for the "traditional" baseline in Test 6, leaving `*_traditional`
+  vectors as zero-initialized. The correctness check comparing batch output to zeros always
+  printed `❌ Large batch auto-dispatch results differ from traditional methods`.
+  All six fixed with proper scalar loops.
+- `test_lognormal_enhanced.cpp` `VectorizedSpeedup` was a complete no-op: `out` and `scalar_out`
+  were never populated, so the `ASSERT_NEAR` compared 0.0 vs 0.0 for all 50,000 elements.
+  Fixed with actual FORCE_VECTORIZED and FORCE_SCALAR batch calls.
+- `TestInfrastructure` class in `tests.h` declared 7 static methods with no `.cpp` implementation,
+  forming a link-error trap if `QUICK_BENCHMARK_COMPARE` macro was ever expanded. Class and macro
+  removed. Dead `test_common.h` (no file included it) deleted.
+- Three conflicting `approxEqual` implementations with different semantics removed from
+  `fixtures.h`; canonical `nearly_equal(a, b, tol=1e-10)` with relative-error formulation added
+  to `constants.h`.
+- 10 newer-style basic test files had a VECTORIZED-vs-SCALAR correctness check that always passed
+  trivially (large_vec / scl_out were never populated). Fixed by the `runBatchTests` template.
+
+**Tools added to all 16 distributions** (were previously limited to 6):
+- `parallel_batch_fitting_benchmark`: LogNormal, Pareto, Weibull, Rayleigh, VonMises, Binomial,
+  NegBinomial, Beta, ChiSquared, StudentT added with sample generators using `sample()`.
+- `parallel_correctness_verification`: same 10 distributions added with explicit `create()` params
+  and domain-appropriate input ranges for each distribution type.
+
+### Added (post-2026-06-21)
+
+**Test infrastructure:**
+- `tests/include/basic_test_runner.h`: `BasicDistConfig` struct and `runBatchTests<Dist>()` /
+  `runErrorTests()` template functions. Tests 6 and 8 in all 16 basic test files now use the
+  shared template, eliminating ~1500 lines of copy-paste and ensuring the large-batch correctness
+  check is always a real scalar-vs-batch comparison.
+- `tests/include/enhanced_test_suite.h`: `DistTraitsDefaults`, `DistTraits<T>` specialisation
+  template, and `DistributionEnhancedTest<T>` typed fixture with four `TYPED_TEST_P` patterns:
+  `LogPDFConsistency`, `BatchMatchesScalar`, `QuantileRoundTrip` (continuous only, skipped for
+  discrete via `GTEST_SKIP()`), and `InvalidParameters`. All 16 enhanced test files have
+  `DistTraits<T>` specialisations and `INSTANTIATE_TYPED_TEST_SUITE_P` calls, adding 64 additional
+  typed test cases that run within the existing 44 CTest targets.
+
+**New tools** (`tools/`):
+- `quantile_accuracy`: verifies `CDF(getQuantile(p)) ≈ p` across a 1000-point grid from 0.001 to
+  0.999 plus near-boundary p ∈ {1e-3, 1e-4, 1e-5, 1e-6} for all 16 distributions. Discrete
+  distributions use the floor-property check `CDF(Q(p)) ≥ p`. Analogous to `simd_verification`
+  for PDF/LogPDF/CDF. First run immediately identified the three quantile bugs above.
+- `parameter_recovery_benchmark`: runs `fit()` at n ∈ {25, 50, 100, 250, 500, 1000, 2500} with
+  M=100 replicates for 10 representative distributions, reporting `getMean()` / `getVariance()`
+  bias and RMSE vs. true values. Answers: "what sample size gives stable MLE estimates?"
+  Supports `--quick` for a fast 3-size preview.
+- `threshold_validator`: reads a `strategy_profile` CSV and compares measured S→V crossovers
+  against compiled `parallelThresholdFromTable()` values. Reports MATCH / UPDATE↑ / UPDATE↓ /
+  ADD THRESH / SET NEVER? per (distribution, operation) row. Closes the profiler→header
+  recalibration feedback loop.
+
+**New and updated examples** (`examples/`):
+- `logpdf_and_likelihood_demo.cpp` (new): first example demonstrating `getLogProbability()` as an
+  actual API call. Covers scalar and batch LogPDF, log-likelihood computation, underflow avoidance
+  for n > ~150, model comparison, and fit-and-score anomaly scoring.
+- `distribution_families_demo.cpp`: expanded from 9 to all 16 distributions. LogNormal, Weibull,
+  Pareto, Rayleigh added to Family 2 (positive-support); Binomial and NegativeBinomial added to
+  Family 4 (discrete); VonMises added as Family 5 (circular). Footer corrected from the wrong
+  "14 distributions across 6 families" to "16 distributions across 5 families".
+- `basic_usage.cpp`: added `getEntropy()` call to the properties section; added Section 9
+  "End-to-End: Fit → Validate → Score" demonstrating the most common real-world workflow.
+- `performance_learning_demo.cpp` renamed to `performance_dispatch_demo.cpp`: removed inaccurate
+  "adaptive learning from execution history" header claim. Added `demonstrate_forced_strategies()`
+  showing FORCE_SCALAR / FORCE_VECTORIZED / FORCE_PARALLEL with correctness verification.
+  Expanded dispatcher demo to show per-distribution threshold differences (Gaussian PDF vs.
+  Exponential PDF vs. Binomial CDF) across the same batch sizes.
+- `parallel_execution_demo.cpp`: added `demonstrate_parallel_batch_fit()` with sequential vs.
+  parallel comparison on 50 Gaussian and 50 Exponential datasets. Previously the file never called
+  any distribution batch operation despite its name.
+
+### Changed (post-2026-06-21)
+
+- **v2 architecture audit cleanup** (`DistributionBase::validate()`): KS/AD tests now skip for
+  discrete distributions (returning NaN stats + recommendation to use `chiSquaredGoodnessOfFitTest`).
+  `DistributionInterface` gains `getMedian()` with NaN default; 14 concrete `getMedian()` overrides
+  added. Orphaned Section 14 Doxygen blocks removed from all 16 distribution headers. Catalina
+  concept-syntax fallback (`LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK`) removed from
+  `utility_common.h` and `math_utils.h`. `constants_bridge.h` deleted (zero includes). Prominent
+  `NOT YET WIRED` warning added to `PerformanceHint::thread_count` documentation.
+- **AGENTS.md**: `Creating New Distributions` checklist expanded from 5 vague steps to 6 precise
+  steps documenting every required element: mandatory header members (`kDistributionType`,
+  `kIsDiscrete`, noexcept moves, `parallelBatchFit()`), all pure-virtual overrides, the new test
+  infrastructure (`basic_test_runner.h`, `enhanced_test_suite.h`, `DistTraits<T>`), all four
+  CMakeLists.txt registration locations, the `using Dist = DistDistribution` type alias in
+  `libstats.h`, and post-implementation dispatch profiling via `strategy_profile` + `threshold_validator`.
+  Test count corrected from stale "23" to "44 CTest targets".
+
 ### Validation
 
 - 44/44 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON.
   Asus TUF A16 (AVX-512): pending re-run of correctness suite (2 new test files added after
   Asus validation; kAvx512 threshold values unchanged so no regressions expected).
+- `quantile_accuracy` tool: 26/26 test cases PASS across all 16 distributions (0 FAIL);
+  three pre-existing quantile inversion bugs fixed as a result of first tool run.
 
 ---
 

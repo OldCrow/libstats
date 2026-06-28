@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>libstats v2.0.0 — Architecture Diagrams</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  header { margin-bottom: 24px; }
+  header h1 { font-size: 20px; font-weight: 500; color: #1d1d1f; }
+  header p  { font-size: 13px; color: #666; margin-top: 4px; }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid #d1d1d6;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    user-select: none;
+  }
+  .tab:hover { background: #f0f0f5; color: #1d1d1f; }
+  .tab.active { background: #0071e3; color: #fff; border-color: #0071e3; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .diagram-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e0e0e5;
+    padding: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .diagram-card h2 {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1d1d1f;
+    margin-bottom: 4px;
+  }
+  .diagram-card p {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .diagram-card img, .diagram-card object {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+  }
+
+  .index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .index-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e0e0e5;
+    padding: 18px;
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .index-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-color: #bbb; }
+  .index-card h3 { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+  .index-card p  { font-size: 12px; color: #666; line-height: 1.5; }
+  .index-card .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .badge-blue   { background: #e6f1fb; color: #0c447c; }
+  .badge-green  { background: #f0f9f0; color: #1a5c28; }
+  .badge-orange { background: #fff3e6; color: #7a3800; }
+  .badge-red    { background: #fef0f0; color: #7a1a1a; }
+
+  footer {
+    margin-top: 32px;
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>libstats v2.0.0 — Architecture Diagrams</h1>
+  <p>Four structural and process-flow diagrams covering the class hierarchy, batch dispatch pipeline, thread-safety model, and Result&lt;T&gt; factory pattern.</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="show('overview', this)">Overview</div>
+  <div class="tab" onclick="show('hier', this)">Class hierarchy</div>
+  <div class="tab" onclick="show('disp', this)">Dispatch pipeline</div>
+  <div class="tab" onclick="show('cache', this)">Thread safety &amp; cache</div>
+  <div class="tab" onclick="show('result', this)">Result&lt;T&gt; &amp; factory</div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="panel active" id="overview">
+  <div class="index-grid">
+    <div class="index-card" onclick="show('hier', document.querySelectorAll('.tab')[1])">
+      <div class="badge badge-blue">UML class diagram</div>
+      <h3>Class hierarchy</h3>
+      <p>Full inheritance tree from <code>DistributionInterface</code> through <code>DistributionBase</code> to all 16 concrete distributions, colour-coded by family. Includes <code>ThreadSafeCacheManager</code> mixin and the <code>stats::analysis</code> namespace.</p>
+    </div>
+    <div class="index-card" onclick="show('disp', document.querySelectorAll('.tab')[2])">
+      <div class="badge badge-green">Flow diagram</div>
+      <h3>Batch dispatch pipeline</h3>
+      <p>End-to-end flow from a span-based batch call through <code>DispatchUtils::autoDispatch</code>, strategy selection (AUTO vs. forced hint), threshold table lookup, and all four execution strategies: SCALAR, VECTORIZED, PARALLEL, WORK_STEALING.</p>
+    </div>
+    <div class="index-card" onclick="show('cache', document.querySelectorAll('.tab')[3])">
+      <div class="badge badge-orange">Concurrency diagram</div>
+      <h3>Thread safety &amp; cache model</h3>
+      <p>The dual-flag pattern (<code>cache_valid_</code> + <code>cacheValidAtomic_</code>), lock-free fast path vs. shared/unique-lock slow path, lazy cache rebuild, write → invalidate cycle, and deadlock-safe move semantics.</p>
+    </div>
+    <div class="index-card" onclick="show('result', document.querySelectorAll('.tab')[4])">
+      <div class="badge badge-red">Flow diagram</div>
+      <h3>Result&lt;T&gt; &amp; factory flow</h3>
+      <p>The four distribution creation patterns (exception constructor, Result factory, unchecked private, specialised factories), the <code>create()</code> → validate → ok/error branch, and the <code>trySet*</code> post-construction mutation API.</p>
+    </div>
+  </div>
+</div>
+
+<!-- CLASS HIERARCHY -->
+<div class="panel" id="hier">
+  <div class="diagram-card">
+    <h2>Class hierarchy</h2>
+    <p>DistributionInterface (pure abstract) → DistributionBase (+ ThreadSafeCacheManager mixin) → 16 concrete distributions grouped by family. The span-based batch API and stats::analysis namespace are shown at the bottom.</p>
+    <img src="class-hierarchy.svg" alt="libstats class hierarchy diagram">
+  </div>
+</div>
+
+<!-- DISPATCH PIPELINE -->
+<div class="panel" id="disp">
+  <div class="diagram-card">
+    <h2>Batch dispatch pipeline</h2>
+    <p>A call to any span-based batch method flows through DispatchUtils::autoDispatch, which either runs PerformanceDispatcher (AUTO mode: SIMD capability + threshold table lookup) or maps a forced PerformanceHint directly to a strategy. The four execution strategies are SCALAR, VECTORIZED (SIMD via VectorOps), PARALLEL (GCD / std::execution::par / Win32 Thread Pool), and WORK_STEALING. Threshold tables are architecture-specific (kNeon, kAvx2, kAvx512, kNone).</p>
+    <img src="dispatch-pipeline.svg" alt="libstats batch dispatch pipeline diagram">
+  </div>
+</div>
+
+<!-- THREAD SAFETY & CACHE -->
+<div class="panel" id="cache">
+  <div class="diagram-card">
+    <h2>Thread safety &amp; cache model</h2>
+    <p>Each distribution object holds canonical parameters (guarded by std::shared_mutex), lock-free atomic copies for hot-path reads, a mutable computed cache of derived values, and two validity flags (plain bool + atomic bool). Reads check the atomic flag first (~2–5 ns); on miss they fall through to shared_lock and lazy cache rebuild. Writes acquire unique_lock, update the parameter, and invalidate both flags. Move operations use std::lock() with defer_lock to prevent deadlock.</p>
+    <img src="thread-safety-cache.svg" alt="libstats thread safety and cache model diagram">
+  </div>
+</div>
+
+<!-- RESULT<T> & FACTORY -->
+<div class="panel" id="result">
+  <div class="diagram-card">
+    <h2>Result&lt;T&gt; &amp; factory flow</h2>
+    <p>Distributions can be created four ways: exception-throwing constructor, no-throw Result&lt;T&gt; factory (preferred), private unchecked constructor (called only after validation), and specialised factories such as createWithScale or createFromMoments. The create() call chain runs validation, branches to makeError on failure or createUnchecked → Result::ok on success. Post-construction parameter changes use the trySet* family (returning VoidResult) or the throwing setters.</p>
+    <img src="result-factory-flow.svg" alt="libstats Result&lt;T&gt; and factory flow diagram">
+  </div>
+</div>
+
+<footer>libstats v2.0.0 · docs/UML/ · generated 2026-06-28</footer>
+
+<script>
+function show(id, tabEl) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (tabEl) tabEl.classList.add('active');
+}
+</script>
+</body>
+</html>

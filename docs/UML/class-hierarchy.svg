@@ -1,0 +1,180 @@
+<svg viewBox="0 0 860 560" xmlns="http://www.w3.org/2000/svg" style="font-family:system-ui,sans-serif;background:#fff">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#8a8a9a"/>
+    </marker>
+    <marker id="arr-b" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#5b8bd0"/>
+    </marker>
+  </defs>
+
+  <!-- DistributionInterface -->
+  <rect x="290" y="8" width="280" height="56" rx="4" fill="#E6F1FB" stroke="#4A90C4" stroke-width="0.5"/>
+  <text x="430" y="28" text-anchor="middle" font-size="13" font-weight="500" fill="#0C447C">«interface»</text>
+  <text x="430" y="46" text-anchor="middle" font-size="14" font-weight="500" fill="#0C447C">DistributionInterface</text>
+  <text x="430" y="58" text-anchor="middle" font-size="10" fill="#2266A0">getProbability · getCDF · getQuantile · getMean · fit · …</text>
+
+  <!-- ThreadSafeCacheManager -->
+  <rect x="590" y="8" width="230" height="56" rx="4" fill="#F0F9F0" stroke="#5aaa5a" stroke-width="0.5"/>
+  <text x="705" y="26" text-anchor="middle" font-size="11" font-weight="500" fill="#1a5c1a">«mixin»</text>
+  <text x="705" y="42" text-anchor="middle" font-size="13" font-weight="500" fill="#1a5c1a">ThreadSafeCacheManager</text>
+  <text x="705" y="56" text-anchor="middle" font-size="10" fill="#2d7a2d">cache_mutex_ · cacheValidAtomic_</text>
+
+  <!-- DistributionBase -->
+  <rect x="290" y="108" width="280" height="52" rx="4" fill="#EDF3FB" stroke="#5b8bd0" stroke-width="0.5"/>
+  <text x="430" y="126" text-anchor="middle" font-size="14" font-weight="500" fill="#1a3a6b">DistributionBase</text>
+  <text x="430" y="142" text-anchor="middle" font-size="11" fill="#3357a0">getSurvival · getHazard · fitWithDiagnostics</text>
+  <text x="430" y="154" text-anchor="middle" font-size="10" fill="#4468b0">shouldUseSIMDBatch · isApproximatelyEqual</text>
+
+  <!-- inheritance arrows -->
+  <line x1="430" y1="108" x2="430" y2="66" stroke="#5b8bd0" stroke-width="0.5" stroke-dasharray="4,2" marker-end="url(#arr-b)"/>
+  <line x1="590" y1="134" x2="572" y2="134" stroke="#5aaa5a" stroke-width="0.5" stroke-dasharray="4,2" marker-end="url(#arr)"/>
+  <line x1="700" y1="64" x2="640" y2="110" stroke="#5aaa5a" stroke-width="0.5" stroke-dasharray="3,2"/>
+
+  <!-- Family labels -->
+  <text x="65" y="220" font-size="11" font-weight="500" fill="#555">Foundational</text>
+  <text x="230" y="220" font-size="11" font-weight="500" fill="#555">Discrete</text>
+  <text x="410" y="220" font-size="11" font-weight="500" fill="#555">Positive continuous</text>
+  <text x="630" y="220" font-size="11" font-weight="500" fill="#555">Specialized</text>
+
+  <!-- Connector from DistributionBase down -->
+  <line x1="430" y1="160" x2="430" y2="200" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="100" y1="200" x2="780" y2="200" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="100" y1="200" x2="100" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="200" y1="200" x2="200" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="300" y1="200" x2="300" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="400" y1="200" x2="400" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="490" y1="200" x2="490" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="580" y1="200" x2="580" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="660" y1="200" x2="660" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="740" y1="200" x2="740" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+  <line x1="780" y1="200" x2="780" y2="228" stroke="#8a8a9a" stroke-width="0.5"/>
+
+  <!-- Foundational: Uniform -->
+  <rect x="16" y="228" width="86" height="38" rx="4" fill="#F5F0FB" stroke="#7c6ab8" stroke-width="0.5"/>
+  <text x="59" y="244" text-anchor="middle" font-size="12" font-weight="500" fill="#3d1a8a">Uniform</text>
+  <text x="59" y="256" text-anchor="middle" font-size="10" fill="#6040b0">[a, b]</text>
+  <text x="59" y="266" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Gaussian -->
+  <rect x="112" y="228" width="86" height="38" rx="4" fill="#F5F0FB" stroke="#7c6ab8" stroke-width="0.5"/>
+  <text x="155" y="244" text-anchor="middle" font-size="12" font-weight="500" fill="#3d1a8a">Gaussian</text>
+  <text x="155" y="256" text-anchor="middle" font-size="10" fill="#6040b0">N(μ, σ²)</text>
+  <text x="155" y="266" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Exponential -->
+  <rect x="16" y="278" width="86" height="38" rx="4" fill="#F5F0FB" stroke="#7c6ab8" stroke-width="0.5"/>
+  <text x="59" y="294" text-anchor="middle" font-size="12" font-weight="500" fill="#3d1a8a">Exponential</text>
+  <text x="59" y="306" text-anchor="middle" font-size="10" fill="#6040b0">Exp(λ)</text>
+  <text x="59" y="316" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Discrete -->
+  <rect x="112" y="278" width="86" height="38" rx="4" fill="#FFF3E6" stroke="#c87820" stroke-width="0.5"/>
+  <text x="155" y="294" text-anchor="middle" font-size="12" font-weight="500" fill="#7a3800">Discrete</text>
+  <text x="155" y="306" text-anchor="middle" font-size="10" fill="#a05010">PMF table</text>
+  <text x="155" y="316" text-anchor="middle" font-size="10" fill="#888">discrete</text>
+
+  <!-- Poisson -->
+  <rect x="216" y="228" width="86" height="38" rx="4" fill="#FFF3E6" stroke="#c87820" stroke-width="0.5"/>
+  <text x="259" y="244" text-anchor="middle" font-size="12" font-weight="500" fill="#7a3800">Poisson</text>
+  <text x="259" y="256" text-anchor="middle" font-size="10" fill="#a05010">Pois(λ)</text>
+  <text x="259" y="266" text-anchor="middle" font-size="10" fill="#888">discrete</text>
+
+  <!-- Binomial -->
+  <rect x="216" y="278" width="86" height="38" rx="4" fill="#FFF3E6" stroke="#c87820" stroke-width="0.5"/>
+  <text x="259" y="294" text-anchor="middle" font-size="12" font-weight="500" fill="#7a3800">Binomial</text>
+  <text x="259" y="306" text-anchor="middle" font-size="10" fill="#a05010">B(n, p)</text>
+  <text x="259" y="316" text-anchor="middle" font-size="10" fill="#888">discrete</text>
+
+  <!-- NegativeBinomial -->
+  <rect x="310" y="228" width="86" height="88" rx="4" fill="#FFF3E6" stroke="#c87820" stroke-width="0.5"/>
+  <text x="353" y="248" text-anchor="middle" font-size="12" font-weight="500" fill="#7a3800">Negative</text>
+  <text x="353" y="262" text-anchor="middle" font-size="12" font-weight="500" fill="#7a3800">Binomial</text>
+  <text x="353" y="278" text-anchor="middle" font-size="10" fill="#a05010">NB(r, p)</text>
+  <text x="353" y="292" text-anchor="middle" font-size="10" fill="#888">discrete</text>
+
+  <!-- Gamma -->
+  <rect x="406" y="228" width="82" height="38" rx="4" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="447" y="244" text-anchor="middle" font-size="12" font-weight="500" fill="#1a5c28">Gamma</text>
+  <text x="447" y="256" text-anchor="middle" font-size="10" fill="#2d7a3a">Γ(α, β)</text>
+  <text x="447" y="266" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- ChiSquared -->
+  <rect x="406" y="278" width="82" height="38" rx="4" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="447" y="294" text-anchor="middle" font-size="12" font-weight="500" fill="#1a5c28">ChiSquared</text>
+  <text x="447" y="306" text-anchor="middle" font-size="10" fill="#2d7a3a">→ Γ(ν/2,½)</text>
+  <text x="447" y="316" text-anchor="middle" font-size="10" fill="#aaa">delegate</text>
+
+  <!-- StudentT -->
+  <rect x="496" y="228" width="82" height="38" rx="4" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="537" y="244" text-anchor="middle" font-size="12" font-weight="500" fill="#1a5c28">StudentT</text>
+  <text x="537" y="256" text-anchor="middle" font-size="10" fill="#2d7a3a">t(ν)</text>
+  <text x="537" y="266" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Beta -->
+  <rect x="496" y="278" width="82" height="38" rx="4" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="537" y="294" text-anchor="middle" font-size="12" font-weight="500" fill="#1a5c28">Beta</text>
+  <text x="537" y="306" text-anchor="middle" font-size="10" fill="#2d7a3a">B(α, β)</text>
+  <text x="537" y="316" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- LogNormal -->
+  <rect x="590" y="228" width="76" height="38" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="628" y="244" text-anchor="middle" font-size="12" font-weight="500" fill="#7a1a1a">LogNormal</text>
+  <text x="628" y="256" text-anchor="middle" font-size="10" fill="#a03030">LN(μ, σ)</text>
+  <text x="628" y="266" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Weibull -->
+  <rect x="590" y="278" width="76" height="38" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="628" y="294" text-anchor="middle" font-size="12" font-weight="500" fill="#7a1a1a">Weibull</text>
+  <text x="628" y="306" text-anchor="middle" font-size="10" fill="#a03030">W(k, λ)</text>
+  <text x="628" y="316" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Pareto -->
+  <rect x="674" y="228" width="76" height="38" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="712" y="244" text-anchor="middle" font-size="12" font-weight="500" fill="#7a1a1a">Pareto</text>
+  <text x="712" y="256" text-anchor="middle" font-size="10" fill="#a03030">P(α, x_m)</text>
+  <text x="712" y="266" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Rayleigh -->
+  <rect x="674" y="278" width="76" height="38" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="712" y="294" text-anchor="middle" font-size="12" font-weight="500" fill="#7a1a1a">Rayleigh</text>
+  <text x="712" y="306" text-anchor="middle" font-size="10" fill="#a03030">R(σ)</text>
+  <text x="712" y="316" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- VonMises -->
+  <rect x="758" y="228" width="76" height="88" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="796" y="248" text-anchor="middle" font-size="12" font-weight="500" fill="#7a1a1a">VonMises</text>
+  <text x="796" y="264" text-anchor="middle" font-size="10" fill="#a03030">VM(μ, κ)</text>
+  <text x="796" y="278" text-anchor="middle" font-size="10" fill="#888">circular</text>
+  <text x="796" y="292" text-anchor="middle" font-size="10" fill="#888">continuous</text>
+
+  <!-- Batch API note -->
+  <rect x="16" y="360" width="828" height="56" rx="4" fill="#F8F8FC" stroke="#bbb" stroke-width="0.5" stroke-dasharray="4,2"/>
+  <text x="430" y="378" text-anchor="middle" font-size="11" font-weight="500" fill="#444">All concrete distributions expose span-based batch API (v2.0.0)</text>
+  <text x="430" y="394" text-anchor="middle" font-size="11" fill="#555">getProbability(span&lt;const double&gt;, span&lt;double&gt;, PerformanceHint)  ·  getLogProbability(…)  ·  getCumulativeProbability(…)</text>
+  <text x="430" y="408" text-anchor="middle" font-size="10" fill="#888">static parallelBatchFit(datasets, results)  —  auto-dispatches to SCALAR / VECTORIZED / PARALLEL / WORK_STEALING</text>
+
+  <!-- Analysis namespaces -->
+  <rect x="16" y="432" width="400" height="52" rx="4" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
+  <text x="216" y="450" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">stats::analysis namespace</text>
+  <text x="216" y="464" text-anchor="middle" font-size="10" fill="#8a7a10">kolmogorovSmirnovTest · andersonDarlingTest · shapiroWilkTest</text>
+  <text x="216" y="476" text-anchor="middle" font-size="10" fill="#8a7a10">informationCriteria · bootstrapMeanCI · kFoldCrossValidation</text>
+
+  <rect x="444" y="432" width="400" height="52" rx="4" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
+  <text x="644" y="450" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">stats::analysis::gaussian (+ 15 per-distribution namespaces)</text>
+  <text x="644" y="464" text-anchor="middle" font-size="10" fill="#8a7a10">shapiroWilkTest · jarqueBeraTest · oneSampleTTest</text>
+  <text x="644" y="476" text-anchor="middle" font-size="10" fill="#8a7a10">confidenceIntervalMean · confidenceIntervalVariance</text>
+
+  <!-- Legend -->
+  <rect x="16" y="500" width="10" height="10" rx="2" fill="#F5F0FB" stroke="#7c6ab8" stroke-width="0.5"/>
+  <text x="30" y="509" font-size="11" fill="#555">Continuous general</text>
+  <rect x="155" y="500" width="10" height="10" rx="2" fill="#FFF3E6" stroke="#c87820" stroke-width="0.5"/>
+  <text x="169" y="509" font-size="11" fill="#555">Discrete</text>
+  <rect x="250" y="500" width="10" height="10" rx="2" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="264" y="509" font-size="11" fill="#555">Positive / bounded continuous</text>
+  <rect x="450" y="500" width="10" height="10" rx="2" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="464" y="509" font-size="11" fill="#555">Specialized / tail-heavy</text>
+  <text x="640" y="509" font-size="10" fill="#aaa">--→  delegates internally</text>
+
+  <text x="430" y="540" text-anchor="middle" font-size="10" fill="#bbb">libstats v2.0.0  ·  docs/UML/class-hierarchy.svg</text>
+</svg>

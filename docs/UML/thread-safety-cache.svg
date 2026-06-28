@@ -1,0 +1,113 @@
+<svg viewBox="0 0 860 580" xmlns="http://www.w3.org/2000/svg" style="font-family:system-ui,sans-serif;background:#fff">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#8a8a9a"/></marker>
+    <marker id="ab" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#5b8bd0"/></marker>
+    <marker id="ar" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#cc5555"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4aaa60"/></marker>
+  </defs>
+
+  <text x="430" y="20" text-anchor="middle" font-size="15" font-weight="500" fill="#222">Thread safety &amp; cache model</text>
+
+  <!-- Distribution object outer box -->
+  <rect x="20" y="36" width="820" height="200" rx="6" fill="#F8F8FC" stroke="#bbb" stroke-width="0.5"/>
+  <text x="430" y="54" text-anchor="middle" font-size="12" font-weight="500" fill="#444">Distribution object  (e.g. GaussianDistribution)</text>
+
+  <!-- Parameters -->
+  <rect x="36" y="62" width="180" height="92" rx="4" fill="#EDF3FB" stroke="#5b8bd0" stroke-width="0.5"/>
+  <text x="126" y="79" text-anchor="middle" font-size="12" font-weight="500" fill="#1a3a6b">Parameters</text>
+  <text x="126" y="95" text-anchor="middle" font-size="10" fill="#3357a0">mean_ : double</text>
+  <text x="126" y="109" text-anchor="middle" font-size="10" fill="#3357a0">standardDeviation_ : double</text>
+  <text x="40" y="126" font-size="9" fill="#666">guarded by cache_mutex_</text>
+  <text x="40" y="138" font-size="9" fill="#666">(std::shared_mutex)</text>
+  <text x="40" y="150" font-size="9" fill="#666">reads: shared_lock</text>
+
+  <!-- Atomic copies -->
+  <rect x="234" y="62" width="180" height="92" rx="4" fill="#F5F0FB" stroke="#7c6ab8" stroke-width="0.5"/>
+  <text x="324" y="79" text-anchor="middle" font-size="12" font-weight="500" fill="#3d1a8a">Atomic fast path</text>
+  <text x="324" y="95" text-anchor="middle" font-size="10" fill="#6040b0">atomicMean_ : atomic&lt;double&gt;</text>
+  <text x="324" y="109" text-anchor="middle" font-size="10" fill="#6040b0">atomicStdDev_ : atomic&lt;double&gt;</text>
+  <text x="324" y="123" text-anchor="middle" font-size="10" fill="#6040b0">atomicParamsValid_ : atomic&lt;bool&gt;</text>
+  <text x="238" y="140" font-size="9" fill="#666">lock-free reads when valid</text>
+  <text x="238" y="152" font-size="9" fill="#666">~2–5 ns vs ~50–100 ns locked</text>
+
+  <!-- Computed cache -->
+  <rect x="432" y="62" width="220" height="92" rx="4" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="542" y="79" text-anchor="middle" font-size="12" font-weight="500" fill="#1a5c28">Computed cache  (mutable)</text>
+  <text x="542" y="95" text-anchor="middle" font-size="10" fill="#2d7a3a">normalizationConstant_   negHalfSigmaSquaredInv_</text>
+  <text x="542" y="109" text-anchor="middle" font-size="10" fill="#2d7a3a">logStdDev_   sigmaSqrt2_   invStdDev_</text>
+  <text x="542" y="123" text-anchor="middle" font-size="10" fill="#2d7a3a">cachedSigmaSquared_   cachedLogTwoSigmaSquared_</text>
+  <text x="436" y="140" font-size="9" fill="#666">8 derived values (Gaussian example)</text>
+  <text x="436" y="152" font-size="9" fill="#666">lazy — rebuilt by updateCacheUnsafe()</text>
+
+  <!-- Validity flags -->
+  <rect x="670" y="62" width="154" height="92" rx="4" fill="#FFF3E6" stroke="#c87820" stroke-width="0.5"/>
+  <text x="747" y="79" text-anchor="middle" font-size="12" font-weight="500" fill="#7a3800">Validity flags</text>
+  <text x="747" y="97" text-anchor="middle" font-size="10" fill="#a05010">cache_valid_ : bool</text>
+  <text x="747" y="111" text-anchor="middle" font-size="10" fill="#a05010">(plain; requires lock)</text>
+  <text x="747" y="129" text-anchor="middle" font-size="10" fill="#a05010">cacheValidAtomic_</text>
+  <text x="747" y="143" text-anchor="middle" font-size="10" fill="#a05010">  : atomic&lt;bool&gt;</text>
+  <text x="747" y="152" text-anchor="middle" font-size="10" fill="#888">(lock-free hint)</text>
+
+  <!-- READ FLOW -->
+  <text x="20" y="256" font-size="12" font-weight="500" fill="#1a3a6b">Read flow  (getMeanAtomic / getProbability)</text>
+
+  <rect x="20" y="268" width="160" height="36" rx="4" fill="#E6F1FB" stroke="#4A90C4" stroke-width="0.5"/>
+  <text x="100" y="284" text-anchor="middle" font-size="12" font-weight="500" fill="#0C447C">caller thread</text>
+  <text x="100" y="298" text-anchor="middle" font-size="10" fill="#2266A0">getMeanAtomic()</text>
+
+  <line x1="180" y1="286" x2="218" y2="286" stroke="#5b8bd0" stroke-width="0.5" marker-end="url(#ab)"/>
+
+  <polygon points="340,268 406,286 340,304 274,286" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
+  <text x="340" y="283" text-anchor="middle" font-size="11" font-weight="500" fill="#6b5e00">atomicParams</text>
+  <text x="340" y="297" text-anchor="middle" font-size="11" fill="#8a7a10">Valid.load()?</text>
+
+  <!-- YES fast path -->
+  <text x="422" y="278" font-size="10" fill="#4aaa60">YES — lock-free</text>
+  <line x1="406" y1="286" x2="500" y2="286" stroke="#4aaa60" stroke-width="0.5" marker-end="url(#ag)"/>
+  <rect x="500" y="268" width="190" height="36" rx="4" fill="#F0F9F0" stroke="#4aaa60" stroke-width="0.5"/>
+  <text x="595" y="284" text-anchor="middle" font-size="11" font-weight="500" fill="#1a5c28">return atomicMean_</text>
+  <text x="595" y="298" text-anchor="middle" font-size="10" fill="#2d7a3a">.load(memory_order_acquire)</text>
+
+  <!-- NO slow path -->
+  <text x="348" y="318" font-size="10" fill="#cc5555">NO — acquire lock</text>
+  <line x1="340" y1="304" x2="340" y2="332" stroke="#cc5555" stroke-width="0.5" marker-end="url(#ar)"/>
+  <rect x="196" y="332" width="288" height="56" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="340" y="350" text-anchor="middle" font-size="11" font-weight="500" fill="#7a1a1a">shared_lock(cache_mutex_)</text>
+  <text x="340" y="366" text-anchor="middle" font-size="10" fill="#a03030">if !cache_valid_: upgrade → unique_lock</text>
+  <text x="340" y="380" text-anchor="middle" font-size="10" fill="#a03030">call updateCacheUnsafe() → set both flags</text>
+
+  <!-- WRITE FLOW -->
+  <text x="20" y="410" font-size="12" font-weight="500" fill="#7a3800">Write flow  (setMean)</text>
+
+  <rect x="20" y="422" width="140" height="36" rx="4" fill="#E6F1FB" stroke="#4A90C4" stroke-width="0.5"/>
+  <text x="90" y="438" text-anchor="middle" font-size="12" font-weight="500" fill="#0C447C">caller thread</text>
+  <text x="90" y="452" text-anchor="middle" font-size="10" fill="#2266A0">setMean(newVal)</text>
+
+  <line x1="160" y1="440" x2="196" y2="440" stroke="#8a8a9a" stroke-width="0.5" marker-end="url(#a)"/>
+
+  <rect x="196" y="422" width="184" height="36" rx="4" fill="#FFF3E6" stroke="#c87820" stroke-width="0.5"/>
+  <text x="288" y="438" text-anchor="middle" font-size="11" font-weight="500" fill="#7a3800">validateParameters()</text>
+  <text x="288" y="452" text-anchor="middle" font-size="10" fill="#a05010">throws invalid_argument if bad</text>
+
+  <line x1="380" y1="440" x2="416" y2="440" stroke="#8a8a9a" stroke-width="0.5" marker-end="url(#a)"/>
+
+  <rect x="416" y="422" width="210" height="36" rx="4" fill="#FEF0F0" stroke="#cc5555" stroke-width="0.5"/>
+  <text x="521" y="438" text-anchor="middle" font-size="11" font-weight="500" fill="#7a1a1a">unique_lock(cache_mutex_)</text>
+  <text x="521" y="452" text-anchor="middle" font-size="10" fill="#a03030">mean_ = newVal · invalidateCache()</text>
+
+  <line x1="626" y1="440" x2="662" y2="440" stroke="#8a8a9a" stroke-width="0.5" marker-end="url(#a)"/>
+
+  <rect x="662" y="422" width="178" height="50" rx="4" fill="#F5F0FB" stroke="#7c6ab8" stroke-width="0.5"/>
+  <text x="751" y="438" text-anchor="middle" font-size="11" font-weight="500" fill="#3d1a8a">invalidateCache()</text>
+  <text x="751" y="452" text-anchor="middle" font-size="10" fill="#6040b0">cache_valid_ = false</text>
+  <text x="751" y="464" text-anchor="middle" font-size="10" fill="#6040b0">atomic.store(false, release)</text>
+
+  <!-- Move safety note -->
+  <rect x="20" y="492" width="820" height="72" rx="4" fill="#F8F8FC" stroke="#ddd" stroke-width="0.5" stroke-dasharray="4,2"/>
+  <text x="430" y="510" text-anchor="middle" font-size="12" font-weight="500" fill="#444">Move &amp; copy safety</text>
+  <text x="430" y="526" text-anchor="middle" font-size="11" fill="#555">Move constructor and assignment use std::lock(lock1, lock2) with std::defer_lock — acquires both mutexes in</text>
+  <text x="430" y="540" text-anchor="middle" font-size="11" fill="#555">consistent address order to prevent deadlock when two distributions are moved by different threads simultaneously.</text>
+  <text x="430" y="556" text-anchor="middle" font-size="10" fill="#888">Both are noexcept — required for STL container resize, std::sort, move-only semantics.  Source left in valid-but-reset state.</text>
+
+  <text x="430" y="578" text-anchor="middle" font-size="10" fill="#bbb">libstats v2.0.0  ·  docs/UML/thread-safety-cache.svg</text>
+</svg>
