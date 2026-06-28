@@ -1596,6 +1596,9 @@ if(LIBSTATS_BUILD_TOOLS)
     add_libstats_tool(strategy_profile strategy_profile.cpp)
     add_libstats_tool(simd_verification simd_verification.cpp)
     add_libstats_tool(parallel_correctness_verification parallel_correctness_verification.cpp)
+    add_libstats_tool(quantile_accuracy quantile_accuracy.cpp)
+    add_libstats_tool(parameter_recovery_benchmark parameter_recovery_benchmark.cpp)
+    add_libstats_tool(threshold_validator threshold_validator.cpp)
 
     message(STATUS "Tools enabled:")
     message(
