@@ -645,25 +645,98 @@ The CMake system uses dependency-aware object libraries for parallel compilation
 ### Working with Distributions
 
 #### Creating New Distributions
-The registration checklist is authoritative in `include/core/distribution_meta.h`. Summary:
+The registration checklist is authoritative in `include/core/distribution_meta.h`.
+
+**Pre-completed for Geometric (16), Laplace (17), Cauchy (18):**
+Steps 1–3 below are already done for all three pending distributions. Their enum values,
+metadata rows, and `{NEVER, NEVER, NEVER}` threshold rows are all in place. Start at step 4.
+
+**Steps for any future distribution (N+1):**
+
 1. **Append** the new `DistributionType` enum value to `include/core/distribution_type.h`
    (append-only; never reorder — values are used as array indices).
 2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/core/distribution_meta.h`
-   (enum name, display name, `is_discrete`, `is_delegation_wrapper`).
+   (enum name, display name, `is_discrete`, `is_delegation_wrapper`). Bump the
+   `static_assert(kDistributionTypeCount >= N, ...)` minimum to match the new count.
 3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
    `include/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
-4. **Implement** the distribution header (`include/distributions/`), source (`src/`), and tests
-   (`tests/*_basic.cpp`, `tests/*_enhanced.cpp`) — see `exponential.h` as the reference template.
-5. **Register** in `CMakeLists.txt` and `include/libstats.h`.
+   For delegation wrappers (e.g. Geometric→NegBinomial, Cauchy→StudentT), the delegate's
+   thresholds apply — copy them or leave NEVER and profile after implementation.
+
+4. **Implement** the distribution:
+
+   *Header* `include/distributions/dist.h` — use `exponential.h` as the reference:
+   - Inherit from `DistributionBase`.
+   - Declare `static constexpr detail::DistributionType kDistributionType = detail::DistributionType::DIST_NAME;`
+     and `static constexpr bool kIsDiscrete = false/true;` (must match the metadata row).
+   - Declare `noexcept` move constructor and move assignment operator.
+   - Declare `static void parallelBatchFit(const std::vector<std::vector<double>>&, std::vector<DistType>&);`
+   - Override all pure virtuals from `DistributionInterface`: `getMean`, `getVariance`, `getSkewness`,
+     `getKurtosis`, `getNumParameters`, `getDistributionName`, `isDiscrete`,
+     `getSupportLowerBound`, `getSupportUpperBound`, `getProbability`, `getLogProbability`,
+     `getCumulativeProbability`, `getQuantile`, `sample` (×2), `fit`, `reset`, `toString`.
+   - Override `getEntropy()` and `getMedian()` (both have NaN defaults in the interface;
+     concrete implementations are required even for wrappers).
+   - Declare the three batch span overloads: `getProbability(span, span, hint)`,
+     `getLogProbability(span, span, hint)`, `getCumulativeProbability(span, span, hint)`.
+   - Declare comparison operators (`==`, `!=`) and friend stream operators (`<<`, `>>`).
+
+   *Source* `src/dist.cpp`: full implementations in the numbered section structure.
+
+   *Basic test* `tests/test_dist_basic.cpp`:
+   - `#include "include/basic_test_runner.h"`
+   - Define `stats::tests::BasicDistConfig cfg{name, small_values, lo, hi, invalid_scenarios};`
+   - Keep Tests 1–5 and 7 per-distribution.
+   - Call `stats::tests::runBatchTests(cfg, dist);` for Test 6.
+   - Call `stats::tests::runErrorTests(cfg);` for Test 8.
+
+   *Enhanced test* `tests/test_dist_enhanced.cpp`:
+   - `#include "include/enhanced_test_suite.h"`
+   - Implement `template<> struct stats::tests::DistTraits<DistType> : stats::tests::DistTraitsDefaults { ... };`
+     with `make()`, `domain()`, `batch_lo()`, `batch_hi()`, `invalid_creators()`.
+     Override tolerances for distributions whose SIMD path has documented approximation error
+     (e.g. VonMises pdf_tolerance = 1e-10 for vector_cos).
+   - Close with `INSTANTIATE_TYPED_TEST_SUITE_P(Name, DistributionEnhancedTest, ::testing::Types<DistType>);`
+   - Add per-distribution tests: known analytical values, moment formulas, special cases,
+     VectorizedMatchesScalar, VectorizedSpeedup (timing-labelled), MLEFit.
+
+5. **Register** in four CMakeLists.txt locations and in `include/libstats.h`:
+
+   *`CMakeLists.txt` — `LIBSTATS_DISTRIBUTIONS_SOURCES`* (~line 780):
+   Add `src/dist.cpp` to the Level-5 distributions source list.
+
+   *`CMakeLists.txt` — test registration* (~line 1380):
+   ```cmake
+   create_libstats_test(test_dist_basic tests/test_dist_basic.cpp)
+   create_libstats_gtest(test_dist_enhanced tests/test_dist_enhanced.cpp)
+   ```
+
+   *`CMakeLists.txt` — `run_all_tests` DEPENDS block* (~line 1500):
+   Add `test_dist_basic` and `test_dist_enhanced` to the dependency list.
+
+   *`CMakeLists.txt` — timing label* (if the enhanced test has speedup assertions):
+   Add `test_dist_enhanced` to the `set_tests_properties(... PROPERTIES LABELS "timing")` call.
+
+   *`include/libstats.h`* — inside `#ifdef LIBSTATS_FULL_INTERFACE`:
+   - Add `#include "distributions/dist.h"`
+   - Add `using DistName = DistNameDistribution;` in the `namespace stats { ... }` type-alias block.
+
+6. **Profile and calibrate thresholds** (after correctness tests pass on all target machines):
+   - Run `./build/tools/strategy_profile --large --export` to produce a CSV.
+   - Run `./build/tools/threshold_validator <csv>` to compare measured crossovers against
+     the current NEVER entries and identify which need updating.
+   - Update the four `kXxx` tables in `dispatch_thresholds.h` accordingly.
+   - For delegation wrappers, verify the delegate's thresholds apply (skip if identical).
 
 The `consteval validateMetaOrdering()` in `distribution_meta.h` enforces step 1↔2 alignment at
-compile time. After any enum or table change, a clean build verifies consistency.
+compile time. A clean build after any enum or table change verifies consistency.
 
 #### Testing Strategy
 - **All levels**: GTest-based tests registered with CTest
 - Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
 - Timing tests: run `ctest -j1 -L timing` on a quiet machine
-- **Coverage**: 23 correctness tests + timing/benchmark suite
+- **Coverage**: 44 CTest targets (each basic and enhanced test file registers as one target;
+  each enhanced binary runs additional typed test cases from the shared `DistributionEnhancedTest` suite)
 
 ### Performance Optimization
 
