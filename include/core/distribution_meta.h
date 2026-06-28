@@ -83,7 +83,7 @@ inline constexpr DistributionMeta kDistributionMeta[] = {
     {DistributionType::VON_MISES,         "VON_MISES",         "VonMises",          false, false},
     {DistributionType::BINOMIAL,          "BINOMIAL",          "Binomial",          true,  false},
     {DistributionType::NEGATIVE_BINOMIAL, "NEGATIVE_BINOMIAL", "NegativeBinomial",  true,  false},
-    // v2.0.0 additions (implementations pending) --------------------------------
+    // v2.0.0 additions — implemented 2026-06-28 --------------------------------
     {DistributionType::GEOMETRIC,         "GEOMETRIC",         "Geometric",         true,  true },  // delegates to NegativeBinomial(r=1)
     {DistributionType::LAPLACE,           "LAPLACE",           "Laplace",           false, false},
     {DistributionType::CAUCHY,            "CAUCHY",            "Cauchy",            false, true },  // delegates to StudentT(ν=1)
@@ -113,9 +113,8 @@ static_assert(validateMetaOrdering(),
     "used as array indices and any reordering silently corrupts dispatch.");
 
 // Belt-and-suspenders: catches accidental deletions or enum reorderings.
-// Geometric (16), Laplace (17), Cauchy (18) are registered but not yet
-// implemented. The count is 19 = all registered types (implemented + pending).
-// Bump to 20 only when a genuinely new DistributionType enum value is appended.
+// All 19 distributions are implemented. Bump to 20 only when a genuinely new
+// DistributionType enum value is appended.
 static_assert(kDistributionTypeCount >= 19,
     "Distribution count regressed below 19 — a DistributionType entry was removed "
     "or the enum was reordered. Values are used as array indices; never remove or "
