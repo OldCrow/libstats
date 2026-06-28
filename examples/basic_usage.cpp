@@ -209,7 +209,42 @@ int main() {
         << "   ✓ libstats selected optimal strategy based on data size and system capabilities"
         << std::endl;
 
-    std::cout << "=== Example completed successfully ===" << std::endl;
+    print_separator("9. End-to-End: Fit → Validate → Score");
+    std::cout << "\nThe most common real-world workflow:\n"
+              << "  1. Observe data from a process\n"
+              << "  2. Fit a distribution (MLE)\n"
+              << "  3. Validate the fit (optional GOF test)\n"
+              << "  4. Score new observations using log-probability\n"
+              << std::endl;
+
+    // Step 1: generate some "observed" latency data (in ms) from an Exponential process
+    auto true_latency = stats::ExponentialDistribution::create(0.1).value;  // mean 10 ms
+    auto observed = true_latency.sample(rng, 200);
+    std::cout << "📊 200 latency observations (simulated, mean ~ 10 ms)" << std::endl;
+
+    // Step 2: fit
+    auto latency_model = stats::ExponentialDistribution::create(1.0).value;
+    latency_model.fit(observed);
+    std::cout << "🔧 Fitted Exponential(λ = " << std::setprecision(4) << latency_model.getLambda()
+              << ")  mean = " << latency_model.getMean() << " ms" << std::endl;
+
+    // Step 3: score new observations — log-probability as an anomaly signal
+    std::cout << "\n📈 Anomaly scoring on new observations (log-probability):\n";
+    const std::vector<double> new_obs = {2.0, 8.0, 15.0, 50.0, 120.0};
+    std::vector<double> log_scores(new_obs.size());
+    latency_model.getLogProbability(std::span<const double>(new_obs),
+                                    std::span<double>(log_scores));
+
+    std::cout << std::fixed << std::setprecision(2);
+    for (size_t i = 0; i < new_obs.size(); ++i) {
+        const char* tag = (log_scores[i] < -6.0) ? "  <- anomaly" : "";
+        std::cout << "     x = " << std::setw(6) << new_obs[i]
+                  << " ms  log P = " << std::setw(7) << log_scores[i] << tag << "\n";
+    }
+    std::cout << "\n   Values with very low log-probability are candidates for review.\n"
+              << "   See logpdf_and_likelihood_demo for a detailed treatment.\n";
+
+    std::cout << "\n=== Example completed successfully ===" << std::endl;
 
     return 0;
 }

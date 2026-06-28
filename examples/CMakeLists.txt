@@ -51,7 +51,7 @@ create_example(logpdf_and_likelihood_demo logpdf_and_likelihood_demo.cpp)
 # Advanced examples
 create_example(statistical_validation_demo statistical_validation_demo.cpp)
 create_example(parallel_execution_demo parallel_execution_demo.cpp)
-create_example(performance_learning_demo performance_learning_demo.cpp)
+create_example(performance_dispatch_demo performance_dispatch_demo.cpp)
 
 # Note: gaussian_performance_benchmark.cpp and exponential_performance_benchmark.cpp are not built
 # here — benchmark-style tools belong in tools/, not examples/.

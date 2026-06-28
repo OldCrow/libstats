@@ -1,17 +1,17 @@
 /**
- * @file performance_learning_demo.cpp
- * @brief Demonstration of the Performance Learning Framework
+ * @file performance_dispatch_demo.cpp
+ * @brief Demonstration of the auto-dispatch and strategy hint API
  *
- * This example showcases the intelligent auto-dispatch system that learns
- * from actual performance measurements to automatically select optimal execution
- * strategies based on problem characteristics and hardware capabilities.
+ * Shows how libstats selects execution strategies (SCALAR, VECTORIZED,
+ * PARALLEL, WORK_STEALING) based on batch size and hardware, and how
+ * callers can influence that choice with PerformanceHint.
  *
  * Features demonstrated:
- * - Smart auto-dispatch with performance hints
- * - Confidence-based strategy recommendations
- * - Adaptive learning from execution history
- * - Hardware capability detection and optimization
- * - Cross-distribution performance comparison
+ * - Auto-dispatch: no hint, minimal_latency, maximum_throughput
+ * - Forced strategies: FORCE_SCALAR, FORCE_VECTORIZED, FORCE_PARALLEL
+ * - Hardware capability detection via SystemCapabilities
+ * - Per-distribution threshold differences (dispatch thresholds vary
+ *   by distribution type — Gaussian PDF != Exponential PDF != Binomial CDF)
  */
 
 #define LIBSTATS_FULL_INTERFACE
@@ -155,18 +155,72 @@ void demonstrate_smart_dispatch() {
     }
 }
 
-void demonstrate_performance_dispatcher() {
-    print_separator("Performance Dispatcher Learning System");
+void demonstrate_forced_strategies() {
+    print_separator("Forced Strategy Hints");
 
-    std::cout << "\nDemonstrating automatic hardware detection and strategy selection.\n"
-              << "The dispatcher analyzes system capabilities and selects optimal strategies\n"
-              << "based on batch size, distribution complexity, and hardware features.\n"
-              << std::endl;
+    std::cout
+        << "\nBeyond minimal_latency/maximum_throughput, each strategy can be forced\n"
+        << "explicitly. Use forced hints to benchmark individual strategies or to\n"
+        << "lock a strategy for a specific workload that you have profiled.\n\n"
+        << "Caution: forced strategies bypass the dispatch threshold logic and can\n"
+        << "be slower than auto-dispatch for the given batch size.\n\n";
+
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    constexpr size_t N = 50000;
+    std::vector<double> xs(N), out_scalar(N), out_vectorized(N), out_parallel(N);
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> gen(-3.0, 3.0);
+    for (auto& v : xs) v = gen(rng);
+
+    stats::detail::PerformanceHint hint_scalar, hint_vec, hint_par;
+    hint_scalar.strategy   = stats::detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    hint_vec.strategy      = stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_par.strategy      = stats::detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+
+    auto time_us = [&](auto& hint, auto& output) {
+        auto t0 = std::chrono::high_resolution_clock::now();
+        normal.getLogProbability(std::span<const double>(xs), std::span<double>(output), hint);
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+                   std::chrono::high_resolution_clock::now() - t0).count();
+    };
+
+    long t_scl = time_us(hint_scalar,    out_scalar);
+    long t_vec = time_us(hint_vec,       out_vectorized);
+    long t_par = time_us(hint_par,       out_parallel);
+
+    std::cout << std::fixed << std::setprecision(1);
+    std::cout << "Gaussian LogPDF on " << N << " elements:\n";
+    std::cout << "  FORCE_SCALAR:     " << t_scl << " us\n";
+    std::cout << "  FORCE_VECTORIZED: " << t_vec << " us"
+              << "  (" << static_cast<double>(t_scl) / std::max(t_vec, 1L) << "x vs scalar)\n";
+    std::cout << "  FORCE_PARALLEL:   " << t_par << " us"
+              << "  (" << static_cast<double>(t_scl) / std::max(t_par, 1L) << "x vs scalar)\n";
+
+    // Verify that all three strategies produce identical results
+    bool all_match = true;
+    for (size_t i = 0; i < N; ++i) {
+        if (std::abs(out_scalar[i] - out_vectorized[i]) > 1e-10 ||
+            std::abs(out_scalar[i] - out_parallel[i])   > 1e-10) {
+            all_match = false;
+            break;
+        }
+    }
+    std::cout << "  Correctness: all three strategies match " << (all_match ? "✓" : "✗") << "\n";
+}
+
+void demonstrate_performance_dispatcher() {
+    print_separator("Dispatch Thresholds Vary by Distribution");
+
+    std::cout << "\nThe dispatcher chooses SCALAR/VECTORIZED/PARALLEL based on batch size,\n"
+              << "but the crossover thresholds are per-distribution and per-operation.\n"
+              << "A batch size that triggers VECTORIZED for Gaussian PDF may still use\n"
+              << "SCALAR for Binomial CDF. This is why dispatch_thresholds.h has one\n"
+              << "row per distribution per architecture.\n\n";
 
     // Get system capabilities
     const auto& capabilities = stats::detail::SystemCapabilities::current();
 
-    std::cout << "System Capabilities Detection:" << std::endl;
+    std::cout << "Hardware capabilities:\n";
     std::cout << "  Logical Cores: " << capabilities.logical_cores() << std::endl;
     std::cout << "  Physical Cores: " << capabilities.physical_cores() << std::endl;
     std::cout << "  L1 Cache: " << capabilities.l1_cache_size() << " bytes" << std::endl;
@@ -186,23 +240,30 @@ void demonstrate_performance_dispatcher() {
     else
         std::cout << "None";
     std::cout << std::endl;
-    // Create a dispatcher instance to show strategy selection
     stats::detail::PerformanceDispatcher dispatcher;
 
-    std::cout << "\nStrategy Selection by Problem Size:" << std::endl;
-    std::cout << std::left << std::setw(15) << "Problem Size" << std::setw(20)
-              << "Selected Strategy" << std::endl;
-    std::cout << std::string(35, '-') << std::endl;
+    std::cout << "\nStrategy selection at batch sizes {50, 500, 5000, 50000, 500000}:\n";
+    std::cout << std::left << std::setw(15) << "Batch Size"
+              << std::setw(22) << "Gaussian PDF"
+              << std::setw(22) << "Exponential PDF"
+              << std::setw(22) << "Binomial CDF" << "\n";
+    std::cout << std::string(80, '-') << "\n";
 
     std::vector<size_t> problem_sizes = {50, 500, 5000, 50000, 500000};
-
     for (auto size : problem_sizes) {
-        auto strategy = dispatcher.selectStrategy(size, stats::detail::DistributionType::GAUSSIAN,
-                                                  stats::detail::OperationType::PDF, capabilities);
-
-        std::cout << std::setw(15) << size << std::setw(20) << strategyToString(strategy)
-                  << std::endl;
+        auto sg = dispatcher.selectStrategy(size, stats::detail::DistributionType::GAUSSIAN,
+                                            stats::detail::OperationType::PDF, capabilities);
+        auto se = dispatcher.selectStrategy(size, stats::detail::DistributionType::EXPONENTIAL,
+                                            stats::detail::OperationType::PDF, capabilities);
+        auto sb = dispatcher.selectStrategy(size, stats::detail::DistributionType::BINOMIAL,
+                                            stats::detail::OperationType::CDF, capabilities);
+        std::cout << std::setw(15) << size
+                  << std::setw(22) << strategyToString(sg)
+                  << std::setw(22) << strategyToString(se)
+                  << std::setw(22) << strategyToString(sb) << "\n";
     }
+    std::cout << "\nThresholds are in include/core/dispatch_thresholds.h and are tuned\n"
+              << "per architecture using the strategy_profile tool.\n";
 }
 
 int main() {
@@ -211,11 +272,14 @@ int main() {
 
     try {
         demonstrate_smart_dispatch();
+        demonstrate_forced_strategies();
         demonstrate_performance_dispatcher();
 
         print_separator("Summary");
-        std::cout << "\u2705 Smart auto-dispatch working with performance hints" << std::endl;
-        std::cout << "\u2705 Performance dispatcher providing strategy selection" << std::endl;
+        std::cout << "\u2705 Auto-dispatch (no hint, minimal_latency, maximum_throughput)\n";
+        std::cout << "\u2705 Forced strategies (FORCE_SCALAR, FORCE_VECTORIZED, FORCE_PARALLEL)\n";
+        std::cout << "\u2705 Per-distribution dispatch threshold differences shown\n";
+        std::cout << "\nSee also: logpdf_and_likelihood_demo for actual distribution batch calls.\n";
 
     } catch (const std::exception& e) {
         std::cerr << "Error during demonstration: " << e.what() << std::endl;
