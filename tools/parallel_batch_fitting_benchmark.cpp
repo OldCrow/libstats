@@ -397,6 +397,18 @@ class DatasetGenerator {
         return datasets;
     }
 
+    static std::vector<std::vector<double>> generateCauchyDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> x0_dist(-5.0, 5.0);
+        std::uniform_real_distribution<double> gamma_dist(0.5, 3.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = CauchyDistribution::create(x0_dist(rng), gamma_dist(rng)).value;
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
     static std::vector<std::vector<double>> generateBetaDatasets(
             size_t count, size_t size, std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
@@ -640,6 +652,11 @@ class ParallelBatchFittingBenchmark {
         if (config_.target_distribution == "all" || config_.target_distribution == "laplace") {
             runDistributionBenchmark<LaplaceDistribution>(
                 "Laplace", &DatasetGenerator::generateLaplaceDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "cauchy") {
+            runDistributionBenchmark<CauchyDistribution>(
+                "Cauchy", &DatasetGenerator::generateCauchyDatasets, summary);
         }
 
         if (config_.target_distribution == "all" || config_.target_distribution == "beta") {

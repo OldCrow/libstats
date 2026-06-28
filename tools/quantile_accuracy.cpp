@@ -30,6 +30,7 @@
 #include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -275,6 +276,13 @@ int main(int argc, char* argv[]) {
             LaplaceDistribution::create(0.0, 1.0).value));
         results.push_back(test_continuous("Laplace",     "Lap(2,0.5)",
             LaplaceDistribution::create(2.0, 0.5).value));
+
+        // Cauchy: closed-form tan() quantile; very accurate
+        results.push_back(test_continuous("Cauchy",      "C(0,1)",
+            CauchyDistribution::create(0.0, 1.0).value));
+        results.push_back(test_continuous("Cauchy",      "C(3,2)",
+            CauchyDistribution::create(3.0, 2.0).value));
+
         results.push_back(test_continuous("Pareto",      "Pa(1,2)",
             ParetoDistribution::create(1.0, 2.0).value));
 

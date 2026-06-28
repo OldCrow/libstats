@@ -29,6 +29,7 @@
 #include "libstats/distributions/uniform.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/platform/simd.h"
 
@@ -145,6 +146,7 @@ class SIMDVerifier {
         // rng_ state for the established baselines.
         testGeometricDistribution();  // uses local RNG (integer outputs)
         testLaplaceDistribution();     // uses deterministic linspace data
+        testCauchyDistribution();      // uses deterministic linspace data
 
         testPrimitiveVectorOps();    // uses deterministic linspace data
 
@@ -225,6 +227,48 @@ class SIMDVerifier {
 
         verifyOperation(
             dist, test_data, "CDF", "Laplace",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getCumulativeProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+            });
+    }
+
+    void testCauchyDistribution() {
+        stats::detail::detail::subsectionHeader("Cauchy Distribution (delegates to StudentT(nu=1))");
+        // Standard Cauchy(0,1): batch ops transform input then delegate to StudentT.
+        // Correctness: VECTORIZED vs SCALAR should match to TOLERANCE_NORMAL.
+        auto dist = stats::CauchyDistribution::create(0.0, 1.0).value;
+
+        std::vector<double> test_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            test_data[i] = -10.0 + 20.0 * static_cast<double>(i) /
+                           static_cast<double>(TEST_SIZE - 1);
+
+        verifyOperation(
+            dist, test_data, "PDF", "Cauchy",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "LogPDF", "Cauchy",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getLogProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getLogProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "CDF", "Cauchy",
             [](const auto& d, const auto& data, auto& output) {
                 for (size_t i = 0; i < data.size(); ++i)
                     output[i] = d.getCumulativeProbability(data[i]);

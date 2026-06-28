@@ -18,6 +18,7 @@
 #include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -169,6 +170,7 @@ class StrategyProfiler {
         profile_negative_binomial_distribution();
         profile_geometric_distribution();
         profile_laplace_distribution();
+        profile_cauchy_distribution();
     }
 
     template <typename Distribution, typename Generator>
@@ -466,6 +468,19 @@ class StrategyProfiler {
         profile_distribution("Laplace", laplace, [this](std::size_t count) {
             std::vector<double> values(count);
             std::uniform_real_distribution<double> dist(-5.0, 5.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_cauchy_distribution() {
+        // Cauchy(x0=0, gamma=1): standard Cauchy, delegates to StudentT(nu=1).
+        // Inputs: full real line; heavy tails — use wide uniform range.
+        const auto cauchy = stats::CauchyDistribution::create(ZERO_DOUBLE, ONE).value;
+        profile_distribution("Cauchy", cauchy, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-10.0, 10.0);
             for (auto& value : values)
                 value = dist(gen_);
             return values;

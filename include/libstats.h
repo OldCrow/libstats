@@ -167,6 +167,7 @@
     #include "distributions/lognormal.h"
     #include "distributions/geometric.h"
     #include "distributions/laplace.h"
+    #include "distributions/cauchy.h"
     #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
     #include "distributions/poisson.h"
@@ -198,6 +199,7 @@ using VonMises = VonMisesDistribution;
 using Binomial = BinomialDistribution;
 using Geometric = GeometricDistribution;
 using Laplace = LaplaceDistribution;
+using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE

@@ -198,6 +198,7 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     auto negbinomial  = NegativeBinomialDistribution::create(3.0, 0.5).value;
     auto geometric    = GeometricDistribution::create(0.5).value;
     auto laplace      = LaplaceDistribution::create(0.0, 1.0).value;
+    auto cauchy       = CauchyDistribution::create(0.0, 1.0).value;
     auto poisson      = PoissonDistribution::create(3.0).value;
     auto discrete     = DiscreteDistribution::create(0, 9).value;
 
@@ -217,6 +218,7 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     check("NegativeBinomial", negbinomial);
     check("Geometric",        geometric);
     check("Laplace",          laplace);
+    check("Cauchy",           cauchy);
     check("Poisson",          poisson);
     check("Discrete",         discrete);
 }
@@ -303,6 +305,53 @@ TEST(IntegrationWorkflow, LaplaceWorkflow) {
     EXPECT_TRUE(LaplaceDistribution::create(0.0, -1.0).isError());
     EXPECT_TRUE(LaplaceDistribution::create(0.0, 0.0).isError());
     EXPECT_TRUE(LaplaceDistribution::create(
+        std::numeric_limits<double>::infinity(), 1.0).isError());
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Cauchy end-to-end workflow
+// ────────────────────────────────────────────────────────────────────────────────
+
+TEST(IntegrationWorkflow, CauchyWorkflow) {
+    // Delegation: wraps StudentT(nu=1); moments are all NaN
+    auto r = CauchyDistribution::create(2.0, 3.0);
+    ASSERT_TRUE(r.isOk());
+    auto c = std::move(r.value);
+
+    // Moments: all undefined (NaN)
+    EXPECT_TRUE(std::isnan(c.getMean()))     << "Cauchy mean should be NaN";
+    EXPECT_TRUE(std::isnan(c.getVariance())) << "Cauchy variance should be NaN";
+    EXPECT_TRUE(std::isnan(c.getSkewness())) << "Cauchy skewness should be NaN";
+    EXPECT_TRUE(std::isnan(c.getKurtosis())) << "Cauchy kurtosis should be NaN";
+
+    // Median and mode = x0
+    EXPECT_NEAR(c.getMedian(), 2.0, 1e-10);
+    EXPECT_NEAR(c.getMode(),   2.0, 1e-10);
+    EXPECT_FALSE(c.isDiscrete());
+
+    // Known PDF: PDF(x0) = 1/(pi*gamma)
+    EXPECT_NEAR(c.getProbability(2.0), 1.0 / (detail::PI * 3.0), 1e-12);
+    // CDF at location = 0.5
+    EXPECT_NEAR(c.getCumulativeProbability(2.0), 0.5, 1e-12);
+    // Symmetry: PDF(x0+d) == PDF(x0-d)
+    EXPECT_NEAR(c.getProbability(3.0), c.getProbability(1.0), 1e-12);
+
+    // Sampling: all finite
+    std::mt19937 rng(42);
+    auto samples = c.sample(rng, 200);
+    EXPECT_EQ(samples.size(), 200u);
+    for (double v : samples)
+        EXPECT_TRUE(std::isfinite(v)) << "Cauchy samples must be finite";
+
+    // MLE round-trip — use generous tolerance (Cauchy has heavy tails)
+    c.fit(samples);
+    EXPECT_NEAR(c.getX0(),    2.0, 0.5) << "MLE x0 should recover ~2.0";
+    EXPECT_NEAR(c.getGamma(), 3.0, 1.0) << "MLE gamma should recover ~3.0";
+
+    // Invalid parameters rejected
+    EXPECT_TRUE(CauchyDistribution::create(0.0, -1.0).isError());
+    EXPECT_TRUE(CauchyDistribution::create(0.0, 0.0).isError());
+    EXPECT_TRUE(CauchyDistribution::create(
         std::numeric_limits<double>::infinity(), 1.0).isError());
 }
 

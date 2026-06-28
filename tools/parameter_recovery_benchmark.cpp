@@ -266,8 +266,53 @@ int main(int argc, char* argv[]) {
                 sample_sizes, n_reps, fmt);
         }
 
+        // Cauchy C(2, 1.5) — mean and variance are undefined (NaN).
+        // Proxy metrics: bias/RMSE of getMedian() (= x0) and getGamma().
+        {
+            auto true_d = CauchyDistribution::create(2.0, 1.5).value;
+            const double true_x0    = true_d.getMedian();
+            const double true_gamma = true_d.getGamma();
+            std::cout << "\n--- Cauchy C(2,1.5)  true x0=2, gamma=1.5 (moments undefined) ---\n";
+            std::cout << fmt.formatRow({"n", "ok/M",
+                "x0Bias", "x0RMSE", "gBias", "gRMSE"}) << "\n";
+            std::cout << fmt.getSeparator() << "\n";
+
+            for (size_t n : sample_sizes) {
+                std::mt19937 rng(42);
+                std::vector<double> x0_vals, gamma_vals;
+                x0_vals.reserve(static_cast<size_t>(n_reps));
+                gamma_vals.reserve(static_cast<size_t>(n_reps));
+
+                for (int rep = 0; rep < n_reps; ++rep) {
+                    auto data = true_d.sample(rng, n);
+                    auto fitted = CauchyDistribution::create(0.0, 1.0).value;
+                    try {
+                        fitted.fit(data);
+                        double fx0 = fitted.getMedian();
+                        double fg  = fitted.getGamma();
+                        if (std::isfinite(fx0) && std::isfinite(fg)) {
+                            x0_vals.push_back(fx0);
+                            gamma_vals.push_back(fg);
+                        }
+                    } catch (...) {}
+                }
+
+                auto s = compute_stats(x0_vals, gamma_vals, true_x0, true_gamma);
+                auto fmt_v = [](double v) -> std::string {
+                    std::ostringstream oss;
+                    oss << std::fixed << std::setprecision(4) << v;
+                    return oss.str();
+                };
+                std::string n_ok_str = std::to_string(s.n_ok) + "/" + std::to_string(n_reps);
+                std::cout << fmt.formatRow({std::to_string(n), n_ok_str,
+                    fmt_v(s.mean_bias), fmt_v(s.mean_rmse),
+                    fmt_v(s.var_bias),  fmt_v(s.var_rmse)}) << "\n";
+            }
+        }
+
         std::cout << "\n\nNote: MeanRMSE and VarRMSE should decrease as n increases.\n"
                   << "Bias that does not shrink with n indicates MLE inconsistency\n"
-                  << "(e.g. Pareto scale underestimation at small n).\n";
+                  << "(e.g. Pareto scale underestimation at small n).\n"
+                  << "Cauchy shows x0 (median) and gamma recovery; mean/var are undefined.\n";
     });
 }

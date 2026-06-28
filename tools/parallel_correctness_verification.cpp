@@ -21,6 +21,7 @@
 #include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -93,6 +94,8 @@ auto createTestDistribution() {
         return GeometricDistribution::create(0.4);              // p=0.4
     else if constexpr (std::is_same_v<Dist, LaplaceDistribution>)
         return LaplaceDistribution::create(0.0, 1.0);           // standard
+    else if constexpr (std::is_same_v<Dist, CauchyDistribution>)
+        return CauchyDistribution::create(0.0, 1.0);            // standard Cauchy
     else if constexpr (std::is_same_v<Dist, BetaDistribution>)
         return BetaDistribution::create(2.0, 3.0);              // α=2, β=3
     else if constexpr (std::is_same_v<Dist, ChiSquaredDistribution>)
@@ -581,6 +584,7 @@ class ParallelCorrectnessVerifier {
         test_distribution<NegativeBinomialDistribution>("NegativeBinomial");
         test_distribution<GeometricDistribution>("Geometric");
         test_distribution<LaplaceDistribution>("Laplace");
+        test_distribution<CauchyDistribution>("Cauchy");
         test_distribution<BetaDistribution>("Beta");
         test_distribution<ChiSquaredDistribution>("ChiSquared");
         test_distribution<StudentTDistribution>("StudentT");
