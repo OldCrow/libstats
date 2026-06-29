@@ -208,7 +208,12 @@ double RayleighDistribution::getProbability(double x) const {
         ulock.unlock();
         lock.lock();
     }
-    return std::exp(getLogProbability(x));
+    // Compute inline using cached values rather than re-acquiring cache_mutex_
+    // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
+    const double lnc                  = logNormConst_;
+    const double neg_half_inv_sigma2  = negHalfInvSigmaSquared_;
+    lock.unlock();
+    return std::exp(std::log(x) + lnc + neg_half_inv_sigma2 * x * x);
 }
 
 double RayleighDistribution::getLogProbability(double x) const {

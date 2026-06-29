@@ -292,7 +292,12 @@ double ParetoDistribution::getProbability(double x) const {
     }
     if (x < scale_)
         return detail::ZERO_DOUBLE;
-    return std::exp(getLogProbability(x));
+    // Compute inline using cached values rather than re-acquiring cache_mutex_
+    // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
+    const double lnc         = logNormConst_;
+    const double neg_ap1     = negAlphaPlusOne_;
+    lock.unlock();
+    return std::exp(lnc + neg_ap1 * std::log(x));
 }
 
 double ParetoDistribution::getLogProbability(double x) const {

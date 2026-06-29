@@ -290,7 +290,15 @@ double LogNormalDistribution::getProbability(double x) const {
         ulock.unlock();
         lock.lock();
     }
-    return std::exp(getLogProbability(x));
+    // Compute inline using cached values rather than re-acquiring cache_mutex_
+    // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
+    const double mu              = mu_;
+    const double neg_inv_2sigma2 = negInv2SigmaSquared_;
+    const double lnc             = logNormConst_;
+    lock.unlock();
+    const double log_x = std::log(x);
+    const double z = log_x - mu;
+    return std::exp(neg_inv_2sigma2 * z * z - log_x + lnc);
 }
 
 double LogNormalDistribution::getLogProbability(double x) const {

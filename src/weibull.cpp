@@ -310,7 +310,16 @@ double WeibullDistribution::getProbability(double x) const {
         return (shape_ > detail::ONE) ? detail::ZERO_DOUBLE
                                       : std::numeric_limits<double>::infinity();
     }
-    return std::exp(getLogProbability(x));
+    // Compute inline using cached values rather than re-acquiring cache_mutex_
+    // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
+    const double k   = shape_;
+    const double ls  = logScale_;
+    const double km1 = shapeMinus1_;
+    const double lnc = logNormConst_;
+    lock.unlock();
+    const double log_x = std::log(x);
+    const double z     = log_x - ls;
+    return std::exp(lnc + km1 * log_x - std::exp(k * z));
 }
 
 double WeibullDistribution::getLogProbability(double x) const {
