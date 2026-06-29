@@ -354,9 +354,10 @@ std::vector<double> NegativeBinomialDistribution::sample(std::mt19937& rng, size
     const double p = p_;
     lock.unlock();
     std::gamma_distribution<double> gamma_dist(r, (detail::ONE - p) / p);
+    std::poisson_distribution<int> poisson_dist(1.0);
     for (size_t i = 0; i < count; ++i) {
         const double lambda = gamma_dist(rng);
-        std::poisson_distribution<int> poisson_dist(lambda);
+        poisson_dist.param(std::poisson_distribution<int>::param_type{lambda});
         samples.push_back(static_cast<double>(poisson_dist(rng)));
     }
     return samples;

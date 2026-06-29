@@ -760,12 +760,12 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
             _mm256_andnot_pd(m1, m2));                                 // R2: 0.84375 <= |x| < 1.25
         result = _mm256_blendv_pd(result, r1, m1);                    // R1: |x| < 0.84375
 
-        // Propagate NaN
+        // Restore sign (erf is odd), then propagate NaN.
+        // Order matters: or_pd must come first so NaN lanes are overwritten with
+        // the original x (which carries its own sign), not a sign-corrupted NaN.
+        result = _mm256_or_pd(result, sign);
         __m256d nan_mask = _mm256_cmp_pd(x, x, _CMP_UNORD_Q);
         result = _mm256_blendv_pd(result, x, nan_mask);
-
-        // Restore sign (erf is odd)
-        result = _mm256_or_pd(result, sign);
 
         _mm256_storeu_pd(&output[i], result);
     }

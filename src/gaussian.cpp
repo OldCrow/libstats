@@ -811,6 +811,7 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                     res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -946,6 +947,7 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                              cached_neg_half_inv_var * sq_diff;
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -1070,6 +1072,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                     res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
                 }
             });
+            pool.waitForAll();
         });
 }
 

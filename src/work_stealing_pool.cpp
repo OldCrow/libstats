@@ -1,5 +1,3 @@
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-#include "libstats/core/debug_flags.h"                 // kDebugThreading sentinel
 #include "libstats/platform/work_stealing_pool.h"
 
 #include "libstats/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
@@ -121,8 +119,7 @@ void WorkStealingPool::submit(Task task) {
     if (workerId >= detail::ZERO_INT && workerId < static_cast<int>(workers_.size())) {
         std::lock_guard<std::mutex> lock(workers_[static_cast<std::size_t>(workerId)]->queueMutex);
         workers_[static_cast<std::size_t>(workerId)]->localQueue.push_back(std::move(task));
-        // POOL-2: release ensures the task is visible to waitForAll()'s acquire load on ARM.
-        activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_release);
+        activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
         return;
     }
 
@@ -133,7 +130,7 @@ void WorkStealingPool::submit(Task task) {
 
     std::lock_guard<std::mutex> lock(workers_[targetWorker]->queueMutex);
     workers_[targetWorker]->localQueue.push_back(std::move(task));
-    activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_release);  // POOL-2
+    activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
 }
 
 void WorkStealingPool::waitForAll() {
@@ -207,12 +204,11 @@ void WorkStealingPool::workerLoop(int workerId) {
             readyThreads_.fetch_add(detail::ONE_INT, std::memory_order_release) + detail::ONE_INT;
         readinessCondition_.notify_one();
 
-        // DEBUG-IDIOM: if constexpr preserves the branch for type-checking
-        // while guaranteeing zero runtime cost when kDebugThreading is false.
-        if constexpr (kDebugThreading) {
-            std::clog << "Worker " << workerId << " ready ("
-                      << ready << "/" << workers_.size() << ")\n";
-        }
+// Optional: Log readiness for debugging (can be removed in production)
+#ifdef LIBSTATS_DEBUG_THREADING
+        std::cout << "Worker " << workerId << " ready (" << ready << "/" << workers_.size() << ")"
+                  << std::endl;
+#endif
     }
 
     while (!shutdown_.load(std::memory_order_acquire)) {
@@ -240,20 +236,20 @@ void WorkStealingPool::workerLoop(int workerId) {
             }
         }
 
+        static thread_local int backoffCount = 0;
         if (taskFound && task && !shutdown_.load(std::memory_order_acquire)) {
+            backoffCount = 0;  // Reset so next idle period starts fresh with yields
             executeTask(std::move(task), workerId);
         } else {
             // No work available, sleep briefly to avoid busy waiting
             // Use exponential backoff: yield first, then short sleep
-            static thread_local int backoffCount = 0;
             if (backoffCount < 10) {
                 std::this_thread::yield();
                 backoffCount++;
             } else {
-            // POOL-3: use a named pool constant, not a math-solver constant.
-            static constexpr std::size_t WORKER_BACKOFF_SLEEP_US = 100;
-            std::this_thread::sleep_for(std::chrono::microseconds(WORKER_BACKOFF_SLEEP_US));
-            backoffCount = 0;  // Reset backoff counter
+                std::this_thread::sleep_for(
+                    std::chrono::microseconds(detail::MAX_NEWTON_ITERATIONS));
+                backoffCount = 0;  // Reset backoff counter
             }
         }
     }
@@ -282,9 +278,8 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
                                             static_cast<int>(numWorkers) - detail::ONE_INT);
     const int startVictim = dist(thiefData.rng);
 
-    // POOL-4: iterate numWorkers times (not numWorkers-1) so no victim is skipped
-    // when startVictim == thiefId on the first attempt.
-    for (std::size_t attempt = detail::ZERO_INT; attempt < numWorkers; ++attempt) {
+    for (std::size_t attempt = detail::ZERO_INT; attempt < numWorkers - detail::ONE_INT;
+         ++attempt) {
         const int victimId =
             static_cast<int>((static_cast<std::size_t>(startVictim) + attempt) % numWorkers);
         if (victimId == thiefId)
@@ -338,34 +333,40 @@ void WorkStealingPool::executeTask(Task&& task, int workerId) {
 }
 
 std::size_t WorkStealingPool::getOptimalThreadCount() noexcept {
-    // Upper bound on worker threads. Beyond this, work-stealing overhead and
-    // cache/memory contention outweigh parallelism gains for typical statistical
-    // batch sizes. Configurable via the constructor; this is the default cap.
-    constexpr std::size_t MAX_WORKERS = 32;
-
     // Use Level 0 CPU detection for accurate thread count determination
     const auto& features = arch::get_features();
     const auto physicalCores = features.topology.physical_cores;
     const auto logicalCores = features.topology.logical_cores;
 
-    std::size_t count;
-
     // Handle cases where CPU detection fails (common in CI/VM environments)
     if (logicalCores == 0 && physicalCores == 0) {
+        // Fall back to std::thread::hardware_concurrency()
         const auto hwConcurrency = std::thread::hardware_concurrency();
-        count = (hwConcurrency > 0) ? hwConcurrency : 2;
-    } else if (features.topology.hyperthreading && logicalCores > 0) {
-        count = logicalCores;
-    } else if (physicalCores > 0) {
-        count = physicalCores;
-    } else if (logicalCores > 0) {
-        count = logicalCores;
-    } else {
-        count = std::max(static_cast<std::size_t>(std::thread::hardware_concurrency()),
-                         std::size_t(2));
+        if (hwConcurrency > 0) {
+            return hwConcurrency;
+        }
+        // If even hardware_concurrency fails, default to 2 threads
+        // (minimum for meaningful work stealing)
+        return 2;
     }
 
-    return std::min(count, MAX_WORKERS);
+    // For work-stealing pools, we can use more threads than regular thread pools
+    // because work stealing handles load balancing automatically
+    if (features.topology.hyperthreading && logicalCores > 0) {
+        // Use logical cores for work-stealing - the work stealing algorithm
+        // can handle the increased parallelism effectively
+        return logicalCores;
+    } else if (physicalCores > 0) {
+        // No hyperthreading, use physical cores
+        return physicalCores;
+    } else if (logicalCores > 0) {
+        // If we only have logical cores info, use it
+        return logicalCores;
+    } else {
+        // Should not reach here, but be safe
+        return std::max(static_cast<std::size_t>(std::thread::hardware_concurrency()),
+                        std::size_t(2));
+    }
 }
 
 void WorkStealingPool::optimizeCurrentThread([[maybe_unused]] int workerId,

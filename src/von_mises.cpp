@@ -432,10 +432,53 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> VonMisesDistribution::sample(std::mt19937& rng, size_t n) const {
+    // Read parameters once under a single lock to avoid n lock acquisitions.
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) updateCacheUnsafe();
+        ulock.unlock();
+        lock.lock();
+    }
+    const double kappa = kappa_;
+    const double mu    = mu_;
+    lock.unlock();
+
     std::vector<double> samples;
     samples.reserve(n);
-    for (size_t i = 0; i < n; ++i)
-        samples.push_back(sample(rng));
+
+    if (kappa < 1e-9) {
+        std::uniform_real_distribution<double> u(-detail::PI, detail::PI);
+        for (size_t i = 0; i < n; ++i)
+            samples.push_back(u(rng));
+        return samples;
+    }
+
+    // Best (1979) rejection sampler — precompute constants outside the loop.
+    const double tau = detail::ONE + std::sqrt(detail::ONE + 4.0 * kappa * kappa);
+    const double rho = (tau - std::sqrt(detail::TWO * tau)) / (detail::TWO * kappa);
+    const double r   = (detail::ONE + rho * rho) / (detail::TWO * rho);
+    std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
+
+    for (size_t i = 0; i < n; ++i) {
+        for (;;) {
+            const double u1 = u01(rng);
+            const double z  = std::cos(detail::PI * u1);
+            const double f  = (detail::ONE + r * z) / (r + z);
+            const double c  = kappa * (r - f);
+            const double u2 = u01(rng);
+            bool accept = (c * (detail::TWO - c) > u2) ||
+                          (c > detail::ZERO_DOUBLE &&
+                           std::log(c / u2) + detail::ONE - c >= detail::ZERO_DOUBLE);
+            if (accept) {
+                const double u3    = u01(rng);
+                const double angle = (u3 > detail::HALF) ? std::acos(f) : -std::acos(f);
+                samples.push_back(wrapAngle(mu + angle));
+                break;
+            }
+        }
+    }
     return samples;
 }
 

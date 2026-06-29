@@ -356,11 +356,13 @@ double WeibullDistribution::getCumulativeProbability(double x) const {
 }
 
 double WeibullDistribution::getQuantile(double p) const {
-    if (p < detail::ZERO_DOUBLE || p >= detail::ONE) {
-        throw std::invalid_argument("Probability must be in [0, 1) for Weibull distribution");
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
+        throw std::invalid_argument("Probability must be in [0, 1] for Weibull distribution");
     }
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
+    if (p == detail::ONE)
+        return std::numeric_limits<double>::infinity();
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -663,30 +665,24 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x < detail::ZERO_DOUBLE) {
+                    if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         return;
                     }
-                    if (x == detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-                    const double z = std::log(x) - ls;
-                    res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * z));
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x < detail::ZERO_DOUBLE) {
+                    if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         continue;
                     }
-                    if (x == detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-                    const double z = std::log(x) - ls;
-                    res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * z));
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
                 }
             }
         },
@@ -711,8 +707,9 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                     res[i] = detail::ZERO_DOUBLE;
                     return;
                 }
-                const double z = std::log(x) - ls;
-                res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * z));
+                const double log_x = std::log(x);
+                const double z = log_x - ls;
+                res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
             });
             pool.waitForAll();
         });
@@ -760,16 +757,13 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x < detail::ZERO_DOUBLE) {
+                    if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::NEGATIVE_INFINITY;
                         return;
                     }
-                    if (x == detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        return;
-                    }
-                    const double z = std::log(x) - ls;
-                    res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = lnc + km1 * log_x - std::exp(k * z);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
@@ -778,8 +772,9 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                         res[i] = detail::NEGATIVE_INFINITY;
                         continue;
                     }
-                    const double z = std::log(x) - ls;
-                    res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = lnc + km1 * log_x - std::exp(k * z);
                 }
             }
         },
@@ -804,8 +799,9 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                     res[i] = detail::NEGATIVE_INFINITY;
                     return;
                 }
-                const double z = std::log(x) - ls;
-                res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
+                const double log_x = std::log(x);
+                const double z = log_x - ls;
+                res[i] = lnc + km1 * log_x - std::exp(k * z);
             });
             pool.waitForAll();
         });

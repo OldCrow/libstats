@@ -170,6 +170,11 @@ TEST_F(LaplaceEnhancedTest, SetterPropagates) {
 
 // ─── MLE fit ─────────────────────────────────────────────────────────────────
 
+TEST_F(LaplaceEnhancedTest, MLEFitDegenerateIdenticalValues) {
+    auto l = LaplaceDistribution::create().value;
+    EXPECT_THROW(l.fit({3.0, 3.0, 3.0}), std::invalid_argument);
+}
+
 TEST_F(LaplaceEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
     auto source = LaplaceDistribution::create(2.0, 0.8).value;

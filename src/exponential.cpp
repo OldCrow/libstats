@@ -631,6 +631,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                     res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -759,6 +760,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                     res[i] = cached_log_lambda + cached_neg_lambda * x;
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -883,6 +885,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                     res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
+            pool.waitForAll();
         });
 }
 

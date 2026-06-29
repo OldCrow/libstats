@@ -1,4 +1,3 @@
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/log_space_ops.h"
 
 #include "libstats/core/math_constants.h"
@@ -71,13 +70,9 @@ double LogSpaceOps::logSumExpArray(const double* logValues, std::size_t size) no
         return logValues[0];
     }
 
-    // Use SIMD implementation if available and size is large enough
-    if constexpr (arch::simd::has_simd_support()) {
-        if (arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-            return logSumExpArraySIMD(logValues, size);
-        }
-    }
-
+    // DEFERRED: logSumExpArrayFallback — scalar loop, no SIMD acceleration yet.
+    // Until a real VectorOps::vector_exp + reduction path is implemented,
+    // always use the scalar path.
     return logSumExpArrayScalar(logValues, size);
 }
 
@@ -145,7 +140,7 @@ void LogSpaceOps::logMatrixVectorMultiplyTransposed(const double* logMatrix,
 // SIMD IMPLEMENTATIONS
 // =============================================================================
 
-double LogSpaceOps::logSumExpArraySIMD(const double* logValues, std::size_t size) noexcept {
+double LogSpaceOps::logSumExpArrayFallback(const double* logValues, std::size_t size) noexcept {
     // Find the maximum value for numerical stability
     double max_val = *std::max_element(logValues, logValues + size);
 

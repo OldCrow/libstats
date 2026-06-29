@@ -492,11 +492,6 @@ double DiscreteDistribution::getCumulativeProbability(double x) const {
     const int k = static_cast<int>(std::floor(x));
     const int numerator = k - a_ + detail::ONE_INT;
 
-    // Fast path optimizations
-    if (isBinary_) {
-        return (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
-    }
-
     return static_cast<double>(numerator) / static_cast<double>(range_);
 }
 
@@ -687,15 +682,9 @@ std::tuple<double, double, bool> DiscreteDistribution::discreteUniformityTest(
     }
 
     // Degrees of freedom = number of categories - 1
-    [[maybe_unused]] const int degrees_of_freedom = range - detail::ONE_INT;
-
-    // Simple p-value approximation
-    const double critical_value =
-        detail::CHI2_95_DF_1;  // Chi-squared critical value for alpha=detail::ALPHA_05, df=1
-    double p_value = (chi_squared > critical_value)
-                         ? detail::ALPHA_01
-                         : detail::AD_THRESHOLD_1;  // Rough approximation
-
+    const int degrees_of_freedom = range - detail::ONE_INT;
+    const double p_value = detail::ONE - detail::chi_squared_cdf(chi_squared,
+                                                                  static_cast<double>(degrees_of_freedom));
     const bool reject_uniformity = p_value < significance_level;
 
     return std::make_tuple(chi_squared, p_value, reject_uniformity);
@@ -753,27 +742,8 @@ std::tuple<double, double, bool> DiscreteDistribution::chiSquaredGoodnessOfFitTe
     // For discrete uniform, we estimate 0 parameters (a and b are given)
     const int degrees_of_freedom = range - detail::ONE_INT;
 
-    // Calculate p-value using chi-squared distribution
-    // For simplicity, we'll use a basic approximation
-    // In a full implementation, you'd use a proper chi-squared CDF
-    const double critical_value =
-        detail::CHI2_95_DF_1;  // Chi-squared critical value for alpha=detail::ALPHA_05, df=1
-
-    // Simple p-value approximation (this should use proper chi-squared CDF)
-    double p_value;
-    if (degrees_of_freedom == 1) {
-        p_value = (chi_squared > critical_value) ? detail::ALPHA_01
-                                                 : detail::AD_THRESHOLD_1;  // Rough approximation
-    } else {
-        // For higher df, use a rough approximation
-        const double mean_chi = degrees_of_freedom;
-        const double std_chi = std::sqrt(detail::TWO * degrees_of_freedom);
-        const double z_score = (chi_squared - mean_chi) / std_chi;
-        p_value = (z_score > detail::Z_95)
-                      ? 0.025
-                      : detail::AD_THRESHOLD_1;  // Very rough normal approximation
-    }
-
+    const double p_value = detail::ONE - detail::chi_squared_cdf(chi_squared,
+                                                                   static_cast<double>(degrees_of_freedom));
     const bool reject_null = p_value < alpha;
 
     return std::make_tuple(chi_squared, p_value, reject_null);
@@ -1215,7 +1185,6 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const int cached_range = dist.range_;
-            const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
@@ -1227,13 +1196,9 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                         res[i] = detail::ONE;
                     } else {
                         const int k = static_cast<int>(std::floor(vals[i]));
-                        if (cached_is_binary) {
-                            res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                        } else {
-                            const int numerator = k - cached_a + detail::ONE_INT;
-                            res[i] =
-                                static_cast<double>(numerator) / static_cast<double>(cached_range);
-                        }
+                        const int numerator = k - cached_a + detail::ONE_INT;
+                        res[i] =
+                            static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
                 });
             } else {
@@ -1245,13 +1210,9 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                         res[i] = detail::ONE;
                     } else {
                         const int k = static_cast<int>(std::floor(vals[i]));
-                        if (cached_is_binary) {
-                            res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                        } else {
-                            const int numerator = k - cached_a + detail::ONE_INT;
-                            res[i] =
-                                static_cast<double>(numerator) / static_cast<double>(cached_range);
-                        }
+                        const int numerator = k - cached_a + detail::ONE_INT;
+                        res[i] =
+                            static_cast<double>(numerator) / static_cast<double>(cached_range);
                     }
                 }
             }
@@ -1282,7 +1243,6 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
             const int cached_a = dist.a_;
             const int cached_b = dist.b_;
             const int cached_range = dist.range_;
-            const bool cached_is_binary = dist.isBinary_;
             lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
@@ -1293,12 +1253,8 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                     res[i] = detail::ONE;
                 } else {
                     const int k = static_cast<int>(std::floor(vals[i]));
-                    if (cached_is_binary) {
-                        res[i] = (k >= 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                    } else {
-                        const int numerator = k - cached_a + detail::ONE_INT;
-                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
+                    const int numerator = k - cached_a + detail::ONE_INT;
+                    res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
                 }
             });
         });

@@ -202,7 +202,11 @@ double gamma_q(double a, double x) noexcept {
     }
 
     // For large x, use continued fraction expansion for Q(a,x)
+    // Guard b before dividing: when x = a-1 exactly, b = 0 and d would be ±inf
+    // before the abs(d)<ZERO clamp inside the loop executes. Mirror the pattern
+    // used in beta_continued_fraction.
     double b = x + detail::ONE - a;
+    if (std::abs(b) < detail::ZERO) b = detail::ZERO;
     double c = detail::LARGE_CONTINUED_FRACTION_VALUE;
     double d = detail::ONE / b;
     double h = d;

@@ -559,10 +559,12 @@ void VectorOps::vector_erf_avx512(const double* values, double* results,
         result = _mm512_mask_blend_pd(m2 & ~m1,        result, r2);   // R2
         result = _mm512_mask_blend_pd(m1,               result, r1);  // R1
 
-        // Propagate NaN, restore sign (erf is odd)
+        // Restore sign (erf is odd), then propagate NaN.
+        // Order matters: or_pd must come first so NaN lanes are overwritten with
+        // the original x (which carries its own sign), not a sign-corrupted NaN.
+        result = _mm512_or_pd(result, sign);  // AVX-512DQ
         __mmask8 nan_mask = _mm512_cmp_pd_mask(x, x, _CMP_UNORD_Q);
         result = _mm512_mask_blend_pd(nan_mask, result, x);
-        result = _mm512_or_pd(result, sign);  // AVX-512DQ
 
         _mm512_storeu_pd(&results[i], result);
     }

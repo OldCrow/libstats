@@ -327,11 +327,13 @@ double ParetoDistribution::getCumulativeProbability(double x) const {
 }
 
 double ParetoDistribution::getQuantile(double p) const {
-    if (p < detail::ZERO_DOUBLE || p >= detail::ONE) {
-        throw std::invalid_argument("Probability must be in [0, 1) for Pareto distribution");
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
+        throw std::invalid_argument("Probability must be in [0, 1] for Pareto distribution");
     }
     if (p == detail::ZERO_DOUBLE)
         return scale_;
+    if (p == detail::ONE)
+        return std::numeric_limits<double>::infinity();
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {

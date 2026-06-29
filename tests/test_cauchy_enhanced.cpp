@@ -195,6 +195,16 @@ TEST_F(CauchyEnhancedTest, SetterPropagates) {
 
 // ─── MLE fit ─────────────────────────────────────────────────────────────────
 
+TEST_F(CauchyEnhancedTest, MLEFitSingleObservation) {
+    auto c = CauchyDistribution::create().value;
+    // Single observation: x0_hat should equal the observation; gamma falls to default.
+    EXPECT_NO_THROW(c.fit({5.0}));
+    EXPECT_NEAR(c.getX0(), 5.0, 1e-6);
+    // gamma should be positive and finite.
+    EXPECT_GT(c.getGamma(), 0.0);
+    EXPECT_TRUE(std::isfinite(c.getGamma()));
+}
+
 TEST_F(CauchyEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
     auto source = CauchyDistribution::create(2.0, 1.5).value;

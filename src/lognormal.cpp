@@ -548,8 +548,9 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                     if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                     } else {
-                        const double z = std::log(x) - mu;
-                        res[i] = std::exp(neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const);
+                        const double log_x = std::log(x);
+                        const double z = log_x - mu;
+                        res[i] = std::exp(neg_inv_2sigma2 * z * z - log_x + log_norm_const);
                     }
                 });
             } else {
@@ -558,8 +559,9 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                     if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                     } else {
-                        const double z = std::log(x) - mu;
-                        res[i] = std::exp(neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const);
+                        const double log_x = std::log(x);
+                        const double z = log_x - mu;
+                        res[i] = std::exp(neg_inv_2sigma2 * z * z - log_x + log_norm_const);
                     }
                 }
             }
@@ -591,8 +593,9 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                 if (x <= detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;
                 } else {
-                    const double z = std::log(x) - mu;
-                    res[i] = std::exp(neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const);
+                    const double log_x = std::log(x);
+                    const double z = log_x - mu;
+                    res[i] = std::exp(neg_inv_2sigma2 * z * z - log_x + log_norm_const);
                 }
             });
             pool.waitForAll();
@@ -649,8 +652,9 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                     if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::NEGATIVE_INFINITY;
                     } else {
-                        const double z = std::log(x) - mu;
-                        res[i] = neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const;
+                        const double log_x = std::log(x);
+                        const double z = log_x - mu;
+                        res[i] = neg_inv_2sigma2 * z * z - log_x + log_norm_const;
                     }
                 });
             } else {
@@ -659,8 +663,9 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                     if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::NEGATIVE_INFINITY;
                     } else {
-                        const double z = std::log(x) - mu;
-                        res[i] = neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const;
+                        const double log_x = std::log(x);
+                        const double z = log_x - mu;
+                        res[i] = neg_inv_2sigma2 * z * z - log_x + log_norm_const;
                     }
                 }
             }
@@ -692,8 +697,9 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                 if (x <= detail::ZERO_DOUBLE) {
                     res[i] = detail::NEGATIVE_INFINITY;
                 } else {
-                    const double z = std::log(x) - mu;
-                    res[i] = neg_inv_2sigma2 * z * z - std::log(x) + log_norm_const;
+                    const double log_x = std::log(x);
+                    const double z = log_x - mu;
+                    res[i] = neg_inv_2sigma2 * z * z - log_x + log_norm_const;
                 }
             });
             pool.waitForAll();

@@ -82,7 +82,10 @@ SIMDPolicy::Level SIMDPolicy::getBestLevel() noexcept {
 }
 
 void SIMDPolicy::refreshCache() noexcept {
-    g_simd_state.initialized.store(false, std::memory_order_release);
+    // Re-run detection directly: std::call_once fires only once per once_flag
+    // lifetime, so clearing `initialized` and relying on call_once to re-run
+    // initialize() does not work — call_once would skip it the second time.
+    g_simd_state.initialize();
 }
 
 std::size_t SIMDPolicy::getMinThreshold() noexcept {

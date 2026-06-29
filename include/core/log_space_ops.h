@@ -120,7 +120,7 @@ class LogSpaceOps {
 
    private:
     /// SIMD implementations
-    static double logSumExpArraySIMD(const double* logValues, std::size_t size) noexcept;
+    static double logSumExpArrayFallback(const double* logValues, std::size_t size) noexcept;
     static double logSumExpArrayScalar(const double* logValues, std::size_t size) noexcept;
 };
 

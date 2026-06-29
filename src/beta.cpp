@@ -364,10 +364,20 @@ double BetaDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> BetaDistribution::sample(std::mt19937& rng, size_t n) const {
+    // Read parameters once under a single lock to avoid n lock acquisitions.
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    const double a = alpha_, b = beta_;
+    lock.unlock();
+
+    std::gamma_distribution<double> gamma_a(a, detail::ONE);
+    std::gamma_distribution<double> gamma_b(b, detail::ONE);
     std::vector<double> samples;
     samples.reserve(n);
     for (size_t i = 0; i < n; ++i) {
-        samples.push_back(sample(rng));
+        const double x = gamma_a(rng);
+        const double y = gamma_b(rng);
+        const double sum = x + y;
+        samples.push_back(sum <= detail::ZERO_DOUBLE ? detail::HALF : x / sum);
     }
     return samples;
 }
@@ -586,6 +596,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
+            pool.waitForAll();
         });
 }
 
@@ -673,6 +684,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
+            pool.waitForAll();
         });
 }
 
@@ -735,6 +747,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
                 else
                     res[i] = detail::beta_i(x, a, b, log_prefix);
             });
+            pool.waitForAll();
         });
 }
 

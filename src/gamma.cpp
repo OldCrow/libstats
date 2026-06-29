@@ -426,11 +426,68 @@ double GammaDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> GammaDistribution::sample(std::mt19937& rng, size_t n) const {
+    // Read parameters once under a single lock to avoid n lock acquisitions.
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (!cache_valid_) {
+        lock.unlock();
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) updateCacheUnsafe();
+        ulock.unlock();
+        lock.lock();
+    }
+    const double cached_alpha = alpha_;
+    const double cached_beta  = beta_;
+    lock.unlock();
+
     std::vector<double> samples;
     samples.reserve(n);
 
-    for (size_t i = 0; i < n; ++i) {
-        samples.push_back(sample(rng));
+    if (cached_alpha >= detail::ONE) {
+        // Marsaglia-Tsang method for α ≥ 1
+        std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
+        std::normal_distribution<double> normal(detail::ZERO_DOUBLE, detail::ONE);
+        const double d = cached_alpha - detail::ONE / detail::THREE;
+        const double c = detail::ONE / std::sqrt(detail::NINE * d);
+        for (size_t i = 0; i < n; ++i) {
+            double x, v;
+            do {
+                x = normal(rng);
+                v = detail::ONE + c * x;
+            } while (v <= detail::ZERO_DOUBLE);
+            v = v * v * v;
+            double u = uniform(rng);
+            if (u < detail::ONE - 0.0331 * (x * x) * (x * x)) {
+                samples.push_back(d * v / cached_beta);
+                continue;
+            }
+            if (std::log(u) < detail::HALF * x * x + d * (detail::ONE - v + std::log(v))) {
+                samples.push_back(d * v / cached_beta);
+                continue;
+            }
+            --i;  // rejection — retry
+        }
+    } else {
+        // Ahrens-Dieter method for α < 1
+        std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
+        const double b = (detail::E + cached_alpha) / detail::E;
+        for (size_t i = 0; i < n; ++i) {
+            double u = uniform(rng);
+            double p = b * u;
+            if (p <= detail::ONE) {
+                double x = std::pow(p, detail::ONE / cached_alpha);
+                if (uniform(rng) <= std::exp(-x)) {
+                    samples.push_back(x / cached_beta);
+                    continue;
+                }
+            } else {
+                double x = -std::log((b - p) / cached_alpha);
+                if (uniform(rng) <= std::pow(x, cached_alpha - detail::ONE)) {
+                    samples.push_back(x / cached_beta);
+                    continue;
+                }
+            }
+            --i;  // rejection — retry
+        }
     }
 
     return samples;
@@ -795,6 +852,7 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                                       cached_beta * x - cached_log_gamma_alpha);
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -921,6 +979,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                              cached_alpha_minus_one * std::log(x) - cached_beta * x;
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -1040,6 +1099,7 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                     res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
                 }
             });
+            pool.waitForAll();
         });
 }
 

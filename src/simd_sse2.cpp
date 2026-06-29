@@ -389,10 +389,12 @@ void VectorOps::vector_erf_sse2(const double* input, double* output, std::size_t
         result = SSE2_BLEND(m34, r34, result);
         result = SSE2_BLEND(_mm_andnot_pd(m1, m2), r2, result);
         result = SSE2_BLEND(m1, r1, result);
-        // Propagate NaN
+        // Restore sign (erf is odd), then propagate NaN.
+        // Order matters: or_pd must come first so NaN lanes are overwritten with
+        // the original x (which carries its own sign), not a sign-corrupted NaN.
+        result = _mm_or_pd(result, sign);
         __m128d nan_mask = _mm_cmpunord_pd(x, x);
         result = SSE2_BLEND(nan_mask, x, result);
-        result = _mm_or_pd(result, sign);
         _mm_storeu_pd(&output[i], result);
     }
 

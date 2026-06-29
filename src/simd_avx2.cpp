@@ -538,9 +538,9 @@ void VectorOps::vector_erf_avx2(const double* input, double* output, std::size_t
             _mm256_blendv_pd(result, r34, _mm256_andnot_pd(m2, _mm256_cmp_pd(ax, t5, _CMP_LT_OQ)));
         result = _mm256_blendv_pd(result, r2, _mm256_andnot_pd(m1, m2));
         result = _mm256_blendv_pd(result, r1, m1);
+        result = _mm256_or_pd(result, sign);
         __m256d nan_mask = _mm256_cmp_pd(x, x, _CMP_UNORD_Q);
         result = _mm256_blendv_pd(result, x, nan_mask);
-        result = _mm256_or_pd(result, sign);
         _mm256_storeu_pd(&output[i], result);
     }
 

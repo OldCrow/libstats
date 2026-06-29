@@ -208,7 +208,8 @@ double StudentTDistribution::getProbability(double x) const {
         ulock.unlock();
         lock.lock();
     }
-    return std::exp(logNormConst_ + negHalfNuPlusOne_ * std::log(detail::ONE + x * x * invNu_));
+    // std::log1p(x²/ν) avoids catastrophic cancellation near x≈0 vs log(1+x²/ν)
+    return std::exp(logNormConst_ + negHalfNuPlusOne_ * std::log1p(x * x * invNu_));
 }
 
 double StudentTDistribution::getLogProbability(double x) const {
@@ -222,7 +223,7 @@ double StudentTDistribution::getLogProbability(double x) const {
         ulock.unlock();
         lock.lock();
     }
-    return logNormConst_ + negHalfNuPlusOne_ * std::log(detail::ONE + x * x * invNu_);
+    return logNormConst_ + negHalfNuPlusOne_ * std::log1p(x * x * invNu_);
 }
 
 double StudentTDistribution::getCumulativeProbability(double x) const {
@@ -258,10 +259,20 @@ double StudentTDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> StudentTDistribution::sample(std::mt19937& rng, size_t n) const {
+    // Read parameters once to avoid n lock acquisitions.
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    const double cached_half_nu = halfNu_;
+    const double cached_nu = nu_;
+    lock.unlock();
+
+    std::normal_distribution<double> normal(detail::ZERO_DOUBLE, detail::ONE);
+    std::gamma_distribution<double> gamma_gen(cached_half_nu, detail::TWO);
     std::vector<double> samples;
     samples.reserve(n);
     for (size_t i = 0; i < n; ++i) {
-        samples.push_back(sample(rng));
+        const double z = normal(rng);
+        const double chi2 = gamma_gen(rng);
+        samples.push_back(z / std::sqrt(chi2 / cached_nu));
     }
     return samples;
 }
@@ -488,6 +499,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
             });
+            pool.waitForAll();
         });
 }
 
@@ -554,6 +566,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
             });
+            pool.waitForAll();
         });
 }
 
@@ -598,6 +611,7 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count,
                              [&](std::size_t i) { res[i] = detail::t_cdf(vals[i], cached_nu); });
+            pool.waitForAll();
         });
 }
 

@@ -245,11 +245,13 @@ double RayleighDistribution::getCumulativeProbability(double x) const {
 }
 
 double RayleighDistribution::getQuantile(double p) const {
-    if (p < detail::ZERO_DOUBLE || p >= detail::ONE) {
-        throw std::invalid_argument("Probability must be in [0, 1) for Rayleigh distribution");
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
+        throw std::invalid_argument("Probability must be in [0, 1] for Rayleigh distribution");
     }
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
+    if (p == detail::ONE)
+        return std::numeric_limits<double>::infinity();
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {

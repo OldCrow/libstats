@@ -1115,38 +1115,7 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
                                                         std::size_t count, double lambda,
                                                         double log_lambda,
                                                         double exp_neg_lambda) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
-
-    if (!use_simd) {
-        // Use scalar implementation
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
-                continue;
-            }
-
-            int k = roundToNonNegativeInt(values[i]);
-            if (!isValidCount(values[i])) {
-                results[i] = detail::ZERO_DOUBLE;
-                continue;
-            }
-
-            if (k == 0) {
-                results[i] = exp_neg_lambda;
-            } else if (lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                       k < static_cast<int>(FACTORIAL_CACHE.size())) {
-                results[i] = std::pow(lambda, k) * exp_neg_lambda /
-                             FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-            } else {
-                double log_result = k * log_lambda - lambda - logFactorial(k);
-                results[i] = std::exp(log_result);
-            }
-        }
-        return;
-    }
-
-    // If SIMD is enabled but no vectorized implementation available, fall back to scalar
+    // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
@@ -1163,8 +1132,8 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             results[i] = exp_neg_lambda;
         } else if (lambda < detail::SMALL_LAMBDA_THRESHOLD &&
                    k < static_cast<int>(FACTORIAL_CACHE.size())) {
-            results[i] =
-                std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+            results[i] = std::pow(lambda, k) * exp_neg_lambda /
+                         FACTORIAL_CACHE[static_cast<std::size_t>(k)];
         } else {
             double log_result = k * log_lambda - lambda - logFactorial(k);
             results[i] = std::exp(log_result);
@@ -1175,29 +1144,7 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
 void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                            std::size_t count, double lambda,
                                                            double log_lambda) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
-
-    if (!use_simd) {
-        // Use scalar implementation
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < detail::ZERO_DOUBLE) {
-                results[i] = detail::MIN_LOG_PROBABILITY;
-                continue;
-            }
-
-            int k = roundToNonNegativeInt(values[i]);
-            if (!isValidCount(values[i])) {
-                results[i] = detail::MIN_LOG_PROBABILITY;
-                continue;
-            }
-
-            results[i] = k * log_lambda - lambda - logFactorial(k);
-        }
-        return;
-    }
-
-    // If SIMD is enabled but no vectorized implementation available, fall back to scalar
+    // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::MIN_LOG_PROBABILITY;
@@ -1218,29 +1165,7 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
                                                                   double* results,
                                                                   std::size_t count,
                                                                   double lambda) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
-
-    if (!use_simd) {
-        // Use scalar implementation
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
-                continue;
-            }
-
-            int k = roundToNonNegativeInt(values[i]);
-            if (!isValidCount(values[i])) {
-                results[i] = detail::ONE;
-                continue;
-            }
-
-            results[i] = detail::gamma_q(k + 1, lambda);
-        }
-        return;
-    }
-
-    // If SIMD is enabled but no vectorized implementation available, fall back to scalar
+    // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
