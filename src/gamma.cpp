@@ -1572,8 +1572,8 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
     const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
 
     for (int i = 0; i < max_iterations; ++i) {
-        double digamma_alpha = GammaDistribution::computeDigamma(alpha_est);
-        double trigamma_alpha = GammaDistribution::computeTrigamma(alpha_est);
+        double digamma_alpha  = detail::digamma(alpha_est);
+        double trigamma_alpha = detail::trigamma(alpha_est);
 
         double f = std::log(alpha_est) - digamma_alpha - s;
         double df = detail::ONE / alpha_est - trigamma_alpha;
@@ -1601,67 +1601,9 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
 // 20. PRIVATE UTILITY METHODS
 //==============================================================================
 
-double GammaDistribution::computeDigamma(double x) noexcept {
-    // Digamma function ψ(x) = d/dx log(Γ(x))
-    // Uses asymptotic series for large x and reflection formula for small x
-
-    if (x <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    // For small x, use reflection formula: ψ(x) = ψ(1-x) - π*cot(π*x)
-    // But this is complex, so we use recurrence relation: ψ(x+1) = ψ(x) + 1/x
-    double result = detail::ZERO_DOUBLE;
-    double z = x;
-
-    // Use recurrence to get z >= 8 for asymptotic series
-    while (z < 8.0) {
-        result -= detail::ONE / z;
-        z += detail::ONE;
-    }
-
-    // Asymptotic series for large z
-    // ψ(z) ≈ log(z) - 1/(2z) - 1/(12z²) + 1/(120z⁴) - 1/(252z⁶) + ...
-    double z_inv = detail::ONE / z;
-    double z_inv_sq = z_inv * z_inv;
-
-    result += std::log(z) - detail::HALF * z_inv;
-    result -= z_inv_sq / 12.0;                         // Bernoulli B₂/2
-    result += z_inv_sq * z_inv_sq / 120.0;             // Bernoulli B₄/4
-    result -= z_inv_sq * z_inv_sq * z_inv_sq / 252.0;  // Bernoulli B₆/6
-
-    return result;
-}
-
-double GammaDistribution::computeTrigamma(double x) noexcept {
-    // Trigamma function ψ'(x) = d²/dx² log(Γ(x))
-    // Uses asymptotic series for large x and recurrence relation
-
-    if (x <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    double result = detail::ZERO_DOUBLE;
-    double z = x;
-
-    // Use recurrence: ψ'(x+1) = ψ'(x) - 1/x²
-    while (z < 8.0) {
-        result += detail::ONE / (z * z);
-        z += detail::ONE;
-    }
-
-    // Asymptotic series for large z
-    // ψ'(z) ≈ 1/z + 1/(2z²) + 1/(6z³) - 1/(30z⁵) + 1/(42z⁷) - ...
-    double z_inv = detail::ONE / z;
-    double z_inv_sq = z_inv * z_inv;
-
-    result += z_inv + detail::HALF * z_inv_sq;
-    result += z_inv_sq * z_inv / detail::SIX;                 // 1/(6z³)
-    result -= z_inv_sq * z_inv_sq * z_inv / 30.0;             // -1/(30z⁵)
-    result += z_inv_sq * z_inv_sq * z_inv_sq * z_inv / 42.0;  // 1/(42z⁷)
-
-    return result;
-}
+// computeDigamma and computeTrigamma removed: use detail::digamma / detail::trigamma
+// from math_utils.h. These shared implementations are more accurate (A&S §6.3/6.4)
+// and improvements propagate automatically to Gamma, Beta, and StudentT MLE.
 
 //==============================================================================
 // 21. DISTRIBUTION PARAMETERS

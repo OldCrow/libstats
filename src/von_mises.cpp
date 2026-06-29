@@ -357,27 +357,84 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
     return std::clamp(sum * h, detail::ZERO_DOUBLE, detail::ONE);
 }
 
+void VonMisesDistribution::buildCdfGrid() const noexcept {
+    // Build a 2049-point CDF grid at equally-spaced angles in [−π, π].
+    // CDF values are computed with respect to mu_=0 so the grid is independent
+    // of mu_ and only needs rebuilding when kappa_ changes.
+    // Called under cache_mutex_ (unique lock held by getQuantile).
+    constexpr int N = 2048;
+    cdfGridAngles_.resize(N + 1);
+    cdfGridValues_.resize(N + 1);
+
+    const double kappa   = kappa_;
+    const double lnorm   = logNormaliser_;
+    const double h       = detail::TWO_PI / static_cast<double>(N);
+    constexpr int TRAP_N = 512;  // trapezoidal steps per CDF evaluation
+    auto pdf = [&](double t) { return std::exp(kappa * std::cos(t) - lnorm); };
+
+    // Accumulate CDF from -PI to each grid point using running trapezoidal sum.
+    // Each segment [angles[i], angles[i+1]] uses TRAP_N trapezoid steps.
+    double running = detail::ZERO_DOUBLE;
+    cdfGridAngles_[0] = -detail::PI;
+    cdfGridValues_[0] = detail::ZERO_DOUBLE;
+
+    for (int i = 0; i < N; ++i) {
+        const double a   = -detail::PI + static_cast<double>(i)     * h;
+        const double b   = -detail::PI + static_cast<double>(i + 1) * h;
+        const double dh  = (b - a) / static_cast<double>(TRAP_N);
+        double seg = detail::HALF * (pdf(a) + pdf(b));
+        for (int j = 1; j < TRAP_N; ++j)
+            seg += pdf(a + static_cast<double>(j) * dh);
+        running += seg * dh;
+        cdfGridAngles_[i + 1] = b;
+        cdfGridValues_[i + 1] = running;
+    }
+    // Normalize so cdfGridValues_[N] == 1
+    if (running > detail::ZERO_DOUBLE) {
+        for (int i = 0; i <= N; ++i)
+            cdfGridValues_[i] /= running;
+    }
+    cdfGridValues_[N] = detail::ONE;  // enforce exactly 1 at +PI
+    cdfGridKappa_ = kappa;
+}
+
 double VonMisesDistribution::getQuantile(double p) const {
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1]");
     }
     if (p == detail::ZERO_DOUBLE)
-        return -detail::PI;
+        return wrapAngle(-detail::PI + mu_);
     if (p == detail::ONE)
-        return detail::PI;
+        return wrapAngle( detail::PI + mu_);
 
-    // Bisection on CDF in (−π, π].
-    double lo = -detail::PI, hi = detail::PI;
-    for (int i = 0; i < 60; ++i) {
-        const double mid = (lo + hi) * detail::HALF;
-        if (getCumulativeProbability(mid) < p)
-            lo = mid;
-        else
-            hi = mid;
-        if ((hi - lo) < 1e-12)
-            break;
+    // Ensure CDF grid is built for the current kappa.
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) updateCacheUnsafe();
+        if (cdfGridKappa_ != kappa_)
+            buildCdfGrid();
     }
-    return (lo + hi) * detail::HALF;
+
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    const double mu = mu_;
+    const auto& gv  = cdfGridValues_;
+    const auto& ga  = cdfGridAngles_;
+    lock.unlock();
+
+    // Binary search for p in cdfGridValues_ (mu=0 grid).
+    const auto it = std::lower_bound(gv.begin(), gv.end(), p);
+    if (it == gv.end())
+        return wrapAngle(detail::PI + mu);
+    if (it == gv.begin())
+        return wrapAngle(-detail::PI + mu);
+
+    const std::size_t hi_idx = static_cast<std::size_t>(it - gv.begin());
+    const std::size_t lo_idx = hi_idx - 1;
+    const double v0 = gv[lo_idx], v1 = gv[hi_idx];
+    const double a0 = ga[lo_idx], a1 = ga[hi_idx];
+    // Linear interpolation between grid points
+    const double t = (v1 > v0) ? (p - v0) / (v1 - v0) : detail::HALF;
+    return wrapAngle(a0 + t * (a1 - a0) + mu);
 }
 
 double VonMisesDistribution::sample(std::mt19937& rng) const {

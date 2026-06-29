@@ -433,8 +433,20 @@ class VonMisesDistribution : public DistributionBase {
     // 24. SPECIALIZED CACHES
     //==========================================================================
 
-    // Note: Von Mises uses standard caching only.
-    // Section maintained for template compliance.
+    /**
+     * @brief Lazily-initialized CDF grid for O(log N) quantile lookup.
+     *
+     * Built on first getQuantile() call with a given κ. 2049 uniformly-spaced
+     * angles in [−π, π] and their CDF values. Binary search + linear interpolation
+     * replaces the 60-step bisection that called the 512-point trapezoidal CDF.
+     * Thread safety: guarded by cache_mutex_; rebuilt when κ changes.
+     */
+    mutable std::vector<double> cdfGridAngles_;   ///< angles[i] = -PI + i*h, i in [0,2048]
+    mutable std::vector<double> cdfGridValues_;   ///< CDF(angles[i]; mu_=0, current kappa_)
+    mutable double cdfGridKappa_{-1.0};           ///< kappa for which grid was built; -1=unbuilt
+
+    /** @brief Build cdfGrid* for the current kappa_. Called under cache_mutex_. */
+    void buildCdfGrid() const noexcept;
 };
 
 }  // namespace stats

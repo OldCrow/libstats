@@ -420,10 +420,11 @@ void VectorOps::vector_pow_neon(const double* base, double exponent, double* res
     if (!stats::arch::supports_neon()) {
         return vector_pow_fallback(base, exponent, result, size);
     }
-    // NEON doesn't have native power instructions, use scalar implementation
-    for (std::size_t i = 0; i < size; ++i) {
-        result[i] = std::pow(base[i], exponent);
-    }
+    // Native 2-wide NEON path: pow(x, e) = exp(e * log(x)).
+    // vector_log_neon and vector_exp_neon are both fully implemented (v1.5.0).
+    vector_log_neon(base, result, size);                  // result = log(base)
+    scalar_multiply_neon(result, exponent, result, size); // result = e * log(base)
+    vector_exp_neon(result, result, size);                // result = exp(e * log(base))
 }
 
 void VectorOps::vector_pow_elementwise_neon(const double* base, const double* exponent,

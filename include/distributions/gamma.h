@@ -7,6 +7,9 @@
 // caching, etc.)
 #include "libstats/common/distribution_platform_common.h"
 
+// For detail::digamma() used in updateCacheUnsafe()
+#include "libstats/core/math_utils.h"
+
 namespace stats {
 
 /**
@@ -906,7 +909,7 @@ class GammaDistribution : public DistributionBase {
         variance_ = mean_ * scale_;
 
         // Advanced functions
-        digammaAlpha_ = GammaDistribution::computeDigamma(alpha_);
+        digammaAlpha_ = detail::digamma(alpha_);
         sqrtAlpha_ = std::sqrt(alpha_);
 
         // Optimization flags
@@ -945,17 +948,8 @@ class GammaDistribution : public DistributionBase {
     // 20. PRIVATE UTILITY METHODS
     //==========================================================================
 
-    /**
-     * Computes the digamma function ψ(x) = d/dx log(Γ(x))
-     * Uses series expansion and asymptotic approximation
-     */
-    static double computeDigamma(double x) noexcept;
-
-    /**
-     * Computes the trigamma function ψ'(x) = d²/dx² log(Γ(x))
-     * Uses series expansion and asymptotic approximation
-     */
-    static double computeTrigamma(double x) noexcept;
+    // computeDigamma / computeTrigamma removed (item 8): use detail::digamma and
+    // detail::trigamma from math_utils.h instead. Improvements propagate to Gamma.
 
     //==========================================================================
     // 21. DISTRIBUTION PARAMETERS

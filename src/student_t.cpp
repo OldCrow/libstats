@@ -332,56 +332,47 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
         x2[i] = values[i] * values[i];
     }
 
-    // Newton-Raphson on the score equation:
+    // Newton-Raphson on the score equation S(nu) = 0:
     //   S(nu) = n*[psi((nu+1)/2) - psi(nu/2) - 1/nu]
     //           - sum(log(1 + xi^2/nu))
     //           + ((nu+1)/nu) * sum(xi^2 / (nu + xi^2))
     //
-    // Derivative dS/dnu (for Newton step):
+    // Exact derivative (replaces 3-point finite differences which cost 3n digamma evals/step):
     //   S'(nu) = n/2 * [psi'((nu+1)/2) - psi'(nu/2)] + n/nu^2
-    //            + (1/nu^2) * sum(xi^2 * (nu - xi^2) / (nu + xi^2)^2)
-    //            ... approximated numerically for simplicity
-    //
-    // We use a simpler robust approach: numerical derivative via finite difference.
+    //            - (1/nu^2) * sum(xi^2 * (xi^2 - nu) / (nu + xi^2)^2)   [data term]
+    // = 2 trigamma calls + 1 additional data pass.
+    // Beta already uses the same exact-derivative pattern; StudentT converges in fewer steps.
 
     const int max_iter = 50;
     const double tol = 1e-8;
     double nu = nu_est;
 
-    auto score = [&](double v) -> double {
-        double psi_plus = detail::digamma((v + detail::ONE) * detail::HALF);
-        double psi_half = detail::digamma(v * detail::HALF);
-        double s = n * (psi_plus - psi_half - detail::ONE / v);
-        for (double xi2 : x2) {
-            s -= std::log(detail::ONE + xi2 / v);
-            s += (v + detail::ONE) / v * xi2 / (v + xi2);
-        }
-        return s;
-    };
-
     for (int iter = 0; iter < max_iter; ++iter) {
-        const double s = score(nu);
-        if (std::abs(s) < tol * n) {
-            break;
+        // Score S(nu)
+        const double psi_plus = detail::digamma((nu + detail::ONE) * detail::HALF);
+        const double psi_half = detail::digamma(nu * detail::HALF);
+        double s = n * (psi_plus - psi_half - detail::ONE / nu);
+        // Exact derivative S'(nu)
+        const double tpsi_plus = detail::trigamma((nu + detail::ONE) * detail::HALF);
+        const double tpsi_half = detail::trigamma(nu * detail::HALF);
+        double ds = n * (detail::HALF * (tpsi_plus - tpsi_half) + detail::ONE / (nu * nu));
+
+        for (double xi2 : x2) {
+            const double nu_xi2 = nu + xi2;
+            s  -= std::log(detail::ONE + xi2 / nu);
+            s  += (nu + detail::ONE) / nu * xi2 / nu_xi2;
+            ds -= xi2 * (xi2 - nu) / (nu * nu * nu_xi2 * nu_xi2);
         }
 
-        // Numerical derivative
-        const double h = nu * 1e-5;
-        const double ds = (score(nu + h) - score(nu - h)) / (detail::TWO * h);
-
-        if (std::abs(ds) < 1e-15) {
-            break;  // Flat; can't iterate
-        }
+        if (std::abs(s) < tol * n) break;
+        if (std::abs(ds) < 1e-15)  break;  // Flat; can't iterate
 
         double step = s / ds;
-        // Clamp step to avoid moving outside the valid domain
-        step = std::max(step, -(nu - 0.1));
+        step = std::max(step, -(nu - 0.1));  // clamp away from nu=0
         nu -= step;
         nu = std::clamp(nu, 0.1, NU_MAX);
 
-        if (std::abs(step) < tol) {
-            break;
-        }
+        if (std::abs(step) < tol) break;
     }
 
     setNu(nu);

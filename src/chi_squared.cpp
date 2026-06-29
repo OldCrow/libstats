@@ -99,14 +99,15 @@ ChiSquaredDistribution::ChiSquaredDistribution(double k, bool /*bypassValidation
 
 void ChiSquaredDistribution::setK(double k) {
     validateParameters(k);
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    k_ = k;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
-    // gamma_ is synced lazily by updateCacheUnsafe() on the next cache miss.
-    // Do NOT call gamma_.trySetAlpha() here: concurrent setK() calls could
-    // interleave the post-lock trySetAlpha(), leaving k_ and gamma_.alpha_
-    // inconsistent until the next cache refresh.
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        k_ = k;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+    }
+    // Sync gamma_ outside our lock — same pattern as reset(). gamma_ is private,
+    // so no external thread can acquire its lock while we don't hold ours.
+    (void)gamma_.trySetAlpha(k / detail::TWO);
 }
 
 VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
@@ -114,10 +115,13 @@ VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
     if (validation.isError()) {
         return validation;
     }
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    k_ = k;
-    cache_valid_ = false;
-    cacheValidAtomic_.store(false, std::memory_order_release);
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        k_ = k;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+    }
+    (void)gamma_.trySetAlpha(k / detail::TWO);
     return VoidResult::ok({});
 }
 

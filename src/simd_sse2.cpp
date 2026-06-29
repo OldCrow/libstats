@@ -155,18 +155,92 @@ void VectorOps::scalar_add_sse2(const double* a, double scalar, double* result,
     }
 }
 
-// SSE2 doesn't have native exp/log/pow/erf instructions, so we use scalar fallback
-// with SSE2 register management for better cache usage
+// SSE2 blend helper — must be defined before vector_log_sse2 and vector_erf_sse2 use it.
+// Selects true_val where mask = all-ones, false_val elsewhere (no SSE4.1 blendv).
+#define SSE2_BLEND(mask, true_val, false_val) \
+    _mm_or_pd(_mm_and_pd((mask), (true_val)), _mm_andnot_pd((mask), (false_val)))
+
+// SSE2 2-wide vector_exp and vector_log: same SLEEF Horner polynomial as AVX,
+// ported to __m128d. No FMA on SSE2 — use mul+add. No _mm_round_pd (SSE4.1) —
+// use magic-number rounding. No _mm_cvtepi32_epi64 (SSE4.1) — use unpacklo+slli.
+// Unlocks vector_erf_sse2's inner exp call: erf regions 3-4 now run 2-wide.
 
 void VectorOps::vector_exp_sse2(const double* values, double* results, std::size_t size) noexcept {
     if (!stats::arch::supports_sse2()) {
         return vector_exp_fallback(values, results, size);
     }
 
-    // SSE2 lacks exp intrinsics, use scalar math
-    for (std::size_t i = 0; i < size; ++i) {
-        results[i] = std::exp(values[i]);
+    // Constants (identical coefficients to AVX/AVX2/AVX-512 paths)
+    const __m128d ln2_inv = _mm_set1_pd(1.4426950408889634073599246810019);
+    const __m128d ln2_hi  = _mm_set1_pd(0.693147180369123816490e+00);
+    const __m128d ln2_lo  = _mm_set1_pd(1.90821492927058770002e-10);
+    const __m128d exp_max = _mm_set1_pd(709.782712893383996732223);
+    const __m128d exp_min = _mm_set1_pd(-708.0);
+    const __m128d half    = _mm_set1_pd(0.5);
+    const __m128d one     = _mm_set1_pd(1.0);
+    // Magic-number rounding constant: 2^52 + 2^51 = 6755399441055744; adding it to x
+    // rounds x (as double) to integer in the binade [2^51, 2^52], then subtracting it back
+    // yields round(x) without SSE4.1 _mm_round_pd.
+    const __m128d magic   = _mm_set1_pd(6755399441055744.0);
+
+    const __m128d c1  = _mm_set1_pd(0.1666666666666669072e+0);
+    const __m128d c2  = _mm_set1_pd(0.4166666666666602598e-1);
+    const __m128d c3  = _mm_set1_pd(0.8333333333314938210e-2);
+    const __m128d c4  = _mm_set1_pd(0.1388888888914497797e-2);
+    const __m128d c5  = _mm_set1_pd(0.1984126989855865850e-3);
+    const __m128d c6  = _mm_set1_pd(0.2480158687479686264e-4);
+    const __m128d c7  = _mm_set1_pd(0.2755723402025388239e-5);
+    const __m128d c8  = _mm_set1_pd(0.2755762628169491192e-6);
+    const __m128d c9  = _mm_set1_pd(0.2511210703042288022e-7);
+    const __m128d c10 = _mm_set1_pd(0.2081276378237164457e-8);
+
+    constexpr std::size_t W = arch::simd::SSE_DOUBLES;  // 2
+    const std::size_t simd_end = (size / W) * W;
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m128d x = _mm_loadu_pd(&values[i]);
+        x = _mm_min_pd(x, exp_max);
+        x = _mm_max_pd(x, exp_min);
+
+        // Range reduction: n = round(x / ln2) via magic-number trick
+        __m128d n_float = _mm_add_pd(_mm_mul_pd(x, ln2_inv), magic);
+        n_float = _mm_sub_pd(n_float, magic);  // n_float = round(x/ln2)
+
+        // r = x - n*ln2_hi - n*ln2_lo  (two-part ln2 for precision)
+        __m128d r = _mm_sub_pd(x,  _mm_mul_pd(n_float, ln2_hi));
+        r         = _mm_sub_pd(r,  _mm_mul_pd(n_float, ln2_lo));
+
+        // 10-term Horner polynomial P(r)
+        __m128d r2   = _mm_mul_pd(r, r);
+        __m128d poly = c10;
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c9);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c8);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c7);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c6);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c5);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c4);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c3);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c2);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), c1);
+        // Complete: exp(r) = 1 + r + r^2*(0.5 + r*P(r))
+        poly = _mm_add_pd(_mm_mul_pd(poly, r), half);
+        poly = _mm_add_pd(_mm_mul_pd(poly, r2), r);
+        poly = _mm_add_pd(poly, one);
+
+        // Scale by 2^n: convert n to 32-bit int, zero-extend to 64-bit, shift left 52.
+        // _mm_cvttpd_epi32 gives [n0, n1, 0, 0] as 4x32-bit;
+        // _mm_unpacklo_epi32 with zero gives [n0, 0, n1, 0] as 32-bit = [n0, n1] as 64-bit;
+        // add bias 1023 in 64-bit; shift left 52 to place in IEEE 754 exponent field.
+        __m128i n_i32 = _mm_cvttpd_epi32(n_float);  // [n0,n1,0,0] as 4x32-bit
+        __m128i n_i64 = _mm_unpacklo_epi32(n_i32, _mm_setzero_si128()); // zero-extend to 64-bit
+        __m128i ebits = _mm_add_epi64(n_i64, _mm_set1_epi64x(1023LL));
+        ebits         = _mm_slli_epi64(ebits, 52);
+        __m128d scale = _mm_castsi128_pd(ebits);
+
+        _mm_storeu_pd(&results[i], _mm_mul_pd(poly, scale));
     }
+
+    for (std::size_t i = simd_end; i < size; ++i) results[i] = std::exp(values[i]);
 }
 
 void VectorOps::vector_log_sse2(const double* values, double* results, std::size_t size) noexcept {
@@ -174,11 +248,91 @@ void VectorOps::vector_log_sse2(const double* values, double* results, std::size
         return vector_log_fallback(values, results, size);
     }
 
-    // SSE2 lacks log intrinsics, use scalar math with safety check
-    for (std::size_t i = 0; i < size; ++i) {
-        results[i] =
-            values[i] > 0.0 ? std::log(values[i]) : -std::numeric_limits<double>::infinity();
+    const __m128d one     = _mm_set1_pd(1.0);
+    const __m128d half    = _mm_set1_pd(0.5);
+    const __m128d two     = _mm_set1_pd(2.0);
+    const __m128d ln2_hi  = _mm_set1_pd(0.693147180559945286226764);
+    const __m128d ln2_lo  = _mm_set1_pd(2.319046813846299558417771e-17);
+    const __m128d sqrt2   = _mm_set1_pd(1.4142135623730950488016887242097);
+    const __m128d neg_inf = _mm_set1_pd(-std::numeric_limits<double>::infinity());
+    const __m128d pos_inf = _mm_set1_pd( std::numeric_limits<double>::infinity());
+    const __m128d nan_val = _mm_set1_pd(std::numeric_limits<double>::quiet_NaN());
+    const __m128d zero    = _mm_setzero_pd();
+
+    // SLEEF atanh series coefficients (identical to AVX/AVX2 paths)
+    const __m128d c1 = _mm_set1_pd(0.6666666666667333541e+0);
+    const __m128d c2 = _mm_set1_pd(0.3999999999635251990e+0);
+    const __m128d c3 = _mm_set1_pd(0.2857142932794299317e+0);
+    const __m128d c4 = _mm_set1_pd(0.2222214519839380009e+0);
+    const __m128d c5 = _mm_set1_pd(0.1818605932937785996e+0);
+    const __m128d c6 = _mm_set1_pd(0.1525629051003428716e+0);
+    const __m128d c7 = _mm_set1_pd(0.1532076988502701353e+0);
+
+    constexpr std::size_t W = arch::simd::SSE_DOUBLES;  // 2
+    const std::size_t simd_end = (size / W) * W;
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m128d x = _mm_loadu_pd(&values[i]);
+
+        // Special-case detection
+        __m128d is_zero     = _mm_cmpeq_pd(x, zero);
+        __m128d is_negative = _mm_cmplt_pd(x, zero);
+        __m128d is_inf      = _mm_cmpeq_pd(x, pos_inf);
+
+        // Exponent extraction: cast to int, srli_epi64 by 52, mask 11-bit field, subtract 1023.
+        // _mm_srli_epi64 shifts each 64-bit element right: exponent lands in bits [0..10].
+        // _mm_shuffle_epi32 + _mm_cvtepi32_pd converts the two 32-bit exponent values to double
+        // without SSE4.1 _mm_cvtepi64_pd: the exponent fits in 32 bits (0..2046).
+        __m128i xi    = _mm_castpd_si128(x);
+        __m128i exp_i = _mm_srli_epi64(xi, 52);
+        exp_i = _mm_and_si128(exp_i, _mm_set1_epi64x(0x7FFLL));
+        // exp_i = [exp0:64, exp1:64]; lower 32 bits of each 64-bit lane hold the value.
+        // Shuffle to [exp0_lo32, exp1_lo32, _, _] then cvtepi32_pd uses positions [0] and [1].
+        __m128i exp_i32 = _mm_shuffle_epi32(exp_i, _MM_SHUFFLE(0, 0, 2, 0));
+        __m128d e = _mm_cvtepi32_pd(exp_i32);
+        e = _mm_sub_pd(e, _mm_set1_pd(1023.0));
+
+        // Mantissa: clear exponent field, set exponent to 1023 (=> m in [1,2))
+        __m128i mant_mask = _mm_set1_epi64x(0x000FFFFFFFFFFFFFLL);
+        __m128i exp_bias  = _mm_set1_epi64x(0x3FF0000000000000LL);
+        __m128d m = _mm_castsi128_pd(
+            _mm_or_si128(_mm_and_si128(xi, mant_mask), exp_bias));
+
+        // Range adjust: if m > sqrt(2), halve m and increment e
+        __m128d need_adj = _mm_cmpgt_pd(m, sqrt2);
+        m = SSE2_BLEND(need_adj, _mm_mul_pd(m, half), m);
+        e = SSE2_BLEND(need_adj, _mm_add_pd(e, one),  e);
+
+        // xr = (m-1)/(m+1); Horner: t = c7 + xr^2*(c6 + ... + xr^2*c1)
+        __m128d xr  = _mm_div_pd(_mm_sub_pd(m, one), _mm_add_pd(m, one));
+        __m128d xr2 = _mm_mul_pd(xr, xr);
+        __m128d t   = c7;
+        t = _mm_add_pd(_mm_mul_pd(t, xr2), c6);
+        t = _mm_add_pd(_mm_mul_pd(t, xr2), c5);
+        t = _mm_add_pd(_mm_mul_pd(t, xr2), c4);
+        t = _mm_add_pd(_mm_mul_pd(t, xr2), c3);
+        t = _mm_add_pd(_mm_mul_pd(t, xr2), c2);
+        t = _mm_add_pd(_mm_mul_pd(t, xr2), c1);
+
+        // log(m) = 2*xr + xr^3*t
+        __m128d xr3   = _mm_mul_pd(xr, xr2);
+        __m128d log_m = _mm_add_pd(_mm_mul_pd(xr, two), _mm_mul_pd(xr3, t));
+
+        // log(x) = e*ln2_hi + log_m + e*ln2_lo  (same ordering as AVX2/NEON)
+        __m128d result = _mm_add_pd(_mm_mul_pd(e, ln2_hi), log_m);
+        result         = _mm_add_pd(result, _mm_mul_pd(e, ln2_lo));
+
+        // Special-case overrides
+        result = SSE2_BLEND(is_zero,     neg_inf, result);
+        result = SSE2_BLEND(is_inf,      pos_inf, result);
+        result = SSE2_BLEND(is_negative, nan_val, result);
+
+        _mm_storeu_pd(&results[i], result);
     }
+
+    for (std::size_t i = simd_end; i < size; ++i)
+        results[i] = values[i] > 0.0 ? std::log(values[i])
+                                      : -std::numeric_limits<double>::infinity();
 }
 
 void VectorOps::vector_pow_sse2(const double* base, double exponent, double* results,
@@ -286,10 +440,6 @@ void VectorOps::vector_erf_sse2(const double* input, double* output, std::size_t
     const __m128d t3       = _mm_set1_pd(2.857142857);
     const __m128d t5       = _mm_set1_pd(6.0);
     const __m128d c0p5625  = _mm_set1_pd(0.5625);
-
-    // SSE2 blend helper (no _mm_blendv_pd): select true_val where mask=all-ones, false_val elsewhere
-    #define SSE2_BLEND(mask, true_val, false_val) \
-        _mm_or_pd(_mm_and_pd((mask), (true_val)), _mm_andnot_pd((mask), (false_val)))
 
     constexpr std::size_t W = arch::simd::SSE_DOUBLES;
     const std::size_t simd_end = (size / W) * W;

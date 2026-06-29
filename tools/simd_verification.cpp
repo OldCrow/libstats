@@ -748,7 +748,9 @@ class SIMDVerifier {
         struct ToleranceEntry { const char* dist; const char* op; double tol; };
         static const ToleranceEntry kToleranceTable[] = {
             // Gaussian CDF routes through vector_erf (musl polynomial, max ~2.2e-16)
-            { "Gaussian", "CDF",    TOLERANCE_ERF_APPROX },
+            { "Gaussian",            "CDF", TOLERANCE_ERF_APPROX },
+            // Same pipeline applies in the edge-case variant (name suffix breaks exact match)
+            { "Gaussian_EdgeCases",  "CDF", TOLERANCE_ERF_APPROX },
             // Beta LogPDF: two vector_log calls accumulate ~1 ULP rounding vs scalar
             { "Beta",     "LogPDF", TOLERANCE_RELAXED     },
             // VonMises PDF/LogPDF route through vector_cos (7-term Horner, ~1e-10 floor)

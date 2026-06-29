@@ -400,11 +400,12 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
         __m256d log_m = _mm256_mul_pd(xr3, t);
         log_m = _mm256_add_pd(_mm256_mul_pd(xr, two), log_m);
 
-        // Final result: log(x) = log(m) + e*ln(2)
-        // Use high-low decomposition for better accuracy
-        __m256d result = _mm256_mul_pd(e, ln2_hi);
+        // Final result: log(x) = e*ln2_hi + log_m + e*ln2_lo
+        // Compute e*ln2_hi + log_m first (larger magnitudes) before adding
+        // the ln2 low-word correction — matches AVX2/AVX512/NEON FMA ordering
+        // and recovers 1-2 ULP lost by the original (e*ln2_hi+e*ln2_lo)+log_m order.
+        __m256d result = _mm256_add_pd(_mm256_mul_pd(e, ln2_hi), log_m);
         result = _mm256_add_pd(result, _mm256_mul_pd(e, ln2_lo));
-        result = _mm256_add_pd(result, log_m);
 
         // Handle special cases: log(0) = -inf, log(+inf) = +inf, log(negative) = nan
         result = _mm256_blendv_pd(result, neg_inf, is_zero);

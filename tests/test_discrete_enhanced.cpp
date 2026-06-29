@@ -88,7 +88,7 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     auto binary = stats::DiscreteDistribution::create(0, 1).value;
     EXPECT_DOUBLE_EQ(binary.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(binary.getVariance(), 0.25);  // (1-0)(1-0+2)/12 = 1*3/12 = 0.25
-    EXPECT_NEAR(binary.getCumulativeProbability(0.5), 1.0, 1e-10);
+    EXPECT_NEAR(binary.getCumulativeProbability(0.5), 0.5, 1e-10);  // P(X<=0.5)=P(X=0)=0.5
 
     // Test discrete-specific properties
     EXPECT_TRUE(dice.isInSupport(3.0));
