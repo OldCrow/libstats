@@ -1384,32 +1384,8 @@ DiscreteDistribution::DiscreteDistribution(int a, int b, bool /*bypassValidation
 void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                          std::size_t count, int a, int b,
                                                          double probability) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
-
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
-        // Note: Discrete distributions with integer checking are not well-suited to SIMD
-        // but we use centralized policy for consistency
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
-                const int k = static_cast<int>(values[i]);
-                results[i] = (k >= a && k <= b) ? probability : detail::ZERO_DOUBLE;
-            } else {
-                results[i] = detail::ZERO_DOUBLE;
-            }
-        }
-        return;
-    }
-
-    // Runtime CPU detection passed - use vectorized implementation if possible
-    // Note: For discrete distributions, vectorization typically doesn't provide significant
-    // benefits due to the nature of integer checking and branching logic, but we implement for
-    // consistency In practice, this will mostly fall back to scalar due to the nature of the
-    // operation
-
-    // Use scalar implementation even when SIMD is available because discrete distribution
-    // operations are not amenable to vectorization (primarily integer checking with branches)
+    // SIMD deferred: integer floor-check and range-test are not amenable to
+    // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
         if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
@@ -1423,32 +1399,8 @@ void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
 void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                             std::size_t count, int a, int b,
                                                             double log_probability) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
-
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
-        // Note: Discrete distributions with integer checking are not well-suited to SIMD
-        // but we use centralized policy for consistency
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
-                const int k = static_cast<int>(values[i]);
-                results[i] = (k >= a && k <= b) ? log_probability : detail::NEGATIVE_INFINITY;
-            } else {
-                results[i] = detail::NEGATIVE_INFINITY;
-            }
-        }
-        return;
-    }
-
-    // Runtime CPU detection passed - use vectorized implementation if possible
-    // Note: For discrete distributions, vectorization typically doesn't provide significant
-    // benefits due to the nature of integer checking and branching logic, but we implement for
-    // consistency In practice, this will mostly fall back to scalar due to the nature of the
-    // operation
-
-    // Use scalar implementation even when SIMD is available because discrete distribution
-    // operations are not amenable to vectorization (primarily integer checking with branches)
+    // SIMD deferred: integer floor-check and range-test are not amenable to
+    // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
         if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
@@ -1462,34 +1414,8 @@ void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
 void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, int a, int b,
     double inv_range) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it (following centralized SIMDPolicy)
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
-
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or when SIMD overhead isn't beneficial
-        // Note: Discrete CDF computation involves comparisons and arithmetic
-        // so SIMD rarely provides benefits for discrete distributions
-        for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < static_cast<double>(a)) {
-                results[i] = detail::ZERO_DOUBLE;
-            } else if (values[i] >= static_cast<double>(b)) {
-                results[i] = detail::ONE;
-            } else {
-                const int k = static_cast<int>(std::floor(values[i]));
-                const int numerator = k - a + detail::ONE_INT;
-                results[i] = static_cast<double>(numerator) * inv_range;
-            }
-        }
-        return;
-    }
-
-    // Runtime CPU detection passed - use vectorized implementation if possible
-    // Note: For discrete CDF, vectorization typically doesn't provide significant benefits
-    // due to the nature of comparisons and floor operations, but we implement for consistency
-    // In practice, this will mostly fall back to scalar due to the nature of the operation
-
-    // Use scalar implementation even when SIMD is available because discrete distribution
-    // operations are not amenable to vectorization (primarily branching logic)
+    // SIMD deferred: branchy floor+compare CDF not amenable to vectorization
+    // without vector_floor + vector_blend primitives (deferred; see AGENTS.md).
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < static_cast<double>(a)) {
             results[i] = detail::ZERO_DOUBLE;

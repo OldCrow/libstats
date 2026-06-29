@@ -785,30 +785,24 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
 
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            // Chunk so each parallel task runs the SIMD log+exp pipeline
+            // rather than computing log(x) per element in each task.
+            constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] =
-                            std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
-                                     cached_beta * x - cached_log_gamma_alpha);
-                    }
+                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                    const std::size_t start = ci * CHUNK;
+                    const std::size_t len   = std::min(CHUNK, count - start);
+                    dist.getProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len,
+                        cached_alpha, cached_beta, cached_log_gamma_alpha,
+                        cached_alpha_log_beta, cached_alpha_minus_one);
                 });
             } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] =
-                            std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
-                                     cached_beta * x - cached_log_gamma_alpha);
-                    }
-                }
+                dist.getProbabilityBatchUnsafeImpl(
+                    vals.data(), res.data(), count,
+                    cached_alpha, cached_beta, cached_log_gamma_alpha,
+                    cached_alpha_log_beta, cached_alpha_minus_one);
             }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -834,23 +828,23 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                 lock.lock();
             }
 
-            // Cache parameters for thread-safe work-stealing access
-            [[maybe_unused]] const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
+            const double cached_alpha          = dist.alpha_;
+            const double cached_beta           = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_log_beta  = dist.alphaLogBeta_;
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
 
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = std::exp(cached_alpha_log_beta + cached_alpha_minus_one * std::log(x) -
-                                      cached_beta * x - cached_log_gamma_alpha);
-                }
+            // Chunk into SIMD-sized slices so pool tasks use the SIMD pipeline.
+            constexpr std::size_t CHUNK = 1024;
+            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                const std::size_t start = ci * CHUNK;
+                const std::size_t len   = std::min(CHUNK, count - start);
+                dist.getProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len,
+                    cached_alpha, cached_beta, cached_log_gamma_alpha,
+                    cached_alpha_log_beta, cached_alpha_minus_one);
             });
             pool.waitForAll();
         });
@@ -909,34 +903,30 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             }
 
             // Cache parameters for thread-safe parallel access
-            const double cached_beta = dist.beta_;
+            const double cached_alpha           = dist.alpha_;
+            const double cached_beta            = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_log_beta  = dist.alphaLogBeta_;
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
 
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            // Chunk so each parallel task runs the SIMD log pipeline.
+            constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else {
-                        res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
-                                 cached_alpha_minus_one * std::log(x) - cached_beta * x;
-                    }
+                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                    const std::size_t start = ci * CHUNK;
+                    const std::size_t len   = std::min(CHUNK, count - start);
+                    dist.getLogProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len,
+                        cached_alpha, cached_beta, cached_log_gamma_alpha,
+                        cached_alpha_log_beta, cached_alpha_minus_one);
                 });
             } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else {
-                        res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
-                                 cached_alpha_minus_one * std::log(x) - cached_beta * x;
-                    }
-                }
+                dist.getLogProbabilityBatchUnsafeImpl(
+                    vals.data(), res.data(), count,
+                    cached_alpha, cached_beta, cached_log_gamma_alpha,
+                    cached_alpha_log_beta, cached_alpha_minus_one);
             }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -962,22 +952,22 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 lock.lock();
             }
 
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_beta = dist.beta_;
+            const double cached_alpha          = dist.alpha_;
+            const double cached_beta           = dist.beta_;
             const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
+            const double cached_alpha_log_beta  = dist.alphaLogBeta_;
             const double cached_alpha_minus_one = dist.alphaMinusOne_;
             lock.unlock();
 
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else {
-                    res[i] = cached_alpha_log_beta - cached_log_gamma_alpha +
-                             cached_alpha_minus_one * std::log(x) - cached_beta * x;
-                }
+            constexpr std::size_t CHUNK = 1024;
+            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                const std::size_t start = ci * CHUNK;
+                const std::size_t len   = std::min(CHUNK, count - start);
+                dist.getLogProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len,
+                    cached_alpha, cached_beta, cached_log_gamma_alpha,
+                    cached_alpha_log_beta, cached_alpha_minus_one);
             });
             pool.waitForAll();
         });

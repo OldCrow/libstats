@@ -121,8 +121,11 @@ NegativeBinomialDistribution::NegativeBinomialDistribution(double r, double p,
 //==============================================================================
 
 void NegativeBinomialDistribution::setR(double r) {
-    validateParameters(r, getP());
+    // Lock before validating: validate against member p_ (not getP()) so that
+    // no concurrent setP() can change p_ between the validation and the write.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateNegativeBinomialParameters(r, p_);
+    if (v.isError()) throw std::invalid_argument(v.message);
     r_ = r;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -131,8 +134,11 @@ void NegativeBinomialDistribution::setR(double r) {
 }
 
 void NegativeBinomialDistribution::setP(double p) {
-    validateParameters(getR(), p);
+    // Lock before validating: validate against member r_ (not getR()) so that
+    // no concurrent setR() can change r_ between the validation and the write.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateNegativeBinomialParameters(r_, p);
+    if (v.isError()) throw std::invalid_argument(v.message);
     p_ = p;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);

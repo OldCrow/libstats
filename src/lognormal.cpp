@@ -751,24 +751,24 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 ulock.unlock();
                 lock.lock();
             }
-            const double mu = d.mu_;
-            const double sigma = d.sigma_;
+            const double mu              = d.mu_;
+            const double inv_sigma_sqrt2 = d.invSigmaSqrt2_;
             lock.unlock();
 
+            // Chunk so each task runs the vector_erf SIMD pipeline rather than
+            // calling scalar detail::normal_cdf per element.
+            constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : detail::normal_cdf((std::log(x) - mu) / sigma);
+                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                    const std::size_t start = ci * CHUNK;
+                    const std::size_t len   = std::min(CHUNK, count - start);
+                    d.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, mu, inv_sigma_sqrt2);
                 });
             } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : detail::normal_cdf((std::log(x) - mu) / sigma);
-                }
+                d.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data(), res.data(), count, mu, inv_sigma_sqrt2);
             }
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res,
@@ -788,15 +788,17 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 ulock.unlock();
                 lock.lock();
             }
-            const double mu = d.mu_;
-            const double sigma = d.sigma_;
+            const double mu              = d.mu_;
+            const double inv_sigma_sqrt2 = d.invSigmaSqrt2_;
             lock.unlock();
 
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE)
-                             ? detail::ZERO_DOUBLE
-                             : detail::normal_cdf((std::log(x) - mu) / sigma);
+            constexpr std::size_t CHUNK = 1024;
+            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
+            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
+                const std::size_t start = ci * CHUNK;
+                const std::size_t len   = std::min(CHUNK, count - start);
+                d.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, mu, inv_sigma_sqrt2);
             });
             pool.waitForAll();
         });
