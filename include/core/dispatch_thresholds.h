@@ -53,7 +53,8 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 // NEVER means VECTORIZED always wins on that machine for that operation.
 //
 // Table layout: {pdf, log_pdf, cdf} per distribution row.
-// GEOMETRIC, LAPLACE, CAUCHY: NEVER across all entries (pending implementation).
+// GEOMETRIC: NEVER on measured SIMD tiers when vectorized/delegate path stays dominant.
+// LAPLACE/CAUCHY: measured on kAvx2/kAvx512 (sha-1b564ec); kAvx inferred.
 // BETA: NEVER on kAvx (retired hardware, no re-measure); real thresholds on
 // kNeon, kAvx2, kAvx512 (GCD/Thread-Pool overhead amortises for expensive
 // incomplete-beta path at ~256–512 elements).
@@ -198,6 +199,9 @@ constexpr ArchTable kNeon = {{
 //   - VonMises:          64 → 100k/300k/128   (GCD-dominated; match kNeon)
 //   - Binomial CDF:   NEVER → 128            (kNeon=64, kAvx512=128; infer 128)
 //   - NegBinomial CDF:NEVER → 256            (kNeon=256; kAvx closer to kNeon)
+//   - Geometric:       stays NEVER            (delegates to NegBinomial; kAvx2=NEVER)
+//   - Laplace:       NEVER → {64,64,128}      (kAvx2 64/64/256 inferred ÷2; floor-clamped)
+//   - Cauchy:        NEVER → {50k,50k,64}     (kAvx2 75k/75k/128 inferred ÷2)
 //   Note: Binomial/NegBinomial PDF/LogPDF remain NEVER (kAvx2=NEVER; kAvx
 //   VECTORIZED not weaker enough to change this given GCD overhead).
 // SSE2 delegates to kAvx; both updated together.
@@ -218,9 +222,9 @@ constexpr ArchTable kAvx = {{
     /* VON_MISES(13)         */ {100000, 300000, 128},  // GCD-dominated; match kNeon
     /* BINOMIAL(14)          */ {NEVER, NEVER, 128},    // CDF inferred from kNeon/kAvx512
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},    // CDF inferred from kNeon
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // inferred from kAvx2/NegBinomial
+    /* LAPLACE(17)           */ {64, 64, 128},           // kAvx2 ÷ 2; PDF/LogPDF floor-clamped
+    /* CAUCHY(18)            */ {50000, 50000, 64},      // kAvx2 75k/75k/128 inferred ÷ 2
 }};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
@@ -257,6 +261,25 @@ constexpr ArchTable kAvx = {{
 //
 // VonMises LogPDF: large R1 V→P=500000 (2M run ceiling); standard 2/3 runs at
 //   400000, 1 NEVER. Aggregate: {500k,200k,400k} → max=500000 (unchanged).
+//
+// New-distribution --large calibration bundles (64–2M grid, sha-1b564ec):
+//   data/profiles/dispatcher/2026-06-29T22-32-28Z_darwin-x86_64_feat-v2-architecture_sha-1b564ec
+//   data/profiles/dispatcher/2026-06-29T23-28-13Z_darwin-x86_64_feat-v2-architecture_sha-1b564ec
+//   data/profiles/dispatcher/2026-06-30T00-24-23Z_darwin-x86_64_feat-v2-architecture_sha-1b564ec
+//
+// Encoded from the 3-run set above:
+//   - Geometric: {NEVER,NEVER,NEVER}; matches NegBinomial delegate behavior.
+//     PDF/LogPDF best@max=VECTORIZED all runs; CDF best=SCALAR/VECTORIZED → discard.
+//   - Laplace:   {64,64,256}; PDF/LogPDF at floor, CDF {256,128,64} → 256.
+//   - Cauchy:    {75000,75000,128}; wrapper overhead vs StudentT is plausible.
+//
+// The same 2026-06-29/30 bundles show broader kAvx2 movement in existing rows
+// (not encoded here).  Several deltas are likely real after post-fb8e8b6 SIMD and
+// batch-path changes, but rows such as Gamma PDF, ChiSquared PDF, LogNormal CDF,
+// Discrete CDF, Weibull LogPDF, and Beta PDF/LogPDF need targeted review because
+// profile-order warm-pool effects can propagate inside a bundle even with 60 s
+// sleep between bundles.  Keep the current conservative table until a full kAvx2
+// recalibration applies kAvx512-style manual overrides.
 //
 // Key changes vs prior kAvx2 (sha-909dc9a, standard-only 3-run):
 //   - Gaussian PDF:     64 → 50000  (cold-pool; {50k,50k,50k} all runs)
@@ -302,9 +325,9 @@ constexpr ArchTable kAvx2 = {{
     /* VON_MISES(13)         */ {200000, 500000, 128},  // LogPDF: 2M ceiling confirmed
     /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // delegates to NegBinomial; no sustained parallel win
+    /* LAPLACE(17)           */ {64, 64, 256},           // new sha-1b564ec kAvx2 run
+    /* CAUCHY(18)            */ {75000, 75000, 128},     // delegates to StudentT(nu=1)
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
@@ -465,7 +488,9 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
 //     ~2–5 ns.  Amortises at ~800000 elements; 16384 is conservative.
 //     Distributions: Uniform, Discrete.
 //
-// GEOMETRIC/LAPLACE/CAUCHY: NEVER (pending implementation).
+// GEOMETRIC: T1 (delegates to NegBinomial — lgamma + incomplete beta).
+// LAPLACE: T2 (elementary transcendental: fabs + exp).
+// CAUCHY: T1 (delegates to StudentT — incomplete beta).
 // Re-profile with strategy_profile on an actual no-SIMD build to replace these
 // placeholders with measured values.
 constexpr ArchTable kNone = {{
@@ -485,9 +510,9 @@ constexpr ArchTable kNone = {{
     /* VON_MISES(13)         */ {2048, 2048, 2048},     // T1: cos + cached Bessel Z
     /* BINOMIAL(14)          */ {2048, 2048, 2048},     // T1: lgamma + incomplete beta
     /* NEGATIVE_BINOMIAL(15) */ {2048, 2048, 2048},     // T1: lgamma + digamma/trigamma
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // pending implementation
-    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // pending implementation
-    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // pending implementation
+    /* GEOMETRIC(16)         */ {2048, 2048, 2048},     // T1: delegates to NegBinomial
+    /* LAPLACE(17)           */ {8192, 8192, 8192},     // T2: fabs + exp
+    /* CAUCHY(18)            */ {2048, 2048, 2048},     // T1: delegates to StudentT
 }};
 constexpr std::size_t none_parallel_threshold(DistributionType dist, OperationType op) {
     return parallelThresholdFromTable(kNone, dist, op);

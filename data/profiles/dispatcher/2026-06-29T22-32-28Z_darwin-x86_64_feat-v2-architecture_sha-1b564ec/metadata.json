@@ -1,0 +1,18 @@
+{
+  "captured_at_utc": "2026-06-29T22-32-28Z",
+  "run_id": "2026-06-29T22-32-28Z_darwin-x86_64_feat-v2-architecture_sha-1b564ec",
+  "run_number": 1,
+  "total_runs": 3,
+  "include_large": true,
+  "git_branch": "feat-v2-architecture",
+  "git_sha": "1b564ec",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build",
+  "build_type": "Release",
+  "cxx_compiler": "/usr/bin/c++",
+  "os": "darwin",
+  "arch": "x86_64",
+  "cpu_brand": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}
