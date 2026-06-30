@@ -17,7 +17,11 @@
 // EXPECT_THROW on [[nodiscard]] functions is intentional: the function throws
 // before returning, so discarding the return value is correct.
 // cppcheck-suppress unusedResult
-#pragma GCC diagnostic ignored "-Wunused-result"
+#ifdef _MSC_VER
+#  pragma warning(disable: 4834)  // discarding return value of [[nodiscard]] function (intentional in EXPECT_THROW)
+#else
+#  pragma GCC diagnostic ignored "-Wunused-result"
+#endif
 
 // ── Exponential analysis ─────────────────────────────────────────────────────
 

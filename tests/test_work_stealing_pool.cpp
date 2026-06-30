@@ -235,8 +235,8 @@ TEST(WorkStealingPool, ParallelForDoesNotDeadlockOnTaskException) {
 // TEST-7a: getOptimalThreadCount() must be capped at 32.
 // AGENTS.md / Batch 9A: 'WorkStealingPool::getOptimalThreadCount() capped at 32 workers'.
 TEST(WorkStealingPool, OptimalThreadCountCappedAt32) {
-    const unsigned int cap = 32u;
-    const unsigned int optimal = WorkStealingPool::getOptimalThreadCount();
+    const std::size_t cap = 32u;
+    const std::size_t optimal = WorkStealingPool::getOptimalThreadCount();
     EXPECT_GE(optimal, 1u);
     EXPECT_LE(optimal, cap)
         << "getOptimalThreadCount() returned " << optimal
