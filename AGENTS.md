@@ -100,7 +100,7 @@ minimum macOS raised to 13 Ventura).
 |---|---|---|---|
 | Kaby Lake (2017 MBP) | AVX2+FMA | 47/47 ✅ | 44/44 v2.0.0 + Geometric/Laplace/Cauchy (2026-06-28) |
 ||| Mac Mini M1 | NEON | 47/47 ✅ | 44/44 v2.0.0 + Geometric/Laplace/Cauchy (2026-06-28) |
-||| Asus TUF A16 (Windows) | AVX-512 | 44/44 ✅ | v2.0.0 validated; Geometric/Laplace/Cauchy pending re-run; 61/61 simd_verification |
+| Asus TUF A16 (Windows) | AVX-512 | 47/47 ✅ | v2.0.0 incl. Geometric/Laplace/Cauchy (2026-06-29); kAvx512 recalibrated sha-1b564ec |
 
 **v1.5.2 — final v1.x release (four machines)**
 

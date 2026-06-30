@@ -270,7 +270,7 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
                                       std::span<double>(simd_results), h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto simd_time = std::max<long>(
+        auto simd_time = std::max<std::int64_t>(
             1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
@@ -284,7 +284,7 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdUniform.getProbability(input_span, output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto parallel_time = std::max<long>(
+        auto parallel_time = std::max<std::int64_t>(
             1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared pool)
@@ -297,7 +297,7 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
             stdUniform.getProbability(input_span, ws_output_span, h);
             end = std::chrono::high_resolution_clock::now();
         }
-        auto work_stealing_time = std::max<long>(
+        auto work_stealing_time = std::max<std::int64_t>(
             1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups

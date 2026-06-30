@@ -265,7 +265,7 @@ void demonstrate_parallel_batch_fit() {
         auto t0 = std::chrono::high_resolution_clock::now();
         for (size_t i = 0; i < N_DATASETS; ++i)
             seq_results[i].fit(datasets[i]);
-        long t_seq = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::int64_t t_seq = std::chrono::duration_cast<std::chrono::microseconds>(
                          std::chrono::high_resolution_clock::now() - t0).count();
 
         // Parallel fit
@@ -273,7 +273,7 @@ void demonstrate_parallel_batch_fit() {
             stats::GaussianDistribution::create(0.0, 1.0).value);
         t0 = std::chrono::high_resolution_clock::now();
         stats::GaussianDistribution::parallelBatchFit(datasets, par_results);
-        long t_par = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::int64_t t_par = std::chrono::duration_cast<std::chrono::microseconds>(
                          std::chrono::high_resolution_clock::now() - t0).count();
 
         // Verify: parallel and sequential results should match
@@ -287,7 +287,7 @@ void demonstrate_parallel_batch_fit() {
         std::cout << "Gaussian: " << N_DATASETS << " datasets x " << N_OBS << " obs each\n";
         std::cout << "  Sequential fit: " << t_seq << " us\n";
         std::cout << "  Parallel fit:   " << t_par << " us"
-                  << "  (" << static_cast<double>(t_seq) / std::max(t_par, 1L) << "x)\n";
+                  << "  (" << static_cast<double>(t_seq) / std::max<std::int64_t>(t_par, 1) << "x)\n";
         std::cout << "  Results match sequential: " << (match ? "yes" : "NO") << "\n";
     }
 
@@ -304,7 +304,7 @@ void demonstrate_parallel_batch_fit() {
             stats::ExponentialDistribution::create(1.0).value);
         auto t0 = std::chrono::high_resolution_clock::now();
         stats::ExponentialDistribution::parallelBatchFit(datasets, par_results);
-        long t_par = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::int64_t t_par = std::chrono::duration_cast<std::chrono::microseconds>(
                          std::chrono::high_resolution_clock::now() - t0).count();
 
         std::cout << "Exponential: " << N_DATASETS << " datasets x " << N_OBS << " obs each\n";

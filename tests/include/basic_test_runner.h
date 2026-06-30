@@ -151,7 +151,7 @@ void runBatchTests(const BasicDistConfig& cfg, const Dist& dist) {
     const auto t0 = std::chrono::high_resolution_clock::now();
     dist.getProbability(std::span<const double>(large_in), std::span<double>(large_out));
     const auto t1 = std::chrono::high_resolution_clock::now();
-    const long batch_us =
+    const std::int64_t batch_us =
         std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
 
     bool large_ok = true;

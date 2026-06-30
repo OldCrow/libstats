@@ -184,17 +184,17 @@ void demonstrate_forced_strategies() {
                    std::chrono::high_resolution_clock::now() - t0).count();
     };
 
-    long t_scl = time_us(hint_scalar,    out_scalar);
-    long t_vec = time_us(hint_vec,       out_vectorized);
-    long t_par = time_us(hint_par,       out_parallel);
+    std::int64_t t_scl = time_us(hint_scalar,    out_scalar);
+    std::int64_t t_vec = time_us(hint_vec,       out_vectorized);
+    std::int64_t t_par = time_us(hint_par,       out_parallel);
 
     std::cout << std::fixed << std::setprecision(1);
     std::cout << "Gaussian LogPDF on " << N << " elements:\n";
     std::cout << "  FORCE_SCALAR:     " << t_scl << " us\n";
     std::cout << "  FORCE_VECTORIZED: " << t_vec << " us"
-              << "  (" << static_cast<double>(t_scl) / std::max(t_vec, 1L) << "x vs scalar)\n";
+              << "  (" << static_cast<double>(t_scl) / std::max<std::int64_t>(t_vec, 1) << "x vs scalar)\n";
     std::cout << "  FORCE_PARALLEL:   " << t_par << " us"
-              << "  (" << static_cast<double>(t_scl) / std::max(t_par, 1L) << "x vs scalar)\n";
+              << "  (" << static_cast<double>(t_scl) / std::max<std::int64_t>(t_par, 1) << "x vs scalar)\n";
 
     // Verify that all three strategies produce identical results
     bool all_match = true;

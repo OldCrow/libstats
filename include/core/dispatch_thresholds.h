@@ -308,55 +308,96 @@ constexpr ArchTable kAvx2 = {{
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
-// Standard 3-run bundles (64–500k grid):
-//   data/profiles/dispatcher/2026-06-23T03-20-53Z_windows-x86_64_feat-v2-architecture_sha-94d522a
-//   data/profiles/dispatcher/2026-06-23T03-27-10Z_windows-x86_64_feat-v2-architecture_sha-94d522a
-//   data/profiles/dispatcher/2026-06-23T03-34-31Z_windows-x86_64_feat-v2-architecture_sha-94d522a
-// Extended 3-run bundles (--large, 64–2M grid):
-//   data/profiles/dispatcher/2026-06-23T03-55-00Z_windows-x86_64_feat-v2-architecture_sha-94d522a
-//   data/profiles/dispatcher/2026-06-23T04-15-45Z_windows-x86_64_feat-v2-architecture_sha-94d522a
-//   data/profiles/dispatcher/2026-06-23T04-36-00Z_windows-x86_64_feat-v2-architecture_sha-94d522a
+// Extended 3-run bundles (--large, 64–2M grid, sha-1b564ec):
+//   data/profiles/dispatcher/2026-06-29T23-00-05Z_windows-x86_64_feat-v2-architecture_sha-1b564ec
+//   data/profiles/dispatcher/2026-06-29T23-23-37Z_windows-x86_64_feat-v2-architecture_sha-1b564ec
+//   data/profiles/dispatcher/2026-06-29T23-47-18Z_windows-x86_64_feat-v2-architecture_sha-1b564ec
 //
-// Method: see scripts/PROFILING_METHOD.md (canonical; sustainability check applied;
-// min(P,WS) == PARALLEL on Windows Thread Pool).
-// Base: --large derived table (resolves 500k ceiling entries in standard runs).
-// Bimodal overrides (warm-pool/cold-pool, per PROFILING_METHOD.md §Bimodal —
-// use NEVER or the more conservative threshold):
-//   - Exponential LogPDF: standard {NEVER,500k,300k}→500k vs large {64,64,400k}→64;
-//     complete flip indicates warm-pool artifact; conservative = NEVER.
-//   - Poisson PDF: standard {64,8192,8192}→8192 vs large {8192,64,128}→128;
-//     bimodal; conservative = 8192 (standard).
-//   - Poisson CDF: standard {256,2048,512}→2048 vs large {64,8192,64}→64;
-//     bimodal; conservative = 2048 (standard).
-// Ceiling advisories (--large ceiling = 2M):
-//   - Pareto PDF: 2M ceiling in 2 of 3 large runs; 2000000 is valid conservative.
-//   - Gaussian PDF/LogPDF: resolved at 1M in large runs (were 500k ceiling or NEVER
-//     in standard runs).
-//   - Weibull CDF: 1500000 emerged only in large runs; not visible below 500k.
-//   - Pareto LogPDF: 1000000 emerged only in large runs.
-// Beta: first real thresholds on any SIMD tier; Windows Thread Pool overhead
-//   amortises earlier than GCD for the expensive incomplete-beta path (kAvx2=NEVER).
-// Binomial PDF/LogPDF: NEVER — VECTORIZED dominates at max size in large runs.
+// Three sequential --large Release-mode bundles on feat/v2-architecture (1b564ec).
+// Method: see scripts/PROFILING_METHOD.md (canonical; min(P,WS) < VECT definition).
+// Supersedes all six sha-94d522a bundles; covers Geometric, Laplace, Cauchy (new
+// distributions) and resolves all prior ceiling advisories via --large grid.
+//
+// Bimodal overrides (per PROFILING_METHOD.md §Bimodal — use conservative threshold):
+//   - Uniform PDF:     {256,1024,50000}; 195×; R1/R2 warm-pool within run; hold 50000.
+//   - Gaussian LogPDF: {400k,64,64}; 6250×; R2/R3 warm-pool; override 400000 (R1 cold).
+//   - Poisson LogPDF:  {64,25k,25k}; 390×; upper pair agrees → 25000 (algorithm applied;
+//     unchanged from prior table).
+//   - Geometric CDF:   {64,8192,256}; 128×; algorithm=256 (lower pair b/a=4≤10);
+//     accepted — delegation wrapper over NegBinomial(r=1); new measurement vs prior NEVER.
+//
+// Ceiling advisories (--large 2M ceiling):
+//   - StudentT PDF/LogPDF: 2M in all 3 runs; crossover ≤2M; encoded 2000000.
+//   - Cauchy PDF: {2M,750k,300k}; hi/lo=6.67× → 2000000 (delegates StudentT(ν=1)).
+//   - Pareto CDF: {2M,NEVER,2M}; 2-finite hi/lo=1 → 2000000.
+//   - Weibull CDF: {750k,2M,1.5M} → 2000000.
+//
+// Key changes vs prior kAvx512 (sha-94d522a):
+//   - Exponential LogPDF: NEVER    → 400000   (prior bimodal override superseded;
+//     all 3 large runs: BEST=WS/PAR at {250k,400k,250k}; real crossover confirmed)
+//   - StudentT PDF:       NEVER    → 2000000  (crossover emerges at 2M in large runs)
+//   - StudentT LogPDF:    NEVER    → 2000000  ({2M,2M,1.5M} → max)
+//   - StudentT CDF:         256    → NEVER    (BEST=VECTORIZED in 2/3 large runs)
+//   - Pareto CDF:         NEVER    → 2000000  (crossover at 2M in 2/3 large runs)
+//   - Pareto LogPDF:    1000000    → 1500000  ({1M,1.5M,1.5M} → max)
+//   - Weibull CDF:      1500000    → 2000000  ({750k,2M,1.5M} → max)
+//   - Uniform PDF:        50000    → 50000    (bimodal override; see note above)
+//   - Uniform CDF:          256    → 128      ({64,128,1024} → 128)
+//   - Gaussian LogPDF: 1000000     → 400000   (bimodal override; see note above)
+//   - Gaussian CDF:       50000    → 25000    ({25k,256,25k}; upper pair → 25000)
+//   - Exponential PDF:   500000    → 250000   ({100k,250k,200k} → max)
+//   - Exponential CDF:   300000    → 250000   ({250k,200k,250k} → max)
+//   - Discrete PDF:      200000    → 150000   (algorithm gave 512; held — profiling-order
+//     warm-pool artifact: PDF phase runs before LogPDF phase within each bundle;
+//     LogPDF in same runs reads {150k,75k,100k}; aligning PDF with LogPDF)
+//   - Discrete LogPDF:   200000    → 150000   ({150k,75k,100k} → max)
+//   - Discrete CDF:       75000    → NEVER    ({128,2048,75k} mutually incoherent)
+//   - Poisson PDF:          8192   → 512      ({64,64,512}; prior bimodal superseded)
+//   - Poisson CDF:          2048   → 256      ({128,128,256}; prior bimodal superseded)
+//   - Gamma PDF:          150000   → 10000    ({1024,10k,1024} → max)
+//   - Gamma LogPDF:       150000   → 256      ({64,64,256} → max)
+//   - ChiSquared PDF:     150000   → 1024     ({512,1024,512} → max)
+//   - ChiSquared LogPDF:  150000   → 2048     ({2048,512,256} → max)
+//   - LogNormal CDF:       50000   → 2048     ({128,2048,2048}; upper pair → 2048)
+//   - Beta PDF:              256   → 2048     ({2048,512,256} → max)
+//   - Beta LogPDF:           128   → 512      ({6144,512,64}; lower pair b/a=8 → 512)
+//   - Beta CDF:             6144   → 8192     ({8192,2048,6144} → max)
+//   - VonMises PDF:        50000   → 25000    ({25k,10k,25k} → max)
+//   - VonMises LogPDF:    100000   → 75000    ({25k,75k,75k} → max)
+//   - VonMises CDF:           64   → 128      ({128,64,64} → max)
+//   - NegBinomial CDF:      2048   → 512      ({64,6144,512}; lower pair b/a=8 → 512)
+//   - Geometric PDF/LogPDF: NEVER  → NEVER    (BEST=VECTORIZED all 3 runs)
+//   - Geometric CDF:        NEVER  → 512      (new; 6-run set with NegBinomial CDF:
+//     combined {64,6144,512,64,8192,256}; R2 cold-pool cluster {6144,8192} vs R1/R3
+//     warm cluster {64,64,256,512}; max of warm cluster = 512 = NegBinomial alg result)
+//   - Laplace PDF:          NEVER  → 64       (new; {64,64,64}; warm-pool floor confirmed)
+//   - Laplace LogPDF:       NEVER  → 64       (new; same)
+//   - Laplace CDF:          NEVER  → 1024     (new; {128,1024,2048}; lower pair → 1024)
+//   - Cauchy PDF:           NEVER  → 2000000  (new; {2M,750k,300k} → max)
+//   - Cauchy LogPDF:        NEVER  → 750000   (new; {250k,750k,400k} → max)
+//   - Cauchy CDF:           NEVER  → NEVER    (new; 6-run set with StudentT CDF:
+//     combined {64,NEVER,NEVER,NEVER,64,256}; 50/50 finite/NEVER split with
+//     anti-correlated pool state — conservative = NEVER)
 constexpr ArchTable kAvx512 = {{
-    /* UNIFORM(0)            */ {50000, 50000, 256},
-    /* GAUSSIAN(1)           */ {1000000, 1000000, 50000},
-    /* EXPONENTIAL(2)        */ {500000, NEVER, 300000},  // LogPDF bimodal → NEVER
-    /* DISCRETE(3)           */ {200000, 200000, 75000},
-    /* POISSON(4)            */ {8192, 25000, 2048},  // PDF/CDF bimodal → standard
-    /* GAMMA(5)              */ {150000, 150000, 64},
-    /* STUDENT_T(6)          */ {NEVER, NEVER, 256},
-    /* BETA(7)               */ {256, 128, 6144},
-    /* CHI_SQUARED(8)        */ {150000, 150000, 128},
-    /* LOG_NORMAL(9)         */ {150000, 150000, 50000},
-    /* PARETO(10)            */ {2000000, 1000000, NEVER},  // PDF at 2M ceiling
-    /* WEIBULL(11)           */ {150000, 150000, 1500000},  // CDF emerged in large
-    /* RAYLEIGH(12)          */ {150000, 150000, 300000},
-    /* VON_MISES(13)         */ {50000, 100000, 64},
-    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 2048},
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* LAPLACE(17)           */ {NEVER, NEVER, NEVER},  // not yet profiled
-    /* CAUCHY(18)            */ {NEVER, NEVER, NEVER},  // not yet profiled
+    /* UNIFORM(0)            */ {50000, 50000, 128},      // CDF: 256→128
+    /* GAUSSIAN(1)           */ {1000000, 400000, 25000}, // LogPDF bimodal override; CDF: 50k→25k
+    /* EXPONENTIAL(2)        */ {250000, 400000, 250000}, // LogPDF: NEVER→400k; PDF/CDF reduced
+    /* DISCRETE(3)           */ {150000, 150000, NEVER},   // PDF: held 150000 (512 was profiling-order warm-pool; aligns with LogPDF same runs); CDF: 75k→NEVER
+    /* POISSON(4)            */ {512, 25000, 256},        // PDF: 8192→512; CDF: 2048→256
+    /* GAMMA(5)              */ {10000, 256, 64},         // PDF: 150k→10k; LogPDF: 150k→256
+    /* STUDENT_T(6)          */ {2000000, 2000000, NEVER}, // PDF/LogPDF: NEVER→2M; CDF: 256→NEVER
+    /* BETA(7)               */ {2048, 512, 8192},        // PDF: 256→2048; LogPDF: 128→512; CDF: 6144→8192
+    /* CHI_SQUARED(8)        */ {1024, 2048, 128},        // PDF: 150k→1024; LogPDF: 150k→2048
+    /* LOG_NORMAL(9)         */ {150000, 150000, 2048},   // CDF: 50k→2048
+    /* PARETO(10)            */ {2000000, 1500000, 2000000}, // LogPDF: 1M→1.5M; CDF: NEVER→2M
+    /* WEIBULL(11)           */ {150000, 150000, 2000000}, // CDF: 1.5M→2M
+    /* RAYLEIGH(12)          */ {150000, 150000, 300000},  // unchanged
+    /* VON_MISES(13)         */ {25000, 75000, 128},      // PDF: 50k→25k; LogPDF: 100k→75k; CDF: 64→128
+    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},      // unchanged
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},      // CDF: 2048→512
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, 512},      // new: PDF/LogPDF NEVER; CDF 512 (6-run set with NegBinomial; max of lower cluster)
+    /* LAPLACE(17)           */ {64, 64, 1024},           // new: PDF/LogPDF at floor; CDF 1024
+    /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER (6-run set with StudentT CDF; 50/50 split → conservative)
 }};
 
 /**
