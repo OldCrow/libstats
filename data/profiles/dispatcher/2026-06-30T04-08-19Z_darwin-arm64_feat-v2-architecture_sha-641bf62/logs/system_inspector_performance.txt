@@ -1,0 +1,159 @@
+
+=======================================
+  System Inspector - Performance Mode
+=======================================
+
+System capabilities analysis with performance measurements
+
+System: 8 logical cores, NEON SIMD, 0 KB L3 cache
+
+
+--- CPU Features ---
+Feature             Support   Description
+------------------------------------------------------------
+AVX-512             No        Foundation instructions
+AVX2                No        Advanced Vector Ext 2
+AVX                 No        Advanced Vector Ext
+SSE2                No        Streaming SIMD Ext 2
+NEON                Yes       ARM SIMD instructions
+FMA                 No        Fused Multiply-Add
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size
+------------------------------------------
+L1             64          64 bytes
+L2             4096        64 bytes
+L3             0           64 bytes
+
+
+--- CPU Topology ---
+Hardware Threads:        8
+Logical Cores:           8
+Physical Cores:          4
+Hyperthreading:          Enabled
+
+
+--- SIMD Capabilities ---
+Instruction Support   Vector Width   Description
+--------------------------------------------------------------
+SSE2        No        128-bit        Basic SIMD operations
+AVX         No        256-bit        Advanced vector ext
+AVX2        No        256-bit        Integer AVX operations
+AVX-512     No        512-bit        Foundation instructions
+NEON        Yes       128-bit        ARM SIMD instructions
+
+Active SIMD Level: NEON
+
+
+--- Performance Baselines ---
+Operation Type           Time (μs)     Throughput (MOps/s)
+------------------------------------------------------------
+SIMD Multiply            401            2490
+Scalar Multiply          248            4025
+
+SIMD Speedup: 0.62x
+
+
+--- Performance Dispatcher Configuration ---
+Example Strategy Selections:
+Batch Size          Distribution   Operation      Strategy
+----------------------------------------------------------------------
+100                 Uniform        PDF            Vectorized
+100                 Gaussian       PDF            Vectorized
+100                 Exponential    PDF            Vectorized
+100                 Discrete       PDF            Vectorized
+100                 Poisson        PDF            Vectorized
+100                 Gamma          PDF            Vectorized
+100                 StudentT       PDF            Vectorized
+100                 Beta           PDF            Vectorized
+100                 ChiSquared     PDF            Vectorized
+100                 LogNormal      PDF            Vectorized
+100                 Pareto         PDF            Vectorized
+100                 Weibull        PDF            Vectorized
+100                 Rayleigh       PDF            Vectorized
+100                 VonMises       PDF            Vectorized
+100                 Binomial       PDF            Vectorized
+100                 NegativeBinomialPDF            Vectorized
+100                 Geometric      PDF            Vectorized
+100                 Laplace        PDF            Vectorized
+100                 Cauchy         PDF            Vectorized
+1000                Uniform        PDF            Vectorized
+1000                Gaussian       PDF            Vectorized
+1000                Exponential    PDF            Vectorized
+1000                Discrete       PDF            Vectorized
+1000                Poisson        PDF            Work-Stealing
+1000                Gamma          PDF            Vectorized
+1000                StudentT       PDF            Vectorized
+1000                Beta           PDF            Work-Stealing
+1000                ChiSquared     PDF            Vectorized
+1000                LogNormal      PDF            Vectorized
+1000                Pareto         PDF            Vectorized
+1000                Weibull        PDF            Vectorized
+1000                Rayleigh       PDF            Vectorized
+1000                VonMises       PDF            Vectorized
+1000                Binomial       PDF            Vectorized
+1000                NegativeBinomialPDF            Vectorized
+1000                Geometric      PDF            Vectorized
+1000                Laplace        PDF            Vectorized
+1000                Cauchy         PDF            Vectorized
+10000               Uniform        PDF            Vectorized
+10000               Gaussian       PDF            Vectorized
+10000               Exponential    PDF            Vectorized
+10000               Discrete       PDF            Vectorized
+10000               Poisson        PDF            Work-Stealing
+10000               Gamma          PDF            Vectorized
+10000               StudentT       PDF            Vectorized
+10000               Beta           PDF            Work-Stealing
+10000               ChiSquared     PDF            Work-Stealing
+10000               LogNormal      PDF            Vectorized
+10000               Pareto         PDF            Vectorized
+10000               Weibull        PDF            Vectorized
+10000               Rayleigh       PDF            Vectorized
+10000               VonMises       PDF            Vectorized
+10000               Binomial       PDF            Vectorized
+10000               NegativeBinomialPDF            Vectorized
+10000               Geometric      PDF            Vectorized
+10000               Laplace        PDF            Vectorized
+10000               Cauchy         PDF            Vectorized
+100000              Uniform        PDF            Vectorized
+100000              Gaussian       PDF            Work-Stealing
+100000              Exponential    PDF            Work-Stealing
+100000              Discrete       PDF            Work-Stealing
+100000              Poisson        PDF            Work-Stealing
+100000              Gamma          PDF            Work-Stealing
+100000              StudentT       PDF            Work-Stealing
+100000              Beta           PDF            Work-Stealing
+100000              ChiSquared     PDF            Work-Stealing
+100000              LogNormal      PDF            Work-Stealing
+100000              Pareto         PDF            Work-Stealing
+100000              Weibull        PDF            Work-Stealing
+100000              Rayleigh       PDF            Work-Stealing
+100000              VonMises       PDF            Work-Stealing
+100000              Binomial       PDF            Vectorized
+100000              NegativeBinomialPDF            Vectorized
+100000              Geometric      PDF            Vectorized
+100000              Laplace        PDF            Vectorized
+100000              Cauchy         PDF            Vectorized
+
+
+--- Platform Constants ---
+Constant                           Value
+--------------------------------------------------
+SIMD Block Size                    48 doubles
+Memory Alignment                   128 bytes
+Min SIMD Size                      4 elements
+Optimal Grain Size                 384 elements
+Fast Transcendental Support        No
+
+
+--- Adaptive Constants ---
+Constant                           Value
+--------------------------------------------------
+Min Elements for Parallel          1536
+Default Grain Size                 256
+Simple Operation Grain Size        128
+Complex Operation Grain Size       512
+
+Warning: L2 cache larger than L3 cache - may be normal on some systems
+System inspection completed successfully.

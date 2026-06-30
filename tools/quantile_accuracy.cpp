@@ -18,19 +18,17 @@
  *   ./build/tools/quantile_accuracy [--verbose]
  */
 
-#include "tool_utils.h"
-
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/binomial.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
-#include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
-#include "libstats/distributions/cauchy.h"
+#include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -39,6 +37,7 @@
 #include "libstats/distributions/uniform.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/distributions/weibull.h"
+#include "tool_utils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -55,7 +54,7 @@ struct QuantileResult {
     double max_roundtrip_error;  // max |CDF(Q(p)) - p|
     double mean_roundtrip_error;
     size_t n_tested;
-    size_t n_failed;   // |error| > tolerance
+    size_t n_failed;  // |error| > tolerance
     double tolerance;
     // Near-boundary checks
     double near_zero_error;  // max error at p ∈ {1e-3, 1e-4, 1e-5, 1e-6}
@@ -68,8 +67,8 @@ struct QuantileResult {
 // Test continuous distribution: CDF(quantile(p)) == p
 // ─────────────────────────────────────────────────────────────────────────────
 template <typename Dist>
-QuantileResult test_continuous(const std::string& name, const std::string& params,
-                               const Dist& dist, double tolerance = 1e-6) {
+QuantileResult test_continuous(const std::string& name, const std::string& params, const Dist& dist,
+                               double tolerance = 1e-6) {
     QuantileResult r;
     r.dist_name = name;
     r.params = params;
@@ -91,21 +90,31 @@ QuantileResult test_continuous(const std::string& name, const std::string& param
     for (int i = 0; i < N; ++i) {
         const double p = 0.001 + 0.998 * static_cast<double>(i) / static_cast<double>(N - 1);
         const double q = dist.getQuantile(p);
-        if (std::isnan(q)) { r.any_nan = true; ++r.n_failed; continue; }
-        if (std::isinf(q)) { r.any_inf = true; ++r.n_failed; continue; }
+        if (std::isnan(q)) {
+            r.any_nan = true;
+            ++r.n_failed;
+            continue;
+        }
+        if (std::isinf(q)) {
+            r.any_inf = true;
+            ++r.n_failed;
+            continue;
+        }
         const double cdf_q = dist.getCumulativeProbability(q);
         const double err = std::abs(cdf_q - p);
         r.max_roundtrip_error = std::max(r.max_roundtrip_error, err);
         sum_err += err;
         ++r.n_tested;
-        if (err > tolerance) ++r.n_failed;
+        if (err > tolerance)
+            ++r.n_failed;
     }
     r.mean_roundtrip_error = r.n_tested > 0 ? sum_err / static_cast<double>(r.n_tested) : 0.0;
 
     // Near-zero boundary
     for (double p : {1e-3, 1e-4, 1e-5, 1e-6}) {
         const double q = dist.getQuantile(p);
-        if (!std::isfinite(q)) continue;
+        if (!std::isfinite(q))
+            continue;
         const double err = std::abs(dist.getCumulativeProbability(q) - p);
         r.near_zero_error = std::max(r.near_zero_error, err);
     }
@@ -113,7 +122,8 @@ QuantileResult test_continuous(const std::string& name, const std::string& param
     // Near-one boundary
     for (double p : {1.0 - 1e-3, 1.0 - 1e-4, 1.0 - 1e-5, 1.0 - 1e-6}) {
         const double q = dist.getQuantile(p);
-        if (!std::isfinite(q)) continue;
+        if (!std::isfinite(q))
+            continue;
         const double err = std::abs(dist.getCumulativeProbability(q) - p);
         r.near_one_error = std::max(r.near_one_error, err);
     }
@@ -125,8 +135,7 @@ QuantileResult test_continuous(const std::string& name, const std::string& param
 // Test discrete distribution: floor property — CDF(Q(p)) >= p
 // ─────────────────────────────────────────────────────────────────────────────
 template <typename Dist>
-QuantileResult test_discrete(const std::string& name, const std::string& params,
-                             const Dist& dist) {
+QuantileResult test_discrete(const std::string& name, const std::string& params, const Dist& dist) {
     QuantileResult r;
     r.dist_name = name;
     r.params = params;
@@ -147,10 +156,13 @@ QuantileResult test_discrete(const std::string& name, const std::string& params,
     for (int i = 0; i < N; ++i) {
         const double p = 0.001 + 0.998 * static_cast<double>(i) / static_cast<double>(N - 1);
         const double q = dist.getQuantile(p);
-        if (!std::isfinite(q)) continue;
+        if (!std::isfinite(q))
+            continue;
         const double cdf_q = dist.getCumulativeProbability(q);
         // For discrete: CDF(Q(p)) >= p always (floor property)
-        if (cdf_q < p - 1e-12) { ++r.n_failed; }
+        if (cdf_q < p - 1e-12) {
+            ++r.n_failed;
+        }
         const double excess = cdf_q - p;  // non-negative when correct
         r.max_roundtrip_error = std::max(r.max_roundtrip_error, std::abs(excess));
         sum_excess += excess;
@@ -166,8 +178,10 @@ QuantileResult test_discrete(const std::string& name, const std::string& params,
 // ─────────────────────────────────────────────────────────────────────────────
 void printResults(const std::vector<QuantileResult>& results) {
     stats::detail::detail::ColumnFormatter fmt({16, 22, 12, 12, 8, 12, 12, 8});
-    std::cout << "\n" << fmt.formatRow({"Distribution", "Parameters", "MaxErr", "MeanErr",
-                                        "Failed", "NearZero", "NearOne", "Status"}) << "\n";
+    std::cout << "\n"
+              << fmt.formatRow({"Distribution", "Parameters", "MaxErr", "MeanErr", "Failed",
+                                "NearZero", "NearOne", "Status"})
+              << "\n";
     std::cout << fmt.getSeparator() << "\n";
 
     int total_pass = 0, total_fail = 0;
@@ -175,27 +189,34 @@ void printResults(const std::vector<QuantileResult>& results) {
     for (const auto& r : results) {
         std::string max_err_str, mean_err_str, near0_str, near1_str;
         auto fmt_e = [](double v) -> std::string {
-            if (v < 1e-15) return "~0";
+            if (v < 1e-15)
+                return "~0";
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(1) << v;
             return oss.str();
         };
 
-        max_err_str  = fmt_e(r.max_roundtrip_error);
+        max_err_str = fmt_e(r.max_roundtrip_error);
         mean_err_str = fmt_e(r.mean_roundtrip_error);
-        near0_str    = fmt_e(r.near_zero_error);
-        near1_str    = fmt_e(r.near_one_error);
+        near0_str = fmt_e(r.near_zero_error);
+        near1_str = fmt_e(r.near_one_error);
 
         bool pass = (r.n_failed == 0) && !r.any_nan && !r.any_inf;
         std::string status = pass ? "PASS" : "FAIL";
-        if (pass) ++total_pass; else ++total_fail;
+        if (pass)
+            ++total_pass;
+        else
+            ++total_fail;
 
         std::string failed_str = std::to_string(r.n_failed);
-        if (r.any_nan) failed_str += "+NaN";
-        if (r.any_inf) failed_str += "+Inf";
+        if (r.any_nan)
+            failed_str += "+NaN";
+        if (r.any_inf)
+            failed_str += "+Inf";
 
-        std::cout << fmt.formatRow({r.dist_name, r.params, max_err_str, mean_err_str,
-                                    failed_str, near0_str, near1_str, status}) << "\n";
+        std::cout << fmt.formatRow({r.dist_name, r.params, max_err_str, mean_err_str, failed_str,
+                                    near0_str, near1_str, status})
+                  << "\n";
     }
 
     std::cout << "\nTotal: " << (total_pass + total_fail) << " test cases "
@@ -224,111 +245,113 @@ int main(int argc, char* argv[]) {
         // ── Continuous distributions ──────────────────────────────────────────
 
         // Gaussian: closed-form erf inverse; should be highly accurate
-        results.push_back(test_continuous("Gaussian",    "N(0,1)",
-            GaussianDistribution::create(0.0, 1.0).value));
-        results.push_back(test_continuous("Gaussian",    "N(5,2)",
-            GaussianDistribution::create(5.0, 2.0).value));
+        results.push_back(
+            test_continuous("Gaussian", "N(0,1)", GaussianDistribution::create(0.0, 1.0).value));
+        results.push_back(
+            test_continuous("Gaussian", "N(5,2)", GaussianDistribution::create(5.0, 2.0).value));
 
         // Exponential: closed-form -log(1-p)/lambda; exact to machine precision
-        results.push_back(test_continuous("Exponential", "Exp(1)",
-            ExponentialDistribution::create(1.0).value));
-        results.push_back(test_continuous("Exponential", "Exp(0.1)",
-            ExponentialDistribution::create(0.1).value));
+        results.push_back(
+            test_continuous("Exponential", "Exp(1)", ExponentialDistribution::create(1.0).value));
+        results.push_back(
+            test_continuous("Exponential", "Exp(0.1)", ExponentialDistribution::create(0.1).value));
 
         // Gamma: numerical Newton-Raphson inverse
-        results.push_back(test_continuous("Gamma",       "G(2,1)",
-            GammaDistribution::create(2.0, 1.0).value));
-        results.push_back(test_continuous("Gamma",       "G(0.5,1)",
-            GammaDistribution::create(0.5, 1.0).value, 1e-5));
+        results.push_back(
+            test_continuous("Gamma", "G(2,1)", GammaDistribution::create(2.0, 1.0).value));
+        results.push_back(
+            test_continuous("Gamma", "G(0.5,1)", GammaDistribution::create(0.5, 1.0).value, 1e-5));
 
         // Chi-squared: delegates to Gamma
-        results.push_back(test_continuous("ChiSquared",  "chi2(4)",
-            ChiSquaredDistribution::create(4.0).value));
-        results.push_back(test_continuous("ChiSquared",  "chi2(1)",
-            ChiSquaredDistribution::create(1.0).value, 1e-5));
+        results.push_back(
+            test_continuous("ChiSquared", "chi2(4)", ChiSquaredDistribution::create(4.0).value));
+        results.push_back(test_continuous("ChiSquared", "chi2(1)",
+                                          ChiSquaredDistribution::create(1.0).value, 1e-5));
 
         // Student-t: numerical; heavier tails make boundary hard
-        results.push_back(test_continuous("StudentT",    "t(3)",
-            StudentTDistribution::create(3.0).value, 1e-5));
-        results.push_back(test_continuous("StudentT",    "t(30)",
-            StudentTDistribution::create(30.0).value));
+        results.push_back(
+            test_continuous("StudentT", "t(3)", StudentTDistribution::create(3.0).value, 1e-5));
+        results.push_back(
+            test_continuous("StudentT", "t(30)", StudentTDistribution::create(30.0).value));
 
         // Uniform: linear; exact
-        results.push_back(test_continuous("Uniform",     "U(0,1)",
-            UniformDistribution::create(0.0, 1.0).value));
-        results.push_back(test_continuous("Uniform",     "U(-3,5)",
-            UniformDistribution::create(-3.0, 5.0).value));
+        results.push_back(
+            test_continuous("Uniform", "U(0,1)", UniformDistribution::create(0.0, 1.0).value));
+        results.push_back(
+            test_continuous("Uniform", "U(-3,5)", UniformDistribution::create(-3.0, 5.0).value));
 
         // Beta: numerical; avoid very small alpha/beta which stress the solver
-        results.push_back(test_continuous("Beta",        "B(2,3)",
-            BetaDistribution::create(2.0, 3.0).value));
-        results.push_back(test_continuous("Beta",        "B(0.5,0.5)",
-            BetaDistribution::create(0.5, 0.5).value, 1e-5));
+        results.push_back(
+            test_continuous("Beta", "B(2,3)", BetaDistribution::create(2.0, 3.0).value));
+        results.push_back(
+            test_continuous("Beta", "B(0.5,0.5)", BetaDistribution::create(0.5, 0.5).value, 1e-5));
 
         // LogNormal: closed-form via Gaussian inverse
-        results.push_back(test_continuous("LogNormal",   "LN(0,1)",
-            LogNormalDistribution::create(0.0, 1.0).value));
-        results.push_back(test_continuous("LogNormal",   "LN(2,0.5)",
-            LogNormalDistribution::create(2.0, 0.5).value));
+        results.push_back(
+            test_continuous("LogNormal", "LN(0,1)", LogNormalDistribution::create(0.0, 1.0).value));
+        results.push_back(test_continuous("LogNormal", "LN(2,0.5)",
+                                          LogNormalDistribution::create(2.0, 0.5).value));
 
         // Pareto: closed-form power-law; avoid p→1 (unbounded)
-        results.push_back(test_continuous("Laplace",     "Lap(0,1)",
-            LaplaceDistribution::create(0.0, 1.0).value));
-        results.push_back(test_continuous("Laplace",     "Lap(2,0.5)",
-            LaplaceDistribution::create(2.0, 0.5).value));
+        results.push_back(
+            test_continuous("Laplace", "Lap(0,1)", LaplaceDistribution::create(0.0, 1.0).value));
+        results.push_back(
+            test_continuous("Laplace", "Lap(2,0.5)", LaplaceDistribution::create(2.0, 0.5).value));
 
         // Cauchy: closed-form tan() quantile; very accurate
-        results.push_back(test_continuous("Cauchy",      "C(0,1)",
-            CauchyDistribution::create(0.0, 1.0).value));
-        results.push_back(test_continuous("Cauchy",      "C(3,2)",
-            CauchyDistribution::create(3.0, 2.0).value));
+        results.push_back(
+            test_continuous("Cauchy", "C(0,1)", CauchyDistribution::create(0.0, 1.0).value));
+        results.push_back(
+            test_continuous("Cauchy", "C(3,2)", CauchyDistribution::create(3.0, 2.0).value));
 
-        results.push_back(test_continuous("Pareto",      "Pa(1,2)",
-            ParetoDistribution::create(1.0, 2.0).value));
+        results.push_back(
+            test_continuous("Pareto", "Pa(1,2)", ParetoDistribution::create(1.0, 2.0).value));
 
         // Weibull: closed-form via exp inverse
-        results.push_back(test_continuous("Weibull",     "W(2,1)",
-            WeibullDistribution::create(2.0, 1.0).value));
-        results.push_back(test_continuous("Weibull",     "W(0.7,1)",
-            WeibullDistribution::create(0.7, 1.0).value));
+        results.push_back(
+            test_continuous("Weibull", "W(2,1)", WeibullDistribution::create(2.0, 1.0).value));
+        results.push_back(
+            test_continuous("Weibull", "W(0.7,1)", WeibullDistribution::create(0.7, 1.0).value));
 
         // Rayleigh: closed-form
-        results.push_back(test_continuous("Rayleigh",    "R(1)",
-            RayleighDistribution::create(1.0).value));
+        results.push_back(
+            test_continuous("Rayleigh", "R(1)", RayleighDistribution::create(1.0).value));
 
         // VonMises: circular domain [-pi, pi]; numerical
-        results.push_back(test_continuous("VonMises",    "VM(0,2)",
-            VonMisesDistribution::create(0.0, 2.0).value, 1e-5));
+        results.push_back(test_continuous("VonMises", "VM(0,2)",
+                                          VonMisesDistribution::create(0.0, 2.0).value, 1e-5));
 
         // ── Discrete distributions ────────────────────────────────────────────
-        results.push_back(test_discrete("Poisson",       "Pois(3)",
-            PoissonDistribution::create(3.0).value));
-        results.push_back(test_discrete("Poisson",       "Pois(20)",
-            PoissonDistribution::create(20.0).value));
-        results.push_back(test_discrete("Discrete",      "D[1,6]",
-            DiscreteDistribution::create(1, 6).value));
-        results.push_back(test_discrete("Binomial",      "B(10,0.5)",
-            BinomialDistribution::create(10, 0.5).value));
-        results.push_back(test_discrete("NegBinomial",   "NB(5,0.4)",
-            NegativeBinomialDistribution::create(5.0, 0.4).value));
-        results.push_back(test_discrete("Geometric",      "Geo(0.5)",
-            GeometricDistribution::create(0.5).value));
-        results.push_back(test_discrete("Geometric",      "Geo(0.3)",
-            GeometricDistribution::create(0.3).value));
+        results.push_back(
+            test_discrete("Poisson", "Pois(3)", PoissonDistribution::create(3.0).value));
+        results.push_back(
+            test_discrete("Poisson", "Pois(20)", PoissonDistribution::create(20.0).value));
+        results.push_back(
+            test_discrete("Discrete", "D[1,6]", DiscreteDistribution::create(1, 6).value));
+        results.push_back(
+            test_discrete("Binomial", "B(10,0.5)", BinomialDistribution::create(10, 0.5).value));
+        results.push_back(test_discrete("NegBinomial", "NB(5,0.4)",
+                                        NegativeBinomialDistribution::create(5.0, 0.4).value));
+        results.push_back(
+            test_discrete("Geometric", "Geo(0.5)", GeometricDistribution::create(0.5).value));
+        results.push_back(
+            test_discrete("Geometric", "Geo(0.3)", GeometricDistribution::create(0.3).value));
 
         printResults(results);
 
         if (verbose) {
             std::cout << "\n[verbose] First failing (p, Q, CDF(Q)) per failed test case:\n";
             // Re-run to find failing tuples (not stored in QuantileResult to keep it small)
-            auto print_fails = [](const std::string& tag, auto&& dist, double tol) {
+            [[maybe_unused]] auto print_fails = [](const std::string& tag, auto&& dist,
+                                                   double tol) {
                 const int N = 1000;
                 bool printed_header = false;
                 int count = 0;
                 for (int i = 0; i < N && count < 5; ++i) {
                     double p = 0.001 + 0.998 * static_cast<double>(i) / static_cast<double>(N - 1);
                     double q = dist.getQuantile(p);
-                    if (!std::isfinite(q)) continue;
+                    if (!std::isfinite(q))
+                        continue;
                     double c = dist.getCumulativeProbability(q);
                     double err = std::abs(c - p);
                     if (err > tol) {
@@ -336,18 +359,17 @@ int main(int argc, char* argv[]) {
                             std::cout << "  " << tag << ":\n";
                             printed_header = true;
                         }
-                        std::cout << std::scientific << std::setprecision(3)
-                                  << "    i=" << i << " p=" << p
-                                  << " Q=" << q << " CDF(Q)=" << c << " err=" << err << "\n";
+                        std::cout << std::scientific << std::setprecision(3) << "    i=" << i
+                                  << " p=" << p << " Q=" << q << " CDF(Q)=" << c << " err=" << err
+                                  << "\n";
                         ++count;
                     }
                 }
             };
             for (const auto& r : results) {
                 if (r.n_failed > 0) {
-                    std::cout << "  " << r.dist_name << " " << r.params
-                              << ": " << r.n_failed << " failures, max_err="
-                              << r.max_roundtrip_error << "\n";
+                    std::cout << "  " << r.dist_name << " " << r.params << ": " << r.n_failed
+                              << " failures, max_err=" << r.max_roundtrip_error << "\n";
                 }
             }
         }
