@@ -725,6 +725,15 @@ function(detect_tbb_unified)
             if(TBB_FOUND)
                 include_directories(${TBB_INCLUDE_DIRS})
                 link_directories(${TBB_LIBRARY_DIRS})
+                set(LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL
+                    "${TBB_INCLUDE_DIRS}"
+                    PARENT_SCOPE)
+                set(LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
+                    "${TBB_LIBRARY_DIRS}"
+                    PARENT_SCOPE)
+                set(LIBSTATS_TBB_LIBRARIES_INTERNAL
+                    "${TBB_LIBRARIES}"
+                    PARENT_SCOPE)
                 set(CMAKE_CXX_FLAGS
                     "${CMAKE_CXX_FLAGS} ${TBB_CFLAGS_OTHER}"
                     PARENT_SCOPE)
@@ -1480,6 +1489,31 @@ configure_simd_target(libstats_shared)
 # automatically by CMake via CMAKE_CXX_FLAGS (-stdlib=libc++) and the detected LLVM library path.
 # Explicit target_link_options for rpath removed to avoid duplicate warnings.
 
+# Linux/GCC parallel STL can route execution-policy algorithms through TBB.  Link TBB through the
+# final library targets PUBLICLY so libstats consumers inherit the dependency transitively.
+# Modern find_package(TBB) exports TBB::tbb; pkg-config libraries are retained as fallback.
+if(LIBSTATS_HAS_TBB)
+    if(TARGET TBB::tbb)
+        target_link_libraries(libstats_static PUBLIC TBB::tbb)
+        target_link_libraries(libstats_shared PUBLIC TBB::tbb)
+    else()
+        if(DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
+            target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+            target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+        endif()
+        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}"
+                                                          STREQUAL "")
+            target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+            target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+        endif()
+        if(DEFINED LIBSTATS_TBB_LIBRARIES_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARIES_INTERNAL}"
+                                                       STREQUAL "")
+            target_link_libraries(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+            target_link_libraries(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+        endif()
+    endif()
+endif()
+
 # Create aliases for easier consumption
 add_library(libstats::headers ALIAS libstats_headers)
 add_library(libstats::static ALIAS libstats_static)
@@ -1592,10 +1626,7 @@ if(LIBSTATS_BUILD_TESTS)
         # Link against static library by default for tests
         target_link_libraries(${TEST_NAME} PRIVATE libstats_static)
 
-        # Link TBB if available
-        if(LIBSTATS_HAS_TBB)
-            target_link_libraries(${TEST_NAME} PRIVATE ${TBB_LIBRARIES})
-        endif()
+        # TBB, when enabled, is linked transitively through libstats_static.
 
         # Apply common test settings
         configure_common_test_settings(${TEST_NAME})
