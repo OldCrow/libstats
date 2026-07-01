@@ -169,13 +169,9 @@ double UniformDistribution::getMean() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return midpoint_;  // snapshot + early return under unique_lock
     }
-
     return midpoint_;
 }
 
@@ -184,13 +180,9 @@ double UniformDistribution::getVariance() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return variance_;  // snapshot + early return under unique_lock
     }
-
     return variance_;
 }
 
@@ -199,13 +191,9 @@ double UniformDistribution::getWidth() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return width_;  // snapshot + early return under unique_lock
     }
-
     return width_;
 }
 
@@ -283,11 +271,15 @@ double UniformDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const double lo = a_, hi = b_;
+        const bool is_unit = isUnitInterval_;
+        const double inv_w = invWidth_;
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        if (x < lo || x > hi) return detail::ZERO_DOUBLE;
+        if (is_unit) return detail::ONE;
+        return inv_w;
     }
 
     // NaN must propagate before the bounds checks (both comparisons are false for NaN,
@@ -314,11 +306,15 @@ double UniformDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const double lo = a_, hi = b_;
+        const bool is_unit = isUnitInterval_;
+        const double w = width_;
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        if (x < lo || x > hi) return detail::NEGATIVE_INFINITY;
+        if (is_unit) return detail::ZERO_DOUBLE;
+        return -std::log(w);
     }
 
     if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
@@ -343,11 +339,15 @@ double UniformDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const double lo = a_, hi = b_;
+        const bool is_unit = isUnitInterval_;
+        const double inv_w = invWidth_;
+        if (x < lo) return detail::ZERO_DOUBLE;
+        if (x > hi) return detail::ONE;
+        if (is_unit) return x;
+        return (x - lo) * inv_w;
     }
 
     // CDF for uniform distribution
@@ -383,11 +383,12 @@ double UniformDistribution::getQuantile(double p) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitInterval_;
+        const double lo = a_, w = width_;
+        if (is_unit) return p;
+        return lo + p * w;
     }
 
     // Fast path for unit interval [0,1]
@@ -400,15 +401,23 @@ double UniformDistribution::getQuantile(double p) const {
 }
 
 double UniformDistribution::sample(std::mt19937& rng) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+    bool cached_is_unit_interval;
+    double cached_a, cached_width;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            cached_is_unit_interval = isUnitInterval_;
+            cached_a = a_;
+            cached_width = width_;
+        } else {
+            cached_is_unit_interval = isUnitInterval_;
+            cached_a = a_;
+            cached_width = width_;
         }
-        ulock.unlock();
-        lock.lock();
     }
 
     // Use high-quality uniform distribution
@@ -417,12 +426,12 @@ double UniformDistribution::sample(std::mt19937& rng) const {
     double u = uniform(rng);
 
     // Fast path for unit interval [0,1]
-    if (isUnitInterval_) {
+    if (cached_is_unit_interval) {
         return u;
     }
 
     // General case: linear transformation X = a + (b-a)*U
-    return a_ + width_ * u;
+    return cached_a + cached_width * u;
 }
 
 std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) const {
@@ -431,22 +440,24 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
 
     std::uniform_real_distribution<double> dist(detail::ZERO_DOUBLE, detail::ONE);
 
-    // Get cached parameters for efficiency
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+    double cached_a, cached_width;
+    bool cached_is_unit_interval;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            cached_a = a_;
+            cached_width = width_;
+            cached_is_unit_interval = isUnitInterval_;
+        } else {
+            cached_a = a_;
+            cached_width = width_;
+            cached_is_unit_interval = isUnitInterval_;
         }
-        ulock.unlock();
-        lock.lock();
     }
-
-    const double cached_a = a_;
-    const double cached_width = width_;
-    const bool cached_is_unit_interval = isUnitInterval_;
-    lock.unlock();
 
     // Generate batch samples using linear transformation
     for (size_t i = 0; i < n; ++i) {
@@ -652,9 +663,15 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                 if (!dist.cache_valid_) {
                     dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_a = dist.a_;
+                const double cached_b = dist.b_;
+                const double cached_inv_width = dist.invWidth_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
+                                                   cached_inv_width);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_inv_width = dist.invWidth_;
@@ -672,23 +689,25 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -717,23 +736,25 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -758,9 +779,15 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                 if (!dist.cache_valid_) {
                     dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_a = dist.a_;
+                const double cached_b = dist.b_;
+                const double cached_log_inv_width = -std::log(dist.width_);
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
+                                                      cached_log_inv_width);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_log_inv_width = -std::log(dist.width_);
@@ -778,24 +805,28 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_log_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -834,24 +865,28 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_log_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -884,9 +919,15 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 if (!dist.cache_valid_) {
                     dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_a = dist.a_;
+                const double cached_b = dist.b_;
+                const double cached_inv_width = dist.invWidth_;
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
+                                                             cached_inv_width);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_inv_width = dist.invWidth_;
@@ -904,24 +945,28 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -964,24 +1009,28 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {

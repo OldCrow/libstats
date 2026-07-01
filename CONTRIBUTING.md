@@ -262,9 +262,9 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **New Distributions**: Cauchy, Laplace, and Geometric are registered in v2.0.0 (enum +
-   metadata, pending implementation). Inverse Gamma, KDE (kernel density estimation), and
-   GMM (Gaussian mixture models) remain on the v2.1+ roadmap.
+1. **New Distributions**: All 19 distributions are fully implemented in v2.0.0. Inverse Gamma,
+   KDE (kernel density estimation), and GMM (Gaussian mixture models) remain on the v2.1+
+   roadmap.
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples

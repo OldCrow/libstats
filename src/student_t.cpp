@@ -198,30 +198,30 @@ double StudentTDistribution::getKurtosis() const {
 //==============================================================================
 
 double StudentTDistribution::getProbability(double x) const {
+    // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const double lnc = logNormConst_, nhnpo = negHalfNuPlusOne_, inv_nu = invNu_;
+        return std::exp(lnc + nhnpo * std::log1p(x * x * inv_nu));
     }
     // std::log1p(x²/ν) avoids catastrophic cancellation near x≈0 vs log(1+x²/ν)
     return std::exp(logNormConst_ + negHalfNuPlusOne_ * std::log1p(x * x * invNu_));
 }
 
 double StudentTDistribution::getLogProbability(double x) const {
+    // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const double lnc = logNormConst_, nhnpo = negHalfNuPlusOne_, inv_nu = invNu_;
+        return lnc + nhnpo * std::log1p(x * x * inv_nu);
     }
     return logNormConst_ + negHalfNuPlusOne_ * std::log1p(x * x * invNu_);
 }
@@ -432,9 +432,14 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                 if (!dist.cache_valid_) {
                     const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held.
+                const double lnc = dist.logNormConst_;
+                const double nhnpo = dist.negHalfNuPlusOne_;
+                const double inv_nu = dist.invNu_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, lnc, nhnpo, inv_nu);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double lnc = dist.logNormConst_;
             const double nhnpo = dist.negHalfNuPlusOne_;
             const double inv_nu = dist.invNu_;
@@ -448,20 +453,20 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            double lnc, nhnpo, inv_nu;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    lnc = dist.logNormConst_;  nhnpo = dist.negHalfNuPlusOne_;  inv_nu = dist.invNu_;
+                } else {
+                    lnc = dist.logNormConst_;  nhnpo = dist.negHalfNuPlusOne_;  inv_nu = dist.invNu_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-            const double lnc = dist.logNormConst_;
-            const double nhnpo = dist.negHalfNuPlusOne_;
-            const double inv_nu = dist.invNu_;
-            lock.unlock();
             // std::log1p(x²/ν) avoids catastrophic cancellation when x²/ν ≈ 0;
             // log(1 + x²/ν) loses precision there. See <cmath>: log1p(x) = log(1+x).
             if (arch::should_use_parallel(count)) {
@@ -510,9 +515,14 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
                 if (!dist.cache_valid_) {
                     const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held.
+                const double lnc = dist.logNormConst_;
+                const double nhnpo = dist.negHalfNuPlusOne_;
+                const double inv_nu = dist.invNu_;
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, lnc, nhnpo, inv_nu);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double lnc = dist.logNormConst_;
             const double nhnpo = dist.negHalfNuPlusOne_;
             const double inv_nu = dist.invNu_;

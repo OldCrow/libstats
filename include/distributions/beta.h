@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools,
 // adaptive caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -270,7 +269,7 @@ class BetaDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /** @brief Median — numerical via getQuantile(0.5). */
-    [[nodiscard]] double getMedian() const noexcept override { return getQuantile(detail::HALF); }
+    [[nodiscard]] double getMedian() const override { return getQuantile(detail::HALF); }
 
     /**
      * @brief True if α = β = 1 within tolerance (Uniform(0,1) distribution).

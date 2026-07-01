@@ -959,7 +959,12 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
     if (p < 0.1 || p > 0.9) {
         // Use bisection method which is more stable for extreme probabilities
         double low = detail::ZERO_DOUBLE;
-        double high = df + 10.0 * std::sqrt(df);  // Conservative upper bound
+        double high = df + 10.0 * std::sqrt(df);
+        // Expand upper bound until it actually brackets p (handles p > 0.9999)
+        while (chi_squared_cdf(high, df) < p) {
+            high *= 2.0;
+            if (high > 1e15) break;  // safety cap
+        }
         const double tolerance = detail::DEFAULT_TOLERANCE;
         const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
 
@@ -1020,10 +1025,14 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
         x = std::max(detail::ZERO, x - delta);  // Ensure x stays positive
 
         // Check for divergence and fall back to bisection if needed
-        if (x > df + 10.0 * std::sqrt(df) || !std::isfinite(x)) {
+        if (!std::isfinite(x) || x > 1e15) {
             // Fall back to bisection method
             double low = detail::ZERO_DOUBLE;
             double high = df + 10.0 * std::sqrt(df);
+            while (chi_squared_cdf(high, df) < p) {
+                high *= 2.0;
+                if (high > 1e15) break;  // safety cap
+            }
 
             for (int j = 0; j < max_iterations; ++j) {
                 double mid = (low + high) * detail::HALF;

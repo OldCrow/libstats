@@ -344,3 +344,4 @@ backup_*/
 *.bak
 *.bak2
 *.bak3
+.claude/

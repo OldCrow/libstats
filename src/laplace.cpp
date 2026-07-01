@@ -221,8 +221,9 @@ double LaplaceDistribution::getProbability(double x) const {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double m = mu_, nib = neg_inv_b_, nlb = neg_log2b_;
+        return std::exp(nlb + nib * std::fabs(x - m));
     }
     // PDF = exp(LogPDF) = exp(neg_log2b_ - |x-mu_|/b_)
     return std::exp(neg_log2b_ + neg_inv_b_ * std::fabs(x - mu_));
@@ -239,8 +240,9 @@ double LaplaceDistribution::getLogProbability(double x) const {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double m = mu_, nib = neg_inv_b_, nlb = neg_log2b_;
+        return nlb + nib * std::fabs(x - m);
     }
     // LogPDF = neg_log2b_ + neg_inv_b_ * |x - mu_|
     return neg_log2b_ + neg_inv_b_ * std::fabs(x - mu_);
@@ -257,10 +259,13 @@ double LaplaceDistribution::getCumulativeProbability(double x) const {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double m = mu_, bv = b_;
+        const double d = x - m;
+        return (d <= detail::ZERO_DOUBLE)
+                   ? detail::HALF * std::exp(d / bv)
+                   : detail::ONE - detail::HALF * std::exp(-d / bv);
     }
-
     const double d = x - mu_;
     if (d <= detail::ZERO_DOUBLE) {
         // x <= mu: CDF = 0.5 * exp((x-mu)/b) = 0.5 * exp(d/b)
@@ -284,13 +289,15 @@ double LaplaceDistribution::getQuantile(double p) const {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double m = mu_, bv = b_;
+        if (p == detail::HALF) return m;
+        return (p < detail::HALF)
+                   ? m + bv * std::log(detail::TWO * p)
+                   : m - bv * std::log(detail::TWO * (detail::ONE - p));
     }
-
     if (p == detail::HALF)
         return mu_;
-
     // Quantile: mu + b * sign(p-0.5) * log(1 - 2|p-0.5|)
     // For p < 0.5: mu + b * log(2p)
     // For p > 0.5: mu - b * log(2*(1-p))
@@ -302,16 +309,19 @@ double LaplaceDistribution::getQuantile(double p) const {
 }
 
 double LaplaceDistribution::sample(std::mt19937& rng) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+    double m, bv;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            m = mu_; bv = b_;
+        } else {
+            m = mu_; bv = b_;
+        }
     }
-    const double m = mu_, bv = b_;
-    lock.unlock();
 
     // Inverse CDF method: U ~ Uniform(0,1), return quantile(U)
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
@@ -328,16 +338,19 @@ std::vector<double> LaplaceDistribution::sample(std::mt19937& rng, size_t n) con
     std::vector<double> samples;
     samples.reserve(n);
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+    double m, bv;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            m = mu_; bv = b_;
+        } else {
+            m = mu_; bv = b_;
+        }
     }
-    const double m = mu_, bv = b_;
-    lock.unlock();
 
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
                                                    detail::ONE);
@@ -426,8 +439,9 @@ double LaplaceDistribution::getEntropy() const {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double nlb = neg_log2b_;
+        return detail::ONE - nlb;
     }
     // H = 1 + log(2b) = 1 - neg_log2b_
     return detail::ONE - neg_log2b_;
@@ -452,9 +466,12 @@ void LaplaceDistribution::getProbability(std::span<const double> values,
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
                     const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
+                d.getProbabilityBatchUnsafeImpl(vals, res, count, m, nib, nlb);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
             lock.unlock();
             d.getProbabilityBatchUnsafeImpl(vals, res, count, m, nib, nlb);
@@ -465,17 +482,20 @@ void LaplaceDistribution::getProbability(std::span<const double> values,
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
             if (count == 0) return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+            double m, nib, nlb;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                } else {
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                }
             }
-            const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
-            lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -496,17 +516,20 @@ void LaplaceDistribution::getProbability(std::span<const double> values,
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+            double m, nib, nlb;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                } else {
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                }
             }
-            const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
-            lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] = std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m))
@@ -529,9 +552,12 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
                     const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
+                d.getLogProbabilityBatchUnsafeImpl(vals, res, count, m, nib, nlb);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
             lock.unlock();
             d.getLogProbabilityBatchUnsafeImpl(vals, res, count, m, nib, nlb);
@@ -541,17 +567,20 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
             if (count == 0) return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+            double m, nib, nlb;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                } else {
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                }
             }
-            const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
-            lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -569,17 +598,20 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+            double m, nib, nlb;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                } else {
+                    m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
+                }
             }
-            const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
-            lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] = std::isfinite(x) ? nlb + nib * std::fabs(x - m)
@@ -602,9 +634,12 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
                     const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const double m = d.mu_, hib = d.half_inv_b_;
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, m, hib);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double m = d.mu_, hib = d.half_inv_b_;
             lock.unlock();
             d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, m, hib);
@@ -614,17 +649,20 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                 throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
             if (count == 0) return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+            double m, hib;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    m = d.mu_; hib = d.half_inv_b_;
+                } else {
+                    m = d.mu_; hib = d.half_inv_b_;
+                }
             }
-            const double m = d.mu_, hib = d.half_inv_b_;
-            lock.unlock();
             const double inv_b = detail::TWO * hib;  // 1/b = 2*(0.5/b)
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -639,9 +677,7 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
                     if (!std::isfinite(x)) { res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE; continue; }
-                    // hib = 0.5/b, so 1/b = 2*hib
                     const double dv = x - m;
-                    const double inv_b = detail::TWO * hib;
                     res[i] = (dv <= detail::ZERO_DOUBLE)
                                  ? detail::HALF * std::exp(dv * inv_b)
                                  : detail::ONE - detail::HALF * std::exp(-dv * inv_b);
@@ -651,17 +687,20 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+            double m, hib;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    m = d.mu_; hib = d.half_inv_b_;
+                } else {
+                    m = d.mu_; hib = d.half_inv_b_;
+                }
             }
-            const double m = d.mu_, hib = d.half_inv_b_;
-            lock.unlock();
             const double inv_b = detail::TWO * hib;
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];

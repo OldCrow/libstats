@@ -98,6 +98,20 @@ TEST_F(PoissonEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(custom.getVariance(), 5.0);
     EXPECT_NEAR(custom.getSkewness(), 1.0 / std::sqrt(5.0), 1e-10);
     EXPECT_NEAR(custom.getKurtosis(), 1.0 / 5.0, 1e-10);
+
+    // Entropy: H > 0 for all valid λ; monotone increasing in λ
+    const double H1   = stdPoisson.getEntropy();
+    const double H5   = custom.getEntropy();
+    auto p50  = stats::PoissonDistribution::create(50.0).value;
+    auto p200 = stats::PoissonDistribution::create(200.0).value;
+    EXPECT_TRUE(std::isfinite(H1));
+    EXPECT_GT(H1, 0.0);                    // entropy is positive
+    EXPECT_GT(H5, H1);                     // higher λ → higher entropy
+    EXPECT_GT(p50.getEntropy(), H5);       // monotone continues
+    EXPECT_GT(p200.getEntropy(), p50.getEntropy()); // asymptotic formula region
+    // Sanity-check the exact result at λ=1 against the known summed series value
+    // H(Poisson(1)) ≈ 1.3049 nats
+    EXPECT_NEAR(H1, 1.305, 5e-3);
 }
 
 //==============================================================================

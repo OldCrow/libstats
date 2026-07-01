@@ -245,12 +245,17 @@ double NegativeBinomialDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double sp = p_, sr = r_, slgr = logGammaR_, slp = logP_, sl1mp = log1mP_;
+        if (sp >= detail::ONE)
+            return (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
+        const double lp_val = std::lgamma(static_cast<double>(k) + sr) -
+                              std::lgamma(static_cast<double>(k + 1)) - slgr + sr * slp +
+                              static_cast<double>(k) * sl1mp;
+        return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
     }
-    // p=1: all probability mass at k=0
+    // Cache hit — read directly under shared_lock (no gap possible)
     if (p_ >= detail::ONE)
         return (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
     const double lp = std::lgamma(static_cast<double>(k) + r_) -
@@ -270,12 +275,16 @@ double NegativeBinomialDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double sp = p_, sr = r_, slgr = logGammaR_, slp = logP_, sl1mp = log1mP_;
+        if (sp >= detail::ONE)
+            return (k == 0) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
+        return std::lgamma(static_cast<double>(k) + sr) -
+               std::lgamma(static_cast<double>(k + 1)) - slgr + sr * slp +
+               static_cast<double>(k) * sl1mp;
     }
-    // p=1: all probability mass at k=0
+    // Cache hit — read directly under shared_lock (no gap possible)
     if (p_ >= detail::ONE)
         return (k == 0) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
     return std::lgamma(static_cast<double>(k) + r_) - std::lgamma(static_cast<double>(k + 1)) -
@@ -296,12 +305,12 @@ double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double sp = p_, sr = r_;
+        return detail::beta_i(sp, sr, static_cast<double>(k + 1));
     }
-    // P(X ≤ k; r, p) = I_p(r, k+1)  — regularized incomplete beta
+    // Cache hit — read directly under shared_lock (no gap possible)
     return detail::beta_i(p_, r_, static_cast<double>(k + 1));
 }
 
@@ -516,12 +525,14 @@ double NegativeBinomialDistribution::getEntropy() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const double sr = r_, sp = p_;
+        const double var = sr * (detail::ONE - sp) / (sp * sp);
+        if (var <= detail::ZERO) return detail::ZERO_DOUBLE;
+        return detail::HALF * std::log(detail::TWO * detail::PI * detail::E * var);
     }
-    // Stirling approximation: H ≈ ½ log(2πe · r(1-p)/p²)
+    // Cache hit — read directly under shared_lock (no gap possible)
     const double var = r_ * (detail::ONE - p_) / (p_ * p_);
     if (var <= detail::ZERO)
         return detail::ZERO_DOUBLE;
@@ -546,9 +557,12 @@ void NegativeBinomialDistribution::getProbability(std::span<const double> values
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
                     const_cast<NegativeBinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const double r = d.r_, lgr = d.logGammaR_, lp = d.logP_, l1mp = d.log1mP_;
+                d.getProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);
+                return;
             }
+            // Cache hit — read directly under shared_lock (no gap possible)
             const double r = d.r_, lgr = d.logGammaR_, lp = d.logP_, l1mp = d.log1mP_;
             lock.unlock();
             d.getProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);
@@ -592,9 +606,12 @@ void NegativeBinomialDistribution::getLogProbability(std::span<const double> val
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
                     const_cast<NegativeBinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const double r = d.r_, lgr = d.logGammaR_, lp = d.logP_, l1mp = d.log1mP_;
+                d.getLogProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);
+                return;
             }
+            // Cache hit — read directly under shared_lock (no gap possible)
             const double r = d.r_, lgr = d.logGammaR_, lp = d.logP_, l1mp = d.log1mP_;
             lock.unlock();
             d.getLogProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);

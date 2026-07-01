@@ -4,7 +4,6 @@
 #include "libstats/common/distribution_common.h"
 
 // Common platform headers for distributions (consolidates shared platform dependencies)
-#include "libstats/common/distribution_platform_common.h"
 
 // Additional standard headers specific to Poisson
 #include <array>  // For precomputed factorials
@@ -645,6 +644,17 @@ class PoissonDistribution : public DistributionBase {
      * @return Mode value
      */
     [[nodiscard]] double getMode() const;
+
+    /**
+     * @brief Shannon entropy of the distribution in nats.
+     *
+     * For small λ (≤ 100): computed exactly via PMF summation truncated
+     * when P(k) < 1e-15. For large λ: asymptotic Stirling-based formula
+     * H ≈ ½ log(2πeλ) − 1/(12λ).
+     *
+     * @return Entropy in nats
+     */
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS

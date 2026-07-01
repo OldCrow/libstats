@@ -22,10 +22,9 @@ class RayleighDistribution;
 class VonMisesDistribution;
 class BinomialDistribution;
 class NegativeBinomialDistribution;
-
-// Pending implementation (registered in DistributionType enum and kDistributionMeta,
-// but headers/sources not yet available): GeometricDistribution, LaplaceDistribution,
-// CauchyDistribution.
+class GeometricDistribution;
+class LaplaceDistribution;
+class CauchyDistribution;
 
 // Type aliases for common usage
 using Gaussian = GaussianDistribution;
@@ -45,8 +44,7 @@ using Rayleigh = RayleighDistribution;
 using VonMises = VonMisesDistribution;
 using Binomial = BinomialDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
-
-// LibDistributionType was a duplicate of stats::detail::DistributionType
-// (defined in include/core/performance_dispatcher.h). It had no usages outside
-// this file and has been removed. Use stats::detail::DistributionType instead.
+using Geometric = GeometricDistribution;
+using Laplace = LaplaceDistribution;
+using Cauchy = CauchyDistribution;
 }  // namespace stats

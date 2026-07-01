@@ -1,7 +1,67 @@
-// Include all three distributions
+// All 19 distribution headers — needed for static_assert regression guards
+#include "libstats/distributions/beta.h"
+#include "libstats/distributions/binomial.h"
+#include "libstats/distributions/cauchy.h"
+#include "libstats/distributions/chi_squared.h"
+#include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
+#include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/pareto.h"
+#include "libstats/distributions/poisson.h"
+#include "libstats/distributions/rayleigh.h"
+#include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/von_mises.h"
+#include "libstats/distributions/weibull.h"
+
+// =============================================================================
+// COMPILE-TIME noexcept REGRESSION GUARDS
+// Each assertion fires at build time if the move ctor or move assignment
+// reverts to a throwing implementation on any distribution.
+// =============================================================================
+static_assert(std::is_nothrow_move_constructible_v<stats::BetaDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::BetaDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::BinomialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::BinomialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::CauchyDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::CauchyDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::ChiSquaredDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::ChiSquaredDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::DiscreteDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::DiscreteDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::ExponentialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::ExponentialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::GammaDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::GammaDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::GaussianDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::GaussianDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::GeometricDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::GeometricDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::LaplaceDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::LaplaceDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::LogNormalDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::LogNormalDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::NegativeBinomialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::NegativeBinomialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::ParetoDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::ParetoDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::PoissonDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::PoissonDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::RayleighDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::RayleighDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::StudentTDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::StudentTDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::UniformDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::UniformDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::VonMisesDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::VonMisesDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::WeibullDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::WeibullDistribution>);
 
 // Standard library includes
 #include <atomic>    // for std::atomic

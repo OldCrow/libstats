@@ -141,11 +141,19 @@ TEST_F(BinomialEnhancedTest, BatchMatchesScalar) {
 }
 
 // VECTORIZED == SCALAR
+// Note: VECTORIZED = cached scalar loop (no vector_lgamma); results are bit-exact.
 TEST_F(BinomialEnhancedTest, VectorizedEqualsScalar) {
     const size_t N = 300;
     vector<double> xs(N), out_vec(N), out_scl(N);
     for (size_t i = 0; i < N; ++i)
         xs[i] = static_cast<double>(i % 11);
+
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    b10_05_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    b10_05_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+
     for (size_t i = 0; i < N; ++i)
         EXPECT_DOUBLE_EQ(out_vec[i], out_scl[i]) << "i=" << i;
 }
@@ -208,8 +216,14 @@ TEST_F(BinomialEnhancedTest, ParallelBatchCorrectness) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = static_cast<double>(i % 11);
 
+    detail::PerformanceHint hint_par, hint_scl;
+    hint_par.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+
     const auto t0 = chrono::high_resolution_clock::now();
+    b10_05_.getLogProbability(span<const double>(xs), span<double>(out_par), hint_par);
     const auto t1 = chrono::high_resolution_clock::now();
+    b10_05_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     const auto t2 = chrono::high_resolution_clock::now();
 
     const double par_us = static_cast<double>(

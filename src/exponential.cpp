@@ -110,13 +110,9 @@ double ExponentialDistribution::getMean() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return invLambda_;  // snapshot + early return under unique_lock
     }
-
     return invLambda_;
 }
 
@@ -125,13 +121,9 @@ double ExponentialDistribution::getVariance() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return invLambdaSquared_;  // snapshot + early return under unique_lock
     }
-
     return invLambdaSquared_;
 }
 
@@ -140,13 +132,9 @@ double ExponentialDistribution::getScale() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return invLambda_;  // snapshot + early return under unique_lock
     }
-
     return invLambda_;
 }
 
@@ -199,11 +187,12 @@ double ExponentialDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double lam = lambda_, neg_lam = negLambda_;
+        if (is_unit) return std::exp(-x);
+        return lam * std::exp(neg_lam * x);
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -226,11 +215,12 @@ double ExponentialDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double log_lam = logLambda_, neg_lam = negLambda_;
+        if (is_unit) return -x;
+        return log_lam + neg_lam * x;
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -253,11 +243,12 @@ double ExponentialDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double neg_lam = negLambda_;
+        if (is_unit) return detail::ONE - std::exp(-x);
+        return detail::ONE - std::exp(neg_lam * x);
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -285,11 +276,12 @@ double ExponentialDistribution::getQuantile(double p) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double inv_lam = invLambda_;
+        if (is_unit) return -std::log(detail::ONE - p);
+        return -std::log(detail::ONE - p) * inv_lam;
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -302,15 +294,21 @@ double ExponentialDistribution::getQuantile(double p) const {
 }
 
 double ExponentialDistribution::sample(std::mt19937& rng) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+    bool cached_is_unit_rate;
+    double cached_inv_lambda;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
+        } else {
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
         }
-        ulock.unlock();
-        lock.lock();
     }
 
     // Use high-quality uniform distribution
@@ -319,35 +317,35 @@ double ExponentialDistribution::sample(std::mt19937& rng) const {
     double u = uniform(rng);
 
     // Fast path for unit exponential (λ = 1)
-    if (isUnitRate_) {
+    if (cached_is_unit_rate) {
         return -std::log(u);
     }
 
     // General case: inverse transform sampling
     // X = -ln(U)/λ where U ~ Uniform(0,1)
-    return -std::log(u) * invLambda_;
+    return -std::log(u) * cached_inv_lambda;
 }
 
 std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n) const {
     std::vector<double> samples;
     samples.reserve(n);
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+    bool cached_is_unit_rate;
+    double cached_inv_lambda;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
+        } else {
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
         }
-        ulock.unlock();
-        lock.lock();
     }
-
-    // Cache parameters for thread-safe batch generation
-    const bool cached_is_unit_rate = isUnitRate_;
-    const double cached_inv_lambda = invLambda_;
-
-    lock.unlock();  // Release lock before generation
 
     // Use high-quality uniform distribution for batch generation
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
@@ -524,11 +522,14 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                 if (!dist.cache_valid_) {
                     const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_lambda = dist.lambda_;
+                const double cached_neg_lambda = dist.negLambda_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_neg_lambda);
+                return;
             }
 
-            // Cache parameters for batch processing
+            // Cache hit — snapshot under shared_lock.
             const double cached_lambda = dist.lambda_;
             const double cached_neg_lambda = dist.negLambda_;
             lock.unlock();
@@ -547,23 +548,26 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -602,23 +606,26 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -652,11 +659,15 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                 if (!dist.cache_valid_) {
                     const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_log_lambda = dist.logLambda_;
+                const double cached_neg_lambda = dist.negLambda_;
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_log_lambda,
+                                                      cached_neg_lambda);
+                return;
             }
 
-            // Cache parameters for batch processing
+            // Cache hit — snapshot under shared_lock.
             const double cached_log_lambda = dist.logLambda_;
             const double cached_neg_lambda = dist.negLambda_;
             lock.unlock();
@@ -676,23 +687,26 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_log_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel processing
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -731,23 +745,26 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_log_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -781,11 +798,13 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                 if (!dist.cache_valid_) {
                     const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_neg_lambda = dist.negLambda_;
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_neg_lambda);
+                return;
             }
 
-            // Cache parameters for batch processing
+            // Cache hit — snapshot under shared_lock.
             const double cached_neg_lambda = dist.negLambda_;
             lock.unlock();
 
@@ -803,22 +822,24 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel processing
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -857,22 +878,24 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    }
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {

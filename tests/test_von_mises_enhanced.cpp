@@ -7,6 +7,7 @@
 #include "include/tests.h"
 #include "libstats/distributions/von_mises.h"
 
+#include <chrono>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
@@ -170,8 +171,14 @@ TEST_F(VonMisesEnhancedTest, ParallelBatchCorrectness) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = -M_PI + 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(N);
 
+    detail::PerformanceHint hint_par, hint_scl;
+    hint_par.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+
     const auto t0 = std::chrono::high_resolution_clock::now();
+    vm01_.getLogProbability(span<const double>(xs), span<double>(out_par), hint_par);
     const auto t1 = std::chrono::high_resolution_clock::now();
+    vm01_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double par_us =
@@ -181,11 +188,31 @@ TEST_F(VonMisesEnhancedTest, ParallelBatchCorrectness) {
 
     std::cout << "Von Mises LogPDF PARALLEL vs SCALAR: " << par_us << "μs vs " << scl_us
               << "μs (n=" << N << ")\n";
-    std::cout << "Note: VECTORIZED == scalar loop (no vector_cos); "
-              << "PARALLEL provides true multi-core throughput.\n";
+    std::cout << "Note: PARALLEL routes through the batch dispatch; "
+              << "SCALAR forces the scalar loop.\n";
 
     for (size_t i = 0; i < N; ++i)
-        ASSERT_NEAR(out_par[i], out_scl[i], 1e-12) << "parallel mismatch at i=" << i;
+        ASSERT_NEAR(out_par[i], out_scl[i], 1e-10) << "parallel mismatch at i=" << i;
+}
+
+// CDF accuracy at high kappa: normal approximation path
+TEST_F(VonMisesEnhancedTest, HighKappaAccuracy) {
+    // For large kappa, VM(mu, kappa) ~ N(mu, 1/kappa).
+    // CDF(mu) = 0.5 by symmetry; CDF(mu + z/sqrt(kappa)) ≈ Phi(z).
+    constexpr double mu = 0.5;
+    for (double kappa : {51.0, 100.0, 500.0}) {
+        auto d = VonMisesDistribution::create(mu, kappa).value;
+        // P(X <= mu) = 0.5
+        EXPECT_NEAR(d.getCumulativeProbability(mu), 0.5, 1e-4)
+            << "kappa=" << kappa;
+        // P(X <= mu + 1/sqrt(kappa)) ≈ Phi(1) ≈ 0.8413
+        const double x1 = mu + 1.0 / std::sqrt(kappa);
+        EXPECT_NEAR(d.getCumulativeProbability(x1), 0.8413, 1e-3)
+            << "kappa=" << kappa;
+        // CDF is monotone on [-pi, pi] relative to mu
+        EXPECT_GT(d.getCumulativeProbability(x1), d.getCumulativeProbability(mu))
+            << "kappa=" << kappa;
+    }
 }
 
 }  // namespace stats

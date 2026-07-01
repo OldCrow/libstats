@@ -94,6 +94,12 @@ void LogSpaceOps::precomputeLogMatrix(const double* probMatrix, double* logMatri
     if constexpr (arch::simd::has_simd_support()) {
         if (arch::simd::SIMDPolicy::shouldUseSIMD(total_size)) {
             arch::simd::VectorOps::vector_log(probMatrix, logMatrix, total_size);
+            // Harmonise with safeLog semantics: vector_log returns NaN for
+            // non-positive inputs; safeLog returns -inf. Replace NaN → -inf so
+            // SIMD and scalar paths agree for zero-probability transitions.
+            for (std::size_t i = 0; i < total_size; ++i)
+                if (std::isnan(logMatrix[i]))
+                    logMatrix[i] = -std::numeric_limits<double>::infinity();
             return;
         }
     }

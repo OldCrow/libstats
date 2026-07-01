@@ -4,7 +4,6 @@
 #include "libstats/common/distribution_common.h"
 
 // Common platform headers for distributions (consolidates shared platform dependencies)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 

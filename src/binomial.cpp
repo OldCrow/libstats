@@ -257,11 +257,18 @@ double BinomialDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const int sn = n_;
+        const double slnf = logNFact_, slp = logP_, sl1mp = log1mP_;
+        const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
+                                   : slnf - std::lgamma(static_cast<double>(k + 1)) -
+                                         std::lgamma(static_cast<double>(sn - k + 1));
+        const double lp_val = lc + static_cast<double>(k) * slp +
+                              static_cast<double>(sn - k) * sl1mp;
+        return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
     }
+    // Cache hit — read directly under shared_lock (no gap possible)
     const double lp =
         logBinomCoeff(k) + static_cast<double>(k) * logP_ + static_cast<double>(n_ - k) * log1mP_;
     return std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
@@ -282,11 +289,16 @@ double BinomialDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const int sn = n_;
+        const double slnf = logNFact_, slp = logP_, sl1mp = log1mP_;
+        const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
+                                   : slnf - std::lgamma(static_cast<double>(k + 1)) -
+                                         std::lgamma(static_cast<double>(sn - k + 1));
+        return lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
     }
+    // Cache hit — read directly under shared_lock (no gap possible)
     return logBinomCoeff(k) + static_cast<double>(k) * logP_ +
            static_cast<double>(n_ - k) * log1mP_;
 }
@@ -307,11 +319,16 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const int sn = n_;
+        const double sp = p_;
+        if (sp == detail::ZERO_DOUBLE) return detail::ONE;   // all mass at k=0
+        if (sp == detail::ONE) return detail::ZERO_DOUBLE;   // all mass at k=n
+        return detail::beta_i(detail::ONE - sp, static_cast<double>(sn - k),
+                              static_cast<double>(k + 1));
     }
+    // Cache hit — read directly under shared_lock (no gap possible)
     if (p_ == detail::ZERO_DOUBLE)
         return detail::ONE;  // all mass at k=0
     if (p_ == detail::ONE)
@@ -477,19 +494,19 @@ double BinomialDistribution::getMode() const {
 }
 
 double BinomialDistribution::getEntropy() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+    int n;
+    double p, lnf;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            n = n_;  p = p_;  lnf = logNFact_;  // snapshot under unique_lock
+        } else {
+            n = n_;  p = p_;  lnf = logNFact_;  // snapshot under shared_lock
+        }
     }
-    const int n = n_;
-    const double p = p_;
-    const double lnf = logNFact_;
-    lock.unlock();
 
     // Entropy is returned in nats (natural units; std::log = log base e).
     //
@@ -544,9 +561,13 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
                     const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const int n = d.n_;
+                const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
+                d.getProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+                return;
             }
+            // Cache hit — read directly under shared_lock (no gap possible)
             const int n = d.n_;
             const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
             lock.unlock();
@@ -605,9 +626,13 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
                     const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const int n = d.n_;
+                const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
+                d.getLogProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+                return;
             }
+            // Cache hit — read directly under shared_lock (no gap possible)
             const int n = d.n_;
             const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
             lock.unlock();

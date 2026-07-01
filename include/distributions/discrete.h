@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive
 // caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -441,6 +440,16 @@ class DiscreteDistribution : public DistributionBase {
      * @return Median value
      */
     [[nodiscard]] double getMedian() const override;
+
+    /**
+     * @brief Shannon entropy of the distribution in nats.
+     *
+     * For a discrete uniform distribution on {a, a+1, ..., b} with n = b - a + 1 outcomes,
+     * the maximum-entropy property gives: H = log(n).
+     *
+     * @return Entropy in nats
+     */
+    [[nodiscard]] double getEntropy() const override;
 
     //==============================================================================
     // 4. RESULT-BASED SETTERS

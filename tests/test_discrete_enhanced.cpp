@@ -95,6 +95,16 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_FALSE(dice.isInSupport(3.5));  // Non-integers not in discrete support
     EXPECT_TRUE(dice.isDiscrete());
     EXPECT_EQ(dice.getDistributionName(), "DiscreteUniform");
+
+    // Entropy: H[a,b] = log(b - a + 1) nats exactly
+    EXPECT_DOUBLE_EQ(dice.getEntropy(), std::log(6.0));          // [1,6]: log(6)
+    EXPECT_DOUBLE_EQ(binary.getEntropy(), std::log(2.0));        // [0,1]: log(2)
+    auto degenerate = stats::DiscreteDistribution::create(3, 3).value;
+    EXPECT_DOUBLE_EQ(degenerate.getEntropy(), 0.0);              // [3,3]: log(1) = 0
+    // Entropy monotone: wider support → higher entropy
+    auto d10 = stats::DiscreteDistribution::create(1, 10).value;
+    EXPECT_GT(d10.getEntropy(), dice.getEntropy());              // [1,10] > [1,6]
+    EXPECT_TRUE(std::isfinite(dice.getEntropy()));
 }
 
 //==============================================================================

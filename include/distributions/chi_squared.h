@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive
 // caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 // Chi-squared is a thin delegation wrapper over GammaDistribution
 #include "gamma.h"
@@ -387,7 +386,7 @@ class ChiSquaredDistribution : public DistributionBase {
     /**
      * @brief Median — delegates to GammaDistribution (numerical, via quantile).
      */
-    [[nodiscard]] double getMedian() const noexcept override { return gamma_.getMedian(); }
+    [[nodiscard]] double getMedian() const override { return gamma_.getMedian(); }
 
     /**
      * @brief Mode = max(k - 2, 0) — delegates to GammaDistribution.

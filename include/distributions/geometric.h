@@ -1,7 +1,6 @@
 #pragma once
 
 #include "libstats/common/distribution_common.h"
-#include "libstats/common/distribution_platform_common.h"
 
 // Geometric is a thin delegation wrapper over NegativeBinomialDistribution(r=1, p)
 #include "negative_binomial.h"

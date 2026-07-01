@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive
 // caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 // For detail::digamma() used in updateCacheUnsafe()
 #include "libstats/core/math_utils.h"

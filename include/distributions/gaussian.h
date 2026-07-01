@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive
 // caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 // Additional standard headers specific to Gaussian (C++20 showcase)
 #include <algorithm>  // C++20 ranges algorithms

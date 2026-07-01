@@ -1427,14 +1427,6 @@ if(LIBSTATS_BUILD_TESTS)
     # =======================================================================
     # These test cross-cutting functionality and integration scenarios
 
-    # Copy/move semantics stress tests - Now re-enabled as distributions are complete
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_stress.cpp)
-        create_libstats_test(test_copy_move_stress tests/test_copy_move_stress.cpp)
-        set(HAS_COPY_MOVE_STRESS TRUE)
-    else()
-        set(HAS_COPY_MOVE_STRESS FALSE)
-    endif()
-
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_copy_move_fix.cpp)
         create_libstats_test(test_copy_move_fix tests/test_copy_move_fix.cpp)
         set(HAS_COPY_MOVE_FIX TRUE)
@@ -1571,7 +1563,6 @@ if(LIBSTATS_BUILD_TESTS)
                 test_benchmark
                 test_gaussian_basic_dynamic
                 test_exponential_basic_dynamic
-                $<$<BOOL:${HAS_COPY_MOVE_STRESS}>:test_copy_move_stress>
                 $<$<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
                 $<$<BOOL:${HAS_PARALLEL_COMPILATION}>:test_parallel_compilation>
         COMMENT "Running ALL libstats tests in dependency order (Levels 0-7 + on-demand)")
@@ -1639,6 +1630,8 @@ if(LIBSTATS_BUILD_TOOLS)
     add_libstats_tool(quantile_accuracy quantile_accuracy.cpp)
     add_libstats_tool(parameter_recovery_benchmark parameter_recovery_benchmark.cpp)
     add_libstats_tool(threshold_validator threshold_validator.cpp)
+    add_libstats_tool(toctou_validator toctou_validator.cpp)
+    add_libstats_tool(copy_move_stress copy_move_stress.cpp)
 
     message(STATUS "Tools enabled:")
     message(
@@ -1664,6 +1657,14 @@ if(LIBSTATS_BUILD_TOOLS)
     message(
         STATUS
             "  - parallel_correctness_verification: Platform-aware parallel execution correctness validation across different threading systems (GCD, OpenMP, ThreadPool)"
+    )
+    message(
+        STATUS
+            "  - toctou_validator: Concurrent writer/reader race stress test for TOCTOU cache inconsistency detection across all 19 distributions"
+    )
+    message(
+        STATUS
+            "  - copy_move_stress: Concurrent copy/move throughput stress test across all 19 distributions (replaces test_copy_move_stress)"
     )
 endif()
 

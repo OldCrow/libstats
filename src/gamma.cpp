@@ -110,11 +110,8 @@ double GammaDistribution::getScale() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return scale_;  // snapshot + early return under unique_lock
     }
     return scale_;
 }
@@ -124,11 +121,8 @@ double GammaDistribution::getMean() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return mean_;  // snapshot + early return under unique_lock
     }
     return mean_;
 }
@@ -138,11 +132,8 @@ double GammaDistribution::getVariance() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return variance_;  // snapshot + early return under unique_lock
     }
     return variance_;
 }
@@ -152,11 +143,8 @@ double GammaDistribution::getSkewness() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return detail::TWO / sqrtAlpha_;  // snapshot + early return under unique_lock
     }
     return detail::TWO / sqrtAlpha_;
 }
@@ -304,16 +292,22 @@ double GammaDistribution::getProbability(double x) const {
         return detail::ZERO_DOUBLE;
     }
 
-    // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot under unique_lock — eliminates TOCTOU gap.
+        // Inline log-space formula instead of calling getLogProbability to
+        // avoid re-entrant shared_lock acquisition on the same mutex.
+        const double a = alpha_, b = beta_;
+        const double alb = alphaLogBeta_, lga = logGammaAlpha_, am1 = alphaMinusOne_;
+        if (x == detail::ZERO_DOUBLE) {
+            return (a < detail::ONE)    ? std::numeric_limits<double>::infinity()
+                   : (a == detail::ONE) ? b
+                                        : detail::ZERO_DOUBLE;
         }
-        ulock.unlock();
-        lock.lock();
+        return std::exp(alb - lga + am1 * std::log(x) - b * x);
     }
 
     // Handle special case x = 0
@@ -323,9 +317,8 @@ double GammaDistribution::getProbability(double x) const {
                                          : detail::ZERO_DOUBLE;
     }
 
-    // Use log-space computation for numerical stability
-    const double log_pdf = getLogProbability(x);
-    return std::exp(log_pdf);
+    // Inline log-space computation (avoids re-entrant lock via getLogProbability).
+    return std::exp(alphaLogBeta_ - logGammaAlpha_ + alphaMinusOne_ * std::log(x) - beta_ * x);
 }
 
 double GammaDistribution::getLogProbability(double x) const {
@@ -333,16 +326,20 @@ double GammaDistribution::getLogProbability(double x) const {
         return detail::NEGATIVE_INFINITY;
     }
 
-    // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot under unique_lock — eliminates TOCTOU gap.
+        const double a = alpha_, b = beta_;
+        const double lb = logBeta_, alb = alphaLogBeta_, lga = logGammaAlpha_, am1 = alphaMinusOne_;
+        if (x == detail::ZERO_DOUBLE) {
+            if (a < detail::ONE) return std::numeric_limits<double>::infinity();
+            else if (a == detail::ONE) return lb;
+            else return detail::MIN_LOG_PROBABILITY;
         }
-        ulock.unlock();
-        lock.lock();
+        return alb - lga + am1 * std::log(x) - b * x;
     }
 
     // Handle special case x = 0
@@ -372,18 +369,15 @@ double GammaDistribution::getCumulativeProbability(double x) const {
         return detail::ZERO_DOUBLE;
     }
 
-    // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot under unique_lock — eliminates TOCTOU gap.
+        const double a = alpha_, b = beta_;
+        return detail::gamma_p(a, b * x);
     }
-
     // Use regularized incomplete gamma function P(α, βx)
     return detail::gamma_p(alpha_, beta_ * x);
 }
@@ -405,39 +399,82 @@ double GammaDistribution::getQuantile(double p) const {
 }
 
 double GammaDistribution::sample(std::mt19937& rng) const {
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot alpha, beta under the appropriate lock to avoid TOCTOU.
+    double cached_alpha, cached_beta;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            cached_alpha = alpha_;  cached_beta = beta_;
+        } else {
+            cached_alpha = alpha_;  cached_beta = beta_;
         }
-        ulock.unlock();
-        lock.lock();
     }
 
-    // Choose sampling method based on α
-    if (alpha_ >= detail::ONE) {
-        return sampleMarsagliaTsang(rng);
+    // Choose sampling method based on cached α — lock released.
+    // Inline the sampling algorithms using cached parameters to avoid
+    // calling private helpers that would read unlocked member variables.
+    if (cached_alpha >= detail::ONE) {
+        // Marsaglia-Tsang "squeeze" method for α ≥ 1
+        std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
+        std::normal_distribution<double> normal(detail::ZERO_DOUBLE, detail::ONE);
+        const double d = cached_alpha - detail::ONE / detail::THREE;
+        const double c = detail::ONE / std::sqrt(detail::NINE * d);
+        while (true) {
+            double x, v;
+            do {
+                x = normal(rng);
+                v = detail::ONE + c * x;
+            } while (v <= detail::ZERO_DOUBLE);
+            v = v * v * v;
+            double u = uniform(rng);
+            if (u < detail::ONE - 0.0331 * (x * x) * (x * x)) {
+                return d * v / cached_beta;
+            }
+            if (std::log(u) < detail::HALF * x * x + d * (detail::ONE - v + std::log(v))) {
+                return d * v / cached_beta;
+            }
+        }
     } else {
-        return sampleAhrensDieter(rng);
+        // Ahrens-Dieter acceptance-rejection method for α < 1
+        std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
+        const double b = (detail::E + cached_alpha) / detail::E;
+        while (true) {
+            double u = uniform(rng);
+            double p = b * u;
+            if (p <= detail::ONE) {
+                double x = std::pow(p, detail::ONE / cached_alpha);
+                double u2 = uniform(rng);
+                if (u2 <= std::exp(-x)) {
+                    return x / cached_beta;
+                }
+            } else {
+                double x = -std::log((b - p) / cached_alpha);
+                double u2 = uniform(rng);
+                if (u2 <= std::pow(x, cached_alpha - detail::ONE)) {
+                    return x / cached_beta;
+                }
+            }
+        }
     }
 }
 
 std::vector<double> GammaDistribution::sample(std::mt19937& rng, size_t n) const {
-    // Read parameters once under a single lock to avoid n lock acquisitions.
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+    // Snapshot alpha, beta under the appropriate lock to avoid TOCTOU.
+    double cached_alpha, cached_beta;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_) updateCacheUnsafe();
+            cached_alpha = alpha_;  cached_beta = beta_;  // snapshot under unique_lock
+        } else {
+            cached_alpha = alpha_;  cached_beta = beta_;  // snapshot under shared_lock
+        }
     }
-    const double cached_alpha = alpha_;
-    const double cached_beta  = beta_;
-    lock.unlock();
 
     std::vector<double> samples;
     samples.reserve(n);
@@ -640,11 +677,8 @@ bool GammaDistribution::isExponentialDistribution() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return isExponential_;  // snapshot + early return under unique_lock
     }
     return isExponential_;
 }
@@ -654,11 +688,8 @@ bool GammaDistribution::isChiSquaredDistribution() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return isChiSquared_;  // snapshot + early return under unique_lock
     }
     return isChiSquared_;
 }
@@ -677,13 +708,11 @@ double GammaDistribution::getEntropy() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        // Snapshot under unique_lock — eliminates TOCTOU gap.
+        const double a = alpha_, lb = logBeta_, lga = logGammaAlpha_, da = digammaAlpha_;
+        return a - lb + lga + (detail::ONE - a) * da;
     }
-
     // H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α)
     return alpha_ - logBeta_ + logGammaAlpha_ + (detail::ONE - alpha_) * digammaAlpha_;
 }
@@ -693,11 +722,8 @@ bool GammaDistribution::canUseNormalApproximation() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
-            updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        if (!cache_valid_) updateCacheUnsafe();
+        return isLargeAlpha_;  // snapshot + early return under unique_lock
     }
     return isLargeAlpha_;
 }
@@ -730,30 +756,25 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
         *this, values, results, hint, detail::OperationType::PDF,
         [](const GammaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                // Snapshot under unique_lock.
+                const double alpha = dist.alpha_, beta = dist.beta_;
+                const double lga = dist.logGammaAlpha_, alb = dist.alphaLogBeta_;
+                const double am1 = dist.alphaMinusOne_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta, lga, alb, am1);
+                return;  // early return; ulock releases here
             }
-
-            // Cache parameters for batch processing
-            const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
+            // Cache hit — snapshot under shared_lock, then unlock.
+            const double alpha = dist.alpha_, beta = dist.beta_;
+            const double lga = dist.logGammaAlpha_, alb = dist.alphaLogBeta_;
+            const double am1 = dist.alphaMinusOne_;
             lock.unlock();
-
-            // Call private implementation directly
-            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_alpha, cached_beta,
-                                               cached_log_gamma_alpha, cached_alpha_log_beta,
-                                               cached_alpha_minus_one);
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta, lga, alb, am1);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
             // Parallel-SIMD lambda: should use ParallelUtils
@@ -765,25 +786,28 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
+            [[maybe_unused]] double cached_alpha;
+            double cached_beta, cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
+                } else {
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            [[maybe_unused]] const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
 
             // Chunk so each parallel task runs the SIMD log+exp pipeline
             // rather than computing log(x) per element in each task.
@@ -816,24 +840,28 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
+            double cached_alpha, cached_beta, cached_log_gamma_alpha;
+            double cached_alpha_log_beta, cached_alpha_minus_one;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
+                } else {
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            const double cached_alpha          = dist.alpha_;
-            const double cached_beta           = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta  = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
 
             // Chunk into SIMD-sized slices so pool tasks use the SIMD pipeline.
             constexpr std::size_t CHUNK = 1024;
@@ -856,29 +884,25 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
         *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const GammaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                // Snapshot under unique_lock.
+                const double alpha = dist.alpha_, beta = dist.beta_;
+                const double lga = dist.logGammaAlpha_, alb = dist.alphaLogBeta_;
+                const double am1 = dist.alphaMinusOne_;
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta, lga, alb, am1);
+                return;  // early return; ulock releases here
             }
-
-            // Cache parameters for batch processing
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            const double cached_beta = dist.beta_;
+            // Cache hit — snapshot under shared_lock, then unlock.
+            const double alpha = dist.alpha_, beta = dist.beta_;
+            const double lga = dist.logGammaAlpha_, alb = dist.alphaLogBeta_;
+            const double am1 = dist.alphaMinusOne_;
             lock.unlock();
-
-            // Call private implementation directly
-            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, dist.alpha_, cached_beta,
-                                                  cached_log_gamma_alpha, cached_alpha_log_beta,
-                                                  cached_alpha_minus_one);
+            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta, lga, alb, am1);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
             // Parallel-SIMD lambda: should use ParallelUtils
@@ -890,25 +914,28 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
+            double cached_alpha, cached_beta, cached_log_gamma_alpha;
+            double cached_alpha_log_beta, cached_alpha_minus_one;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
+                } else {
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_alpha           = dist.alpha_;
-            const double cached_beta            = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta  = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
 
             // Chunk so each parallel task runs the SIMD log pipeline.
             constexpr std::size_t CHUNK = 1024;
@@ -940,24 +967,28 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
+            double cached_alpha, cached_beta, cached_log_gamma_alpha;
+            double cached_alpha_log_beta, cached_alpha_minus_one;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
+                } else {
+                    cached_alpha          = dist.alpha_;
+                    cached_beta           = dist.beta_;
+                    cached_log_gamma_alpha = dist.logGammaAlpha_;
+                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            const double cached_alpha          = dist.alpha_;
-            const double cached_beta           = dist.beta_;
-            const double cached_log_gamma_alpha = dist.logGammaAlpha_;
-            const double cached_alpha_log_beta  = dist.alphaLogBeta_;
-            const double cached_alpha_minus_one = dist.alphaMinusOne_;
-            lock.unlock();
 
             constexpr std::size_t CHUNK = 1024;
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
@@ -982,26 +1013,21 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             return dist.getCumulativeProbability(value);
         },
         [](const GammaDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                // Snapshot under unique_lock.
+                const double alpha = dist.alpha_, beta = dist.beta_;
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta);
+                return;  // early return; ulock releases here
             }
-
-            // Cache parameters for batch processing
-            const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
+            // Cache hit — snapshot under shared_lock, then unlock.
+            const double alpha = dist.alpha_, beta = dist.beta_;
             lock.unlock();
-
-            // Call private implementation directly
-            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_alpha,
-                                                         cached_beta);
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
             // Parallel-SIMD lambda: should use ParallelUtils
@@ -1013,22 +1039,19 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
+            double cached_alpha, cached_beta;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
+                } else {
+                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1063,22 +1086,19 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
+            double cached_alpha, cached_beta;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GammaDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
+                } else {
+                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_alpha = dist.alpha_;
-            const double cached_beta = dist.beta_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "libstats/common/distribution_common.h"
-#include "libstats/common/distribution_platform_common.h"
 
 // Cauchy is a thin delegation wrapper over StudentTDistribution(ν=1).
 #include "student_t.h"

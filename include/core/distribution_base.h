@@ -31,6 +31,18 @@ namespace stats {
  * The class inherits from multiple specialized interfaces to provide a clean
  * separation of concerns while maintaining full backwards compatibility.
  *
+ * @note Thread safety: all const methods (getProbability, getLogProbability,
+ * getCumulativeProbability, getMean, etc.) are safe to call concurrently from
+ * multiple threads. Setters (setMean, setStdDev, fit, etc.) may be called
+ * concurrently with const methods; the internal shared_mutex ensures that
+ * cache recomputation and parameter reads are mutually consistent.
+ *
+ * Move construction and move assignment are @b NOT thread-safe with respect
+ * to the source object — the caller must ensure no concurrent access to the
+ * source during a move. This follows the same convention as @c std::vector
+ * and other STL containers: the source is left in a valid but unspecified
+ * state and must not be accessed concurrently during or after the move.
+ *
  * @par Usage Example:
  * @code
  * class NormalDistribution : public DistributionBase {
