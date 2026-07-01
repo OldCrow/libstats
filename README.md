@@ -31,7 +31,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
 - **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
-### 📊 **Available Distributions** (19 across 6 families)
+### 📊 **Available Distributions** (19 across 7 families)
 
 **Symmetric, unbounded continuous**
 - Gaussian (Normal) N(μ, σ²) · Student's t t(ν)
@@ -118,7 +118,7 @@ int main() {
     // stats:: is the primary namespace; libstats:: is an alias kept for compatibility.
     auto gaussian_result = stats::GaussianDistribution::create(0.0, 1.0);
     if (gaussian_result.isOk()) {
-        auto& gaussian = gaussian_result.value;
+        auto& gaussian = *gaussian_result;  // operator* returns T&
 
         // Single-value operations
         std::cout << "PDF at 1.0: " << gaussian.getProbability(1.0) << std::endl;
@@ -164,7 +164,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 19 distributions across 6 families (symmetric, positive-support, power-law, bounded, circular, discrete)
+- 19 distributions across 7 families (symmetric, positive-support, power-law, bounded, circular, discrete, real-line)
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -329,7 +329,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 v2.0.0 is released. v1.5.3 was the final v1.x release.
 
-**19 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
+**19 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
 - Span-based SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds
