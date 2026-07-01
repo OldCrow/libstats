@@ -233,6 +233,89 @@
 - `quantile_accuracy` tool: 26/26 test cases PASS across all 16 distributions (0 FAIL);
   three pre-existing quantile inversion bugs fixed as a result of first tool run.
 
+### Fixed (post-2026-06-28, audit remediation — 2026-07-01)
+
+**Thread safety — TOCTOU (time-of-check to time-of-use) in cache locking:**
+- All 19 distributions' scalar probability methods (`getProbability`, `getLogProbability`,
+  `getCumulativeProbability`, `getMean`, `getVariance`, `sample`, etc.) used a double-checked
+  locking pattern with a gap between `ulock.unlock()` and `lock.lock()` where a concurrent
+  setter could change parameters and invalidate the cache. All scalar methods now snapshot
+  cached fields under the still-held unique_lock (early-return pattern) eliminating the gap.
+- All 9 Gaussian batch lambdas (PDF/LogPDF/CDF × SIMD/Parallel/WorkStealing) and the
+  Binomial parallel batch lambda had the same gap; converted to scope-block snapshot pattern.
+
+**M-6 (const_cast fully resolved):**
+- `updateCacheUnsafe()` is `const noexcept`; `const_cast` in batch lambdas was always
+  unnecessary. ~111 instances across `gaussian.cpp` (original P1-8 fix caught 3; 108 more
+  in 14 other distribution batch lambdas were introduced by TOCTOU agents) all removed.
+
+**5 no-op tests fixed** (audit found 4; a 6th was found and fixed):
+- `BinomialEnhancedTest::VectorizedEqualsScalar` and `::ParallelBatchCorrectness`,
+  `NegativeBinomialEnhancedTest::VectorizedEqualsScalar` and `::ParallelBatchCorrectness`,
+  `VonMisesEnhancedTest::ParallelBatchCorrectness` — output vectors were never populated;
+  tests compared zero-vs-zero trivially. All now call real FORCE_VECTORIZED/FORCE_PARALLEL
+  dispatch paths with correctness assertions.
+
+**Numerical correctness:**
+- `LogSpaceOps::precomputeLogMatrix`: SIMD path called `vector_log` (returns NaN for negative
+  inputs); scalar path called `safeLog` (returns −∞). Post-process NaN→−∞ added so both paths
+  agree for zero-probability transitions in HMM-style log-space arithmetic.
+- `inverse_chi_squared_cdf` bisection upper bound `df + 10√df` too small for extreme p (> 0.9999).
+  Iterative doubling loop added to both bisection sites.
+- `VonMisesDistribution::getCumulativeProbability`: fixed 512-step trapezoidal rule losing accuracy
+  at high κ. For κ > 50 uses normal approximation CDF(v) ≈ Φ((v−μ)√κ); moderate κ scales step
+  count with max(512, 64√κ).
+- `openmp_reduce` hardcoded `reduction(+:result)` so non-additive `BinaryOp` arguments (multiply,
+  min, max) silently produced wrong answers. Replaced with manual per-thread partials.
+- `ParetoDistribution::getQuantile`: pre-lock early exit for `p == 0.0` read `scale_` without
+  holding any lock. Shared lock now acquired before member access.
+
+### Added (post-2026-06-28)
+
+**`Result<T>` redesigned as discriminated union:**
+- `Result<T>` changed from aggregate struct to `class` backed by `std::variant<T, ErrorInfo>`.
+  `makeError()` no longer constructs `T` at all — only `ErrorInfo` (code + message) is stored
+  on the error path. Equivalent to C++23 `std::expected<T, E>` in C++20.
+- Public fields removed; method API: `*result` / `result.unwrap()` (value), `result.errorCode()`,
+  `result.message()`. `unwrap()` has lvalue/const-lvalue/rvalue overloads. See MIGRATION_GUIDE.md.
+
+**New entropy implementations:**
+- `DiscreteDistribution::getEntropy()`: exact H = log(n) nats where n = b − a + 1.
+- `PoissonDistribution::getEntropy()`: exact PMF summation for λ ≤ 100; Stirling asymptotic
+  H ≈ ½ log(2πeλ) − 1/(12λ) for λ > 100.
+
+**New tools:**
+- `tools/toctou_validator`: concurrent writer/reader race stress test for all 19 distributions.
+  Detects HARD violations (NaN/negative/CDF-out-of-bounds) and MIXED violations (PDF value
+  inconsistent with all known-valid parameter sets). Exit code 0 = clean, 1 = violations.
+- `tools/copy_move_stress`: concurrent copy/move correctness and throughput tool replacing the
+  retired `test_copy_move_stress` (which had a hardcoded 5-second timer, no GTest assertions,
+  and only covered 16 of 19 distributions). Configurable `--duration-ms`/`--threads`.
+  All 19 distributions. Result column is primary; copy rate is diagnostic.
+
+**Other improvements:**
+- `LIBSTATS_PREFER_PLATFORM_THREADING` CMake option: when ON with GCD (macOS) or WTP (Windows)
+  active, suppresses OpenMP to prevent two independent thread pools over-subscribing the CPU.
+- All 19 `getDistributionName()` return values normalised to PascalCase display names from
+  `kDistributionMeta` (14 returned `XxxDistribution`, 1 returned `DiscreteUniform`).
+- `LogSpaceOps::initialize()` no-op removed along with `LogSpaceInitializer` RAII class and
+  `globalLogSpaceInit` static (lookup table it initialised was removed years earlier).
+- `LIBSTATS_LIKELY`/`LIBSTATS_UNLIKELY` macros replaced with direct C++20 `[[likely]]`/
+  `[[unlikely]]` attributes in `math_utils.h`; macro definitions removed from `utility_common.h`.
+- Vestigial `include/common/distribution_platform_common.h` deleted; all 19 distribution headers
+  updated to remove the include.
+- Doxyfile.in: MathJax 3 CDN enabled, `WARN_NO_PARAMDOC=YES`, `DOT_NUM_THREADS=4`.
+- `forward_declarations.h`: Geometric/Laplace/Cauchy forward declarations and type aliases added;
+  stale `LibDistributionType` tombstone comment removed.
+
+### Validation (post-2026-07-01)
+
+- 46/46 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON.
+  (Test count reduced from 47: `test_copy_move_stress` retired; `test_copy_move_fix` extended
+  with compile-time `static_assert` noexcept guards for all 19 distributions.)
+- `toctou_validator`: 1,416,531 concurrent reads, 0 violations across all 19 distributions.
+- Asus TUF A16 (AVX-512): re-validation required after audit remediation.
+
 ---
 
 ## [1.5.3] - 2026-06-20

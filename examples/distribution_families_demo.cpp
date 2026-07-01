@@ -542,7 +542,7 @@ int main() {
     demo_batch_api();
 
     std::cout << "\n" << std::string(72, '=') << "\n";
-    std::cout << "19 distributions across 5 families (plus Laplace/Cauchy on the full real line).\n";
+    std::cout << "19 distributions across 7 families.\n";
     std::cout << "See the individual distribution headers for the full API surface.\n";
     std::cout << std::string(72, '=') << "\n";
 

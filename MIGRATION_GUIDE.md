@@ -170,6 +170,35 @@ dist.getProbability(std::span<const double>(xs), std::span<double>(ys), hint);
 
 ---
 
+## Result<T> API change (2026-07-01)
+
+`Result<T>` was redesigned from a plain aggregate struct to a discriminated union
+(`std::variant<T, ErrorInfo>`). The public **fields** are gone; use the methods below.
+
+| Old (v1.x – v2.0.0-pre) | New (v2.0.0) |
+|---|---|
+| `result.value` | `*result` (lvalue ref) or `result.unwrap()` (move) |
+| `std::move(result.value)` | `std::move(result).unwrap()` |
+| `result.error_code` | `result.errorCode()` |
+| `result.message` | `result.message()` |
+
+```cpp
+// v2.0.0
+auto result = stats::GaussianDistribution::create(0.0, 1.0);
+if (result.isOk()) {
+    auto& g = *result;           // operator* returns T&
+    // or to move out:
+    auto g = std::move(result).unwrap();
+} else {
+    std::cerr << result.message() << "\n";  // note: method call
+}
+```
+
+`makeError()` no longer constructs the value type on the error path.
+`isOk()` and `isError()` are unchanged.
+
+---
+
 ## Factory method Doxygen updated
 
 The `create()` factory rationale has changed. In v1.x the comment cited an ABI
@@ -179,10 +208,10 @@ design choice documented in `error_handling.h`. The factory itself is unchanged:
 ```cpp
 auto result = stats::GaussianDistribution::create(0.0, 1.0);
 if (result.isOk()) {
-    auto& g = result.value;
+    auto& g = *result;  // operator* — see Result<T> API change above
     // ...
 } else {
-    std::cerr << result.message << "\n";
+    std::cerr << result.message() << "\n";
 }
 ```
 

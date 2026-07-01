@@ -8,11 +8,11 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v2.0.0 on `feat/v2-architecture` — 47/47 correctness tests pass on Kaby Lake
+**Current Status**: v2.0.0 on `feat/v2-architecture` — 46/46 correctness tests pass on Kaby Lake
 AVX2+FMA and Mac Mini M1 NEON; Asus TUF A16 AVX-512 re-validation pending.
 v1.5.3 is the final v1.x release.
 
-19 distributions implemented across 6 families (Geometric, Laplace, Cauchy added 2026-06-28).
+19 distributions implemented across 7 families (Geometric, Laplace, Cauchy added 2026-06-28).
 v2.0.0 breaking changes (relative to v1.5.3):
 - Platform baseline raised to macOS 13 Ventura; AppleClang 15+, GCC 13+, Clang 17+, MSVC 19.38+.
 - Alternate Homebrew LLVM compiler path removed; system AppleClang only on macOS.
@@ -98,9 +98,9 @@ minimum macOS raised to 13 Ventura).
 
 | Machine | SIMD | Target | Notes |
 |---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 47/47 ✅ | 44/44 v2.0.0 + Geometric/Laplace/Cauchy (2026-06-28) |
-||| Mac Mini M1 | NEON | 47/47 ✅ | 44/44 v2.0.0 + Geometric/Laplace/Cauchy (2026-06-28) |
-| Asus TUF A16 (Windows) | AVX-512 | 47/47 ✅ | v2.0.0 incl. Geometric/Laplace/Cauchy (2026-06-29); kAvx512 recalibrated sha-1b564ec |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 46/46 ✅ | Audit remediation complete (2026-07-01) |
+||| Mac Mini M1 | NEON | 46/46 ✅ | Audit remediation complete (2026-07-01) |
+| Asus TUF A16 (Windows) | AVX-512 | 46/46 ✅ | Re-validation required after audit remediation |
 
 **v1.5.2 — final v1.x release (four machines)**
 
@@ -224,7 +224,7 @@ Selected per-distribution speedups:
 - **v2.0.0 API migration test debt cleared**: 9 enhanced test files updated to use the
   span+`PerformanceHint` API; stale NaN/kurtosis/Bootstrap assertions corrected.
 
-47/47 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON (44/44 at v2.0.0;
+46/46 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON (44/44 at v2.0.0;
 Geometric, Laplace, Cauchy added 2026-06-28). Asus TUF A16 (AVX-512): re-run correctness
 suite before PR merge.
 
@@ -528,7 +528,7 @@ g++ -std=c++20 -Wall -Wextra -O2 \
 int main() {
     auto result = stats::GaussianDistribution::create(0.0, 1.0);
     if (result.isOk()) {
-        auto& g = result.value;
+        auto& g = *result;  // operator* returns T& (Result<T> redesigned 2026-07-01)
         std::cout << "PDF at 0: " << g.getProbability(0.0) << "\n";
         std::cout << "CDF at 1: " << g.getCumulativeProbability(1.0) << "\n";
     }
@@ -574,7 +574,7 @@ Level 5: Complete Library Interface (libstats.h)
 
 ### Core Components
 
-#### Statistical Distributions (19 implemented, across 6 families)
+#### Statistical Distributions (19 implemented, across 7 families)
 1. **Gaussian** (Normal) - N(μ, σ²)
 2. **Exponential** - Exp(λ)
 3. **Uniform** - U(a, b)
