@@ -161,7 +161,8 @@ RaceResult run_race(Dist& dist, std::function<void(Dist&)> write_p1,
 
 template <typename Dist>
 std::function<int(const Dist&, std::string&)> make_checker(double test_x, double pdf_p1,
-                                                           double pdf_p2, double cdf_test_x) {
+                                                           double pdf_p2,
+                                                           [[maybe_unused]] double cdf_test_x) {
     // per-set absolute tolerances
     const double tol1 = std::max(std::abs(pdf_p1) * CONSISTENT_REL_TOL, 1e-10);
     const double tol2 = std::max(std::abs(pdf_p2) * CONSISTENT_REL_TOL, 1e-10);

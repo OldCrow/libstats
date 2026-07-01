@@ -424,17 +424,17 @@ TEST(DistributionBenchmark, GeometricPDFLogPDFCDF) {
     bench.addTest("Geometric PDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getProbability(xs[i]);
+            sink = sink + dist.getProbability(xs[i]);
     });
     bench.addTest("Geometric LogPDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getLogProbability(xs[i]);
+            sink = sink + dist.getLogProbability(xs[i]);
     });
     bench.addTest("Geometric CDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getCumulativeProbability(xs[i]);
+            sink = sink + dist.getCumulativeProbability(xs[i]);
     });
     auto results = bench.runAll();
     EXPECT_EQ(results.size(), 3u);
@@ -453,17 +453,17 @@ TEST(DistributionBenchmark, LaplacePDFLogPDFCDF) {
     bench.addTest("Laplace PDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getProbability(xs[i]);
+            sink = sink + dist.getProbability(xs[i]);
     });
     bench.addTest("Laplace LogPDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getLogProbability(xs[i]);
+            sink = sink + dist.getLogProbability(xs[i]);
     });
     bench.addTest("Laplace CDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getCumulativeProbability(xs[i]);
+            sink = sink + dist.getCumulativeProbability(xs[i]);
     });
     auto results = bench.runAll();
     EXPECT_EQ(results.size(), 3u);
@@ -482,17 +482,17 @@ TEST(DistributionBenchmark, CauchyPDFLogPDFCDF) {
     bench.addTest("Cauchy PDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getProbability(xs[i]);
+            sink = sink + dist.getProbability(xs[i]);
     });
     bench.addTest("Cauchy LogPDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getLogProbability(xs[i]);
+            sink = sink + dist.getLogProbability(xs[i]);
     });
     bench.addTest("Cauchy CDF", [&]() {
         volatile double sink = 0.0;
         for (size_t i = 0; i < N; ++i)
-            sink += dist.getCumulativeProbability(xs[i]);
+            sink = sink + dist.getCumulativeProbability(xs[i]);
     });
     auto results = bench.runAll();
     EXPECT_EQ(results.size(), 3u);

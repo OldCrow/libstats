@@ -15,7 +15,7 @@ CpuTier cpu_tier() noexcept {
      * Ivy Bridge (2012):   Intel family 6, model 58
      * These are the only Intel generations with AVX but not AVX2 or FMA.
      */
-    [[nodiscard]] auto is_legacy_intel = [](const Features& f) noexcept -> bool {
+    auto is_legacy_intel = [](const Features& f) noexcept -> bool {
         return f.vendor == "GenuineIntel" && f.family == 6 && (f.model == 42 || f.model == 58);
     };
 
