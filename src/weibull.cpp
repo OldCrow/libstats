@@ -699,7 +699,7 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
                              lnc = d.logNormConst_;
@@ -724,7 +724,7 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
                 } else {
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
@@ -764,7 +764,7 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
                 } else {
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
@@ -796,7 +796,7 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
                              lnc = d.logNormConst_;
@@ -821,7 +821,7 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
                 } else {
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
@@ -861,7 +861,7 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
                 } else {
                     k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
@@ -893,7 +893,7 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double ls = d.logScale_, k = d.shape_;
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, ls, k);
@@ -916,7 +916,7 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     ls = d.logScale_; k = d.shape_;
                 } else {
                     ls = d.logScale_; k = d.shape_;
@@ -948,7 +948,7 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     ls = d.logScale_; k = d.shape_;
                 } else {
                     ls = d.logScale_; k = d.shape_;

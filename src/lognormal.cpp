@@ -537,7 +537,7 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — no TOCTOU gap.
                 const double mu = d.mu_;
                 const double neg_inv_2sigma2 = d.negInv2SigmaSquared_;
@@ -566,7 +566,7 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     mu = d.mu_;  // snapshot while unique_lock still held
                     neg_inv_2sigma2 = d.negInv2SigmaSquared_;
                     log_norm_const = d.logNormConst_;
@@ -616,7 +616,7 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     mu = d.mu_;  // snapshot while unique_lock still held
                     neg_inv_2sigma2 = d.negInv2SigmaSquared_;
                     log_norm_const = d.logNormConst_;
@@ -653,7 +653,7 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — no TOCTOU gap.
                 const double mu = d.mu_;
                 const double neg_inv_2sigma2 = d.negInv2SigmaSquared_;
@@ -684,7 +684,7 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     mu = d.mu_;  // snapshot while unique_lock still held
                     neg_inv_2sigma2 = d.negInv2SigmaSquared_;
                     log_norm_const = d.logNormConst_;
@@ -734,7 +734,7 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     mu = d.mu_;  // snapshot while unique_lock still held
                     neg_inv_2sigma2 = d.negInv2SigmaSquared_;
                     log_norm_const = d.logNormConst_;
@@ -771,7 +771,7 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — no TOCTOU gap.
                 const double mu = d.mu_;
                 const double inv_sigma_sqrt2 = d.invSigmaSqrt2_;
@@ -798,7 +798,7 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     mu = d.mu_;  // snapshot while unique_lock still held
                     inv_sigma_sqrt2 = d.invSigmaSqrt2_;
                 } else {
@@ -838,7 +838,7 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LogNormalDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     mu = d.mu_;  // snapshot while unique_lock still held
                     inv_sigma_sqrt2 = d.invSigmaSqrt2_;
                 } else {

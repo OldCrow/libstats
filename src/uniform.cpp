@@ -697,7 +697,7 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
@@ -744,7 +744,7 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
@@ -814,7 +814,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
@@ -874,7 +874,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
@@ -954,7 +954,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
@@ -1018,7 +1018,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;

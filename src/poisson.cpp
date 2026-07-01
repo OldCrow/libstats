@@ -602,7 +602,7 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
                 const double cached_log_lambda = dist.logLambda_;
@@ -639,7 +639,7 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
                     cached_log_lambda = dist.logLambda_;
                     cached_exp_neg_lambda = dist.expNegLambda_;
@@ -727,7 +727,7 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
                     cached_log_lambda = dist.logLambda_;
                     cached_exp_neg_lambda = dist.expNegLambda_;
@@ -779,7 +779,7 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
                 const double cached_log_lambda = dist.logLambda_;
@@ -813,7 +813,7 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
                     cached_log_lambda = dist.logLambda_;
                 } else {
@@ -879,7 +879,7 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
                     cached_log_lambda = dist.logLambda_;
                 } else {
@@ -921,7 +921,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
                 dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda);
@@ -951,7 +951,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
                 } else {
                     cached_lambda = dist.lambda_;
@@ -1013,7 +1013,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<PoissonDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
                 } else {
                     cached_lambda = dist.lambda_;

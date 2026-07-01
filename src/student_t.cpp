@@ -430,7 +430,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 // Snapshot while unique_lock is still held.
                 const double lnc = dist.logNormConst_;
@@ -460,7 +460,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     lnc = dist.logNormConst_;  nhnpo = dist.negHalfNuPlusOne_;  inv_nu = dist.invNu_;
                 } else {
@@ -513,7 +513,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 // Snapshot while unique_lock is still held.
                 const double lnc = dist.logNormConst_;

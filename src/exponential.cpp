@@ -520,7 +520,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
@@ -557,7 +557,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_lambda = dist.lambda_;
                     cached_neg_lambda = dist.negLambda_;
@@ -615,7 +615,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_lambda = dist.lambda_;
                     cached_neg_lambda = dist.negLambda_;
@@ -657,7 +657,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_log_lambda = dist.logLambda_;
@@ -696,7 +696,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_log_lambda = dist.logLambda_;
                     cached_neg_lambda = dist.negLambda_;
@@ -754,7 +754,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_log_lambda = dist.logLambda_;
                     cached_neg_lambda = dist.negLambda_;
@@ -796,7 +796,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_neg_lambda = dist.negLambda_;
@@ -831,7 +831,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_neg_lambda = dist.negLambda_;
                     cached_is_unit_rate = dist.isUnitRate_;
@@ -887,7 +887,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_) {
-                        const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     }
                     cached_neg_lambda = dist.negLambda_;
                     cached_is_unit_rate = dist.isUnitRate_;

@@ -465,7 +465,7 @@ void LaplaceDistribution::getProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
                 d.getProbabilityBatchUnsafeImpl(vals, res, count, m, nib, nlb);
@@ -490,7 +490,7 @@ void LaplaceDistribution::getProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
                 } else {
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
@@ -524,7 +524,7 @@ void LaplaceDistribution::getProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
                 } else {
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
@@ -551,7 +551,7 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double m = d.mu_, nib = d.neg_inv_b_, nlb = d.neg_log2b_;
                 d.getLogProbabilityBatchUnsafeImpl(vals, res, count, m, nib, nlb);
@@ -575,7 +575,7 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
                 } else {
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
@@ -606,7 +606,7 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
                 } else {
                     m = d.mu_; nib = d.neg_inv_b_; nlb = d.neg_log2b_;
@@ -633,7 +633,7 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double m = d.mu_, hib = d.half_inv_b_;
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, m, hib);
@@ -657,7 +657,7 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     m = d.mu_; hib = d.half_inv_b_;
                 } else {
                     m = d.mu_; hib = d.half_inv_b_;
@@ -695,7 +695,7 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<LaplaceDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     m = d.mu_; hib = d.half_inv_b_;
                 } else {
                     m = d.mu_; hib = d.half_inv_b_;

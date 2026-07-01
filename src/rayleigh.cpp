@@ -422,7 +422,7 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double nhis = d.negHalfInvSigmaSquared_, lnc = d.logNormConst_;
                 d.getProbabilityBatchUnsafeImpl(vals, res, count, nhis, lnc);
@@ -445,7 +445,7 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
                 } else {
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
@@ -477,7 +477,7 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
                 } else {
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
@@ -504,7 +504,7 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double nhis = d.negHalfInvSigmaSquared_, lnc = d.logNormConst_;
                 d.getLogProbabilityBatchUnsafeImpl(vals, res, count, nhis, lnc);
@@ -527,7 +527,7 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
                 } else {
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
@@ -557,7 +557,7 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
                 } else {
                     nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
@@ -584,7 +584,7 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double nhis = d.negHalfInvSigmaSquared_;
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, nhis);
@@ -607,7 +607,7 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     nhis = d.negHalfInvSigmaSquared_;
                 } else {
                     nhis = d.negHalfInvSigmaSquared_;
@@ -637,7 +637,7 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<RayleighDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     nhis = d.negHalfInvSigmaSquared_;
                 } else {
                     nhis = d.negHalfInvSigmaSquared_;

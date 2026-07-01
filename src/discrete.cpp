@@ -878,7 +878,7 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const int cached_a = dist.a_;
                 const int cached_b = dist.b_;
@@ -912,7 +912,7 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_a = dist.a_; cached_b = dist.b_; cached_prob = dist.probability_;
                 } else {
                     cached_a = dist.a_; cached_b = dist.b_; cached_prob = dist.probability_;
@@ -964,7 +964,7 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_a = dist.a_; cached_b = dist.b_; cached_prob = dist.probability_;
                 } else {
                     cached_a = dist.a_; cached_b = dist.b_; cached_prob = dist.probability_;
@@ -997,7 +997,7 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const int cached_a = dist.a_;
                 const int cached_b = dist.b_;
@@ -1034,7 +1034,7 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_a = dist.a_; cached_b = dist.b_;
                     cached_log_prob = dist.logProbability_; cached_is_binary = dist.isBinary_;
                 } else {
@@ -1095,7 +1095,7 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_a = dist.a_; cached_b = dist.b_;
                     cached_log_prob = dist.logProbability_; cached_is_binary = dist.isBinary_;
                 } else {
@@ -1134,7 +1134,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) const_cast<DiscreteDistribution&>(dist).updateCacheUnsafe();
+                if (!dist.cache_valid_) dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const int cached_a = dist.a_;
                 const int cached_b = dist.b_;
@@ -1169,7 +1169,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_a = dist.a_; cached_b = dist.b_; cached_range = dist.range_;
                 } else {
                     cached_a = dist.a_; cached_b = dist.b_; cached_range = dist.range_;
@@ -1224,7 +1224,7 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<DiscreteDistribution*>(&dist)->updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     cached_a = dist.a_; cached_b = dist.b_; cached_range = dist.range_;
                 } else {
                     cached_a = dist.a_; cached_b = dist.b_; cached_range = dist.range_;

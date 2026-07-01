@@ -665,7 +665,7 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
                 d.getProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
@@ -690,7 +690,7 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;
                 } else {
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;
@@ -721,7 +721,7 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;
                 } else {
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;
@@ -748,7 +748,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
                 d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
@@ -773,7 +773,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;
                 } else {
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;
@@ -804,7 +804,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
-                        const_cast<VonMisesDistribution&>(d).updateCacheUnsafe();
+                        d.updateCacheUnsafe();
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;
                 } else {
                     k = d.kappa_; mu = d.mu_; lnorm = d.logNormaliser_;

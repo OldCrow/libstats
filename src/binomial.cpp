@@ -560,7 +560,7 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const int n = d.n_;
                 const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
@@ -579,18 +579,24 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            int n;
+            double lnf, lp, l1mp;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    // Snapshot while unique_lock still held — no TOCTOU gap.
+                    n = d.n_;
+                    lnf = d.logNFact_; lp = d.logP_; l1mp = d.log1mP_;
+                } else {
+                    // Snapshot under shared_lock.
+                    n = d.n_;
+                    lnf = d.logNFact_; lp = d.logP_; l1mp = d.log1mP_;
+                }
             }
-            const int n = d.n_;
-            const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
-            lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     res[i] = d.getProbability(vals[i]);
@@ -625,7 +631,7 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const int n = d.n_;
                 const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;

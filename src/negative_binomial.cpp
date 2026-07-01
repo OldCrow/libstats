@@ -556,7 +556,7 @@ void NegativeBinomialDistribution::getProbability(std::span<const double> values
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<NegativeBinomialDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double r = d.r_, lgr = d.logGammaR_, lp = d.logP_, l1mp = d.log1mP_;
                 d.getProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);
@@ -605,7 +605,7 @@ void NegativeBinomialDistribution::getLogProbability(std::span<const double> val
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<NegativeBinomialDistribution&>(d).updateCacheUnsafe();
+                    d.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double r = d.r_, lgr = d.logGammaR_, lp = d.logP_, l1mp = d.log1mP_;
                 d.getLogProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);

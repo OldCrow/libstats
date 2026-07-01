@@ -537,7 +537,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double lnc = dist.logNormConst_;
                 const double am1 = dist.alphaMinus1_;
@@ -565,7 +565,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
                 } else {
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
@@ -600,7 +600,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
                 } else {
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
@@ -629,7 +629,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held.
                 const double lnc = dist.logNormConst_;
                 const double am1 = dist.alphaMinus1_;
@@ -657,7 +657,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
                 } else {
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
@@ -693,7 +693,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
-                        const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
+                        dist.updateCacheUnsafe();
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
                 } else {
                     lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
